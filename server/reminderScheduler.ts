@@ -38,7 +38,8 @@ export async function checkAndSendReminders() {
         task.taskDetail,
         task.taskId,
         daysElapsed,
-        task.completionToken || undefined
+        task.completionToken || undefined,
+        task.screenshotUrl || undefined
       );
 
       if (result.success) {

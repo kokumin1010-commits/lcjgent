@@ -271,7 +271,8 @@ export const appRouter = router({
           task.taskDetail,
           task.taskId,
           daysElapsed,
-          task.completionToken || undefined
+          task.completionToken || undefined,
+          task.screenshotUrl || undefined
         );
 
         if (!emailResult.success) {

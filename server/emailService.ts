@@ -6,6 +6,10 @@ interface EmailMessage {
   content: string;
   cc?: string[];
   bcc?: string[];
+  attachments?: Array<{
+    filename: string;
+    path: string;
+  }>;
 }
 
 /**
@@ -40,7 +44,7 @@ export async function sendEmail(message: EmailMessage): Promise<{ success: boole
   try {
     const transporter = createTransporter();
 
-    const mailOptions = {
+    const mailOptions: any = {
       from: process.env.SMTP_USER,
       to: message.to.join(", "),
       cc: message.cc?.join(", "),
@@ -48,6 +52,10 @@ export async function sendEmail(message: EmailMessage): Promise<{ success: boole
       subject: message.subject,
       text: message.content,
     };
+
+    if (message.attachments) {
+      mailOptions.attachments = message.attachments;
+    }
 
     const info = await transporter.sendMail(mailOptions);
     console.log("[Email Service] Email sent successfully:", info.messageId);
@@ -67,7 +75,8 @@ export async function sendReminderEmail(
   taskDetail: string,
   taskId: string,
   daysElapsed: number,
-  completionToken?: string
+  completionToken?: string,
+  screenshotUrl?: string
 ): Promise<{ success: boolean; error?: string }> {
   const subject = `【リマインド】タスクの進捗確認: ${taskDetail.substring(0, 50)}...`;
   
@@ -91,12 +100,12 @@ ${daysElapsed}日
 【完了報告方法】
 ━━━━━━━━━━━━━━━━━━━━
 
-方法1: ワンクリックで完了報告
+以下のリンクをクリックして完了報告をしてください：
 ${completionUrl ? completionUrl : 'リンクは生成されませんでした'}
 
-方法2: このメールに返信
-このメールに「finish」または「完了」と返信してください。
-自動的にタスクが完了になります。
+${screenshotUrl ? `【スクリーンショット】
+${screenshotUrl}
+` : ''}
 
 ━━━━━━━━━━━━━━━━━━━━
 
@@ -108,9 +117,21 @@ ${completionUrl ? completionUrl : 'リンクは生成されませんでした'}
 業務自動化システム
 タスクID: ${taskId}`;
 
-  return await sendEmail({
+  const mailOptions: any = {
     to: [staffEmail],
     subject,
     content,
-  });
+  };
+
+  // Add screenshot as attachment if provided
+  if (screenshotUrl) {
+    mailOptions.attachments = [
+      {
+        filename: 'screenshot.png',
+        path: screenshotUrl,
+      },
+    ];
+  }
+
+  return await sendEmail(mailOptions);
 }
