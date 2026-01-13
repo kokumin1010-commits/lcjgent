@@ -30,10 +30,18 @@ import {
 } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { authRouter } from "./auth";
+import { checkAndSendReminders } from "./reminderScheduler";
 
 export const appRouter = router({
   system: systemRouter,
   auth: authRouter,
+
+  reminder: router({
+    sendNow: protectedProcedure.mutation(async () => {
+      const result = await checkAndSendReminders();
+      return result;
+    }),
+  }),
 
   staff: router({
     create: protectedProcedure

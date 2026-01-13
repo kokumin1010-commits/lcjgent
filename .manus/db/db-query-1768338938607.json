@@ -1,0 +1,9 @@
+{
+  "query": "INSERT INTO staff (name, email, department, isActive) \nVALUES ('テスト担当者', 'ryuhairartist@gmail.com', 'テスト部門', 'active');\n\nSET @staff_id = LAST_INSERT_ID();\n\nINSERT INTO tasks (taskId, staffId, taskDetail, extractedContext, status, startDate, createdBy)\nVALUES (\n  CONCAT('TASK-TEST-', UNIX_TIMESTAMP()),\n  @staff_id,\n  'これはリマインドメールのテストタスクです。担当者への自動リマインド機能が正常に動作するかを確認します。',\n  'テストコンテキスト: 12時間ごとの自動リマインド送信機能のテスト',\n  'in_progress',\n  UNIX_TIMESTAMP() * 1000 - (2 * 24 * 60 * 60 * 1000),\n  1\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute INSERT INTO staff (name, email, department, isActive) \nVALUES ('テスト担当者', 'ryuhairartist@gmail.com', 'テスト部門', 'active');\n\nSET @staff_id = LAST_INSERT_ID();\n\nINSERT INTO tasks (taskId, staffId, taskDetail, extractedContext, status, startDate, createdBy)\nVALUES (\n  CONCAT('TASK-TEST-', UNIX_TIMESTAMP()),\n  @staff_id,\n  'これはリマインドメールのテストタスクです。担当者への自動リマインド機能が正常に動作するかを確認します。',\n  'テストコンテキスト: 12時間ごとの自動リマインド送信機能のテスト',\n  'in_progress',\n  UNIX_TIMESTAMP() * 1000 - (2 * 24 * 60 * 60 * 1000),\n  1\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 2024
+}
