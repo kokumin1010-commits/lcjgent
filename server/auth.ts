@@ -71,12 +71,15 @@ export const authRouter = router({
       const token = await new SignJWT({ userId: user.id })
         .setProtectedHeader({ alg: "HS256" })
         .setIssuedAt()
-        .setExpirationTime("7d")
+        .setExpirationTime("30d") // 30 days session
         .sign(secret);
 
       // Set cookie
       const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.cookie(COOKIE_NAME, token, cookieOptions);
+      ctx.res.cookie(COOKIE_NAME, token, {
+        ...cookieOptions,
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days in milliseconds
+      });
 
       return {
         success: true,
