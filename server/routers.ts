@@ -29,19 +29,11 @@ import {
   getRecentCompletedTasks,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
+import { authRouter } from "./auth";
 
 export const appRouter = router({
   system: systemRouter,
-  auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
-    logout: publicProcedure.mutation(({ ctx }) => {
-      const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      return {
-        success: true,
-      } as const;
-    }),
-  }),
+  auth: authRouter,
 
   staff: router({
     create: protectedProcedure

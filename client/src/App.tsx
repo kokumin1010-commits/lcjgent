@@ -10,10 +10,12 @@ import TaskList from "./pages/TaskList";
 import TaskCreate from "./pages/TaskCreate";
 import TaskDetail from "./pages/TaskDetail";
 import StaffManagement from "./pages/StaffManagement";
+import Login from "./pages/Login";
 
 function Router() {
   return (
     <Switch>
+      <Route path={"/login"} component={Login} />
       <Route path={"/"}>
         <DashboardLayout>
           <Dashboard />
