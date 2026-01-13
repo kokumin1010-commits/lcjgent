@@ -46,6 +46,7 @@ export const tasks = mysqlTable("tasks", {
   deadline: timestamp("deadline"),
   screenshotUrl: text("screenshotUrl"), // S3 URL of the uploaded screenshot
   screenshotKey: varchar("screenshotKey", { length: 512 }), // S3 key for the screenshot
+  completionToken: varchar("completionToken", { length: 128 }), // Token for one-click completion
   startDate: bigint("startDate", { mode: "number" }).notNull(), // UTC timestamp in milliseconds
   completedAt: bigint("completedAt", { mode: "number" }), // UTC timestamp in milliseconds
   createdBy: int("createdBy").notNull(), // User ID who created the task

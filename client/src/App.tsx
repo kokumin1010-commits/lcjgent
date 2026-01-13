@@ -11,11 +11,13 @@ import TaskCreate from "./pages/TaskCreate";
 import TaskDetail from "./pages/TaskDetail";
 import StaffManagement from "./pages/StaffManagement";
 import Login from "./pages/Login";
+import TaskComplete from "./pages/TaskComplete";
 
 function Router() {
   return (
     <Switch>
       <Route path={"/login"} component={Login} />
+      <Route path="/complete/:token" component={TaskComplete} />
       <Route path={"/"}>
         <DashboardLayout>
           <Dashboard />

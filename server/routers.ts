@@ -31,10 +31,12 @@ import {
 import { notifyOwner } from "./_core/notification";
 import { authRouter } from "./auth";
 import { checkAndSendReminders } from "./reminderScheduler";
+import { completionRouter } from "./completion";
 
 export const appRouter = router({
   system: systemRouter,
   auth: authRouter,
+  completion: completionRouter,
 
   reminder: router({
     sendNow: protectedProcedure.mutation(async () => {
@@ -161,6 +163,7 @@ export const appRouter = router({
         const messageContent = aiResponse.choices[0]?.message?.content;
         const extractedData = JSON.parse(typeof messageContent === 'string' ? messageContent : "{}");
         const taskId = `TASK-${nanoid(10)}`;
+        const completionToken = nanoid(32); // Generate unique completion token
         const startDate = Date.now();
 
         // Create task in database
@@ -173,6 +176,7 @@ export const appRouter = router({
           deadline: extractedData.deadline ? new Date(extractedData.deadline) : null,
           screenshotUrl,
           screenshotKey: fileKey,
+          completionToken,
           startDate,
           createdBy: ctx.user.id,
         });

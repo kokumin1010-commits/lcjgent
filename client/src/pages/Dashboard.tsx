@@ -1,6 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, ClipboardList, Clock, CheckCircle2, AlertCircle } from "lucide-react";
+import { Loader2, ClipboardList, Clock, CheckCircle2, AlertCircle, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 
@@ -21,7 +21,15 @@ export default function Dashboard() {
   const avgHours = (avgTime / (1000 * 60 * 60)).toFixed(1);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
+      {/* Floating Action Button for Mobile */}
+      <Button
+        size="lg"
+        className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg md:hidden z-50"
+        onClick={() => setLocation("/tasks/create")}
+      >
+        <Plus className="h-6 w-6" />
+      </Button>
       <div>
         <h1 className="text-3xl font-bold tracking-tight">ダッシュボード</h1>
         <p className="text-muted-foreground mt-2">

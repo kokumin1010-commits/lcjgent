@@ -37,7 +37,8 @@ export async function checkAndSendReminders() {
         staff.name,
         task.taskDetail,
         task.taskId,
-        daysElapsed
+        daysElapsed,
+        task.completionToken || undefined
       );
 
       if (result.success) {

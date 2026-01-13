@@ -66,9 +66,14 @@ export async function sendReminderEmail(
   staffName: string,
   taskDetail: string,
   taskId: string,
-  daysElapsed: number
+  daysElapsed: number,
+  completionToken?: string
 ): Promise<{ success: boolean; error?: string }> {
   const subject = `【リマインド】タスクの進捗確認: ${taskDetail.substring(0, 50)}...`;
+  
+  // Generate completion URL if token is provided
+  const baseUrl = process.env.VITE_FRONTEND_FORGE_API_URL?.replace('/api', '') || 'https://your-domain.com';
+  const completionUrl = completionToken ? `${baseUrl}/complete/${completionToken}` : null;
   
   const content = `${staffName} 様
 
@@ -82,7 +87,19 @@ ${taskDetail}
 【経過日数】
 ${daysElapsed}日
 
-タスクが完了している場合は、システムにログインして完了報告を行ってください。
+━━━━━━━━━━━━━━━━━━━━
+【完了報告方法】
+━━━━━━━━━━━━━━━━━━━━
+
+方法1: ワンクリックで完了報告
+${completionUrl ? completionUrl : 'リンクは生成されませんでした'}
+
+方法2: このメールに返信
+このメールに「finish」または「完了」と返信してください。
+自動的にタスクが完了になります。
+
+━━━━━━━━━━━━━━━━━━━━
+
 ご不明な点がございましたら、お気軽にお問い合わせください。
 
 よろしくお願いいたします。
