@@ -176,13 +176,15 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
             <div>
               <Label className="text-muted-foreground">登録日時</Label>
               <p className="mt-1">
-                {new Date(task.startDate).toLocaleString("ja-JP", {
-                  year: "numeric",
-                  month: "2-digit",
-                  day: "2-digit",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
+                {task.startDate
+                  ? new Date(task.startDate).toLocaleString("ja-JP", {
+                      year: "numeric",
+                      month: "2-digit",
+                      day: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                  : "不明"}
               </p>
             </div>
             {task.deadline && (
@@ -201,13 +203,15 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
               <div>
                 <Label className="text-muted-foreground">完了日時</Label>
                 <p className="mt-1">
-                  {new Date(task.completedAt).toLocaleString("ja-JP", {
-                    year: "numeric",
-                    month: "2-digit",
-                    day: "2-digit",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
+                  {task.completedAt
+                    ? new Date(task.completedAt).toLocaleString("ja-JP", {
+                        year: "numeric",
+                        month: "2-digit",
+                        day: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "不明"}
                 </p>
               </div>
             )}

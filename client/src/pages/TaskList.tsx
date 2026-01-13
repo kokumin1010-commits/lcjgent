@@ -109,13 +109,15 @@ export default function TaskList() {
                     <div className="flex items-center justify-between text-sm text-muted-foreground">
                       <span>
                         登録日時:{" "}
-                        {new Date(item.task.startDate).toLocaleString("ja-JP", {
-                          year: "numeric",
-                          month: "2-digit",
-                          day: "2-digit",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                        {item.task.startDate
+                          ? new Date(item.task.startDate).toLocaleString("ja-JP", {
+                              year: "numeric",
+                              month: "2-digit",
+                              day: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "不明"}
                       </span>
                       {item.task.deadline && (
                         <span>
