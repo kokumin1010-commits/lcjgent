@@ -167,6 +167,20 @@ export const appRouter = router({
         const completionToken = nanoid(32); // Generate unique completion token
         const startDate = Date.now();
 
+        // Parse deadline safely
+        let deadline: Date | null = null;
+        if (extractedData.deadline && extractedData.deadline.trim() !== "") {
+          try {
+            const parsedDate = new Date(extractedData.deadline);
+            // Check if date is valid
+            if (!isNaN(parsedDate.getTime())) {
+              deadline = parsedDate;
+            }
+          } catch (error) {
+            console.warn("[Task Create] Failed to parse deadline:", extractedData.deadline);
+          }
+        }
+
         // Create task in database
         await createTask({
           taskId,
@@ -174,7 +188,7 @@ export const appRouter = router({
           staffId: input.staffId,
           taskDetail: extractedData.taskSummary || "指示内容を確認してください",
           extractedContext: extractedData.detailedContext || "",
-          deadline: extractedData.deadline ? new Date(extractedData.deadline) : null,
+          deadline,
           screenshotUrl,
           screenshotKey: fileKey,
           completionToken,
