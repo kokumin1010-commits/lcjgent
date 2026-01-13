@@ -32,6 +32,7 @@ import { notifyOwner } from "./_core/notification";
 import { authRouter } from "./auth";
 import { checkAndSendReminders } from "./reminderScheduler";
 import { completionRouter } from "./completion";
+import { sendReminderEmail } from "./emailService";
 
 export const appRouter = router({
   system: systemRouter,
@@ -258,6 +259,25 @@ export const appRouter = router({
 
         const { task, staff } = taskData;
 
+        // Calculate days elapsed
+        const daysElapsed = Math.floor(
+          (Date.now() - task.createdAt.getTime()) / (1000 * 60 * 60 * 24)
+        );
+
+        // Send reminder email
+        const emailResult = await sendReminderEmail(
+          staff.email,
+          staff.name,
+          task.taskDetail,
+          task.taskId,
+          daysElapsed,
+          task.completionToken || undefined
+        );
+
+        if (!emailResult.success) {
+          throw new Error(`メール送信に失敗しました: ${emailResult.error}`);
+        }
+
         // Create reminder record
         await createReminder({
           taskId: task.id,
@@ -267,9 +287,6 @@ export const appRouter = router({
           emailBody: `${staff.name}様\n\n以下のタスクについてリマインドいたします。\n\nタスクID: ${task.taskId}\n内容: ${task.taskDetail}\n\nご確認をお願いいたします。`,
           status: "sent",
         });
-
-        // Note: Actual email sending would be implemented here with Gmail API or SMTP
-        // For now, we just record the reminder
 
         return { success: true };
       }),
