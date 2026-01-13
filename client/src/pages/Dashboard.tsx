@@ -49,7 +49,10 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card 
+          className="cursor-pointer hover:bg-accent transition-colors"
+          onClick={() => setLocation("/tasks?status=in_progress")}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">進行中</CardTitle>
             <Clock className="h-4 w-4 text-blue-500" />
@@ -60,7 +63,10 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card 
+          className="cursor-pointer hover:bg-accent transition-colors"
+          onClick={() => setLocation("/tasks?status=completed")}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">完了</CardTitle>
             <CheckCircle2 className="h-4 w-4 text-green-500" />
@@ -83,40 +89,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>クイックアクション</CardTitle>
-            <CardDescription>よく使う機能へのショートカット</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Button
-              className="w-full justify-start"
-              variant="outline"
-              onClick={() => setLocation("/tasks/create")}
-            >
-              <ClipboardList className="mr-2 h-4 w-4" />
-              新規タスクを登録
-            </Button>
-            <Button
-              className="w-full justify-start"
-              variant="outline"
-              onClick={() => setLocation("/tasks")}
-            >
-              <Clock className="mr-2 h-4 w-4" />
-              進行中のタスクを確認
-            </Button>
-            <Button
-              className="w-full justify-start"
-              variant="outline"
-              onClick={() => setLocation("/staff")}
-            >
-              <AlertCircle className="mr-2 h-4 w-4" />
-              担当者名簿を管理
-            </Button>
-          </CardContent>
-        </Card>
-
+      <div className="grid gap-4 md:grid-cols-1">
         <Card>
           <CardHeader>
             <CardTitle>最近完了したタスク</CardTitle>

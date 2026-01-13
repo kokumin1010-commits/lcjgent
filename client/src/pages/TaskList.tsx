@@ -25,7 +25,11 @@ const statusLabels = {
 export default function TaskList() {
   const [, setLocation] = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState("all");
+  
+  // URLパラメータからステータスを取得
+  const urlParams = new URLSearchParams(window.location.search);
+  const statusParam = urlParams.get('status');
+  const [activeTab, setActiveTab] = useState(statusParam || "all");
 
   const { data: allTasks, isLoading: isLoadingAll } = trpc.task.list.useQuery();
   const { data: searchResults, isLoading: isSearching } = trpc.task.search.useQuery(
