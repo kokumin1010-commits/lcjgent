@@ -1,11 +1,10 @@
-import { eq } from "drizzle-orm";
+import { eq, and, desc, sql, or, like } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
-// Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
@@ -89,4 +88,247 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+// Staff management functions
+export async function createStaff(staffData: InsertStaff) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(staff).values(staffData);
+  return result;
+}
+
+export async function getAllStaff() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.select().from(staff).orderBy(desc(staff.createdAt));
+}
+
+export async function getActiveStaff() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.select().from(staff).where(eq(staff.isActive, "active")).orderBy(staff.name);
+}
+
+export async function getStaffById(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.select().from(staff).where(eq(staff.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function updateStaff(id: number, staffData: Partial<InsertStaff>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.update(staff).set(staffData).where(eq(staff.id, id));
+}
+
+export async function deleteStaff(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.delete(staff).where(eq(staff.id, id));
+}
+
+// Task management functions
+export async function createTask(taskData: InsertTask) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(tasks).values(taskData);
+  return result;
+}
+
+export async function getAllTasks() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db
+    .select({
+      task: tasks,
+      staff: staff,
+    })
+    .from(tasks)
+    .leftJoin(staff, eq(tasks.staffId, staff.id))
+    .orderBy(desc(tasks.createdAt));
+}
+
+export async function getTasksByStatus(status: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db
+    .select({
+      task: tasks,
+      staff: staff,
+    })
+    .from(tasks)
+    .leftJoin(staff, eq(tasks.staffId, staff.id))
+    .where(eq(tasks.status, status as any))
+    .orderBy(desc(tasks.createdAt));
+}
+
+export async function getTaskById(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db
+    .select({
+      task: tasks,
+      staff: staff,
+    })
+    .from(tasks)
+    .leftJoin(staff, eq(tasks.staffId, staff.id))
+    .where(eq(tasks.id, id))
+    .limit(1);
+
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getTaskByTaskId(taskId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db
+    .select({
+      task: tasks,
+      staff: staff,
+    })
+    .from(tasks)
+    .leftJoin(staff, eq(tasks.staffId, staff.id))
+    .where(eq(tasks.taskId, taskId))
+    .limit(1);
+
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function updateTask(id: number, taskData: Partial<InsertTask>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.update(tasks).set(taskData).where(eq(tasks.id, id));
+}
+
+export async function deleteTask(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.delete(tasks).where(eq(tasks.id, id));
+}
+
+export async function searchTasks(searchTerm: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db
+    .select({
+      task: tasks,
+      staff: staff,
+    })
+    .from(tasks)
+    .leftJoin(staff, eq(tasks.staffId, staff.id))
+    .where(
+      or(
+        like(tasks.taskDetail, `%${searchTerm}%`),
+        like(tasks.extractedContext, `%${searchTerm}%`),
+        like(staff.name, `%${searchTerm}%`)
+      )
+    )
+    .orderBy(desc(tasks.createdAt));
+}
+
+export async function getInProgressTasks() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db
+    .select({
+      task: tasks,
+      staff: staff,
+    })
+    .from(tasks)
+    .leftJoin(staff, eq(tasks.staffId, staff.id))
+    .where(eq(tasks.status, "in_progress"))
+    .orderBy(desc(tasks.createdAt));
+}
+
+// Reminder management functions
+export async function createReminder(reminderData: InsertReminder) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(reminders).values(reminderData);
+  return result;
+}
+
+export async function getRemindersByTaskId(taskId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db
+    .select()
+    .from(reminders)
+    .where(eq(reminders.taskId, taskId))
+    .orderBy(desc(reminders.sentAt));
+}
+
+// Dashboard statistics functions
+export async function getTaskStatistics() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const totalTasks = await db.select({ count: sql<number>`count(*)` }).from(tasks);
+  const pendingTasks = await db.select({ count: sql<number>`count(*)` }).from(tasks).where(eq(tasks.status, "pending"));
+  const inProgressTasks = await db.select({ count: sql<number>`count(*)` }).from(tasks).where(eq(tasks.status, "in_progress"));
+  const completedTasks = await db.select({ count: sql<number>`count(*)` }).from(tasks).where(eq(tasks.status, "completed"));
+
+  return {
+    total: totalTasks[0]?.count || 0,
+    pending: pendingTasks[0]?.count || 0,
+    inProgress: inProgressTasks[0]?.count || 0,
+    completed: completedTasks[0]?.count || 0,
+  };
+}
+
+export async function getAverageCompletionTime() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const completedTasksWithTime = await db
+    .select({
+      startDate: tasks.startDate,
+      completedAt: tasks.completedAt,
+    })
+    .from(tasks)
+    .where(and(eq(tasks.status, "completed"), sql`${tasks.completedAt} IS NOT NULL`));
+
+  if (completedTasksWithTime.length === 0) return 0;
+
+  const totalTime = completedTasksWithTime.reduce((sum, task) => {
+    if (task.startDate && task.completedAt) {
+      return sum + (task.completedAt - task.startDate);
+    }
+    return sum;
+  }, 0);
+
+  return totalTime / completedTasksWithTime.length;
+}
+
+export async function getRecentCompletedTasks(limit: number = 10) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db
+    .select({
+      task: tasks,
+      staff: staff,
+    })
+    .from(tasks)
+    .leftJoin(staff, eq(tasks.staffId, staff.id))
+    .where(eq(tasks.status, "completed"))
+    .orderBy(desc(tasks.completedAt))
+    .limit(limit);
+}

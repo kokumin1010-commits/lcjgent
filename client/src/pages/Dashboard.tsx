@@ -1,0 +1,143 @@
+import { trpc } from "@/lib/trpc";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Loader2, ClipboardList, Clock, CheckCircle2, AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useLocation } from "wouter";
+
+export default function Dashboard() {
+  const [, setLocation] = useLocation();
+  const { data: stats, isLoading } = trpc.dashboard.statistics.useQuery();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  const taskStats = stats?.stats || { total: 0, pending: 0, inProgress: 0, completed: 0 };
+  const avgTime = stats?.avgCompletionTime || 0;
+  const avgHours = (avgTime / (1000 * 60 * 60)).toFixed(1);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">ダッシュボード</h1>
+        <p className="text-muted-foreground mt-2">
+          業務自動化システムの概要を確認できます
+        </p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">総タスク数</CardTitle>
+            <ClipboardList className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{taskStats.total}</div>
+            <p className="text-xs text-muted-foreground mt-1">登録されたタスクの総数</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">進行中</CardTitle>
+            <Clock className="h-4 w-4 text-blue-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{taskStats.inProgress}</div>
+            <p className="text-xs text-muted-foreground mt-1">現在進行中のタスク</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">完了</CardTitle>
+            <CheckCircle2 className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{taskStats.completed}</div>
+            <p className="text-xs text-muted-foreground mt-1">完了したタスク</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">平均完了時間</CardTitle>
+            <AlertCircle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{avgHours}h</div>
+            <p className="text-xs text-muted-foreground mt-1">タスク完了までの平均時間</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>クイックアクション</CardTitle>
+            <CardDescription>よく使う機能へのショートカット</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Button
+              className="w-full justify-start"
+              variant="outline"
+              onClick={() => setLocation("/tasks/create")}
+            >
+              <ClipboardList className="mr-2 h-4 w-4" />
+              新規タスクを登録
+            </Button>
+            <Button
+              className="w-full justify-start"
+              variant="outline"
+              onClick={() => setLocation("/tasks")}
+            >
+              <Clock className="mr-2 h-4 w-4" />
+              進行中のタスクを確認
+            </Button>
+            <Button
+              className="w-full justify-start"
+              variant="outline"
+              onClick={() => setLocation("/staff")}
+            >
+              <AlertCircle className="mr-2 h-4 w-4" />
+              担当者名簿を管理
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>最近完了したタスク</CardTitle>
+            <CardDescription>直近で完了したタスクの一覧</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {stats?.recentCompleted && stats.recentCompleted.length > 0 ? (
+              <div className="space-y-3">
+                {stats.recentCompleted.map((item) => (
+                  <div
+                    key={item.task.id}
+                    className="flex items-start justify-between border-b pb-2 last:border-0"
+                  >
+                    <div className="flex-1">
+                      <p className="text-sm font-medium line-clamp-1">{item.task.taskDetail}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        担当: {item.staff?.name || "不明"}
+                      </p>
+                    </div>
+                    <CheckCircle2 className="h-4 w-4 text-green-500 ml-2 flex-shrink-0" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">完了したタスクはまだありません</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
