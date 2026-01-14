@@ -129,30 +129,38 @@ export const appRouter = router({
 
         const screenshotUrls = uploadedScreenshots.map(s => s.url);
         const screenshotKeys = uploadedScreenshots.map(s => s.key);
-        const firstScreenshotUrl = screenshotUrls[0];
+              // Build content array with all screenshots
+        const userContent: any[] = [
+          {
+            type: "text",
+            text: screenshotUrls.length > 1 
+              ? `これら${screenshotUrls.length}枚のスクリーンショットから業務指示を抽出してください。複数の画像に分かれている情報を統合して、完全なタスク情報を抽出してください。`
+              : "このスクリーンショットから業務指示を抽出してください。",
+          },
+        ];
 
-        // Extract task details using AI Vision
+        // Add all screenshots to content
+        for (const screenshotUrl of screenshotUrls) {
+          userContent.push({
+            type: "image_url",
+            image_url: {
+              url: screenshotUrl,
+              detail: "high",
+            },
+          });
+        }
+
+        // Use AI to extract task information from all screenshots
         const aiResponse = await invokeLLM({
           messages: [
             {
               role: "system",
-              content: "あなたは業務指示を抽出するアシスタントです。スクリーンショット画像から以下の情報を抽出してください：1. 指示内容（簡潔な要約）、2. 詳細なコンテキスト、3. 期限（もしあれば）。JSON形式で返してください。",
+              content:
+                "あなたは業務指示を抽出するアシスタントです。スクリーンショットからタスクの要約、詳細なコンテキスト、期限を抽出してください。複数の画像がある場合は、全ての情報を統合して完全なタスク情報を抽出してください。",
             },
             {
               role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: "このスクリーンショットから業務指示を抽出してください。",
-                },
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: firstScreenshotUrl,
-                    detail: "high",
-                  },
-                },
-              ],
+              content: userContent,
             },
           ],
           response_format: {
@@ -202,7 +210,7 @@ export const appRouter = router({
           taskDetail: extractedData.taskSummary || "指示内容を確認してください",
           extractedContext: extractedData.detailedContext || "",
           deadline,
-          screenshotUrl: firstScreenshotUrl, // Keep for backward compatibility
+          screenshotUrl: screenshotUrls[0], // Keep for backward compatibility
           screenshotKey: screenshotKeys[0], // Keep for backward compatibility
           screenshotUrls,
           screenshotKeys,

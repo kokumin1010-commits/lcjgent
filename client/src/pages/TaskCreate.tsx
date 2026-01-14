@@ -13,6 +13,7 @@ export default function TaskCreate() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [selectedStaffId, setSelectedStaffId] = useState<string>("");
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const [deadline, setDeadline] = useState<string>("");
 
   const { data: staffList, isLoading: isLoadingStaff } = trpc.staff.listActive.useQuery();
   const createTaskMutation = trpc.task.create.useMutation({
@@ -188,6 +189,20 @@ export default function TaskCreate() {
                   </SelectContent>
                 </Select>
               )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="deadline">期限（任意）</Label>
+              <input
+                id="deadline"
+                type="date"
+                value={deadline}
+                onChange={(e) => setDeadline(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              />
+              <p className="text-sm text-muted-foreground">
+                期限を設定しない場合は空欄のままでも登録できます
+              </p>
             </div>
 
             <div className="flex items-center gap-4 pt-4">
