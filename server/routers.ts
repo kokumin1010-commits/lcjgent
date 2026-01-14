@@ -221,7 +221,7 @@ export const appRouter = router({
         }
 
         // Create task in database
-        const taskResult = await createTask({
+        await createTask({
           taskId,
           status: "in_progress",
           staffId: input.staffIds[0], // Keep first staff for backward compatibility
@@ -237,11 +237,14 @@ export const appRouter = router({
           createdBy: ctx.user.id,
         });
 
-        // Get the inserted task ID
-        const insertedTaskId = Number((taskResult as any).insertId);
+        // Get the inserted task by taskId to retrieve the database ID
+        const createdTask = await getTaskByTaskId(taskId);
+        if (!createdTask) {
+          throw new Error("Failed to retrieve created task");
+        }
 
         // Assign all staff members to the task using junction table
-        await assignStaffToTask(insertedTaskId, input.staffIds);
+        await assignStaffToTask(createdTask.task.id, input.staffIds);
 
         // Notify owner
         await notifyOwner({

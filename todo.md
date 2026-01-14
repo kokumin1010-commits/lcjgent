@@ -158,3 +158,8 @@
 - [x] emailService.tsのメールテンプレートを多言語対応に変更
 - [x] メール本文に日本語と中国語の両方を含める
 - [x] 件名も日本語・中国語併記にする
+
+## バグ修正：task_staff INSERT時のNaNエラー
+- [x] タスク作成後のinsertId取得方法を修正
+- [x] task_staffテーブルへのINSERT時にtaskIdが正しく渡されるように修正
+- [x] 動作確認テスト
