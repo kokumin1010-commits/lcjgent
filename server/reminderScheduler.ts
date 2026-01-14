@@ -54,7 +54,9 @@ export async function checkAndSendReminders() {
           task.taskId,
           daysElapsed,
           task.completionToken || undefined,
-          task.screenshotUrls || (task.screenshotUrl ? [task.screenshotUrl] : undefined)
+          task.screenshotUrls || (task.screenshotUrl ? [task.screenshotUrl] : undefined),
+          task.notes || undefined,
+          task.deadline ? task.deadline.getTime() : undefined
         );
 
         if (result.success) {

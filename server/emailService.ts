@@ -76,7 +76,9 @@ export async function sendReminderEmail(
   taskId: string,
   daysElapsed: number,
   completionToken?: string,
-  screenshotUrls?: string[]
+  screenshotUrls?: string[],
+  notes?: string,
+  deadline?: number
 ): Promise<{ success: boolean; error?: string }> {
   const subject = `【リマインド/提醒】タスクの進捗確認 / 任务进度确认: ${taskDetail.substring(0, 50)}...`;
   
@@ -103,6 +105,12 @@ export async function sendReminderEmail(
 【タスク詳細】
 ${taskDetail}
 
+${notes ? `【メモ】
+${notes}
+
+` : ''}【期限】
+${deadline ? new Date(deadline).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) : '未設定'}
+
 【経過日数】
 ${daysElapsed}日
 
@@ -123,6 +131,12 @@ ${completionUrl ? completionUrl : 'リンクは生成されませんでした'}
 
 【任务详情】
 ${taskDetail}
+
+${notes ? `【备注】
+${notes}
+
+` : ''}【截止日期】
+${deadline ? new Date(deadline).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) : '未设定'}
 
 【已过天数】
 ${daysElapsed}天

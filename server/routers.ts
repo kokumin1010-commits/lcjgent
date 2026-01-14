@@ -262,7 +262,9 @@ export const appRouter = router({
               taskId,
               0, // 0 days elapsed (initial reminder)
               completionToken,
-              screenshotUrls
+              screenshotUrls,
+              input.notes,
+              deadline ? deadline.getTime() : undefined
             );
           }
         }
@@ -383,7 +385,9 @@ export const appRouter = router({
               task.taskId,
               daysElapsed,
               task.completionToken || undefined,
-              task.screenshotUrls || (task.screenshotUrl ? [task.screenshotUrl] : undefined)
+              task.screenshotUrls || (task.screenshotUrl ? [task.screenshotUrl] : undefined),
+              task.notes || undefined,
+              task.deadline ? task.deadline.getTime() : undefined
             );
 
             if (emailResult.success) {
