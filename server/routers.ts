@@ -109,16 +109,27 @@ export const appRouter = router({
     create: protectedProcedure
       .input(
         z.object({
-          screenshotBase64: z.string(),
-          screenshotMimeType: z.string(),
+          screenshots: z.array(z.object({
+            base64: z.string(),
+            mimeType: z.string(),
+          })).min(1).max(4), // Support 1-4 screenshots
           staffId: z.number(),
         })
       )
       .mutation(async ({ input, ctx }) => {
-        // Upload screenshot to S3
-        const buffer = Buffer.from(input.screenshotBase64, "base64");
-        const fileKey = `screenshots/${ctx.user.id}/${nanoid()}.${input.screenshotMimeType.split("/")[1]}`;
-        const { url: screenshotUrl } = await storagePut(fileKey, buffer, input.screenshotMimeType);
+        // Upload all screenshots to S3
+        const uploadedScreenshots = await Promise.all(
+          input.screenshots.map(async (screenshot) => {
+            const buffer = Buffer.from(screenshot.base64, "base64");
+            const fileKey = `screenshots/${ctx.user.id}/${nanoid()}.${screenshot.mimeType.split("/")[1]}`;
+            const { url } = await storagePut(fileKey, buffer, screenshot.mimeType);
+            return { url, key: fileKey };
+          })
+        );
+
+        const screenshotUrls = uploadedScreenshots.map(s => s.url);
+        const screenshotKeys = uploadedScreenshots.map(s => s.key);
+        const firstScreenshotUrl = screenshotUrls[0];
 
         // Extract task details using AI Vision
         const aiResponse = await invokeLLM({
@@ -137,7 +148,7 @@ export const appRouter = router({
                 {
                   type: "image_url",
                   image_url: {
-                    url: screenshotUrl,
+                    url: firstScreenshotUrl,
                     detail: "high",
                   },
                 },
@@ -191,8 +202,10 @@ export const appRouter = router({
           taskDetail: extractedData.taskSummary || "指示内容を確認してください",
           extractedContext: extractedData.detailedContext || "",
           deadline,
-          screenshotUrl,
-          screenshotKey: fileKey,
+          screenshotUrl: firstScreenshotUrl, // Keep for backward compatibility
+          screenshotKey: screenshotKeys[0], // Keep for backward compatibility
+          screenshotUrls,
+          screenshotKeys,
           completionToken,
           startDate,
           createdBy: ctx.user.id,
@@ -298,7 +311,7 @@ export const appRouter = router({
           task.taskId,
           daysElapsed,
           task.completionToken || undefined,
-          task.screenshotUrl || undefined
+          task.screenshotUrls || (task.screenshotUrl ? [task.screenshotUrl] : undefined)
         );
 
         if (!emailResult.success) {

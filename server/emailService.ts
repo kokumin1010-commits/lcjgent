@@ -76,7 +76,7 @@ export async function sendReminderEmail(
   taskId: string,
   daysElapsed: number,
   completionToken?: string,
-  screenshotUrl?: string
+  screenshotUrls?: string[]
 ): Promise<{ success: boolean; error?: string }> {
   const subject = `【リマインド】タスクの進捗確認: ${taskDetail.substring(0, 50)}...`;
   
@@ -113,9 +113,7 @@ ${daysElapsed}日
 以下のリンクをクリックして完了報告をしてください：
 ${completionUrl ? completionUrl : 'リンクは生成されませんでした'}
 
-${screenshotUrl ? `【スクリーンショット】
-${screenshotUrl}
-` : ''}
+
 
 ━━━━━━━━━━━━━━━━━━━━
 
@@ -133,14 +131,12 @@ ${screenshotUrl}
     content,
   };
 
-  // Add screenshot as attachment if provided
-  if (screenshotUrl) {
-    mailOptions.attachments = [
-      {
-        filename: 'screenshot.png',
-        path: screenshotUrl,
-      },
-    ];
+  // Add screenshots as attachments if provided
+  if (screenshotUrls && screenshotUrls.length > 0) {
+    mailOptions.attachments = screenshotUrls.map((url, index) => ({
+      filename: `screenshot_${index + 1}.png`,
+      path: url,
+    }));
   }
 
   return await sendEmail(mailOptions);

@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, bigint } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, bigint, json } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -44,8 +44,10 @@ export const tasks = mysqlTable("tasks", {
   taskDetail: text("taskDetail").notNull(),
   extractedContext: text("extractedContext"), // Full AI-extracted context
   deadline: timestamp("deadline"),
-  screenshotUrl: text("screenshotUrl"), // S3 URL of the uploaded screenshot
-  screenshotKey: varchar("screenshotKey", { length: 512 }), // S3 key for the screenshot
+  screenshotUrl: text("screenshotUrl"), // DEPRECATED: Use screenshotUrls instead
+  screenshotKey: varchar("screenshotKey", { length: 512 }), // DEPRECATED: Use screenshotKeys instead
+  screenshotUrls: json("screenshotUrls").$type<string[]>(), // Array of S3 URLs (up to 4 screenshots)
+  screenshotKeys: json("screenshotKeys").$type<string[]>(), // Array of S3 keys (up to 4 screenshots)
   completionToken: varchar("completionToken", { length: 128 }), // Token for one-click completion
   startDate: bigint("startDate", { mode: "number" }).notNull(), // UTC timestamp in milliseconds
   completedAt: bigint("completedAt", { mode: "number" }), // UTC timestamp in milliseconds

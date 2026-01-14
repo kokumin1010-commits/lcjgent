@@ -10,9 +10,9 @@ import { toast } from "sonner";
 
 export default function TaskCreate() {
   const [, setLocation] = useLocation();
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [selectedStaffId, setSelectedStaffId] = useState<string>("");
-  const [previewUrl, setPreviewUrl] = useState<string>("");
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
 
   const { data: staffList, isLoading: isLoadingStaff } = trpc.staff.listActive.useQuery();
   const createTaskMutation = trpc.task.create.useMutation({
@@ -30,25 +30,40 @@ export default function TaskCreate() {
   });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (!file.type.startsWith("image/")) {
-        toast.error("画像ファイルを選択してください");
-        return;
-      }
-      setSelectedFile(file);
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    if (files.length > 4) {
+      toast.error("スクリーンショットは最大4枚までです");
+      return;
+    }
+
+    const imageFiles = files.filter(file => file.type.startsWith("image/"));
+    if (imageFiles.length !== files.length) {
+      toast.error("画像ファイルのみ選択してください");
+      return;
+    }
+
+    setSelectedFiles(imageFiles);
+
+    // Generate preview URLs for all images
+    const urls: string[] = [];
+    imageFiles.forEach((file, index) => {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setPreviewUrl(reader.result as string);
+        urls[index] = reader.result as string;
+        if (urls.filter(Boolean).length === imageFiles.length) {
+          setPreviewUrls([...urls]);
+        }
       };
       reader.readAsDataURL(file);
-    }
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!selectedFile) {
+    if (selectedFiles.length === 0) {
       toast.error("スクリーンショット画像を選択してください");
       return;
     }
@@ -59,16 +74,27 @@ export default function TaskCreate() {
     }
 
     try {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64String = (reader.result as string).split(",")[1];
-        await createTaskMutation.mutateAsync({
-          screenshotBase64: base64String,
-          screenshotMimeType: selectedFile.type,
-          staffId: parseInt(selectedStaffId),
-        });
-      };
-      reader.readAsDataURL(selectedFile);
+      // Convert all files to base64
+      const screenshots = await Promise.all(
+        selectedFiles.map(async (file) => {
+          return new Promise<{ base64: string; mimeType: string }>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const base64String = (reader.result as string).split(",")[1];
+              resolve({
+                base64: base64String,
+                mimeType: file.type,
+              });
+            };
+            reader.readAsDataURL(file);
+          });
+        })
+      );
+
+      await createTaskMutation.mutateAsync({
+        screenshots,
+        staffId: parseInt(selectedStaffId),
+      });
     } catch (error) {
       console.error("Error creating task:", error);
     }
@@ -113,16 +139,23 @@ export default function TaskCreate() {
                   id="screenshot"
                   type="file"
                   accept="image/*"
+                  multiple
                   onChange={handleFileChange}
                   className="hidden"
                 />
-                {selectedFile && (
-                  <span className="text-sm text-muted-foreground">{selectedFile.name}</span>
+                {selectedFiles.length > 0 && (
+                  <span className="text-sm text-muted-foreground">
+                    {selectedFiles.length}枚の画像が選択されています
+                  </span>
                 )}
               </div>
-              {previewUrl && (
-                <div className="mt-4 border rounded-lg overflow-hidden max-w-2xl">
-                  <img src={previewUrl} alt="Preview" className="w-full h-auto" />
+              {previewUrls.length > 0 && (
+                <div className="mt-4 grid grid-cols-2 gap-4">
+                  {previewUrls.map((url, index) => (
+                    <div key={index} className="border rounded-lg overflow-hidden">
+                      <img src={url} alt={`Preview ${index + 1}`} className="w-full h-auto" />
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -159,7 +192,7 @@ export default function TaskCreate() {
             <div className="flex items-center gap-4 pt-4">
               <Button
                 type="submit"
-                disabled={createTaskMutation.isPending || !selectedFile || !selectedStaffId}
+                disabled={createTaskMutation.isPending || selectedFiles.length === 0 || !selectedStaffId}
               >
                 {createTaskMutation.isPending ? (
                   <>

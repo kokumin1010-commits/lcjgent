@@ -287,15 +287,25 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
         </CardContent>
       </Card>
 
-      {task.screenshotUrl && (
+      {((task.screenshotUrls && task.screenshotUrls.length > 0) || task.screenshotUrl) && (
         <Card>
           <CardHeader>
             <CardTitle>スクリーンショット</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="border rounded-lg overflow-hidden">
-              <img src={task.screenshotUrl} alt="Task screenshot" className="w-full h-auto" />
-            </div>
+            {task.screenshotUrls && task.screenshotUrls.length > 0 ? (
+              <div className="grid grid-cols-2 gap-4">
+                {task.screenshotUrls.map((url, index) => (
+                  <div key={index} className="border rounded-lg overflow-hidden">
+                    <img src={url} alt={`Screenshot ${index + 1}`} className="w-full h-auto" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="border rounded-lg overflow-hidden">
+                <img src={task.screenshotUrl!} alt="Task screenshot" className="w-full h-auto" />
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
