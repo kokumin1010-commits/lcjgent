@@ -171,6 +171,9 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
             <div>
               <Label className="text-muted-foreground">担当者</Label>
               <p className="mt-1 font-medium">{staff?.name || "不明"}</p>
+              {staff?.department && (
+                <p className="text-sm text-muted-foreground">{staff.department}</p>
+              )}
               <p className="text-sm text-muted-foreground">{staff?.email}</p>
             </div>
             <div>

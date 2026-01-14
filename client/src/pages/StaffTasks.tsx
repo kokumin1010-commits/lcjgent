@@ -91,9 +91,12 @@ export default function StaffTasks() {
           <h1 className="text-3xl font-bold tracking-tight">
             {staffData.name} のタスク履歴
           </h1>
-          <p className="text-muted-foreground mt-2">
-            {staffData.email}
-          </p>
+          <div className="text-muted-foreground mt-2 space-y-1">
+            {staffData.department && (
+              <p>{staffData.department}</p>
+            )}
+            <p>{staffData.email}</p>
+          </div>
         </div>
       </div>
 

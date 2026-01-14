@@ -112,7 +112,7 @@ export default function TaskList() {
                               }}
                               className="text-sm text-blue-600 hover:underline"
                             >
-                              担当: {item.staff.name}
+                              担当: {item.staff.name}{item.staff.department && ` - ${item.staff.department}`}
                             </button>
                           ) : (
                             <span className="text-sm text-muted-foreground">

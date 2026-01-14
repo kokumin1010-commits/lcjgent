@@ -328,7 +328,7 @@ export default function MasterControl() {
                       <p className="font-medium">{item.task.taskDetail}</p>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
                         <span>指示者: {item.user?.email || "不明"}</span>
-                        <span>担当: {item.staff?.name || "不明"}</span>
+                        <span>担当: {item.staff?.name || "不明"}{item.staff?.department && ` - ${item.staff.department}`}</span>
                         <span>
                           登録:{" "}
                           {item.task.startDate
