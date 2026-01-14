@@ -29,7 +29,7 @@ export default function TaskCreate() {
     },
   });
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
@@ -47,17 +47,18 @@ export default function TaskCreate() {
     setSelectedFiles(imageFiles);
 
     // Generate preview URLs for all images
-    const urls: string[] = [];
-    imageFiles.forEach((file, index) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        urls[index] = reader.result as string;
-        if (urls.filter(Boolean).length === imageFiles.length) {
-          setPreviewUrls([...urls]);
-        }
-      };
-      reader.readAsDataURL(file);
-    });
+    const urls = await Promise.all(
+      imageFiles.map((file) => {
+        return new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            resolve(reader.result as string);
+          };
+          reader.readAsDataURL(file);
+        });
+      })
+    );
+    setPreviewUrls(urls);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
