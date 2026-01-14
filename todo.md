@@ -163,3 +163,9 @@
 - [x] タスク作成後のinsertId取得方法を修正
 - [x] task_staffテーブルへのINSERT時にtaskIdが正しく渡されるように修正
 - [x] 動作確認テスト
+
+## バグ再発：task_staff INSERT時のNaNエラー（再調査）
+- [x] assignStaffToTask関数の実装を確認
+- [x] taskIdの型とデータの流れを追跡
+- [x] エラーログを詳細に確認
+- [x] 根本原因を特定して修正（createTask関数で$returningId()を使用）

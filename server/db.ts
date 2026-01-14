@@ -104,8 +104,16 @@ export async function createTask(taskData: InsertTask) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const result = await db.insert(tasks).values(taskData);
-  return result;
+  // Insert and return the inserted row
+  const [insertedTask] = await db.insert(tasks).values(taskData).$returningId();
+  
+  // Fetch the complete task record
+  if (insertedTask && insertedTask.id) {
+    const result = await db.select().from(tasks).where(eq(tasks.id, insertedTask.id)).limit(1);
+    return result.length > 0 ? result[0] : null;
+  }
+  
+  return null;
 }
 
 export async function getAllTasks() {
