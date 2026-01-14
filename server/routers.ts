@@ -116,6 +116,7 @@ export const appRouter = router({
             mimeType: z.string(),
           })).min(1).max(4), // Support 1-4 screenshots
           staffIds: z.array(z.number()).min(1), // Support multiple staff members
+          manualDeadline: z.string().optional(), // Manual deadline input (ISO 8601 format)
         })
       )
       .mutation(async ({ input, ctx }) => {
@@ -190,17 +191,32 @@ export const appRouter = router({
         const completionToken = nanoid(32); // Generate unique completion token
         const startDate = Date.now();
 
-        // Parse deadline safely
+        // Parse deadline: prioritize manual input over AI extraction
         let deadline: Date | null = null;
-        if (extractedData.deadline && extractedData.deadline.trim() !== "") {
+        
+        // First, try manual deadline input (user input has priority)
+        if (input.manualDeadline && input.manualDeadline.trim() !== "") {
           try {
-            const parsedDate = new Date(extractedData.deadline);
-            // Check if date is valid
+            const parsedDate = new Date(input.manualDeadline);
             if (!isNaN(parsedDate.getTime())) {
               deadline = parsedDate;
+              console.log("[Task Create] Using manual deadline:", deadline);
             }
           } catch (error) {
-            console.warn("[Task Create] Failed to parse deadline:", extractedData.deadline);
+            console.warn("[Task Create] Failed to parse manual deadline:", input.manualDeadline);
+          }
+        }
+        
+        // If no manual deadline, try AI-extracted deadline
+        if (!deadline && extractedData.deadline && extractedData.deadline.trim() !== "") {
+          try {
+            const parsedDate = new Date(extractedData.deadline);
+            if (!isNaN(parsedDate.getTime())) {
+              deadline = parsedDate;
+              console.log("[Task Create] Using AI-extracted deadline:", deadline);
+            }
+          } catch (error) {
+            console.warn("[Task Create] Failed to parse AI deadline:", extractedData.deadline);
           }
         }
 

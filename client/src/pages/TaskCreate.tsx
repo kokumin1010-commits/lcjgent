@@ -97,6 +97,7 @@ export default function TaskCreate() {
       await createTaskMutation.mutateAsync({
         screenshots,
         staffIds: selectedStaffIds,
+        manualDeadline: deadline || undefined, // Send deadline if provided
       });
     } catch (error) {
       console.error("Error creating task:", error);
@@ -210,13 +211,13 @@ export default function TaskCreate() {
               <Label htmlFor="deadline">期限（任意）</Label>
               <input
                 id="deadline"
-                type="date"
+                type="datetime-local"
                 value={deadline}
                 onChange={(e) => setDeadline(e.target.value)}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               />
               <p className="text-sm text-muted-foreground">
-                期限を設定しない場合は空欄のままでも登録できます
+                期限を設定しない場合は空欄のままでも登録できます。AIがスクリーンショットから期限を抽出した場合でも、ここで入力した値が優先されます。
               </p>
             </div>
 

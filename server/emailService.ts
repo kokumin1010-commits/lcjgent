@@ -78,7 +78,7 @@ export async function sendReminderEmail(
   completionToken?: string,
   screenshotUrls?: string[]
 ): Promise<{ success: boolean; error?: string }> {
-  const subject = `【リマインド】タスクの進捗確認: ${taskDetail.substring(0, 50)}...`;
+  const subject = `【リマインド/提醒】タスクの進捗確認 / 任务进度确认: ${taskDetail.substring(0, 50)}...`;
   
   // Generate completion URL if token is provided
   // Get the base URL from environment or use the dev server URL
@@ -94,10 +94,10 @@ export async function sendReminderEmail(
   const baseUrl = getBaseUrl();
   const completionUrl = completionToken ? `${baseUrl}/complete/${completionToken}` : null;
   
-  const content = `${staffName} 様
+  const content = `${staffName} 様 / 尊敬的 ${staffName}
 
+【日本語 / Japanese】
 お疲れ様です。
-
 以下のタスクについて、進捗状況の確認をお願いいたします。
 
 【タスク詳細】
@@ -108,22 +108,37 @@ ${daysElapsed}日
 
 ━━━━━━━━━━━━━━━━━━━━
 【完了報告方法】
-━━━━━━━━━━━━━━━━━━━━
-
 以下のリンクをクリックして完了報告をしてください：
 ${completionUrl ? completionUrl : 'リンクは生成されませんでした'}
-
-
-
 ━━━━━━━━━━━━━━━━━━━━
 
 ご不明な点がございましたら、お気軽にお問い合わせください。
-
 よろしくお願いいたします。
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+【中文 / Chinese】
+您好，辛苦了。
+请确认以下任务的进度情况。
+
+【任务详情】
+${taskDetail}
+
+【已过天数】
+${daysElapsed}天
+
+━━━━━━━━━━━━━━━━━━━━
+【完成报告方法】
+请点击以下链接提交完成报告：
+${completionUrl ? completionUrl : '链接未生成'}
+━━━━━━━━━━━━━━━━━━━━
+
+如有任何疑问，请随时联系我们。
+谢谢合作。
+
 ---
-業務自動化システム
-タスクID: ${taskId}`;
+业务自动化系统 / 業務自動化システム
+任务ID / タスクID: ${taskId}`;
 
   const mailOptions: any = {
     to: [staffEmail],
