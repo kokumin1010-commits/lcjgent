@@ -15,6 +15,7 @@ import {
   deleteStaff,
   createTask,
   getAllTasks,
+  getAllTasksWithUsers,
   getTasksByStatus,
   getTaskById,
   getTaskByTaskId,
@@ -211,6 +212,10 @@ export const appRouter = router({
 
     list: protectedProcedure.query(async () => {
       return await getAllTasks();
+    }),
+
+    listAllWithUsers: protectedProcedure.query(async () => {
+      return await getAllTasksWithUsers();
     }),
 
     listByStatus: protectedProcedure

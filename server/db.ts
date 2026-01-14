@@ -122,6 +122,26 @@ export async function getAllTasks() {
     .orderBy(desc(tasks.createdAt));
 }
 
+export async function getAllTasksWithUsers() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db
+    .select({
+      task: tasks,
+      staff: staff,
+      user: {
+        id: users.id,
+        email: users.email,
+        name: users.name,
+      },
+    })
+    .from(tasks)
+    .leftJoin(staff, eq(tasks.staffId, staff.id))
+    .leftJoin(users, eq(tasks.createdBy, users.id))
+    .orderBy(desc(tasks.createdAt));
+}
+
 export async function getTasksByStatus(status: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
