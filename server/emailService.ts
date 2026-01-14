@@ -81,7 +81,17 @@ export async function sendReminderEmail(
   const subject = `【リマインド】タスクの進捗確認: ${taskDetail.substring(0, 50)}...`;
   
   // Generate completion URL if token is provided
-  const baseUrl = process.env.VITE_FRONTEND_FORGE_API_URL?.replace('/api', '') || 'https://your-domain.com';
+  // Get the base URL from environment or use the dev server URL
+  const getBaseUrl = () => {
+    // In production, use the deployed domain
+    if (process.env.NODE_ENV === 'production') {
+      return process.env.APP_URL || 'https://your-domain.manus.space';
+    }
+    // In development, use the dev server URL
+    return 'https://3000-i58mz8953bkj8oa3sie09-f1f28683.sg1.manus.computer';
+  };
+  
+  const baseUrl = getBaseUrl();
   const completionUrl = completionToken ? `${baseUrl}/complete/${completionToken}` : null;
   
   const content = `${staffName} 様
