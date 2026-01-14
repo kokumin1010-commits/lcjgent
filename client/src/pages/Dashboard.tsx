@@ -1,13 +1,13 @@
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, ClipboardList, Clock, CheckCircle2, Users, Plus } from "lucide-react";
+import { Loader2, ClipboardList, Clock, CheckCircle2, Users, Plus, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const { data: stats, isLoading } = trpc.dashboard.statistics.useQuery();
-  const { data: staffList } = trpc.staff.list.useQuery();
+  const { data: staffWithCounts } = trpc.dashboard.staffWithTaskCounts.useQuery();
 
   if (isLoading) {
     return (
@@ -84,9 +84,9 @@ export default function Dashboard() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {staffList && staffList.length > 0 ? (
+            {staffWithCounts && staffWithCounts.length > 0 ? (
               <div className="space-y-2 max-h-[120px] overflow-y-auto">
-                {staffList.slice(0, 3).map((staff) => (
+                {staffWithCounts.slice(0, 3).map((staff) => (
                   <div
                     key={staff.id}
                     className="flex items-center justify-between p-2 rounded-md hover:bg-accent cursor-pointer transition-colors"
@@ -96,16 +96,21 @@ export default function Dashboard() {
                       <p className="text-sm font-medium truncate">{staff.name}</p>
                       <p className="text-xs text-muted-foreground truncate">{staff.department || "部署未設定"}</p>
                     </div>
+                    {staff.inProgressCount > 0 && (
+                      <div className="flex items-center justify-center h-6 w-6 rounded-full bg-blue-500 text-white text-xs font-bold">
+                        {staff.inProgressCount}
+                      </div>
+                    )}
                   </div>
                 ))}
-                {staffList.length > 3 && (
+                {staffWithCounts.length > 3 && (
                   <Button
                     variant="ghost"
                     size="sm"
                     className="w-full text-xs"
                     onClick={() => setLocation("/staff")}
                   >
-                    すべて表示 ({staffList.length}人)
+                    すべて表示 ({staffWithCounts.length}人)
                   </Button>
                 )}
               </div>
@@ -117,6 +122,58 @@ export default function Dashboard() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-1">
+        {stats?.overdueTasks && stats.overdueTasks.length > 0 && (
+          <Card className="border-red-500 bg-red-50 dark:bg-red-950/20">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+                <CardTitle className="text-red-700 dark:text-red-400">期限切れタスク</CardTitle>
+              </div>
+              <CardDescription className="text-red-600 dark:text-red-300">
+                {stats.overdueTasks.length}件のタスクが期限を過ぎています
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {stats.overdueTasks.slice(0, 5).map((item) => {
+                  const deadline = typeof item.task.deadline === 'string' ? new Date(item.task.deadline).getTime() : Number(item.task.deadline || 0);
+                  const daysOverdue = Math.floor(
+                    (Date.now() - deadline) / (1000 * 60 * 60 * 24)
+                  );
+                  return (
+                    <div
+                      key={item.task.id}
+                      className="flex items-start justify-between p-3 rounded-lg bg-white dark:bg-gray-900 border border-red-200 dark:border-red-800 cursor-pointer hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                      onClick={() => setLocation(`/tasks/${item.task.id}`)}
+                    >
+                      <div className="flex-1">
+                        <p className="text-sm font-medium line-clamp-2">{item.task.taskDetail}</p>
+                        <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                          <span>担当: {item.staff?.name || "不明"}</span>
+                          <span className="text-red-600 dark:text-red-400 font-medium">
+                            {daysOverdue}日過ぎています
+                          </span>
+                        </div>
+                      </div>
+                      <AlertTriangle className="h-4 w-4 text-red-500 ml-2 flex-shrink-0" />
+                    </div>
+                  );
+                })}
+                {stats.overdueTasks.length > 5 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-red-600 border-red-300 hover:bg-red-50"
+                    onClick={() => setLocation("/tasks")}
+                  >
+                    すべて表示 ({stats.overdueTasks.length}件)
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle>最近完了したタスク</CardTitle>

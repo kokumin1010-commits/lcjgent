@@ -1,4 +1,4 @@
-import { eq, and, desc, sql, or, like } from "drizzle-orm";
+import { eq, and, desc, asc, sql, or, like } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff } from "../drizzle/schema";
 
@@ -353,6 +353,51 @@ export async function getRecentCompletedTasks(limit: number = 10) {
     .where(eq(tasks.status, "completed"))
     .orderBy(desc(tasks.completedAt))
     .limit(limit);
+}
+
+export async function getStaffWithTaskCounts() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const allStaff = await db.select().from(staff);
+  
+  const staffWithCounts = await Promise.all(
+    allStaff.map(async (s) => {
+      const inProgressCount = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(tasks)
+        .where(and(eq(tasks.staffId, s.id), eq(tasks.status, "in_progress")));
+      
+      return {
+        ...s,
+        inProgressCount: inProgressCount[0]?.count || 0,
+      };
+    })
+  );
+
+  return staffWithCounts;
+}
+
+export async function getOverdueTasks() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const now = Date.now();
+  
+  return await db
+    .select({
+      task: tasks,
+      staff: staff,
+    })
+    .from(tasks)
+    .leftJoin(staff, eq(tasks.staffId, staff.id))
+    .where(
+      and(
+        or(eq(tasks.status, "pending"), eq(tasks.status, "in_progress")),
+        sql`${tasks.deadline} < ${now}`
+      )
+    )
+    .orderBy(asc(tasks.deadline));
 }
 
 // Task-Staff junction table functions

@@ -31,6 +31,8 @@ import {
   assignStaffToTask,
   getStaffByTaskId,
   getRecentCompletedTasks,
+  getStaffWithTaskCounts,
+  getOverdueTasks,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { authRouter } from "./auth";
@@ -502,12 +504,18 @@ export const appRouter = router({
       const stats = await getTaskStatistics();
       const avgCompletionTime = await getAverageCompletionTime();
       const recentCompleted = await getRecentCompletedTasks(5);
+      const overdueTasks = await getOverdueTasks();
 
       return {
         stats,
         avgCompletionTime,
         recentCompleted,
+        overdueTasks,
       };
+    }),
+
+    staffWithTaskCounts: protectedProcedure.query(async () => {
+      return await getStaffWithTaskCounts();
     }),
   }),
 });
