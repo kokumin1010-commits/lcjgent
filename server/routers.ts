@@ -28,6 +28,8 @@ import {
   getRemindersByTaskId,
   getTaskStatistics,
   getAverageCompletionTime,
+  assignStaffToTask,
+  getStaffByTaskId,
   getRecentCompletedTasks,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
@@ -113,7 +115,7 @@ export const appRouter = router({
             base64: z.string(),
             mimeType: z.string(),
           })).min(1).max(4), // Support 1-4 screenshots
-          staffId: z.number(),
+          staffIds: z.array(z.number()).min(1), // Support multiple staff members
         })
       )
       .mutation(async ({ input, ctx }) => {
@@ -203,10 +205,10 @@ export const appRouter = router({
         }
 
         // Create task in database
-        await createTask({
+        const taskResult = await createTask({
           taskId,
           status: "in_progress",
-          staffId: input.staffId,
+          staffId: input.staffIds[0], // Keep first staff for backward compatibility
           taskDetail: extractedData.taskSummary || "指示内容を確認してください",
           extractedContext: extractedData.detailedContext || "",
           deadline,
@@ -218,6 +220,12 @@ export const appRouter = router({
           startDate,
           createdBy: ctx.user.id,
         });
+
+        // Get the inserted task ID
+        const insertedTaskId = Number((taskResult as any).insertId);
+
+        // Assign all staff members to the task using junction table
+        await assignStaffToTask(insertedTaskId, input.staffIds);
 
         // Notify owner
         await notifyOwner({
@@ -256,6 +264,12 @@ export const appRouter = router({
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
         return await getTaskById(input.id);
+      }),
+
+    getStaffByTaskId: protectedProcedure
+      .input(z.object({ taskId: z.number() }))
+      .query(async ({ input }) => {
+        return await getStaffByTaskId(input.taskId);
       }),
 
     search: protectedProcedure
@@ -300,43 +314,61 @@ export const appRouter = router({
       .input(z.object({ taskId: z.number() }))
       .mutation(async ({ input }) => {
         const taskData = await getTaskById(input.taskId);
-        if (!taskData || !taskData.staff) {
-          throw new Error("Task or staff not found");
+        if (!taskData) {
+          throw new Error("Task not found");
         }
 
-        const { task, staff } = taskData;
+        const { task } = taskData;
+
+        // Get all assigned staff members
+        const assignedStaff = await getStaffByTaskId(input.taskId);
+        if (!assignedStaff || assignedStaff.length === 0) {
+          throw new Error("No staff assigned to this task");
+        }
 
         // Calculate days elapsed
         const daysElapsed = Math.floor(
           (Date.now() - task.createdAt.getTime()) / (1000 * 60 * 60 * 24)
         );
 
-        // Send reminder email
-        const emailResult = await sendReminderEmail(
-          staff.email,
-          staff.name,
-          task.taskDetail,
-          task.taskId,
-          daysElapsed,
-          task.completionToken || undefined,
-          task.screenshotUrls || (task.screenshotUrl ? [task.screenshotUrl] : undefined)
+        // Send reminder email to all assigned staff members
+        const emailResults = await Promise.all(
+          assignedStaff.map(async (item) => {
+            if (!item.staff) return { success: false, error: "Staff not found" };
+
+            const emailResult = await sendReminderEmail(
+              item.staff.email,
+              item.staff.name,
+              task.taskDetail,
+              task.taskId,
+              daysElapsed,
+              task.completionToken || undefined,
+              task.screenshotUrls || (task.screenshotUrl ? [task.screenshotUrl] : undefined)
+            );
+
+            if (emailResult.success) {
+              // Create reminder record
+              await createReminder({
+                taskId: task.id,
+                sentAt: Date.now(),
+                recipientEmail: item.staff.email,
+                emailSubject: `【リマインド】${task.taskDetail}`,
+                emailBody: `${item.staff.name}様\n\n以下のタスクについてリマインドいたします。\n\nタスクID: ${task.taskId}\n内容: ${task.taskDetail}\n\nご確認をお願いいたします。`,
+                status: "sent",
+              });
+            }
+
+            return emailResult;
+          })
         );
 
-        if (!emailResult.success) {
-          throw new Error(`メール送信に失敗しました: ${emailResult.error}`);
+        // Check if any email failed
+        const failedEmails = emailResults.filter(result => !result.success);
+        if (failedEmails.length > 0) {
+          throw new Error(`${failedEmails.length}件のメール送信に失敗しました`);
         }
 
-        // Create reminder record
-        await createReminder({
-          taskId: task.id,
-          sentAt: Date.now(),
-          recipientEmail: staff.email,
-          emailSubject: `【リマインド】${task.taskDetail}`,
-          emailBody: `${staff.name}様\n\n以下のタスクについてリマインドいたします。\n\nタスクID: ${task.taskId}\n内容: ${task.taskDetail}\n\nご確認をお願いいたします。`,
-          status: "sent",
-        });
-
-        return { success: true };
+        return { success: true, sentCount: emailResults.length };
       }),
 
     getReminders: protectedProcedure

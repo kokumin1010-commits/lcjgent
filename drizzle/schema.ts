@@ -75,3 +75,17 @@ export const reminders = mysqlTable("reminders", {
 
 export type Reminder = typeof reminders.$inferSelect;
 export type InsertReminder = typeof reminders.$inferInsert;
+
+/**
+ * Task-Staff junction table for many-to-many relationship
+ * Allows assigning multiple staff members to a single task
+ */
+export const taskStaff = mysqlTable("task_staff", {
+  id: int("id").autoincrement().primaryKey(),
+  taskId: int("taskId").notNull(), // References tasks.id
+  staffId: int("staffId").notNull(), // References staff.id
+  assignedAt: timestamp("assignedAt").defaultNow().notNull(),
+});
+
+export type TaskStaff = typeof taskStaff.$inferSelect;
+export type InsertTaskStaff = typeof taskStaff.$inferInsert;

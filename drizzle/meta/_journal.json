@@ -36,6 +36,13 @@
       "when": 1768352902781,
       "tag": "0004_tough_swordsman",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1768356472472,
+      "tag": "0005_mute_firestar",
+      "breakpoints": true
     }
   ]
 }

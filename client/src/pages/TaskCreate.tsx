@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Upload, ArrowLeft } from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
@@ -11,7 +12,7 @@ import { toast } from "sonner";
 export default function TaskCreate() {
   const [, setLocation] = useLocation();
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [selectedStaffId, setSelectedStaffId] = useState<string>("");
+  const [selectedStaffIds, setSelectedStaffIds] = useState<number[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [deadline, setDeadline] = useState<string>("");
 
@@ -70,8 +71,8 @@ export default function TaskCreate() {
       return;
     }
 
-    if (!selectedStaffId) {
-      toast.error("担当者を選択してください");
+    if (selectedStaffIds.length === 0) {
+      toast.error("担当者を少なくとも1人選択してください");
       return;
     }
 
@@ -95,7 +96,7 @@ export default function TaskCreate() {
 
       await createTaskMutation.mutateAsync({
         screenshots,
-        staffId: parseInt(selectedStaffId),
+        staffIds: selectedStaffIds,
       });
     } catch (error) {
       console.error("Error creating task:", error);
@@ -163,31 +164,45 @@ export default function TaskCreate() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="staff">担当者</Label>
+              <Label>担当者（複数選択可）</Label>
               {isLoadingStaff ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   読み込み中...
                 </div>
               ) : (
-                <Select value={selectedStaffId} onValueChange={setSelectedStaffId}>
-                  <SelectTrigger id="staff">
-                    <SelectValue placeholder="担当者を選択してください" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {staffList && staffList.length > 0 ? (
-                      staffList.map((staff) => (
-                        <SelectItem key={staff.id} value={staff.id.toString()}>
-                          {staff.name} ({staff.email})
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="none" disabled>
-                        担当者が登録されていません
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
+                <div className="border rounded-md p-4 space-y-3 max-h-64 overflow-y-auto">
+                  {staffList && staffList.length > 0 ? (
+                    staffList.map((staff) => (
+                      <div key={staff.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`staff-${staff.id}`}
+                          checked={selectedStaffIds.includes(staff.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedStaffIds([...selectedStaffIds, staff.id]);
+                            } else {
+                              setSelectedStaffIds(selectedStaffIds.filter(id => id !== staff.id));
+                            }
+                          }}
+                        />
+                        <label
+                          htmlFor={`staff-${staff.id}`}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                        >
+                          {staff.name} {staff.department && `- ${staff.department}`} ({staff.email})
+                        </label>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">担当者が登録されていません</p>
+                  )}
+                </div>
+              )}
+              {selectedStaffIds.length > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  {selectedStaffIds.length}人の担当者が選択されています
+                </p>
               )}
             </div>
 
@@ -208,7 +223,7 @@ export default function TaskCreate() {
             <div className="flex items-center gap-4 pt-4">
               <Button
                 type="submit"
-                disabled={createTaskMutation.isPending || selectedFiles.length === 0 || !selectedStaffId}
+                disabled={createTaskMutation.isPending || selectedFiles.length === 0 || selectedStaffIds.length === 0}
               >
                 {createTaskMutation.isPending ? (
                   <>

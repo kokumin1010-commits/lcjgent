@@ -1,4 +1,4 @@
-import { getInProgressTasks, createReminder } from "./db";
+import { getInProgressTasks, createReminder, getStaffByTaskId } from "./db";
 import { sendReminderEmail } from "./emailService";
 
 /**
@@ -15,9 +15,12 @@ export async function checkAndSendReminders() {
     let successCount = 0;
     let failureCount = 0;
 
-    for (const { task, staff } of inProgressTasks) {
-      if (!staff || !staff.email) {
-        console.warn(`[Reminder Scheduler] Task ${task.id} has no assigned staff or email`);
+    for (const { task } of inProgressTasks) {
+      // Get all assigned staff members for this task
+      const assignedStaff = await getStaffByTaskId(task.id);
+      
+      if (!assignedStaff || assignedStaff.length === 0) {
+        console.warn(`[Reminder Scheduler] Task ${task.id} has no assigned staff`);
         continue;
       }
 
@@ -26,46 +29,52 @@ export async function checkAndSendReminders() {
         (Date.now() - task.startDate) / (1000 * 60 * 60 * 24)
       );
 
-      // Check if we should send a reminder (every 12 hours = 0.5 days)
-      // For simplicity, we send reminders for all in-progress tasks when this runs
-      console.log(
-        `[Reminder Scheduler] Sending reminder for task ${task.id} to ${staff.email}`
-      );
+      // Send reminder to all assigned staff members
+      for (const item of assignedStaff) {
+        if (!item.staff || !item.staff.email) {
+          console.warn(`[Reminder Scheduler] Task ${task.id} has staff with no email`);
+          continue;
+        }
 
-      const result = await sendReminderEmail(
-        staff.email,
-        staff.name,
-        task.taskDetail,
-        task.taskId,
-        daysElapsed,
-        task.completionToken || undefined,
-        task.screenshotUrls || (task.screenshotUrl ? [task.screenshotUrl] : undefined)
-      );
-
-      if (result.success) {
-        // Record reminder in database
-        await createReminder({
-          taskId: task.id,
-          sentAt: Date.now(),
-          recipientEmail: staff.email,
-          emailSubject: `【リマインド】タスクの進捗確認: ${task.taskDetail.substring(0, 50)}...`,
-          status: "sent",
-        });
-        successCount++;
-        console.log(`[Reminder Scheduler] Reminder sent successfully for task ${task.id}`);
-      } else {
-        await createReminder({
-          taskId: task.id,
-          sentAt: Date.now(),
-          recipientEmail: staff.email,
-          emailSubject: `【リマインド】タスクの進捗確認: ${task.taskDetail.substring(0, 50)}...`,
-          status: "failed",
-        });
-        failureCount++;
-        console.error(
-          `[Reminder Scheduler] Failed to send reminder for task ${task.id}:`,
-          result.error
+        console.log(
+          `[Reminder Scheduler] Sending reminder for task ${task.id} to ${item.staff.email}`
         );
+
+        const result = await sendReminderEmail(
+          item.staff.email,
+          item.staff.name,
+          task.taskDetail,
+          task.taskId,
+          daysElapsed,
+          task.completionToken || undefined,
+          task.screenshotUrls || (task.screenshotUrl ? [task.screenshotUrl] : undefined)
+        );
+
+        if (result.success) {
+          // Record reminder in database
+          await createReminder({
+            taskId: task.id,
+            sentAt: Date.now(),
+            recipientEmail: item.staff.email,
+            emailSubject: `【リマインド】タスクの進捗確認: ${task.taskDetail.substring(0, 50)}...`,
+            status: "sent",
+          });
+          successCount++;
+          console.log(`[Reminder Scheduler] Reminder sent successfully for task ${task.id} to ${item.staff.email}`);
+        } else {
+          await createReminder({
+            taskId: task.id,
+            sentAt: Date.now(),
+            recipientEmail: item.staff.email,
+            emailSubject: `【リマインド】タスクの進捗確認: ${task.taskDetail.substring(0, 50)}...`,
+            status: "failed",
+          });
+          failureCount++;
+          console.error(
+            `[Reminder Scheduler] Failed to send reminder for task ${task.id} to ${item.staff.email}:`,
+            result.error
+          );
+        }
       }
     }
 

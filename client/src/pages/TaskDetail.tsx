@@ -45,6 +45,7 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
   const utils = trpc.useUtils();
   const { data: taskData, isLoading } = trpc.task.getById.useQuery({ id: taskId });
   const { data: reminders } = trpc.task.getReminders.useQuery({ taskId });
+  const { data: assignedStaff } = trpc.task.getStaffByTaskId.useQuery({ taskId });
 
   const sendReminderMutation = trpc.task.sendReminder.useMutation({
     onSuccess: () => {
@@ -170,11 +171,27 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
             </div>
             <div>
               <Label className="text-muted-foreground">担当者</Label>
-              <p className="mt-1 font-medium">{staff?.name || "不明"}</p>
-              {staff?.department && (
-                <p className="text-sm text-muted-foreground">{staff.department}</p>
+              {assignedStaff && assignedStaff.length > 0 ? (
+                <div className="mt-2 space-y-2">
+                  {assignedStaff.map((item, index) => (
+                    <div key={index} className="border-l-2 border-primary pl-3">
+                      <p className="font-medium">{item.staff?.name || "不明"}</p>
+                      {item.staff?.department && (
+                        <p className="text-sm text-muted-foreground">{item.staff.department}</p>
+                      )}
+                      <p className="text-sm text-muted-foreground">{item.staff?.email}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-2">
+                  <p className="font-medium">{staff?.name || "不明"}</p>
+                  {staff?.department && (
+                    <p className="text-sm text-muted-foreground">{staff.department}</p>
+                  )}
+                  <p className="text-sm text-muted-foreground">{staff?.email}</p>
+                </div>
               )}
-              <p className="text-sm text-muted-foreground">{staff?.email}</p>
             </div>
             <div>
               <Label className="text-muted-foreground">登録日時</Label>

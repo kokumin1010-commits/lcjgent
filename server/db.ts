@@ -1,6 +1,6 @@
 import { eq, and, desc, sql, or, like } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -332,4 +332,49 @@ export async function getRecentCompletedTasks(limit: number = 10) {
     .where(eq(tasks.status, "completed"))
     .orderBy(desc(tasks.completedAt))
     .limit(limit);
+}
+
+// Task-Staff junction table functions
+export async function assignStaffToTask(taskId: number, staffIds: number[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Insert multiple staff assignments
+  const assignments = staffIds.map(staffId => ({
+    taskId,
+    staffId,
+  }));
+
+  return await db.insert(taskStaff).values(assignments);
+}
+
+export async function getStaffByTaskId(taskId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db
+    .select({
+      staff: staff,
+      assignedAt: taskStaff.assignedAt,
+    })
+    .from(taskStaff)
+    .leftJoin(staff, eq(taskStaff.staffId, staff.id))
+    .where(eq(taskStaff.taskId, taskId))
+    .orderBy(taskStaff.assignedAt);
+}
+
+export async function removeStaffFromTask(taskId: number, staffId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db
+    .delete(taskStaff)
+    .where(and(eq(taskStaff.taskId, taskId), eq(taskStaff.staffId, staffId)));
+}
+
+export async function removeAllStaffFromTask(taskId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.delete(taskStaff).where(eq(taskStaff.taskId, taskId));
 }
