@@ -302,6 +302,17 @@ export const appRouter = router({
         return await getTasksByStaffId(input.staffId);
       }),
 
+    getTasksByStaff: protectedProcedure
+      .input(z.object({ staffId: z.number() }))
+      .query(async ({ input }) => {
+        const tasks = await getTasksByStaffId(input.staffId);
+        const staff = await getStaffById(input.staffId);
+        return {
+          staff,
+          tasks,
+        };
+      }),
+
     getById: protectedProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {

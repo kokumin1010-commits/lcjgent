@@ -57,6 +57,13 @@ function Router() {
           <StaffTasks />
         </DashboardLayout>
       </Route>
+      <Route path={"/tasks/staff/:staffId"}>
+        {(params) => (
+          <DashboardLayout>
+            <StaffTasks />
+          </DashboardLayout>
+        )}
+      </Route>
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>
