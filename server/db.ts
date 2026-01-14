@@ -360,6 +360,7 @@ export async function getStaffWithTaskCounts() {
   if (!db) throw new Error("Database not available");
 
   const allStaff = await db.select().from(staff);
+  const now = Date.now();
   
   const staffWithCounts = await Promise.all(
     allStaff.map(async (s) => {
@@ -368,9 +369,21 @@ export async function getStaffWithTaskCounts() {
         .from(tasks)
         .where(and(eq(tasks.staffId, s.id), eq(tasks.status, "in_progress")));
       
+      const overdueCount = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(tasks)
+        .where(
+          and(
+            eq(tasks.staffId, s.id),
+            or(eq(tasks.status, "pending"), eq(tasks.status, "in_progress")),
+            sql`${tasks.deadline} < ${now}`
+          )
+        );
+      
       return {
         ...s,
         inProgressCount: inProgressCount[0]?.count || 0,
+        overdueCount: overdueCount[0]?.count || 0,
       };
     })
   );

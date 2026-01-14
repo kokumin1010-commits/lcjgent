@@ -38,7 +38,7 @@ export default function Dashboard() {
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">総タスク数</CardTitle>
@@ -46,7 +46,6 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{taskStats.total}</div>
-            <p className="text-xs text-muted-foreground mt-1">登録されたタスクの総数</p>
           </CardContent>
         </Card>
 
@@ -59,8 +58,7 @@ export default function Dashboard() {
             <Clock className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{taskStats.inProgress}</div>
-            <p className="text-xs text-muted-foreground mt-1">現在進行中のタスク</p>
+            <div className="text-2xl font-bold text-blue-500">{taskStats.inProgress}</div>
           </CardContent>
         </Card>
 
@@ -73,20 +71,19 @@ export default function Dashboard() {
             <CheckCircle2 className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{taskStats.completed}</div>
-            <p className="text-xs text-muted-foreground mt-1">完了したタスク</p>
+            <div className="text-2xl font-bold text-green-500">{taskStats.completed}</div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">担当者一覧</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+        <Card className="col-span-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+            <CardTitle className="text-base font-medium">担当者一覧</CardTitle>
+            <Users className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             {staffWithCounts && staffWithCounts.length > 0 ? (
-              <div className="space-y-2 max-h-[120px] overflow-y-auto">
-                {staffWithCounts.slice(0, 3).map((staff) => (
+              <div className="space-y-2">
+                {staffWithCounts.map((staff) => (
                   <div
                     key={staff.id}
                     className="flex items-center justify-between p-2 rounded-md hover:bg-accent cursor-pointer transition-colors"
@@ -96,23 +93,20 @@ export default function Dashboard() {
                       <p className="text-sm font-medium truncate">{staff.name}</p>
                       <p className="text-xs text-muted-foreground truncate">{staff.department || "部署未設定"}</p>
                     </div>
-                    {staff.inProgressCount > 0 && (
-                      <div className="flex items-center justify-center h-6 w-6 rounded-full bg-blue-500 text-white text-xs font-bold">
-                        {staff.inProgressCount}
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {staff.overdueCount > 0 && (
+                        <div className="flex items-center justify-center h-6 w-6 rounded-full bg-red-500 text-white text-xs font-bold">
+                          {staff.overdueCount}
+                        </div>
+                      )}
+                      {staff.inProgressCount > 0 && (
+                        <div className="flex items-center justify-center h-6 w-6 rounded-full bg-blue-500 text-white text-xs font-bold">
+                          {staff.inProgressCount}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))}
-                {staffWithCounts.length > 3 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full text-xs"
-                    onClick={() => setLocation("/staff")}
-                  >
-                    すべて表示 ({staffWithCounts.length}人)
-                  </Button>
-                )}
               </div>
             ) : (
               <p className="text-xs text-muted-foreground">担当者が登録されていません</p>
