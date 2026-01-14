@@ -1,4 +1,4 @@
-import { getInProgressTasks, createReminder, getStaffByTaskId } from "./db";
+import { getInProgressTasks, createReminder, getStaffByTaskId, updateTask } from "./db";
 import { sendReminderEmail } from "./emailService";
 
 /**
@@ -16,6 +16,13 @@ export async function checkAndSendReminders() {
     let failureCount = 0;
 
     for (const { task } of inProgressTasks) {
+      // Check if 12 hours have passed since last reminder
+      const TWELVE_HOURS = 12 * 60 * 60 * 1000; // 12 hours in milliseconds
+      if (task.lastReminderAt && (Date.now() - task.lastReminderAt) < TWELVE_HOURS) {
+        console.log(`[Reminder Scheduler] Skipping task ${task.id} - last reminder was sent less than 12 hours ago`);
+        continue;
+      }
+
       // Get all assigned staff members for this task
       const assignedStaff = await getStaffByTaskId(task.id);
       
@@ -59,6 +66,10 @@ export async function checkAndSendReminders() {
             emailSubject: `【リマインド】タスクの進捗確認: ${task.taskDetail.substring(0, 50)}...`,
             status: "sent",
           });
+          
+          // Update lastReminderAt timestamp
+          await updateTask(task.id, { lastReminderAt: Date.now() });
+          
           successCount++;
           console.log(`[Reminder Scheduler] Reminder sent successfully for task ${task.id} to ${item.staff.email}`);
         } else {

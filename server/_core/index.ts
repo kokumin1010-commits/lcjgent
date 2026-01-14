@@ -161,12 +161,7 @@ async function startServer() {
     const TWELVE_HOURS = 12 * 60 * 60 * 1000; // 12 hours in milliseconds
     console.log("[Reminder Scheduler] Starting scheduler (runs every 12 hours)...");
     
-    // Run immediately on startup
-    checkAndSendReminders().catch(error => {
-      console.error("[Reminder Scheduler] Error during initial run:", error);
-    });
-    
-    // Then run every 12 hours
+    // Run every 12 hours (no immediate execution on startup)
     setInterval(() => {
       checkAndSendReminders().catch(error => {
         console.error("[Reminder Scheduler] Error during scheduled run:", error);

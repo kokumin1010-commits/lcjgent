@@ -192,3 +192,9 @@
 - [x] reminderScheduler.tsで12時間ごとにリマインドメールを送信するロジックを実装
 - [x] server/_core/index.tsに12時間ごとにスケジューラーを実行するコードを追加
 - [x] 完了済みタスクには送信しないように制御（in_progressのみ）
+
+## バグ修正：リマインドメールが何回も送信される
+- [x] tasksテーブルにlastReminderAtカラムを追加
+- [x] reminderScheduler.tsでlastReminderAtを確認して12時間経過していない場合は送信しない
+- [x] リマインドメール送信後にlastReminderAtを更新
+- [x] サーバー起動時の即座実行を削除（12時間ごとの定期実行のみ）

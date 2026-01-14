@@ -52,6 +52,7 @@ export const tasks = mysqlTable("tasks", {
   notes: text("notes"), // Optional memo field for additional task details
   startDate: bigint("startDate", { mode: "number" }).notNull(), // UTC timestamp in milliseconds
   completedAt: bigint("completedAt", { mode: "number" }), // UTC timestamp in milliseconds
+  lastReminderAt: bigint("lastReminderAt", { mode: "number" }), // Last reminder sent timestamp in milliseconds
   createdBy: int("createdBy").notNull(), // User ID who created the task
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
