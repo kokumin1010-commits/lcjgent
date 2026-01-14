@@ -219,6 +219,12 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
                 </p>
               </div>
             )}
+            {task.notes && (
+              <div>
+                <Label className="text-muted-foreground">メモ</Label>
+                <p className="mt-1 whitespace-pre-wrap">{task.notes}</p>
+              </div>
+            )}
             {task.completedAt && (
               <div>
                 <Label className="text-muted-foreground">完了日時</Label>
