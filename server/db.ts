@@ -214,6 +214,19 @@ export async function getTaskByTaskId(taskId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+export async function getTaskByCompletionToken(token: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db
+    .select()
+    .from(tasks)
+    .where(eq(tasks.completionToken, token))
+    .limit(1);
+
+  return result.length > 0 ? result[0] : undefined;
+}
+
 export async function updateTask(id: number, taskData: Partial<InsertTask>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

@@ -169,3 +169,9 @@
 - [x] taskIdの型とデータの流れを追跡
 - [x] エラーログを詳細に確認
 - [x] 根本原因を特定して修正（createTask関数で$returningId()を使用）
+
+## バグ修正：完了リンクをクリックしてもタスクが完了しない
+- [x] completeTaskエンドポイントの実装を確認（存在しなかった）
+- [x] /complete/:tokenエンドポイントをserver/_core/index.tsに追加
+- [x] getTaskByCompletionToken関数をdb.tsに追加
+- [x] 完了時にオーナー通知を送信
