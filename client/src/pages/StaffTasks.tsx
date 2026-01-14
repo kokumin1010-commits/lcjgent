@@ -23,10 +23,12 @@ const statusLabels = {
 };
 
 export default function StaffTasks() {
-  const [, params] = useRoute("/staff/:staffId/tasks");
+  const [, params1] = useRoute("/staff/:staffId/tasks");
+  const [, params2] = useRoute("/tasks/staff/:staffId");
   const [, setLocation] = useLocation();
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
 
+  const params = params1 || params2;
   const staffId = params?.staffId ? parseInt(params.staffId) : 0;
 
   const { data: tasksData, isLoading: tasksLoading } = trpc.task.listByStaffId.useQuery(
