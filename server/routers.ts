@@ -55,7 +55,7 @@ export const appRouter = router({
       .input(
         z.object({
           name: z.string().min(1),
-          email: z.string().email(),
+          email: z.string().min(1).regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Invalid email format"),
           department: z.string().optional(),
         })
       )
@@ -88,7 +88,7 @@ export const appRouter = router({
         z.object({
           id: z.number(),
           name: z.string().min(1).optional(),
-          email: z.string().email().optional(),
+          email: z.string().min(1).regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Invalid email format").optional(),
           department: z.string().optional(),
           isActive: z.enum(["active", "inactive"]).optional(),
         })

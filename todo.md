@@ -175,3 +175,7 @@
 - [x] /complete/:tokenエンドポイントをserver/_core/index.tsに追加
 - [x] getTaskByCompletionToken関数をdb.tsに追加
 - [x] 完了時にオーナー通知を送信
+
+## バグ修正：担当者追加時のメールアドレスバリデーションエラー
+- [x] routers.tsのstaff.createエンドポイントのバリデーションルールを確認
+- [x] メールアドレスのバリデーションをregexに変更して柔軟に対応
