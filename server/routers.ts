@@ -117,6 +117,7 @@ export const appRouter = router({
           })).min(1).max(4), // Support 1-4 screenshots
           staffIds: z.array(z.number()).min(1), // Support multiple staff members
           manualDeadline: z.string().optional(), // Manual deadline input (ISO 8601 format)
+          notes: z.string().optional(), // Optional memo field
         })
       )
       .mutation(async ({ input, ctx }) => {
@@ -233,6 +234,7 @@ export const appRouter = router({
           screenshotUrls,
           screenshotKeys,
           completionToken,
+          notes: input.notes, // Save optional notes
           startDate,
           createdBy: ctx.user.id,
         });
@@ -245,6 +247,25 @@ export const appRouter = router({
 
         // Assign all staff members to the task using junction table
         await assignStaffToTask(createdTask.id, input.staffIds);
+
+        // Send initial reminder email to all assigned staff members
+        const assignedStaff = await Promise.all(
+          input.staffIds.map(staffId => getStaffById(staffId))
+        );
+        
+        for (const staff of assignedStaff) {
+          if (staff) {
+            await sendReminderEmail(
+              staff.email,
+              staff.name,
+              extractedData.taskSummary || "指示内容を確認してください",
+              taskId,
+              0, // 0 days elapsed (initial reminder)
+              completionToken,
+              screenshotUrls
+            );
+          }
+        }
 
         // Notify owner
         await notifyOwner({

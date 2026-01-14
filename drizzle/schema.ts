@@ -49,6 +49,7 @@ export const tasks = mysqlTable("tasks", {
   screenshotUrls: json("screenshotUrls").$type<string[]>(), // Array of S3 URLs (up to 4 screenshots)
   screenshotKeys: json("screenshotKeys").$type<string[]>(), // Array of S3 keys (up to 4 screenshots)
   completionToken: varchar("completionToken", { length: 128 }), // Token for one-click completion
+  notes: text("notes"), // Optional memo field for additional task details
   startDate: bigint("startDate", { mode: "number" }).notNull(), // UTC timestamp in milliseconds
   completedAt: bigint("completedAt", { mode: "number" }), // UTC timestamp in milliseconds
   createdBy: int("createdBy").notNull(), // User ID who created the task

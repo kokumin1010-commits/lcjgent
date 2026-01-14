@@ -15,6 +15,7 @@ export default function TaskCreate() {
   const [selectedStaffIds, setSelectedStaffIds] = useState<number[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [deadline, setDeadline] = useState<string>("");
+  const [notes, setNotes] = useState<string>("");
 
   const { data: staffList, isLoading: isLoadingStaff } = trpc.staff.listActive.useQuery();
   const createTaskMutation = trpc.task.create.useMutation({
@@ -98,6 +99,7 @@ export default function TaskCreate() {
         screenshots,
         staffIds: selectedStaffIds,
         manualDeadline: deadline || undefined, // Send deadline if provided
+        notes: notes || undefined, // Send notes if provided
       });
     } catch (error) {
       console.error("Error creating task:", error);
@@ -218,6 +220,21 @@ export default function TaskCreate() {
               />
               <p className="text-sm text-muted-foreground">
                 期限を設定しない場合は空欄のままでも登録できます。AIがスクリーンショットから期限を抽出した場合でも、ここで入力した値が優先されます。
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="notes">メモ（任意）</Label>
+              <textarea
+                id="notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={4}
+                placeholder="AI解析に加えて、補足情報やメモを入力できます"
+                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+              />
+              <p className="text-sm text-muted-foreground">
+                AIが抽出した情報に加えて、具体的な指示や補足情報を記入できます。
               </p>
             </div>
 

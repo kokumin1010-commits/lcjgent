@@ -43,6 +43,13 @@
       "when": 1768356472472,
       "tag": "0005_mute_firestar",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1768365480331,
+      "tag": "0006_regular_makkari",
+      "breakpoints": true
     }
   ]
 }

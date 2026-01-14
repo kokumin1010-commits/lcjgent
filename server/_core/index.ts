@@ -9,6 +9,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { getTaskByCompletionToken, updateTask } from "../db";
 import { notifyOwner } from "./notification";
+import { checkAndSendReminders } from "../reminderScheduler";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -155,6 +156,22 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
+    
+    // Start reminder scheduler (runs every 12 hours)
+    const TWELVE_HOURS = 12 * 60 * 60 * 1000; // 12 hours in milliseconds
+    console.log("[Reminder Scheduler] Starting scheduler (runs every 12 hours)...");
+    
+    // Run immediately on startup
+    checkAndSendReminders().catch(error => {
+      console.error("[Reminder Scheduler] Error during initial run:", error);
+    });
+    
+    // Then run every 12 hours
+    setInterval(() => {
+      checkAndSendReminders().catch(error => {
+        console.error("[Reminder Scheduler] Error during scheduled run:", error);
+      });
+    }, TWELVE_HOURS);
   });
 }
 
