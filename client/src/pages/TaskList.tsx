@@ -102,9 +102,23 @@ export default function TaskList() {
                           >
                             {statusLabels[item.task.status]}
                           </Badge>
-                          <span className="text-sm text-muted-foreground">
-                            担当: {item.staff?.name || "不明"}
-                          </span>
+                          {item.staff ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (item.staff) {
+                                  setLocation(`/staff/${item.staff.id}/tasks`);
+                                }
+                              }}
+                              className="text-sm text-blue-600 hover:underline"
+                            >
+                              担当: {item.staff.name}
+                            </button>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">
+                              担当: 不明
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>

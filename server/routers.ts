@@ -17,6 +17,7 @@ import {
   getAllTasks,
   getAllTasksWithUsers,
   getTasksByStatus,
+  getTasksByStaffId,
   getTaskById,
   getTaskByTaskId,
   updateTask,
@@ -222,6 +223,12 @@ export const appRouter = router({
       .input(z.object({ status: z.enum(["pending", "in_progress", "completed", "cancelled"]) }))
       .query(async ({ input }) => {
         return await getTasksByStatus(input.status);
+      }),
+
+    listByStaffId: protectedProcedure
+      .input(z.object({ staffId: z.number() }))
+      .query(async ({ input }) => {
+        return await getTasksByStaffId(input.staffId);
       }),
 
     getById: protectedProcedure

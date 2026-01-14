@@ -157,6 +157,21 @@ export async function getTasksByStatus(status: string) {
     .orderBy(desc(tasks.createdAt));
 }
 
+export async function getTasksByStaffId(staffId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db
+    .select({
+      task: tasks,
+      staff: staff,
+    })
+    .from(tasks)
+    .leftJoin(staff, eq(tasks.staffId, staff.id))
+    .where(eq(tasks.staffId, staffId))
+    .orderBy(desc(tasks.createdAt));
+}
+
 export async function getTaskById(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

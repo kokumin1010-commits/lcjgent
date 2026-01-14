@@ -13,6 +13,7 @@ import StaffManagement from "./pages/StaffManagement";
 import Login from "./pages/Login";
 import TaskComplete from "./pages/TaskComplete";
 import MasterControl from "./pages/MasterControl";
+import StaffTasks from "./pages/StaffTasks";
 
 function Router() {
   return (
@@ -49,6 +50,11 @@ function Router() {
       <Route path={"/master-control"}>
         <DashboardLayout>
           <MasterControl />
+        </DashboardLayout>
+      </Route>
+      <Route path={"/staff/:staffId/tasks"}>
+        <DashboardLayout>
+          <StaffTasks />
         </DashboardLayout>
       </Route>
       <Route path={"/404"} component={NotFound} />
