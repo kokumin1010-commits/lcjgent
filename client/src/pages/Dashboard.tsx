@@ -75,6 +75,19 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
+        <Card 
+          className="cursor-pointer hover:bg-accent transition-colors border-red-200"
+          onClick={() => setLocation("/tasks?overdue=true")}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">期限切れ</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-500">{stats?.overdueTasks?.length || 0}</div>
+          </CardContent>
+        </Card>
+
         <Card className="col-span-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
             <CardTitle className="text-base font-medium">担当者一覧</CardTitle>
