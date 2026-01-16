@@ -315,35 +315,21 @@ export default function BrandForm() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>{t.status}</Label>
-                <div className="flex gap-2 items-center">
-                  <Select
-                    value={formData.status}
-                    onValueChange={(v) => handleInputChange("status", v)}
-                  >
-                    <SelectTrigger className="w-[140px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="進行中">{t.inProgress}</SelectItem>
-                      <SelectItem value="打ち合わせ中">{t.meeting}</SelectItem>
-                      <SelectItem value="契約済み">{t.contracted}</SelectItem>
-                      <SelectItem value="保留">{t.onHold}</SelectItem>
-                      <SelectItem value="終了">{t.ended}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    placeholder={t.customStatus}
-                    className="flex-1"
-                    disabled
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>{t.materialCategory}</Label>
-                <Input
-                  value={formData.materialCategory}
-                  onChange={(e) => handleInputChange("materialCategory", e.target.value)}
-                />
+                <Select
+                  value={formData.status}
+                  onValueChange={(v) => handleInputChange("status", v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="進行中">{t.inProgress}</SelectItem>
+                    <SelectItem value="打ち合わせ中">{t.meeting}</SelectItem>
+                    <SelectItem value="契約済み">{t.contracted}</SelectItem>
+                    <SelectItem value="保留">{t.onHold}</SelectItem>
+                    <SelectItem value="終了">{t.ended}</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -365,32 +351,6 @@ export default function BrandForm() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>{t.adBudget}</Label>
-                <Input
-                  type="number"
-                  value={formData.adBudget}
-                  onChange={(e) => handleInputChange("adBudget", e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>{t.salesTarget}</Label>
-                <Input
-                  type="number"
-                  value={formData.salesTarget}
-                  onChange={(e) => handleInputChange("salesTarget", e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>{t.commissionRate}</Label>
-                <Input
-                  value={formData.commissionRate}
-                  onChange={(e) => handleInputChange("commissionRate", e.target.value)}
-                  placeholder="50%"
-                />
-              </div>
-            </div>
 
             {/* Business Cards */}
             <div className="space-y-2">

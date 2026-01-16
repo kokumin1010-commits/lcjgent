@@ -77,6 +77,7 @@ const translations = {
     completed: "完了",
     success: "保存しました",
     error: "エラーが発生しました",
+    selectStaff: "スタッフを選択",
   },
   zh: {
     title: "品牌详情",
@@ -120,6 +121,7 @@ const translations = {
     completed: "完成",
     success: "保存成功",
     error: "发生错误",
+    selectStaff: "选择员工",
   },
 };
 
@@ -171,6 +173,9 @@ export default function BrandDetail() {
   const { data: activities = [] } = trpc.brandActivity.listByBrand.useQuery(
     { brandId }
   );
+
+  // レポートスタッフ一覧を取得（対応履歴の担当者選択用）
+  const { data: reportStaff = [] } = trpc.reportStaff.listActive.useQuery();
 
   const createProductMutation = trpc.brandProduct.create.useMutation({
     onSuccess: () => {
@@ -564,12 +569,26 @@ export default function BrandDetail() {
                   </div>
                   <div>
                     <Label>{t.contactPerson}</Label>
-                    <Input
+                    <Select
                       value={newActivity.contactPerson}
-                      onChange={(e) =>
-                        setNewActivity({ ...newActivity, contactPerson: e.target.value })
+                      onValueChange={(v) =>
+                        setNewActivity({ ...newActivity, contactPerson: v })
                       }
-                    />
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={t.selectStaff} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {reportStaff.map((staff) => (
+                          <SelectItem key={staff.id} value={staff.name}>
+                            {staff.name}
+                            {staff.country && (
+                              <span className="text-muted-foreground ml-1">({staff.country})</span>
+                            )}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <Label>{t.nextAction}</Label>
