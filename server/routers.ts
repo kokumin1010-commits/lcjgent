@@ -64,6 +64,11 @@ import {
   getBrandStatistics,
   deleteReportStaff,
   getReportStaffByCountry,
+  createBrandLivestream,
+  getLivestreamsByBrandId,
+  updateBrandLivestream,
+  deleteBrandLivestream,
+  getLivestreamStatsByBrandId,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { authRouter } from "./auth";
@@ -1165,6 +1170,74 @@ ${JSON.stringify(teamSummary, null, 2)}`;
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         await deleteBrandActivity(input.id);
+        return { success: true };
+      }),
+  }),
+
+  // Brand Livestream Router (直播履歴)
+  brandLivestream: router({
+    create: protectedProcedure
+      .input(
+        z.object({
+          brandId: z.number(),
+          livestreamDate: z.string(),
+          streamerName: z.string().min(1),
+          salesAmount: z.number().optional(),
+          duration: z.number().optional(),
+          viewerCount: z.number().optional(),
+          orderCount: z.number().optional(),
+          platform: z.string().optional(),
+          remarks: z.string().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        return await createBrandLivestream({
+          ...input,
+          livestreamDate: new Date(input.livestreamDate),
+          createdBy: ctx.user.id,
+        });
+      }),
+
+    listByBrand: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        return await getLivestreamsByBrandId(input.brandId);
+      }),
+
+    stats: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        return await getLivestreamStatsByBrandId(input.brandId);
+      }),
+
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          livestreamDate: z.string().optional(),
+          streamerName: z.string().optional(),
+          salesAmount: z.number().optional(),
+          duration: z.number().optional(),
+          viewerCount: z.number().optional(),
+          orderCount: z.number().optional(),
+          platform: z.string().optional(),
+          remarks: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { id, livestreamDate, ...rest } = input;
+        const updateData: any = { ...rest };
+        if (livestreamDate) {
+          updateData.livestreamDate = new Date(livestreamDate);
+        }
+        await updateBrandLivestream(id, updateData);
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteBrandLivestream(input.id);
         return { success: true };
       }),
   }),

@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -941,4 +941,54 @@ export async function getBrandStatistics() {
     total: allBrands.length,
     byStatus,
   };
+}
+
+
+// ========== Brand Livestream Functions ==========
+
+// Create a new livestream record
+export async function createBrandLivestream(livestreamData: InsertBrandLivestream) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(brandLivestreams).values(livestreamData);
+  return result;
+}
+
+// Get livestreams by brand ID
+export async function getLivestreamsByBrandId(brandId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db.select().from(brandLivestreams).where(eq(brandLivestreams.brandId, brandId)).orderBy(desc(brandLivestreams.livestreamDate));
+}
+
+// Update livestream
+export async function updateBrandLivestream(id: number, livestreamData: Partial<InsertBrandLivestream>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(brandLivestreams).set(livestreamData).where(eq(brandLivestreams.id, id));
+}
+
+// Delete livestream
+export async function deleteBrandLivestream(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.delete(brandLivestreams).where(eq(brandLivestreams.id, id));
+}
+
+// Get livestream statistics for a brand
+export async function getLivestreamStatsByBrandId(brandId: number) {
+  const db = await getDb();
+  if (!db) return { totalSales: 0, totalStreams: 0, avgSales: 0 };
+  
+  const livestreams = await db.select().from(brandLivestreams).where(eq(brandLivestreams.brandId, brandId));
+  
+  const totalSales = livestreams.reduce((sum, ls) => sum + (ls.salesAmount || 0), 0);
+  const totalStreams = livestreams.length;
+  const avgSales = totalStreams > 0 ? Math.round(totalSales / totalStreams) : 0;
+  
+  return { totalSales, totalStreams, avgSales };
 }

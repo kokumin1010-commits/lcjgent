@@ -78,6 +78,20 @@ const translations = {
     success: "保存しました",
     error: "エラーが発生しました",
     selectStaff: "スタッフを選択",
+    // Livestream
+    livestreams: "直播履歴",
+    addLivestream: "直播履歴追加",
+    livestreamDate: "直播日",
+    streamerName: "直播達人",
+    salesAmount: "営業額",
+    duration: "直播時間（分）",
+    viewerCount: "視聴者数",
+    orderCount: "注文数",
+    platform: "プラットフォーム",
+    noLivestreams: "直播履歴がありません",
+    totalSales: "総売上",
+    totalStreams: "総配信数",
+    avgSales: "平均売上",
   },
   zh: {
     title: "品牌详情",
@@ -122,6 +136,20 @@ const translations = {
     success: "保存成功",
     error: "发生错误",
     selectStaff: "选择员工",
+    // Livestream
+    livestreams: "直播历史",
+    addLivestream: "添加直播记录",
+    livestreamDate: "直播日期",
+    streamerName: "直播达人",
+    salesAmount: "营业额",
+    duration: "直播时长（分钟）",
+    viewerCount: "观看人数",
+    orderCount: "订单数",
+    platform: "平台",
+    noLivestreams: "没有直播记录",
+    totalSales: "总销售额",
+    totalStreams: "总直播数",
+    avgSales: "平均销售额",
   },
 };
 
@@ -159,6 +187,17 @@ export default function BrandDetail() {
     nextAction: "",
     content: "",
   });
+  const [isLivestreamDialogOpen, setIsLivestreamDialogOpen] = useState(false);
+  const [newLivestream, setNewLivestream] = useState({
+    livestreamDate: new Date().toISOString().split("T")[0],
+    streamerName: "",
+    salesAmount: "",
+    duration: "",
+    viewerCount: "",
+    orderCount: "",
+    platform: "",
+    remarks: "",
+  });
 
   const brandId = parseInt(id || "0");
 
@@ -176,6 +215,14 @@ export default function BrandDetail() {
 
   // レポートスタッフ一覧を取得（対応履歴の担当者選択用）
   const { data: reportStaff = [] } = trpc.reportStaff.listActive.useQuery();
+
+  // 直播履歴を取得
+  const { data: livestreams = [] } = trpc.brandLivestream.listByBrand.useQuery(
+    { brandId }
+  );
+  const { data: livestreamStats } = trpc.brandLivestream.stats.useQuery(
+    { brandId }
+  );
 
   const createProductMutation = trpc.brandProduct.create.useMutation({
     onSuccess: () => {
@@ -233,6 +280,35 @@ export default function BrandDetail() {
     },
   });
 
+  const createLivestreamMutation = trpc.brandLivestream.create.useMutation({
+    onSuccess: () => {
+      toast.success(t.success);
+      setIsLivestreamDialogOpen(false);
+      setNewLivestream({
+        livestreamDate: new Date().toISOString().split("T")[0],
+        streamerName: "",
+        salesAmount: "",
+        duration: "",
+        viewerCount: "",
+        orderCount: "",
+        platform: "",
+        remarks: "",
+      });
+    },
+    onError: () => {
+      toast.error(t.error);
+    },
+  });
+
+  const deleteLivestreamMutation = trpc.brandLivestream.delete.useMutation({
+    onSuccess: () => {
+      toast.success("削除しました");
+    },
+    onError: () => {
+      toast.error(t.error);
+    },
+  });
+
   const handleAddProduct = async () => {
     if (!newProduct.productName) {
       toast.error("商品名を入力してください");
@@ -257,6 +333,25 @@ export default function BrandDetail() {
     await createActivityMutation.mutateAsync({
       brandId,
       ...newActivity,
+    });
+  };
+
+  const handleAddLivestream = async () => {
+    if (!newLivestream.streamerName) {
+      toast.error("直播達人を入力してください");
+      return;
+    }
+
+    await createLivestreamMutation.mutateAsync({
+      brandId,
+      livestreamDate: newLivestream.livestreamDate,
+      streamerName: newLivestream.streamerName,
+      salesAmount: newLivestream.salesAmount ? parseFloat(newLivestream.salesAmount) : undefined,
+      duration: newLivestream.duration ? parseInt(newLivestream.duration) : undefined,
+      viewerCount: newLivestream.viewerCount ? parseInt(newLivestream.viewerCount) : undefined,
+      orderCount: newLivestream.orderCount ? parseInt(newLivestream.orderCount) : undefined,
+      platform: newLivestream.platform || undefined,
+      remarks: newLivestream.remarks || undefined,
     });
   };
 
@@ -673,6 +768,209 @@ export default function BrandDetail() {
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 {t.noActivities}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* 直播履歴セクション */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div className="flex items-center gap-4">
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                {t.livestreams}
+              </CardTitle>
+              {livestreamStats && (
+                <div className="flex gap-4 text-sm">
+                  <span className="text-muted-foreground">
+                    {t.totalSales}: <span className="text-foreground font-medium">{formatCurrency(livestreamStats.totalSales)}</span>
+                  </span>
+                  <span className="text-muted-foreground">
+                    {t.totalStreams}: <span className="text-foreground font-medium">{livestreamStats.totalStreams}</span>
+                  </span>
+                  <span className="text-muted-foreground">
+                    {t.avgSales}: <span className="text-foreground font-medium">{formatCurrency(livestreamStats.avgSales)}</span>
+                  </span>
+                </div>
+              )}
+            </div>
+            <Dialog open={isLivestreamDialogOpen} onOpenChange={setIsLivestreamDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="bg-red-600 hover:bg-red-700">
+                  <Plus className="h-4 w-4 mr-1" />
+                  {t.addLivestream}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>{t.addLivestream}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>{t.livestreamDate} *</Label>
+                      <Input
+                        type="date"
+                        value={newLivestream.livestreamDate}
+                        onChange={(e) =>
+                          setNewLivestream({ ...newLivestream, livestreamDate: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>{t.streamerName} *</Label>
+                      <Input
+                        value={newLivestream.streamerName}
+                        onChange={(e) =>
+                          setNewLivestream({ ...newLivestream, streamerName: e.target.value })
+                        }
+                        placeholder="直播達人名"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>{t.salesAmount}</Label>
+                      <Input
+                        type="number"
+                        value={newLivestream.salesAmount}
+                        onChange={(e) =>
+                          setNewLivestream({ ...newLivestream, salesAmount: e.target.value })
+                        }
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <Label>{t.duration}</Label>
+                      <Input
+                        type="number"
+                        value={newLivestream.duration}
+                        onChange={(e) =>
+                          setNewLivestream({ ...newLivestream, duration: e.target.value })
+                        }
+                        placeholder="分"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>{t.viewerCount}</Label>
+                      <Input
+                        type="number"
+                        value={newLivestream.viewerCount}
+                        onChange={(e) =>
+                          setNewLivestream({ ...newLivestream, viewerCount: e.target.value })
+                        }
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <Label>{t.orderCount}</Label>
+                      <Input
+                        type="number"
+                        value={newLivestream.orderCount}
+                        onChange={(e) =>
+                          setNewLivestream({ ...newLivestream, orderCount: e.target.value })
+                        }
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label>{t.platform}</Label>
+                    <Select
+                      value={newLivestream.platform}
+                      onValueChange={(value) =>
+                        setNewLivestream({ ...newLivestream, platform: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="プラットフォームを選択" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="抖音">抖音</SelectItem>
+                        <SelectItem value="淘宝">淘宝</SelectItem>
+                        <SelectItem value="快手">快手</SelectItem>
+                        <SelectItem value="TikTok">TikTok</SelectItem>
+                        <SelectItem value="小红书">小红书</SelectItem>
+                        <SelectItem value="その他">その他</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>{t.remarks}</Label>
+                    <Textarea
+                      value={newLivestream.remarks}
+                      onChange={(e) =>
+                        setNewLivestream({ ...newLivestream, remarks: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsLivestreamDialogOpen(false)}
+                    >
+                      {t.cancel}
+                    </Button>
+                    <Button
+                      onClick={handleAddLivestream}
+                      disabled={createLivestreamMutation.isPending}
+                      className="bg-red-600 hover:bg-red-700"
+                    >
+                      {t.save}
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </CardHeader>
+          <CardContent>
+            {livestreams.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t.livestreamDate}</TableHead>
+                    <TableHead>{t.streamerName}</TableHead>
+                    <TableHead className="text-right">{t.salesAmount}</TableHead>
+                    <TableHead className="text-right">{t.duration}</TableHead>
+                    <TableHead>{t.platform}</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {livestreams.map((ls) => (
+                    <TableRow key={ls.id}>
+                      <TableCell>
+                        {new Date(ls.livestreamDate).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>{ls.streamerName}</TableCell>
+                      <TableCell className="text-right">
+                        {formatCurrency(ls.salesAmount)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {ls.duration ? `${ls.duration}分` : "-"}
+                      </TableCell>
+                      <TableCell>{ls.platform || "-"}</TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            deleteLivestreamMutation.mutate({ id: ls.id })
+                          }
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                {t.noLivestreams}
               </div>
             )}
           </CardContent>

@@ -220,3 +220,27 @@ export const brandActivities = mysqlTable("brand_activities", {
 
 export type BrandActivity = typeof brandActivities.$inferSelect;
 export type InsertBrandActivity = typeof brandActivities.$inferInsert;
+
+
+/**
+ * Brand livestream history table for tracking live streaming sales activities
+ * 直播履歴テーブル - ライブ配信の売上履歴を記録
+ */
+export const brandLivestreams = mysqlTable("brand_livestreams", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(), // References brands.id
+  livestreamDate: timestamp("livestreamDate").notNull(), // 直播日期
+  streamerName: varchar("streamerName", { length: 255 }).notNull(), // 直播达人
+  salesAmount: bigint("salesAmount", { mode: "number" }), // 营业额（売上金額）
+  duration: int("duration"), // 直播时长（分钟）
+  viewerCount: int("viewerCount"), // 观看人数
+  orderCount: int("orderCount"), // 订单数
+  platform: varchar("platform", { length: 100 }), // 平台 (e.g., "抖音", "淘宝", "TikTok")
+  remarks: text("remarks"), // 备注
+  createdBy: int("createdBy").notNull(), // User ID who created the record
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type BrandLivestream = typeof brandLivestreams.$inferSelect;
+export type InsertBrandLivestream = typeof brandLivestreams.$inferInsert;
