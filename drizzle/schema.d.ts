@@ -221,6 +221,23 @@ export declare const staff: import("drizzle-orm/mysql-core").MySqlTableWithColum
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
+        country: import("drizzle-orm/mysql-core").MySqlColumn<{
+            name: "country";
+            tableName: "staff";
+            dataType: "string";
+            columnType: "MySqlVarChar";
+            data: string;
+            driverParam: string | number;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
         isActive: import("drizzle-orm/mysql-core").MySqlColumn<{
             name: "isActive";
             tableName: "staff";
@@ -1029,6 +1046,138 @@ export declare const emailTracking: import("drizzle-orm/mysql-core").MySqlTableW
 export type EmailTracking = typeof emailTracking.$inferSelect;
 export type InsertEmailTracking = typeof emailTracking.$inferInsert;
 /**
+ * Report staff table for managing staff members specifically for daily reports
+ * Separate from the main staff table (which is for task assignments/email)
+ */
+export declare const reportStaff: import("drizzle-orm/mysql-core").MySqlTableWithColumns<{
+    name: "report_staff";
+    schema: undefined;
+    columns: {
+        id: import("drizzle-orm/mysql-core").MySqlColumn<{
+            name: "id";
+            tableName: "report_staff";
+            dataType: "number";
+            columnType: "MySqlInt";
+            data: number;
+            driverParam: string | number;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: true;
+            isAutoincrement: true;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        name: import("drizzle-orm/mysql-core").MySqlColumn<{
+            name: "name";
+            tableName: "report_staff";
+            dataType: "string";
+            columnType: "MySqlVarChar";
+            data: string;
+            driverParam: string | number;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        country: import("drizzle-orm/mysql-core").MySqlColumn<{
+            name: "country";
+            tableName: "report_staff";
+            dataType: "string";
+            columnType: "MySqlVarChar";
+            data: string;
+            driverParam: string | number;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        linkedStaffId: import("drizzle-orm/mysql-core").MySqlColumn<{
+            name: "linkedStaffId";
+            tableName: "report_staff";
+            dataType: "number";
+            columnType: "MySqlInt";
+            data: number;
+            driverParam: string | number;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        isActive: import("drizzle-orm/mysql-core").MySqlColumn<{
+            name: "isActive";
+            tableName: "report_staff";
+            dataType: "string";
+            columnType: "MySqlEnumColumn";
+            data: "active" | "inactive";
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: ["active", "inactive"];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        createdAt: import("drizzle-orm/mysql-core").MySqlColumn<{
+            name: "createdAt";
+            tableName: "report_staff";
+            dataType: "date";
+            columnType: "MySqlTimestamp";
+            data: Date;
+            driverParam: string | number;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        updatedAt: import("drizzle-orm/mysql-core").MySqlColumn<{
+            name: "updatedAt";
+            tableName: "report_staff";
+            dataType: "date";
+            columnType: "MySqlTimestamp";
+            data: Date;
+            driverParam: string | number;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+    };
+    dialect: "mysql";
+}>;
+export type ReportStaff = typeof reportStaff.$inferSelect;
+export type InsertReportStaff = typeof reportStaff.$inferInsert;
+/**
  * Daily reports table for staff daily work reports
  * Mirrors the existing WordPress report system structure
  */
@@ -1053,8 +1202,8 @@ export declare const reports: import("drizzle-orm/mysql-core").MySqlTableWithCol
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
-        staffId: import("drizzle-orm/mysql-core").MySqlColumn<{
-            name: "staffId";
+        reportStaffId: import("drizzle-orm/mysql-core").MySqlColumn<{
+            name: "reportStaffId";
             tableName: "reports";
             dataType: "number";
             columnType: "MySqlInt";

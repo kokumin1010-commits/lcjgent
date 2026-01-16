@@ -47,13 +47,13 @@ export default function Reports() {
   // Fetch staff statistics for header cards
   const { data: staffStats, isLoading: statsLoading } = trpc.report.staffStatistics.useQuery();
   
-  // Fetch active staff for filter dropdown
-  const { data: activeStaff } = trpc.staff.listActive.useQuery();
+  // Fetch active report staff for filter dropdown
+  const { data: activeReportStaff } = trpc.reportStaff.listActive.useQuery();
 
   // Fetch reports with filters
   const { data: reports, isLoading: reportsLoading, refetch } = trpc.report.list.useQuery(
     {
-      staffId: selectedStaffId !== "all" ? parseInt(selectedStaffId) : undefined,
+      reportStaffId: selectedStaffId !== "all" ? parseInt(selectedStaffId) : undefined,
       startDate: selectedDate ? `${selectedDate}T00:00:00` : undefined,
       endDate: selectedDate ? `${selectedDate}T23:59:59` : undefined,
     }
@@ -73,17 +73,17 @@ export default function Reports() {
     return reports.filter(({ staff }) => staff?.country === selectedCountry);
   }, [reports, selectedCountry]);
 
-  // Get unique countries from staff
+  // Get unique countries from report staff
   const availableCountries = useMemo(() => {
-    if (!activeStaff) return COUNTRIES;
+    if (!activeReportStaff) return COUNTRIES;
     const countries = new Set<string>();
-    activeStaff.forEach(staff => {
+    activeReportStaff.forEach(staff => {
       if (staff.country) countries.add(staff.country);
     });
     // Merge with default countries
     COUNTRIES.forEach(c => countries.add(c.value));
     return Array.from(countries).map(c => ({ value: c, label: c }));
-  }, [activeStaff]);
+  }, [activeReportStaff]);
 
   const deleteReport = trpc.report.delete.useMutation({
     onSuccess: () => {
@@ -236,7 +236,7 @@ export default function Reports() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">全員</SelectItem>
-                  {activeStaff?.map((staff) => (
+                  {activeReportStaff?.map((staff) => (
                     <SelectItem key={staff.id} value={staff.id.toString()}>
                       {staff.name}
                       {staff.country && (

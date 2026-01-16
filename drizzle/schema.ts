@@ -115,12 +115,29 @@ export type InsertEmailTracking = typeof emailTracking.$inferInsert;
 
 
 /**
+ * Report staff table for managing staff members specifically for daily reports
+ * Separate from the main staff table (which is for task assignments/email)
+ */
+export const reportStaff = mysqlTable("report_staff", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  country: varchar("country", { length: 100 }).notNull(), // "日本" or "中国"
+  linkedStaffId: int("linkedStaffId"), // Optional link to staff table for email integration
+  isActive: mysqlEnum("isActive", ["active", "inactive"]).default("active").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ReportStaff = typeof reportStaff.$inferSelect;
+export type InsertReportStaff = typeof reportStaff.$inferInsert;
+
+/**
  * Daily reports table for staff daily work reports
  * Mirrors the existing WordPress report system structure
  */
 export const reports = mysqlTable("reports", {
   id: int("id").autoincrement().primaryKey(),
-  staffId: int("staffId").notNull(), // References staff.id
+  reportStaffId: int("reportStaffId").notNull(), // References report_staff.id
   reportDate: timestamp("reportDate").notNull(), // Date of the report
   workContent: text("workContent").notNull(), // 業務内容
   issues: text("issues"), // 気付き・問題・理由

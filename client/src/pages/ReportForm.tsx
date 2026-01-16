@@ -27,7 +27,7 @@ export default function ReportForm() {
   const params = useParams<{ id: string }>();
   const isEditMode = !!params.id;
 
-  const [staffId, setStaffId] = useState<string>("");
+  const [reportStaffId, setReportStaffId] = useState<string>("");
   const [isNewStaff, setIsNewStaff] = useState(false);
   const [newStaffName, setNewStaffName] = useState("");
   const [newStaffCountry, setNewStaffCountry] = useState<string>("日本");
@@ -38,8 +38,8 @@ export default function ReportForm() {
   const [issues, setIssues] = useState<string>("");
   const [remarks, setRemarks] = useState<string>("");
 
-  // Fetch active staff for dropdown
-  const { data: activeStaff, refetch: refetchStaff } = trpc.staff.listActive.useQuery();
+  // Fetch active report staff for dropdown
+  const { data: activeReportStaff, refetch: refetchReportStaff } = trpc.reportStaff.listActive.useQuery();
 
   // Fetch existing report for edit mode
   const { data: existingReport, isLoading: reportLoading } = trpc.report.getById.useQuery(
@@ -50,7 +50,7 @@ export default function ReportForm() {
   // Populate form with existing data in edit mode
   useEffect(() => {
     if (existingReport?.report) {
-      setStaffId(existingReport.report.staffId.toString());
+      setReportStaffId(existingReport.report.reportStaffId.toString());
       setReportDate(
         new Date(existingReport.report.reportDate).toISOString().split("T")[0]
       );
@@ -60,10 +60,10 @@ export default function ReportForm() {
     }
   }, [existingReport]);
 
-  // Create new staff mutation
-  const createStaff = trpc.staff.create.useMutation({
+  // Create new report staff mutation
+  const createReportStaff = trpc.reportStaff.create.useMutation({
     onSuccess: () => {
-      refetchStaff();
+      refetchReportStaff();
     },
   });
 
@@ -90,9 +90,9 @@ export default function ReportForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    let finalStaffId = staffId;
+    let finalReportStaffId = reportStaffId;
 
-    // If creating new staff, create them first
+    // If creating new report staff, create them first
     if (isNewStaff) {
       if (!newStaffName.trim()) {
         toast.error("スタッフ名を入力してください");
@@ -100,30 +100,24 @@ export default function ReportForm() {
       }
 
       try {
-        // Create new staff with placeholder email (name-based)
-        const placeholderEmail = `${newStaffName.trim().toLowerCase().replace(/\s+/g, '.')}@placeholder.local`;
-        await createStaff.mutateAsync({
+        // Create new report staff
+        const newReportStaff = await createReportStaff.mutateAsync({
           name: newStaffName.trim(),
-          email: placeholderEmail,
           country: newStaffCountry,
         });
 
-        // Refetch staff list and find the newly created staff
-        const { data: updatedStaff } = await refetchStaff();
-        const newStaff = updatedStaff?.find(s => s.name === newStaffName.trim());
-        
-        if (!newStaff) {
+        if (!newReportStaff) {
           toast.error("スタッフの作成に失敗しました");
           return;
         }
 
-        finalStaffId = newStaff.id.toString();
+        finalReportStaffId = newReportStaff.id.toString();
         toast.success(`新しいスタッフ「${newStaffName.trim()}」(${newStaffCountry})を登録しました`);
       } catch (error: any) {
         toast.error(`スタッフの作成に失敗しました: ${error.message}`);
         return;
       }
-    } else if (!staffId) {
+    } else if (!reportStaffId) {
       toast.error("スタッフを選択してください");
       return;
     }
@@ -134,7 +128,7 @@ export default function ReportForm() {
     }
 
     const data = {
-      staffId: parseInt(finalStaffId),
+      reportStaffId: parseInt(finalReportStaffId),
       reportDate: `${reportDate}T00:00:00`,
       workContent: workContent.trim(),
       issues: issues.trim() || undefined,
@@ -151,14 +145,14 @@ export default function ReportForm() {
   const handleStaffSelectionChange = (value: string) => {
     if (value === "new") {
       setIsNewStaff(true);
-      setStaffId("");
+      setReportStaffId("");
     } else {
       setIsNewStaff(false);
-      setStaffId(value);
+      setReportStaffId(value);
     }
   };
 
-  const isPending = createReport.isPending || updateReport.isPending || createStaff.isPending;
+  const isPending = createReport.isPending || updateReport.isPending || createReportStaff.isPending;
 
   if (isEditMode && reportLoading) {
     return (
@@ -195,7 +189,7 @@ export default function ReportForm() {
                   スタッフ <span className="text-destructive">*</span>
                 </Label>
                 <Select 
-                  value={isNewStaff ? "new" : staffId} 
+                  value={isNewStaff ? "new" : reportStaffId} 
                   onValueChange={handleStaffSelectionChange}
                 >
                   <SelectTrigger id="staff">
@@ -208,7 +202,7 @@ export default function ReportForm() {
                         新規スタッフを追加
                       </div>
                     </SelectItem>
-                    {activeStaff?.map((staff) => (
+                    {activeReportStaff?.map((staff) => (
                       <SelectItem key={staff.id} value={staff.id.toString()}>
                         {staff.name}
                         {staff.country && (
@@ -260,7 +254,7 @@ export default function ReportForm() {
                     </div>
                     
                     <p className="text-xs text-muted-foreground">
-                      入力した名前と国で新しいスタッフが自動的に登録されます
+                      入力した名前と国で新しいレポートスタッフが自動的に登録されます
                     </p>
                   </div>
                 )}

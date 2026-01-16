@@ -42,6 +42,13 @@ import {
   deleteReport,
   getStaffReportStatistics,
   searchReports,
+  createReportStaff,
+  getAllReportStaff,
+  getActiveReportStaff,
+  getReportStaffById,
+  updateReportStaff,
+  deleteReportStaff,
+  getReportStaffByCountry,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { authRouter } from "./auth";
@@ -579,11 +586,74 @@ export const appRouter = router({
     }),
   }),
 
+  // Report Staff router (separate from task staff)
+  reportStaff: router({
+    create: protectedProcedure
+      .input(
+        z.object({
+          name: z.string().min(1),
+          country: z.string().min(1),
+          linkedStaffId: z.number().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const reportStaffMember = await createReportStaff({
+          name: input.name,
+          country: input.country,
+          linkedStaffId: input.linkedStaffId || null,
+        });
+        return reportStaffMember;
+      }),
+
+    list: protectedProcedure.query(async () => {
+      return await getAllReportStaff();
+    }),
+
+    listActive: protectedProcedure.query(async () => {
+      return await getActiveReportStaff();
+    }),
+
+    listByCountry: protectedProcedure
+      .input(z.object({ country: z.string() }))
+      .query(async ({ input }) => {
+        return await getReportStaffByCountry(input.country);
+      }),
+
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return await getReportStaffById(input.id);
+      }),
+
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          name: z.string().optional(),
+          country: z.string().optional(),
+          linkedStaffId: z.number().nullable().optional(),
+          isActive: z.enum(["active", "inactive"]).optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { id, ...updateData } = input;
+        await updateReportStaff(id, updateData);
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteReportStaff(input.id);
+        return { success: true };
+      }),
+  }),
+
   report: router({
     create: protectedProcedure
       .input(
         z.object({
-          staffId: z.number(),
+          reportStaffId: z.number(),
           reportDate: z.string(), // ISO 8601 format
           workContent: z.string().min(1),
           issues: z.string().optional(),
@@ -592,7 +662,7 @@ export const appRouter = router({
       )
       .mutation(async ({ input, ctx }) => {
         const report = await createReport({
-          staffId: input.staffId,
+          reportStaffId: input.reportStaffId,
           reportDate: new Date(input.reportDate),
           workContent: input.workContent,
           issues: input.issues || null,
@@ -605,7 +675,7 @@ export const appRouter = router({
     list: protectedProcedure
       .input(
         z.object({
-          staffId: z.number().optional(),
+          reportStaffId: z.number().optional(),
           startDate: z.string().optional(),
           endDate: z.string().optional(),
           searchTerm: z.string().optional(),
@@ -617,7 +687,7 @@ export const appRouter = router({
         }
         
         return await searchReports({
-          staffId: input.staffId,
+          reportStaffId: input.reportStaffId,
           startDate: input.startDate ? new Date(input.startDate) : undefined,
           endDate: input.endDate ? new Date(input.endDate) : undefined,
           searchTerm: input.searchTerm,
@@ -634,7 +704,7 @@ export const appRouter = router({
       .input(
         z.object({
           id: z.number(),
-          staffId: z.number().optional(),
+          reportStaffId: z.number().optional(),
           reportDate: z.string().optional(),
           workContent: z.string().optional(),
           issues: z.string().optional(),

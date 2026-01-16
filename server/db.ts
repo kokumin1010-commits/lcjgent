@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -498,9 +498,65 @@ export async function getEmailTrackingByTaskId(taskId: number) {
 }
 
 
-// Report management functions
-import { reports, InsertReport } from "../drizzle/schema";
+// Report Staff management functions
+export async function createReportStaff(data: InsertReportStaff) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
 
+  const [inserted] = await db.insert(reportStaff).values(data).$returningId();
+  if (inserted && inserted.id) {
+    const result = await db.select().from(reportStaff).where(eq(reportStaff.id, inserted.id)).limit(1);
+    return result.length > 0 ? result[0] : null;
+  }
+  return null;
+}
+
+export async function getAllReportStaff() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.select().from(reportStaff).orderBy(asc(reportStaff.name));
+}
+
+export async function getActiveReportStaff() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.select().from(reportStaff).where(eq(reportStaff.isActive, "active")).orderBy(asc(reportStaff.name));
+}
+
+export async function getReportStaffById(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.select().from(reportStaff).where(eq(reportStaff.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function updateReportStaff(id: number, data: Partial<InsertReportStaff>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.update(reportStaff).set(data).where(eq(reportStaff.id, id));
+}
+
+export async function deleteReportStaff(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.delete(reportStaff).where(eq(reportStaff.id, id));
+}
+
+export async function getReportStaffByCountry(country: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.select().from(reportStaff)
+    .where(and(eq(reportStaff.country, country), eq(reportStaff.isActive, "active")))
+    .orderBy(asc(reportStaff.name));
+}
+
+// Report management functions
 export async function createReport(reportData: InsertReport) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -522,25 +578,25 @@ export async function getAllReports() {
   return await db
     .select({
       report: reports,
-      staff: staff,
+      staff: reportStaff,
     })
     .from(reports)
-    .leftJoin(staff, eq(reports.staffId, staff.id))
+    .leftJoin(reportStaff, eq(reports.reportStaffId, reportStaff.id))
     .orderBy(desc(reports.reportDate));
 }
 
-export async function getReportsByStaffId(staffId: number) {
+export async function getReportsByReportStaffId(reportStaffId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
   return await db
     .select({
       report: reports,
-      staff: staff,
+      staff: reportStaff,
     })
     .from(reports)
-    .leftJoin(staff, eq(reports.staffId, staff.id))
-    .where(eq(reports.staffId, staffId))
+    .leftJoin(reportStaff, eq(reports.reportStaffId, reportStaff.id))
+    .where(eq(reports.reportStaffId, reportStaffId))
     .orderBy(desc(reports.reportDate));
 }
 
@@ -551,10 +607,10 @@ export async function getReportsByDateRange(startDate: Date, endDate: Date) {
   return await db
     .select({
       report: reports,
-      staff: staff,
+      staff: reportStaff,
     })
     .from(reports)
-    .leftJoin(staff, eq(reports.staffId, staff.id))
+    .leftJoin(reportStaff, eq(reports.reportStaffId, reportStaff.id))
     .where(
       and(
         sql`${reports.reportDate} >= ${startDate}`,
@@ -571,10 +627,10 @@ export async function getReportById(id: number) {
   const result = await db
     .select({
       report: reports,
-      staff: staff,
+      staff: reportStaff,
     })
     .from(reports)
-    .leftJoin(staff, eq(reports.staffId, staff.id))
+    .leftJoin(reportStaff, eq(reports.reportStaffId, reportStaff.id))
     .where(eq(reports.id, id))
     .limit(1);
 
@@ -599,8 +655,8 @@ export async function getStaffReportStatistics() {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  // Get all active staff
-  const allStaff = await db.select().from(staff).where(eq(staff.isActive, "active"));
+  // Get all active report staff
+  const allReportStaff = await db.select().from(reportStaff).where(eq(reportStaff.isActive, "active"));
   
   // Get current month date range
   const now = new Date();
@@ -608,14 +664,14 @@ export async function getStaffReportStatistics() {
   const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
   
   const staffWithCounts = await Promise.all(
-    allStaff.map(async (s) => {
+    allReportStaff.map(async (s) => {
       // Count reports for current month
       const monthlyResult = await db
         .select({ count: sql<number>`count(*)` })
         .from(reports)
         .where(
           and(
-            eq(reports.staffId, s.id),
+            eq(reports.reportStaffId, s.id),
             sql`${reports.reportDate} >= ${firstDayOfMonth}`,
             sql`${reports.reportDate} <= ${lastDayOfMonth}`
           )
@@ -625,7 +681,7 @@ export async function getStaffReportStatistics() {
       const totalResult = await db
         .select({ count: sql<number>`count(*)` })
         .from(reports)
-        .where(eq(reports.staffId, s.id));
+        .where(eq(reports.reportStaffId, s.id));
       
       const monthlyCount = Number(monthlyResult[0]?.count || 0);
       const totalCount = Number(totalResult[0]?.count || 0);
@@ -648,7 +704,7 @@ export async function getStaffReportStatistics() {
 }
 
 export async function searchReports(filters: {
-  staffId?: number;
+  reportStaffId?: number;
   startDate?: Date;
   endDate?: Date;
   searchTerm?: string;
@@ -658,8 +714,8 @@ export async function searchReports(filters: {
 
   const conditions = [];
   
-  if (filters.staffId) {
-    conditions.push(eq(reports.staffId, filters.staffId));
+  if (filters.reportStaffId) {
+    conditions.push(eq(reports.reportStaffId, filters.reportStaffId));
   }
   
   if (filters.startDate) {
@@ -683,10 +739,10 @@ export async function searchReports(filters: {
   const query = db
     .select({
       report: reports,
-      staff: staff,
+      staff: reportStaff,
     })
     .from(reports)
-    .leftJoin(staff, eq(reports.staffId, staff.id));
+    .leftJoin(reportStaff, eq(reports.reportStaffId, reportStaff.id));
 
   if (conditions.length > 0) {
     return await query.where(and(...conditions)).orderBy(desc(reports.reportDate));

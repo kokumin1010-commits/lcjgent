@@ -6,6 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -25,20 +32,34 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Plus, Trash2, Edit } from "lucide-react";
+import { Loader2, Plus, Trash2, Edit, Globe } from "lucide-react";
 import { toast } from "sonner";
+
+// Available countries
+const COUNTRIES = [
+  { value: "日本", label: "日本" },
+  { value: "中国", label: "中国" },
+];
 
 export default function StaffManagement() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<any>(null);
+  const [countryFilter, setCountryFilter] = useState<string>("all");
 
   const [newStaffName, setNewStaffName] = useState("");
   const [newStaffEmail, setNewStaffEmail] = useState("");
   const [newStaffDepartment, setNewStaffDepartment] = useState("");
+  const [newStaffCountry, setNewStaffCountry] = useState<string>("日本");
 
   const utils = trpc.useUtils();
   const { data: staffList, isLoading } = trpc.staff.list.useQuery();
+
+  // Filter staff by country
+  const filteredStaffList = staffList?.filter(staff => {
+    if (countryFilter === "all") return true;
+    return staff.country === countryFilter;
+  });
 
   const createStaffMutation = trpc.staff.create.useMutation({
     onSuccess: () => {
@@ -48,6 +69,7 @@ export default function StaffManagement() {
       setNewStaffName("");
       setNewStaffEmail("");
       setNewStaffDepartment("");
+      setNewStaffCountry("日本");
     },
     onError: (error) => {
       toast.error("担当者の追加に失敗しました", {
@@ -92,6 +114,7 @@ export default function StaffManagement() {
       name: newStaffName,
       email: newStaffEmail,
       department: newStaffDepartment || undefined,
+      country: newStaffCountry,
     });
   };
 
@@ -103,6 +126,7 @@ export default function StaffManagement() {
       name: editingStaff.name,
       email: editingStaff.email,
       department: editingStaff.department || undefined,
+      country: editingStaff.country,
       isActive: editingStaff.isActive,
     });
   };
@@ -118,7 +142,7 @@ export default function StaffManagement() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">担当者名簿管理</h1>
           <p className="text-muted-foreground mt-2">
-            タスクを割り当てる担当者の情報を管理します
+            タスクを割り当てる担当者の情報を管理します（メール送信用）
           </p>
         </div>
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
@@ -165,6 +189,24 @@ export default function StaffManagement() {
                     placeholder="営業部"
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="country" className="flex items-center gap-1">
+                    <Globe className="h-4 w-4" />
+                    国 *
+                  </Label>
+                  <Select value={newStaffCountry} onValueChange={setNewStaffCountry}>
+                    <SelectTrigger id="country">
+                      <SelectValue placeholder="国を選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {COUNTRIES.map((country) => (
+                        <SelectItem key={country.value} value={country.value}>
+                          {country.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <DialogFooter>
                 <Button
@@ -190,13 +232,36 @@ export default function StaffManagement() {
         </Dialog>
       </div>
 
+      {/* Country Filter */}
+      <div className="flex items-center gap-2 border-b pb-4">
+        <Globe className="h-5 w-5 text-muted-foreground" />
+        <span className="text-sm font-medium text-muted-foreground mr-2">国:</span>
+        <Button
+          variant={countryFilter === "all" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setCountryFilter("all")}
+        >
+          全て
+        </Button>
+        {COUNTRIES.map((country) => (
+          <Button
+            key={country.value}
+            variant={countryFilter === country.value ? "default" : "outline"}
+            size="sm"
+            onClick={() => setCountryFilter(country.value)}
+          >
+            {country.label}
+          </Button>
+        ))}
+      </div>
+
       {isLoading ? (
         <div className="flex items-center justify-center min-h-[400px]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      ) : staffList && staffList.length > 0 ? (
+      ) : filteredStaffList && filteredStaffList.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {staffList.map((staff) => (
+          {filteredStaffList.map((staff) => (
             <Card key={staff.id}>
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -204,9 +269,16 @@ export default function StaffManagement() {
                     <CardTitle className="text-lg">{staff.name}</CardTitle>
                     <CardDescription className="mt-1">{staff.email}</CardDescription>
                   </div>
-                  <Badge variant={staff.isActive === "active" ? "default" : "secondary"}>
-                    {staff.isActive === "active" ? "有効" : "無効"}
-                  </Badge>
+                  <div className="flex flex-col items-end gap-1">
+                    <Badge variant={staff.isActive === "active" ? "default" : "secondary"}>
+                      {staff.isActive === "active" ? "有効" : "無効"}
+                    </Badge>
+                    {staff.country && (
+                      <Badge variant="outline" className="text-xs">
+                        {staff.country}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -255,7 +327,11 @@ export default function StaffManagement() {
       ) : (
         <Card>
           <CardContent className="flex flex-col items-center justify-center min-h-[400px]">
-            <p className="text-muted-foreground mb-4">担当者が登録されていません</p>
+            <p className="text-muted-foreground mb-4">
+              {countryFilter === "all" 
+                ? "担当者が登録されていません" 
+                : `${countryFilter}の担当者が登録されていません`}
+            </p>
             <Button onClick={() => setIsCreateDialogOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               最初の担当者を追加
@@ -305,6 +381,27 @@ export default function StaffManagement() {
                       setEditingStaff({ ...editingStaff, department: e.target.value })
                     }
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-country" className="flex items-center gap-1">
+                    <Globe className="h-4 w-4" />
+                    国 *
+                  </Label>
+                  <Select 
+                    value={editingStaff.country || "日本"} 
+                    onValueChange={(value) => setEditingStaff({ ...editingStaff, country: value })}
+                  >
+                    <SelectTrigger id="edit-country">
+                      <SelectValue placeholder="国を選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {COUNTRIES.map((country) => (
+                        <SelectItem key={country.value} value={country.value}>
+                          {country.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <DialogFooter>

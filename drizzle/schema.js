@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.reports = exports.emailTracking = exports.taskStaff = exports.reminders = exports.tasks = exports.staff = exports.users = void 0;
+exports.reports = exports.reportStaff = exports.emailTracking = exports.taskStaff = exports.reminders = exports.tasks = exports.staff = exports.users = void 0;
 const mysql_core_1 = require("drizzle-orm/mysql-core");
 /**
  * Core user table backing auth flow.
@@ -23,6 +23,7 @@ exports.staff = (0, mysql_core_1.mysqlTable)("staff", {
     name: (0, mysql_core_1.varchar)("name", { length: 255 }).notNull(),
     email: (0, mysql_core_1.varchar)("email", { length: 320 }).notNull(),
     department: (0, mysql_core_1.varchar)("department", { length: 255 }),
+    country: (0, mysql_core_1.varchar)("country", { length: 100 }), // Country for filtering (e.g., "日本", "中国")
     isActive: (0, mysql_core_1.mysqlEnum)("isActive", ["active", "inactive"]).default("active").notNull(),
     createdAt: (0, mysql_core_1.timestamp)("createdAt").defaultNow().notNull(),
     updatedAt: (0, mysql_core_1.timestamp)("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -91,12 +92,25 @@ exports.emailTracking = (0, mysql_core_1.mysqlTable)("email_tracking", {
     updatedAt: (0, mysql_core_1.timestamp)("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 /**
+ * Report staff table for managing staff members specifically for daily reports
+ * Separate from the main staff table (which is for task assignments/email)
+ */
+exports.reportStaff = (0, mysql_core_1.mysqlTable)("report_staff", {
+    id: (0, mysql_core_1.int)("id").autoincrement().primaryKey(),
+    name: (0, mysql_core_1.varchar)("name", { length: 255 }).notNull(),
+    country: (0, mysql_core_1.varchar)("country", { length: 100 }).notNull(), // "日本" or "中国"
+    linkedStaffId: (0, mysql_core_1.int)("linkedStaffId"), // Optional link to staff table for email integration
+    isActive: (0, mysql_core_1.mysqlEnum)("isActive", ["active", "inactive"]).default("active").notNull(),
+    createdAt: (0, mysql_core_1.timestamp)("createdAt").defaultNow().notNull(),
+    updatedAt: (0, mysql_core_1.timestamp)("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+/**
  * Daily reports table for staff daily work reports
  * Mirrors the existing WordPress report system structure
  */
 exports.reports = (0, mysql_core_1.mysqlTable)("reports", {
     id: (0, mysql_core_1.int)("id").autoincrement().primaryKey(),
-    staffId: (0, mysql_core_1.int)("staffId").notNull(), // References staff.id
+    reportStaffId: (0, mysql_core_1.int)("reportStaffId").notNull(), // References report_staff.id
     reportDate: (0, mysql_core_1.timestamp)("reportDate").notNull(), // Date of the report
     workContent: (0, mysql_core_1.text)("workContent").notNull(), // 業務内容
     issues: (0, mysql_core_1.text)("issues"), // 気付き・問題・理由
