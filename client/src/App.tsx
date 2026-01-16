@@ -18,6 +18,9 @@ import Reports from "./pages/Reports";
 import ReportForm from "./pages/ReportForm";
 import ReportStaffManagement from "./pages/ReportStaffManagement";
 import ReportAnalysis from "./pages/ReportAnalysis";
+import BrandList from "./pages/BrandList";
+import BrandForm from "./pages/BrandForm";
+import BrandDetail from "./pages/BrandDetail";
 
 function Router() {
   return (
@@ -92,6 +95,30 @@ function Router() {
         <DashboardLayout>
           <ReportAnalysis />
         </DashboardLayout>
+      </Route>
+      <Route path={"/brands"}>
+        <DashboardLayout>
+          <BrandList />
+        </DashboardLayout>
+      </Route>
+      <Route path={"/brands/new"}>
+        <DashboardLayout>
+          <BrandForm />
+        </DashboardLayout>
+      </Route>
+      <Route path={"/brands/:id/edit"}>
+        {(params) => (
+          <DashboardLayout>
+            <BrandForm />
+          </DashboardLayout>
+        )}
+      </Route>
+      <Route path={"/brands/:id"}>
+        {(params) => (
+          <DashboardLayout>
+            <BrandDetail />
+          </DashboardLayout>
+        )}
       </Route>
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />

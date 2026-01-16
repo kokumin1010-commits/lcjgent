@@ -20,6 +20,7 @@ const jaTranslations: Record<string, string> = {
   "nav.staff": "担当者名簿",
   "nav.masterControl": "マスターコントロール",
   "nav.reportAnalysis": "AI分析",
+  "nav.brands": "ブランド管理",
   "nav.logout": "ログアウト",
   
   // Dashboard
@@ -227,6 +228,7 @@ const zhTranslations: Record<string, string> = {
   "nav.staff": "员工名册",
   "nav.masterControl": "主控制台",
   "nav.reportAnalysis": "AI分析",
+  "nav.brands": "品牌管理",
   "nav.logout": "退出登录",
   
   // Dashboard

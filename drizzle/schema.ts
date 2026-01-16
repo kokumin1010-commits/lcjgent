@@ -149,3 +149,74 @@ export const reports = mysqlTable("reports", {
 
 export type Report = typeof reports.$inferSelect;
 export type InsertReport = typeof reports.$inferInsert;
+
+
+/**
+ * Brands table for managing brand information and sales activities
+ */
+export const brands = mysqlTable("brands", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(), // ブランド名
+  companyName: varchar("companyName", { length: 255 }), // 会社名
+  category: varchar("category", { length: 100 }), // カテゴリー (e.g., "サービス業")
+  phoneNumber: varchar("phoneNumber", { length: 50 }), // 電話番号
+  status: mysqlEnum("status", ["進行中", "打ち合わせ中", "契約済み", "保留", "終了"]).default("進行中").notNull(), // ステータス
+  materialCategory: varchar("materialCategory", { length: 255 }), // 商材カテゴリ
+  email: varchar("email", { length: 320 }), // メールアドレス
+  contactPerson: varchar("contactPerson", { length: 255 }), // 担当者名
+  adBudget: bigint("adBudget", { mode: "number" }), // 広告費
+  salesTarget: bigint("salesTarget", { mode: "number" }), // 売上目標
+  commissionRate: varchar("commissionRate", { length: 50 }), // 成果報酬 (e.g., "50%")
+  businessCardUrls: json("businessCardUrls").$type<string[]>(), // 名刺画像URLs (up to 2)
+  businessCardKeys: json("businessCardKeys").$type<string[]>(), // 名刺画像S3 keys
+  logoUrl: text("logoUrl"), // ロゴ画像URL
+  logoKey: varchar("logoKey", { length: 512 }), // ロゴ画像S3 key
+  memo: text("memo"), // メモ
+  createdBy: int("createdBy").notNull(), // User ID who created the brand
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Brand = typeof brands.$inferSelect;
+export type InsertBrand = typeof brands.$inferInsert;
+
+/**
+ * Brand products table for managing products associated with brands
+ */
+export const brandProducts = mysqlTable("brand_products", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(), // References brands.id
+  productName: varchar("productName", { length: 255 }).notNull(), // 商品名
+  listPrice: bigint("listPrice", { mode: "number" }), // 定価
+  specialPrice: bigint("specialPrice", { mode: "number" }), // 特別価格
+  discountRate: varchar("discountRate", { length: 50 }), // 仕切率
+  sampleProduct: varchar("sampleProduct", { length: 255 }), // サンプル品
+  productCode: varchar("productCode", { length: 100 }), // コード品番
+  influencer: varchar("influencer", { length: 255 }), // インフルエンサー
+  purchasePrice: bigint("purchasePrice", { mode: "number" }), // 仕入金額
+  remarks: text("remarks"), // 備考
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type BrandProduct = typeof brandProducts.$inferSelect;
+export type InsertBrandProduct = typeof brandProducts.$inferInsert;
+
+/**
+ * Brand activity history table for tracking interactions with brands
+ */
+export const brandActivities = mysqlTable("brand_activities", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(), // References brands.id
+  activityDate: timestamp("activityDate").notNull(), // 日付
+  activityType: mysqlEnum("activityType", ["進行中", "打ち合わせ", "完了"]).default("進行中").notNull(), // 対応内容
+  contactPerson: varchar("contactPerson", { length: 255 }), // 担当者名
+  nextAction: text("nextAction"), // 次アクション
+  content: text("content"), // 内容（面出メモ）
+  createdBy: int("createdBy").notNull(), // User ID who created the activity
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type BrandActivity = typeof brandActivities.$inferSelect;
+export type InsertBrandActivity = typeof brandActivities.$inferInsert;

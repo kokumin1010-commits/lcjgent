@@ -85,6 +85,13 @@
       "when": 1768555529053,
       "tag": "0011_sleepy_rawhide_kid",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1768558403409,
+      "tag": "0012_tough_mandroid",
+      "breakpoints": true
     }
   ]
 }

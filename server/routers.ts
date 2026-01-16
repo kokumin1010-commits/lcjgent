@@ -48,6 +48,20 @@ import {
   getActiveReportStaff,
   getReportStaffById,
   updateReportStaff,
+  createBrand,
+  getAllBrands,
+  getBrandById,
+  updateBrand,
+  deleteBrand,
+  createBrandProduct,
+  getProductsByBrandId,
+  updateBrandProduct,
+  deleteBrandProduct,
+  createBrandActivity,
+  getActivitiesByBrandId,
+  updateBrandActivity,
+  deleteBrandActivity,
+  getBrandStatistics,
   deleteReportStaff,
   getReportStaffByCountry,
 } from "./db";
@@ -934,6 +948,224 @@ ${JSON.stringify(teamSummary, null, 2)}`;
             error: input.language === "ja" ? "AI分析中にエラーが発生しました" : "AI分析过程中发生错误",
           };
         }
+      }),
+  }),
+
+  // Brand Management Router
+  brand: router({
+    create: protectedProcedure
+      .input(
+        z.object({
+          name: z.string().min(1),
+          companyName: z.string().optional(),
+          category: z.string().optional(),
+          phoneNumber: z.string().optional(),
+          status: z.enum(["進行中", "打ち合わせ中", "契約済み", "保留", "終了"]).default("進行中"),
+          materialCategory: z.string().optional(),
+          email: z.string().optional(),
+          contactPerson: z.string().optional(),
+          adBudget: z.number().optional(),
+          salesTarget: z.number().optional(),
+          commissionRate: z.string().optional(),
+          businessCardUrls: z.array(z.string()).optional(),
+          businessCardKeys: z.array(z.string()).optional(),
+          logoUrl: z.string().optional(),
+          logoKey: z.string().optional(),
+          memo: z.string().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const brand = await createBrand({
+          ...input,
+          createdBy: ctx.user.id,
+        });
+        return brand;
+      }),
+
+    list: protectedProcedure
+      .input(
+        z.object({
+          status: z.string().optional(),
+          search: z.string().optional(),
+        }).optional()
+      )
+      .query(async ({ input }) => {
+        return await getAllBrands(input);
+      }),
+
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return await getBrandById(input.id);
+      }),
+
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          name: z.string().optional(),
+          companyName: z.string().optional(),
+          category: z.string().optional(),
+          phoneNumber: z.string().optional(),
+          status: z.enum(["進行中", "打ち合わせ中", "契約済み", "保留", "終了"]).optional(),
+          materialCategory: z.string().optional(),
+          email: z.string().optional(),
+          contactPerson: z.string().optional(),
+          adBudget: z.number().optional(),
+          salesTarget: z.number().optional(),
+          commissionRate: z.string().optional(),
+          businessCardUrls: z.array(z.string()).optional(),
+          businessCardKeys: z.array(z.string()).optional(),
+          logoUrl: z.string().optional(),
+          logoKey: z.string().optional(),
+          memo: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { id, ...updateData } = input;
+        return await updateBrand(id, updateData);
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteBrand(input.id);
+        return { success: true };
+      }),
+
+    statistics: protectedProcedure.query(async () => {
+      return await getBrandStatistics();
+    }),
+
+    // Upload image for brand
+    uploadImage: protectedProcedure
+      .input(
+        z.object({
+          base64: z.string(),
+          filename: z.string(),
+          type: z.enum(["logo", "businessCard"]),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const buffer = Buffer.from(input.base64, "base64");
+        const ext = input.filename.split(".").pop() || "png";
+        const key = `brands/${ctx.user.id}/${input.type}/${nanoid()}.${ext}`;
+        const contentType = `image/${ext === "jpg" ? "jpeg" : ext}`;
+        
+        const { url } = await storagePut(key, buffer, contentType);
+        return { url, key };
+      }),
+  }),
+
+  // Brand Products Router
+  brandProduct: router({
+    create: protectedProcedure
+      .input(
+        z.object({
+          brandId: z.number(),
+          productName: z.string().min(1),
+          listPrice: z.number().optional(),
+          specialPrice: z.number().optional(),
+          discountRate: z.string().optional(),
+          sampleProduct: z.string().optional(),
+          productCode: z.string().optional(),
+          influencer: z.string().optional(),
+          purchasePrice: z.number().optional(),
+          remarks: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        return await createBrandProduct(input);
+      }),
+
+    listByBrand: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        return await getProductsByBrandId(input.brandId);
+      }),
+
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          productName: z.string().optional(),
+          listPrice: z.number().optional(),
+          specialPrice: z.number().optional(),
+          discountRate: z.string().optional(),
+          sampleProduct: z.string().optional(),
+          productCode: z.string().optional(),
+          influencer: z.string().optional(),
+          purchasePrice: z.number().optional(),
+          remarks: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { id, ...updateData } = input;
+        await updateBrandProduct(id, updateData);
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteBrandProduct(input.id);
+        return { success: true };
+      }),
+  }),
+
+  // Brand Activities Router
+  brandActivity: router({
+    create: protectedProcedure
+      .input(
+        z.object({
+          brandId: z.number(),
+          activityDate: z.string(),
+          activityType: z.enum(["進行中", "打ち合わせ", "完了"]).default("進行中"),
+          contactPerson: z.string().optional(),
+          nextAction: z.string().optional(),
+          content: z.string().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        return await createBrandActivity({
+          ...input,
+          activityDate: new Date(input.activityDate),
+          createdBy: ctx.user.id,
+        });
+      }),
+
+    listByBrand: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        return await getActivitiesByBrandId(input.brandId);
+      }),
+
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          activityDate: z.string().optional(),
+          activityType: z.enum(["進行中", "打ち合わせ", "完了"]).optional(),
+          contactPerson: z.string().optional(),
+          nextAction: z.string().optional(),
+          content: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { id, activityDate, ...rest } = input;
+        const updateData: any = { ...rest };
+        if (activityDate) {
+          updateData.activityDate = new Date(activityDate);
+        }
+        await updateBrandActivity(id, updateData);
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteBrandActivity(input.id);
+        return { success: true };
       }),
   }),
 });

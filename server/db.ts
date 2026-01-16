@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -790,4 +790,155 @@ export async function getReportsForAnalysis(options: {
   }
 
   return await query.orderBy(desc(reports.reportDate));
+}
+
+
+// ========== Brand Management Functions ==========
+
+// Create a new brand
+export async function createBrand(brandData: InsertBrand) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(brands).values(brandData);
+  return result;
+}
+
+// Get all brands with optional filters
+export async function getAllBrands(filters?: { status?: string; search?: string }) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  let query = db.select().from(brands);
+  
+  const conditions = [];
+  if (filters?.status) {
+    conditions.push(eq(brands.status, filters.status as any));
+  }
+  if (filters?.search) {
+    conditions.push(like(brands.name, `%${filters.search}%`));
+  }
+  
+  if (conditions.length > 0) {
+    query = query.where(and(...conditions)) as any;
+  }
+  
+  return await query.orderBy(desc(brands.updatedAt));
+}
+
+// Get brand by ID
+export async function getBrandById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  
+  const result = await db.select().from(brands).where(eq(brands.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+// Update brand
+export async function updateBrand(id: number, brandData: Partial<InsertBrand>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(brands).set(brandData).where(eq(brands.id, id));
+  return await getBrandById(id);
+}
+
+// Delete brand
+export async function deleteBrand(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Delete related products and activities first
+  await db.delete(brandProducts).where(eq(brandProducts.brandId, id));
+  await db.delete(brandActivities).where(eq(brandActivities.brandId, id));
+  await db.delete(brands).where(eq(brands.id, id));
+}
+
+// ========== Brand Products Functions ==========
+
+// Create a new product
+export async function createBrandProduct(productData: InsertBrandProduct) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(brandProducts).values(productData);
+  return result;
+}
+
+// Get products by brand ID
+export async function getProductsByBrandId(brandId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db.select().from(brandProducts).where(eq(brandProducts.brandId, brandId)).orderBy(desc(brandProducts.createdAt));
+}
+
+// Update product
+export async function updateBrandProduct(id: number, productData: Partial<InsertBrandProduct>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(brandProducts).set(productData).where(eq(brandProducts.id, id));
+}
+
+// Delete product
+export async function deleteBrandProduct(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.delete(brandProducts).where(eq(brandProducts.id, id));
+}
+
+// ========== Brand Activities Functions ==========
+
+// Create a new activity
+export async function createBrandActivity(activityData: InsertBrandActivity) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(brandActivities).values(activityData);
+  return result;
+}
+
+// Get activities by brand ID
+export async function getActivitiesByBrandId(brandId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db.select().from(brandActivities).where(eq(brandActivities.brandId, brandId)).orderBy(desc(brandActivities.activityDate));
+}
+
+// Update activity
+export async function updateBrandActivity(id: number, activityData: Partial<InsertBrandActivity>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(brandActivities).set(activityData).where(eq(brandActivities.id, id));
+}
+
+// Delete activity
+export async function deleteBrandActivity(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.delete(brandActivities).where(eq(brandActivities.id, id));
+}
+
+// Get brand statistics
+export async function getBrandStatistics() {
+  const db = await getDb();
+  if (!db) return { total: 0, byStatus: {} };
+  
+  const allBrands = await db.select().from(brands);
+  
+  const byStatus: Record<string, number> = {};
+  allBrands.forEach(brand => {
+    byStatus[brand.status] = (byStatus[brand.status] || 0) + 1;
+  });
+  
+  return {
+    total: allBrands.length,
+    byStatus,
+  };
 }
