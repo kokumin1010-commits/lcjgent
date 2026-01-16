@@ -35,6 +35,13 @@ import {
   getOverdueTasks,
   createEmailTracking,
   getEmailTrackingByTaskId,
+  createReport,
+  getAllReports,
+  getReportById,
+  updateReport,
+  deleteReport,
+  getStaffReportStatistics,
+  searchReports,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { authRouter } from "./auth";
@@ -566,6 +573,90 @@ export const appRouter = router({
 
     staffWithTaskCounts: protectedProcedure.query(async () => {
       return await getStaffWithTaskCounts();
+    }),
+  }),
+
+  report: router({
+    create: protectedProcedure
+      .input(
+        z.object({
+          staffId: z.number(),
+          reportDate: z.string(), // ISO 8601 format
+          workContent: z.string().min(1),
+          issues: z.string().optional(),
+          remarks: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        const report = await createReport({
+          staffId: input.staffId,
+          reportDate: new Date(input.reportDate),
+          workContent: input.workContent,
+          issues: input.issues || null,
+          remarks: input.remarks || null,
+          createdBy: ctx.user.id,
+        });
+        return report;
+      }),
+
+    list: protectedProcedure
+      .input(
+        z.object({
+          staffId: z.number().optional(),
+          startDate: z.string().optional(),
+          endDate: z.string().optional(),
+          searchTerm: z.string().optional(),
+        }).optional()
+      )
+      .query(async ({ input }) => {
+        if (!input || Object.keys(input).length === 0) {
+          return await getAllReports();
+        }
+        
+        return await searchReports({
+          staffId: input.staffId,
+          startDate: input.startDate ? new Date(input.startDate) : undefined,
+          endDate: input.endDate ? new Date(input.endDate) : undefined,
+          searchTerm: input.searchTerm,
+        });
+      }),
+
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return await getReportById(input.id);
+      }),
+
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          staffId: z.number().optional(),
+          reportDate: z.string().optional(),
+          workContent: z.string().optional(),
+          issues: z.string().optional(),
+          remarks: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { id, ...updateData } = input;
+        const data: any = { ...updateData };
+        if (updateData.reportDate) {
+          data.reportDate = new Date(updateData.reportDate);
+        }
+        await updateReport(id, data);
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteReport(input.id);
+        return { success: true };
+      }),
+
+    staffStatistics: protectedProcedure.query(async () => {
+      return await getStaffReportStatistics();
     }),
   }),
 });

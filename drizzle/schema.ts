@@ -111,3 +111,23 @@ export const emailTracking = mysqlTable("email_tracking", {
 
 export type EmailTracking = typeof emailTracking.$inferSelect;
 export type InsertEmailTracking = typeof emailTracking.$inferInsert;
+
+
+/**
+ * Daily reports table for staff daily work reports
+ * Mirrors the existing WordPress report system structure
+ */
+export const reports = mysqlTable("reports", {
+  id: int("id").autoincrement().primaryKey(),
+  staffId: int("staffId").notNull(), // References staff.id
+  reportDate: timestamp("reportDate").notNull(), // Date of the report
+  workContent: text("workContent").notNull(), // 業務内容
+  issues: text("issues"), // 気付き・問題・理由
+  remarks: text("remarks"), // 備考
+  createdBy: int("createdBy").notNull(), // User ID who created the report
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Report = typeof reports.$inferSelect;
+export type InsertReport = typeof reports.$inferInsert;

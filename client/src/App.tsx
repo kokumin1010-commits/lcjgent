@@ -14,6 +14,8 @@ import Login from "./pages/Login";
 import TaskComplete from "./pages/TaskComplete";
 import MasterControl from "./pages/MasterControl";
 import StaffTasks from "./pages/StaffTasks";
+import Reports from "./pages/Reports";
+import ReportForm from "./pages/ReportForm";
 
 function Router() {
   return (
@@ -63,6 +65,21 @@ function Router() {
             <StaffTasks />
           </DashboardLayout>
         )}
+      </Route>
+      <Route path={"/reports"}>
+        <DashboardLayout>
+          <Reports />
+        </DashboardLayout>
+      </Route>
+      <Route path={"/reports/new"}>
+        <DashboardLayout>
+          <ReportForm />
+        </DashboardLayout>
+      </Route>
+      <Route path={"/reports/edit/:id"}>
+        <DashboardLayout>
+          <ReportForm />
+        </DashboardLayout>
       </Route>
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
