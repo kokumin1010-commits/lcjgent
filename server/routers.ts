@@ -68,6 +68,7 @@ export const appRouter = router({
           name: z.string().min(1),
           email: z.string().min(1).regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Invalid email format"),
           department: z.string().optional(),
+          country: z.string().optional(),
         })
       )
       .mutation(async ({ input }) => {
@@ -75,6 +76,7 @@ export const appRouter = router({
           name: input.name,
           email: input.email,
           department: input.department,
+          country: input.country,
           isActive: "active",
         });
         return { success: true };
@@ -101,6 +103,7 @@ export const appRouter = router({
           name: z.string().min(1).optional(),
           email: z.string().min(1).regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Invalid email format").optional(),
           department: z.string().optional(),
+          country: z.string().optional(),
           isActive: z.enum(["active", "inactive"]).optional(),
         })
       )

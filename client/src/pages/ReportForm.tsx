@@ -12,9 +12,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { FileText, Save, ArrowLeft, UserPlus } from "lucide-react";
+import { FileText, Save, ArrowLeft, UserPlus, Globe } from "lucide-react";
 import { useLocation, useParams } from "wouter";
 import { toast } from "sonner";
+
+// Available countries
+const COUNTRIES = [
+  { value: "日本", label: "日本" },
+  { value: "中国", label: "中国" },
+];
 
 export default function ReportForm() {
   const [, setLocation] = useLocation();
@@ -24,6 +30,7 @@ export default function ReportForm() {
   const [staffId, setStaffId] = useState<string>("");
   const [isNewStaff, setIsNewStaff] = useState(false);
   const [newStaffName, setNewStaffName] = useState("");
+  const [newStaffCountry, setNewStaffCountry] = useState<string>("日本");
   const [reportDate, setReportDate] = useState<string>(
     new Date().toISOString().split("T")[0]
   );
@@ -98,6 +105,7 @@ export default function ReportForm() {
         await createStaff.mutateAsync({
           name: newStaffName.trim(),
           email: placeholderEmail,
+          country: newStaffCountry,
         });
 
         // Refetch staff list and find the newly created staff
@@ -110,7 +118,7 @@ export default function ReportForm() {
         }
 
         finalStaffId = newStaff.id.toString();
-        toast.success(`新しいスタッフ「${newStaffName.trim()}」を登録しました`);
+        toast.success(`新しいスタッフ「${newStaffName.trim()}」(${newStaffCountry})を登録しました`);
       } catch (error: any) {
         toast.error(`スタッフの作成に失敗しました: ${error.message}`);
         return;
@@ -203,9 +211,9 @@ export default function ReportForm() {
                     {activeStaff?.map((staff) => (
                       <SelectItem key={staff.id} value={staff.id.toString()}>
                         {staff.name}
-                        {staff.department && (
+                        {staff.country && (
                           <span className="text-muted-foreground ml-2">
-                            ({staff.department})
+                            ({staff.country})
                           </span>
                         )}
                       </SelectItem>
@@ -213,21 +221,46 @@ export default function ReportForm() {
                   </SelectContent>
                 </Select>
 
-                {/* New Staff Name Input */}
+                {/* New Staff Input Fields */}
                 {isNewStaff && (
-                  <div className="mt-3 p-3 border rounded-lg bg-muted/30">
-                    <Label htmlFor="newStaffName" className="text-sm">
-                      新規スタッフ名 <span className="text-destructive">*</span>
-                    </Label>
-                    <Input
-                      id="newStaffName"
-                      value={newStaffName}
-                      onChange={(e) => setNewStaffName(e.target.value)}
-                      placeholder="スタッフ名を入力"
-                      className="mt-1"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      入力した名前で新しいスタッフが自動的に登録されます
+                  <div className="mt-3 p-4 border rounded-lg bg-muted/30 space-y-4">
+                    <div>
+                      <Label htmlFor="newStaffName" className="text-sm">
+                        新規スタッフ名 <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="newStaffName"
+                        value={newStaffName}
+                        onChange={(e) => setNewStaffName(e.target.value)}
+                        placeholder="スタッフ名を入力"
+                        className="mt-1"
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="newStaffCountry" className="text-sm flex items-center gap-1">
+                        <Globe className="h-3 w-3" />
+                        国 <span className="text-destructive">*</span>
+                      </Label>
+                      <Select 
+                        value={newStaffCountry} 
+                        onValueChange={setNewStaffCountry}
+                      >
+                        <SelectTrigger id="newStaffCountry" className="mt-1">
+                          <SelectValue placeholder="国を選択" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {COUNTRIES.map((country) => (
+                            <SelectItem key={country.value} value={country.value}>
+                              {country.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <p className="text-xs text-muted-foreground">
+                      入力した名前と国で新しいスタッフが自動的に登録されます
                     </p>
                   </div>
                 )}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,15 +25,21 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import { FileText, Plus, Search, X, Pencil, Trash2 } from "lucide-react";
+import { FileText, Plus, Search, X, Pencil, Trash2, Globe } from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
+
+// Available countries for filtering
+const COUNTRIES = [
+  { value: "日本", label: "日本" },
+  { value: "中国", label: "中国" },
+];
 
 export default function Reports() {
   const [, setLocation] = useLocation();
   const [selectedStaffId, setSelectedStaffId] = useState<string>("all");
+  const [selectedCountry, setSelectedCountry] = useState<string>("all");
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [reportToDelete, setReportToDelete] = useState<number | null>(null);
@@ -52,6 +58,32 @@ export default function Reports() {
       endDate: selectedDate ? `${selectedDate}T23:59:59` : undefined,
     }
   );
+
+  // Filter staff stats by country
+  const filteredStaffStats = useMemo(() => {
+    if (!staffStats) return [];
+    if (selectedCountry === "all") return staffStats;
+    return staffStats.filter(staff => staff.country === selectedCountry);
+  }, [staffStats, selectedCountry]);
+
+  // Filter reports by country (client-side filtering since we have staff info)
+  const filteredReports = useMemo(() => {
+    if (!reports) return [];
+    if (selectedCountry === "all") return reports;
+    return reports.filter(({ staff }) => staff?.country === selectedCountry);
+  }, [reports, selectedCountry]);
+
+  // Get unique countries from staff
+  const availableCountries = useMemo(() => {
+    if (!activeStaff) return COUNTRIES;
+    const countries = new Set<string>();
+    activeStaff.forEach(staff => {
+      if (staff.country) countries.add(staff.country);
+    });
+    // Merge with default countries
+    COUNTRIES.forEach(c => countries.add(c.value));
+    return Array.from(countries).map(c => ({ value: c, label: c }));
+  }, [activeStaff]);
 
   const deleteReport = trpc.report.delete.useMutation({
     onSuccess: () => {
@@ -78,6 +110,7 @@ export default function Reports() {
 
   const clearFilters = () => {
     setSelectedStaffId("all");
+    setSelectedCountry("all");
     setSelectedDate("");
   };
 
@@ -103,13 +136,36 @@ export default function Reports() {
 
   return (
     <div className="space-y-6">
+      {/* Country Filter Tabs */}
+      <div className="flex items-center gap-2 border-b pb-4">
+        <Globe className="h-5 w-5 text-muted-foreground" />
+        <span className="text-sm font-medium text-muted-foreground mr-2">国:</span>
+        <Button
+          variant={selectedCountry === "all" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setSelectedCountry("all")}
+        >
+          全て
+        </Button>
+        {availableCountries.map((country) => (
+          <Button
+            key={country.value}
+            variant={selectedCountry === country.value ? "default" : "outline"}
+            size="sm"
+            onClick={() => setSelectedCountry(country.value)}
+          >
+            {country.label}
+          </Button>
+        ))}
+      </div>
+
       {/* Staff Statistics Cards - WordPress style header */}
       <div className="overflow-x-auto">
         <div className="flex gap-4 min-w-max pb-2">
           {statsLoading ? (
             <div className="flex gap-4">
               {[...Array(6)].map((_, i) => (
-                <Card key={i} className="w-32 animate-pulse">
+                <Card key={i} className="w-36 animate-pulse">
                   <CardContent className="p-4 text-center">
                     <div className="h-4 bg-muted rounded w-16 mx-auto mb-2"></div>
                     <div className="h-8 bg-muted rounded w-8 mx-auto mb-2"></div>
@@ -118,17 +174,28 @@ export default function Reports() {
                 </Card>
               ))}
             </div>
+          ) : filteredStaffStats.length === 0 ? (
+            <Card className="w-full">
+              <CardContent className="p-4 text-center text-muted-foreground">
+                この国のスタッフはいません
+              </CardContent>
+            </Card>
           ) : (
-            staffStats?.map((staff) => (
+            filteredStaffStats.map((staff) => (
               <Card
                 key={staff.id}
-                className="w-32 hover:shadow-md transition-shadow cursor-pointer"
+                className="w-36 hover:shadow-md transition-shadow cursor-pointer"
                 onClick={() => setSelectedStaffId(staff.id.toString())}
               >
                 <CardContent className="p-4 text-center">
                   <p className="text-sm font-medium text-muted-foreground truncate">
                     {staff.name}
                   </p>
+                  {staff.country && (
+                    <Badge variant="outline" className="text-xs mt-1">
+                      {staff.country}
+                    </Badge>
+                  )}
                   <p className="text-3xl font-bold text-primary mt-1">
                     {staff.monthlyCount}
                   </p>
@@ -172,6 +239,11 @@ export default function Reports() {
                   {activeStaff?.map((staff) => (
                     <SelectItem key={staff.id} value={staff.id.toString()}>
                       {staff.name}
+                      {staff.country && (
+                        <span className="text-muted-foreground ml-1">
+                          ({staff.country})
+                        </span>
+                      )}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -198,7 +270,7 @@ export default function Reports() {
           <div className="mb-4">
             <Badge variant="secondary" className="text-sm">
               <Search className="h-3 w-3 mr-1" />
-              検索結果: {reports?.length || 0}件が該当しました
+              検索結果: {filteredReports.length}件が該当しました
             </Badge>
           </div>
 
@@ -207,7 +279,7 @@ export default function Reports() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead className="w-20">スタッフ</TableHead>
+                  <TableHead className="w-24">スタッフ</TableHead>
                   <TableHead className="w-28">日付</TableHead>
                   <TableHead>業務内容</TableHead>
                   <TableHead>気付き・問題・理由</TableHead>
@@ -226,21 +298,28 @@ export default function Reports() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ) : reports?.length === 0 ? (
+                ) : filteredReports.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       レポートがありません
                     </TableCell>
                   </TableRow>
                 ) : (
-                  reports?.map(({ report, staff }) => (
+                  filteredReports.map(({ report, staff }) => (
                     <TableRow key={report.id} className="hover:bg-muted/30">
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium text-sm">
-                            {staff?.name?.charAt(0) || "?"}
+                        <div className="flex flex-col items-start gap-1">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium text-sm">
+                              {staff?.name?.charAt(0) || "?"}
+                            </div>
+                            <span className="font-medium text-sm">{staff?.name || "不明"}</span>
                           </div>
-                          <span className="font-medium text-sm">{staff?.name || "不明"}</span>
+                          {staff?.country && (
+                            <Badge variant="outline" className="text-xs ml-10">
+                              {staff.country}
+                            </Badge>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell className="text-sm">

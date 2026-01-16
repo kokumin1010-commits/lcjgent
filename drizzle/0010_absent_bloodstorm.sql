@@ -1,0 +1,1 @@
+ALTER TABLE `staff` ADD `country` varchar(100);

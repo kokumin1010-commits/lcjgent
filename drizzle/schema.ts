@@ -25,6 +25,7 @@ export const staff = mysqlTable("staff", {
   name: varchar("name", { length: 255 }).notNull(),
   email: varchar("email", { length: 320 }).notNull(),
   department: varchar("department", { length: 255 }),
+  country: varchar("country", { length: 100 }), // Country for filtering (e.g., "日本", "中国")
   isActive: mysqlEnum("isActive", ["active", "inactive"]).default("active").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
