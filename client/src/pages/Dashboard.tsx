@@ -3,11 +3,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Loader2, ClipboardList, Clock, CheckCircle2, Users, Plus, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const { data: stats, isLoading } = trpc.dashboard.statistics.useQuery();
   const { data: staffWithCounts } = trpc.dashboard.staffWithTaskCounts.useQuery();
+  const { t } = useLanguage();
 
   if (isLoading) {
     return (
@@ -18,8 +20,6 @@ export default function Dashboard() {
   }
 
   const taskStats = stats?.stats || { total: 0, pending: 0, inProgress: 0, completed: 0 };
-  const avgTime = stats?.avgCompletionTime || 0;
-  const avgHours = (avgTime / (1000 * 60 * 60)).toFixed(1);
 
   return (
     <div className="space-y-6 relative">
@@ -32,16 +32,16 @@ export default function Dashboard() {
         <Plus className="h-6 w-6" />
       </Button>
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">ダッシュボード</h1>
+        <h1 className="text-3xl font-bold tracking-tight">{t("dashboard.title")}</h1>
         <p className="text-muted-foreground mt-2">
-          業務自動化システムの概要を確認できます
+          {t("dashboard.title")}
         </p>
       </div>
 
       <div className="grid gap-4 grid-cols-2">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">総タスク数</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("tasks.all")}</CardTitle>
             <ClipboardList className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -54,7 +54,7 @@ export default function Dashboard() {
           onClick={() => setLocation("/tasks?status=in_progress")}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">進行中</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("dashboard.inProgress")}</CardTitle>
             <Clock className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
@@ -67,7 +67,7 @@ export default function Dashboard() {
           onClick={() => setLocation("/tasks?status=completed")}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">完了</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("dashboard.completed")}</CardTitle>
             <CheckCircle2 className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
@@ -80,7 +80,7 @@ export default function Dashboard() {
           onClick={() => setLocation("/tasks?overdue=true")}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">期限切れ</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("dashboard.overdue")}</CardTitle>
             <AlertTriangle className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
@@ -90,7 +90,7 @@ export default function Dashboard() {
 
         <Card className="col-span-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-            <CardTitle className="text-base font-medium">担当者一覧</CardTitle>
+            <CardTitle className="text-base font-medium">{t("dashboard.staffList")}</CardTitle>
             <Users className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -104,7 +104,7 @@ export default function Dashboard() {
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{staff.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{staff.department || "部署未設定"}</p>
+                      <p className="text-xs text-muted-foreground truncate">{staff.department || "-"}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       {staff.overdueCount > 0 && (
@@ -122,7 +122,7 @@ export default function Dashboard() {
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-muted-foreground">担当者が登録されていません</p>
+              <p className="text-xs text-muted-foreground">{t("staffMgmt.noStaff")}</p>
             )}
           </CardContent>
         </Card>
@@ -134,10 +134,10 @@ export default function Dashboard() {
             <CardHeader>
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5 text-red-500" />
-                <CardTitle className="text-red-700 dark:text-red-400">期限切れタスク</CardTitle>
+                <CardTitle className="text-red-700 dark:text-red-400">{t("dashboard.overdue")}</CardTitle>
               </div>
               <CardDescription className="text-red-600 dark:text-red-300">
-                {stats.overdueTasks.length}件のタスクが期限を過ぎています
+                {stats.overdueTasks.length} {t("tasks.results")}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -156,9 +156,9 @@ export default function Dashboard() {
                       <div className="flex-1">
                         <p className="text-sm font-medium line-clamp-2">{item.task.taskDetail}</p>
                         <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                          <span>担当: {item.staff?.name || "不明"}</span>
+                          <span>{t("tasks.staff")}: {item.staff?.name || "-"}</span>
                           <span className="text-red-600 dark:text-red-400 font-medium">
-                            {daysOverdue}日過ぎています
+                            {daysOverdue} days
                           </span>
                         </div>
                       </div>
@@ -173,7 +173,7 @@ export default function Dashboard() {
                     className="w-full text-red-600 border-red-300 hover:bg-red-50"
                     onClick={() => setLocation("/tasks")}
                   >
-                    すべて表示 ({stats.overdueTasks.length}件)
+                    {t("dashboard.viewAll")} ({stats.overdueTasks.length})
                   </Button>
                 )}
               </div>
@@ -183,8 +183,8 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>最近完了したタスク</CardTitle>
-            <CardDescription>直近で完了したタスクの一覧</CardDescription>
+            <CardTitle>{t("dashboard.recentTasks")}</CardTitle>
+            <CardDescription>{t("dashboard.completed")}</CardDescription>
           </CardHeader>
           <CardContent>
             {stats?.recentCompleted && stats.recentCompleted.length > 0 ? (
@@ -197,7 +197,7 @@ export default function Dashboard() {
                     <div className="flex-1">
                       <p className="text-sm font-medium line-clamp-1">{item.task.taskDetail}</p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        担当: {item.staff?.name || "不明"}
+                        {t("tasks.staff")}: {item.staff?.name || "-"}
                       </p>
                     </div>
                     <CheckCircle2 className="h-4 w-4 text-green-500 ml-2 flex-shrink-0" />
@@ -205,7 +205,7 @@ export default function Dashboard() {
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">完了したタスクはまだありません</p>
+              <p className="text-sm text-muted-foreground">{t("dashboard.noTasks")}</p>
             )}
           </CardContent>
         </Card>

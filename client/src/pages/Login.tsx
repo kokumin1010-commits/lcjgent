@@ -6,6 +6,14 @@ import { trpc } from "@/lib/trpc";
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
+import { useLanguage, Language } from "@/contexts/LanguageContext";
+import { Globe } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -13,10 +21,11 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [isRegistering, setIsRegistering] = useState(false);
   const [name, setName] = useState("");
+  const { t, language, setLanguage } = useLanguage();
 
   const loginMutation = trpc.auth.login.useMutation({
     onSuccess: () => {
-      toast.success("ログインしました");
+      toast.success(t("login.title"));
       window.location.href = "/";
     },
     onError: (error) => {
@@ -26,7 +35,7 @@ export default function Login() {
 
   const registerMutation = trpc.auth.register.useMutation({
     onSuccess: () => {
-      toast.success("登録が完了しました。ログインしてください。");
+      toast.success(t("register.title"));
       setIsRegistering(false);
       setName("");
       setPassword("");
@@ -46,28 +55,58 @@ export default function Login() {
     }
   };
 
+  const handleLanguageChange = (lang: Language) => {
+    setLanguage(lang);
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4 relative">
+      {/* Language Switcher */}
+      <div className="absolute top-4 right-4">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-2">
+              <Globe className="h-4 w-4" />
+              {language === "ja" ? "日本語" : "中文"}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-32">
+            <DropdownMenuItem
+              onClick={() => handleLanguageChange("ja")}
+              className={`cursor-pointer ${language === "ja" ? "bg-accent" : ""}`}
+            >
+              🇯🇵 日本語
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => handleLanguageChange("zh")}
+              className={`cursor-pointer ${language === "zh" ? "bg-accent" : ""}`}
+            >
+              🇨🇳 中文
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">
-            {isRegistering ? "アカウント登録" : "ログイン"}
+            {isRegistering ? t("register.title") : t("login.title")}
           </CardTitle>
           <CardDescription className="text-center">
             {isRegistering
-              ? "新しいアカウントを作成します"
-              : "業務自動化システムにログイン"}
+              ? t("register.subtitle")
+              : t("login.subtitle")}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {isRegistering && (
               <div className="space-y-2">
-                <Label htmlFor="name">名前</Label>
+                <Label htmlFor="name">{t("register.name")}</Label>
                 <Input
                   id="name"
                   type="text"
-                  placeholder="山田 太郎"
+                  placeholder={language === "ja" ? "山田 太郎" : "张三"}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
@@ -76,7 +115,7 @@ export default function Login() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email">メールアドレス</Label>
+              <Label htmlFor="email">{t("login.email")}</Label>
               <Input
                 id="email"
                 type="email"
@@ -88,7 +127,7 @@ export default function Login() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">パスワード</Label>
+              <Label htmlFor="password">{t("login.password")}</Label>
               <Input
                 id="password"
                 type="password"
@@ -100,7 +139,7 @@ export default function Login() {
               />
               {isRegistering && (
                 <p className="text-xs text-muted-foreground">
-                  6文字以上のパスワードを入力してください
+                  {language === "ja" ? "6文字以上のパスワードを入力してください" : "请输入6位以上的密码"}
                 </p>
               )}
             </div>
@@ -111,10 +150,10 @@ export default function Login() {
               disabled={loginMutation.isPending || registerMutation.isPending}
             >
               {loginMutation.isPending || registerMutation.isPending
-                ? "処理中..."
+                ? (isRegistering ? t("register.submitting") : t("login.submitting"))
                 : isRegistering
-                  ? "登録"
-                  : "ログイン"}
+                  ? t("register.submit")
+                  : t("login.submit")}
             </Button>
 
             <div className="text-center">
@@ -129,8 +168,8 @@ export default function Login() {
                 className="text-sm"
               >
                 {isRegistering
-                  ? "既にアカウントをお持ちの方はこちら"
-                  : "新規登録はこちら"}
+                  ? t("register.login")
+                  : t("login.register")}
               </Button>
             </div>
           </form>

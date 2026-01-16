@@ -29,6 +29,7 @@ import {
 import { FileText, Plus, Search, X, Pencil, Trash2, Globe, Clock, AlertTriangle, CheckCircle, Link } from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 // Available countries for filtering
 const COUNTRIES = [
@@ -43,6 +44,7 @@ export default function Reports() {
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [reportToDelete, setReportToDelete] = useState<number | null>(null);
+  const { t, language } = useLanguage();
 
   // Fetch staff statistics for header cards
   const { data: staffStats, isLoading: statsLoading } = trpc.report.staffStatistics.useQuery();
@@ -87,13 +89,13 @@ export default function Reports() {
 
   const deleteReport = trpc.report.delete.useMutation({
     onSuccess: () => {
-      toast.success("レポートを削除しました");
+      toast.success(t("reports.deleted"));
       refetch();
       setDeleteDialogOpen(false);
       setReportToDelete(null);
     },
     onError: (error) => {
-      toast.error(`削除に失敗しました: ${error.message}`);
+      toast.error(`${t("common.error")}: ${error.message}`);
     },
   });
 
@@ -116,7 +118,7 @@ export default function Reports() {
 
   const formatDate = (date: Date | string) => {
     const d = new Date(date);
-    return d.toLocaleDateString("ja-JP", {
+    return d.toLocaleDateString(language === "ja" ? "ja-JP" : "zh-CN", {
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
@@ -125,7 +127,7 @@ export default function Reports() {
 
   const formatDateTime = (date: Date | string) => {
     const d = new Date(date);
-    return d.toLocaleString("ja-JP", {
+    return d.toLocaleString(language === "ja" ? "ja-JP" : "zh-CN", {
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
@@ -139,13 +141,13 @@ export default function Reports() {
       {/* Country Filter Tabs */}
       <div className="flex items-center gap-2 border-b pb-4">
         <Globe className="h-5 w-5 text-muted-foreground" />
-        <span className="text-sm font-medium text-muted-foreground mr-2">国:</span>
+        <span className="text-sm font-medium text-muted-foreground mr-2">{t("reports.country")}:</span>
         <Button
           variant={selectedCountry === "all" ? "default" : "outline"}
           size="sm"
           onClick={() => setSelectedCountry("all")}
         >
-          全て
+          {t("reports.allCountries")}
         </Button>
         {availableCountries.map((country) => (
           <Button
@@ -177,7 +179,7 @@ export default function Reports() {
           ) : filteredStaffStats.length === 0 ? (
             <Card className="w-full">
               <CardContent className="p-4 text-center text-muted-foreground">
-                この国のスタッフはいません
+                {t("reports.noStaffInCountry")}
               </CardContent>
             </Card>
           ) : (
@@ -200,10 +202,10 @@ export default function Reports() {
                     {staff.monthlyCount}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    前月: {staff.totalCount}件 ({staff.daysInMonth}日中)
+                    {t("reports.lastMonth")}: {staff.totalCount}{t("reports.items")} ({staff.daysInMonth}{t("reports.days")})
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    今月: {staff.monthlyCount}件 ({staff.dayOfMonth}日中)
+                    {t("reports.thisMonth")}: {staff.monthlyCount}{t("reports.items")} ({staff.dayOfMonth}{t("reports.days")})
                   </p>
                   {/* Task progress badges for linked staff */}
                   {staff.linkedStaffId && (
@@ -212,7 +214,7 @@ export default function Reports() {
                   {!staff.linkedStaffId && (
                     <p className="text-xs text-muted-foreground mt-2 flex items-center justify-center gap-1">
                       <Link className="h-3 w-3" />
-                      未紐付け
+                      {t("reports.notLinked")}
                     </p>
                   )}
                 </CardContent>
@@ -228,24 +230,24 @@ export default function Reports() {
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              レポート一覧
+              {t("reports.list")}
             </h2>
             <Button onClick={() => setLocation("/reports/new")}>
               <Plus className="h-4 w-4 mr-2" />
-              新規レポートを作成
+              {t("reports.create")}
             </Button>
           </div>
 
           {/* Filters - WordPress style */}
           <div className="flex flex-wrap gap-4 mb-6 items-end">
             <div className="space-y-2">
-              <Label>スタッフ:</Label>
+              <Label>{t("reports.staff")}:</Label>
               <Select value={selectedStaffId} onValueChange={setSelectedStaffId}>
                 <SelectTrigger className="w-48">
-                  <SelectValue placeholder="全員" />
+                  <SelectValue placeholder={t("reports.allStaff")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">全員</SelectItem>
+                  <SelectItem value="all">{t("reports.allStaff")}</SelectItem>
                   {activeReportStaff?.map((staff) => (
                     <SelectItem key={staff.id} value={staff.id.toString()}>
                       {staff.name}
@@ -261,7 +263,7 @@ export default function Reports() {
             </div>
 
             <div className="space-y-2">
-              <Label>日付:</Label>
+              <Label>{t("reports.date")}:</Label>
               <Input
                 type="date"
                 value={selectedDate}
@@ -272,7 +274,7 @@ export default function Reports() {
 
             <Button variant="outline" onClick={clearFilters}>
               <X className="h-4 w-4 mr-2" />
-              フィルターをクリア
+              {t("reports.clearFilter")}
             </Button>
           </div>
 
@@ -280,7 +282,7 @@ export default function Reports() {
           <div className="mb-4">
             <Badge variant="secondary" className="text-sm">
               <Search className="h-3 w-3 mr-1" />
-              検索結果: {filteredReports.length}件が該当しました
+              {t("reports.searchResults")}: {filteredReports.length}{t("reports.items")}
             </Badge>
           </div>
 
@@ -289,13 +291,13 @@ export default function Reports() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead className="w-24">スタッフ</TableHead>
-                  <TableHead className="w-28">日付</TableHead>
-                  <TableHead>業務内容</TableHead>
-                  <TableHead>気付き・問題・理由</TableHead>
-                  <TableHead className="w-32">備考</TableHead>
-                  <TableHead className="w-40">更新日時</TableHead>
-                  <TableHead className="w-20 text-center">操作</TableHead>
+                  <TableHead className="w-24">{t("reports.staff")}</TableHead>
+                  <TableHead className="w-28">{t("reports.date")}</TableHead>
+                  <TableHead>{t("reports.workContent")}</TableHead>
+                  <TableHead>{t("reports.issues")}</TableHead>
+                  <TableHead className="w-32">{t("reports.remarks")}</TableHead>
+                  <TableHead className="w-36">{t("reports.updatedAt")}</TableHead>
+                  <TableHead className="w-20 text-center">{t("common.actions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -304,14 +306,14 @@ export default function Reports() {
                     <TableCell colSpan={7} className="text-center py-8">
                       <div className="flex items-center justify-center gap-2">
                         <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full"></div>
-                        読み込み中...
+                        {t("common.loading")}
                       </div>
                     </TableCell>
                   </TableRow>
                 ) : filteredReports.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                      レポートがありません
+                      {t("reports.noReports")}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -323,7 +325,7 @@ export default function Reports() {
                             <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium text-sm">
                               {staff?.name?.charAt(0) || "?"}
                             </div>
-                            <span className="font-medium text-sm">{staff?.name || "不明"}</span>
+                            <span className="font-medium text-sm">{staff?.name || "-"}</span>
                           </div>
                           {staff?.country && (
                             <Badge variant="outline" className="text-xs ml-10">
@@ -390,21 +392,21 @@ export default function Reports() {
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>レポートを削除しますか？</DialogTitle>
+            <DialogTitle>{t("reports.deleteConfirm")}</DialogTitle>
           </DialogHeader>
           <p className="text-muted-foreground">
-            この操作は取り消せません。本当に削除しますか？
+            {t("reports.deleteWarning")}
           </p>
           <div className="flex justify-end gap-2 mt-4">
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
-              キャンセル
+              {t("common.cancel")}
             </Button>
             <Button
               variant="destructive"
               onClick={confirmDelete}
               disabled={deleteReport.isPending}
             >
-              {deleteReport.isPending ? "削除中..." : "削除"}
+              {deleteReport.isPending ? t("common.deleting") : t("common.delete")}
             </Button>
           </div>
         </DialogContent>
@@ -416,9 +418,10 @@ export default function Reports() {
 // Task progress component for linked staff
 function StaffTaskProgress({ staffId }: { staffId: number }) {
   const { data: taskCounts, isLoading } = trpc.staff.getTaskCounts.useQuery({ staffId });
+  const { t } = useLanguage();
 
   if (isLoading) {
-    return <p className="text-xs text-muted-foreground mt-2">読込中...</p>;
+    return <p className="text-xs text-muted-foreground mt-2">{t("common.loading")}</p>;
   }
 
   if (!taskCounts) {
@@ -431,7 +434,7 @@ function StaffTaskProgress({ staffId }: { staffId: number }) {
     return (
       <p className="text-xs text-muted-foreground mt-2 flex items-center justify-center gap-1">
         <CheckCircle className="h-3 w-3 text-green-500" />
-        タスクなし
+        {t("reports.noTasks")}
       </p>
     );
   }

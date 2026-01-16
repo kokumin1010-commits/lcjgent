@@ -19,22 +19,13 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { useLanguage, Language } from "@/contexts/LanguageContext";
 
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
-import { Button } from "./ui/button";
-
-const menuItems = [
-  { icon: LayoutDashboard, label: "ダッシュボード", path: "/" },
-  { icon: ClipboardList, label: "タスク一覧", path: "/tasks" },
-  { icon: FileText, label: "レポート", path: "/reports" },
-  { icon: UserCog, label: "レポートスタッフ", path: "/report-staff" },
-  { icon: Users, label: "担当者名簿", path: "/staff" },
-  { icon: Settings, label: "マスターコントロール", path: "/master-control" },
-];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 280;
@@ -95,8 +86,19 @@ function DashboardLayoutContent({
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const activeMenuItem = menuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
+  const { language, setLanguage, t } = useLanguage();
+
+  const menuItems = [
+    { icon: LayoutDashboard, label: t("nav.dashboard"), path: "/" },
+    { icon: ClipboardList, label: t("nav.tasks"), path: "/tasks" },
+    { icon: FileText, label: t("nav.reports"), path: "/reports" },
+    { icon: UserCog, label: t("nav.reportStaff"), path: "/report-staff" },
+    { icon: Users, label: t("nav.staff"), path: "/staff" },
+    { icon: Settings, label: t("nav.masterControl"), path: "/master-control" },
+  ];
+
+  const activeMenuItem = menuItems.find(item => item.path === location);
 
   useEffect(() => {
     if (isCollapsed) {
@@ -133,6 +135,10 @@ function DashboardLayoutContent({
       document.body.style.userSelect = "";
     };
   }, [isResizing, setSidebarWidth]);
+
+  const handleLanguageChange = (lang: Language) => {
+    setLanguage(lang);
+  };
 
   return (
     <>
@@ -182,6 +188,37 @@ function DashboardLayoutContent({
                 );
               })}
             </SidebarMenu>
+
+            {/* Language Switcher */}
+            <div className="px-2 py-2 mt-4 border-t">
+              <SidebarMenuItem>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <SidebarMenuButton
+                      tooltip={t("common.language")}
+                      className="h-10 transition-all font-normal"
+                    >
+                      <Globe className="h-4 w-4" />
+                      <span>{language === "ja" ? "日本語" : "中文"}</span>
+                    </SidebarMenuButton>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-32">
+                    <DropdownMenuItem
+                      onClick={() => handleLanguageChange("ja")}
+                      className={`cursor-pointer ${language === "ja" ? "bg-accent" : ""}`}
+                    >
+                      🇯🇵 日本語
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleLanguageChange("zh")}
+                      className={`cursor-pointer ${language === "zh" ? "bg-accent" : ""}`}
+                    >
+                      🇨🇳 中文
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </SidebarMenuItem>
+            </div>
           </SidebarContent>
 
           <SidebarFooter className="p-3">
@@ -209,7 +246,7 @@ function DashboardLayoutContent({
                   className="cursor-pointer text-destructive focus:text-destructive"
                 >
                   <LogOut className="mr-2 h-4 w-4" />
-                  <span>Sign out</span>
+                  <span>{t("nav.logout")}</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -238,6 +275,28 @@ function DashboardLayoutContent({
                 </div>
               </div>
             </div>
+            {/* Mobile Language Switcher */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="h-9 w-9 flex items-center justify-center rounded-lg bg-background hover:bg-accent transition-colors">
+                  <Globe className="h-4 w-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-32">
+                <DropdownMenuItem
+                  onClick={() => handleLanguageChange("ja")}
+                  className={`cursor-pointer ${language === "ja" ? "bg-accent" : ""}`}
+                >
+                  🇯🇵 日本語
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleLanguageChange("zh")}
+                  className={`cursor-pointer ${language === "zh" ? "bg-accent" : ""}`}
+                >
+                  🇨🇳 中文
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         )}
         <main className="flex-1 p-4">{children}</main>
