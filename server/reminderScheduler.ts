@@ -1,5 +1,6 @@
-import { getInProgressTasks, createReminder, getStaffByTaskId, updateTask } from "./db";
+import { getInProgressTasks, createReminder, getStaffByTaskId, updateTask, createEmailTracking } from "./db";
 import { sendReminderEmail } from "./emailService";
+import { nanoid } from "nanoid";
 
 /**
  * Check all in-progress tasks and send reminder emails
@@ -47,6 +48,9 @@ export async function checkAndSendReminders() {
           `[Reminder Scheduler] Sending reminder for task ${task.id} to ${item.staff.email}`
         );
 
+        // Generate tracking token
+        const trackingToken = nanoid(32);
+
         const result = await sendReminderEmail(
           item.staff.email,
           item.staff.name,
@@ -56,7 +60,8 @@ export async function checkAndSendReminders() {
           task.completionToken || undefined,
           task.screenshotUrls || (task.screenshotUrl ? [task.screenshotUrl] : undefined),
           task.notes || undefined,
-          task.deadline ? task.deadline.getTime() : undefined
+          task.deadline ? task.deadline.getTime() : undefined,
+          trackingToken
         );
 
         if (result.success) {
@@ -67,6 +72,17 @@ export async function checkAndSendReminders() {
             recipientEmail: item.staff.email,
             emailSubject: `【リマインド】タスクの進捗確認: ${task.taskDetail.substring(0, 50)}...`,
             status: "sent",
+          });
+          
+          // Create email tracking record
+          await createEmailTracking({
+            reminderId: 0,
+            taskId: task.id,
+            trackingToken,
+            openedAt: null,
+            openCount: 0,
+            ipAddress: null,
+            userAgent: null,
           });
           
           // Update lastReminderAt timestamp

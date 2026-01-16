@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -456,4 +456,37 @@ export async function removeAllStaffFromTask(taskId: number) {
   if (!db) throw new Error("Database not available");
 
   return await db.delete(taskStaff).where(eq(taskStaff.taskId, taskId));
+}
+
+// Email tracking functions
+export async function createEmailTracking(trackingData: InsertEmailTracking) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(emailTracking).values(trackingData);
+  return result;
+}
+
+export async function getEmailTrackingByToken(token: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db
+    .select()
+    .from(emailTracking)
+    .where(eq(emailTracking.trackingToken, token))
+    .limit(1);
+
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getEmailTrackingByTaskId(taskId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db
+    .select()
+    .from(emailTracking)
+    .where(eq(emailTracking.taskId, taskId))
+    .orderBy(desc(emailTracking.createdAt));
 }

@@ -33,6 +33,8 @@ import {
   getRecentCompletedTasks,
   getStaffWithTaskCounts,
   getOverdueTasks,
+  createEmailTracking,
+  getEmailTrackingByTaskId,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { authRouter } from "./auth";
@@ -257,6 +259,10 @@ export const appRouter = router({
         
         for (const staff of assignedStaff) {
           if (staff) {
+            // Generate tracking token
+            const trackingToken = nanoid(32);
+            
+            // Send email with tracking
             await sendReminderEmail(
               staff.email,
               staff.name,
@@ -266,8 +272,31 @@ export const appRouter = router({
               completionToken,
               screenshotUrls,
               input.notes,
-              deadline ? deadline.getTime() : undefined
+              deadline ? deadline.getTime() : undefined,
+              trackingToken
             );
+            
+            // Create reminder record
+            const reminderResult = await createReminder({
+              taskId: createdTask.id,
+              sentAt: startDate,
+              recipientEmail: staff.email,
+              emailSubject: `【リマインド/提醒】タスクの進捗確認 / 任务进度确认: ${extractedData.taskSummary?.substring(0, 50)}...`,
+              emailBody: extractedData.taskSummary || "",
+              status: "sent",
+            });
+            
+            // Create email tracking record
+            // Note: We use a placeholder reminderId since we can't get the auto-increment ID from drizzle
+            await createEmailTracking({
+              reminderId: 0, // Will be updated later if needed
+              taskId: createdTask.id,
+              trackingToken,
+              openedAt: null,
+              openCount: 0,
+              ipAddress: null,
+              userAgent: null,
+            });
           }
         }
 
@@ -391,6 +420,9 @@ export const appRouter = router({
           assignedStaff.map(async (item) => {
             if (!item.staff) return { success: false, error: "Staff not found" };
 
+            // Generate tracking token
+            const trackingToken = nanoid(32);
+
             const emailResult = await sendReminderEmail(
               item.staff.email,
               item.staff.name,
@@ -400,7 +432,8 @@ export const appRouter = router({
               task.completionToken || undefined,
               task.screenshotUrls || (task.screenshotUrl ? [task.screenshotUrl] : undefined),
               task.notes || undefined,
-              task.deadline ? task.deadline.getTime() : undefined
+              task.deadline ? task.deadline.getTime() : undefined,
+              trackingToken
             );
 
             if (emailResult.success) {
@@ -412,6 +445,17 @@ export const appRouter = router({
                 emailSubject: `【リマインド】${task.taskDetail}`,
                 emailBody: `${item.staff.name}様\n\n以下のタスクについてリマインドいたします。\n\nタスクID: ${task.taskId}\n内容: ${task.taskDetail}\n\nご確認をお願いいたします。`,
                 status: "sent",
+              });
+              
+              // Create email tracking record
+              await createEmailTracking({
+                reminderId: 0,
+                taskId: task.id,
+                trackingToken,
+                openedAt: null,
+                openCount: 0,
+                ipAddress: null,
+                userAgent: null,
               });
             }
 
@@ -432,6 +476,12 @@ export const appRouter = router({
       .input(z.object({ taskId: z.number() }))
       .query(async ({ input }) => {
         return await getRemindersByTaskId(input.taskId);
+      }),
+
+    getEmailTracking: protectedProcedure
+      .input(z.object({ taskId: z.number() }))
+      .query(async ({ input }) => {
+        return await getEmailTrackingByTaskId(input.taskId);
       }),
 
     checkCompletion: protectedProcedure

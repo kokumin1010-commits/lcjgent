@@ -46,6 +46,7 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
   const { data: taskData, isLoading } = trpc.task.getById.useQuery({ id: taskId });
   const { data: reminders } = trpc.task.getReminders.useQuery({ taskId });
   const { data: assignedStaff } = trpc.task.getStaffByTaskId.useQuery({ taskId });
+  const { data: emailTracking } = trpc.task.getEmailTracking.useQuery({ taskId });
 
   const sendReminderMutation = trpc.task.sendReminder.useMutation({
     onSuccess: () => {
@@ -223,6 +224,36 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
               <div>
                 <Label className="text-muted-foreground">メモ</Label>
                 <p className="mt-1 whitespace-pre-wrap">{task.notes}</p>
+              </div>
+            )}
+            {emailTracking && emailTracking.length > 0 && (
+              <div>
+                <Label className="text-muted-foreground">メール開封状況</Label>
+                <div className="mt-2 space-y-2">
+                  {emailTracking.map((tracking, index) => (
+                    <div key={index} className="border-l-2 border-blue-500 pl-3">
+                      {tracking.openedAt ? (
+                        <>
+                          <p className="text-sm font-medium text-green-600">✅ 開封済み</p>
+                          <p className="text-xs text-muted-foreground">
+                            開封日時: {new Date(tracking.openedAt).toLocaleString("ja-JP", {
+                              year: "numeric",
+                              month: "2-digit",
+                              day: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            開封回数: {tracking.openCount}回
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">❔ 未開封</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
             {task.completedAt && (

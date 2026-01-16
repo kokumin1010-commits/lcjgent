@@ -10,6 +10,7 @@ import { serveStatic, setupVite } from "./vite";
 import { getTaskByCompletionToken, updateTask } from "../db";
 import { notifyOwner } from "./notification";
 import { checkAndSendReminders } from "../reminderScheduler";
+import { trackingRouter } from "../tracking";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -37,6 +38,9 @@ async function startServer() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // OAuth removed - using custom email/password auth
+  
+  // Email tracking endpoint
+  app.use("/api/track", trackingRouter);
   
   // Task completion endpoint
   app.get("/complete/:token", async (req, res) => {

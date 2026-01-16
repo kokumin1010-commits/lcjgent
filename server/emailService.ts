@@ -78,7 +78,8 @@ export async function sendReminderEmail(
   completionToken?: string,
   screenshotUrls?: string[],
   notes?: string,
-  deadline?: number
+  deadline?: number,
+  trackingToken?: string
 ): Promise<{ success: boolean; error?: string }> {
   const subject = `【リマインド/提醒】タスクの進捗確認 / 任务进度确认: ${taskDetail.substring(0, 50)}...`;
   
@@ -152,7 +153,9 @@ ${completionUrl ? completionUrl : '链接未生成'}
 
 ---
 业务自动化系统 / 業務自動化システム
-任务ID / タスクID: ${taskId}`;
+任务ID / タスクID: ${taskId}
+
+${trackingToken ? `<img src="${baseUrl}/api/track/pixel/${trackingToken}" width="1" height="1" style="display:none" />` : ''}`;
 
   const mailOptions: any = {
     to: [staffEmail],

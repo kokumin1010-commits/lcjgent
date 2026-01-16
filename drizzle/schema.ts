@@ -91,3 +91,23 @@ export const taskStaff = mysqlTable("task_staff", {
 
 export type TaskStaff = typeof taskStaff.$inferSelect;
 export type InsertTaskStaff = typeof taskStaff.$inferInsert;
+
+/**
+ * Email tracking table for monitoring email opens
+ * Tracks when reminder emails are opened by recipients
+ */
+export const emailTracking = mysqlTable("email_tracking", {
+  id: int("id").autoincrement().primaryKey(),
+  reminderId: int("reminderId").notNull(), // References reminders.id
+  taskId: int("taskId").notNull(), // References tasks.id
+  trackingToken: varchar("trackingToken", { length: 128 }).notNull().unique(), // Unique token for tracking
+  openedAt: bigint("openedAt", { mode: "number" }), // UTC timestamp in milliseconds when email was opened
+  openCount: int("openCount").default(0).notNull(), // Number of times email was opened
+  ipAddress: varchar("ipAddress", { length: 45 }), // IP address of the opener (IPv4 or IPv6)
+  userAgent: text("userAgent"), // Browser/email client user agent
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type EmailTracking = typeof emailTracking.$inferSelect;
+export type InsertEmailTracking = typeof emailTracking.$inferInsert;
