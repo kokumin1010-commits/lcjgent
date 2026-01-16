@@ -359,31 +359,37 @@ export async function getStaffWithTaskCounts() {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const allStaff = await db.select().from(staff);
+  // Get only active staff
+  const allStaff = await db.select().from(staff).where(eq(staff.isActive, "active"));
   const now = Date.now();
   
   const staffWithCounts = await Promise.all(
     allStaff.map(async (s) => {
-      const inProgressCount = await db
+      // Count in_progress tasks (not completed)
+      const inProgressResult = await db
         .select({ count: sql<number>`count(*)` })
         .from(tasks)
         .where(and(eq(tasks.staffId, s.id), eq(tasks.status, "in_progress")));
       
-      const overdueCount = await db
+      // Count overdue tasks (deadline passed and not completed)
+      const overdueResult = await db
         .select({ count: sql<number>`count(*)` })
         .from(tasks)
         .where(
           and(
             eq(tasks.staffId, s.id),
             or(eq(tasks.status, "pending"), eq(tasks.status, "in_progress")),
-            sql`${tasks.deadline} < ${now}`
+            sql`UNIX_TIMESTAMP(${tasks.deadline}) * 1000 < ${now}`
           )
         );
       
+      const inProgressCount = Number(inProgressResult[0]?.count || 0);
+      const overdueCount = Number(overdueResult[0]?.count || 0);
+      
       return {
         ...s,
-        inProgressCount: inProgressCount[0]?.count || 0,
-        overdueCount: overdueCount[0]?.count || 0,
+        inProgressCount,
+        overdueCount,
       };
     })
   );
