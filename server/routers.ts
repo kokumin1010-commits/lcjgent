@@ -126,6 +126,28 @@ export const appRouter = router({
         await deleteStaff(input.id);
         return { success: true };
       }),
+
+    getTaskCounts: protectedProcedure
+      .input(z.object({ staffId: z.number() }))
+      .query(async ({ input }) => {
+        const tasksWithStaff = await getTasksByStaffId(input.staffId);
+        const now = new Date();
+        
+        const inProgressCount = tasksWithStaff.filter(t => t.task.status === "in_progress").length;
+        const completedCount = tasksWithStaff.filter(t => t.task.status === "completed").length;
+        const overdueCount = tasksWithStaff.filter(t => 
+          t.task.status === "in_progress" && 
+          t.task.deadline && 
+          new Date(t.task.deadline) < now
+        ).length;
+        
+        return {
+          inProgressCount,
+          completedCount,
+          overdueCount,
+          totalCount: tasksWithStaff.length,
+        };
+      }),
   }),
 
   task: router({

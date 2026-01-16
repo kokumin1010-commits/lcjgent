@@ -692,6 +692,7 @@ export async function getStaffReportStatistics() {
       
       return {
         ...s,
+        linkedStaffId: s.linkedStaffId,
         monthlyCount,
         totalCount,
         daysInMonth,

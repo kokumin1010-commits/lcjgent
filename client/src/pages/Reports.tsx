@@ -26,7 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FileText, Plus, Search, X, Pencil, Trash2, Globe } from "lucide-react";
+import { FileText, Plus, Search, X, Pencil, Trash2, Globe, Clock, AlertTriangle, CheckCircle, Link } from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 
@@ -205,6 +205,16 @@ export default function Reports() {
                   <p className="text-xs text-muted-foreground">
                     今月: {staff.monthlyCount}件 ({staff.dayOfMonth}日中)
                   </p>
+                  {/* Task progress badges for linked staff */}
+                  {staff.linkedStaffId && (
+                    <StaffTaskProgress staffId={staff.linkedStaffId} />
+                  )}
+                  {!staff.linkedStaffId && (
+                    <p className="text-xs text-muted-foreground mt-2 flex items-center justify-center gap-1">
+                      <Link className="h-3 w-3" />
+                      未紐付け
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             ))
@@ -399,6 +409,53 @@ export default function Reports() {
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// Task progress component for linked staff
+function StaffTaskProgress({ staffId }: { staffId: number }) {
+  const { data: taskCounts, isLoading } = trpc.staff.getTaskCounts.useQuery({ staffId });
+
+  if (isLoading) {
+    return <p className="text-xs text-muted-foreground mt-2">読込中...</p>;
+  }
+
+  if (!taskCounts) {
+    return null;
+  }
+
+  const hasAnyTasks = taskCounts.inProgressCount > 0 || taskCounts.overdueCount > 0 || taskCounts.completedCount > 0;
+
+  if (!hasAnyTasks) {
+    return (
+      <p className="text-xs text-muted-foreground mt-2 flex items-center justify-center gap-1">
+        <CheckCircle className="h-3 w-3 text-green-500" />
+        タスクなし
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-center gap-1 mt-2 flex-wrap">
+      {taskCounts.inProgressCount > 0 && (
+        <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+          <Clock className="h-3 w-3 mr-0.5" />
+          {taskCounts.inProgressCount}
+        </Badge>
+      )}
+      {taskCounts.overdueCount > 0 && (
+        <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200">
+          <AlertTriangle className="h-3 w-3 mr-0.5" />
+          {taskCounts.overdueCount}
+        </Badge>
+      )}
+      {taskCounts.completedCount > 0 && (
+        <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+          <CheckCircle className="h-3 w-3 mr-0.5" />
+          {taskCounts.completedCount}
+        </Badge>
+      )}
     </div>
   );
 }
