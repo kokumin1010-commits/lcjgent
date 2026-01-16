@@ -42,6 +42,7 @@ import {
   deleteReport,
   getStaffReportStatistics,
   searchReports,
+  getReportsForAnalysis,
   createReportStaff,
   getAllReportStaff,
   getActiveReportStaff,
@@ -753,6 +754,187 @@ export const appRouter = router({
     staffStatistics: protectedProcedure.query(async () => {
       return await getStaffReportStatistics();
     }),
+
+    // AI Analysis: Individual staff analysis
+    analyzeIndividual: protectedProcedure
+      .input(
+        z.object({
+          reportStaffId: z.number(),
+          startDate: z.string().optional(),
+          endDate: z.string().optional(),
+          language: z.enum(["ja", "zh"]).default("ja"),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const reports = await getReportsForAnalysis({
+          reportStaffId: input.reportStaffId,
+          startDate: input.startDate ? new Date(input.startDate) : undefined,
+          endDate: input.endDate ? new Date(input.endDate) : undefined,
+        });
+
+        if (reports.length === 0) {
+          return {
+            success: false,
+            error: input.language === "ja" ? "分析対象の日報がありません" : "没有可分析的日报",
+          };
+        }
+
+        const staffName = reports[0].staff?.name || "不明";
+        const reportContents = reports.map(r => ({
+          date: r.report.reportDate,
+          workContent: r.report.workContent,
+          issues: r.report.issues,
+          remarks: r.report.remarks,
+        }));
+
+        const systemPrompt = input.language === "ja" 
+          ? `あなたは業務分析の専門家です。以下の日報データを分析し、個人の作業傾向を詳細に分析してください。
+
+分析項目:
+1. 主な作業カテゴリ（作業内容をカテゴリ別に分類）
+2. 作業の特徴と強み
+3. 課題や改善点
+4. 今後の提案
+
+日本語で回答してください。`
+          : `你是一位业务分析专家。请分析以下日报数据，详细分析个人的工作趋势。
+
+分析项目:
+1. 主要工作类别（按类别分类工作内容）
+2. 工作特点和优势
+3. 课题和改进点
+4. 未来建议
+
+请用中文回答。`;
+
+        const userPrompt = `スタッフ名: ${staffName}
+分析期間: ${reports.length}件の日報
+
+日報データ:
+${JSON.stringify(reportContents, null, 2)}`;
+
+        try {
+          const response = await invokeLLM({
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+          });
+
+          const analysis = response.choices[0]?.message?.content || "";
+
+          return {
+            success: true,
+            staffName,
+            reportCount: reports.length,
+            analysis: typeof analysis === "string" ? analysis : JSON.stringify(analysis),
+          };
+        } catch (error) {
+          console.error("AI analysis error:", error);
+          return {
+            success: false,
+            error: input.language === "ja" ? "AI分析中にエラーが発生しました" : "AI分析过程中发生错误",
+          };
+        }
+      }),
+
+    // AI Analysis: Team summary
+    analyzeTeam: protectedProcedure
+      .input(
+        z.object({
+          startDate: z.string().optional(),
+          endDate: z.string().optional(),
+          country: z.string().optional(),
+          language: z.enum(["ja", "zh"]).default("ja"),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const reports = await getReportsForAnalysis({
+          startDate: input.startDate ? new Date(input.startDate) : undefined,
+          endDate: input.endDate ? new Date(input.endDate) : undefined,
+          country: input.country,
+        });
+
+        if (reports.length === 0) {
+          return {
+            success: false,
+            error: input.language === "ja" ? "分析対象の日報がありません" : "没有可分析的日报",
+          };
+        }
+
+        // Group reports by staff
+        const staffReports: Record<string, { name: string; reports: any[] }> = {};
+        for (const r of reports) {
+          const staffId = r.staff?.id?.toString() || "unknown";
+          const staffName = r.staff?.name || "不明";
+          if (!staffReports[staffId]) {
+            staffReports[staffId] = { name: staffName, reports: [] };
+          }
+          staffReports[staffId].reports.push({
+            date: r.report.reportDate,
+            workContent: r.report.workContent,
+            issues: r.report.issues,
+          });
+        }
+
+        const teamSummary = Object.entries(staffReports).map(([id, data]) => ({
+          staffName: data.name,
+          reportCount: data.reports.length,
+          recentWork: data.reports.slice(0, 3).map(r => r.workContent).join("\n"),
+          issues: data.reports.filter(r => r.issues).map(r => r.issues).slice(0, 3),
+        }));
+
+        const systemPrompt = input.language === "ja"
+          ? `あなたはチームマネジメントの専門家です。以下のチーム日報データを分析し、チーム全体の進捗サマリーを作成してください。
+
+分析項目:
+1. チーム全体の進捗概要
+2. 各メンバーの貫献度
+3. チーム全体の課題・ボトルネック
+4. 改善提案とアクションアイテム
+
+日本語で回答してください。`
+          : `你是一位团队管理专家。请分析以下团队日报数据，创建团队整体进度摘要。
+
+分析项目:
+1. 团队整体进度概要
+2. 各成员的贡献度
+3. 团队整体的课题和瓶颈
+4. 改进建议和行动项目
+
+请用中文回答。`;
+
+        const userPrompt = `チームメンバー数: ${Object.keys(staffReports).length}人
+総日報数: ${reports.length}件
+${input.country ? `国: ${input.country}` : ""}
+
+チームデータ:
+${JSON.stringify(teamSummary, null, 2)}`;
+
+        try {
+          const response = await invokeLLM({
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+          });
+
+          const analysis = response.choices[0]?.message?.content || "";
+
+          return {
+            success: true,
+            memberCount: Object.keys(staffReports).length,
+            reportCount: reports.length,
+            analysis: typeof analysis === "string" ? analysis : JSON.stringify(analysis),
+          };
+        } catch (error) {
+          console.error("AI team analysis error:", error);
+          return {
+            success: false,
+            error: input.language === "ja" ? "AI分析中にエラーが発生しました" : "AI分析过程中发生错误",
+          };
+        }
+      }),
   }),
 });
 

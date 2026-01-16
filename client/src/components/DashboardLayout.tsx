@@ -22,7 +22,7 @@ import {
 import { useLanguage, Language } from "@/contexts/LanguageContext";
 
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -93,6 +93,7 @@ function DashboardLayoutContent({
     { icon: LayoutDashboard, label: t("nav.dashboard"), path: "/" },
     { icon: ClipboardList, label: t("nav.tasks"), path: "/tasks" },
     { icon: FileText, label: t("nav.reports"), path: "/reports" },
+    { icon: Brain, label: t("nav.reportAnalysis"), path: "/report-analysis" },
     { icon: UserCog, label: t("nav.reportStaff"), path: "/report-staff" },
     { icon: Users, label: t("nav.staff"), path: "/staff" },
     { icon: Settings, label: t("nav.masterControl"), path: "/master-control" },

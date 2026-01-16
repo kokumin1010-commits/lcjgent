@@ -751,3 +751,43 @@ export async function searchReports(filters: {
 
   return await query.orderBy(desc(reports.reportDate));
 }
+
+// Get reports for AI analysis (by date range and optionally by staff)
+export async function getReportsForAnalysis(options: {
+  startDate?: Date;
+  endDate?: Date;
+  reportStaffId?: number;
+  country?: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const conditions = [];
+  
+  if (options.startDate) {
+    conditions.push(sql`${reports.reportDate} >= ${options.startDate}`);
+  }
+  if (options.endDate) {
+    conditions.push(sql`${reports.reportDate} <= ${options.endDate}`);
+  }
+  if (options.reportStaffId) {
+    conditions.push(eq(reports.reportStaffId, options.reportStaffId));
+  }
+  if (options.country) {
+    conditions.push(eq(reportStaff.country, options.country));
+  }
+
+  const query = db
+    .select({
+      report: reports,
+      staff: reportStaff,
+    })
+    .from(reports)
+    .leftJoin(reportStaff, eq(reports.reportStaffId, reportStaff.id));
+
+  if (conditions.length > 0) {
+    return await query.where(and(...conditions)).orderBy(desc(reports.reportDate));
+  }
+
+  return await query.orderBy(desc(reports.reportDate));
+}

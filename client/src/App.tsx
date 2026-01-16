@@ -17,6 +17,7 @@ import StaffTasks from "./pages/StaffTasks";
 import Reports from "./pages/Reports";
 import ReportForm from "./pages/ReportForm";
 import ReportStaffManagement from "./pages/ReportStaffManagement";
+import ReportAnalysis from "./pages/ReportAnalysis";
 
 function Router() {
   return (
@@ -85,6 +86,11 @@ function Router() {
       <Route path={"/report-staff"}>
         <DashboardLayout>
           <ReportStaffManagement />
+        </DashboardLayout>
+      </Route>
+      <Route path={"/report-analysis"}>
+        <DashboardLayout>
+          <ReportAnalysis />
         </DashboardLayout>
       </Route>
       <Route path={"/404"} component={NotFound} />
