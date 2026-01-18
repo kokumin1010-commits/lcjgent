@@ -1053,19 +1053,45 @@ export async function getOverdueFollowups() {
 }
 
 // Update followup status
-export async function updateFollowupStatus(id: number, status: "pending" | "completed" | "cancelled", completedNote?: string) {
+export async function updateFollowupStatus(
+  id: number, 
+  status: "pending" | "completed" | "cancelled", 
+  resultCategory?: "成約" | "継続" | "保留" | "失注" | "完了",
+  resultNote?: string
+) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  const updateData: Partial<InsertReportFollowup> = { status };
+  const updateData: Record<string, unknown> = { status };
   if (status === "completed") {
     updateData.completedAt = new Date();
-    if (completedNote) {
-      updateData.completedNote = completedNote;
+    if (resultCategory) {
+      updateData.resultCategory = resultCategory;
+    }
+    if (resultNote) {
+      updateData.resultNote = resultNote;
+      updateData.completedNote = resultNote; // 後方互換
     }
   }
   
   await db.update(reportFollowups).set(updateData).where(eq(reportFollowups.id, id));
+}
+
+// Get followup by ID
+export async function getFollowupById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select().from(reportFollowups).where(eq(reportFollowups.id, id)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+// Link next action to current followup
+export async function linkNextAction(currentId: number, nextActionId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(reportFollowups).set({ nextActionId }).where(eq(reportFollowups.id, currentId));
 }
 
 // Get followups by report ID

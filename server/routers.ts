@@ -77,6 +77,8 @@ import {
   getFollowupsByStaffId,
   deleteReportFollowup,
   checkExistingFollowup,
+  getFollowupById,
+  linkNextAction,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { authRouter } from "./auth";
@@ -1109,18 +1111,150 @@ ${JSON.stringify(teamSummary, null, 2)}`;
       return await getOverdueFollowups();
     }),
 
-    // Update followup status
+    // Update followup status with result recording
     updateFollowupStatus: protectedProcedure
       .input(
         z.object({
           id: z.number(),
           status: z.enum(["pending", "completed", "cancelled"]),
-          completedNote: z.string().optional(),
+          resultCategory: z.enum(["成約", "継続", "保留", "失注", "完了"]).optional(),
+          resultNote: z.string().optional(),
         })
       )
       .mutation(async ({ input }) => {
-        await updateFollowupStatus(input.id, input.status, input.completedNote);
+        await updateFollowupStatus(input.id, input.status, input.resultCategory, input.resultNote);
         return { success: true };
+      }),
+
+    // Complete followup with result and generate next action suggestion
+    completeWithResult: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          resultCategory: z.enum(["成約", "継続", "保留", "失注", "完了"]),
+          resultNote: z.string().optional(),
+          createNextAction: z.boolean().default(false),
+          nextActionItem: z.string().optional(),
+          nextActionCategory: z.enum(["提案", "打ち合わせ", "商談", "MTG", "確認", "その他"]).optional(),
+          nextActionDueDate: z.date().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        // Get the current followup to get reportId and staffId
+        const currentFollowup = await getFollowupById(input.id);
+        if (!currentFollowup) {
+          throw new Error("Followup not found");
+        }
+
+        // Update the current followup with result
+        await updateFollowupStatus(input.id, "completed", input.resultCategory, input.resultNote);
+
+        let nextActionId = null;
+
+        // Create next action if requested
+        if (input.createNextAction && input.nextActionItem) {
+          const nextAction = await createReportFollowup({
+            reportId: currentFollowup.reportId,
+            reportStaffId: currentFollowup.reportStaffId,
+            extractedItem: input.nextActionItem,
+            category: input.nextActionCategory || "その他",
+            dueDate: input.nextActionDueDate || new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+          });
+          if (nextAction) {
+            nextActionId = nextAction.id;
+            // Link the next action to the current followup
+            await linkNextAction(input.id, nextActionId);
+          }
+        }
+
+        return { success: true, nextActionId };
+      }),
+
+    // AI suggest next action based on followup content and result
+    suggestNextAction: protectedProcedure
+      .input(
+        z.object({
+          followupId: z.number(),
+          resultCategory: z.enum(["成約", "継続", "保留", "失注", "完了"]),
+          language: z.enum(["ja", "zh"]).default("ja"),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const followup = await getFollowupById(input.followupId);
+        if (!followup) {
+          throw new Error("Followup not found");
+        }
+
+        // Only suggest next action for "継続" or "保留"
+        if (input.resultCategory !== "継続" && input.resultCategory !== "保留") {
+          return { suggestion: null, reason: "この結果には次のアクションは不要です" };
+        }
+
+        const prompt = input.language === "ja" 
+          ? `以下のフォローアップ項目の結果が「${input.resultCategory}」です。次のアクションを提案してください。
+
+元の項目: ${followup.extractedItem}
+カテゴリ: ${followup.category}
+
+以下のJSON形式で回答してください:
+{
+  "nextAction": "次のアクションの内容（30文字以内）",
+  "category": "提案|打ち合わせ|商談|MTG|確認|その他",
+  "daysUntilDue": 2-7の数字
+}`
+          : `以下跟进事项的结果是「${input.resultCategory}」。请提议下一步行动。
+
+原始事项: ${followup.extractedItem}
+类别: ${followup.category}
+
+请以以下JSON格式回复:
+{
+  "nextAction": "下一步行动内容（30字以内）",
+  "category": "提案|打ち合わせ|商談|MTG|確認|その他",
+  "daysUntilDue": 2-7的数字
+}`;
+
+        try {
+          const response = await invokeLLM({
+            messages: [
+              { role: "system", content: "あなたはビジネスアシスタントです。簡潔に次のアクションを提案してください。" },
+              { role: "user", content: prompt },
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "next_action_suggestion",
+                strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    nextAction: { type: "string" },
+                    category: { type: "string" },
+                    daysUntilDue: { type: "number" },
+                  },
+                  required: ["nextAction", "category", "daysUntilDue"],
+                  additionalProperties: false,
+                },
+              },
+            },
+          });
+
+          const content = response.choices[0]?.message?.content;
+          if (content && typeof content === 'string') {
+            const suggestion = JSON.parse(content);
+            return {
+              suggestion: {
+                item: suggestion.nextAction,
+                category: suggestion.category,
+                dueDate: new Date(Date.now() + suggestion.daysUntilDue * 24 * 60 * 60 * 1000),
+              },
+            };
+          }
+        } catch (error) {
+          console.error("Error suggesting next action:", error);
+        }
+
+        return { suggestion: null };
       }),
 
     // Get followups by report

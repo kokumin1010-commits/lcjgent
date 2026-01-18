@@ -142,6 +142,16 @@ const jaTranslations: Record<string, string> = {
   "followups.batchExtract": "一括抽出",
   "followups.batchExtractDesc": "過去7日間の日報からフォローアップを抽出",
   "followups.noOverdue": "現在フォローアップ待ちの項目はありません。「一括抽出」ボタンで日報からフォローアップ項目を抽出できます。",
+  "followups.resultTitle": "結果を記録",
+  "followups.resultCategory": "結果",
+  "followups.resultNote": "メモ",
+  "followups.resultNotePlaceholder": "結果の詳細を入力...",
+  "followups.nextActionSuggestion": "AI提案: 次のアクション",
+  "followups.willCreate": "作成する",
+  "followups.skip": "スキップ",
+  "followups.complete": "完了",
+  "followups.suggestingNextAction": "次のアクションを提案中...",
+  "followups.nextActionCreated": "次のアクションを作成しました",
   
   // Report Form
   "reportForm.createTitle": "新規レポート作成",
@@ -384,6 +394,16 @@ const zhTranslations: Record<string, string> = {
   "followups.batchExtract": "批量提取",
   "followups.batchExtractDesc": "从过去7天的日报中提取跟进事项",
   "followups.noOverdue": "目前没有待跟进的事项。点击“批量提取”按钮可以从日报中提取跟进事项。",
+  "followups.resultTitle": "记录结果",
+  "followups.resultCategory": "结果",
+  "followups.resultNote": "备注",
+  "followups.resultNotePlaceholder": "输入结果详情...",
+  "followups.nextActionSuggestion": "AI建议: 下一步行动",
+  "followups.willCreate": "创建",
+  "followups.skip": "跳过",
+  "followups.complete": "完成",
+  "followups.suggestingNextAction": "正在建议下一步行动...",
+  "followups.nextActionCreated": "已创建下一步行动",
 
   // Report Form
   "reportForm.createTitle": "创建新报告",

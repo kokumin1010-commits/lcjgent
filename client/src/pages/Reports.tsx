@@ -45,6 +45,24 @@ export default function Reports() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [reportToDelete, setReportToDelete] = useState<number | null>(null);
   const [expandedReportId, setExpandedReportId] = useState<number | null>(null);
+  
+  // Result dialog state
+  const [resultDialogOpen, setResultDialogOpen] = useState(false);
+  const [selectedFollowup, setSelectedFollowup] = useState<{
+    id: number;
+    extractedItem: string;
+    category: string;
+    staffName: string;
+  } | null>(null);
+  const [selectedResultCategory, setSelectedResultCategory] = useState<string>("");
+  const [resultNote, setResultNote] = useState<string>("");
+  const [nextActionSuggestion, setNextActionSuggestion] = useState<{
+    item: string;
+    category: string;
+    dueDate: Date;
+  } | null>(null);
+  const [createNextAction, setCreateNextAction] = useState(false);
+  
   const { t, language } = useLanguage();
 
   // Fetch staff statistics for header cards
@@ -79,6 +97,91 @@ export default function Reports() {
       toast.error(`${t("common.error")}: ${error.message}`);
     },
   });
+
+  // Complete with result mutation
+  const completeWithResult = trpc.report.completeWithResult.useMutation({
+    onSuccess: (result) => {
+      toast.success(t("followups.completed"));
+      if (result.nextActionId) {
+        toast.success(t("followups.nextActionCreated"));
+      }
+      setResultDialogOpen(false);
+      resetResultDialog();
+      refetchFollowups();
+    },
+    onError: (error) => {
+      toast.error(`${t("common.error")}: ${error.message}`);
+    },
+  });
+
+  // Suggest next action mutation
+  const suggestNextAction = trpc.report.suggestNextAction.useMutation({
+    onSuccess: (result) => {
+      if (result.suggestion) {
+        setNextActionSuggestion({
+          item: result.suggestion.item,
+          category: result.suggestion.category,
+          dueDate: new Date(result.suggestion.dueDate),
+        });
+        setCreateNextAction(true);
+      }
+    },
+  });
+
+  // Reset result dialog state
+  const resetResultDialog = () => {
+    setSelectedFollowup(null);
+    setSelectedResultCategory("");
+    setResultNote("");
+    setNextActionSuggestion(null);
+    setCreateNextAction(false);
+  };
+
+  // Handle opening result dialog
+  const handleOpenResultDialog = (followup: {
+    id: number;
+    extractedItem: string;
+    category: string;
+  }, staffName: string) => {
+    setSelectedFollowup({
+      id: followup.id,
+      extractedItem: followup.extractedItem,
+      category: followup.category,
+      staffName,
+    });
+    setResultDialogOpen(true);
+  };
+
+  // Handle result category change
+  const handleResultCategoryChange = (category: string) => {
+    setSelectedResultCategory(category);
+    // Auto-suggest next action for "継続" or "保留"
+    if ((category === "継続" || category === "保留") && selectedFollowup) {
+      suggestNextAction.mutate({
+        followupId: selectedFollowup.id,
+        resultCategory: category as "成約" | "継続" | "保留" | "失注" | "完了",
+        language: language as "ja" | "zh",
+      });
+    } else {
+      setNextActionSuggestion(null);
+      setCreateNextAction(false);
+    }
+  };
+
+  // Handle submit result
+  const handleSubmitResult = () => {
+    if (!selectedFollowup || !selectedResultCategory) return;
+    
+    completeWithResult.mutate({
+      id: selectedFollowup.id,
+      resultCategory: selectedResultCategory as "成約" | "継続" | "保留" | "失注" | "完了",
+      resultNote: resultNote || undefined,
+      createNextAction: createNextAction && !!nextActionSuggestion,
+      nextActionItem: nextActionSuggestion?.item,
+      nextActionCategory: nextActionSuggestion?.category as "提案" | "打ち合わせ" | "商談" | "MTG" | "確認" | "その他" | undefined,
+      nextActionDueDate: nextActionSuggestion?.dueDate,
+    });
+  };
 
   // Fetch reports with filters
   const { data: reports, isLoading: reportsLoading, refetch } = trpc.report.list.useQuery(
@@ -238,7 +341,7 @@ export default function Reports() {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
-                      onClick={() => updateFollowupStatus.mutate({ id: followup.id, status: "completed" })}
+                      onClick={() => handleOpenResultDialog(followup, staff?.name || "-")}
                       title={t("followups.markComplete")}
                     >
                       <Check className="h-4 w-4" />
@@ -529,6 +632,123 @@ export default function Reports() {
               {deleteReport.isPending ? t("common.deleting") : t("common.delete")}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Result Input Dialog */}
+      <Dialog open={resultDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          resetResultDialog();
+        }
+        setResultDialogOpen(open);
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("followups.resultTitle")}</DialogTitle>
+          </DialogHeader>
+          {selectedFollowup && (
+            <div className="space-y-4">
+              {/* Followup info */}
+              <div className="bg-muted/50 p-3 rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <Badge variant="outline" className="text-xs">
+                    {selectedFollowup.category}
+                  </Badge>
+                  <span className="text-sm font-medium">{selectedFollowup.staffName}</span>
+                </div>
+                <p className="text-sm">{selectedFollowup.extractedItem}</p>
+              </div>
+
+              {/* Result category selection - buttons for quick tap */}
+              <div>
+                <Label className="text-sm font-medium mb-2 block">{t("followups.resultCategory")}</Label>
+                <div className="grid grid-cols-5 gap-2">
+                  {["成約", "継続", "保留", "失注", "完了"].map((category) => (
+                    <Button
+                      key={category}
+                      variant={selectedResultCategory === category ? "default" : "outline"}
+                      size="sm"
+                      className={`text-xs ${
+                        category === "成約" ? "hover:bg-green-100 hover:text-green-700" :
+                        category === "失注" ? "hover:bg-red-100 hover:text-red-700" :
+                        ""
+                      } ${
+                        selectedResultCategory === category && category === "成約" ? "bg-green-600" :
+                        selectedResultCategory === category && category === "失注" ? "bg-red-600" :
+                        ""
+                      }`}
+                      onClick={() => handleResultCategoryChange(category)}
+                    >
+                      {category}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Optional note */}
+              <div>
+                <Label className="text-sm font-medium mb-2 block">
+                  {t("followups.resultNote")} <span className="text-muted-foreground font-normal">({t("common.optional")})</span>
+                </Label>
+                <Input
+                  placeholder={t("followups.resultNotePlaceholder")}
+                  value={resultNote}
+                  onChange={(e) => setResultNote(e.target.value)}
+                />
+              </div>
+
+              {/* Next action suggestion (auto-appears for 継続/保留) */}
+              {nextActionSuggestion && (
+                <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-sm font-medium text-blue-700">{t("followups.nextActionSuggestion")}</Label>
+                    <Button
+                      variant={createNextAction ? "default" : "outline"}
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => setCreateNextAction(!createNextAction)}
+                    >
+                      {createNextAction ? t("followups.willCreate") : t("followups.skip")}
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs bg-white">
+                      {nextActionSuggestion.category}
+                    </Badge>
+                    <span className="text-sm">{nextActionSuggestion.item}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {t("followups.dueDate")}: {nextActionSuggestion.dueDate.toLocaleDateString(language === "ja" ? "ja-JP" : "zh-CN")}
+                  </p>
+                </div>
+              )}
+
+              {suggestNextAction.isPending && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  {t("followups.suggestingNextAction")}
+                </div>
+              )}
+
+              {/* Submit button */}
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => setResultDialogOpen(false)}>
+                  {t("common.cancel")}
+                </Button>
+                <Button
+                  onClick={handleSubmitResult}
+                  disabled={!selectedResultCategory || completeWithResult.isPending}
+                >
+                  {completeWithResult.isPending ? (
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Check className="h-4 w-4 mr-2" />
+                  )}
+                  {t("followups.complete")}
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

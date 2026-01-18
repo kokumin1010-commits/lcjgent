@@ -258,8 +258,12 @@ export const reportFollowups = mysqlTable("report_followups", {
   category: mysqlEnum("category", ["提案", "打ち合わせ", "商談", "MTG", "確認", "その他"]).default("その他").notNull(),
   status: mysqlEnum("status", ["pending", "completed", "cancelled"]).default("pending").notNull(),
   dueDate: timestamp("dueDate"), // フォローアップ期限（抽出日から2日後）
+  // 結果記録用フィールド
+  resultCategory: mysqlEnum("resultCategory", ["成約", "継続", "保留", "失注", "完了"]), // 結果カテゴリ
+  resultNote: text("resultNote"), // 結果メモ（任意）
   completedAt: timestamp("completedAt"), // 完了日時
-  completedNote: text("completedNote"), // 完了時のメモ
+  completedNote: text("completedNote"), // 完了時のメモ（後方互換用、resultNoteを使用）
+  nextActionId: int("nextActionId"), // 次のアクションへの参照（自己参照）
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
