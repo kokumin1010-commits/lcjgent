@@ -1,0 +1,61 @@
+{
+  "query": "SELECT * FROM report_followups WHERE status = 'completed' LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT * FROM report_followups WHERE status = 'completed' LIMIT 5;",
+  "rows": [
+    {
+      "id": "14",
+      "reportId": "60006",
+      "reportStaffId": "2",
+      "extractedItem": "15日にaither hub リリース するに向けて最終調整",
+      "category": "その他",
+      "status": "completed",
+      "dueDate": "2026-01-16 04:32:49",
+      "completedAt": "2026-01-18 09:05:55",
+      "completedNote": "NULL",
+      "createdAt": "2026-01-18 08:47:18",
+      "updatedAt": "2026-01-18 09:05:54",
+      "resultCategory": "NULL",
+      "resultNote": "NULL",
+      "nextActionId": "NULL"
+    },
+    {
+      "id": "29",
+      "reportId": "60017",
+      "reportStaffId": "2",
+      "extractedItem": "どういう業務提携できるか検討中",
+      "category": "その他",
+      "status": "completed",
+      "dueDate": "2026-01-14 13:43:17",
+      "completedAt": "2026-01-18 09:01:27",
+      "completedNote": "NULL",
+      "createdAt": "2026-01-18 08:47:28",
+      "updatedAt": "2026-01-18 09:01:27",
+      "resultCategory": "NULL",
+      "resultNote": "NULL",
+      "nextActionId": "NULL"
+    },
+    {
+      "id": "31",
+      "reportId": "60019",
+      "reportStaffId": "60003",
+      "extractedItem": "・DF高橋様MTG（追ってLINE追加、資料送付）",
+      "category": "MTG",
+      "status": "completed",
+      "dueDate": "2026-01-13 14:06:07",
+      "completedAt": "2026-01-18 09:13:45",
+      "completedNote": "NULL",
+      "createdAt": "2026-01-18 08:47:29",
+      "updatedAt": "2026-01-18 09:13:45",
+      "resultCategory": "継続",
+      "resultNote": "NULL",
+      "nextActionId": "36"
+    }
+  ],
+  "messages": [
+    "18\t60008\t60004\t1.\t打印并整理了明天展会及展会直播使用的手卡，并将手卡内容与对应样品逐一核对确认\t確認\tcompleted\t2026-01-15 20:41:07\t2026-01-18 13:44:52\t測試\t2026-01-18 08:47:21\t2026-01-18 13:44:52\t完了\t測試\tNULL",
+    "20\t60011\t60007\t•\t检查 Fossmoss各项物料到位情况，确认样品安排及派送\t確認\tcompleted\t2026-01-15 08:02:08\t2026-01-18 09:06:03\tNULL\t2026-01-18 08:47:22\t2026-01-18 09:06:03\tNULL\tNULL\tNULL"
+  ],
+  "stdout": "id\treportId\treportStaffId\textractedItem\tcategory\tstatus\tdueDate\tcompletedAt\tcompletedNote\tcreatedAt\tupdatedAt\tresultCategory\tresultNote\tnextActionId\n14\t60006\t2\t15日にaither hub リリース するに向けて最終調整\tその他\tcompleted\t2026-01-16 04:32:49\t2026-01-18 09:05:55\tNULL\t2026-01-18 08:47:18\t2026-01-18 09:05:54\tNULL\tNULL\tNULL\n18\t60008\t60004\t1.\t打印并整理了明天展会及展会直播使用的手卡，并将手卡内容与对应样品逐一核对确认\t確認\tcompleted\t2026-01-15 20:41:07\t2026-01-18 13:44:52\t測試\t2026-01-18 08:47:21\t2026-01-18 13:44:52\t完了\t測試\tNULL\n20\t60011\t60007\t•\t检查 Fossmoss各项物料到位情况，确认样品安排及派送\t確認\tcompleted\t2026-01-15 08:02:08\t2026-01-18 09:06:03\tNULL\t2026-01-18 08:47:22\t2026-01-18 09:06:03\tNULL\tNULL\tNULL\n29\t60017\t2\tどういう業務提携できるか検討中\tその他\tcompleted\t2026-01-14 13:43:17\t2026-01-18 09:01:27\tNULL\t2026-01-18 08:47:28\t2026-01-18 09:01:27\tNULL\tNULL\tNULL\n31\t60019\t60003\t・DF高橋様MTG（追ってLINE追加、資料送付）\tMTG\tcompleted\t2026-01-13 14:06:07\t2026-01-18 09:13:45\tNULL\t2026-01-18 08:47:29\t2026-01-18 09:13:45\t継続\tNULL\t36\n",
+  "stderr": "",
+  "execution_time_ms": 1535
+}

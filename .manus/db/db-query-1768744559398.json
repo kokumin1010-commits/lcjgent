@@ -1,0 +1,35 @@
+{
+  "query": "SELECT id, email, name FROM users LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, email, name FROM users LIMIT 5;",
+  "rows": [
+    {
+      "id": "1",
+      "email": "ryuhairartist@gmail.com",
+      "name": "Ryu Hair Artist"
+    },
+    {
+      "id": "73",
+      "email": "test-1768338291542@example.com",
+      "name": "Test User"
+    },
+    {
+      "id": "74",
+      "email": "duplicate-1768338293454@example.com",
+      "name": "First User"
+    },
+    {
+      "id": "75",
+      "email": "login-test-1768338294180@example.com",
+      "name": "Login Test User"
+    },
+    {
+      "id": "76",
+      "email": "wrong-password-1768338295196@example.com",
+      "name": "Wrong Password Test"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\temail\tname\n1\tryuhairartist@gmail.com\tRyu Hair Artist\n73\ttest-1768338291542@example.com\tTest User\n74\tduplicate-1768338293454@example.com\tFirst User\n75\tlogin-test-1768338294180@example.com\tLogin Test User\n76\twrong-password-1768338295196@example.com\tWrong Password Test\n",
+  "stderr": "",
+  "execution_time_ms": 1516
+}

@@ -157,6 +157,10 @@ const jaTranslations: Record<string, string> = {
   "followups.suggestingNextAction": "次のアクションを提案中...",
   "followups.nextActionCreated": "次のアクションを作成しました",
   "followups.viewReport": "日報を見る",
+  "followups.completedTab": "完了済み",
+  "followups.allStaff": "全スタッフ",
+  "followups.noCompleted": "完了済みのフォローアップはありません",
+  "followups.note": "メモ",
   
   // Report Form
   "reportForm.createTitle": "新規レポート作成",
@@ -414,6 +418,10 @@ const zhTranslations: Record<string, string> = {
   "followups.suggestingNextAction": "正在建议下一步行动...",
   "followups.nextActionCreated": "已创建下一步行动",
   "followups.viewReport": "查看日报",
+  "followups.completedTab": "已完成",
+  "followups.allStaff": "全部员工",
+  "followups.noCompleted": "没有已完成的跟进事项",
+  "followups.note": "备注",
 
   // Report Form
   "reportForm.createTitle": "创建新报告",

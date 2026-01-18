@@ -67,6 +67,10 @@ export default function Reports() {
   } | null>(null);
   const [createNextAction, setCreateNextAction] = useState(false);
   
+  // Followup filter state
+  const [followupStaffFilter, setFollowupStaffFilter] = useState<string>("all");
+  const [followupTab, setFollowupTab] = useState<"pending" | "completed">("pending");
+  
   const { t, language } = useLanguage();
 
   // Fetch staff statistics for header cards
@@ -75,8 +79,18 @@ export default function Reports() {
   // Fetch active report staff for filter dropdown
   const { data: activeReportStaff } = trpc.reportStaff.listActive.useQuery();
 
-  // Fetch overdue followups
-  const { data: overdueFollowups, isLoading: followupsLoading, refetch: refetchFollowups } = trpc.report.overdueFollowups.useQuery();
+  // Fetch overdue followups with staff filter
+  const staffIdFilter = followupStaffFilter === "all" ? undefined : parseInt(followupStaffFilter);
+  const { data: overdueFollowups, isLoading: followupsLoading, refetch: refetchFollowups } = trpc.report.overdueFollowups.useQuery(
+    { staffId: staffIdFilter },
+    { enabled: followupTab === "pending" }
+  );
+
+  // Fetch completed followups with staff filter
+  const { data: completedFollowups, isLoading: completedLoading, refetch: refetchCompleted } = trpc.report.completedFollowups.useQuery(
+    { staffId: staffIdFilter },
+    { enabled: followupTab === "completed" }
+  );
 
   // Fetch report detail for dialog
   const { data: reportDetail, isLoading: reportDetailLoading } = trpc.report.getById.useQuery(
@@ -297,17 +311,18 @@ export default function Reports() {
 
   return (
     <div className="space-y-6">
-      {/* Overdue Followups Section - Always show with extract button */}
-      <Card className={overdueFollowups && overdueFollowups.length > 0 ? "border-red-300 bg-red-50/50" : "border-blue-200 bg-blue-50/50"}>
+      {/* Followups Section with tabs and staff filter */}
+      <Card className={followupTab === "pending" && overdueFollowups && overdueFollowups.length > 0 ? "border-red-300 bg-red-50/50" : "border-blue-200 bg-blue-50/50"}>
         <CardContent className="p-6">
+          {/* Header with title and extract button */}
           <div className="flex items-center justify-between mb-4">
-            <h2 className={`text-lg font-semibold flex items-center gap-2 ${overdueFollowups && overdueFollowups.length > 0 ? "text-red-700" : "text-blue-700"}`}>
-              {overdueFollowups && overdueFollowups.length > 0 ? (
+            <h2 className={`text-lg font-semibold flex items-center gap-2 ${followupTab === "pending" && overdueFollowups && overdueFollowups.length > 0 ? "text-red-700" : "text-blue-700"}`}>
+              {followupTab === "pending" && overdueFollowups && overdueFollowups.length > 0 ? (
                 <AlertTriangle className="h-5 w-5" />
               ) : (
                 <Clock className="h-5 w-5" />
               )}
-              {t("followups.title")} ({overdueFollowups?.length || 0}{t("reports.items")})
+              {t("followups.title")}
             </h2>
             <Button
               variant="outline"
@@ -323,71 +338,159 @@ export default function Reports() {
               {t("followups.batchExtract")}
             </Button>
           </div>
-          {overdueFollowups && overdueFollowups.length > 0 ? (
+
+          {/* Tab buttons and staff filter */}
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <div className="flex gap-1">
+              <Button
+                variant={followupTab === "pending" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFollowupTab("pending")}
+                className={followupTab === "pending" ? "bg-red-600 hover:bg-red-700" : ""}
+              >
+                {t("followups.pending")} ({overdueFollowups?.length || 0})
+              </Button>
+              <Button
+                variant={followupTab === "completed" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFollowupTab("completed")}
+                className={followupTab === "completed" ? "bg-green-600 hover:bg-green-700" : ""}
+              >
+                {t("followups.completedTab")} ({completedFollowups?.length || 0})
+              </Button>
+            </div>
+            <Select value={followupStaffFilter} onValueChange={setFollowupStaffFilter}>
+              <SelectTrigger className="w-[140px] h-8">
+                <SelectValue placeholder={t("followups.allStaff")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("followups.allStaff")}</SelectItem>
+                {activeReportStaff?.map((staff) => (
+                  <SelectItem key={staff.id} value={staff.id.toString()}>
+                    {staff.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Pending followups list */}
+          {followupTab === "pending" && (
             <>
-              <p className="text-sm text-red-600 mb-4">
-                {t("followups.overdueWarning")}
-              </p>
-              <div className="space-y-2">
-                {overdueFollowups.map(({ followup, staff, report }) => (
-                <div
-                  key={followup.id}
-                  className="flex items-center justify-between p-3 bg-white rounded-lg border border-red-200 cursor-pointer hover:bg-red-50 transition-colors"
-                  onClick={() => {
-                    setSelectedReportId(followup.reportId);
-                    setReportDetailDialogOpen(true);
-                  }}
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Badge variant="outline" className="text-xs bg-red-100 text-red-700 border-red-300">
-                        {followup.category}
-                      </Badge>
-                      <span className="text-sm font-medium">{staff?.name || "-"}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {formatDueDate(followup.dueDate)}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-700">{followup.extractedItem}</p>
-                    <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
-                      <FileText className="h-3 w-3" />
-                      {t("followups.viewReport")}
-                    </p>
+              {overdueFollowups && overdueFollowups.length > 0 ? (
+                <>
+                  <p className="text-sm text-red-600 mb-4">
+                    {t("followups.overdueWarning")}
+                  </p>
+                  <div className="space-y-2">
+                    {overdueFollowups.map(({ followup, staff, report }) => (
+                      <div
+                        key={followup.id}
+                        className="flex items-center justify-between p-3 bg-white rounded-lg border border-red-200 cursor-pointer hover:bg-red-50 transition-colors"
+                        onClick={() => {
+                          setSelectedReportId(followup.reportId);
+                          setReportDetailDialogOpen(true);
+                        }}
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge variant="outline" className="text-xs bg-red-100 text-red-700 border-red-300">
+                              {followup.category}
+                            </Badge>
+                            <span className="text-sm font-medium">{staff?.name || "-"}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {formatDueDate(followup.dueDate)}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-700">{followup.extractedItem}</p>
+                          <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                            <FileText className="h-3 w-3" />
+                            {t("followups.viewReport")}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1 ml-4">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenResultDialog(followup, staff?.name || "-");
+                            }}
+                            title={t("followups.markComplete")}
+                          >
+                            <Check className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-gray-500 hover:text-gray-700"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateFollowupStatus.mutate({ id: followup.id, status: "cancelled" });
+                            }}
+                            title={t("followups.markCancelled")}
+                          >
+                            <XCircle className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="flex items-center gap-1 ml-4">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenResultDialog(followup, staff?.name || "-");
-                      }}
-                      title={t("followups.markComplete")}
-                    >
-                      <Check className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-gray-500 hover:text-gray-700"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        updateFollowupStatus.mutate({ id: followup.id, status: "cancelled" });
-                      }}
-                      title={t("followups.markCancelled")}
-                    >
-                      <XCircle className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-              </div>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {t("followups.noOverdue")}
+                </p>
+              )}
             </>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              {t("followups.noOverdue")}
-            </p>
+          )}
+
+          {/* Completed followups list */}
+          {followupTab === "completed" && (
+            <>
+              {completedFollowups && completedFollowups.length > 0 ? (
+                <div className="space-y-2">
+                  {completedFollowups.map(({ followup, staff, report }) => (
+                    <div
+                      key={followup.id}
+                      className="flex items-center justify-between p-3 bg-white rounded-lg border border-green-200 cursor-pointer hover:bg-green-50 transition-colors"
+                      onClick={() => {
+                        setSelectedReportId(followup.reportId);
+                        setReportDetailDialogOpen(true);
+                      }}
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge variant="outline" className="text-xs bg-green-100 text-green-700 border-green-300">
+                            {followup.resultCategory || t("followups.completed")}
+                          </Badge>
+                          <span className="text-sm font-medium">{staff?.name || "-"}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {followup.completedAt ? formatDueDate(followup.completedAt) : "-"}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-700">{followup.extractedItem}</p>
+                        {followup.resultNote && (
+                          <p className="text-xs text-gray-500 mt-1 italic">
+                            {t("followups.note")}: {followup.resultNote}
+                          </p>
+                        )}
+                        <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                          <FileText className="h-3 w-3" />
+                          {t("followups.viewReport")}
+                        </p>
+                      </div>
+                      <CheckCircle className="h-5 w-5 text-green-600 ml-4" />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {t("followups.noCompleted")}
+                </p>
+              )}
+            </>
           )}
         </CardContent>
       </Card>

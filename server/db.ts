@@ -1009,10 +1009,15 @@ export async function createReportFollowup(followupData: InsertReportFollowup) {
   return null;
 }
 
-// Get all pending followups
-export async function getPendingFollowups() {
+// Get all pending followups with optional staff filter
+export async function getPendingFollowups(staffId?: number) {
   const db = await getDb();
   if (!db) return [];
+  
+  const conditions = [eq(reportFollowups.status, "pending")];
+  if (staffId) {
+    conditions.push(eq(reportFollowups.reportStaffId, staffId));
+  }
   
   return await db
     .select({
@@ -1023,16 +1028,23 @@ export async function getPendingFollowups() {
     .from(reportFollowups)
     .leftJoin(reportStaff, eq(reportFollowups.reportStaffId, reportStaff.id))
     .leftJoin(reports, eq(reportFollowups.reportId, reports.id))
-    .where(eq(reportFollowups.status, "pending"))
+    .where(and(...conditions))
     .orderBy(asc(reportFollowups.dueDate));
 }
 
-// Get overdue followups (due date passed and still pending)
-export async function getOverdueFollowups() {
+// Get overdue followups (due date passed and still pending) with optional staff filter
+export async function getOverdueFollowups(staffId?: number) {
   const db = await getDb();
   if (!db) return [];
   
   const now = new Date();
+  const conditions = [
+    eq(reportFollowups.status, "pending"),
+    sql`${reportFollowups.dueDate} < ${now}`
+  ];
+  if (staffId) {
+    conditions.push(eq(reportFollowups.reportStaffId, staffId));
+  }
   
   return await db
     .select({
@@ -1043,12 +1055,7 @@ export async function getOverdueFollowups() {
     .from(reportFollowups)
     .leftJoin(reportStaff, eq(reportFollowups.reportStaffId, reportStaff.id))
     .leftJoin(reports, eq(reportFollowups.reportId, reports.id))
-    .where(
-      and(
-        eq(reportFollowups.status, "pending"),
-        sql`${reportFollowups.dueDate} < ${now}`
-      )
-    )
+    .where(and(...conditions))
     .orderBy(asc(reportFollowups.dueDate));
 }
 
@@ -1075,6 +1082,30 @@ export async function updateFollowupStatus(
   }
   
   await db.update(reportFollowups).set(updateData).where(eq(reportFollowups.id, id));
+}
+
+// Get completed followups
+export async function getCompletedFollowups(staffId?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const conditions = [eq(reportFollowups.status, "completed")];
+  if (staffId) {
+    conditions.push(eq(reportFollowups.reportStaffId, staffId));
+  }
+  
+  return await db
+    .select({
+      followup: reportFollowups,
+      staff: reportStaff,
+      report: reports,
+    })
+    .from(reportFollowups)
+    .leftJoin(reportStaff, eq(reportFollowups.reportStaffId, reportStaff.id))
+    .leftJoin(reports, eq(reportFollowups.reportId, reports.id))
+    .where(and(...conditions))
+    .orderBy(desc(reportFollowups.completedAt))
+    .limit(50);
 }
 
 // Get followup by ID

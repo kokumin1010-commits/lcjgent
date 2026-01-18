@@ -78,6 +78,7 @@ import {
   deleteReportFollowup,
   checkExistingFollowup,
   getFollowupById,
+  getCompletedFollowups,
   linkNextAction,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
@@ -1106,10 +1107,19 @@ ${JSON.stringify(teamSummary, null, 2)}`;
       return await getPendingFollowups();
     }),
 
-    // Get overdue followups (for highlighting)
-    overdueFollowups: protectedProcedure.query(async () => {
-      return await getOverdueFollowups();
-    }),
+    // Get overdue followups (for highlighting) with optional staff filter
+    overdueFollowups: protectedProcedure
+      .input(z.object({ staffId: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        return await getOverdueFollowups(input?.staffId);
+      }),
+
+    // Get completed followups with optional staff filter
+    completedFollowups: protectedProcedure
+      .input(z.object({ staffId: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        return await getCompletedFollowups(input?.staffId);
+      }),
 
     // Update followup status with result recording
     updateFollowupStatus: protectedProcedure
