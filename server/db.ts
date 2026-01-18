@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -1174,4 +1174,112 @@ export async function checkExistingFollowup(reportId: number, extractedItem: str
     .limit(1);
   
   return result.length > 0 ? result[0] : null;
+}
+
+
+// ============================================
+// Business Card Management Functions
+// ============================================
+
+// Create a new business card
+export async function createBusinessCard(data: InsertBusinessCard) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(businessCards).values(data);
+  return result;
+}
+
+// Get business card by ID
+export async function getBusinessCardById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select().from(businessCards).where(eq(businessCards.id, id)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+// Get all business cards with optional filters
+export async function getBusinessCards(options?: {
+  registeredBy?: number;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const conditions = [];
+  
+  if (options?.registeredBy) {
+    conditions.push(eq(businessCards.registeredBy, options.registeredBy));
+  }
+  
+  if (options?.search) {
+    const searchTerm = `%${options.search}%`;
+    conditions.push(
+      or(
+        like(businessCards.name, searchTerm),
+        like(businessCards.company, searchTerm),
+        like(businessCards.email, searchTerm),
+        like(businessCards.phone, searchTerm)
+      )
+    );
+  }
+  
+  let query = db.select().from(businessCards);
+  
+  if (conditions.length > 0) {
+    query = query.where(and(...conditions)) as typeof query;
+  }
+  
+  return await query
+    .orderBy(desc(businessCards.createdAt))
+    .limit(options?.limit || 50)
+    .offset(options?.offset || 0);
+}
+
+// Check for duplicate business card by company + name hash
+export async function checkDuplicateBusinessCard(duplicateHash: string) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db
+    .select()
+    .from(businessCards)
+    .where(eq(businessCards.duplicateHash, duplicateHash))
+    .limit(1);
+  
+  return result.length > 0 ? result[0] : null;
+}
+
+// Update business card
+export async function updateBusinessCard(id: number, data: Partial<InsertBusinessCard>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(businessCards).set(data).where(eq(businessCards.id, id));
+}
+
+// Delete business card
+export async function deleteBusinessCard(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.delete(businessCards).where(eq(businessCards.id, id));
+}
+
+// Get business card count
+export async function getBusinessCardCount(registeredBy?: number) {
+  const db = await getDb();
+  if (!db) return 0;
+  
+  let query = db.select({ count: sql<number>`count(*)` }).from(businessCards);
+  
+  if (registeredBy) {
+    query = query.where(eq(businessCards.registeredBy, registeredBy)) as typeof query;
+  }
+  
+  const result = await query;
+  return result[0]?.count || 0;
 }

@@ -272,3 +272,38 @@ export const reportFollowups = mysqlTable("report_followups", {
 
 export type ReportFollowup = typeof reportFollowups.$inferSelect;
 export type InsertReportFollowup = typeof reportFollowups.$inferInsert;
+
+
+/**
+ * Business cards table for managing scanned business cards
+ * 名刺管理テーブル - スキャンした名刺情報を保存
+ */
+export const businessCards = mysqlTable("business_cards", {
+  id: int("id").autoincrement().primaryKey(),
+  // 名刺情報
+  name: varchar("name", { length: 255 }).notNull(), // 氏名
+  nameReading: varchar("nameReading", { length: 255 }), // 氏名（読み仮名）
+  company: varchar("company", { length: 255 }), // 会社名
+  department: varchar("department", { length: 255 }), // 部署
+  position: varchar("position", { length: 255 }), // 役職
+  email: varchar("email", { length: 320 }), // メールアドレス
+  phone: varchar("phone", { length: 50 }), // 電話番号
+  mobile: varchar("mobile", { length: 50 }), // 携帯電話
+  fax: varchar("fax", { length: 50 }), // FAX
+  address: text("address"), // 住所
+  website: varchar("website", { length: 500 }), // ウェブサイト
+  // 画像情報
+  imageUrl: text("imageUrl"), // 名刺画像URL
+  imageKey: varchar("imageKey", { length: 512 }), // S3キー
+  // メタ情報
+  registeredBy: int("registeredBy").notNull(), // 登録した担当者（user ID）
+  notes: text("notes"), // メモ
+  tags: json("tags").$type<string[]>(), // タグ（検索用）
+  // 重複チェック用ハッシュ
+  duplicateHash: varchar("duplicateHash", { length: 64 }), // 会社名+氏名のハッシュ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type BusinessCard = typeof businessCards.$inferSelect;
+export type InsertBusinessCard = typeof businessCards.$inferInsert;

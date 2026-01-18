@@ -80,6 +80,13 @@ import {
   getFollowupById,
   getCompletedFollowups,
   linkNextAction,
+  createBusinessCard,
+  getBusinessCardById,
+  getBusinessCards,
+  checkDuplicateBusinessCard,
+  updateBusinessCard,
+  deleteBusinessCard,
+  getBusinessCardCount,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { authRouter } from "./auth";
@@ -1655,6 +1662,251 @@ ${JSON.stringify(teamSummary, null, 2)}`;
       .mutation(async ({ input }) => {
         await deleteBrandLivestream(input.id);
         return { success: true };
+      }),
+  }),
+
+  // Business Card Management Router
+  businessCard: router({
+    // Upload and OCR a business card image
+    upload: protectedProcedure
+      .input(
+        z.object({
+          imageBase64: z.string(),
+          mimeType: z.string().default("image/jpeg"),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        // Upload image to S3
+        const imageBuffer = Buffer.from(input.imageBase64, "base64");
+        const fileKey = `business-cards/${ctx.user.id}/${nanoid()}.${input.mimeType.split("/")[1] || "jpg"}`;
+        const { url: imageUrl, key: imageKey } = await storagePut(fileKey, imageBuffer, input.mimeType);
+
+        // Use LLM to extract business card information
+        const ocrResult = await invokeLLM({
+          messages: [
+            {
+              role: "system",
+              content: `You are a business card OCR assistant. Extract all information from the business card image and return it in JSON format.
+Extract the following fields if available:
+- name: Full name (氏名)
+- nameReading: Name reading/pronunciation (読み仮名) if visible
+- company: Company name (会社名)
+- department: Department (部署)
+- position: Job title/position (役職)
+- email: Email address
+- phone: Phone number (電話番号)
+- mobile: Mobile phone (携帯電話)
+- fax: Fax number
+- address: Full address (住所)
+- website: Website URL
+
+Return ONLY valid JSON, no markdown or explanation.`,
+            },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: `data:${input.mimeType};base64,${input.imageBase64}`,
+                  },
+                },
+                {
+                  type: "text",
+                  text: "Please extract all business card information from this image.",
+                },
+              ],
+            },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "business_card_info",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  name: { type: "string", description: "Full name" },
+                  nameReading: { type: "string", description: "Name reading" },
+                  company: { type: "string", description: "Company name" },
+                  department: { type: "string", description: "Department" },
+                  position: { type: "string", description: "Job title" },
+                  email: { type: "string", description: "Email address" },
+                  phone: { type: "string", description: "Phone number" },
+                  mobile: { type: "string", description: "Mobile phone" },
+                  fax: { type: "string", description: "Fax number" },
+                  address: { type: "string", description: "Address" },
+                  website: { type: "string", description: "Website URL" },
+                },
+                required: ["name"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+
+        let extractedInfo: any = {};
+        try {
+          const content = ocrResult.choices[0]?.message?.content;
+          if (content && typeof content === 'string') {
+            extractedInfo = JSON.parse(content);
+          }
+        } catch (e) {
+          console.error("Failed to parse OCR result:", e);
+        }
+
+        return {
+          imageUrl,
+          imageKey,
+          extractedInfo,
+        };
+      }),
+
+    // Create a new business card
+    create: protectedProcedure
+      .input(
+        z.object({
+          name: z.string().min(1),
+          nameReading: z.string().optional(),
+          company: z.string().optional(),
+          department: z.string().optional(),
+          position: z.string().optional(),
+          email: z.string().optional(),
+          phone: z.string().optional(),
+          mobile: z.string().optional(),
+          fax: z.string().optional(),
+          address: z.string().optional(),
+          website: z.string().optional(),
+          imageUrl: z.string().optional(),
+          imageKey: z.string().optional(),
+          notes: z.string().optional(),
+          tags: z.array(z.string()).optional(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        // Generate duplicate hash from company + name
+        const crypto = await import("crypto");
+        const duplicateHash = crypto
+          .createHash("md5")
+          .update(`${input.company || ""}|${input.name}`)
+          .digest("hex");
+
+        // Check for duplicates
+        const existing = await checkDuplicateBusinessCard(duplicateHash);
+        if (existing) {
+          return {
+            success: false,
+            duplicate: true,
+            existingCard: existing,
+            message: "A business card with the same name and company already exists.",
+          };
+        }
+
+        await createBusinessCard({
+          ...input,
+          registeredBy: ctx.user.id,
+          duplicateHash,
+        });
+
+        return { success: true, duplicate: false };
+      }),
+
+    // Get all business cards
+    list: protectedProcedure
+      .input(
+        z.object({
+          search: z.string().optional(),
+          registeredBy: z.number().optional(),
+          limit: z.number().optional(),
+          offset: z.number().optional(),
+        }).optional()
+      )
+      .query(async ({ input }) => {
+        return await getBusinessCards(input);
+      }),
+
+    // Get business card by ID
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return await getBusinessCardById(input.id);
+      }),
+
+    // Update business card
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          name: z.string().optional(),
+          nameReading: z.string().optional(),
+          company: z.string().optional(),
+          department: z.string().optional(),
+          position: z.string().optional(),
+          email: z.string().optional(),
+          phone: z.string().optional(),
+          mobile: z.string().optional(),
+          fax: z.string().optional(),
+          address: z.string().optional(),
+          website: z.string().optional(),
+          notes: z.string().optional(),
+          tags: z.array(z.string()).optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        
+        // If name or company changed, update duplicate hash
+        if (data.name || data.company) {
+          const existing = await getBusinessCardById(id);
+          if (existing) {
+            const crypto = await import("crypto");
+            const newHash = crypto
+              .createHash("md5")
+              .update(`${data.company || existing.company || ""}|${data.name || existing.name}`)
+              .digest("hex");
+            (data as any).duplicateHash = newHash;
+          }
+        }
+        
+        await updateBusinessCard(id, data);
+        return { success: true };
+      }),
+
+    // Delete business card
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteBusinessCard(input.id);
+        return { success: true };
+      }),
+
+    // Get count
+    count: protectedProcedure
+      .input(z.object({ registeredBy: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        return await getBusinessCardCount(input?.registeredBy);
+      }),
+
+    // Check for duplicate
+    checkDuplicate: protectedProcedure
+      .input(
+        z.object({
+          name: z.string(),
+          company: z.string().optional(),
+        })
+      )
+      .query(async ({ input }) => {
+        const crypto = await import("crypto");
+        const duplicateHash = crypto
+          .createHash("md5")
+          .update(`${input.company || ""}|${input.name}`)
+          .digest("hex");
+        
+        const existing = await checkDuplicateBusinessCard(duplicateHash);
+        return {
+          isDuplicate: !!existing,
+          existingCard: existing,
+        };
       }),
   }),
 });

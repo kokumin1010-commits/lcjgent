@@ -21,6 +21,7 @@ import ReportAnalysis from "./pages/ReportAnalysis";
 import BrandList from "./pages/BrandList";
 import BrandForm from "./pages/BrandForm";
 import BrandDetail from "./pages/BrandDetail";
+import BusinessCards from "./pages/BusinessCards";
 
 function Router() {
   return (
@@ -119,6 +120,11 @@ function Router() {
             <BrandDetail />
           </DashboardLayout>
         )}
+      </Route>
+      <Route path={"/business-cards"}>
+        <DashboardLayout>
+          <BusinessCards />
+        </DashboardLayout>
       </Route>
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />

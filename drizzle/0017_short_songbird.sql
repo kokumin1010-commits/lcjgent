@@ -1,0 +1,23 @@
+CREATE TABLE `business_cards` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`name` varchar(255) NOT NULL,
+	`nameReading` varchar(255),
+	`company` varchar(255),
+	`department` varchar(255),
+	`position` varchar(255),
+	`email` varchar(320),
+	`phone` varchar(50),
+	`mobile` varchar(50),
+	`fax` varchar(50),
+	`address` text,
+	`website` varchar(500),
+	`imageUrl` text,
+	`imageKey` varchar(512),
+	`registeredBy` int NOT NULL,
+	`notes` text,
+	`tags` json,
+	`duplicateHash` varchar(64),
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `business_cards_id` PRIMARY KEY(`id`)
+);
