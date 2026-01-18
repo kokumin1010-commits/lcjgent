@@ -26,7 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FileText, Plus, Search, X, Pencil, Trash2, Globe, Clock, AlertTriangle, CheckCircle, Link } from "lucide-react";
+import { FileText, Plus, Search, X, Pencil, Trash2, Globe, Clock, AlertTriangle, CheckCircle, Link, Sparkles, Check, XCircle, RefreshCw } from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -52,6 +52,33 @@ export default function Reports() {
   
   // Fetch active report staff for filter dropdown
   const { data: activeReportStaff } = trpc.reportStaff.listActive.useQuery();
+
+  // Fetch overdue followups
+  const { data: overdueFollowups, isLoading: followupsLoading, refetch: refetchFollowups } = trpc.report.overdueFollowups.useQuery();
+
+  // Batch extract mutation
+  const batchExtract = trpc.report.batchExtractFollowups.useMutation({
+    onSuccess: (result) => {
+      if (result.success) {
+        toast.success(`${t("followups.extracted")}: ${result.totalCreated}${t("reports.items")}`);
+        refetchFollowups();
+      }
+    },
+    onError: (error) => {
+      toast.error(`${t("common.error")}: ${error.message}`);
+    },
+  });
+
+  // Update followup status mutation
+  const updateFollowupStatus = trpc.report.updateFollowupStatus.useMutation({
+    onSuccess: () => {
+      toast.success(t("common.save"));
+      refetchFollowups();
+    },
+    onError: (error) => {
+      toast.error(`${t("common.error")}: ${error.message}`);
+    },
+  });
 
   // Fetch reports with filters
   const { data: reports, isLoading: reportsLoading, refetch } = trpc.report.list.useQuery(
@@ -137,8 +164,107 @@ export default function Reports() {
     });
   };
 
+  // Check if followup is overdue (more than 2 days past due date)
+  const isOverdue = (dueDate: Date | string | null) => {
+    if (!dueDate) return false;
+    const due = new Date(dueDate);
+    const now = new Date();
+    return now > due;
+  };
+
+  // Format due date with overdue indicator
+  const formatDueDate = (dueDate: Date | string | null) => {
+    if (!dueDate) return "-";
+    const d = new Date(dueDate);
+    return d.toLocaleDateString(language === "ja" ? "ja-JP" : "zh-CN", {
+      month: "2-digit",
+      day: "2-digit",
+    });
+  };
+
   return (
     <div className="space-y-6">
+      {/* Overdue Followups Section - Always show with extract button */}
+      <Card className={overdueFollowups && overdueFollowups.length > 0 ? "border-red-300 bg-red-50/50" : "border-blue-200 bg-blue-50/50"}>
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className={`text-lg font-semibold flex items-center gap-2 ${overdueFollowups && overdueFollowups.length > 0 ? "text-red-700" : "text-blue-700"}`}>
+              {overdueFollowups && overdueFollowups.length > 0 ? (
+                <AlertTriangle className="h-5 w-5" />
+              ) : (
+                <Clock className="h-5 w-5" />
+              )}
+              {t("followups.title")} ({overdueFollowups?.length || 0}{t("reports.items")})
+            </h2>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => batchExtract.mutate({ days: 7, language })}
+              disabled={batchExtract.isPending}
+            >
+              {batchExtract.isPending ? (
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4 mr-2" />
+              )}
+              {t("followups.batchExtract")}
+            </Button>
+          </div>
+          {overdueFollowups && overdueFollowups.length > 0 ? (
+            <>
+              <p className="text-sm text-red-600 mb-4">
+                {t("followups.overdueWarning")}
+              </p>
+              <div className="space-y-2">
+                {overdueFollowups.map(({ followup, staff, report }) => (
+                <div
+                  key={followup.id}
+                  className="flex items-center justify-between p-3 bg-white rounded-lg border border-red-200"
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant="outline" className="text-xs bg-red-100 text-red-700 border-red-300">
+                        {followup.category}
+                      </Badge>
+                      <span className="text-sm font-medium">{staff?.name || "-"}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatDueDate(followup.dueDate)}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-700">{followup.extractedItem}</p>
+                  </div>
+                  <div className="flex items-center gap-1 ml-4">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                      onClick={() => updateFollowupStatus.mutate({ id: followup.id, status: "completed" })}
+                      title={t("followups.markComplete")}
+                    >
+                      <Check className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-gray-500 hover:text-gray-700"
+                      onClick={() => updateFollowupStatus.mutate({ id: followup.id, status: "cancelled" })}
+                      title={t("followups.markCancelled")}
+                    >
+                      <XCircle className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {t("followups.noOverdue")}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Country Filter Tabs */}
       <div className="flex items-center gap-2 border-b pb-4">
         <Globe className="h-5 w-5 text-muted-foreground" />

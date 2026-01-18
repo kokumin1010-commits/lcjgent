@@ -244,3 +244,25 @@ export const brandLivestreams = mysqlTable("brand_livestreams", {
 
 export type BrandLivestream = typeof brandLivestreams.$inferSelect;
 export type InsertBrandLivestream = typeof brandLivestreams.$inferInsert;
+
+
+/**
+ * Follow-up items extracted from daily reports
+ * 日報から抽出されたフォローアップ項目（提案、打ち合わせ、商談など）
+ */
+export const reportFollowups = mysqlTable("report_followups", {
+  id: int("id").autoincrement().primaryKey(),
+  reportId: int("reportId").notNull(), // References reports.id
+  reportStaffId: int("reportStaffId").notNull(), // References reportStaff.id
+  extractedItem: text("extractedItem").notNull(), // 抽出された項目（例：「shiho合同」「物流公司打ち合わせ」）
+  category: mysqlEnum("category", ["提案", "打ち合わせ", "商談", "MTG", "確認", "その他"]).default("その他").notNull(),
+  status: mysqlEnum("status", ["pending", "completed", "cancelled"]).default("pending").notNull(),
+  dueDate: timestamp("dueDate"), // フォローアップ期限（抽出日から2日後）
+  completedAt: timestamp("completedAt"), // 完了日時
+  completedNote: text("completedNote"), // 完了時のメモ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ReportFollowup = typeof reportFollowups.$inferSelect;
+export type InsertReportFollowup = typeof reportFollowups.$inferInsert;

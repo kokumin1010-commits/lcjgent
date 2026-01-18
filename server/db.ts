@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -991,4 +991,130 @@ export async function getLivestreamStatsByBrandId(brandId: number) {
   const avgSales = totalStreams > 0 ? Math.round(totalSales / totalStreams) : 0;
   
   return { totalSales, totalStreams, avgSales };
+}
+
+
+// ========== Report Followup Functions ==========
+
+// Create a new followup item
+export async function createReportFollowup(followupData: InsertReportFollowup) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const [inserted] = await db.insert(reportFollowups).values(followupData).$returningId();
+  if (inserted && inserted.id) {
+    const result = await db.select().from(reportFollowups).where(eq(reportFollowups.id, inserted.id)).limit(1);
+    return result.length > 0 ? result[0] : null;
+  }
+  return null;
+}
+
+// Get all pending followups
+export async function getPendingFollowups() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select({
+      followup: reportFollowups,
+      staff: reportStaff,
+      report: reports,
+    })
+    .from(reportFollowups)
+    .leftJoin(reportStaff, eq(reportFollowups.reportStaffId, reportStaff.id))
+    .leftJoin(reports, eq(reportFollowups.reportId, reports.id))
+    .where(eq(reportFollowups.status, "pending"))
+    .orderBy(asc(reportFollowups.dueDate));
+}
+
+// Get overdue followups (due date passed and still pending)
+export async function getOverdueFollowups() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const now = new Date();
+  
+  return await db
+    .select({
+      followup: reportFollowups,
+      staff: reportStaff,
+      report: reports,
+    })
+    .from(reportFollowups)
+    .leftJoin(reportStaff, eq(reportFollowups.reportStaffId, reportStaff.id))
+    .leftJoin(reports, eq(reportFollowups.reportId, reports.id))
+    .where(
+      and(
+        eq(reportFollowups.status, "pending"),
+        sql`${reportFollowups.dueDate} < ${now}`
+      )
+    )
+    .orderBy(asc(reportFollowups.dueDate));
+}
+
+// Update followup status
+export async function updateFollowupStatus(id: number, status: "pending" | "completed" | "cancelled", completedNote?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const updateData: Partial<InsertReportFollowup> = { status };
+  if (status === "completed") {
+    updateData.completedAt = new Date();
+    if (completedNote) {
+      updateData.completedNote = completedNote;
+    }
+  }
+  
+  await db.update(reportFollowups).set(updateData).where(eq(reportFollowups.id, id));
+}
+
+// Get followups by report ID
+export async function getFollowupsByReportId(reportId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db.select().from(reportFollowups).where(eq(reportFollowups.reportId, reportId)).orderBy(desc(reportFollowups.createdAt));
+}
+
+// Get followups by staff ID
+export async function getFollowupsByStaffId(reportStaffId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select({
+      followup: reportFollowups,
+      report: reports,
+    })
+    .from(reportFollowups)
+    .leftJoin(reports, eq(reportFollowups.reportId, reports.id))
+    .where(eq(reportFollowups.reportStaffId, reportStaffId))
+    .orderBy(desc(reportFollowups.createdAt));
+}
+
+// Delete followup
+export async function deleteReportFollowup(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.delete(reportFollowups).where(eq(reportFollowups.id, id));
+}
+
+// Check if followup already exists for a report and extracted item
+export async function checkExistingFollowup(reportId: number, extractedItem: string) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db
+    .select()
+    .from(reportFollowups)
+    .where(
+      and(
+        eq(reportFollowups.reportId, reportId),
+        eq(reportFollowups.extractedItem, extractedItem)
+      )
+    )
+    .limit(1);
+  
+  return result.length > 0 ? result[0] : null;
 }

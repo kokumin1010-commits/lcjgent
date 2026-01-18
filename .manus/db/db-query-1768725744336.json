@@ -1,0 +1,278 @@
+{
+  "query": "SELECT id, email FROM users;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, email FROM users;",
+  "rows": [
+    {
+      "id": "74",
+      "email": "duplicate-1768338293454@example.com"
+    },
+    {
+      "id": "30002",
+      "email": "duplicate-1768554063701@example.com"
+    },
+    {
+      "id": "30006",
+      "email": "duplicate-1768554104771@example.com"
+    },
+    {
+      "id": "30010",
+      "email": "duplicate-1768554153556@example.com"
+    },
+    {
+      "id": "30014",
+      "email": "duplicate-1768554238749@example.com"
+    },
+    {
+      "id": "30018",
+      "email": "duplicate-1768554958169@example.com"
+    },
+    {
+      "id": "30022",
+      "email": "duplicate-1768555307835@example.com"
+    },
+    {
+      "id": "30026",
+      "email": "duplicate-1768555912217@example.com"
+    },
+    {
+      "id": "30030",
+      "email": "duplicate-1768555951406@example.com"
+    },
+    {
+      "id": "30034",
+      "email": "duplicate-1768556055531@example.com"
+    },
+    {
+      "id": "30038",
+      "email": "duplicate-1768556130627@example.com"
+    },
+    {
+      "id": "30042",
+      "email": "duplicate-1768556663470@example.com"
+    },
+    {
+      "id": "30047",
+      "email": "duplicate-1768557202565@example.com"
+    },
+    {
+      "id": "30051",
+      "email": "duplicate-1768557947998@example.com"
+    },
+    {
+      "id": "60002",
+      "email": "duplicate-1768725612663@example.com"
+    },
+    {
+      "id": "60006",
+      "email": "duplicate-1768725647633@example.com"
+    },
+    {
+      "id": "77",
+      "email": "kokumin1010@gmail.com"
+    },
+    {
+      "id": "75",
+      "email": "login-test-1768338294180@example.com"
+    },
+    {
+      "id": "30003",
+      "email": "login-test-1768554064432@example.com"
+    },
+    {
+      "id": "30007",
+      "email": "login-test-1768554105489@example.com"
+    },
+    {
+      "id": "30011",
+      "email": "login-test-1768554154271@example.com"
+    },
+    {
+      "id": "30015",
+      "email": "login-test-1768554239460@example.com"
+    },
+    {
+      "id": "30019",
+      "email": "login-test-1768554958872@example.com"
+    },
+    {
+      "id": "30023",
+      "email": "login-test-1768555308549@example.com"
+    },
+    {
+      "id": "30027",
+      "email": "login-test-1768555912950@example.com"
+    },
+    {
+      "id": "30031",
+      "email": "login-test-1768555952156@example.com"
+    },
+    {
+      "id": "30035",
+      "email": "login-test-1768556056242@example.com"
+    },
+    {
+      "id": "30039",
+      "email": "login-test-1768556131350@example.com"
+    },
+    {
+      "id": "30043",
+      "email": "login-test-1768556664193@example.com"
+    },
+    {
+      "id": "30048",
+      "email": "login-test-1768557203265@example.com"
+    },
+    {
+      "id": "30052",
+      "email": "login-test-1768557948732@example.com"
+    },
+    {
+      "id": "60003",
+      "email": "login-test-1768725613391@example.com"
+    },
+    {
+      "id": "60007",
+      "email": "login-test-1768725648347@example.com"
+    },
+    {
+      "id": "1",
+      "email": "ryuhairartist@gmail.com"
+    },
+    {
+      "id": "73",
+      "email": "test-1768338291542@example.com"
+    },
+    {
+      "id": "30001",
+      "email": "test-1768554061781@example.com"
+    },
+    {
+      "id": "30005",
+      "email": "test-1768554102887@example.com"
+    },
+    {
+      "id": "30009",
+      "email": "test-1768554151693@example.com"
+    },
+    {
+      "id": "30013",
+      "email": "test-1768554236894@example.com"
+    },
+    {
+      "id": "30017",
+      "email": "test-1768554956327@example.com"
+    },
+    {
+      "id": "30021",
+      "email": "test-1768555305979@example.com"
+    },
+    {
+      "id": "30025",
+      "email": "test-1768555910310@example.com"
+    },
+    {
+      "id": "30029",
+      "email": "test-1768555949447@example.com"
+    },
+    {
+      "id": "30033",
+      "email": "test-1768556053686@example.com"
+    },
+    {
+      "id": "30037",
+      "email": "test-1768556128765@example.com"
+    },
+    {
+      "id": "30041",
+      "email": "test-1768556661561@example.com"
+    },
+    {
+      "id": "30046",
+      "email": "test-1768557200734@example.com"
+    },
+    {
+      "id": "30050",
+      "email": "test-1768557946069@example.com"
+    },
+    {
+      "id": "60001",
+      "email": "test-1768725610712@example.com"
+    },
+    {
+      "id": "60005",
+      "email": "test-1768725645754@example.com"
+    },
+    {
+      "id": "76",
+      "email": "wrong-password-1768338295196@example.com"
+    },
+    {
+      "id": "30004",
+      "email": "wrong-password-1768554065457@example.com"
+    },
+    {
+      "id": "30008",
+      "email": "wrong-password-1768554106492@example.com"
+    },
+    {
+      "id": "30012",
+      "email": "wrong-password-1768554155271@example.com"
+    },
+    {
+      "id": "30016",
+      "email": "wrong-password-1768554240458@example.com"
+    },
+    {
+      "id": "30020",
+      "email": "wrong-password-1768554959861@example.com"
+    },
+    {
+      "id": "30024",
+      "email": "wrong-password-1768555309544@example.com"
+    },
+    {
+      "id": "30028",
+      "email": "wrong-password-1768555913974@example.com"
+    },
+    {
+      "id": "30032",
+      "email": "wrong-password-1768555953204@example.com"
+    },
+    {
+      "id": "30036",
+      "email": "wrong-password-1768556057233@example.com"
+    },
+    {
+      "id": "30040",
+      "email": "wrong-password-1768556132346@example.com"
+    },
+    {
+      "id": "30044",
+      "email": "wrong-password-1768556665198@example.com"
+    },
+    {
+      "id": "30049",
+      "email": "wrong-password-1768557204249@example.com"
+    },
+    {
+      "id": "30053",
+      "email": "wrong-password-1768557949753@example.com"
+    },
+    {
+      "id": "60004",
+      "email": "wrong-password-1768725614412@example.com"
+    },
+    {
+      "id": "60008",
+      "email": "wrong-password-1768725649352@example.com"
+    },
+    {
+      "id": "30045",
+      "email": "xf925928014@gmail.com"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\temail\n74\tduplicate-1768338293454@example.com\n30002\tduplicate-1768554063701@example.com\n30006\tduplicate-1768554104771@example.com\n30010\tduplicate-1768554153556@example.com\n30014\tduplicate-1768554238749@example.com\n30018\tduplicate-1768554958169@example.com\n30022\tduplicate-1768555307835@example.com\n30026\tduplicate-1768555912217@example.com\n30030\tduplicate-1768555951406@example.com\n30034\tduplicate-1768556055531@example.com\n30038\tduplicate-1768556130627@example.com\n30042\tduplicate-1768556663470@example.com\n30047\tduplicate-1768557202565@example.com\n30051\tduplicate-1768557947998@example.com\n60002\tduplicate-1768725612663@example.com\n60006\tduplicate-1768725647633@example.com\n77\tkokumin1010@gmail.com\n75\tlogin-test-1768338294180@example.com\n30003\tlogin-test-1768554064432@example.com\n30007\tlogin-test-1768554105489@example.com\n30011\tlogin-test-1768554154271@example.com\n30015\tlogin-test-1768554239460@example.com\n30019\tlogin-test-1768554958872@example.com\n30023\tlogin-test-1768555308549@example.com\n30027\tlogin-test-1768555912950@example.com\n30031\tlogin-test-1768555952156@example.com\n30035\tlogin-test-1768556056242@example.com\n30039\tlogin-test-1768556131350@example.com\n30043\tlogin-test-1768556664193@example.com\n30048\tlogin-test-1768557203265@example.com\n30052\tlogin-test-1768557948732@example.com\n60003\tlogin-test-1768725613391@example.com\n60007\tlogin-test-1768725648347@example.com\n1\tryuhairartist@gmail.com\n73\ttest-1768338291542@example.com\n30001\ttest-1768554061781@example.com\n30005\ttest-1768554102887@example.com\n30009\ttest-1768554151693@example.com\n30013\ttest-1768554236894@example.com\n30017\ttest-1768554956327@example.com\n30021\ttest-1768555305979@example.com\n30025\ttest-1768555910310@example.com\n30029\ttest-1768555949447@example.com\n30033\ttest-1768556053686@example.com\n30037\ttest-1768556128765@example.com\n30041\ttest-1768556661561@example.com\n30046\ttest-1768557200734@example.com\n30050\ttest-1768557946069@example.com\n60001\ttest-1768725610712@example.com\n60005\ttest-1768725645754@example.com\n76\twrong-password-1768338295196@example.com\n30004\twrong-password-1768554065457@example.com\n30008\twrong-password-1768554106492@example.com\n30012\twrong-password-1768554155271@example.com\n30016\twrong-password-1768554240458@example.com\n30020\twrong-password-1768554959861@example.com\n30024\twrong-password-1768555309544@example.com\n30028\twrong-password-1768555913974@example.com\n30032\twrong-password-1768555953204@example.com\n30036\twrong-password-1768556057233@example.com\n30040\twrong-password-1768556132346@example.com\n30044\twrong-password-1768556665198@example.com\n30049\twrong-password-1768557204249@example.com\n30053\twrong-password-1768557949753@example.com\n60004\twrong-password-1768725614412@example.com\n60008\twrong-password-1768725649352@example.com\n30045\txf925928014@gmail.com\n",
+  "stderr": "",
+  "execution_time_ms": 1494
+}

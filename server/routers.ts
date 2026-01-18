@@ -69,6 +69,14 @@ import {
   updateBrandLivestream,
   deleteBrandLivestream,
   getLivestreamStatsByBrandId,
+  createReportFollowup,
+  getPendingFollowups,
+  getOverdueFollowups,
+  updateFollowupStatus,
+  getFollowupsByReportId,
+  getFollowupsByStaffId,
+  deleteReportFollowup,
+  checkExistingFollowup,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { authRouter } from "./auth";
@@ -953,6 +961,266 @@ ${JSON.stringify(teamSummary, null, 2)}`;
             error: input.language === "ja" ? "AI分析中にエラーが発生しました" : "AI分析过程中发生错误",
           };
         }
+      }),
+
+    // Extract followup items from reports using AI
+    extractFollowups: protectedProcedure
+      .input(
+        z.object({
+          reportId: z.number(),
+          language: z.enum(["ja", "zh"]).default("ja"),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const reportData = await getReportById(input.reportId);
+        if (!reportData) {
+          return { success: false, error: "Report not found" };
+        }
+
+        const { report, staff } = reportData;
+        const workContent = report.workContent || "";
+
+        // Keywords to detect followup items
+        const followupKeywords = [
+          "提案", "打ち合わせ", "商談", "MTG", "ミーティング", "会議",
+          "確認", "検討", "相談", "調整", "連絡", "報告",
+          "合同", "会合", "面談", "訪問", "見積", "契約",
+          "提议", "会议", "商谈", "确认", "讨论", "协商", "联系"
+        ];
+
+        const systemPrompt = input.language === "ja"
+          ? `あなたは業務内容からフォローアップが必要な項目を抽出する専門家です。
+
+以下の日報内容から、フォローアップが必要な項目（提案、打ち合わせ、商談、MTG、確認事項など）を抽出してください。
+
+出力形式（JSON配列）:
+[
+  {
+    "item": "抽出された項目（簡潔に）",
+    "category": "提案" | "打ち合わせ" | "商談" | "MTG" | "確認" | "その他"
+  }
+]
+
+該当する項目がない場合は空の配列 [] を返してください。`
+          : `你是一位从工作内容中提取需要跟进事项的专家。
+
+请从以下日报内容中提取需要跟进的事项（提案、会议、商谈、MTG、确认事项等）。
+
+输出格式（JSON数组）:
+[
+  {
+    "item": "提取的事项（简洁）",
+    "category": "提案" | "打ち合わせ" | "商談" | "MTG" | "確認" | "その他"
+  }
+]
+
+如果没有相关事项，请返回空数组 []。`;
+
+        try {
+          const response = await invokeLLM({
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: `日報内容:\n${workContent}` },
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "followup_items",
+                strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    items: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          item: { type: "string" },
+                          category: { type: "string" }
+                        },
+                        required: ["item", "category"],
+                        additionalProperties: false
+                      }
+                    }
+                  },
+                  required: ["items"],
+                  additionalProperties: false
+                }
+              }
+            }
+          });
+
+          const rawContent = response.choices[0]?.message?.content || "{}";
+          const content = typeof rawContent === "string" ? rawContent : JSON.stringify(rawContent);
+          const parsed = JSON.parse(content);
+          const extractedItems = parsed.items || [];
+
+          // Calculate due date (2 days from report date)
+          const reportDate = new Date(report.reportDate);
+          const dueDate = new Date(reportDate);
+          dueDate.setDate(dueDate.getDate() + 2);
+
+          // Create followup records
+          const createdFollowups = [];
+          for (const item of extractedItems) {
+            // Check if already exists
+            const existing = await checkExistingFollowup(report.id, item.item);
+            if (!existing) {
+              const category = ["提案", "打ち合わせ", "商談", "MTG", "確認"].includes(item.category)
+                ? item.category as "提案" | "打ち合わせ" | "商談" | "MTG" | "確認"
+                : "その他";
+              
+              const followup = await createReportFollowup({
+                reportId: report.id,
+                reportStaffId: report.reportStaffId,
+                extractedItem: item.item,
+                category,
+                status: "pending",
+                dueDate,
+              });
+              if (followup) {
+                createdFollowups.push(followup);
+              }
+            }
+          }
+
+          return {
+            success: true,
+            extractedCount: extractedItems.length,
+            createdCount: createdFollowups.length,
+            items: createdFollowups,
+          };
+        } catch (error) {
+          console.error("Followup extraction error:", error);
+          return {
+            success: false,
+            error: input.language === "ja" ? "フォローアップ抽出中にエラーが発生しました" : "跟进事项提取过程中发生错误",
+          };
+        }
+      }),
+
+    // Get all pending followups
+    pendingFollowups: protectedProcedure.query(async () => {
+      return await getPendingFollowups();
+    }),
+
+    // Get overdue followups (for highlighting)
+    overdueFollowups: protectedProcedure.query(async () => {
+      return await getOverdueFollowups();
+    }),
+
+    // Update followup status
+    updateFollowupStatus: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          status: z.enum(["pending", "completed", "cancelled"]),
+          completedNote: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        await updateFollowupStatus(input.id, input.status, input.completedNote);
+        return { success: true };
+      }),
+
+    // Get followups by report
+    getFollowupsByReport: protectedProcedure
+      .input(z.object({ reportId: z.number() }))
+      .query(async ({ input }) => {
+        return await getFollowupsByReportId(input.reportId);
+      }),
+
+    // Get followups by staff
+    getFollowupsByStaff: protectedProcedure
+      .input(z.object({ reportStaffId: z.number() }))
+      .query(async ({ input }) => {
+        return await getFollowupsByStaffId(input.reportStaffId);
+      }),
+
+    // Delete followup
+    deleteFollowup: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteReportFollowup(input.id);
+        return { success: true };
+      }),
+
+    // Batch extract followups from recent reports
+    batchExtractFollowups: protectedProcedure
+      .input(
+        z.object({
+          days: z.number().default(7),
+          language: z.enum(["ja", "zh"]).default("ja"),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - input.days);
+
+        const reports = await getReportsForAnalysis({
+          startDate,
+          endDate,
+        });
+
+        let totalExtracted = 0;
+        let totalCreated = 0;
+
+        for (const { report } of reports) {
+          const workContent = report.workContent || "";
+          if (!workContent.trim()) continue;
+
+          // Simple keyword-based extraction for batch processing
+          const followupKeywords = [
+            "提案", "打ち合わせ", "商談", "MTG", "ミーティング",
+            "確認", "検討", "相談", "調整", "連絡",
+            "合同", "会合", "面談", "訪問",
+            "提议", "会议", "商谈", "确认", "讨论"
+          ];
+
+          const hasFollowupKeyword = followupKeywords.some(kw => workContent.includes(kw));
+          if (!hasFollowupKeyword) continue;
+
+          // Extract sentences containing keywords
+          const sentences = workContent.split(/[。\n]/).filter(s => s.trim());
+          for (const sentence of sentences) {
+            const matchedKeyword = followupKeywords.find(kw => sentence.includes(kw));
+            if (matchedKeyword) {
+              const item = sentence.trim().substring(0, 100);
+              const existing = await checkExistingFollowup(report.id, item);
+              if (!existing) {
+                let category: "提案" | "打ち合わせ" | "商談" | "MTG" | "確認" | "その他" = "その他";
+                if (sentence.includes("提案") || sentence.includes("提议")) category = "提案";
+                else if (sentence.includes("打ち合わせ") || sentence.includes("会议") || sentence.includes("ミーティング")) category = "打ち合わせ";
+                else if (sentence.includes("商談") || sentence.includes("商谈")) category = "商談";
+                else if (sentence.includes("MTG")) category = "MTG";
+                else if (sentence.includes("確認") || sentence.includes("确认")) category = "確認";
+
+                const reportDate = new Date(report.reportDate);
+                const dueDate = new Date(reportDate);
+                dueDate.setDate(dueDate.getDate() + 2);
+
+                await createReportFollowup({
+                  reportId: report.id,
+                  reportStaffId: report.reportStaffId,
+                  extractedItem: item,
+                  category,
+                  status: "pending",
+                  dueDate,
+                });
+                totalCreated++;
+              }
+              totalExtracted++;
+            }
+          }
+        }
+
+        return {
+          success: true,
+          reportsProcessed: reports.length,
+          totalExtracted,
+          totalCreated,
+        };
       }),
   }),
 
