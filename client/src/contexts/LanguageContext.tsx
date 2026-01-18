@@ -117,6 +117,7 @@ const jaTranslations: Record<string, string> = {
   "reports.cancel": "キャンセル",
   "reports.delete": "削除",
   "reports.deleting": "削除中...",
+  "reports.detail": "レポート詳細",
   
   // Report Form
   "reportForm.createTitle": "新規レポート作成",
@@ -334,6 +335,7 @@ const zhTranslations: Record<string, string> = {
   "reports.cancel": "取消",
   "reports.delete": "删除",
   "reports.deleting": "删除中...",
+  "reports.detail": "报告详情",
   
   // Report Form
   "reportForm.createTitle": "创建新报告",
