@@ -1676,13 +1676,14 @@ ${JSON.stringify(teamSummary, null, 2)}`;
         })
       )
       .mutation(async ({ input, ctx }) => {
-        // Upload image to S3
-        const imageBuffer = Buffer.from(input.imageBase64, "base64");
-        const fileKey = `business-cards/${ctx.user.id}/${nanoid()}.${input.mimeType.split("/")[1] || "jpg"}`;
-        const { url: imageUrl, key: imageKey } = await storagePut(fileKey, imageBuffer, input.mimeType);
+        try {
+          // Upload image to S3
+          const imageBuffer = Buffer.from(input.imageBase64, "base64");
+          const fileKey = `business-cards/${ctx.user.id}/${nanoid()}.${input.mimeType.split("/")[1] || "jpg"}`;
+          const { url: imageUrl, key: imageKey } = await storagePut(fileKey, imageBuffer, input.mimeType);
 
-        // Use LLM to extract business card information
-        const ocrResult = await invokeLLM({
+          // Use LLM to extract business card information
+          const ocrResult = await invokeLLM({
           messages: [
             {
               role: "system",
@@ -1755,11 +1756,15 @@ Return ONLY valid JSON, no markdown or explanation.`,
           console.error("Failed to parse OCR result:", e);
         }
 
-        return {
-          imageUrl,
-          imageKey,
-          extractedInfo,
-        };
+          return {
+            imageUrl,
+            imageKey,
+            extractedInfo,
+          };
+        } catch (error) {
+          console.error("Business card upload/OCR error:", error);
+          throw new Error("名刺の解析に失敗しました。画像を確認して再試行してください。");
+        }
       }),
 
     // Create a new business card

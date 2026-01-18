@@ -166,7 +166,10 @@ export default function BusinessCards() {
     },
     onError: (error) => {
       setIsAnalyzing(false);
-      toast.error(error.message);
+      setIsUploadDialogOpen(false);
+      const errorMessage = error.message || (language === "zh" ? "名片解析失败，请重试" : "名刺解析に失敗しました。再試行してください");
+      toast.error(errorMessage);
+      console.error("Business card upload error:", error);
     },
   });
 
@@ -215,16 +218,41 @@ export default function BusinessCards() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Check file size (max 10MB)
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast.error(language === "zh" ? "文件太大，请选择10MB以下的图片" : "ファイルが大きすぎます。10MB以下の画像を選択してください");
+      return;
+    }
+
+    // Check file type
+    if (!file.type.startsWith("image/")) {
+      toast.error(language === "zh" ? "请选择图片文件" : "画像ファイルを選択してください");
+      return;
+    }
+
     setIsAnalyzing(true);
     setIsUploadDialogOpen(true);
 
     const reader = new FileReader();
     reader.onload = async () => {
-      const base64 = (reader.result as string).split(",")[1];
-      uploadMutation.mutate({
-        imageBase64: base64,
-        mimeType: file.type,
-      });
+      try {
+        const base64 = (reader.result as string).split(",")[1];
+        uploadMutation.mutate({
+          imageBase64: base64,
+          mimeType: file.type,
+        });
+      } catch (error) {
+        setIsAnalyzing(false);
+        setIsUploadDialogOpen(false);
+        toast.error(language === "zh" ? "文件读取失败" : "ファイルの読み込みに失敗しました");
+        console.error("File read error:", error);
+      }
+    };
+    reader.onerror = () => {
+      setIsAnalyzing(false);
+      setIsUploadDialogOpen(false);
+      toast.error(language === "zh" ? "文件读取失败" : "ファイルの読み込みに失敗しました");
     };
     reader.readAsDataURL(file);
   };
