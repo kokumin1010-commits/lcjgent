@@ -195,6 +195,8 @@ export const brandProducts = mysqlTable("brand_products", {
   influencer: varchar("influencer", { length: 255 }), // インフルエンサー
   purchasePrice: bigint("purchasePrice", { mode: "number" }), // 仕入金額
   remarks: text("remarks"), // 備考
+  imageUrls: json("imageUrls").$type<string[]>(), // 商品画像URLs (最大2枚)
+  imageKeys: json("imageKeys").$type<string[]>(), // 商品画像S3 keys
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

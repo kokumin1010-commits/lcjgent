@@ -1450,7 +1450,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
         z.object({
           base64: z.string(),
           filename: z.string(),
-          type: z.enum(["logo", "businessCard"]),
+          type: z.enum(["logo", "businessCard", "product"]),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -1479,6 +1479,8 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           influencer: z.string().optional(),
           purchasePrice: z.number().optional(),
           remarks: z.string().optional(),
+          imageUrls: z.array(z.string()).max(2).optional(), // 最大2枚の商品画像
+          imageKeys: z.array(z.string()).max(2).optional(),
         })
       )
       .mutation(async ({ input }) => {
@@ -1504,6 +1506,8 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           influencer: z.string().optional(),
           purchasePrice: z.number().optional(),
           remarks: z.string().optional(),
+          imageUrls: z.array(z.string()).max(2).optional(), // 最大2枚の商品画像
+          imageKeys: z.array(z.string()).max(2).optional(),
         })
       )
       .mutation(async ({ input }) => {

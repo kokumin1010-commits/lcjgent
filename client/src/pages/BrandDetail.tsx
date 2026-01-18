@@ -30,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Plus, Trash2, Edit2, TrendingUp } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit2, TrendingUp, ImageIcon, X } from "lucide-react";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
 
@@ -92,6 +92,9 @@ const translations = {
     totalSales: "総売上",
     totalStreams: "総配信数",
     avgSales: "平均売上",
+    productImages: "商品画像",
+    uploadImages: "画像をアップロード（最大2枚）",
+    uploading: "アップロード中...",
   },
   zh: {
     title: "品牌详情",
@@ -150,6 +153,9 @@ const translations = {
     totalSales: "总销售额",
     totalStreams: "总直播数",
     avgSales: "平均销售额",
+    productImages: "商品图片",
+    uploadImages: "上传图片（最多2张）",
+    uploading: "上传中...",
   },
 };
 
@@ -179,7 +185,10 @@ export default function BrandDetail() {
     influencer: "",
     purchasePrice: "",
     remarks: "",
+    imageUrls: [] as string[],
+    imageKeys: [] as string[],
   });
+  const [isUploadingProductImage, setIsUploadingProductImage] = useState(false);
   const [newActivity, setNewActivity] = useState({
     activityDate: new Date().toISOString().split("T")[0],
     activityType: "進行中" as "進行中" | "打ち合わせ" | "完了",
@@ -224,6 +233,8 @@ export default function BrandDetail() {
     { brandId }
   );
 
+  const uploadImageMutation = trpc.brand.uploadImage.useMutation();
+
   const createProductMutation = trpc.brandProduct.create.useMutation({
     onSuccess: () => {
       toast.success(t.success);
@@ -238,6 +249,8 @@ export default function BrandDetail() {
         influencer: "",
         purchasePrice: "",
         remarks: "",
+        imageUrls: [],
+        imageKeys: [],
       });
     },
     onError: () => {
@@ -321,6 +334,65 @@ export default function BrandDetail() {
       listPrice: newProduct.listPrice ? parseFloat(newProduct.listPrice) : undefined,
       specialPrice: newProduct.specialPrice ? parseFloat(newProduct.specialPrice) : undefined,
       purchasePrice: newProduct.purchasePrice ? parseFloat(newProduct.purchasePrice) : undefined,
+      imageUrls: newProduct.imageUrls.length > 0 ? newProduct.imageUrls : undefined,
+      imageKeys: newProduct.imageKeys.length > 0 ? newProduct.imageKeys : undefined,
+    });
+  };
+
+  // 商品画像アップロードハンドラー
+  const handleProductImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    // 最大2枚まで
+    const remainingSlots = 2 - newProduct.imageUrls.length;
+    if (remainingSlots <= 0) {
+      toast.error("画像は最大2枚までです");
+      return;
+    }
+
+    const filesToUpload = Array.from(files).slice(0, remainingSlots);
+    setIsUploadingProductImage(true);
+
+    try {
+      const uploadedUrls: string[] = [];
+      const uploadedKeys: string[] = [];
+
+      for (const file of filesToUpload) {
+        const reader = new FileReader();
+        const base64 = await new Promise<string>((resolve) => {
+          reader.onload = () => resolve(reader.result as string);
+          reader.readAsDataURL(file);
+        });
+
+        const result = await uploadImageMutation.mutateAsync({
+          base64: base64.split(",")[1],
+          filename: file.name,
+          type: "product" as const,
+        });
+
+        uploadedUrls.push(result.url);
+        uploadedKeys.push(result.key);
+      }
+
+      setNewProduct({
+        ...newProduct,
+        imageUrls: [...newProduct.imageUrls, ...uploadedUrls],
+        imageKeys: [...newProduct.imageKeys, ...uploadedKeys],
+      });
+    } catch (error) {
+      toast.error("画像のアップロードに失敗しました");
+    } finally {
+      setIsUploadingProductImage(false);
+    }
+  };
+
+  // 商品画像削除ハンドラー
+  const handleRemoveProductImage = (index: number) => {
+    setNewProduct({
+      ...newProduct,
+      imageUrls: newProduct.imageUrls.filter((_, i) => i !== index),
+      imageKeys: newProduct.imageKeys.filter((_, i) => i !== index),
     });
   };
 
@@ -552,6 +624,58 @@ export default function BrandDetail() {
                         setNewProduct({ ...newProduct, remarks: e.target.value })
                       }
                     />
+                  </div>
+                  {/* 商品画像アップロード */}
+                  <div>
+                    <Label>{t.productImages}</Label>
+                    <div className="mt-2 space-y-2">
+                      {/* アップロード済み画像のプレビュー */}
+                      {newProduct.imageUrls.length > 0 && (
+                        <div className="flex gap-2 flex-wrap">
+                          {newProduct.imageUrls.map((url, index) => (
+                            <div key={index} className="relative">
+                              <img
+                                src={url}
+                                alt={`商品画像 ${index + 1}`}
+                                className="w-20 h-20 object-cover rounded border"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveProductImage(index)}
+                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {/* アップロードボタン */}
+                      {newProduct.imageUrls.length < 2 && (
+                        <div>
+                          <label className="cursor-pointer">
+                            <div className="flex items-center gap-2 px-4 py-2 border border-dashed rounded-lg hover:bg-gray-50">
+                              {isUploadingProductImage ? (
+                                <span className="text-sm text-gray-500">{t.uploading}</span>
+                              ) : (
+                                <>
+                                  <ImageIcon className="h-5 w-5 text-gray-400" />
+                                  <span className="text-sm text-gray-500">{t.uploadImages}</span>
+                                </>
+                              )}
+                            </div>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              className="hidden"
+                              onChange={handleProductImageUpload}
+                              disabled={isUploadingProductImage}
+                            />
+                          </label>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="flex justify-end gap-2">
                     <Button
