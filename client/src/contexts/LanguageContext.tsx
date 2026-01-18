@@ -161,6 +161,17 @@ const jaTranslations: Record<string, string> = {
   "followups.allStaff": "全スタッフ",
   "followups.noCompleted": "完了済みのフォローアップはありません",
   "followups.note": "メモ",
+  // Result categories
+  "followups.result.closed": "成約",
+  "followups.result.closedDesc": "契約・取引が成立した",
+  "followups.result.continued": "継続",
+  "followups.result.continuedDesc": "次のアクションが必要",
+  "followups.result.pending": "保留",
+  "followups.result.pendingDesc": "一時的に対応を保留",
+  "followups.result.lost": "失注",
+  "followups.result.lostDesc": "契約・取引が不成立",
+  "followups.result.done": "完了",
+  "followups.result.doneDesc": "対応が完了した",
   
   // Report Form
   "reportForm.createTitle": "新規レポート作成",
@@ -422,6 +433,17 @@ const zhTranslations: Record<string, string> = {
   "followups.allStaff": "全部员工",
   "followups.noCompleted": "没有已完成的跟进事项",
   "followups.note": "备注",
+  // Result categories
+  "followups.result.closed": "成交",
+  "followups.result.closedDesc": "合同/交易已成立",
+  "followups.result.continued": "继续",
+  "followups.result.continuedDesc": "需要下一步行动",
+  "followups.result.pending": "暂停",
+  "followups.result.pendingDesc": "暂时搁置处理",
+  "followups.result.lost": "失单",
+  "followups.result.lostDesc": "合同/交易未成立",
+  "followups.result.done": "完成",
+  "followups.result.doneDesc": "处理已完成",
 
   // Report Form
   "reportForm.createTitle": "创建新报告",

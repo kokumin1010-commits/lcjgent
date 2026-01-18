@@ -462,8 +462,27 @@ export default function Reports() {
                     >
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <Badge variant="outline" className="text-xs bg-green-100 text-green-700 border-green-300">
-                            {followup.resultCategory || t("followups.completed")}
+                          <Badge 
+                            variant="outline" 
+                            className={`text-xs ${
+                              followup.resultCategory === "成約" ? "bg-green-100 text-green-700 border-green-300" :
+                              followup.resultCategory === "失注" ? "bg-red-100 text-red-700 border-red-300" :
+                              followup.resultCategory === "継続" ? "bg-blue-100 text-blue-700 border-blue-300" :
+                              followup.resultCategory === "保留" ? "bg-yellow-100 text-yellow-700 border-yellow-300" :
+                              "bg-gray-100 text-gray-700 border-gray-300"
+                            }`}
+                            title={followup.resultCategory === "成約" ? t("followups.result.closedDesc") :
+                              followup.resultCategory === "失注" ? t("followups.result.lostDesc") :
+                              followup.resultCategory === "継続" ? t("followups.result.continuedDesc") :
+                              followup.resultCategory === "保留" ? t("followups.result.pendingDesc") :
+                              t("followups.result.doneDesc")}
+                          >
+                            {followup.resultCategory === "成約" ? t("followups.result.closed") :
+                              followup.resultCategory === "失注" ? t("followups.result.lost") :
+                              followup.resultCategory === "継続" ? t("followups.result.continued") :
+                              followup.resultCategory === "保留" ? t("followups.result.pending") :
+                              followup.resultCategory === "完了" ? t("followups.result.done") :
+                              t("followups.completed")}
                           </Badge>
                           <span className="text-sm font-medium">{staff?.name || "-"}</span>
                           <span className="text-xs text-muted-foreground">
@@ -790,24 +809,35 @@ export default function Reports() {
               <div>
                 <Label className="text-sm font-medium mb-2 block">{t("followups.resultCategory")}</Label>
                 <div className="grid grid-cols-5 gap-2">
-                  {["成約", "継続", "保留", "失注", "完了"].map((category) => (
-                    <Button
-                      key={category}
-                      variant={selectedResultCategory === category ? "default" : "outline"}
-                      size="sm"
-                      className={`text-xs ${
-                        category === "成約" ? "hover:bg-green-100 hover:text-green-700" :
-                        category === "失注" ? "hover:bg-red-100 hover:text-red-700" :
-                        ""
-                      } ${
-                        selectedResultCategory === category && category === "成約" ? "bg-green-600" :
-                        selectedResultCategory === category && category === "失注" ? "bg-red-600" :
-                        ""
-                      }`}
-                      onClick={() => handleResultCategoryChange(category)}
-                    >
-                      {category}
-                    </Button>
+                  {[
+                    { key: "closed", ja: "成約", color: "green" },
+                    { key: "continued", ja: "継続", color: "blue" },
+                    { key: "pending", ja: "保留", color: "yellow" },
+                    { key: "lost", ja: "失注", color: "red" },
+                    { key: "done", ja: "完了", color: "gray" },
+                  ].map((cat) => (
+                    <div key={cat.key} className="relative group">
+                      <Button
+                        variant={selectedResultCategory === cat.ja ? "default" : "outline"}
+                        size="sm"
+                        className={`w-full text-xs ${
+                          cat.color === "green" ? "hover:bg-green-100 hover:text-green-700" :
+                          cat.color === "red" ? "hover:bg-red-100 hover:text-red-700" :
+                          ""
+                        } ${
+                          selectedResultCategory === cat.ja && cat.color === "green" ? "bg-green-600" :
+                          selectedResultCategory === cat.ja && cat.color === "red" ? "bg-red-600" :
+                          ""
+                        }`}
+                        onClick={() => handleResultCategoryChange(cat.ja)}
+                      >
+                        {t(`followups.result.${cat.key}`)}
+                      </Button>
+                      {/* Tooltip with description */}
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none">
+                        {t(`followups.result.${cat.key}Desc`)}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
