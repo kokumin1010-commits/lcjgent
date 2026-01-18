@@ -44,8 +44,7 @@ export default function Reports() {
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [reportToDelete, setReportToDelete] = useState<number | null>(null);
-  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
-  const [selectedReport, setSelectedReport] = useState<{ report: any; staff: any } | null>(null);
+  const [expandedReportId, setExpandedReportId] = useState<number | null>(null);
   const { t, language } = useLanguage();
 
   // Fetch staff statistics for header cards
@@ -288,203 +287,100 @@ export default function Reports() {
             </Badge>
           </div>
 
-          {/* Reports Table - WordPress style */}
-          <div className="border rounded-lg overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50">
-                  <TableHead className="w-24">{t("reports.staff")}</TableHead>
-                  <TableHead className="w-28">{t("reports.date")}</TableHead>
-                  <TableHead>{t("reports.workContent")}</TableHead>
-                  <TableHead>{t("reports.issues")}</TableHead>
-                  <TableHead className="w-32">{t("reports.remarks")}</TableHead>
-                  <TableHead className="w-36">{t("reports.updatedAt")}</TableHead>
-                  <TableHead className="w-20 text-center">{t("common.actions")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {reportsLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
-                      <div className="flex items-center justify-center gap-2">
-                        <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full"></div>
-                        {t("common.loading")}
+          {/* Reports List - Card style */}
+          <div className="space-y-4">
+            {reportsLoading ? (
+              <div className="text-center py-8">
+                <div className="flex items-center justify-center gap-2">
+                  <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full"></div>
+                  {t("common.loading")}
+                </div>
+              </div>
+            ) : filteredReports.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                {t("reports.noReports")}
+              </div>
+            ) : (
+              filteredReports.map(({ report, staff }) => (
+                <div 
+                  key={report.id} 
+                  className="border rounded-lg p-4 bg-card hover:bg-muted/30 transition-colors"
+                >
+                  {/* Header: Staff info, date, actions */}
+                  <div className="flex items-start justify-between mb-3 pb-3 border-b">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium">
+                        {staff?.name?.charAt(0) || "?"}
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ) : filteredReports.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                      {t("reports.noReports")}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredReports.map(({ report, staff }) => (
-                    <TableRow 
-                      key={report.id} 
-                      className="hover:bg-muted/30 cursor-pointer"
-                      onClick={() => {
-                        setSelectedReport({ report, staff });
-                        setDetailDialogOpen(true);
-                      }}
-                    >
-                      <TableCell>
-                        <div className="flex flex-col items-start gap-1">
-                          <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium text-sm">
-                              {staff?.name?.charAt(0) || "?"}
-                            </div>
-                            <span className="font-medium text-sm">{staff?.name || "-"}</span>
-                          </div>
+                      <div>
+                        <p className="font-medium">{staff?.name || "-"}</p>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           {staff?.country && (
-                            <Badge variant="outline" className="text-xs ml-10">
+                            <Badge variant="outline" className="text-xs">
                               {staff.country}
                             </Badge>
                           )}
+                          <span>{formatDate(report.reportDate)}</span>
                         </div>
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {formatDate(report.reportDate)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="max-w-md">
-                          <p className="text-sm whitespace-pre-wrap line-clamp-3">
-                            {report.workContent}
-                          </p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="max-w-sm">
-                          <p className="text-sm text-muted-foreground whitespace-pre-wrap line-clamp-3">
-                            {report.issues || "-"}
-                          </p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <p className="text-sm text-muted-foreground line-clamp-2">
-                          {report.remarks || "-"}
-                        </p>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {formatDateTime(report.updatedAt)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center justify-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setLocation(`/reports/edit/${report.id}`);
-                            }}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:text-destructive"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteClick(report.id);
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setLocation(`/reports/edit/${report.id}`)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => handleDeleteClick(report.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  {/* Content sections */}
+                  <div className="space-y-3">
+                    {/* Work Content */}
+                    <div>
+                      <Label className="text-xs font-medium text-muted-foreground mb-1 block">{t("reports.workContent")}</Label>
+                      <p className="text-sm whitespace-pre-wrap">{report.workContent}</p>
+                    </div>
+                    
+                    {/* Issues */}
+                    {report.issues && (
+                      <div>
+                        <Label className="text-xs font-medium text-muted-foreground mb-1 block">{t("reports.issues")}</Label>
+                        <p className="text-sm whitespace-pre-wrap text-muted-foreground">{report.issues}</p>
+                      </div>
+                    )}
+                    
+                    {/* Remarks */}
+                    {report.remarks && (
+                      <div>
+                        <Label className="text-xs font-medium text-muted-foreground mb-1 block">{t("reports.remarks")}</Label>
+                        <p className="text-sm whitespace-pre-wrap text-muted-foreground">{report.remarks}</p>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Footer: Updated time */}
+                  <div className="mt-3 pt-3 border-t">
+                    <p className="text-xs text-muted-foreground">
+                      {t("reports.updatedAt")}: {formatDateTime(report.updatedAt)}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>
-
-      {/* Report Detail Dialog */}
-      <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              {t("reports.detail")}
-            </DialogTitle>
-          </DialogHeader>
-          {selectedReport && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 pb-4 border-b">
-                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium">
-                  {selectedReport.staff?.name?.charAt(0) || "?"}
-                </div>
-                <div>
-                  <p className="font-medium">{selectedReport.staff?.name || "-"}</p>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    {selectedReport.staff?.country && (
-                      <Badge variant="outline" className="text-xs">
-                        {selectedReport.staff.country}
-                      </Badge>
-                    )}
-                    <span>{formatDate(selectedReport.report.reportDate)}</span>
-                  </div>
-                </div>
-              </div>
-              
-              <div>
-                <Label className="text-sm font-medium text-muted-foreground">{t("reports.workContent")}</Label>
-                <div className="mt-1 p-3 bg-muted/30 rounded-lg">
-                  <p className="text-sm whitespace-pre-wrap">{selectedReport.report.workContent}</p>
-                </div>
-              </div>
-              
-              {selectedReport.report.issues && (
-                <div>
-                  <Label className="text-sm font-medium text-muted-foreground">{t("reports.issues")}</Label>
-                  <div className="mt-1 p-3 bg-muted/30 rounded-lg">
-                    <p className="text-sm whitespace-pre-wrap">{selectedReport.report.issues}</p>
-                  </div>
-                </div>
-              )}
-              
-              {selectedReport.report.remarks && (
-                <div>
-                  <Label className="text-sm font-medium text-muted-foreground">{t("reports.remarks")}</Label>
-                  <div className="mt-1 p-3 bg-muted/30 rounded-lg">
-                    <p className="text-sm whitespace-pre-wrap">{selectedReport.report.remarks}</p>
-                  </div>
-                </div>
-              )}
-              
-              <div className="flex justify-between items-center pt-4 border-t">
-                <p className="text-xs text-muted-foreground">
-                  {t("reports.updatedAt")}: {formatDateTime(selectedReport.report.updatedAt)}
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setDetailDialogOpen(false);
-                      setLocation(`/reports/edit/${selectedReport.report.id}`);
-                    }}
-                  >
-                    <Pencil className="h-4 w-4 mr-2" />
-                    {t("common.edit")}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setDetailDialogOpen(false)}
-                  >
-                    {t("common.close")}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
