@@ -46,6 +46,10 @@ export default function Reports() {
   const [reportToDelete, setReportToDelete] = useState<number | null>(null);
   const [expandedReportId, setExpandedReportId] = useState<number | null>(null);
   
+  // Report detail dialog state
+  const [reportDetailDialogOpen, setReportDetailDialogOpen] = useState(false);
+  const [selectedReportId, setSelectedReportId] = useState<number | null>(null);
+  
   // Result dialog state
   const [resultDialogOpen, setResultDialogOpen] = useState(false);
   const [selectedFollowup, setSelectedFollowup] = useState<{
@@ -73,6 +77,12 @@ export default function Reports() {
 
   // Fetch overdue followups
   const { data: overdueFollowups, isLoading: followupsLoading, refetch: refetchFollowups } = trpc.report.overdueFollowups.useQuery();
+
+  // Fetch report detail for dialog
+  const { data: reportDetail, isLoading: reportDetailLoading } = trpc.report.getById.useQuery(
+    { id: selectedReportId! },
+    { enabled: !!selectedReportId && reportDetailDialogOpen }
+  );
 
   // Batch extract mutation
   const batchExtract = trpc.report.batchExtractFollowups.useMutation({
@@ -322,7 +332,11 @@ export default function Reports() {
                 {overdueFollowups.map(({ followup, staff, report }) => (
                 <div
                   key={followup.id}
-                  className="flex items-center justify-between p-3 bg-white rounded-lg border border-red-200"
+                  className="flex items-center justify-between p-3 bg-white rounded-lg border border-red-200 cursor-pointer hover:bg-red-50 transition-colors"
+                  onClick={() => {
+                    setSelectedReportId(followup.reportId);
+                    setReportDetailDialogOpen(true);
+                  }}
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
@@ -335,13 +349,20 @@ export default function Reports() {
                       </span>
                     </div>
                     <p className="text-sm text-gray-700">{followup.extractedItem}</p>
+                    <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                      <FileText className="h-3 w-3" />
+                      {t("followups.viewReport")}
+                    </p>
                   </div>
                   <div className="flex items-center gap-1 ml-4">
                     <Button
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
-                      onClick={() => handleOpenResultDialog(followup, staff?.name || "-")}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenResultDialog(followup, staff?.name || "-");
+                      }}
                       title={t("followups.markComplete")}
                     >
                       <Check className="h-4 w-4" />
@@ -350,7 +371,10 @@ export default function Reports() {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-gray-500 hover:text-gray-700"
-                      onClick={() => updateFollowupStatus.mutate({ id: followup.id, status: "cancelled" })}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        updateFollowupStatus.mutate({ id: followup.id, status: "cancelled" });
+                      }}
                       title={t("followups.markCancelled")}
                     >
                       <XCircle className="h-4 w-4" />
@@ -748,6 +772,78 @@ export default function Reports() {
                 </Button>
               </div>
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Report Detail Dialog */}
+      <Dialog open={reportDetailDialogOpen} onOpenChange={setReportDetailDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              {t("reports.reportDetail")}
+            </DialogTitle>
+          </DialogHeader>
+          {reportDetailLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : reportDetail ? (
+            <div className="space-y-4">
+              {/* Report header info */}
+              <div className="flex items-center gap-4 pb-3 border-b">
+                <div>
+                  <p className="text-sm text-muted-foreground">{t("reports.staff")}</p>
+                  <p className="font-medium">{reportDetail.staff?.name || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">{t("reports.date")}</p>
+                  <p className="font-medium">{formatDate(reportDetail.report.reportDate)}</p>
+                </div>
+                {reportDetail.staff?.country && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">{t("reports.country")}</p>
+                    <p className="font-medium">{reportDetail.staff.country}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Work content */}
+              <div>
+                <p className="text-sm font-medium text-muted-foreground mb-2">{t("reports.workContent")}</p>
+                <div className="bg-muted/30 rounded-lg p-4">
+                  <p className="whitespace-pre-wrap text-sm">{reportDetail.report.workContent}</p>
+                </div>
+              </div>
+
+              {/* Issues */}
+              {reportDetail.report.issues && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-2">{t("reports.observations")}</p>
+                  <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+                    <p className="whitespace-pre-wrap text-sm">{reportDetail.report.issues}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Remarks */}
+              {reportDetail.report.remarks && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-2">{t("reports.notes")}</p>
+                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                    <p className="whitespace-pre-wrap text-sm">{reportDetail.report.remarks}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Updated at */}
+              <p className="text-xs text-muted-foreground text-right">
+                {t("reports.updatedAt")}: {formatDateTime(reportDetail.report.updatedAt)}
+              </p>
+            </div>
+          ) : (
+            <p className="text-center py-8 text-muted-foreground">{t("reports.notFound")}</p>
           )}
         </DialogContent>
       </Dialog>

@@ -118,6 +118,10 @@ const jaTranslations: Record<string, string> = {
   "reports.delete": "削除",
   "reports.deleting": "削除中...",
   "reports.detail": "レポート詳細",
+  "reports.reportDetail": "日報詳細",
+  "reports.notFound": "日報が見つかりません",
+  "reports.observations": "気付き・問題・理由",
+  "reports.notes": "備考",
   
   // Followups
   "followups.title": "フォローアップ待ち",
@@ -152,6 +156,7 @@ const jaTranslations: Record<string, string> = {
   "followups.complete": "完了",
   "followups.suggestingNextAction": "次のアクションを提案中...",
   "followups.nextActionCreated": "次のアクションを作成しました",
+  "followups.viewReport": "日報を見る",
   
   // Report Form
   "reportForm.createTitle": "新規レポート作成",
@@ -370,6 +375,10 @@ const zhTranslations: Record<string, string> = {
   "reports.delete": "删除",
   "reports.deleting": "删除中...",
   "reports.detail": "报告详情",
+  "reports.reportDetail": "日报详情",
+  "reports.notFound": "未找到日报",
+  "reports.observations": "注意事项・问题・原因",
+  "reports.notes": "备注",
   
   // Followups
   "followups.title": "待跟进事项",
@@ -404,6 +413,7 @@ const zhTranslations: Record<string, string> = {
   "followups.complete": "完成",
   "followups.suggestingNextAction": "正在建议下一步行动...",
   "followups.nextActionCreated": "已创建下一步行动",
+  "followups.viewReport": "查看日报",
 
   // Report Form
   "reportForm.createTitle": "创建新报告",
