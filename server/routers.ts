@@ -87,6 +87,11 @@ import {
   updateBusinessCard,
   deleteBusinessCard,
   getBusinessCardCount,
+  getBrandLcjStaff,
+  assignLcjStaffToBrand,
+  removeLcjStaffFromBrand,
+  setBrandLcjStaff,
+  getBrandsByLcjStaff,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { authRouter } from "./auth";
@@ -1478,6 +1483,42 @@ ${JSON.stringify(teamSummary, null, 2)}`;
         
         const { url } = await storagePut(key, buffer, contentType);
         return { url, key };
+      }),
+
+    // LCJ Staff Management for Brands
+    getLcjStaff: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        return await getBrandLcjStaff(input.brandId);
+      }),
+
+    assignLcjStaff: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+        reportStaffId: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        return await assignLcjStaffToBrand(input.brandId, input.reportStaffId);
+      }),
+
+    removeLcjStaff: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+        reportStaffId: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        await removeLcjStaffFromBrand(input.brandId, input.reportStaffId);
+        return { success: true };
+      }),
+
+    setLcjStaff: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+        reportStaffIds: z.array(z.number()),
+      }))
+      .mutation(async ({ input }) => {
+        await setBrandLcjStaff(input.brandId, input.reportStaffIds);
+        return { success: true };
       }),
   }),
 

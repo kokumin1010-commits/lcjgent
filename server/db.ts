@@ -1,6 +1,6 @@
-import { eq, and, desc, asc, sql, or, like } from "drizzle-orm";
+import { eq, and, desc, asc, sql, or, like, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -1282,4 +1282,103 @@ export async function getBusinessCardCount(registeredBy?: number) {
   
   const result = await query;
   return result[0]?.count || 0;
+}
+
+
+// ===== Brand LCJ Staff Management =====
+
+// Get LCJ staff assigned to a brand
+export async function getBrandLcjStaff(brandId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return await db
+    .select({
+      id: brandLcjStaff.id,
+      brandId: brandLcjStaff.brandId,
+      reportStaffId: brandLcjStaff.reportStaffId,
+      assignedAt: brandLcjStaff.assignedAt,
+      staffName: reportStaff.name,
+      staffCountry: reportStaff.country,
+    })
+    .from(brandLcjStaff)
+    .leftJoin(reportStaff, eq(brandLcjStaff.reportStaffId, reportStaff.id))
+    .where(eq(brandLcjStaff.brandId, brandId))
+    .orderBy(asc(brandLcjStaff.assignedAt));
+}
+
+// Assign LCJ staff to a brand
+export async function assignLcjStaffToBrand(brandId: number, reportStaffId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Check if already assigned
+  const existing = await db
+    .select()
+    .from(brandLcjStaff)
+    .where(and(
+      eq(brandLcjStaff.brandId, brandId),
+      eq(brandLcjStaff.reportStaffId, reportStaffId)
+    ))
+    .limit(1);
+  
+  if (existing.length > 0) {
+    return existing[0];
+  }
+  
+  const [inserted] = await db.insert(brandLcjStaff).values({
+    brandId,
+    reportStaffId,
+  }).$returningId();
+  
+  return inserted;
+}
+
+// Remove LCJ staff from a brand
+export async function removeLcjStaffFromBrand(brandId: number, reportStaffId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.delete(brandLcjStaff).where(and(
+    eq(brandLcjStaff.brandId, brandId),
+    eq(brandLcjStaff.reportStaffId, reportStaffId)
+  ));
+}
+
+// Set LCJ staff for a brand (replace all)
+export async function setBrandLcjStaff(brandId: number, reportStaffIds: number[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Remove all existing assignments
+  await db.delete(brandLcjStaff).where(eq(brandLcjStaff.brandId, brandId));
+  
+  // Add new assignments
+  if (reportStaffIds.length > 0) {
+    await db.insert(brandLcjStaff).values(
+      reportStaffIds.map(reportStaffId => ({
+        brandId,
+        reportStaffId,
+      }))
+    );
+  }
+}
+
+// Get brands by LCJ staff
+export async function getBrandsByLcjStaff(reportStaffId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const brandIds = await db
+    .select({ brandId: brandLcjStaff.brandId })
+    .from(brandLcjStaff)
+    .where(eq(brandLcjStaff.reportStaffId, reportStaffId));
+  
+  if (brandIds.length === 0) return [];
+  
+  return await db
+    .select()
+    .from(brands)
+    .where(inArray(brands.id, brandIds.map(b => b.brandId)))
+    .orderBy(desc(brands.updatedAt));
 }

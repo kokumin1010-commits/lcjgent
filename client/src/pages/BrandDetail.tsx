@@ -95,6 +95,10 @@ const translations = {
     productImages: "商品画像",
     uploadImages: "画像をアップロード（最大2枚）",
     uploading: "アップロード中...",
+    lcjStaff: "LCJ担当者",
+    addLcjStaff: "LCJ担当者を追加",
+    noLcjStaff: "LCJ担当者が設定されていません",
+    selectLcjStaff: "LCJ担当者を選択",
   },
   zh: {
     title: "品牌详情",
@@ -156,6 +160,10 @@ const translations = {
     productImages: "商品图片",
     uploadImages: "上传图片（最多2张）",
     uploading: "上传中...",
+    lcjStaff: "LCJ负责人",
+    addLcjStaff: "添加LCJ负责人",
+    noLcjStaff: "未设置LCJ负责人",
+    selectLcjStaff: "选择LCJ负责人",
   },
 };
 
@@ -224,6 +232,12 @@ export default function BrandDetail() {
 
   // レポートスタッフ一覧を取得（対応履歴の担当者選択用）
   const { data: reportStaff = [] } = trpc.reportStaff.listActive.useQuery();
+
+  // LCJ担当者を取得
+  const { data: lcjStaff = [], refetch: refetchLcjStaff } = trpc.brand.getLcjStaff.useQuery(
+    { brandId },
+    { enabled: brandId > 0 }
+  );
 
   // 直播履歴を取得
   const { data: livestreams = [] } = trpc.brandLivestream.listByBrand.useQuery(
@@ -316,6 +330,27 @@ export default function BrandDetail() {
   const deleteLivestreamMutation = trpc.brandLivestream.delete.useMutation({
     onSuccess: () => {
       toast.success("削除しました");
+    },
+    onError: () => {
+      toast.error(t.error);
+    },
+  });
+
+  // LCJ担当者の追加・削除
+  const assignLcjStaffMutation = trpc.brand.assignLcjStaff.useMutation({
+    onSuccess: () => {
+      toast.success(t.success);
+      refetchLcjStaff();
+    },
+    onError: () => {
+      toast.error(t.error);
+    },
+  });
+
+  const removeLcjStaffMutation = trpc.brand.removeLcjStaff.useMutation({
+    onSuccess: () => {
+      toast.success("削除しました");
+      refetchLcjStaff();
     },
     onError: () => {
       toast.error(t.error);
@@ -526,6 +561,56 @@ export default function BrandDetail() {
                 <p className="font-medium whitespace-pre-wrap">{brand.memo}</p>
               </div>
             )}
+
+            {/* LCJ担当者セクション */}
+            <div className="mt-6 pt-6 border-t">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm font-medium text-muted-foreground">{t.lcjStaff}</p>
+                <Select
+                  onValueChange={(value) => {
+                    const staffId = parseInt(value);
+                    if (staffId > 0) {
+                      assignLcjStaffMutation.mutate({ brandId, reportStaffId: staffId });
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder={t.selectLcjStaff} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {reportStaff
+                      .filter((staff: any) => !lcjStaff.some((assigned: any) => assigned.reportStaffId === staff.id))
+                      .map((staff: any) => (
+                        <SelectItem key={staff.id} value={staff.id.toString()}>
+                          {staff.name} ({staff.country})
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {lcjStaff.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {lcjStaff.map((staff: any) => (
+                    <Badge
+                      key={staff.id}
+                      variant="secondary"
+                      className="flex items-center gap-2 px-3 py-1.5"
+                    >
+                      <span>{staff.staffName}</span>
+                      <span className="text-xs text-muted-foreground">({staff.staffCountry})</span>
+                      <button
+                        onClick={() => removeLcjStaffMutation.mutate({ brandId, reportStaffId: staff.reportStaffId })}
+                        className="ml-1 hover:text-red-500"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">{t.noLcjStaff}</p>
+              )}
+            </div>
           </CardContent>
         </Card>
 

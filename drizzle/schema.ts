@@ -307,3 +307,18 @@ export const businessCards = mysqlTable("business_cards", {
 
 export type BusinessCard = typeof businessCards.$inferSelect;
 export type InsertBusinessCard = typeof businessCards.$inferInsert;
+
+
+/**
+ * Brand-LCJ Staff junction table for many-to-many relationship
+ * ブランドに複数のLCJ担当者（レポートスタッフ）を割り当てる
+ */
+export const brandLcjStaff = mysqlTable("brand_lcj_staff", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(), // References brands.id
+  reportStaffId: int("reportStaffId").notNull(), // References reportStaff.id
+  assignedAt: timestamp("assignedAt").defaultNow().notNull(),
+});
+
+export type BrandLcjStaff = typeof brandLcjStaff.$inferSelect;
+export type InsertBrandLcjStaff = typeof brandLcjStaff.$inferInsert;
