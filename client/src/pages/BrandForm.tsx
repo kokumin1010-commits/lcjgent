@@ -87,16 +87,39 @@ const translations = {
   },
 };
 
-const categories = [
-  "サービス業",
-  "製造業",
-  "小売業",
-  "IT・通信",
-  "飲食業",
-  "美容・健康",
-  "ファッション",
-  "その他",
-];
+const categoryKeys = [
+  "service",
+  "manufacturing",
+  "retail",
+  "it",
+  "food",
+  "beauty",
+  "fashion",
+  "other",
+] as const;
+
+const categoryTranslations = {
+  ja: {
+    service: "サービス業",
+    manufacturing: "製造業",
+    retail: "小売業",
+    it: "IT・通信",
+    food: "飲食業",
+    beauty: "美容・健康",
+    fashion: "ファッション",
+    other: "その他",
+  },
+  zh: {
+    service: "服务业",
+    manufacturing: "制造业",
+    retail: "零售业",
+    it: "IT・通信",
+    food: "餐饮业",
+    beauty: "美容・健康",
+    fashion: "时尚",
+    other: "其他",
+  },
+};
 
 export default function BrandForm() {
   const { id } = useParams<{ id: string }>();
@@ -108,7 +131,7 @@ export default function BrandForm() {
   const [formData, setFormData] = useState({
     name: "",
     companyName: "",
-    category: "サービス業",
+    category: "service",
     phoneNumber: "",
     status: "進行中" as "進行中" | "打ち合わせ中" | "契約済み" | "保留" | "終了",
     materialCategory: "",
@@ -141,7 +164,7 @@ export default function BrandForm() {
       setFormData({
         name: brand.name,
         companyName: brand.companyName || "",
-        category: brand.category || "サービス業",
+        category: brand.category || "service",
         phoneNumber: brand.phoneNumber || "",
         status: brand.status as any,
         materialCategory: brand.materialCategory || "",
@@ -295,9 +318,9 @@ export default function BrandForm() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {categories.map((cat) => (
-                      <SelectItem key={cat} value={cat}>
-                        {cat}
+                    {categoryKeys.map((key) => (
+                      <SelectItem key={key} value={key}>
+                        {categoryTranslations[language][key]}
                       </SelectItem>
                     ))}
                   </SelectContent>
