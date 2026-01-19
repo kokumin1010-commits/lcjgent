@@ -175,6 +175,66 @@ const statusColors: Record<string, string> = {
   "終了": "bg-red-100 text-red-800",
 };
 
+// カテゴリーの翻訳マッピング（キーから表示名へ）
+const categoryTranslations: Record<string, Record<string, string>> = {
+  ja: {
+    service: "サービス業",
+    manufacturing: "製造業",
+    retail: "小売業",
+    it: "IT・通信",
+    food: "飲食業",
+    beauty: "美容・健康",
+    fashion: "ファッション",
+    other: "その他",
+    // 後方互換性（旧データ用）
+    "サービス業": "サービス業",
+    "製造業": "製造業",
+    "小売業": "小売業",
+    "IT・通信": "IT・通信",
+    "飲食業": "飲食業",
+    "美容・健康": "美容・健康",
+    "ファッション": "ファッション",
+    "その他": "その他",
+  },
+  zh: {
+    service: "服务业",
+    manufacturing: "制造业",
+    retail: "零售业",
+    it: "IT・通信",
+    food: "餐饮业",
+    beauty: "美容・健康",
+    fashion: "时尚",
+    other: "其他",
+    // 後方互換性（旧データ用）
+    "サービス業": "服务业",
+    "製造業": "制造业",
+    "小売業": "零售业",
+    "IT・通信": "IT・通信",
+    "飲食業": "餐饮业",
+    "美容・健康": "美容・健康",
+    "ファッション": "时尚",
+    "その他": "其他",
+  },
+};
+
+// ステータスの翻訳マッピング
+const statusTranslations: Record<string, Record<string, string>> = {
+  ja: {
+    "進行中": "進行中",
+    "打ち合わせ中": "打ち合わせ中",
+    "契約済み": "契約済み",
+    "保留": "保留",
+    "終了": "終了",
+  },
+  zh: {
+    "進行中": "进行中",
+    "打ち合わせ中": "洽谈中",
+    "契約済み": "已签约",
+    "保留": "保留",
+    "終了": "结束",
+  },
+};
+
 export default function BrandDetail() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
@@ -514,7 +574,7 @@ export default function BrandDetail() {
               <div className="space-y-4">
                 <div>
                   <p className="text-sm text-muted-foreground">{t.category}</p>
-                  <p className="font-medium">{brand.category || "-"}</p>
+                  <p className="font-medium">{brand.category ? (categoryTranslations[language][brand.category] || brand.category) : "-"}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">{t.phoneNumber}</p>
@@ -529,7 +589,7 @@ export default function BrandDetail() {
                 <div>
                   <p className="text-sm text-muted-foreground">{t.status}</p>
                   <Badge className={statusColors[brand.status] || "bg-gray-100"}>
-                    {brand.status}
+                    {statusTranslations[language][brand.status] || brand.status}
                   </Badge>
                 </div>
                 <div>
