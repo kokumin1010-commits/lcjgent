@@ -4,10 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Search } from "lucide-react";
+import { Loader2, Search, Users, Activity, Clock } from "lucide-react";
 import { useLocation } from "wouter";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const statusColors = {
   pending: "bg-yellow-500",
@@ -24,6 +25,7 @@ const statusLabels = {
 };
 
 export default function MasterControl() {
+  const { language } = useLanguage();
   const [, setLocation] = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUser, setSelectedUser] = useState<string>("all");
@@ -31,8 +33,53 @@ export default function MasterControl() {
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
 
   const { data: allTasksData, isLoading } = trpc.task.listAllWithUsers.useQuery();
+  const { data: allUsers, isLoading: usersLoading } = trpc.users.getAll.useQuery();
+  const { data: activityLogs, isLoading: logsLoading } = trpc.activityLog.getRecent.useQuery({ limit: 30 });
 
-  if (isLoading) {
+  // Translations
+  const t = {
+    title: language === "zh" ? "主控制台" : "マスターコントロール",
+    subtitle: language === "zh" ? "全用户任务一元管理" : "全ユーザーのタスクを一元管理",
+    totalTasks: language === "zh" ? "总任务数" : "総タスク数",
+    inProgress: language === "zh" ? "进行中" : "進行中",
+    pending: language === "zh" ? "保留中" : "保留中",
+    completed: language === "zh" ? "完了" : "完了",
+    registeredUsers: language === "zh" ? "注册用户" : "登録ユーザー",
+    userStats: language === "zh" ? "用户别统计" : "ユーザー別統計",
+    staffStats: language === "zh" ? "员工别统计" : "スタッフ別統計",
+    activityLog: language === "zh" ? "行动日志" : "行動ログ",
+    recentActivity: language === "zh" ? "最近的活动" : "最近のアクティビティ",
+    filters: language === "zh" ? "筛选" : "フィルター",
+    search: language === "zh" ? "搜索" : "検索",
+    searchPlaceholder: language === "zh" ? "按任务内容搜索..." : "タスク内容で検索...",
+    user: language === "zh" ? "用户" : "ユーザー",
+    allUsers: language === "zh" ? "全部用户" : "全ユーザー",
+    staff: language === "zh" ? "员工" : "スタッフ",
+    allStaff: language === "zh" ? "全部员工" : "全スタッフ",
+    status: language === "zh" ? "状态" : "ステータス",
+    allStatus: language === "zh" ? "全部状态" : "全ステータス",
+    clearFilters: language === "zh" ? "清除筛选" : "フィルターをクリア",
+    taskList: language === "zh" ? "任务列表" : "タスク一覧",
+    items: language === "zh" ? "件" : "件",
+    total: language === "zh" ? "总数" : "総数",
+    completionRate: language === "zh" ? "完成率" : "完了率",
+    noTasks: language === "zh" ? "没有找到任务" : "タスクが見つかりません",
+    noActivity: language === "zh" ? "没有活动记录" : "アクティビティがありません",
+    instructor: language === "zh" ? "指示者" : "指示者",
+    assignee: language === "zh" ? "负责人" : "担当",
+    registered: language === "zh" ? "注册" : "登録",
+    deadline: language === "zh" ? "期限" : "期限",
+    unknown: language === "zh" ? "不明" : "不明",
+    taskCount: language === "zh" ? "任务数" : "タスク数",
+    activityCount: language === "zh" ? "活动数" : "アクティビティ数",
+    noTasksYet: language === "zh" ? "暂无任务" : "タスクなし",
+    businessCardCreate: language === "zh" ? "注册了名片" : "名刺を登録",
+    brandCreate: language === "zh" ? "创建了品牌" : "ブランドを作成",
+    taskCreate: language === "zh" ? "创建了任务" : "タスクを作成",
+    reportCreate: language === "zh" ? "提交了报告" : "レポートを提出",
+  };
+
+  if (isLoading || usersLoading || logsLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -40,8 +87,8 @@ export default function MasterControl() {
     );
   }
 
-  // Extract unique users and staff
-  const uniqueUsers = Array.from(
+  // Extract unique users and staff from tasks
+  const uniqueUsersFromTasks = Array.from(
     new Set(allTasksData?.map((item) => item.user?.email).filter(Boolean))
   );
   const uniqueStaff = Array.from(
@@ -77,16 +124,19 @@ export default function MasterControl() {
   const pendingTasks =
     allTasksData?.filter((item) => item.task.status === "pending").length || 0;
 
-  // User statistics
-  const userStats = uniqueUsers.map((userEmail) => {
+  // User statistics - now using all registered users
+  const userStats = (allUsers || []).map((user) => {
     const userTasks = allTasksData?.filter(
-      (item) => item.user?.email === userEmail
+      (item) => item.user?.id === user.id
     );
     return {
-      email: userEmail,
+      id: user.id,
+      email: user.email,
+      name: user.name,
       total: userTasks?.length || 0,
       completed:
         userTasks?.filter((item) => item.task.status === "completed").length || 0,
+      createdAt: user.createdAt,
     };
   });
 
@@ -103,21 +153,37 @@ export default function MasterControl() {
     };
   });
 
+  // Format activity action label
+  const formatActionLabel = (actionType: string, actionLabel: string) => {
+    switch (actionType) {
+      case "business_card_create":
+        return t.businessCardCreate;
+      case "brand_create":
+        return t.brandCreate;
+      case "task_create":
+        return t.taskCreate;
+      case "report_create":
+        return t.reportCreate;
+      default:
+        return actionLabel;
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">マスターコントロール</h1>
+        <h1 className="text-3xl font-bold tracking-tight">{t.title}</h1>
         <p className="text-muted-foreground mt-2">
-          全ユーザーのタスクを一元管理
+          {t.subtitle}
         </p>
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-5">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              総タスク数
+              {t.totalTasks}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -127,7 +193,7 @@ export default function MasterControl() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              進行中
+              {t.inProgress}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -137,7 +203,7 @@ export default function MasterControl() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              保留中
+              {t.pending}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -147,37 +213,113 @@ export default function MasterControl() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              完了
+              {t.completed}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">{completedTasks}</div>
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              {t.registeredUsers}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-purple-600">{allUsers?.length || 0}</div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* User Statistics */}
+      {/* User Statistics - All Registered Users */}
       <Card>
         <CardHeader>
-          <CardTitle>ユーザー別統計</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            {t.userStats}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
             {userStats.map((stat) => (
               <div
-                key={stat.email}
+                key={stat.id}
                 className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
               >
-                <span className="font-medium">{stat.email}</span>
+                <div className="flex flex-col">
+                  <span className="font-medium">{stat.name || stat.email}</span>
+                  <span className="text-xs text-muted-foreground">{stat.email}</span>
+                </div>
                 <div className="flex gap-4 text-sm">
-                  <span>総数: {stat.total}</span>
-                  <span className="text-green-600">完了: {stat.completed}</span>
+                  <span>{t.total}: {stat.total}</span>
+                  <span className="text-green-600">{t.completed}: {stat.completed}</span>
                   <span className="text-muted-foreground">
-                    完了率: {stat.total > 0 ? Math.round((stat.completed / stat.total) * 100) : 0}%
+                    {t.completionRate}: {stat.total > 0 ? Math.round((stat.completed / stat.total) * 100) : 0}%
                   </span>
                 </div>
               </div>
             ))}
+            {userStats.length === 0 && (
+              <div className="text-center py-4 text-muted-foreground">
+                {t.noTasksYet}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Activity Log */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="h-5 w-5" />
+            {t.activityLog}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2 max-h-[400px] overflow-y-auto">
+            {activityLogs && activityLogs.length > 0 ? (
+              activityLogs.map((item) => (
+                <div
+                  key={item.log.id}
+                  className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Activity className="h-4 w-4 text-primary" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{item.user?.name || item.user?.email || t.unknown}</span>
+                        <span className="text-muted-foreground">
+                          {formatActionLabel(item.log.actionType, item.log.actionLabel)}
+                        </span>
+                      </div>
+                      {item.log.targetName && (
+                        <span className="text-sm text-muted-foreground">
+                          → {item.log.targetName}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Clock className="h-4 w-4" />
+                    {new Date(item.log.createdAt).toLocaleString(language === "zh" ? "zh-CN" : "ja-JP", {
+                      month: "2-digit",
+                      day: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-4 text-muted-foreground">
+                {t.noActivity}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -185,7 +327,7 @@ export default function MasterControl() {
       {/* Staff Statistics */}
       <Card>
         <CardHeader>
-          <CardTitle>スタッフ別統計</CardTitle>
+          <CardTitle>{t.staffStats}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
@@ -196,10 +338,10 @@ export default function MasterControl() {
               >
                 <span className="font-medium">{stat.name}</span>
                 <div className="flex gap-4 text-sm">
-                  <span>総数: {stat.total}</span>
-                  <span className="text-green-600">完了: {stat.completed}</span>
+                  <span>{t.total}: {stat.total}</span>
+                  <span className="text-green-600">{t.completed}: {stat.completed}</span>
                   <span className="text-muted-foreground">
-                    完了率: {stat.total > 0 ? Math.round((stat.completed / stat.total) * 100) : 0}%
+                    {t.completionRate}: {stat.total > 0 ? Math.round((stat.completed / stat.total) * 100) : 0}%
                   </span>
                 </div>
               </div>
@@ -211,16 +353,16 @@ export default function MasterControl() {
       {/* Filters */}
       <Card>
         <CardHeader>
-          <CardTitle>フィルター</CardTitle>
+          <CardTitle>{t.filters}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-4">
             <div className="space-y-2">
-              <Label>検索</Label>
+              <Label>{t.search}</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder="タスク内容で検索..."
+                  placeholder={t.searchPlaceholder}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-9"
@@ -228,14 +370,14 @@ export default function MasterControl() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>ユーザー</Label>
+              <Label>{t.user}</Label>
               <Select value={selectedUser} onValueChange={setSelectedUser}>
                 <SelectTrigger>
-                  <SelectValue placeholder="全ユーザー" />
+                  <SelectValue placeholder={t.allUsers} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">全ユーザー</SelectItem>
-                  {uniqueUsers.map((email) => (
+                  <SelectItem value="all">{t.allUsers}</SelectItem>
+                  {uniqueUsersFromTasks.map((email) => (
                     <SelectItem key={email} value={email!}>
                       {email}
                     </SelectItem>
@@ -244,13 +386,13 @@ export default function MasterControl() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>スタッフ</Label>
+              <Label>{t.staff}</Label>
               <Select value={selectedStaff} onValueChange={setSelectedStaff}>
                 <SelectTrigger>
-                  <SelectValue placeholder="全スタッフ" />
+                  <SelectValue placeholder={t.allStaff} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">全スタッフ</SelectItem>
+                  <SelectItem value="all">{t.allStaff}</SelectItem>
                   {uniqueStaff.map((name) => (
                     <SelectItem key={name} value={name!}>
                       {name}
@@ -260,17 +402,17 @@ export default function MasterControl() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>ステータス</Label>
+              <Label>{t.status}</Label>
               <Select value={selectedStatus} onValueChange={setSelectedStatus}>
                 <SelectTrigger>
-                  <SelectValue placeholder="全ステータス" />
+                  <SelectValue placeholder={t.allStatus} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">全ステータス</SelectItem>
-                  <SelectItem value="pending">保留中</SelectItem>
-                  <SelectItem value="in_progress">進行中</SelectItem>
-                  <SelectItem value="completed">完了</SelectItem>
-                  <SelectItem value="cancelled">キャンセル</SelectItem>
+                  <SelectItem value="all">{t.allStatus}</SelectItem>
+                  <SelectItem value="pending">{t.pending}</SelectItem>
+                  <SelectItem value="in_progress">{t.inProgress}</SelectItem>
+                  <SelectItem value="completed">{t.completed}</SelectItem>
+                  <SelectItem value="cancelled">{language === "zh" ? "已取消" : "キャンセル"}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -290,7 +432,7 @@ export default function MasterControl() {
                   setSearchTerm("");
                 }}
               >
-                フィルターをクリア
+                {t.clearFilters}
               </Button>
             </div>
           )}
@@ -301,7 +443,7 @@ export default function MasterControl() {
       <Card>
         <CardHeader>
           <CardTitle>
-            タスク一覧 ({filteredTasks?.length || 0}件)
+            {t.taskList} ({filteredTasks?.length || 0}{t.items})
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -327,24 +469,24 @@ export default function MasterControl() {
                       </div>
                       <p className="font-medium">{item.task.taskDetail}</p>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <span>指示者: {item.user?.email || "不明"}</span>
-                        <span>担当: {item.staff?.name || "不明"}{item.staff?.department && ` - ${item.staff.department}`}</span>
+                        <span>{t.instructor}: {item.user?.email || t.unknown}</span>
+                        <span>{t.assignee}: {item.staff?.name || t.unknown}{item.staff?.department && ` - ${item.staff.department}`}</span>
                         <span>
-                          登録:{" "}
+                          {t.registered}:{" "}
                           {item.task.startDate
-                            ? new Date(item.task.startDate).toLocaleString("ja-JP", {
+                            ? new Date(item.task.startDate).toLocaleString(language === "zh" ? "zh-CN" : "ja-JP", {
                                 year: "numeric",
                                 month: "2-digit",
                                 day: "2-digit",
                                 hour: "2-digit",
                                 minute: "2-digit",
                               })
-                            : "不明"}
+                            : t.unknown}
                         </span>
                         {item.task.deadline && (
                           <span>
-                            期限:{" "}
-                            {new Date(item.task.deadline).toLocaleString("ja-JP", {
+                            {t.deadline}:{" "}
+                            {new Date(item.task.deadline).toLocaleString(language === "zh" ? "zh-CN" : "ja-JP", {
                               year: "numeric",
                               month: "2-digit",
                               day: "2-digit",
@@ -359,7 +501,7 @@ export default function MasterControl() {
             </div>
           ) : (
             <div className="flex items-center justify-center min-h-[200px]">
-              <p className="text-muted-foreground">タスクが見つかりません</p>
+              <p className="text-muted-foreground">{t.noTasks}</p>
             </div>
           )}
         </CardContent>

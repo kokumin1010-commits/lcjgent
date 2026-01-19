@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -1381,4 +1381,85 @@ export async function getBrandsByLcjStaff(reportStaffId: number) {
     .from(brands)
     .where(inArray(brands.id, brandIds.map(b => b.brandId)))
     .orderBy(desc(brands.updatedAt));
+}
+
+
+// ============================================
+// Activity Log Functions
+// ============================================
+
+// Create a new activity log
+export async function createActivityLog(data: InsertActivityLog) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(activityLogs).values(data);
+  return result;
+}
+
+// Get recent activity logs
+export async function getRecentActivityLogs(limit: number = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select({
+      log: activityLogs,
+      user: users,
+    })
+    .from(activityLogs)
+    .leftJoin(users, eq(activityLogs.userId, users.id))
+    .orderBy(desc(activityLogs.createdAt))
+    .limit(limit);
+}
+
+// Get activity logs by user
+export async function getActivityLogsByUser(userId: number, limit: number = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select({
+      log: activityLogs,
+      user: users,
+    })
+    .from(activityLogs)
+    .leftJoin(users, eq(activityLogs.userId, users.id))
+    .where(eq(activityLogs.userId, userId))
+    .orderBy(desc(activityLogs.createdAt))
+    .limit(limit);
+}
+
+// Get all registered users
+export async function getAllUsers() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db.select().from(users).orderBy(desc(users.createdAt));
+}
+
+// Get user activity statistics
+export async function getUserActivityStats() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // Get all users
+  const allUsers = await db.select().from(users).orderBy(desc(users.createdAt));
+  
+  // Get activity counts per user
+  const activityCounts = await db
+    .select({
+      userId: activityLogs.userId,
+      count: sql<number>`COUNT(*)`.as('count'),
+    })
+    .from(activityLogs)
+    .groupBy(activityLogs.userId);
+  
+  // Combine data
+  const countMap = new Map(activityCounts.map(a => [a.userId, a.count]));
+  
+  return allUsers.map(user => ({
+    user,
+    activityCount: countMap.get(user.id) || 0,
+  }));
 }

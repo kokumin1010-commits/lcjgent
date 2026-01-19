@@ -92,6 +92,11 @@ import {
   removeLcjStaffFromBrand,
   setBrandLcjStaff,
   getBrandsByLcjStaff,
+  createActivityLog,
+  getRecentActivityLogs,
+  getActivityLogsByUser,
+  getAllUsers,
+  getUserActivityStats,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { authRouter } from "./auth";
@@ -1854,6 +1859,20 @@ Return ONLY valid JSON, no markdown or explanation.`,
           duplicateHash,
         });
 
+        // Record activity log
+        await createActivityLog({
+          userId: ctx.user.id,
+          actionType: "business_card_create",
+          actionLabel: "名刺を登録",
+          targetType: "business_card",
+          targetName: `${input.name}${input.company ? ` (${input.company})` : ""}`,
+          metadata: {
+            company: input.company,
+            position: input.position,
+            email: input.email,
+          },
+        });
+
         return { success: true, duplicate: false };
       }),
 
@@ -1954,6 +1973,36 @@ Return ONLY valid JSON, no markdown or explanation.`,
           existingCard: existing,
         };
       }),
+  }),
+
+  // Activity Log Router
+  activityLog: router({
+    // Get recent activity logs
+    getRecent: protectedProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        return await getRecentActivityLogs(input?.limit || 50);
+      }),
+
+    // Get activity logs by user
+    getByUser: protectedProcedure
+      .input(z.object({ userId: z.number(), limit: z.number().optional() }))
+      .query(async ({ input }) => {
+        return await getActivityLogsByUser(input.userId, input.limit || 50);
+      }),
+  }),
+
+  // User Management Router (for admin)
+  users: router({
+    // Get all registered users
+    getAll: protectedProcedure.query(async () => {
+      return await getAllUsers();
+    }),
+
+    // Get user activity statistics
+    getActivityStats: protectedProcedure.query(async () => {
+      return await getUserActivityStats();
+    }),
   }),
 });
 

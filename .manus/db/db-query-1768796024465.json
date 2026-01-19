@@ -1,0 +1,70 @@
+{
+  "query": "SELECT id, email, name, createdAt FROM users ORDER BY createdAt DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, email, name, createdAt FROM users ORDER BY createdAt DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "210002",
+      "email": "isshou@livecommercejapan.jp",
+      "name": "isshou",
+      "createdAt": "2026-01-19 04:11:19"
+    },
+    {
+      "id": "210001",
+      "email": "fuying0929@gmail.com",
+      "name": "Alice",
+      "createdAt": "2026-01-19 02:49:49"
+    },
+    {
+      "id": "180002",
+      "email": "zhuzhenyan0103@gmail.com",
+      "name": "朱振彦",
+      "createdAt": "2026-01-19 02:01:43"
+    },
+    {
+      "id": "180001",
+      "email": "taisei.01128877@gmail.com",
+      "name": "Taisei",
+      "createdAt": "2026-01-19 02:00:34"
+    },
+    {
+      "id": "150004",
+      "email": "wrong-password-1768766483965@example.com",
+      "name": "Wrong Password Test",
+      "createdAt": "2026-01-18 20:01:24"
+    },
+    {
+      "id": "150003",
+      "email": "login-test-1768766482976@example.com",
+      "name": "Login Test User",
+      "createdAt": "2026-01-18 20:01:23"
+    },
+    {
+      "id": "150002",
+      "email": "duplicate-1768766482271@example.com",
+      "name": "First User",
+      "createdAt": "2026-01-18 20:01:22"
+    },
+    {
+      "id": "150001",
+      "email": "test-1768766480418@example.com",
+      "name": "Test User",
+      "createdAt": "2026-01-18 20:01:21"
+    },
+    {
+      "id": "120001",
+      "email": "testuser@test.com",
+      "name": "Test User",
+      "createdAt": "2026-01-18 13:56:35"
+    },
+    {
+      "id": "90001",
+      "email": "hanaco@livecommercejapan.jp",
+      "name": "tsuji hanaco",
+      "createdAt": "2026-01-18 12:40:57"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\temail\tname\tcreatedAt\n210002\tisshou@livecommercejapan.jp\tisshou\t2026-01-19 04:11:19\n210001\tfuying0929@gmail.com\tAlice\t2026-01-19 02:49:49\n180002\tzhuzhenyan0103@gmail.com\t朱振彦\t2026-01-19 02:01:43\n180001\ttaisei.01128877@gmail.com\tTaisei\t2026-01-19 02:00:34\n150004\twrong-password-1768766483965@example.com\tWrong Password Test\t2026-01-18 20:01:24\n150003\tlogin-test-1768766482976@example.com\tLogin Test User\t2026-01-18 20:01:23\n150002\tduplicate-1768766482271@example.com\tFirst User\t2026-01-18 20:01:22\n150001\ttest-1768766480418@example.com\tTest User\t2026-01-18 20:01:21\n120001\ttestuser@test.com\tTest User\t2026-01-18 13:56:35\n90001\thanaco@livecommercejapan.jp\ttsuji hanaco\t2026-01-18 12:40:57\n",
+  "stderr": "",
+  "execution_time_ms": 1480
+}

@@ -134,6 +134,13 @@
       "when": 1768794421389,
       "tag": "0018_spooky_lord_tyger",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1768796229683,
+      "tag": "0019_faithful_nova",
+      "breakpoints": true
     }
   ]
 }

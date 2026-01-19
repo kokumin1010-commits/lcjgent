@@ -322,3 +322,23 @@ export const brandLcjStaff = mysqlTable("brand_lcj_staff", {
 
 export type BrandLcjStaff = typeof brandLcjStaff.$inferSelect;
 export type InsertBrandLcjStaff = typeof brandLcjStaff.$inferInsert;
+
+
+/**
+ * Activity logs table for tracking user actions
+ * ユーザーの行動ログを記録するテーブル
+ */
+export const activityLogs = mysqlTable("activity_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(), // References users.id
+  actionType: varchar("actionType", { length: 100 }).notNull(), // アクションタイプ（例：business_card_create, brand_create, task_create）
+  actionLabel: varchar("actionLabel", { length: 255 }).notNull(), // 表示用ラベル（例：「名刺を登録」「ブランドを作成」）
+  targetType: varchar("targetType", { length: 100 }), // 対象のタイプ（例：business_card, brand, task）
+  targetId: int("targetId"), // 対象のID
+  targetName: varchar("targetName", { length: 255 }), // 対象の名前（例：名刺の氏名、ブランド名）
+  metadata: json("metadata").$type<Record<string, unknown>>(), // 追加情報（JSON形式）
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ActivityLog = typeof activityLogs.$inferSelect;
+export type InsertActivityLog = typeof activityLogs.$inferInsert;
