@@ -97,6 +97,12 @@ import {
   getActivityLogsByUser,
   getAllUsers,
   getUserActivityStats,
+  createBrandContract,
+  getContractsByBrandId,
+  getContractById,
+  updateBrandContract,
+  deleteBrandContract,
+  getActiveContractsCount,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { authRouter } from "./auth";
@@ -2057,6 +2063,98 @@ Return ONLY valid JSON, no markdown or explanation.`,
     getActivityStats: protectedProcedure.query(async () => {
       return await getUserActivityStats();
     }),
+  }),
+
+  // Brand Contract Router (契約管理)
+  brandContract: router({
+    // Create a new contract
+    create: protectedProcedure
+      .input(
+        z.object({
+          brandId: z.number(),
+          contractType: z.enum(["月額契約", "年間契約", "単発契約", "広告案件", "その他"]),
+          fixedFee: z.number().optional(),
+          commissionRate: z.string().optional(),
+          startDate: z.date().optional(),
+          endDate: z.date().optional(),
+          status: z.enum(["契約中", "完了", "保留", "終了"]).default("契約中"),
+          memo: z.string().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const contract = await createBrandContract({
+          ...input,
+          createdBy: ctx.user.id,
+        });
+
+        // Get brand name for activity log
+        const brand = await getBrandById(input.brandId);
+
+        // Record activity log
+        await createActivityLog({
+          userId: ctx.user.id,
+          actionType: "brand_contract_create",
+          actionLabel: "契約を追加",
+          targetId: input.brandId,
+          targetName: brand?.name || `ブランド #${input.brandId}`,
+          metadata: {
+            contractType: input.contractType,
+            fixedFee: input.fixedFee,
+            commissionRate: input.commissionRate,
+          },
+        });
+
+        return contract;
+      }),
+
+    // Get contracts by brand ID
+    listByBrand: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        return await getContractsByBrandId(input.brandId);
+      }),
+
+    // Get contract by ID
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return await getContractById(input.id);
+      }),
+
+    // Update a contract
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          contractType: z.enum(["月額契約", "年間契約", "単発契約", "広告案件", "その他"]).optional(),
+          fixedFee: z.number().optional(),
+          commissionRate: z.string().optional(),
+          startDate: z.date().optional(),
+          endDate: z.date().optional(),
+          status: z.enum(["契約中", "完了", "保留", "終了"]).optional(),
+          memo: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        await updateBrandContract(id, data);
+        return { success: true };
+      }),
+
+    // Delete a contract
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteBrandContract(input.id);
+        return { success: true };
+      }),
+
+    // Get active contracts count
+    activeCount: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        return await getActiveContractsCount(input.brandId);
+      }),
   }),
 });
 

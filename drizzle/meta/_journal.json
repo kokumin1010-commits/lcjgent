@@ -141,6 +141,13 @@
       "when": 1768796229683,
       "tag": "0019_faithful_nova",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1768813547564,
+      "tag": "0020_hard_omega_red",
+      "breakpoints": true
     }
   ]
 }

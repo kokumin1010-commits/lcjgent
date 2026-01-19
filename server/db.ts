@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -1472,4 +1472,77 @@ export async function getUserActivityStats() {
     user,
     activityCount: countMap.get(user.id) || 0,
   }));
+}
+
+
+// ============================================
+// Brand Contract Functions
+// ============================================
+
+// Create a new brand contract
+export async function createBrandContract(data: InsertBrandContract) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(brandContracts).values(data);
+  const insertId = Number(result[0].insertId);
+  return { id: insertId, ...data };
+}
+
+// Get contracts by brand ID
+export async function getContractsByBrandId(brandId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(brandContracts)
+    .where(eq(brandContracts.brandId, brandId))
+    .orderBy(desc(brandContracts.createdAt));
+}
+
+// Get contract by ID
+export async function getContractById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  
+  const result = await db
+    .select()
+    .from(brandContracts)
+    .where(eq(brandContracts.id, id))
+    .limit(1);
+  
+  return result.length > 0 ? result[0] : undefined;
+}
+
+// Update a brand contract
+export async function updateBrandContract(id: number, data: Partial<InsertBrandContract>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(brandContracts).set(data).where(eq(brandContracts.id, id));
+}
+
+// Delete a brand contract
+export async function deleteBrandContract(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.delete(brandContracts).where(eq(brandContracts.id, id));
+}
+
+// Get active contracts count by brand ID
+export async function getActiveContractsCount(brandId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+  
+  const result = await db
+    .select({ count: sql<number>`COUNT(*)`.as('count') })
+    .from(brandContracts)
+    .where(and(
+      eq(brandContracts.brandId, brandId),
+      eq(brandContracts.status, "契約中")
+    ));
+  
+  return result[0]?.count || 0;
 }

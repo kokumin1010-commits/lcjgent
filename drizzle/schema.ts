@@ -342,3 +342,26 @@ export const activityLogs = mysqlTable("activity_logs", {
 
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type InsertActivityLog = typeof activityLogs.$inferInsert;
+
+
+/**
+ * Brand contracts table for managing contract information
+ * ブランドの契約情報を管理するテーブル
+ */
+export const brandContracts = mysqlTable("brand_contracts", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(), // References brands.id
+  contractType: mysqlEnum("contractType", ["月額契約", "年間契約", "単発契約", "広告案件", "その他"]).notNull(), // 契約タイプ
+  fixedFee: bigint("fixedFee", { mode: "number" }), // 固定費（円）
+  commissionRate: varchar("commissionRate", { length: 50 }), // 成果報酬（例：10%、または固定金額）
+  startDate: timestamp("startDate"), // 契約開始日
+  endDate: timestamp("endDate"), // 契約終了日
+  status: mysqlEnum("status", ["契約中", "完了", "保留", "終了"]).default("契約中").notNull(), // ステータス
+  memo: text("memo"), // メモ
+  createdBy: int("createdBy").notNull(), // 作成者（user ID）
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type BrandContract = typeof brandContracts.$inferSelect;
+export type InsertBrandContract = typeof brandContracts.$inferInsert;

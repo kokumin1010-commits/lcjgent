@@ -99,6 +99,28 @@ const translations = {
     addLcjStaff: "LCJ担当者を追加",
     noLcjStaff: "LCJ担当者が設定されていません",
     selectLcjStaff: "LCJ担当者を選択",
+    // Contract
+    contracts: "契約情報",
+    addContract: "契約を追加",
+    contractType: "契約タイプ",
+    fixedFee: "固定費",
+    commissionRateContract: "成果報酬",
+    contractPeriod: "契約期間",
+    contractStatus: "ステータス",
+    contractMemo: "メモ",
+    noContracts: "契約がありません",
+    startDate: "開始日",
+    endDate: "終了日",
+    monthlyContract: "月額契約",
+    annualContract: "年間契約",
+    oneTimeContract: "単発契約",
+    adCampaign: "広告案件",
+    otherContract: "その他",
+    contractActive: "契約中",
+    contractCompleted: "完了",
+    contractOnHold: "保留",
+    contractEnded: "終了",
+    perMonth: "/月",
   },
   zh: {
     title: "品牌详情",
@@ -164,6 +186,28 @@ const translations = {
     addLcjStaff: "添加LCJ负责人",
     noLcjStaff: "未设置LCJ负责人",
     selectLcjStaff: "选择LCJ负责人",
+    // Contract
+    contracts: "合同信息",
+    addContract: "添加合同",
+    contractType: "合同类型",
+    fixedFee: "固定费用",
+    commissionRateContract: "成果报酬",
+    contractPeriod: "合同期限",
+    contractStatus: "状态",
+    contractMemo: "备注",
+    noContracts: "没有合同",
+    startDate: "开始日期",
+    endDate: "结束日期",
+    monthlyContract: "月度合同",
+    annualContract: "年度合同",
+    oneTimeContract: "单次合同",
+    adCampaign: "广告项目",
+    otherContract: "其他",
+    contractActive: "合同中",
+    contractCompleted: "已完成",
+    contractOnHold: "暂停",
+    contractEnded: "已结束",
+    perMonth: "/月",
   },
 };
 
@@ -275,6 +319,16 @@ export default function BrandDetail() {
     platform: "",
     remarks: "",
   });
+  const [isContractDialogOpen, setIsContractDialogOpen] = useState(false);
+  const [newContract, setNewContract] = useState({
+    contractType: "月額契約" as "月額契約" | "年間契約" | "単発契約" | "広告案件" | "その他",
+    fixedFee: "",
+    commissionRate: "",
+    startDate: new Date().toISOString().split("T")[0],
+    endDate: "",
+    status: "契約中" as "契約中" | "完了" | "保留" | "終了",
+    memo: "",
+  });
 
   const brandId = parseInt(id || "0");
 
@@ -305,6 +359,12 @@ export default function BrandDetail() {
   );
   const { data: livestreamStats } = trpc.brandLivestream.stats.useQuery(
     { brandId }
+  );
+
+  // 契約情報を取得
+  const { data: contracts = [] } = trpc.brandContract.listByBrand.useQuery(
+    { brandId },
+    { enabled: brandId > 0 }
   );
 
   const uploadImageMutation = trpc.brand.uploadImage.useMutation();
@@ -417,6 +477,35 @@ export default function BrandDetail() {
     },
   });
 
+  // 契約の追加・削除
+  const createContractMutation = trpc.brandContract.create.useMutation({
+    onSuccess: () => {
+      toast.success(t.success);
+      setIsContractDialogOpen(false);
+      setNewContract({
+        contractType: "月額契約" as "月額契約" | "年間契約" | "単発契約" | "広告案件" | "その他",
+        fixedFee: "",
+        commissionRate: "",
+        startDate: new Date().toISOString().split("T")[0],
+        endDate: "",
+        status: "契約中" as "契約中" | "完了" | "保留" | "終了",
+        memo: "",
+      });
+    },
+    onError: () => {
+      toast.error(t.error);
+    },
+  });
+
+  const deleteContractMutation = trpc.brandContract.delete.useMutation({
+    onSuccess: () => {
+      toast.success("削除しました");
+    },
+    onError: () => {
+      toast.error(t.error);
+    },
+  });
+
   const handleAddProduct = async () => {
     if (!newProduct.productName) {
       toast.error("商品名を入力してください");
@@ -522,9 +611,44 @@ export default function BrandDetail() {
     });
   };
 
+  const handleAddContract = async () => {
+    await createContractMutation.mutateAsync({
+      brandId,
+      contractType: newContract.contractType,
+      fixedFee: newContract.fixedFee ? parseFloat(newContract.fixedFee) : undefined,
+      commissionRate: newContract.commissionRate || undefined,
+      startDate: newContract.startDate ? new Date(newContract.startDate) : undefined,
+      endDate: newContract.endDate ? new Date(newContract.endDate) : undefined,
+      status: newContract.status,
+      memo: newContract.memo || undefined,
+    });
+  };
+
   const formatCurrency = (value: number | null | undefined) => {
     if (!value) return "-";
     return `¥${value.toLocaleString()}`;
+  };
+
+  const contractStatusColors: Record<string, string> = {
+    "契約中": "bg-green-100 text-green-800",
+    "完了": "bg-blue-100 text-blue-800",
+    "保留": "bg-yellow-100 text-yellow-800",
+    "終了": "bg-gray-100 text-gray-800",
+  };
+
+  const contractTypeLabels: Record<string, string> = {
+    "月額契約": t.monthlyContract,
+    "年間契約": t.annualContract,
+    "単発契約": t.oneTimeContract,
+    "広告案件": t.adCampaign,
+    "その他": t.otherContract,
+  };
+
+  const contractStatusLabels: Record<string, string> = {
+    "契約中": t.contractActive,
+    "完了": t.contractCompleted,
+    "保留": t.contractOnHold,
+    "終了": t.contractEnded,
   };
 
   if (brandLoading) {
@@ -671,6 +795,201 @@ export default function BrandDetail() {
                 <p className="text-sm text-muted-foreground">{t.noLcjStaff}</p>
               )}
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Contracts */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>{t.contracts}</CardTitle>
+            <Dialog open={isContractDialogOpen} onOpenChange={setIsContractDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-red-600 hover:bg-red-700">
+                  <Plus className="h-4 w-4 mr-2" />
+                  {t.addContract}
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>{t.addContract}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label>{t.contractType}</Label>
+                    <Select
+                      value={newContract.contractType}
+                      onValueChange={(value) =>
+                        setNewContract({ ...newContract, contractType: value as any })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="月額契約">{t.monthlyContract}</SelectItem>
+                        <SelectItem value="年間契約">{t.annualContract}</SelectItem>
+                        <SelectItem value="単発契約">{t.oneTimeContract}</SelectItem>
+                        <SelectItem value="広告案件">{t.adCampaign}</SelectItem>
+                        <SelectItem value="その他">{t.otherContract}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>{t.fixedFee}</Label>
+                      <Input
+                        type="number"
+                        value={newContract.fixedFee}
+                        onChange={(e) =>
+                          setNewContract({ ...newContract, fixedFee: e.target.value })
+                        }
+                        placeholder="500000"
+                      />
+                    </div>
+                    <div>
+                      <Label>{t.commissionRateContract}</Label>
+                      <Input
+                        value={newContract.commissionRate}
+                        onChange={(e) =>
+                          setNewContract({ ...newContract, commissionRate: e.target.value })
+                        }
+                        placeholder="10%"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>{t.startDate}</Label>
+                      <Input
+                        type="date"
+                        value={newContract.startDate}
+                        onChange={(e) =>
+                          setNewContract({ ...newContract, startDate: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>{t.endDate}</Label>
+                      <Input
+                        type="date"
+                        value={newContract.endDate}
+                        onChange={(e) =>
+                          setNewContract({ ...newContract, endDate: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label>{t.contractStatus}</Label>
+                    <Select
+                      value={newContract.status}
+                      onValueChange={(value) =>
+                        setNewContract({ ...newContract, status: value as any })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="契約中">{t.contractActive}</SelectItem>
+                        <SelectItem value="完了">{t.contractCompleted}</SelectItem>
+                        <SelectItem value="保留">{t.contractOnHold}</SelectItem>
+                        <SelectItem value="終了">{t.contractEnded}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>{t.contractMemo}</Label>
+                    <Textarea
+                      value={newContract.memo}
+                      onChange={(e) =>
+                        setNewContract({ ...newContract, memo: e.target.value })
+                      }
+                      rows={2}
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsContractDialogOpen(false)}
+                    >
+                      {t.cancel}
+                    </Button>
+                    <Button
+                      onClick={handleAddContract}
+                      className="bg-red-600 hover:bg-red-700"
+                      disabled={createContractMutation.isPending}
+                    >
+                      {t.save}
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </CardHeader>
+          <CardContent>
+            {contracts.length > 0 ? (
+              <div className="space-y-4">
+                {contracts.map((contract: any) => (
+                  <div
+                    key={contract.id}
+                    className="border rounded-lg p-4 space-y-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Badge variant="outline" className="font-medium">
+                          {contractTypeLabels[contract.contractType] || contract.contractType}
+                        </Badge>
+                        <Badge className={contractStatusColors[contract.status] || "bg-gray-100"}>
+                          {contractStatusLabels[contract.status] || contract.status}
+                        </Badge>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => deleteContractMutation.mutate({ id: contract.id })}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <p className="text-muted-foreground">{t.fixedFee}</p>
+                        <p className="font-medium">
+                          {contract.fixedFee ? `¥${contract.fixedFee.toLocaleString()}${contract.contractType === "月額契約" ? t.perMonth : ""}` : "-"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">{t.commissionRateContract}</p>
+                        <p className="font-medium">{contract.commissionRate || "-"}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">{t.startDate}</p>
+                        <p className="font-medium">
+                          {contract.startDate ? new Date(contract.startDate).toLocaleDateString() : "-"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">{t.endDate}</p>
+                        <p className="font-medium">
+                          {contract.endDate ? new Date(contract.endDate).toLocaleDateString() : "-"}
+                        </p>
+                      </div>
+                    </div>
+                    {contract.memo && (
+                      <div className="text-sm">
+                        <p className="text-muted-foreground">{t.contractMemo}</p>
+                        <p className="font-medium">{contract.memo}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                {t.noContracts}
+              </div>
+            )}
           </CardContent>
         </Card>
 
