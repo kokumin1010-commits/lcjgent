@@ -1756,16 +1756,16 @@ Return ONLY valid JSON, no markdown or explanation.`,
           console.error("Failed to parse OCR result:", e);
         }
 
-          return {
-            imageUrl,
-            imageKey,
-            extractedInfo,
-          };
-        } catch (error) {
-          console.error("Business card upload/OCR error:", error);
-          throw new Error("名刺の解析に失敗しました。画像を確認して再試行してください。");
-        }
-      }),
+        return {
+          imageUrl,
+          imageKey,
+          extractedInfo,
+        };
+      } catch (error) {
+        console.error("Business card upload/OCR error:", error);
+        throw new Error("名刺の解析に失敗しました。画像を確認して再試行してください。");
+      }
+    }),
 
     // Create a new business card
     create: protectedProcedure
