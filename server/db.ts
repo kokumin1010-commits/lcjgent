@@ -1,4 +1,4 @@
-import { eq, and, desc, asc, sql, or, like, inArray } from "drizzle-orm";
+import { eq, and, desc, asc, sql, or, like, inArray, not } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog } from "../drizzle/schema";
 
@@ -801,7 +801,13 @@ export async function createBrand(brandData: InsertBrand) {
   if (!db) throw new Error("Database not available");
   
   const result = await db.insert(brands).values(brandData);
-  return result;
+  const insertId = Number((result as any)[0]?.insertId || (result as any).insertId || 0);
+  
+  // Return the created brand with id and name
+  return {
+    id: insertId,
+    brandName: brandData.name,
+  };
 }
 
 // Get all brands with optional filters
@@ -1430,21 +1436,25 @@ export async function getActivityLogsByUser(userId: number, limit: number = 50) 
     .limit(limit);
 }
 
-// Get all registered users
+// Get all registered users (excluding test users with @example.com)
 export async function getAllUsers() {
   const db = await getDb();
   if (!db) return [];
   
-  return await db.select().from(users).orderBy(desc(users.createdAt));
+  return await db.select().from(users)
+    .where(not(like(users.email, '%@example.com')))
+    .orderBy(desc(users.createdAt));
 }
 
-// Get user activity statistics
+// Get user activity statistics (excluding test users with @example.com)
 export async function getUserActivityStats() {
   const db = await getDb();
   if (!db) return [];
   
-  // Get all users
-  const allUsers = await db.select().from(users).orderBy(desc(users.createdAt));
+  // Get all users (excluding test users)
+  const allUsers = await db.select().from(users)
+    .where(not(like(users.email, '%@example.com')))
+    .orderBy(desc(users.createdAt));
   
   // Get activity counts per user
   const activityCounts = await db

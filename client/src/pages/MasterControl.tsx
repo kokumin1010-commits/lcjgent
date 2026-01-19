@@ -4,11 +4,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Search, Users, Activity, Clock } from "lucide-react";
+import { Loader2, Search, Users, Activity, Clock, ChevronRight, X } from "lucide-react";
 import { useLocation } from "wouter";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/contexts/LanguageContext";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const statusColors = {
   pending: "bg-yellow-500",
@@ -31,10 +37,16 @@ export default function MasterControl() {
   const [selectedUser, setSelectedUser] = useState<string>("all");
   const [selectedStaff, setSelectedStaff] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+  const [showUserActivityDialog, setShowUserActivityDialog] = useState(false);
 
   const { data: allTasksData, isLoading } = trpc.task.listAllWithUsers.useQuery();
   const { data: allUsers, isLoading: usersLoading } = trpc.users.getAll.useQuery();
   const { data: activityLogs, isLoading: logsLoading } = trpc.activityLog.getRecent.useQuery({ limit: 30 });
+  const { data: userActivityLogs, isLoading: userLogsLoading } = trpc.activityLog.getByUser.useQuery(
+    { userId: selectedUserId!, limit: 50 },
+    { enabled: selectedUserId !== null }
+  );
 
   // Translations
   const t = {
@@ -77,6 +89,11 @@ export default function MasterControl() {
     brandCreate: language === "zh" ? "创建了品牌" : "ブランドを作成",
     taskCreate: language === "zh" ? "创建了任务" : "タスクを作成",
     reportCreate: language === "zh" ? "提交了报告" : "レポートを提出",
+    followupComplete: language === "zh" ? "完成了跟进" : "フォローアップを完了",
+    brandActivityCreate: language === "zh" ? "添加了应对履历" : "対応履歴を追加",
+    activityHistory: language === "zh" ? "活动历史" : "行動履歴",
+    viewActivity: language === "zh" ? "查看活动" : "行動を見る",
+    close: language === "zh" ? "关闭" : "閉じる",
   };
 
   if (isLoading || usersLoading || logsLoading) {
@@ -124,8 +141,13 @@ export default function MasterControl() {
   const pendingTasks =
     allTasksData?.filter((item) => item.task.status === "pending").length || 0;
 
-  // User statistics - now using all registered users
-  const userStats = (allUsers || []).map((user) => {
+  // Filter out test users (@example.com domain)
+  const filteredUsers = (allUsers || []).filter(
+    (user) => !user.email.endsWith("@example.com")
+  );
+
+  // User statistics - now using all registered users (excluding test users)
+  const userStats = filteredUsers.map((user) => {
     const userTasks = allTasksData?.filter(
       (item) => item.user?.id === user.id
     );
@@ -164,10 +186,23 @@ export default function MasterControl() {
         return t.taskCreate;
       case "report_create":
         return t.reportCreate;
+      case "followup_complete":
+        return t.followupComplete;
+      case "brand_activity_create":
+        return t.brandActivityCreate;
       default:
         return actionLabel;
     }
   };
+
+  // Handle user click to show activity history
+  const handleUserClick = (userId: number) => {
+    setSelectedUserId(userId);
+    setShowUserActivityDialog(true);
+  };
+
+  // Get selected user info
+  const selectedUserInfo = allUsers?.find((u) => u.id === selectedUserId);
 
   return (
     <div className="space-y-6">
@@ -228,7 +263,7 @@ export default function MasterControl() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-600">{allUsers?.length || 0}</div>
+            <div className="text-2xl font-bold text-purple-600">{filteredUsers?.length || 0}</div>
           </CardContent>
         </Card>
       </div>
@@ -246,18 +281,20 @@ export default function MasterControl() {
             {userStats.map((stat) => (
               <div
                 key={stat.id}
-                className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
+                className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted cursor-pointer transition-colors"
+                onClick={() => handleUserClick(stat.id)}
               >
                 <div className="flex flex-col">
                   <span className="font-medium">{stat.name || stat.email}</span>
                   <span className="text-xs text-muted-foreground">{stat.email}</span>
                 </div>
-                <div className="flex gap-4 text-sm">
+                <div className="flex items-center gap-4 text-sm">
                   <span>{t.total}: {stat.total}</span>
                   <span className="text-green-600">{t.completed}: {stat.completed}</span>
                   <span className="text-muted-foreground">
                     {t.completionRate}: {stat.total > 0 ? Math.round((stat.completed / stat.total) * 100) : 0}%
                   </span>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </div>
               </div>
             ))}
@@ -269,6 +306,62 @@ export default function MasterControl() {
           </div>
         </CardContent>
       </Card>
+
+      {/* User Activity Dialog */}
+      <Dialog open={showUserActivityDialog} onOpenChange={setShowUserActivityDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5" />
+              {selectedUserInfo?.name || selectedUserInfo?.email} - {t.activityHistory}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            {userLogsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : userActivityLogs && userActivityLogs.length > 0 ? (
+              userActivityLogs.map((item) => (
+                <div
+                  key={item.log.id}
+                  className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Activity className="h-4 w-4 text-primary" />
+                    </div>
+                    <div>
+                      <div className="font-medium">
+                        {formatActionLabel(item.log.actionType, item.log.actionLabel)}
+                      </div>
+                      {item.log.targetName && (
+                        <span className="text-sm text-muted-foreground">
+                          → {item.log.targetName}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Clock className="h-4 w-4" />
+                    {new Date(item.log.createdAt).toLocaleString(language === "zh" ? "zh-CN" : "ja-JP", {
+                      year: "numeric",
+                      month: "2-digit",
+                      day: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                {t.noActivity}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Activity Log */}
       <Card>
@@ -500,8 +593,8 @@ export default function MasterControl() {
               ))}
             </div>
           ) : (
-            <div className="flex items-center justify-center min-h-[200px]">
-              <p className="text-muted-foreground">{t.noTasks}</p>
+            <div className="text-center py-8 text-muted-foreground">
+              {t.noTasks}
             </div>
           )}
         </CardContent>

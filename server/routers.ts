@@ -393,6 +393,15 @@ export const appRouter = router({
           content: `タスクID: ${taskId}\n指示内容: ${extractedData.taskSummary}`,
         });
 
+        // Record activity log
+        await createActivityLog({
+          userId: ctx.user.id,
+          actionType: "task_create",
+          actionLabel: "タスクを作成",
+          targetId: createdTask.id,
+          targetName: extractedData.taskSummary?.substring(0, 50) || taskId,
+        });
+
         return {
           success: true,
           taskId,
@@ -739,6 +748,18 @@ export const appRouter = router({
           remarks: input.remarks || null,
           createdBy: ctx.user.id,
         });
+        
+        // Record activity log
+        if (report && report.id) {
+          await createActivityLog({
+            userId: ctx.user.id,
+            actionType: "report_create",
+            actionLabel: "レポートを提出",
+            targetId: report.id,
+            targetName: input.workContent.substring(0, 50),
+          });
+        }
+        
         return report;
       }),
 
@@ -1166,7 +1187,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           nextActionDueDate: z.date().optional(),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
         // Get the current followup to get reportId and staffId
         const currentFollowup = await getFollowupById(input.id);
         if (!currentFollowup) {
@@ -1175,6 +1196,15 @@ ${JSON.stringify(teamSummary, null, 2)}`;
 
         // Update the current followup with result
         await updateFollowupStatus(input.id, "completed", input.resultCategory, input.resultNote);
+
+        // Record activity log
+        await createActivityLog({
+          userId: ctx.user.id,
+          actionType: "followup_complete",
+          actionLabel: "フォローアップを完了",
+          targetId: input.id,
+          targetName: currentFollowup.extractedItem?.substring(0, 50) || `フォローアップ #${input.id}`,
+        });
 
         let nextActionId = null;
 
@@ -1413,6 +1443,16 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           ...input,
           createdBy: ctx.user.id,
         });
+        
+        // Record activity log
+        await createActivityLog({
+          userId: ctx.user.id,
+          actionType: "brand_create",
+          actionLabel: "ブランドを作成",
+          targetId: brand.id,
+          targetName: brand.brandName,
+        });
+        
         return brand;
       }),
 
@@ -1601,11 +1641,25 @@ ${JSON.stringify(teamSummary, null, 2)}`;
         })
       )
       .mutation(async ({ ctx, input }) => {
-        return await createBrandActivity({
+        const activity = await createBrandActivity({
           ...input,
           activityDate: new Date(input.activityDate),
           createdBy: ctx.user.id,
         });
+        
+        // Get brand name for activity log
+        const brand = await getBrandById(input.brandId);
+        
+        // Record activity log
+        await createActivityLog({
+          userId: ctx.user.id,
+          actionType: "brand_activity_create",
+          actionLabel: "対応履歴を追加",
+          targetId: input.brandId,
+          targetName: brand?.name || `ブランド #${input.brandId}`,
+        });
+        
+        return activity;
       }),
 
     listByBrand: protectedProcedure
