@@ -365,3 +365,57 @@ export const brandContracts = mysqlTable("brand_contracts", {
 
 export type BrandContract = typeof brandContracts.$inferSelect;
 export type InsertBrandContract = typeof brandContracts.$inferInsert;
+
+
+/**
+ * AI Advice table for storing AI-generated advice on reports
+ * 日報に対するAIアドバイスを保存するテーブル
+ */
+export const reportAiAdvice = mysqlTable("report_ai_advice", {
+  id: int("id").autoincrement().primaryKey(),
+  reportId: int("reportId").notNull(), // References reports.id
+  adviceText: text("adviceText").notNull(), // AIが生成したアドバイス
+  adviceType: varchar("adviceType", { length: 100 }), // アドバイスのタイプ（例：improvement, followup, time_management）
+  promptUsed: text("promptUsed"), // 使用したプロンプト（デバッグ・改善用）
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ReportAiAdvice = typeof reportAiAdvice.$inferSelect;
+export type InsertReportAiAdvice = typeof reportAiAdvice.$inferInsert;
+
+/**
+ * AI Advice Feedback table for storing user feedback on AI advice
+ * AIアドバイスに対するユーザーフィードバックを保存するテーブル
+ * このデータを蓄積してLCJ専用AIの精度を向上させる
+ */
+export const aiAdviceFeedback = mysqlTable("ai_advice_feedback", {
+  id: int("id").autoincrement().primaryKey(),
+  adviceId: int("adviceId").notNull(), // References reportAiAdvice.id
+  userId: int("userId").notNull(), // フィードバックを送信したユーザー
+  rating: mysqlEnum("rating", ["good", "bad"]).notNull(), // 👍 good / 👎 bad
+  comment: text("comment"), // 任意のコメント
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AiAdviceFeedback = typeof aiAdviceFeedback.$inferSelect;
+export type InsertAiAdviceFeedback = typeof aiAdviceFeedback.$inferInsert;
+
+/**
+ * AI Learning Examples table for storing good/bad advice examples
+ * 良い/悪いアドバイスの例を保存して学習に活用するテーブル
+ */
+export const aiLearningExamples = mysqlTable("ai_learning_examples", {
+  id: int("id").autoincrement().primaryKey(),
+  reportContent: text("reportContent").notNull(), // 元の日報内容
+  adviceText: text("adviceText").notNull(), // アドバイス内容
+  isGoodExample: mysqlEnum("isGoodExample", ["yes", "no"]).notNull(), // 良い例か悪い例か
+  feedbackCount: int("feedbackCount").default(0).notNull(), // フィードバック数
+  goodCount: int("goodCount").default(0).notNull(), // 👍の数
+  badCount: int("badCount").default(0).notNull(), // 👎の数
+  category: varchar("category", { length: 100 }), // カテゴリ（例：ライバー対応、イベント、営業）
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AiLearningExample = typeof aiLearningExamples.$inferSelect;
+export type InsertAiLearningExample = typeof aiLearningExamples.$inferInsert;

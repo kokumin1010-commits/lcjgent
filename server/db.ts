@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -1545,4 +1545,195 @@ export async function getActiveContractsCount(brandId: number) {
     ));
   
   return result[0]?.count || 0;
+}
+
+
+// ==========================================
+// AI Advice Functions
+// ==========================================
+
+// Create AI advice for a report
+export async function createReportAiAdvice(data: InsertReportAiAdvice) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(reportAiAdvice).values(data);
+  const insertId = result[0].insertId;
+  return { id: insertId, ...data };
+}
+
+// Get AI advice by report ID
+export async function getAiAdviceByReportId(reportId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(reportAiAdvice)
+    .where(eq(reportAiAdvice.reportId, reportId))
+    .orderBy(desc(reportAiAdvice.createdAt));
+}
+
+// Get AI advice by ID
+export async function getAiAdviceById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  
+  const result = await db
+    .select()
+    .from(reportAiAdvice)
+    .where(eq(reportAiAdvice.id, id))
+    .limit(1);
+  
+  return result.length > 0 ? result[0] : undefined;
+}
+
+// ==========================================
+// AI Advice Feedback Functions
+// ==========================================
+
+// Create feedback for AI advice
+export async function createAiAdviceFeedback(data: InsertAiAdviceFeedback) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.insert(aiAdviceFeedback).values(data);
+}
+
+// Get feedback by advice ID
+export async function getFeedbackByAdviceId(adviceId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(aiAdviceFeedback)
+    .where(eq(aiAdviceFeedback.adviceId, adviceId))
+    .orderBy(desc(aiAdviceFeedback.createdAt));
+}
+
+// Check if user already gave feedback for an advice
+export async function getUserFeedbackForAdvice(adviceId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  
+  const result = await db
+    .select()
+    .from(aiAdviceFeedback)
+    .where(and(
+      eq(aiAdviceFeedback.adviceId, adviceId),
+      eq(aiAdviceFeedback.userId, userId)
+    ))
+    .limit(1);
+  
+  return result.length > 0 ? result[0] : undefined;
+}
+
+// Update existing feedback
+export async function updateAiAdviceFeedback(id: number, data: Partial<InsertAiAdviceFeedback>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(aiAdviceFeedback).set(data).where(eq(aiAdviceFeedback.id, id));
+}
+
+// ==========================================
+// AI Learning Examples Functions
+// ==========================================
+
+// Create or update learning example
+export async function upsertAiLearningExample(data: {
+  reportContent: string;
+  adviceText: string;
+  isGoodExample: "yes" | "no";
+  category?: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Check if similar example exists
+  const existing = await db
+    .select()
+    .from(aiLearningExamples)
+    .where(and(
+      eq(aiLearningExamples.adviceText, data.adviceText),
+      eq(aiLearningExamples.reportContent, data.reportContent)
+    ))
+    .limit(1);
+  
+  if (existing.length > 0) {
+    // Update existing
+    const example = existing[0];
+    const newGoodCount = data.isGoodExample === "yes" ? example.goodCount + 1 : example.goodCount;
+    const newBadCount = data.isGoodExample === "no" ? example.badCount + 1 : example.badCount;
+    const newIsGoodExample = newGoodCount >= newBadCount ? "yes" : "no";
+    
+    await db.update(aiLearningExamples)
+      .set({
+        feedbackCount: example.feedbackCount + 1,
+        goodCount: newGoodCount,
+        badCount: newBadCount,
+        isGoodExample: newIsGoodExample as "yes" | "no",
+      })
+      .where(eq(aiLearningExamples.id, example.id));
+  } else {
+    // Create new
+    await db.insert(aiLearningExamples).values({
+      reportContent: data.reportContent,
+      adviceText: data.adviceText,
+      isGoodExample: data.isGoodExample,
+      feedbackCount: 1,
+      goodCount: data.isGoodExample === "yes" ? 1 : 0,
+      badCount: data.isGoodExample === "no" ? 1 : 0,
+      category: data.category,
+    });
+  }
+}
+
+// Get good learning examples for AI prompt
+export async function getGoodLearningExamples(limit: number = 5) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(aiLearningExamples)
+    .where(and(
+      eq(aiLearningExamples.isGoodExample, "yes"),
+      sql`${aiLearningExamples.goodCount} >= 2` // At least 2 good ratings
+    ))
+    .orderBy(desc(aiLearningExamples.goodCount))
+    .limit(limit);
+}
+
+// Get bad learning examples to avoid
+export async function getBadLearningExamples(limit: number = 3) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(aiLearningExamples)
+    .where(and(
+      eq(aiLearningExamples.isGoodExample, "no"),
+      sql`${aiLearningExamples.badCount} >= 2` // At least 2 bad ratings
+    ))
+    .orderBy(desc(aiLearningExamples.badCount))
+    .limit(limit);
+}
+
+// Get feedback statistics
+export async function getAiFeedbackStats() {
+  const db = await getDb();
+  if (!db) return { totalFeedback: 0, goodCount: 0, badCount: 0 };
+  
+  const result = await db
+    .select({
+      totalFeedback: sql<number>`COUNT(*)`.as('totalFeedback'),
+      goodCount: sql<number>`SUM(CASE WHEN rating = 'good' THEN 1 ELSE 0 END)`.as('goodCount'),
+      badCount: sql<number>`SUM(CASE WHEN rating = 'bad' THEN 1 ELSE 0 END)`.as('badCount'),
+    })
+    .from(aiAdviceFeedback);
+  
+  return result[0] || { totalFeedback: 0, goodCount: 0, badCount: 0 };
 }

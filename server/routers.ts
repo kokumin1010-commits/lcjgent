@@ -103,6 +103,17 @@ import {
   updateBrandContract,
   deleteBrandContract,
   getActiveContractsCount,
+  createReportAiAdvice,
+  getAiAdviceByReportId,
+  getAiAdviceById,
+  createAiAdviceFeedback,
+  getFeedbackByAdviceId,
+  getUserFeedbackForAdvice,
+  updateAiAdviceFeedback,
+  upsertAiLearningExample,
+  getGoodLearningExamples,
+  getBadLearningExamples,
+  getAiFeedbackStats,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { authRouter } from "./auth";
@@ -2155,6 +2166,149 @@ Return ONLY valid JSON, no markdown or explanation.`,
       .query(async ({ input }) => {
         return await getActiveContractsCount(input.brandId);
       }),
+  }),
+
+  // AI Advice Router (日報AIアドバイス)
+  aiAdvice: router({
+    // Generate AI advice for a report
+    generate: protectedProcedure
+      .input(z.object({
+        reportId: z.number(),
+        reportContent: z.string(),
+        staffName: z.string().optional(),
+        reportDate: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        // Get good examples for learning
+        const goodExamples = await getGoodLearningExamples(5);
+        const badExamples = await getBadLearningExamples(3);
+
+        // Build prompt with learning examples
+        let examplesPrompt = "";
+        if (goodExamples.length > 0) {
+          examplesPrompt += "\n\n【良いアドバイスの例】\n";
+          goodExamples.forEach((ex, i) => {
+            examplesPrompt += `${i + 1}. 日報: "${ex.reportContent.substring(0, 100)}..."\n   アドバイス: "${ex.adviceText}"\n`;
+          });
+        }
+        if (badExamples.length > 0) {
+          examplesPrompt += "\n【避けるべきアドバイスの例】\n";
+          badExamples.forEach((ex, i) => {
+            examplesPrompt += `${i + 1}. "${ex.adviceText}" (このようなアドバイスは避けてください)\n`;
+          });
+        }
+
+        const systemPrompt = `あなたはLCJ（ライブコマースジャパン）の業務アドバイザーAIです。
+スタッフが書いた日報を分析し、具体的で実行可能なアドバイスを提供してください。
+
+アドバイスのガイドライン:
+1. 日報の内容に基づいた具体的な提案をする
+2. 次のアクションやフォローアップを提案する
+3. 時間管理や優先順位についてアドバイスする
+4. ライバー、ブランド、イベントなどLCJの業務に特化したアドバイスをする
+5. 短く、実用的なアドバイスを心がける（100文字以内）
+
+日報が日本語の場合は日本語で、中国語の場合は中国語でアドバイスしてください。
+${examplesPrompt}`;
+
+        const userPrompt = `以下の日報に対してアドバイスを提供してください。
+
+スタッフ: ${input.staffName || "不明"}
+日付: ${input.reportDate || "不明"}
+
+日報内容:
+${input.reportContent}
+
+アドバイスを100文字以内で提供してください。`;
+
+        try {
+          const response = await invokeLLM({
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+          });
+
+          const rawContent = response.choices[0]?.message?.content;
+          const adviceText = typeof rawContent === "string" ? rawContent : "アドバイスを生成できませんでした。";
+
+          // Save the advice to database
+          const advice = await createReportAiAdvice({
+            reportId: input.reportId,
+            adviceText,
+            adviceType: "general",
+            promptUsed: systemPrompt,
+          });
+
+          return advice;
+        } catch (error) {
+          console.error("AI advice generation error:", error);
+          throw new Error("アドバイスの生成に失敗しました");
+        }
+      }),
+
+    // Get AI advice for a report
+    getByReportId: protectedProcedure
+      .input(z.object({ reportId: z.number() }))
+      .query(async ({ input }) => {
+        return await getAiAdviceByReportId(input.reportId);
+      }),
+
+    // Submit feedback for AI advice
+    submitFeedback: protectedProcedure
+      .input(z.object({
+        adviceId: z.number(),
+        rating: z.enum(["good", "bad"]),
+        comment: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        // Check if user already gave feedback
+        const existingFeedback = await getUserFeedbackForAdvice(input.adviceId, ctx.user.id);
+
+        if (existingFeedback) {
+          // Update existing feedback
+          await updateAiAdviceFeedback(existingFeedback.id, {
+            rating: input.rating,
+            comment: input.comment,
+          });
+        } else {
+          // Create new feedback
+          await createAiAdviceFeedback({
+            adviceId: input.adviceId,
+            userId: ctx.user.id,
+            rating: input.rating,
+            comment: input.comment,
+          });
+        }
+
+        // Get the advice and report content for learning
+        const advice = await getAiAdviceById(input.adviceId);
+        if (advice) {
+          const reportData = await getReportById(advice.reportId);
+          if (reportData && reportData.report) {
+            // Add to learning examples
+            await upsertAiLearningExample({
+              reportContent: reportData.report.workContent || "",
+              adviceText: advice.adviceText,
+              isGoodExample: input.rating === "good" ? "yes" : "no",
+            });
+          }
+        }
+
+        return { success: true };
+      }),
+
+    // Get user's feedback for an advice
+    getUserFeedback: protectedProcedure
+      .input(z.object({ adviceId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        return await getUserFeedbackForAdvice(input.adviceId, ctx.user.id);
+      }),
+
+    // Get feedback statistics
+    getStats: protectedProcedure.query(async () => {
+      return await getAiFeedbackStats();
+    }),
   }),
 });
 

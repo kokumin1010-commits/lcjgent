@@ -26,7 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FileText, Plus, Search, X, Pencil, Trash2, Globe, Clock, AlertTriangle, CheckCircle, Link, Sparkles, Check, XCircle, RefreshCw } from "lucide-react";
+import { FileText, Plus, Search, X, Pencil, Trash2, Globe, Clock, AlertTriangle, CheckCircle, Link, Sparkles, Check, XCircle, RefreshCw, ThumbsUp, ThumbsDown, Bot, Loader2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -70,6 +70,10 @@ export default function Reports() {
   // Followup filter state
   const [followupStaffFilter, setFollowupStaffFilter] = useState<string>("all");
   const [followupTab, setFollowupTab] = useState<"pending" | "completed">("pending");
+  
+  // AI Advice state
+  const [generatingAdviceForReport, setGeneratingAdviceForReport] = useState<number | null>(null);
+  const [adviceCache, setAdviceCache] = useState<Record<number, { id: number; adviceText: string; userFeedback?: "good" | "bad" }>>({});
   
   const { t, language } = useLanguage();
 
@@ -151,6 +155,59 @@ export default function Reports() {
       }
     },
   });
+
+  // AI Advice mutations
+  const generateAdvice = trpc.aiAdvice.generate.useMutation({
+    onSuccess: (advice, variables) => {
+      setAdviceCache(prev => ({
+        ...prev,
+        [variables.reportId]: { id: advice.id, adviceText: advice.adviceText }
+      }));
+      setGeneratingAdviceForReport(null);
+      toast.success(language === "ja" ? "AIアドバイスを生成しました" : "AI建议已生成");
+    },
+    onError: (error) => {
+      setGeneratingAdviceForReport(null);
+      toast.error(`${t("common.error")}: ${error.message}`);
+    },
+  });
+
+  const submitFeedback = trpc.aiAdvice.submitFeedback.useMutation({
+    onSuccess: (_, variables) => {
+      // Update local cache with feedback
+      setAdviceCache(prev => {
+        const adviceId = variables.adviceId;
+        const reportId = Object.keys(prev).find(key => prev[parseInt(key)]?.id === adviceId);
+        if (reportId) {
+          return {
+            ...prev,
+            [parseInt(reportId)]: { ...prev[parseInt(reportId)], userFeedback: variables.rating }
+          };
+        }
+        return prev;
+      });
+      toast.success(language === "ja" ? "フィードバックありがとうございます！" : "感谢您的反馈！");
+    },
+    onError: (error) => {
+      toast.error(`${t("common.error")}: ${error.message}`);
+    },
+  });
+
+  // Handle generate AI advice
+  const handleGenerateAdvice = (reportId: number, workContent: string, staffName: string, reportDate: string) => {
+    setGeneratingAdviceForReport(reportId);
+    generateAdvice.mutate({
+      reportId,
+      reportContent: workContent,
+      staffName,
+      reportDate,
+    });
+  };
+
+  // Handle feedback submission
+  const handleFeedback = (adviceId: number, rating: "good" | "bad") => {
+    submitFeedback.mutate({ adviceId, rating });
+  };
 
   // Reset result dialog state
   const resetResultDialog = () => {
@@ -742,6 +799,75 @@ export default function Reports() {
                         <p className="text-sm whitespace-pre-wrap text-muted-foreground">{report.remarks}</p>
                       </div>
                     )}
+                    
+                    {/* AI Advice Section */}
+                    <div className="mt-4 pt-4 border-t border-dashed">
+                      {adviceCache[report.id] ? (
+                        <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 rounded-lg p-3 border border-blue-200 dark:border-blue-800">
+                          <div className="flex items-start gap-2">
+                            <Bot className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1">
+                              <Label className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1 block">
+                                {language === "ja" ? "AIアドバイス" : "AI建议"}
+                              </Label>
+                              <p className="text-sm text-blue-900 dark:text-blue-100">{adviceCache[report.id].adviceText}</p>
+                              
+                              {/* Feedback buttons */}
+                              <div className="flex items-center gap-2 mt-2">
+                                <span className="text-xs text-muted-foreground">
+                                  {language === "ja" ? "このアドバイスは役に立ちましたか？" : "这个建议有用吗？"}
+                                </span>
+                                <Button
+                                  variant={adviceCache[report.id].userFeedback === "good" ? "default" : "outline"}
+                                  size="sm"
+                                  className="h-7 px-2"
+                                  onClick={() => handleFeedback(adviceCache[report.id].id, "good")}
+                                  disabled={submitFeedback.isPending}
+                                >
+                                  <ThumbsUp className="h-3 w-3 mr-1" />
+                                  {language === "ja" ? "はい" : "是"}
+                                </Button>
+                                <Button
+                                  variant={adviceCache[report.id].userFeedback === "bad" ? "destructive" : "outline"}
+                                  size="sm"
+                                  className="h-7 px-2"
+                                  onClick={() => handleFeedback(adviceCache[report.id].id, "bad")}
+                                  disabled={submitFeedback.isPending}
+                                >
+                                  <ThumbsDown className="h-3 w-3 mr-1" />
+                                  {language === "ja" ? "いいえ" : "否"}
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 border-blue-200 dark:border-blue-800 hover:from-blue-100 hover:to-purple-100 dark:hover:from-blue-950/50 dark:hover:to-purple-950/50"
+                          onClick={() => handleGenerateAdvice(
+                            report.id,
+                            report.workContent,
+                            staff?.name || "",
+                            formatDate(report.reportDate)
+                          )}
+                          disabled={generatingAdviceForReport === report.id}
+                        >
+                          {generatingAdviceForReport === report.id ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              {language === "ja" ? "AIアドバイスを生成中..." : "正在生成AI建议..."}
+                            </>
+                          ) : (
+                            <>
+                              <Bot className="h-4 w-4 mr-2 text-blue-600" />
+                              {language === "ja" ? "AIアドバイスを取得" : "获取AI建议"}
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   
                   {/* Footer: Updated time */}

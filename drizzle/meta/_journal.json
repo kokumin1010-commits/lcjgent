@@ -148,6 +148,13 @@
       "when": 1768813547564,
       "tag": "0020_hard_omega_red",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1768883447056,
+      "tag": "0021_slow_angel",
+      "breakpoints": true
     }
   ]
 }
