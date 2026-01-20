@@ -100,9 +100,15 @@ const translations = {
     noLcjStaff: "LCJ担当者が設定されていません",
     selectLcjStaff: "LCJ担当者を選択",
     // Contract
-    contracts: "契約情報",
+    contracts: "契約中のサービス",
     addContract: "契約を追加",
+    serviceType: "サービスタイプ",
     contractType: "契約タイプ",
+    tsp: "TSP（店舗運営代行）",
+    liveCommerce: "ライブコマース",
+    adManagement: "広告運用代行",
+    snsManagement: "SNS運用代行",
+    otherService: "その他",
     fixedFee: "固定費",
     commissionRateContract: "成果報酬",
     contractPeriod: "契約期間",
@@ -187,9 +193,15 @@ const translations = {
     noLcjStaff: "未设置LCJ负责人",
     selectLcjStaff: "选择LCJ负责人",
     // Contract
-    contracts: "合同信息",
+    contracts: "合同中的服务",
     addContract: "添加合同",
+    serviceType: "服务类型",
     contractType: "合同类型",
+    tsp: "TSP（店铺运营代理）",
+    liveCommerce: "直播电商",
+    adManagement: "广告运营代理",
+    snsManagement: "SNS运营代理",
+    otherService: "其他",
     fixedFee: "固定费用",
     commissionRateContract: "成果报酬",
     contractPeriod: "合同期限",
@@ -321,6 +333,7 @@ export default function BrandDetail() {
   });
   const [isContractDialogOpen, setIsContractDialogOpen] = useState(false);
   const [newContract, setNewContract] = useState({
+    serviceType: "TSP" as "TSP" | "ライブコマース" | "広告運用代行" | "SNS運用代行" | "その他",
     contractType: "月額契約" as "月額契約" | "年間契約" | "単発契約" | "広告案件" | "その他",
     fixedFee: "",
     commissionRate: "",
@@ -483,6 +496,7 @@ export default function BrandDetail() {
       toast.success(t.success);
       setIsContractDialogOpen(false);
       setNewContract({
+        serviceType: "TSP" as "TSP" | "ライブコマース" | "広告運用代行" | "SNS運用代行" | "その他",
         contractType: "月額契約" as "月額契約" | "年間契約" | "単発契約" | "広告案件" | "その他",
         fixedFee: "",
         commissionRate: "",
@@ -614,6 +628,7 @@ export default function BrandDetail() {
   const handleAddContract = async () => {
     await createContractMutation.mutateAsync({
       brandId,
+      serviceType: newContract.serviceType,
       contractType: newContract.contractType,
       fixedFee: newContract.fixedFee ? parseFloat(newContract.fixedFee) : undefined,
       commissionRate: newContract.commissionRate || undefined,
@@ -634,6 +649,22 @@ export default function BrandDetail() {
     "完了": "bg-blue-100 text-blue-800",
     "保留": "bg-yellow-100 text-yellow-800",
     "終了": "bg-gray-100 text-gray-800",
+  };
+
+  const serviceTypeLabels: Record<string, string> = {
+    "TSP": t.tsp,
+    "ライブコマース": t.liveCommerce,
+    "広告運用代行": t.adManagement,
+    "SNS運用代行": t.snsManagement,
+    "その他": t.otherService,
+  };
+
+  const serviceTypeIcons: Record<string, string> = {
+    "TSP": "🏠",
+    "ライブコマース": "📺",
+    "広告運用代行": "📢",
+    "SNS運用代行": "📱",
+    "その他": "📄",
   };
 
   const contractTypeLabels: Record<string, string> = {
@@ -815,6 +846,26 @@ export default function BrandDetail() {
                 </DialogHeader>
                 <div className="space-y-4">
                   <div>
+                    <Label>{t.serviceType}</Label>
+                    <Select
+                      value={newContract.serviceType}
+                      onValueChange={(value) =>
+                        setNewContract({ ...newContract, serviceType: value as any })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="TSP">{t.tsp}</SelectItem>
+                        <SelectItem value="ライブコマース">{t.liveCommerce}</SelectItem>
+                        <SelectItem value="広告運用代行">{t.adManagement}</SelectItem>
+                        <SelectItem value="SNS運用代行">{t.snsManagement}</SelectItem>
+                        <SelectItem value="その他">{t.otherService}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
                     <Label>{t.contractType}</Label>
                     <Select
                       value={newContract.contractType}
@@ -933,16 +984,24 @@ export default function BrandDetail() {
                 {contracts.map((contract: any) => (
                   <div
                     key={contract.id}
-                    className="border rounded-lg p-4 space-y-3"
+                    className="border rounded-lg p-4 space-y-3 hover:bg-muted/50 transition-colors"
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <Badge variant="outline" className="font-medium">
-                          {contractTypeLabels[contract.contractType] || contract.contractType}
-                        </Badge>
-                        <Badge className={contractStatusColors[contract.status] || "bg-gray-100"}>
-                          {contractStatusLabels[contract.status] || contract.status}
-                        </Badge>
+                        <span className="text-2xl">{serviceTypeIcons[contract.serviceType] || "📄"}</span>
+                        <div>
+                          <p className="font-semibold text-base">
+                            {serviceTypeLabels[contract.serviceType] || contract.serviceType || "未設定"}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge variant="outline" className="text-xs">
+                              {contractTypeLabels[contract.contractType] || contract.contractType}
+                            </Badge>
+                            <Badge className={`text-xs ${contractStatusColors[contract.status] || "bg-gray-100"}`}>
+                              {contractStatusLabels[contract.status] || contract.status}
+                            </Badge>
+                          </div>
+                        </div>
                       </div>
                       <Button
                         variant="ghost"
@@ -952,33 +1011,33 @@ export default function BrandDetail() {
                         <Trash2 className="h-4 w-4 text-red-500" />
                       </Button>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm pl-10">
                       <div>
-                        <p className="text-muted-foreground">{t.fixedFee}</p>
+                        <p className="text-muted-foreground text-xs">{t.fixedFee}</p>
                         <p className="font-medium">
                           {contract.fixedFee ? `¥${contract.fixedFee.toLocaleString()}${contract.contractType === "月額契約" ? t.perMonth : ""}` : "-"}
                         </p>
                       </div>
                       <div>
-                        <p className="text-muted-foreground">{t.commissionRateContract}</p>
+                        <p className="text-muted-foreground text-xs">{t.commissionRateContract}</p>
                         <p className="font-medium">{contract.commissionRate || "-"}</p>
                       </div>
                       <div>
-                        <p className="text-muted-foreground">{t.startDate}</p>
+                        <p className="text-muted-foreground text-xs">{t.startDate}</p>
                         <p className="font-medium">
                           {contract.startDate ? new Date(contract.startDate).toLocaleDateString() : "-"}
                         </p>
                       </div>
                       <div>
-                        <p className="text-muted-foreground">{t.endDate}</p>
+                        <p className="text-muted-foreground text-xs">{t.endDate}</p>
                         <p className="font-medium">
                           {contract.endDate ? new Date(contract.endDate).toLocaleDateString() : "-"}
                         </p>
                       </div>
                     </div>
                     {contract.memo && (
-                      <div className="text-sm">
-                        <p className="text-muted-foreground">{t.contractMemo}</p>
+                      <div className="text-sm pl-10">
+                        <p className="text-muted-foreground text-xs">{t.contractMemo}</p>
                         <p className="font-medium">{contract.memo}</p>
                       </div>
                     )}

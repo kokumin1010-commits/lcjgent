@@ -2102,6 +2102,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
       .input(
         z.object({
           brandId: z.number(),
+          serviceType: z.enum(["TSP", "ライブコマース", "広告運用代行", "SNS運用代行", "その他"]).default("その他"),
           contractType: z.enum(["月額契約", "年間契約", "単発契約", "広告案件", "その他"]),
           fixedFee: z.number().optional(),
           commissionRate: z.string().optional(),
@@ -2128,6 +2129,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
           targetId: input.brandId,
           targetName: brand?.name || `ブランド #${input.brandId}`,
           metadata: {
+            serviceType: input.serviceType,
             contractType: input.contractType,
             fixedFee: input.fixedFee,
             commissionRate: input.commissionRate,
@@ -2156,6 +2158,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
       .input(
         z.object({
           id: z.number(),
+          serviceType: z.enum(["TSP", "ライブコマース", "広告運用代行", "SNS運用代行", "その他"]).optional(),
           contractType: z.enum(["月額契約", "年間契約", "単発契約", "広告案件", "その他"]).optional(),
           fixedFee: z.number().optional(),
           commissionRate: z.string().optional(),

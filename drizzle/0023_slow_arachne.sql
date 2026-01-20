@@ -1,0 +1,1 @@
+ALTER TABLE `brand_contracts` ADD `serviceType` enum('TSP','ライブコマース','広告運用代行','SNS運用代行','その他') DEFAULT 'その他' NOT NULL;

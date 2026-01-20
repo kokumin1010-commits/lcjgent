@@ -162,6 +162,13 @@
       "when": 1768884290078,
       "tag": "0022_soft_ricochet",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1768896131679,
+      "tag": "0023_slow_arachne",
+      "breakpoints": true
     }
   ]
 }
