@@ -1,0 +1,17 @@
+{
+  "query": "SELECT id, content FROM chat_report_messages WHERE role = 'ai' LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, content FROM chat_report_messages WHERE role = 'ai' LIMIT 10;",
+  "rows": [
+    {
+      "id": "1",
+      "content": "火曜日ですね！今日の業務は何をしましたか？ (22 characters)"
+    }
+  ],
+  "messages": [
+    "5.  **Review and Finalize:** Meets all criteria (Tuesday reference, friendly, asks about today's work, well under 50 characters). (Self-correction: Keep it simple and direct.)",
+    "6.  **Final Output Generation.**火曜日お疲れ様です！今日の業務は何をしましたか？"
+  ],
+  "stdout": "id\tcontent\n1\t火曜日ですね！今日の業務は何をしましたか？ (22 characters)\n\n5.  **Review and Finalize:** Meets all criteria (Tuesday reference, friendly, asks about today's work, well under 50 characters). (Self-correction: Keep it simple and direct.)\n\n6.  **Final Output Generation.**火曜日お疲れ様です！今日の業務は何をしましたか？\n",
+  "stderr": "",
+  "execution_time_ms": 1579
+}
