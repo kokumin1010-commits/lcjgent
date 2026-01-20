@@ -2390,28 +2390,20 @@ ${input.reportContent}
 
         // Generate greeting message using AI (language based on staff country)
         const greetingPrompt = isChineseStaff
-          ? `你是LCJ的日报助手 AI。
-今天是${currentDayName}。
-请帮助员工填写日报。
+          ? `今天是${currentDayName}。
+${greetingContext ? `上下文: ${greetingContext}` : ""}
 
-上下文:${greetingContext || "无"}
+请写一句问候员工并询问今天工作内容的话。
+例: 「周二辛苦了！今天做了什么工作？」
 
-请生成以下内容:
-1. 简单的问候（根据星期几调整内容）
-2. 询问今天的工作内容
+重要: 只输出问句本身，不要包含解释或思考过程。`
+          : `今日は${currentDayName}です。
+${greetingContext ? `コンテキスト: ${greetingContext}` : ""}
 
-50字以内，语气亲切友好。`
-          : `あなたはLCJの日報アシスタントAIです。
-今日は${currentDayName}です。
-スタッフの日報入力をサポートしてください。
+スタッフへの挨拶と今日の業務についての質問を一文で書いてください。
+例: 「火曜日お疲れ様です！今日の業務は何をしましたか？」
 
-コンテキスト:${greetingContext || "特になし"}
-
-以下のような挨拶と最初の質問を生成してください:
-1. 簡単な挨拶（曜日に応じた内容）
-2. 今日の業務について聞く質問
-
-50文字以内で、親しみやすいトーンで。`;
+重要: 質問文のみを出力してください。説明や思考プロセスは含めないでください。`;
 
         let greetingText = isChineseStaff
           ? `你好！今天是${currentDayName}。今天做了什么工作？`
@@ -2419,8 +2411,8 @@ ${input.reportContent}
         
         try {
           const systemPrompt = isChineseStaff
-            ? "你是一个亲切友好的日报助手。请用中文简短回复。"
-            : "あなたは親しみやすい日報アシスタントです。短く簡潔に返答してください。";
+            ? "你是日报助手。只输出问句本身，不要包含任何解释、思考过程、字数统计或标签。"
+            : "あなたは日報アシスタントです。質問文のみを出力してください。説明、思考プロセス、文字数、タグは含めないでください。";
           const response = await invokeLLM({
             messages: [
               { role: "system", content: systemPrompt },
@@ -2507,25 +2499,19 @@ ${input.reportContent}
         if (questionCount >= 3) {
           // After 3+ messages, offer to summarize or ask if there's more
           systemPrompt = isChineseStaff
-            ? `你是LCJ的日报助手 AI。
-请确认对话内容，如果还有需要询问的内容请提问，否则请告知可以开始整理日报了。
-
-之前的对话:
+            ? `你是日报助手。只输出问句或确认消息，不要包含解释、思考过程、字数统计或标签。`
+            : `あなたは日報アシスタントです。質問文または確認メッセージのみを出力してください。説明、思考プロセス、文字数、タグは含めないでください。`;
+          userPrompt = isChineseStaff
+            ? `之前的对话:
 ${allMessages.map(m => `${m.role === "ai" ? "AI" : "员工"}: ${m.content}`).join("\n")}
+${contextInfo ? `上下文: ${contextInfo}` : ""}
 
-上下文:${contextInfo || "无"}
-
-请在50字以内回复。`
-            : `あなたはLCJの日報アシスタントAIです。
-会話の内容を確認し、追加で聞くべきことがあれば質問し、なければ日報をまとめる準備ができたことを伝えてください。
-
-これまでの会話:
+如果还有需要询问的内容请提问，否则请说“好的，我来整理日报吧！”`
+            : `これまでの会話:
 ${allMessages.map(m => `${m.role === "ai" ? "AI" : "スタッフ"}: ${m.content}`).join("\n")}
+${contextInfo ? `コンテキスト: ${contextInfo}` : ""}
 
-コンテキスト:${contextInfo || "特になし"}
-
-50文字以内で返答してください。`;
-          userPrompt = isChineseStaff ? "请生成下一个问题或确认消息。" : "次の質問または確認メッセージを生成してください。";
+追加で聞くべきことがあれば質問し、なければ「ありがとうございます！日報をまとめますね。」と言ってください。`
         } else {
           // Continue asking questions
           const questionTopics = [
@@ -2538,29 +2524,21 @@ ${allMessages.map(m => `${m.role === "ai" ? "AI" : "スタッフ"}: ${m.content}
           const topicNameZh = currentTopic === "work_content" ? "其他工作内容" : currentTopic === "issues" ? "发现或问题" : "需要跟进的事项";
 
           systemPrompt = isChineseStaff
-            ? `你是LCJ的日报助手 AI。
-请根据员工的回答，提出适当的跟进问题。
-
-之前的对话:
+            ? `你是日报助手。只输出问句本身，不要包含解释、思考过程、字数统计或标签。`
+            : `あなたは日報アシスタントです。質問文のみを出力してください。説明、思考プロセス、文字数、タグは含めないでください。`;
+          userPrompt = isChineseStaff
+            ? `之前的对话:
 ${allMessages.map(m => `${m.role === "ai" ? "AI" : "员工"}: ${m.content}`).join("\n")}
-
-上下文:${contextInfo || "无"}
+${contextInfo ? `上下文: ${contextInfo}` : ""}
 
 下一个要询问的主题: ${topicNameZh}
-
-问题请在50字以内，语气亲切友好。`
-            : `あなたはLCJの日報アシスタントAIです。
-スタッフの回答に対して、適切なフォローアップ質問をしてください。
-
-これまでの会話:
+请写一句跟进问题。`
+            : `これまでの会話:
 ${allMessages.map(m => `${m.role === "ai" ? "AI" : "スタッフ"}: ${m.content}`).join("\n")}
-
-コンテキスト:${contextInfo || "特になし"}
+${contextInfo ? `コンテキスト: ${contextInfo}` : ""}
 
 次に聞くべきトピック: ${topicNameJa}
-
-質問は50文字以内で、親しみやすいトーンで。`;
-          userPrompt = isChineseStaff ? "请生成下一个问题。" : "次の質問を生成してください。";
+フォローアップ質問を一文で書いてください。`
         }
 
         let aiResponseText = isChineseStaff ? "还有其他的吗？" : "他に何かありますか？";
