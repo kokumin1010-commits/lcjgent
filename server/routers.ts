@@ -2771,6 +2771,13 @@ ${conversationText}
         return await getChatSessionsByStaffId(input.staffId, input.limit || 30);
       }),
 
+    // Get messages for a specific session
+    getMessages: protectedProcedure
+      .input(z.object({ sessionId: z.number() }))
+      .query(async ({ input }) => {
+        return await getMessagesBySessionId(input.sessionId);
+      }),
+
     // Get staff AI profile
     getStaffProfile: protectedProcedure
       .input(z.object({ staffId: z.number() }))

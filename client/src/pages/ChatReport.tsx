@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 
-import { ArrowLeft, Send, Bot, User, CheckCircle, Loader2, MessageSquare, Mic, MicOff, Square } from "lucide-react";
+import { ArrowLeft, Send, Bot, User, CheckCircle, Loader2, MessageSquare, Mic, Square, History, Plus, Calendar, ChevronRight } from "lucide-react";
 
 const translations = {
   ja: {
@@ -33,6 +33,16 @@ const translations = {
     micPermissionDenied: "マイクの使用が許可されていません",
     startRecording: "音声入力を開始",
     stopRecording: "録音を停止",
+    chatHistory: "チャット履歴",
+    newChat: "新規チャット",
+    viewHistory: "履歴を見る",
+    noHistory: "チャット履歴がありません",
+    status: {
+      in_progress: "進行中",
+      completed: "完了",
+      converted: "日報作成済み",
+    },
+    messages: "件のメッセージ",
   },
   zh: {
     title: "通过聊天创建日报",
@@ -55,6 +65,16 @@ const translations = {
     micPermissionDenied: "未授权使用麦克风",
     startRecording: "开始语音输入",
     stopRecording: "停止录音",
+    chatHistory: "聊天历史",
+    newChat: "新建聊天",
+    viewHistory: "查看历史",
+    noHistory: "没有聊天历史",
+    status: {
+      in_progress: "进行中",
+      completed: "已完成",
+      converted: "已创建日报",
+    },
+    messages: "条消息",
   },
 };
 
@@ -64,6 +84,15 @@ interface Message {
   content: string;
   messageType?: string | null;
   createdAt?: Date;
+}
+
+interface ChatSession {
+  id: number;
+  staffId: number;
+  reportDate: Date;
+  status: "in_progress" | "completed" | "converted";
+  convertedReportId?: number | null;
+  createdAt: Date;
 }
 
 // Helper function to clean AI response from thinking process (client-side)
@@ -115,6 +144,8 @@ export default function ChatReport() {
   const [isSending, setIsSending] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
   const [isConverted, setIsConverted] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [viewingHistorySession, setViewingHistorySession] = useState<number | null>(null);
   
   // Voice input states
   const [isRecording, setIsRecording] = useState(false);
@@ -130,11 +161,23 @@ export default function ChatReport() {
   // Get report staff list
   const { data: staffList } = trpc.reportStaff.list.useQuery();
   
+  // Get chat history for selected staff
+  const { data: chatHistory, refetch: refetchHistory } = trpc.chatReport.getSessionsByStaff.useQuery(
+    { staffId: selectedStaffId!, limit: 30 },
+    { enabled: !!selectedStaffId && showHistory }
+  );
+  
   // Mutations
   const startSessionMutation = trpc.chatReport.startSession.useMutation();
   const sendMessageMutation = trpc.chatReport.sendMessage.useMutation();
   const convertToReportMutation = trpc.chatReport.convertToReport.useMutation();
   const transcribeVoiceMutation = trpc.chatReport.transcribeVoice.useMutation();
+  
+  // Get messages for a specific session (for viewing history)
+  const { data: historyMessages, isLoading: isLoadingHistory } = trpc.chatReport.getMessages.useQuery(
+    { sessionId: viewingHistorySession! },
+    { enabled: !!viewingHistorySession }
+  );
   
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -164,6 +207,8 @@ export default function ChatReport() {
     if (!selectedStaffId) return;
     
     setIsLoading(true);
+    setShowHistory(false);
+    setViewingHistorySession(null);
     try {
       const result = await startSessionMutation.mutateAsync({ staffId: selectedStaffId });
       setSessionId(result.session.id);
@@ -185,6 +230,27 @@ export default function ChatReport() {
     } finally {
       setIsLoading(false);
     }
+  };
+  
+  const handleViewHistory = () => {
+    setShowHistory(true);
+    refetchHistory();
+  };
+  
+  const handleSelectHistorySession = (session: ChatSession) => {
+    setViewingHistorySession(session.id);
+  };
+  
+  const handleBackFromHistory = () => {
+    setViewingHistorySession(null);
+  };
+  
+  const handleBackToStaffSelection = () => {
+    setShowHistory(false);
+    setViewingHistorySession(null);
+    setSessionId(null);
+    setMessages([]);
+    setIsConverted(false);
   };
   
   const handleSendMessage = async () => {
@@ -335,8 +401,6 @@ export default function ChatReport() {
     try {
       // Upload audio to S3
       const fileName = `voice-${Date.now()}.webm`;
-      const arrayBuffer = await audioBlob.arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
       
       // Use fetch to upload directly
       const formData = new FormData();
@@ -354,19 +418,21 @@ export default function ChatReport() {
       
       const { url: audioUrl } = await uploadResponse.json();
       
+      // Get staff's country to determine language
+      const selectedStaff = staffList?.find(s => s.id === selectedStaffId);
+      const lang = selectedStaff?.country === "中国" ? "zh" : "ja";
+      
       // Transcribe the audio
       const result = await transcribeVoiceMutation.mutateAsync({
         audioUrl,
-        language: language === "zh" ? "zh" : "ja",
+        language: lang,
       });
       
       if (result.text) {
-        // Set the transcribed text to input
         setInputValue(prev => prev + (prev ? " " : "") + result.text);
-        inputRef.current?.focus();
       }
     } catch (error) {
-      console.error("Failed to process audio:", error);
+      console.error("Failed to transcribe audio:", error);
       alert(t.voiceInputError);
     } finally {
       setIsTranscribing(false);
@@ -379,16 +445,199 @@ export default function ChatReport() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
   
-  // Format date
   const formatDate = () => {
-    const today = new Date();
-    return today.toLocaleDateString(language === "ja" ? "ja-JP" : "zh-CN", {
+    const now = new Date();
+    const options: Intl.DateTimeFormatOptions = {
       year: "numeric",
       month: "long",
       day: "numeric",
       weekday: "long",
-    });
+    };
+    return now.toLocaleDateString(language === "ja" ? "ja-JP" : "zh-CN", options);
   };
+  
+  const formatSessionDate = (date: Date) => {
+    const d = new Date(date);
+    const options: Intl.DateTimeFormatOptions = {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      weekday: "short",
+    };
+    return d.toLocaleDateString(language === "ja" ? "ja-JP" : "zh-CN", options);
+  };
+  
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "in_progress":
+        return "bg-yellow-100 text-yellow-800";
+      case "completed":
+        return "bg-blue-100 text-blue-800";
+      case "converted":
+        return "bg-green-100 text-green-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+  
+  if (!user) {
+    return null;
+  }
+  
+  // Viewing history session detail
+  if (viewingHistorySession && historyMessages) {
+    const currentSession = chatHistory?.find(s => s.id === viewingHistorySession);
+    return (
+      <div className="min-h-screen bg-background">
+        {/* Header */}
+        <div className="sticky top-0 z-10 bg-background border-b">
+          <div className="container py-4 flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={handleBackFromHistory}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div>
+              <h1 className="text-xl font-bold flex items-center gap-2">
+                <History className="h-5 w-5 text-primary" />
+                {t.chatHistory}
+              </h1>
+              {currentSession && (
+                <p className="text-sm text-muted-foreground">
+                  {formatSessionDate(currentSession.reportDate)}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+        
+        <div className="container py-6 max-w-2xl mx-auto">
+          {isLoadingHistory ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {historyMessages.map((message: any) => (
+                <div
+                  key={message.id}
+                  className={`flex gap-3 ${message.role === "user" ? "flex-row-reverse" : ""}`}
+                >
+                  {/* Avatar */}
+                  <div
+                    className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                      message.role === "ai"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted"
+                    }`}
+                  >
+                    {message.role === "ai" ? (
+                      <Bot className="h-4 w-4" />
+                    ) : (
+                      <User className="h-4 w-4" />
+                    )}
+                  </div>
+                  
+                  {/* Message Bubble */}
+                  <div
+                    className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                      message.role === "ai"
+                        ? "bg-muted text-foreground rounded-tl-sm"
+                        : "bg-primary text-primary-foreground rounded-tr-sm"
+                    }`}
+                  >
+                    <p className="text-sm whitespace-pre-wrap">
+                      {message.role === "ai" ? cleanAiResponse(message.content) : message.content}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+  
+  // Show history list
+  if (showHistory && selectedStaffId) {
+    const selectedStaff = staffList?.find(s => s.id === selectedStaffId);
+    return (
+      <div className="min-h-screen bg-background">
+        {/* Header */}
+        <div className="sticky top-0 z-10 bg-background border-b">
+          <div className="container py-4 flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={handleBackToStaffSelection}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex-1">
+              <h1 className="text-xl font-bold flex items-center gap-2">
+                <History className="h-5 w-5 text-primary" />
+                {t.chatHistory}
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                {selectedStaff?.name}
+              </p>
+            </div>
+            <Button onClick={handleStartSession} disabled={isLoading}>
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Plus className="h-4 w-4 mr-2" />
+              )}
+              {t.newChat}
+            </Button>
+          </div>
+        </div>
+        
+        <div className="container py-6 max-w-2xl mx-auto">
+          {!chatHistory || chatHistory.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <History className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">{t.noHistory}</p>
+                <Button className="mt-4" onClick={handleStartSession} disabled={isLoading}>
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Plus className="h-4 w-4 mr-2" />
+                  )}
+                  {t.newChat}
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {chatHistory.map((session: ChatSession) => (
+                <Card 
+                  key={session.id} 
+                  className="cursor-pointer hover:bg-accent/50 transition-colors"
+                  onClick={() => handleSelectHistorySession(session)}
+                >
+                  <CardContent className="py-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                          <Calendar className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                          <p className="font-medium">{formatSessionDate(session.reportDate)}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(session.status)}`}>
+                              {t.status[session.status as keyof typeof t.status]}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className="min-h-screen bg-background">
@@ -435,18 +684,30 @@ export default function ChatReport() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <Button
-                    className="w-full"
-                    onClick={handleStartSession}
-                    disabled={!selectedStaffId || isLoading}
-                  >
-                    {isLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    ) : (
-                      <MessageSquare className="h-4 w-4 mr-2" />
-                    )}
-                    {t.startChat}
-                  </Button>
+                  
+                  <div className="flex gap-2">
+                    <Button
+                      className="flex-1"
+                      onClick={handleStartSession}
+                      disabled={!selectedStaffId || isLoading}
+                    >
+                      {isLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : (
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                      )}
+                      {t.startChat}
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      onClick={handleViewHistory}
+                      disabled={!selectedStaffId}
+                    >
+                      <History className="h-4 w-4 mr-2" />
+                      {t.viewHistory}
+                    </Button>
+                  </div>
                 </>
               ) : (
                 <p className="text-muted-foreground text-center py-4">{t.noStaff}</p>
