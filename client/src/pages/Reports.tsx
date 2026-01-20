@@ -26,7 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FileText, Plus, Search, X, Pencil, Trash2, Globe, Clock, AlertTriangle, CheckCircle, Link, Sparkles, Check, XCircle, RefreshCw, ThumbsUp, ThumbsDown, Bot, Loader2 } from "lucide-react";
+import { FileText, Plus, Search, X, Pencil, Trash2, Globe, Clock, AlertTriangle, CheckCircle, Link, Sparkles, Check, XCircle, RefreshCw, ThumbsUp, ThumbsDown, Bot, Loader2, MessageSquare } from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -665,10 +665,16 @@ export default function Reports() {
               <FileText className="h-5 w-5" />
               {t("reports.list")}
             </h2>
-            <Button onClick={() => setLocation("/reports/new")}>
-              <Plus className="h-4 w-4 mr-2" />
-              {t("reports.create")}
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setLocation("/reports/chat")}>
+                <MessageSquare className="h-4 w-4 mr-2" />
+                {t("reports.chatCreate")}
+              </Button>
+              <Button onClick={() => setLocation("/reports/new")}>
+                <Plus className="h-4 w-4 mr-2" />
+                {t("reports.create")}
+              </Button>
+            </div>
           </div>
 
           {/* Filters - WordPress style */}

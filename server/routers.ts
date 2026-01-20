@@ -114,6 +114,24 @@ import {
   getGoodLearningExamples,
   getBadLearningExamples,
   getAiFeedbackStats,
+  createChatReportSession,
+  getChatSessionById,
+  getTodayChatSession,
+  getChatSessionsByStaffId,
+  updateChatSessionStatus,
+  addChatMessage,
+  getMessagesBySessionId,
+  getUserMessagesFromSession,
+  getOrCreateStaffAiProfile,
+  updateStaffAiProfile,
+  incrementStaffChatCount,
+  updateStaffFeedbackCounts,
+  getQuestionTemplatesForDay,
+  getAllActiveQuestionTemplates,
+  createQuestionTemplate,
+  incrementQuestionUsage,
+  updateQuestionFeedback,
+  getRecentReportsByStaffId,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { authRouter } from "./auth";
@@ -2309,6 +2327,327 @@ ${input.reportContent}
     getStats: protectedProcedure.query(async () => {
       return await getAiFeedbackStats();
     }),
+  }),
+
+  // Chat Report Router (チャット形式の日報)
+  chatReport: router({
+    // Start or continue today's chat session
+    startSession: protectedProcedure
+      .input(z.object({ staffId: z.number() }))
+      .mutation(async ({ input }) => {
+        // Check if there's an existing session for today
+        const existingSession = await getTodayChatSession(input.staffId);
+        if (existingSession && existingSession.status !== "converted") {
+          // Return existing session with messages
+          const messages = await getMessagesBySessionId(existingSession.id);
+          return { session: existingSession, messages, isNew: false };
+        }
+
+        // Create new session
+        const session = await createChatReportSession({
+          staffId: input.staffId,
+          reportDate: new Date(),
+          status: "in_progress",
+        });
+
+        // Increment staff chat count
+        await incrementStaffChatCount(input.staffId);
+
+        // Get staff profile for personalization
+        const profile = await getOrCreateStaffAiProfile(input.staffId);
+
+        // Get recent reports for context
+        const recentReports = await getRecentReportsByStaffId(input.staffId, 3);
+
+        // Get pending followups
+        const pendingFollowups = await getFollowupsByStaffId(input.staffId);
+        const pendingItems = pendingFollowups.filter(f => f.followup.status === "pending");
+
+        // Generate personalized greeting
+        const dayOfWeek = new Date().getDay();
+        const dayNames = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"];
+        const dayNamesZh = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
+
+        let greetingContext = "";
+        if (pendingItems.length > 0) {
+          greetingContext += `\n未完了のフォローアップが${pendingItems.length}件あります。`;
+        }
+        if (recentReports.length > 0) {
+          const lastReport = recentReports[0];
+          if (lastReport.issues) {
+            greetingContext += `\n前回の課題: ${lastReport.issues.substring(0, 50)}...`;
+          }
+        }
+
+        // Generate greeting message using AI
+        const greetingPrompt = `あなたはLCJの日報アシスタントAIです。
+今日は${dayNames[dayOfWeek]}です。
+スタッフの日報入力をサポートしてください。
+
+コンテキスト:${greetingContext || "特になし"}
+
+以下のような挨拶と最初の質問を生成してください:
+1. 簡単な挨拶（曜日に応じた内容）
+2. 今日の業務について聞く質問
+
+50文字以内で、親しみやすいトーンで。`;
+
+        let greetingText = `こんにちは！今日は${dayNames[dayOfWeek]}ですね。今日はどんな業務をしましたか？`;
+        
+        try {
+          const response = await invokeLLM({
+            messages: [
+              { role: "system", content: "あなたは親しみやすい日報アシスタントです。短く簡潔に返答してください。" },
+              { role: "user", content: greetingPrompt },
+            ],
+          });
+          const content = response.choices[0]?.message?.content;
+          if (content && typeof content === "string") {
+            greetingText = content;
+          }
+        } catch (e) {
+          console.error("Greeting generation error:", e);
+        }
+
+        // Add greeting message
+        const greetingMessage = await addChatMessage({
+          sessionId: session.id,
+          role: "ai",
+          content: greetingText,
+          messageType: "greeting",
+          questionCategory: "work_content",
+        });
+
+        return { session, messages: [greetingMessage], isNew: true };
+      }),
+
+    // Send a message in the chat
+    sendMessage: protectedProcedure
+      .input(z.object({
+        sessionId: z.number(),
+        content: z.string().min(1),
+      }))
+      .mutation(async ({ input }) => {
+        // Save user message
+        const userMessage = await addChatMessage({
+          sessionId: input.sessionId,
+          role: "user",
+          content: input.content,
+          messageType: "answer",
+        });
+
+        // Get session info
+        const session = await getChatSessionById(input.sessionId);
+        if (!session) throw new Error("Session not found");
+
+        // Get all messages in session
+        const allMessages = await getMessagesBySessionId(input.sessionId);
+        
+        // Get staff profile
+        const profile = await getOrCreateStaffAiProfile(session.staffId);
+
+        // Get recent reports for context
+        const recentReports = await getRecentReportsByStaffId(session.staffId, 3);
+
+        // Get pending followups
+        const pendingFollowups = await getFollowupsByStaffId(session.staffId);
+        const pendingItems = pendingFollowups.filter(f => f.followup.status === "pending");
+
+        // Determine what to ask next based on conversation flow
+        const userMessages = allMessages.filter(m => m.role === "user");
+        const questionCount = userMessages.length;
+
+        // Build context for AI
+        let contextInfo = "";
+        if (pendingItems.length > 0) {
+          contextInfo += `\n未完了のフォローアップ: ${pendingItems.map(f => f.followup.extractedItem?.substring(0, 30)).join(", ")}`;
+        }
+        if (recentReports.length > 0 && recentReports[0].issues) {
+          contextInfo += `\n前回の課題: ${recentReports[0].issues.substring(0, 50)}`;
+        }
+
+        // Generate next question or summary based on conversation stage
+        let systemPrompt = "";
+        let userPrompt = "";
+
+        if (questionCount >= 3) {
+          // After 3+ messages, offer to summarize or ask if there's more
+          systemPrompt = `あなたはLCJの日報アシスタントAIです。
+会話の内容を確認し、追加で聞くべきことがあれば質問し、なければ日報をまとめる準備ができたことを伝えてください。
+
+これまでの会話:
+${allMessages.map(m => `${m.role === "ai" ? "AI" : "スタッフ"}: ${m.content}`).join("\n")}
+
+コンテキスト:${contextInfo || "特になし"}
+
+50文字以内で返答してください。`;
+          userPrompt = "次の質問または確認メッセージを生成してください。";
+        } else {
+          // Continue asking questions
+          const questionTopics = [
+            "work_content", // 業務内容
+            "issues",       // 気づき・課題
+            "followup",     // フォローアップ
+          ];
+          const currentTopic = questionTopics[questionCount] || "followup";
+
+          systemPrompt = `あなたはLCJの日報アシスタントAIです。
+スタッフの回答に対して、適切なフォローアップ質問をしてください。
+
+これまでの会話:
+${allMessages.map(m => `${m.role === "ai" ? "AI" : "スタッフ"}: ${m.content}`).join("\n")}
+
+コンテキスト:${contextInfo || "特になし"}
+
+次に聞くべきトピック: ${currentTopic === "work_content" ? "他の業務内容" : currentTopic === "issues" ? "気づきや課題" : "フォローアップが必要なこと"}
+
+質問は50文字以内で、親しみやすいトーンで。`;
+          userPrompt = "次の質問を生成してください。";
+        }
+
+        let aiResponseText = "他に何かありますか？";
+        try {
+          const response = await invokeLLM({
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+          });
+          const content = response.choices[0]?.message?.content;
+          if (content && typeof content === "string") {
+            aiResponseText = content;
+          }
+        } catch (e) {
+          console.error("AI response generation error:", e);
+        }
+
+        // Save AI response
+        const aiMessage = await addChatMessage({
+          sessionId: input.sessionId,
+          role: "ai",
+          content: aiResponseText,
+          messageType: questionCount >= 3 ? "summary_prompt" : "question",
+          questionCategory: questionCount >= 3 ? "summary" : ["work_content", "issues", "followup"][questionCount] || "followup",
+        });
+
+        return { userMessage, aiMessage };
+      }),
+
+    // Convert chat session to report
+    convertToReport: protectedProcedure
+      .input(z.object({ sessionId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const session = await getChatSessionById(input.sessionId);
+        if (!session) throw new Error("Session not found");
+
+        // Get all user messages
+        const userMessages = await getUserMessagesFromSession(input.sessionId);
+        const allMessages = await getMessagesBySessionId(input.sessionId);
+
+        // Use AI to summarize into report format
+        const conversationText = allMessages
+          .map(m => `${m.role === "ai" ? "AI" : "スタッフ"}: ${m.content}`)
+          .join("\n");
+
+        const summaryPrompt = `以下のチャット会話から日報を作成してください。
+
+会話内容:
+${conversationText}
+
+以下のJSON形式で返してください:
+{
+  "workContent": "業務内容（箇条書き）",
+  "issues": "気づき・課題・問題点"
+}
+
+日本語で、簡潔にまとめてください。`;
+
+        let workContent = userMessages.map(m => m.content).join("\n");
+        let issues = "";
+
+        try {
+          const response = await invokeLLM({
+            messages: [
+              { role: "system", content: "あなたは日報作成アシスタントです。会話内容を日報形式にまとめてください。" },
+              { role: "user", content: summaryPrompt },
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "report_summary",
+                strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    workContent: { type: "string", description: "業務内容" },
+                    issues: { type: "string", description: "気づき・課題" },
+                  },
+                  required: ["workContent", "issues"],
+                  additionalProperties: false,
+                },
+              },
+            },
+          });
+          const content = response.choices[0]?.message?.content;
+          if (content && typeof content === "string") {
+            const parsed = JSON.parse(content);
+            workContent = parsed.workContent || workContent;
+            issues = parsed.issues || "";
+          }
+        } catch (e) {
+          console.error("Report conversion error:", e);
+        }
+
+        // Create the report
+        const report = await createReport({
+          createdBy: ctx.user.id,
+          reportStaffId: session.staffId,
+          reportDate: session.reportDate,
+          workContent,
+          issues,
+        });
+
+        // Update session status
+        if (report) {
+          await updateChatSessionStatus(input.sessionId, "converted", report.id);
+        }
+
+        // Record activity log
+        await createActivityLog({
+          userId: ctx.user.id,
+          actionType: "report_create_chat",
+          actionLabel: "チャットで日報を作成",
+          targetType: "report",
+          targetId: report?.id,
+          metadata: { sessionId: input.sessionId },
+        });
+
+        return { success: true, report };
+      }),
+
+    // Get chat session by ID
+    getSession: protectedProcedure
+      .input(z.object({ sessionId: z.number() }))
+      .query(async ({ input }) => {
+        const session = await getChatSessionById(input.sessionId);
+        if (!session) return null;
+        const messages = await getMessagesBySessionId(input.sessionId);
+        return { session, messages };
+      }),
+
+    // Get staff's chat sessions
+    getSessionsByStaff: protectedProcedure
+      .input(z.object({ staffId: z.number(), limit: z.number().optional() }))
+      .query(async ({ input }) => {
+        return await getChatSessionsByStaffId(input.staffId, input.limit || 30);
+      }),
+
+    // Get staff AI profile
+    getStaffProfile: protectedProcedure
+      .input(z.object({ staffId: z.number() }))
+      .query(async ({ input }) => {
+        return await getOrCreateStaffAiProfile(input.staffId);
+      }),
   }),
 });
 

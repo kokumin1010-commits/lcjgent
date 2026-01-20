@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -1736,4 +1736,307 @@ export async function getAiFeedbackStats() {
     .from(aiAdviceFeedback);
   
   return result[0] || { totalFeedback: 0, goodCount: 0, badCount: 0 };
+}
+
+
+
+// ==========================================
+// Chat Report Session Functions
+// ==========================================
+
+// Create a new chat report session
+export async function createChatReportSession(data: InsertChatReportSession) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(chatReportSessions).values(data);
+  const insertId = Number(result[0].insertId);
+  return { id: insertId, ...data };
+}
+
+// Get chat session by ID
+export async function getChatSessionById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  
+  const result = await db
+    .select()
+    .from(chatReportSessions)
+    .where(eq(chatReportSessions.id, id))
+    .limit(1);
+  
+  return result.length > 0 ? result[0] : undefined;
+}
+
+// Get today's chat session for a staff
+export async function getTodayChatSession(staffId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  
+  const result = await db
+    .select()
+    .from(chatReportSessions)
+    .where(and(
+      eq(chatReportSessions.staffId, staffId),
+      sql`${chatReportSessions.reportDate} >= ${today}`,
+      sql`${chatReportSessions.reportDate} < ${tomorrow}`
+    ))
+    .orderBy(desc(chatReportSessions.createdAt))
+    .limit(1);
+  
+  return result.length > 0 ? result[0] : undefined;
+}
+
+// Get chat sessions by staff ID
+export async function getChatSessionsByStaffId(staffId: number, limit: number = 30) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(chatReportSessions)
+    .where(eq(chatReportSessions.staffId, staffId))
+    .orderBy(desc(chatReportSessions.reportDate))
+    .limit(limit);
+}
+
+// Update chat session status
+export async function updateChatSessionStatus(
+  id: number, 
+  status: "in_progress" | "completed" | "converted",
+  convertedReportId?: number
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const updateData: Record<string, unknown> = { status };
+  if (convertedReportId) {
+    updateData.convertedReportId = convertedReportId;
+  }
+  
+  await db.update(chatReportSessions).set(updateData).where(eq(chatReportSessions.id, id));
+}
+
+// ==========================================
+// Chat Report Message Functions
+// ==========================================
+
+// Add a message to chat session
+export async function addChatMessage(data: InsertChatReportMessage) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(chatReportMessages).values(data);
+  const insertId = Number(result[0].insertId);
+  return { id: insertId, ...data };
+}
+
+// Get messages by session ID
+export async function getMessagesBySessionId(sessionId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(chatReportMessages)
+    .where(eq(chatReportMessages.sessionId, sessionId))
+    .orderBy(asc(chatReportMessages.createdAt));
+}
+
+// Get user messages from session (for report conversion)
+export async function getUserMessagesFromSession(sessionId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(chatReportMessages)
+    .where(and(
+      eq(chatReportMessages.sessionId, sessionId),
+      eq(chatReportMessages.role, "user")
+    ))
+    .orderBy(asc(chatReportMessages.createdAt));
+}
+
+// ==========================================
+// Staff AI Profile Functions
+// ==========================================
+
+// Get or create staff AI profile
+export async function getOrCreateStaffAiProfile(staffId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Try to get existing profile
+  const existing = await db
+    .select()
+    .from(staffAiProfiles)
+    .where(eq(staffAiProfiles.staffId, staffId))
+    .limit(1);
+  
+  if (existing.length > 0) {
+    return existing[0];
+  }
+  
+  // Create new profile
+  const result = await db.insert(staffAiProfiles).values({
+    staffId,
+    preferredQuestionStyle: "simple",
+    strongAreas: [],
+    improvementAreas: [],
+    commonPatterns: {},
+    totalReports: 0,
+    totalChatSessions: 0,
+    avgResponseLength: 0,
+    goodFeedbackCount: 0,
+    badFeedbackCount: 0,
+  });
+  
+  const insertId = Number(result[0].insertId);
+  const newProfile = await db
+    .select()
+    .from(staffAiProfiles)
+    .where(eq(staffAiProfiles.id, insertId))
+    .limit(1);
+  
+  return newProfile[0];
+}
+
+// Update staff AI profile
+export async function updateStaffAiProfile(staffId: number, data: Partial<InsertStaffAiProfile>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(staffAiProfiles).set(data).where(eq(staffAiProfiles.staffId, staffId));
+}
+
+// Increment staff chat session count
+export async function incrementStaffChatCount(staffId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const profile = await getOrCreateStaffAiProfile(staffId);
+  await db.update(staffAiProfiles)
+    .set({ totalChatSessions: profile.totalChatSessions + 1 })
+    .where(eq(staffAiProfiles.staffId, staffId));
+}
+
+// Update staff feedback counts
+export async function updateStaffFeedbackCounts(staffId: number, isGood: boolean) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const profile = await getOrCreateStaffAiProfile(staffId);
+  if (isGood) {
+    await db.update(staffAiProfiles)
+      .set({ goodFeedbackCount: profile.goodFeedbackCount + 1 })
+      .where(eq(staffAiProfiles.staffId, staffId));
+  } else {
+    await db.update(staffAiProfiles)
+      .set({ badFeedbackCount: profile.badFeedbackCount + 1 })
+      .where(eq(staffAiProfiles.staffId, staffId));
+  }
+}
+
+// ==========================================
+// AI Question Template Functions
+// ==========================================
+
+// Get question templates for a specific day
+export async function getQuestionTemplatesForDay(dayOfWeek: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(aiQuestionTemplates)
+    .where(and(
+      eq(aiQuestionTemplates.isActive, true),
+      or(
+        eq(aiQuestionTemplates.dayOfWeek, dayOfWeek),
+        sql`${aiQuestionTemplates.dayOfWeek} IS NULL`
+      )
+    ))
+    .orderBy(desc(aiQuestionTemplates.priority));
+}
+
+// Get all active question templates
+export async function getAllActiveQuestionTemplates() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(aiQuestionTemplates)
+    .where(eq(aiQuestionTemplates.isActive, true))
+    .orderBy(desc(aiQuestionTemplates.priority));
+}
+
+// Create question template
+export async function createQuestionTemplate(data: InsertAiQuestionTemplate) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(aiQuestionTemplates).values(data);
+  return { id: Number(result[0].insertId), ...data };
+}
+
+// Update question template usage count
+export async function incrementQuestionUsage(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const template = await db
+    .select()
+    .from(aiQuestionTemplates)
+    .where(eq(aiQuestionTemplates.id, id))
+    .limit(1);
+  
+  if (template.length > 0) {
+    await db.update(aiQuestionTemplates)
+      .set({ usageCount: template[0].usageCount + 1 })
+      .where(eq(aiQuestionTemplates.id, id));
+  }
+}
+
+// Update question template feedback
+export async function updateQuestionFeedback(id: number, isGood: boolean) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const template = await db
+    .select()
+    .from(aiQuestionTemplates)
+    .where(eq(aiQuestionTemplates.id, id))
+    .limit(1);
+  
+  if (template.length > 0) {
+    if (isGood) {
+      await db.update(aiQuestionTemplates)
+        .set({ goodFeedbackCount: template[0].goodFeedbackCount + 1 })
+        .where(eq(aiQuestionTemplates.id, id));
+    } else {
+      await db.update(aiQuestionTemplates)
+        .set({ badFeedbackCount: template[0].badFeedbackCount + 1 })
+        .where(eq(aiQuestionTemplates.id, id));
+    }
+  }
+}
+
+// Get past reports for a staff (for context)
+export async function getRecentReportsByStaffId(staffId: number, limit: number = 5) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(reports)
+    .where(eq(reports.reportStaffId, staffId))
+    .orderBy(desc(reports.reportDate))
+    .limit(limit);
 }

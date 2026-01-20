@@ -155,6 +155,13 @@
       "when": 1768883447056,
       "tag": "0021_slow_angel",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "5",
+      "when": 1768884290078,
+      "tag": "0022_soft_ricochet",
+      "breakpoints": true
     }
   ]
 }

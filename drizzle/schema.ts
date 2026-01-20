@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, bigint, json } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, bigint, json, boolean } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -419,3 +419,90 @@ export const aiLearningExamples = mysqlTable("ai_learning_examples", {
 
 export type AiLearningExample = typeof aiLearningExamples.$inferSelect;
 export type InsertAiLearningExample = typeof aiLearningExamples.$inferInsert;
+
+
+/**
+ * Chat Report Sessions table for storing chat-based report sessions
+ * チャット形式の日報セッションを保存するテーブル
+ */
+export const chatReportSessions = mysqlTable("chat_report_sessions", {
+  id: int("id").autoincrement().primaryKey(),
+  staffId: int("staffId").notNull(), // References reportStaff.id
+  reportDate: timestamp("reportDate").notNull(), // 日報の日付
+  status: mysqlEnum("status", ["in_progress", "completed", "converted"]).default("in_progress").notNull(), // セッション状態
+  convertedReportId: int("convertedReportId"), // 変換後のreports.id（変換済みの場合）
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ChatReportSession = typeof chatReportSessions.$inferSelect;
+export type InsertChatReportSession = typeof chatReportSessions.$inferInsert;
+
+/**
+ * Chat Report Messages table for storing individual messages in chat sessions
+ * チャットセッション内の個別メッセージを保存するテーブル
+ */
+export const chatReportMessages = mysqlTable("chat_report_messages", {
+  id: int("id").autoincrement().primaryKey(),
+  sessionId: int("sessionId").notNull(), // References chatReportSessions.id
+  role: mysqlEnum("role", ["ai", "user"]).notNull(), // メッセージの送信者（AI or ユーザー）
+  content: text("content").notNull(), // メッセージ内容
+  messageType: varchar("messageType", { length: 100 }), // メッセージタイプ（例：greeting, question, answer, summary）
+  questionCategory: varchar("questionCategory", { length: 100 }), // 質問カテゴリ（例：work_content, issues, followup）
+  metadata: json("metadata").$type<Record<string, unknown>>(), // 追加情報
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ChatReportMessage = typeof chatReportMessages.$inferSelect;
+export type InsertChatReportMessage = typeof chatReportMessages.$inferInsert;
+
+/**
+ * Staff AI Profile table for storing personalized AI settings per staff
+ * スタッフごとのパーソナライズされたAI設定を保存するテーブル
+ */
+export const staffAiProfiles = mysqlTable("staff_ai_profiles", {
+  id: int("id").autoincrement().primaryKey(),
+  staffId: int("staffId").notNull().unique(), // References reportStaff.id
+  // 質問スタイルの好み
+  preferredQuestionStyle: mysqlEnum("preferredQuestionStyle", ["detailed", "simple", "free"]).default("simple"), // 詳細/シンプル/自由形式
+  // 学習データ
+  strongAreas: json("strongAreas").$type<string[]>(), // 得意分野（例：["イベント", "ライバー対応"]）
+  improvementAreas: json("improvementAreas").$type<string[]>(), // 改善が必要な分野
+  commonPatterns: json("commonPatterns").$type<Record<string, unknown>>(), // よく使うパターン・キーワード
+  // 統計
+  totalReports: int("totalReports").default(0).notNull(), // 総日報数
+  totalChatSessions: int("totalChatSessions").default(0).notNull(), // 総チャットセッション数
+  avgResponseLength: int("avgResponseLength").default(0), // 平均回答文字数
+  // フィードバック統計
+  goodFeedbackCount: int("goodFeedbackCount").default(0).notNull(), // 👍の数
+  badFeedbackCount: int("badFeedbackCount").default(0).notNull(), // 👎の数
+  // 最終更新
+  lastAnalyzedAt: timestamp("lastAnalyzedAt"), // 最後に分析した日時
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type StaffAiProfile = typeof staffAiProfiles.$inferSelect;
+export type InsertStaffAiProfile = typeof staffAiProfiles.$inferInsert;
+
+/**
+ * AI Question Templates table for storing question templates
+ * AI質問テンプレートを保存するテーブル
+ */
+export const aiQuestionTemplates = mysqlTable("ai_question_templates", {
+  id: int("id").autoincrement().primaryKey(),
+  category: varchar("category", { length: 100 }).notNull(), // カテゴリ（例：work_content, issues, followup, weekly_goal）
+  questionText: text("questionText").notNull(), // 質問文
+  questionTextZh: text("questionTextZh"), // 中国語版
+  dayOfWeek: int("dayOfWeek"), // 曜日（0=日曜, 1=月曜, ... 6=土曜）、nullは毎日
+  priority: int("priority").default(0).notNull(), // 優先度（高いほど優先）
+  isActive: boolean("isActive").default(true).notNull(), // 有効/無効
+  usageCount: int("usageCount").default(0).notNull(), // 使用回数
+  goodFeedbackCount: int("goodFeedbackCount").default(0).notNull(), // 👍の数
+  badFeedbackCount: int("badFeedbackCount").default(0).notNull(), // 👎の数
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AiQuestionTemplate = typeof aiQuestionTemplates.$inferSelect;
+export type InsertAiQuestionTemplate = typeof aiQuestionTemplates.$inferInsert;

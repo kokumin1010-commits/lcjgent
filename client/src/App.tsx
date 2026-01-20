@@ -22,6 +22,7 @@ import BrandList from "./pages/BrandList";
 import BrandForm from "./pages/BrandForm";
 import BrandDetail from "./pages/BrandDetail";
 import BusinessCards from "./pages/BusinessCards";
+import ChatReport from "./pages/ChatReport";
 
 function Router() {
   return (
@@ -80,6 +81,11 @@ function Router() {
       <Route path={"/reports/new"}>
         <DashboardLayout>
           <ReportForm />
+        </DashboardLayout>
+      </Route>
+      <Route path={"/reports/chat"}>
+        <DashboardLayout>
+          <ChatReport />
         </DashboardLayout>
       </Route>
       <Route path={"/reports/edit/:id"}>
