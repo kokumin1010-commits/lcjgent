@@ -2517,17 +2517,22 @@ ${greetingContext ? `コンテキスト: ${greetingContext}` : ""}
         const questionCount = userMessages.length;
 
         // Build context for AI (language based on staff country)
+        // Only include context info for the FIRST question, not subsequent ones
         let contextInfo = "";
-        if (pendingItems.length > 0) {
-          contextInfo += isChineseStaff
-            ? `\n待跟进事项: ${pendingItems.map(f => f.followup.extractedItem?.substring(0, 30)).join(", ")}`
-            : `\n未完了のフォローアップ: ${pendingItems.map(f => f.followup.extractedItem?.substring(0, 30)).join(", ")}`;
+        if (questionCount === 1) {
+          // Only on first response, mention pending items briefly
+          if (pendingItems.length > 0) {
+            contextInfo += isChineseStaff
+              ? `\n待跟进事项: ${pendingItems.map(f => f.followup.extractedItem?.substring(0, 30)).join(", ")}`
+              : `\n未完了のフォローアップ: ${pendingItems.map(f => f.followup.extractedItem?.substring(0, 30)).join(", ")}`;
+          }
+          if (recentReports.length > 0 && recentReports[0].issues) {
+            contextInfo += isChineseStaff
+              ? `\n上次的问题: ${recentReports[0].issues.substring(0, 50)}`
+              : `\n前回の課題: ${recentReports[0].issues.substring(0, 50)}`;
+          }
         }
-        if (recentReports.length > 0 && recentReports[0].issues) {
-          contextInfo += isChineseStaff
-            ? `\n上次的问题: ${recentReports[0].issues.substring(0, 50)}`
-            : `\n前回の課題: ${recentReports[0].issues.substring(0, 50)}`;
-        }
+        // After first question, focus on what user is actually talking about
 
         // Generate next question or summary based on conversation stage
         let systemPrompt = "";
@@ -2561,21 +2566,23 @@ ${contextInfo ? `コンテキスト: ${contextInfo}` : ""}
           const topicNameZh = currentTopic === "work_content" ? "其他工作内容" : currentTopic === "issues" ? "发现或问题" : "需要跟进的事项";
 
           systemPrompt = isChineseStaff
-            ? `你是日报助手。绝对禁止输出英文、思考过程、字数统计或标签。只输出纯中文问句。`
-            : `あなたは日報アシスタントです。絶対禁止: 英語、思考プロセス、文字数、タグは出力しないでください。純粋な日本語の質問文のみを出力してください。`;
+            ? `你是日报助手。绝对禁止输出英文、思考过程、字数统计或标签。只输出纯中文问句。
+重要：专注于用户最后一条消息的内容，不要反复询问之前已经讨论过的事项。`
+            : `あなたは日報アシスタントです。絶対禁止: 英語、思考プロセス、文字数、タグは出力しないでください。純粋な日本語の質問文のみを出力してください。
+重要: ユーザーの最新の回答内容に集中し、既に話した内容を繰り返し聴かないでください。`;
           userPrompt = isChineseStaff
             ? `之前的对话:
 ${allMessages.map(m => `${m.role === "ai" ? "AI" : "员工"}: ${m.content}`).join("\n")}
 ${contextInfo ? `上下文: ${contextInfo}` : ""}
 
-下一个要询问的主题: ${topicNameZh}
-请写一句跟进问题。`
+用户最后的回答是关于今天的工作。请根据用户的回答内容提问下一个问题，主题是: ${topicNameZh}
+不要重复询问之前已经讨论过的内容。`
             : `これまでの会話:
 ${allMessages.map(m => `${m.role === "ai" ? "AI" : "スタッフ"}: ${m.content}`).join("\n")}
 ${contextInfo ? `コンテキスト: ${contextInfo}` : ""}
 
-次に聞くべきトピック: ${topicNameJa}
-フォローアップ質問を一文で書いてください。`
+ユーザーの最新の回答は今日の業務についてです。ユーザーの回答内容に基づいて次の質問をしてください。トピック: ${topicNameJa}
+既に話した内容を繰り返し聴かないでください。`
         }
 
         // Helper function to clean AI response from thinking process
