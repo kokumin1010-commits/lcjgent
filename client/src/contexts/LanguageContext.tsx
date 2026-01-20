@@ -35,6 +35,7 @@ const jaTranslations: Record<string, string> = {
   "dashboard.noTasks": "タスクがありません",
   "dashboard.viewAll": "すべて表示",
   "dashboard.createTask": "新規タスク作成",
+  "dashboard.dailyReport": "デイリーレポートを作成",
   
   // Tasks
   "tasks.title": "タスク一覧",
@@ -309,6 +310,7 @@ const zhTranslations: Record<string, string> = {
   "dashboard.noTasks": "没有任务",
   "dashboard.viewAll": "查看全部",
   "dashboard.createTask": "创建新任务",
+  "dashboard.dailyReport": "创建日报",
   
   // Tasks
   "tasks.title": "任务列表",

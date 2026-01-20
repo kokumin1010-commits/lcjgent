@@ -1,6 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, ClipboardList, Clock, CheckCircle2, Users, Plus, AlertTriangle } from "lucide-react";
+import { Loader2, ClipboardList, Clock, CheckCircle2, Users, Plus, AlertTriangle, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -37,6 +37,16 @@ export default function Dashboard() {
           {t("dashboard.title")}
         </p>
       </div>
+
+      {/* Daily Report Button */}
+      <Button
+        size="lg"
+        className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-md"
+        onClick={() => setLocation("/reports/chat")}
+      >
+        <FileText className="h-5 w-5 mr-2" />
+        {t("dashboard.dailyReport")}
+      </Button>
 
       <div className="grid gap-4 grid-cols-2">
         <Card>
