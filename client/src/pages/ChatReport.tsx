@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-import { ArrowLeft, Send, Bot, User, CheckCircle, Loader2, MessageSquare } from "lucide-react";
+
+import { ArrowLeft, Send, Bot, User, CheckCircle, Loader2, MessageSquare, Mic, MicOff, Square } from "lucide-react";
 
 const translations = {
   ja: {
@@ -26,6 +27,12 @@ const translations = {
     newSession: "新しいチャットを開始",
     aiThinking: "AIが考え中...",
     todayDate: "今日の日報",
+    recording: "録音中...",
+    transcribing: "音声を変換中...",
+    voiceInputError: "音声入力に失敗しました",
+    micPermissionDenied: "マイクの使用が許可されていません",
+    startRecording: "音声入力を開始",
+    stopRecording: "録音を停止",
   },
   zh: {
     title: "通过聊天创建日报",
@@ -42,6 +49,12 @@ const translations = {
     newSession: "开始新聊天",
     aiThinking: "AI正在思考...",
     todayDate: "今天的日报",
+    recording: "录音中...",
+    transcribing: "正在转换语音...",
+    voiceInputError: "语音输入失败",
+    micPermissionDenied: "未授权使用麦克风",
+    startRecording: "开始语音输入",
+    stopRecording: "停止录音",
   },
 };
 
@@ -52,6 +65,40 @@ interface Message {
   messageType?: string | null;
   createdAt?: Date;
 }
+
+// Helper function to clean AI response from thinking process (client-side)
+const cleanAiResponse = (text: string): string => {
+  let cleaned = text;
+  
+  // Remove character count patterns
+  cleaned = cleaned.replace(/\s*\(\d+\s*characters?\)/gi, "");
+  
+  // Remove numbered thinking steps with headers
+  cleaned = cleaned.replace(/\d+\.\s*\*\*[^*]+\*\*:?[^\n]*\n?/g, "");
+  
+  // Remove markdown headers like **Review and Finalize:** or **Final Output Generation:**
+  cleaned = cleaned.replace(/\*\*[^*]+\*\*:?\s*/g, "");
+  
+  // Remove lines starting with thinking process indicators
+  cleaned = cleaned.replace(/^(Review|Finalize|Output|Generation|Self-correction|Meets|criteria)[^\n]*\n?/gim, "");
+  
+  // Remove parenthetical notes like (Self-correction: ...)
+  cleaned = cleaned.replace(/\([^)]*Self-correction[^)]*\)/gi, "");
+  cleaned = cleaned.replace(/\([^)]*criteria[^)]*\)/gi, "");
+  
+  // Clean up multiple newlines and trim
+  cleaned = cleaned.replace(/\n{2,}/g, "\n").trim();
+  
+  // If the cleaned result is too short, try to extract just the question
+  if (cleaned.length < 5) {
+    const questionMatch = text.match(/[^\.!\?\n]+[\?？]/g);
+    if (questionMatch && questionMatch.length > 0) {
+      cleaned = questionMatch[questionMatch.length - 1].trim();
+    }
+  }
+  
+  return cleaned;
+};
 
 export default function ChatReport() {
   const [, navigate] = useLocation();
@@ -69,6 +116,14 @@ export default function ChatReport() {
   const [isConverting, setIsConverting] = useState(false);
   const [isConverted, setIsConverted] = useState(false);
   
+  // Voice input states
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   
@@ -79,6 +134,7 @@ export default function ChatReport() {
   const startSessionMutation = trpc.chatReport.startSession.useMutation();
   const sendMessageMutation = trpc.chatReport.sendMessage.useMutation();
   const convertToReportMutation = trpc.chatReport.convertToReport.useMutation();
+  const transcribeVoiceMutation = trpc.chatReport.transcribeVoice.useMutation();
   
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -87,10 +143,22 @@ export default function ChatReport() {
   
   // Focus input after AI response
   useEffect(() => {
-    if (!isLoading && !isSending && inputRef.current) {
+    if (!isLoading && !isSending && !isRecording && inputRef.current) {
       inputRef.current.focus();
     }
-  }, [isLoading, isSending]);
+  }, [isLoading, isSending, isRecording]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+      }
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      }
+    };
+  }, []);
   
   const handleStartSession = async () => {
     if (!selectedStaffId) return;
@@ -99,10 +167,11 @@ export default function ChatReport() {
     try {
       const result = await startSessionMutation.mutateAsync({ staffId: selectedStaffId });
       setSessionId(result.session.id);
+      // Clean AI responses when loading messages
       setMessages(result.messages.map((m: any) => ({
         id: m.id,
         role: m.role as "ai" | "user",
-        content: m.content,
+        content: m.role === "ai" ? cleanAiResponse(m.content) : m.content,
         messageType: m.messageType,
         createdAt: m.createdAt,
       })));
@@ -140,7 +209,7 @@ export default function ChatReport() {
         content: userMessage,
       });
       
-      // Update with actual messages
+      // Update with actual messages (clean AI response)
       setMessages(prev => {
         const filtered = prev.filter(m => m.id !== tempUserMessage.id);
         return [
@@ -155,7 +224,7 @@ export default function ChatReport() {
           {
             id: result.aiMessage.id,
             role: "ai" as const,
-            content: result.aiMessage.content,
+            content: cleanAiResponse(result.aiMessage.content),
             messageType: result.aiMessage.messageType,
             createdAt: result.aiMessage.createdAt,
           },
@@ -198,6 +267,116 @@ export default function ChatReport() {
       e.preventDefault();
       handleSendMessage();
     }
+  };
+
+  // Voice input functions
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
+      });
+      
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+      
+      mediaRecorder.onstop = async () => {
+        // Stop all tracks
+        stream.getTracks().forEach(track => track.stop());
+        
+        // Clear timer
+        if (recordingTimerRef.current) {
+          clearInterval(recordingTimerRef.current);
+          recordingTimerRef.current = null;
+        }
+        
+        // Process audio
+        const audioBlob = new Blob(audioChunksRef.current, { 
+          type: mediaRecorder.mimeType 
+        });
+        
+        if (audioBlob.size > 0) {
+          await processAudio(audioBlob);
+        }
+        
+        setRecordingTime(0);
+      };
+      
+      mediaRecorder.start(1000); // Collect data every second
+      setIsRecording(true);
+      
+      // Start recording timer
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+      
+    } catch (error) {
+      console.error("Failed to start recording:", error);
+      alert(t.micPermissionDenied);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const processAudio = async (audioBlob: Blob) => {
+    setIsTranscribing(true);
+    
+    try {
+      // Upload audio to S3
+      const fileName = `voice-${Date.now()}.webm`;
+      const arrayBuffer = await audioBlob.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+      
+      // Use fetch to upload directly
+      const formData = new FormData();
+      formData.append('file', audioBlob, fileName);
+      
+      // Upload to storage using the API
+      const uploadResponse = await fetch('/api/upload-voice', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!uploadResponse.ok) {
+        throw new Error('Failed to upload audio');
+      }
+      
+      const { url: audioUrl } = await uploadResponse.json();
+      
+      // Transcribe the audio
+      const result = await transcribeVoiceMutation.mutateAsync({
+        audioUrl,
+        language: language === "zh" ? "zh" : "ja",
+      });
+      
+      if (result.text) {
+        // Set the transcribed text to input
+        setInputValue(prev => prev + (prev ? " " : "") + result.text);
+        inputRef.current?.focus();
+      }
+    } catch (error) {
+      console.error("Failed to process audio:", error);
+      alert(t.voiceInputError);
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
+
+  const formatRecordingTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
   
   // Format date
@@ -358,6 +537,22 @@ export default function ChatReport() {
                   )}
                 </Button>
               )}
+
+              {/* Recording Status */}
+              {isRecording && (
+                <div className="flex items-center justify-center gap-2 py-2 text-red-500">
+                  <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
+                  <span className="text-sm font-medium">{t.recording} {formatRecordingTime(recordingTime)}</span>
+                </div>
+              )}
+
+              {/* Transcribing Status */}
+              {isTranscribing && (
+                <div className="flex items-center justify-center gap-2 py-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm">{t.transcribing}</span>
+                </div>
+              )}
               
               {/* Message Input */}
               {!isConverted && (
@@ -368,12 +563,29 @@ export default function ChatReport() {
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyPress={handleKeyPress}
                     placeholder={t.placeholder}
-                    disabled={isSending}
+                    disabled={isSending || isRecording || isTranscribing}
                     className="flex-1"
                   />
+                  
+                  {/* Voice Input Button */}
+                  <Button
+                    variant={isRecording ? "destructive" : "outline"}
+                    size="icon"
+                    onClick={isRecording ? stopRecording : startRecording}
+                    disabled={isSending || isTranscribing}
+                    title={isRecording ? t.stopRecording : t.startRecording}
+                  >
+                    {isRecording ? (
+                      <Square className="h-4 w-4" />
+                    ) : (
+                      <Mic className="h-4 w-4" />
+                    )}
+                  </Button>
+                  
+                  {/* Send Button */}
                   <Button
                     onClick={handleSendMessage}
-                    disabled={!inputValue.trim() || isSending}
+                    disabled={!inputValue.trim() || isSending || isRecording || isTranscribing}
                     size="icon"
                   >
                     {isSending ? (

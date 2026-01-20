@@ -136,6 +136,31 @@ async function startServer() {
     }
   });
   
+  // Voice upload endpoint
+  const multer = await import("multer");
+  const upload = multer.default({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } });
+  const { storagePut } = await import("../storage");
+  const { nanoid } = await import("nanoid");
+  
+  app.post("/api/upload-voice", upload.single("file"), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+      
+      const file = req.file as Express.Multer.File;
+      const fileExtension = file.mimetype.includes("webm") ? "webm" : "mp4";
+      const fileName = `voice/${nanoid()}.${fileExtension}`;
+      
+      const result = await storagePut(fileName, file.buffer, file.mimetype);
+      
+      res.json({ url: result.url });
+    } catch (error) {
+      console.error("[Voice Upload] Error:", error);
+      res.status(500).json({ error: "Failed to upload voice file" });
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",

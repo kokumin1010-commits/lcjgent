@@ -138,6 +138,7 @@ import { authRouter } from "./auth";
 import { checkAndSendReminders } from "./reminderScheduler";
 import { completionRouter } from "./completion";
 import { sendReminderEmail } from "./emailService";
+import { transcribeAudio } from "./_core/voiceTranscription";
 
 export const appRouter = router({
   system: systemRouter,
@@ -2775,6 +2776,33 @@ ${conversationText}
       .input(z.object({ staffId: z.number() }))
       .query(async ({ input }) => {
         return await getOrCreateStaffAiProfile(input.staffId);
+      }),
+
+    // Transcribe voice to text
+    transcribeVoice: protectedProcedure
+      .input(z.object({
+        audioUrl: z.string(),
+        language: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const result = await transcribeAudio({
+          audioUrl: input.audioUrl,
+          language: input.language,
+          prompt: input.language === "zh" 
+            ? "请将用户的语音转化为文字，这是一份日报内容"
+            : "ユーザーの音声をテキストに変換してください。これは日報の内容です",
+        });
+
+        // Check if it's an error
+        if ("error" in result) {
+          throw new Error(result.error);
+        }
+
+        return {
+          text: result.text,
+          language: result.language,
+          duration: result.duration,
+        };
       }),
   }),
 });
