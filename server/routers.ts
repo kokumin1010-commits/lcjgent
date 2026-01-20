@@ -2356,6 +2356,10 @@ ${input.reportContent}
         // Get staff profile for personalization
         const profile = await getOrCreateStaffAiProfile(input.staffId);
 
+        // Get staff info to determine language
+        const staffInfo = await getReportStaffById(input.staffId);
+        const isChineseStaff = staffInfo?.country === "中国";
+
         // Get recent reports for context
         const recentReports = await getRecentReportsByStaffId(input.staffId, 3);
 
@@ -2367,21 +2371,38 @@ ${input.reportContent}
         const dayOfWeek = new Date().getDay();
         const dayNames = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"];
         const dayNamesZh = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
+        const currentDayName = isChineseStaff ? dayNamesZh[dayOfWeek] : dayNames[dayOfWeek];
 
         let greetingContext = "";
         if (pendingItems.length > 0) {
-          greetingContext += `\n未完了のフォローアップが${pendingItems.length}件あります。`;
+          greetingContext += isChineseStaff 
+            ? `\n您有${pendingItems.length}个待跟进事项未完成。`
+            : `\n未完了のフォローアップが${pendingItems.length}件あります。`;
         }
         if (recentReports.length > 0) {
           const lastReport = recentReports[0];
           if (lastReport.issues) {
-            greetingContext += `\n前回の課題: ${lastReport.issues.substring(0, 50)}...`;
+            greetingContext += isChineseStaff
+              ? `\n上次的问题: ${lastReport.issues.substring(0, 50)}...`
+              : `\n前回の課題: ${lastReport.issues.substring(0, 50)}...`;
           }
         }
 
-        // Generate greeting message using AI
-        const greetingPrompt = `あなたはLCJの日報アシスタントAIです。
-今日は${dayNames[dayOfWeek]}です。
+        // Generate greeting message using AI (language based on staff country)
+        const greetingPrompt = isChineseStaff
+          ? `你是LCJ的日报助手 AI。
+今天是${currentDayName}。
+请帮助员工填写日报。
+
+上下文:${greetingContext || "无"}
+
+请生成以下内容:
+1. 简单的问候（根据星期几调整内容）
+2. 询问今天的工作内容
+
+50字以内，语气亲切友好。`
+          : `あなたはLCJの日報アシスタントAIです。
+今日は${currentDayName}です。
 スタッフの日報入力をサポートしてください。
 
 コンテキスト:${greetingContext || "特になし"}
@@ -2392,12 +2413,17 @@ ${input.reportContent}
 
 50文字以内で、親しみやすいトーンで。`;
 
-        let greetingText = `こんにちは！今日は${dayNames[dayOfWeek]}ですね。今日はどんな業務をしましたか？`;
+        let greetingText = isChineseStaff
+          ? `你好！今天是${currentDayName}。今天做了什么工作？`
+          : `こんにちは！今日は${currentDayName}ですね。今日はどんな業務をしましたか？`;
         
         try {
+          const systemPrompt = isChineseStaff
+            ? "你是一个亲切友好的日报助手。请用中文简短回复。"
+            : "あなたは親しみやすい日報アシスタントです。短く簡潔に返答してください。";
           const response = await invokeLLM({
             messages: [
-              { role: "system", content: "あなたは親しみやすい日報アシスタントです。短く簡潔に返答してください。" },
+              { role: "system", content: systemPrompt },
               { role: "user", content: greetingPrompt },
             ],
           });
@@ -2446,6 +2472,10 @@ ${input.reportContent}
         // Get staff profile
         const profile = await getOrCreateStaffAiProfile(session.staffId);
 
+        // Get staff info to determine language
+        const staffInfo = await getReportStaffById(session.staffId);
+        const isChineseStaff = staffInfo?.country === "中国";
+
         // Get recent reports for context
         const recentReports = await getRecentReportsByStaffId(session.staffId, 3);
 
@@ -2457,13 +2487,17 @@ ${input.reportContent}
         const userMessages = allMessages.filter(m => m.role === "user");
         const questionCount = userMessages.length;
 
-        // Build context for AI
+        // Build context for AI (language based on staff country)
         let contextInfo = "";
         if (pendingItems.length > 0) {
-          contextInfo += `\n未完了のフォローアップ: ${pendingItems.map(f => f.followup.extractedItem?.substring(0, 30)).join(", ")}`;
+          contextInfo += isChineseStaff
+            ? `\n待跟进事项: ${pendingItems.map(f => f.followup.extractedItem?.substring(0, 30)).join(", ")}`
+            : `\n未完了のフォローアップ: ${pendingItems.map(f => f.followup.extractedItem?.substring(0, 30)).join(", ")}`;
         }
         if (recentReports.length > 0 && recentReports[0].issues) {
-          contextInfo += `\n前回の課題: ${recentReports[0].issues.substring(0, 50)}`;
+          contextInfo += isChineseStaff
+            ? `\n上次的问题: ${recentReports[0].issues.substring(0, 50)}`
+            : `\n前回の課題: ${recentReports[0].issues.substring(0, 50)}`;
         }
 
         // Generate next question or summary based on conversation stage
@@ -2472,7 +2506,17 @@ ${input.reportContent}
 
         if (questionCount >= 3) {
           // After 3+ messages, offer to summarize or ask if there's more
-          systemPrompt = `あなたはLCJの日報アシスタントAIです。
+          systemPrompt = isChineseStaff
+            ? `你是LCJ的日报助手 AI。
+请确认对话内容，如果还有需要询问的内容请提问，否则请告知可以开始整理日报了。
+
+之前的对话:
+${allMessages.map(m => `${m.role === "ai" ? "AI" : "员工"}: ${m.content}`).join("\n")}
+
+上下文:${contextInfo || "无"}
+
+请在50字以内回复。`
+            : `あなたはLCJの日報アシスタントAIです。
 会話の内容を確認し、追加で聞くべきことがあれば質問し、なければ日報をまとめる準備ができたことを伝えてください。
 
 これまでの会話:
@@ -2481,7 +2525,7 @@ ${allMessages.map(m => `${m.role === "ai" ? "AI" : "スタッフ"}: ${m.content}
 コンテキスト:${contextInfo || "特になし"}
 
 50文字以内で返答してください。`;
-          userPrompt = "次の質問または確認メッセージを生成してください。";
+          userPrompt = isChineseStaff ? "请生成下一个问题或确认消息。" : "次の質問または確認メッセージを生成してください。";
         } else {
           // Continue asking questions
           const questionTopics = [
@@ -2490,8 +2534,22 @@ ${allMessages.map(m => `${m.role === "ai" ? "AI" : "スタッフ"}: ${m.content}
             "followup",     // フォローアップ
           ];
           const currentTopic = questionTopics[questionCount] || "followup";
+          const topicNameJa = currentTopic === "work_content" ? "他の業務内容" : currentTopic === "issues" ? "気づきや課題" : "フォローアップが必要なこと";
+          const topicNameZh = currentTopic === "work_content" ? "其他工作内容" : currentTopic === "issues" ? "发现或问题" : "需要跟进的事项";
 
-          systemPrompt = `あなたはLCJの日報アシスタントAIです。
+          systemPrompt = isChineseStaff
+            ? `你是LCJ的日报助手 AI。
+请根据员工的回答，提出适当的跟进问题。
+
+之前的对话:
+${allMessages.map(m => `${m.role === "ai" ? "AI" : "员工"}: ${m.content}`).join("\n")}
+
+上下文:${contextInfo || "无"}
+
+下一个要询问的主题: ${topicNameZh}
+
+问题请在50字以内，语气亲切友好。`
+            : `あなたはLCJの日報アシスタントAIです。
 スタッフの回答に対して、適切なフォローアップ質問をしてください。
 
 これまでの会話:
@@ -2499,13 +2557,13 @@ ${allMessages.map(m => `${m.role === "ai" ? "AI" : "スタッフ"}: ${m.content}
 
 コンテキスト:${contextInfo || "特になし"}
 
-次に聞くべきトピック: ${currentTopic === "work_content" ? "他の業務内容" : currentTopic === "issues" ? "気づきや課題" : "フォローアップが必要なこと"}
+次に聞くべきトピック: ${topicNameJa}
 
 質問は50文字以内で、親しみやすいトーンで。`;
-          userPrompt = "次の質問を生成してください。";
+          userPrompt = isChineseStaff ? "请生成下一个问题。" : "次の質問を生成してください。";
         }
 
-        let aiResponseText = "他に何かありますか？";
+        let aiResponseText = isChineseStaff ? "还有其他的吗？" : "他に何かありますか？";
         try {
           const response = await invokeLLM({
             messages: [
@@ -2540,16 +2598,33 @@ ${allMessages.map(m => `${m.role === "ai" ? "AI" : "スタッフ"}: ${m.content}
         const session = await getChatSessionById(input.sessionId);
         if (!session) throw new Error("Session not found");
 
+        // Get staff info to determine language
+        const staffInfo = await getReportStaffById(session.staffId);
+        const isChineseStaff = staffInfo?.country === "中国";
+
         // Get all user messages
         const userMessages = await getUserMessagesFromSession(input.sessionId);
         const allMessages = await getMessagesBySessionId(input.sessionId);
 
-        // Use AI to summarize into report format
+        // Use AI to summarize into report format (language based on staff country)
         const conversationText = allMessages
-          .map(m => `${m.role === "ai" ? "AI" : "スタッフ"}: ${m.content}`)
+          .map(m => `${m.role === "ai" ? "AI" : (isChineseStaff ? "员工" : "スタッフ")}: ${m.content}`)
           .join("\n");
 
-        const summaryPrompt = `以下のチャット会話から日報を作成してください。
+        const summaryPrompt = isChineseStaff
+          ? `请根据以下聊天记录创建日报。
+
+对话内容:
+${conversationText}
+
+请以以下JSON格式返回:
+{
+  "workContent": "工作内容（列表形式）",
+  "issues": "发现・问题・课题"
+}
+
+请用中文简洁地整理。`
+          : `以下のチャット会話から日報を作成してください。
 
 会話内容:
 ${conversationText}
@@ -2566,9 +2641,12 @@ ${conversationText}
         let issues = "";
 
         try {
+          const systemPrompt = isChineseStaff
+            ? "你是日报创建助手。请将对话内容整理成日报格式。"
+            : "あなたは日報作成アシスタントです。会話内容を日報形式にまとめてください。";
           const response = await invokeLLM({
             messages: [
-              { role: "system", content: "あなたは日報作成アシスタントです。会話内容を日報形式にまとめてください。" },
+              { role: "system", content: systemPrompt },
               { role: "user", content: summaryPrompt },
             ],
             response_format: {
