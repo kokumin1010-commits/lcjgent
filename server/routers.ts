@@ -2409,6 +2409,42 @@ ${greetingContext ? `コンテキスト: ${greetingContext}` : ""}
           ? `你好！今天是${currentDayName}。今天做了什么工作？`
           : `こんにちは！今日は${currentDayName}ですね。今日はどんな業務をしましたか？`;
         
+        // Helper function to clean AI response from thinking process
+        const cleanAiResponse = (text: string): string => {
+          // Remove patterns like "(22 characters)", "**Review and Finalize:**", "**Final Output Generation:**"
+          let cleaned = text;
+          
+          // Remove character count patterns
+          cleaned = cleaned.replace(/\s*\(\d+\s*characters?\)/gi, "");
+          
+          // Remove numbered thinking steps with headers
+          cleaned = cleaned.replace(/\d+\.\s*\*\*[^*]+\*\*:?[^\n]*\n?/g, "");
+          
+          // Remove markdown headers like **Review and Finalize:** or **Final Output Generation:**
+          cleaned = cleaned.replace(/\*\*[^*]+\*\*:?\s*/g, "");
+          
+          // Remove lines starting with thinking process indicators
+          cleaned = cleaned.replace(/^(Review|Finalize|Output|Generation|Self-correction|Meets|criteria)[^\n]*\n?/gim, "");
+          
+          // Remove parenthetical notes like (Self-correction: ...)
+          cleaned = cleaned.replace(/\([^)]*Self-correction[^)]*\)/gi, "");
+          cleaned = cleaned.replace(/\([^)]*criteria[^)]*\)/gi, "");
+          
+          // Clean up multiple newlines and trim
+          cleaned = cleaned.replace(/\n{2,}/g, "\n").trim();
+          
+          // If the cleaned result is too short, try to extract just the question
+          if (cleaned.length < 5) {
+            // Try to find a question mark and extract the sentence
+            const questionMatch = text.match(/[^\.!\?\n]+[\?？]/g);
+            if (questionMatch && questionMatch.length > 0) {
+              cleaned = questionMatch[questionMatch.length - 1].trim();
+            }
+          }
+          
+          return cleaned;
+        };
+
         try {
           const systemPrompt = isChineseStaff
             ? "你是日报助手。只输出问句本身，不要包含任何解释、思考过程、字数统计或标签。"
@@ -2421,7 +2457,7 @@ ${greetingContext ? `コンテキスト: ${greetingContext}` : ""}
           });
           const content = response.choices[0]?.message?.content;
           if (content && typeof content === "string") {
-            greetingText = content;
+            greetingText = cleanAiResponse(content);
           }
         } catch (e) {
           console.error("Greeting generation error:", e);
@@ -2541,6 +2577,42 @@ ${contextInfo ? `コンテキスト: ${contextInfo}` : ""}
 フォローアップ質問を一文で書いてください。`
         }
 
+        // Helper function to clean AI response from thinking process
+        const cleanAiResponse = (text: string): string => {
+          // Remove patterns like "(22 characters)", "**Review and Finalize:**", "**Final Output Generation:**"
+          let cleaned = text;
+          
+          // Remove character count patterns
+          cleaned = cleaned.replace(/\s*\(\d+\s*characters?\)/gi, "");
+          
+          // Remove numbered thinking steps with headers
+          cleaned = cleaned.replace(/\d+\.\s*\*\*[^*]+\*\*:?[^\n]*\n?/g, "");
+          
+          // Remove markdown headers like **Review and Finalize:** or **Final Output Generation:**
+          cleaned = cleaned.replace(/\*\*[^*]+\*\*:?\s*/g, "");
+          
+          // Remove lines starting with thinking process indicators
+          cleaned = cleaned.replace(/^(Review|Finalize|Output|Generation|Self-correction|Meets|criteria)[^\n]*\n?/gim, "");
+          
+          // Remove parenthetical notes like (Self-correction: ...)
+          cleaned = cleaned.replace(/\([^)]*Self-correction[^)]*\)/gi, "");
+          cleaned = cleaned.replace(/\([^)]*criteria[^)]*\)/gi, "");
+          
+          // Clean up multiple newlines and trim
+          cleaned = cleaned.replace(/\n{2,}/g, "\n").trim();
+          
+          // If the cleaned result is too short, try to extract just the question
+          if (cleaned.length < 5) {
+            // Try to find a question mark and extract the sentence
+            const questionMatch = text.match(/[^\.!\?\n]+[\?？]/g);
+            if (questionMatch && questionMatch.length > 0) {
+              cleaned = questionMatch[questionMatch.length - 1].trim();
+            }
+          }
+          
+          return cleaned;
+        };
+
         let aiResponseText = isChineseStaff ? "还有其他的吗？" : "他に何かありますか？";
         try {
           const response = await invokeLLM({
@@ -2551,7 +2623,7 @@ ${contextInfo ? `コンテキスト: ${contextInfo}` : ""}
           });
           const content = response.choices[0]?.message?.content;
           if (content && typeof content === "string") {
-            aiResponseText = content;
+            aiResponseText = cleanAiResponse(content);
           }
         } catch (e) {
           console.error("AI response generation error:", e);
