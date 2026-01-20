@@ -136,6 +136,142 @@ async function startServer() {
     }
   });
   
+  // LINE Webhook endpoint
+  const lineModule = await import("../line");
+  const lineDb = await import("../db");
+  
+  // Process LINE event
+  async function processLineEvent(
+    event: any,
+    line: typeof lineModule,
+    db: typeof lineDb
+  ) {
+    console.log(`[LINE] Event type: ${event.type}, source: ${event.source.type}`);
+    
+    // Handle different event types
+    switch (event.type) {
+      case "message":
+        await handleLineMessage(event, line, db);
+        break;
+      case "join":
+        // Bot joined a group
+        if (event.source.groupId) {
+          const groupSummary = await line.getGroupSummary(event.source.groupId);
+          console.log(`[LINE] Joined group: ${groupSummary?.groupName}`);
+          // Save group to database
+          await db.createOrUpdateLineGroup({
+            lineGroupId: event.source.groupId,
+            groupName: groupSummary?.groupName || "Unknown",
+            pictureUrl: groupSummary?.pictureUrl,
+          });
+        }
+        break;
+      case "follow":
+        // User added bot as friend
+        if (event.source.userId) {
+          const profile = await line.getUserProfile(event.source.userId);
+          console.log(`[LINE] New follower: ${profile?.displayName}`);
+          // Save user to database
+          await db.createOrUpdateLineUser({
+            lineUserId: event.source.userId,
+            displayName: profile?.displayName,
+            pictureUrl: profile?.pictureUrl,
+            statusMessage: profile?.statusMessage,
+          });
+        }
+        break;
+      case "unfollow":
+        // User blocked bot
+        if (event.source.userId) {
+          console.log(`[LINE] User unfollowed: ${event.source.userId}`);
+          await db.updateLineUserBlocked(event.source.userId, true);
+        }
+        break;
+      case "leave":
+        // Bot left/removed from group
+        if (event.source.groupId) {
+          console.log(`[LINE] Left group: ${event.source.groupId}`);
+          await db.updateLineGroupActive(event.source.groupId, false);
+        }
+        break;
+    }
+  }
+  
+  // Handle LINE message
+  async function handleLineMessage(
+    event: any,
+    line: typeof lineModule,
+    db: typeof lineDb
+  ) {
+    if (!event.message || event.message.type !== "text") {
+      return; // Only handle text messages for now
+    }
+    
+    const text = event.message.text || "";
+    const userId = event.source.userId;
+    const groupId = event.source.groupId;
+    
+    // Save message to database
+    await db.saveLineMessage({
+      messageId: event.message.id,
+      sourceType: event.source.type,
+      lineUserId: userId,
+      lineGroupId: groupId,
+      messageType: event.message.type,
+      content: text,
+      direction: "incoming",
+      lineTimestamp: event.timestamp,
+    });
+    
+    // Update user's last message time
+    if (userId) {
+      await db.updateLineUserLastMessage(userId);
+    }
+    
+    // For now, just log the message
+    console.log(`[LINE] Message from ${userId || groupId}: ${text}`);
+    
+    // Simple echo response for testing (can be replaced with AI later)
+    if (event.replyToken) {
+      // Only reply if message starts with specific keywords
+      if (text.startsWith("/help") || text.startsWith("/ヘルプ")) {
+        await line.replyMessage(event.replyToken, [
+          {
+            type: "text",
+            text: "【LCJエージェント】\n\nご利用ありがとうございます。\n\nコマンド一覧：\n/help - ヘルプを表示\n/status - ステータス確認",
+          },
+        ]);
+      }
+    }
+  }
+  
+  // Use raw body for LINE signature verification
+  app.post("/api/line/webhook", express.raw({ type: "application/json" }), async (req, res) => {
+    try {
+      const signature = req.headers["x-line-signature"] as string;
+      const bodyString = req.body.toString();
+      
+      // Verify signature
+      if (!lineModule.verifyLineSignature(bodyString, signature)) {
+        console.error("[LINE Webhook] Invalid signature");
+        return res.status(401).json({ error: "Invalid signature" });
+      }
+      
+      const body = JSON.parse(bodyString) as { destination: string; events: any[] };
+      console.log("[LINE Webhook] Received events:", body.events.length);
+      
+      // Process each event
+      for (const event of body.events) {
+        await processLineEvent(event, lineModule, lineDb);
+      }
+      
+      res.status(200).json({ success: true });
+    } catch (error) {
+      console.error("[LINE Webhook] Error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+  
   // Voice upload endpoint
   const multer = await import("multer");
   const upload = multer.default({ storage: multer.memoryStorage(), limits: { fileSize: 16 * 1024 * 1024 } });

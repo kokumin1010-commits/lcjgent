@@ -22,6 +22,7 @@ const jaTranslations: Record<string, string> = {
   "nav.reportAnalysis": "AI分析",
   "nav.brands": "ブランド管理",
   "nav.businessCards": "名刺管理",
+  "nav.line": "LINE管理",
   "nav.logout": "ログアウト",
   
   // Dashboard
@@ -297,6 +298,7 @@ const zhTranslations: Record<string, string> = {
   "nav.reportAnalysis": "AI分析",
   "nav.brands": "品牌管理",
   "nav.businessCards": "名片管理",
+  "nav.line": "LINE管理",
   "nav.logout": "退出登录",
   
   // Dashboard

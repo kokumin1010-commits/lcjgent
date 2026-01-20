@@ -169,6 +169,13 @@
       "when": 1768896131679,
       "tag": "0023_slow_arachne",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1768948954988,
+      "tag": "0024_lumpy_lilith",
+      "breakpoints": true
     }
   ]
 }

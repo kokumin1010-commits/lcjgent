@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -2039,4 +2039,306 @@ export async function getRecentReportsByStaffId(staffId: number, limit: number =
     .where(eq(reports.reportStaffId, staffId))
     .orderBy(desc(reports.reportDate))
     .limit(limit);
+}
+
+
+// ============================================
+// LINE Bot Database Functions
+// ============================================
+
+// Create or update LINE user
+export async function createOrUpdateLineUser(data: {
+  lineUserId: string;
+  displayName?: string;
+  pictureUrl?: string;
+  statusMessage?: string;
+  brandId?: number;
+  staffId?: number;
+  liverId?: number;
+  userType?: "customer" | "staff" | "liver" | "unknown";
+}) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  // Check if user exists
+  const existing = await db
+    .select()
+    .from(lineUsers)
+    .where(eq(lineUsers.lineUserId, data.lineUserId))
+    .limit(1);
+  
+  if (existing.length > 0) {
+    // Update existing user
+    await db
+      .update(lineUsers)
+      .set({
+        displayName: data.displayName ?? existing[0].displayName,
+        pictureUrl: data.pictureUrl ?? existing[0].pictureUrl,
+        statusMessage: data.statusMessage ?? existing[0].statusMessage,
+        brandId: data.brandId ?? existing[0].brandId,
+        staffId: data.staffId ?? existing[0].staffId,
+        liverId: data.liverId ?? existing[0].liverId,
+        userType: data.userType ?? existing[0].userType,
+      })
+      .where(eq(lineUsers.lineUserId, data.lineUserId));
+    return existing[0];
+  } else {
+    // Create new user
+    const result = await db.insert(lineUsers).values({
+      lineUserId: data.lineUserId,
+      displayName: data.displayName,
+      pictureUrl: data.pictureUrl,
+      statusMessage: data.statusMessage,
+      brandId: data.brandId,
+      staffId: data.staffId,
+      liverId: data.liverId,
+      userType: data.userType ?? "unknown",
+    });
+    return { id: result[0].insertId, ...data };
+  }
+}
+
+// Update LINE user blocked status
+export async function updateLineUserBlocked(lineUserId: string, isBlocked: boolean) {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db
+    .update(lineUsers)
+    .set({ isBlocked })
+    .where(eq(lineUsers.lineUserId, lineUserId));
+}
+
+// Update LINE user last message time
+export async function updateLineUserLastMessage(lineUserId: string) {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db
+    .update(lineUsers)
+    .set({ lastMessageAt: new Date() })
+    .where(eq(lineUsers.lineUserId, lineUserId));
+}
+
+// Get LINE user by LINE user ID
+export async function getLineUserByLineId(lineUserId: string) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db
+    .select()
+    .from(lineUsers)
+    .where(eq(lineUsers.lineUserId, lineUserId))
+    .limit(1);
+  
+  return result[0] || null;
+}
+
+// Get all LINE users
+export async function getAllLineUsers() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(lineUsers)
+    .orderBy(desc(lineUsers.lastMessageAt));
+}
+
+// Create or update LINE group
+export async function createOrUpdateLineGroup(data: {
+  lineGroupId: string;
+  groupName?: string;
+  pictureUrl?: string;
+  brandId?: number;
+}) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  // Check if group exists
+  const existing = await db
+    .select()
+    .from(lineGroups)
+    .where(eq(lineGroups.lineGroupId, data.lineGroupId))
+    .limit(1);
+  
+  if (existing.length > 0) {
+    // Update existing group
+    await db
+      .update(lineGroups)
+      .set({
+        groupName: data.groupName ?? existing[0].groupName,
+        pictureUrl: data.pictureUrl ?? existing[0].pictureUrl,
+        brandId: data.brandId ?? existing[0].brandId,
+      })
+      .where(eq(lineGroups.lineGroupId, data.lineGroupId));
+    return existing[0];
+  } else {
+    // Create new group
+    const result = await db.insert(lineGroups).values({
+      lineGroupId: data.lineGroupId,
+      groupName: data.groupName,
+      pictureUrl: data.pictureUrl,
+      brandId: data.brandId,
+    });
+    return { id: result[0].insertId, ...data };
+  }
+}
+
+// Update LINE group active status
+export async function updateLineGroupActive(lineGroupId: string, isActive: boolean) {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db
+    .update(lineGroups)
+    .set({ isActive })
+    .where(eq(lineGroups.lineGroupId, lineGroupId));
+}
+
+// Get LINE group by LINE group ID
+export async function getLineGroupByLineId(lineGroupId: string) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db
+    .select()
+    .from(lineGroups)
+    .where(eq(lineGroups.lineGroupId, lineGroupId))
+    .limit(1);
+  
+  return result[0] || null;
+}
+
+// Get all LINE groups
+export async function getAllLineGroups() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(lineGroups)
+    .where(eq(lineGroups.isActive, true))
+    .orderBy(desc(lineGroups.lastMessageAt));
+}
+
+// Save LINE message
+export async function saveLineMessage(data: {
+  messageId: string;
+  sourceType: "user" | "group" | "room";
+  lineUserId?: string;
+  lineGroupId?: string;
+  messageType: string;
+  content?: string;
+  direction: "incoming" | "outgoing";
+  lineTimestamp?: number;
+}) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.insert(lineMessages).values({
+    messageId: data.messageId,
+    sourceType: data.sourceType,
+    lineUserId: data.lineUserId,
+    lineGroupId: data.lineGroupId,
+    messageType: data.messageType,
+    content: data.content,
+    direction: data.direction,
+    lineTimestamp: data.lineTimestamp,
+  });
+  
+  return { id: result[0].insertId, ...data };
+}
+
+// Get LINE messages for a user or group
+export async function getLineMessages(options: {
+  lineUserId?: string;
+  lineGroupId?: string;
+  limit?: number;
+}) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  let query = db.select().from(lineMessages);
+  
+  if (options.lineUserId) {
+    query = query.where(eq(lineMessages.lineUserId, options.lineUserId)) as typeof query;
+  } else if (options.lineGroupId) {
+    query = query.where(eq(lineMessages.lineGroupId, options.lineGroupId)) as typeof query;
+  }
+  
+  return await query
+    .orderBy(desc(lineMessages.createdAt))
+    .limit(options.limit || 50);
+}
+
+// Create LINE follow-up
+export async function createLineFollowUp(data: {
+  targetType: "user" | "group";
+  lineUserId?: string;
+  lineGroupId?: string;
+  triggerCondition: "no_reply" | "scheduled" | "event";
+  delayHours?: number;
+  maxAttempts?: number;
+  messageTemplate: string;
+  brandId?: number;
+  createdBy?: number;
+  nextScheduledAt?: Date;
+}) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.insert(lineFollowUps).values({
+    targetType: data.targetType,
+    lineUserId: data.lineUserId,
+    lineGroupId: data.lineGroupId,
+    triggerCondition: data.triggerCondition,
+    delayHours: data.delayHours ?? 72,
+    maxAttempts: data.maxAttempts ?? 3,
+    messageTemplate: data.messageTemplate,
+    brandId: data.brandId,
+    createdBy: data.createdBy,
+    nextScheduledAt: data.nextScheduledAt,
+  });
+  
+  return { id: result[0].insertId, ...data };
+}
+
+// Get active LINE follow-ups
+export async function getActiveLineFollowUps() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(lineFollowUps)
+    .where(eq(lineFollowUps.status, "active"))
+    .orderBy(lineFollowUps.nextScheduledAt);
+}
+
+// Update LINE follow-up status
+export async function updateLineFollowUpStatus(
+  id: number,
+  status: "active" | "completed" | "cancelled",
+  lastSentAt?: Date,
+  nextScheduledAt?: Date,
+  incrementAttempts?: boolean
+) {
+  const db = await getDb();
+  if (!db) return;
+  
+  const updateData: Record<string, unknown> = { status };
+  if (lastSentAt) updateData.lastSentAt = lastSentAt;
+  if (nextScheduledAt) updateData.nextScheduledAt = nextScheduledAt;
+  if (incrementAttempts) {
+    const current = await db.select().from(lineFollowUps).where(eq(lineFollowUps.id, id)).limit(1);
+    if (current.length > 0) {
+      updateData.currentAttempts = current[0].currentAttempts + 1;
+    }
+  }
+  
+  await db
+    .update(lineFollowUps)
+    .set(updateData)
+    .where(eq(lineFollowUps.id, id));
 }

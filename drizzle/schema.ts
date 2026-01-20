@@ -508,3 +508,108 @@ export const aiQuestionTemplates = mysqlTable("ai_question_templates", {
 
 export type AiQuestionTemplate = typeof aiQuestionTemplates.$inferSelect;
 export type InsertAiQuestionTemplate = typeof aiQuestionTemplates.$inferInsert;
+
+
+/**
+ * LINE Users table for storing LINE user information
+ * LINEユーザー情報を保存するテーブル
+ */
+export const lineUsers = mysqlTable("line_users", {
+  id: int("id").autoincrement().primaryKey(),
+  lineUserId: varchar("lineUserId", { length: 64 }).notNull().unique(), // LINE User ID
+  displayName: varchar("displayName", { length: 255 }), // LINE display name
+  pictureUrl: text("pictureUrl"), // Profile picture URL
+  statusMessage: text("statusMessage"), // Status message
+  // Link to internal entities
+  brandId: int("brandId"), // Link to brand (customer)
+  staffId: int("staffId"), // Link to staff (internal)
+  liverId: int("liverId"), // Link to liver (if applicable)
+  userType: mysqlEnum("userType", ["customer", "staff", "liver", "unknown"]).default("unknown").notNull(),
+  // Status
+  isBlocked: boolean("isBlocked").default(false).notNull(),
+  lastMessageAt: timestamp("lastMessageAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type LineUser = typeof lineUsers.$inferSelect;
+export type InsertLineUser = typeof lineUsers.$inferInsert;
+
+/**
+ * LINE Groups table for storing LINE group information
+ * LINEグループ情報を保存するテーブル
+ */
+export const lineGroups = mysqlTable("line_groups", {
+  id: int("id").autoincrement().primaryKey(),
+  lineGroupId: varchar("lineGroupId", { length: 64 }).notNull().unique(), // LINE Group ID
+  groupName: varchar("groupName", { length: 255 }), // Group name
+  pictureUrl: text("pictureUrl"), // Group picture URL
+  // Link to internal entities
+  brandId: int("brandId"), // Link to brand
+  // Settings
+  isActive: boolean("isActive").default(true).notNull(),
+  notificationsEnabled: boolean("notificationsEnabled").default(true).notNull(),
+  lastMessageAt: timestamp("lastMessageAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type LineGroup = typeof lineGroups.$inferSelect;
+export type InsertLineGroup = typeof lineGroups.$inferInsert;
+
+/**
+ * LINE Messages table for storing message history
+ * LINEメッセージ履歴を保存するテーブル
+ */
+export const lineMessages = mysqlTable("line_messages", {
+  id: int("id").autoincrement().primaryKey(),
+  messageId: varchar("messageId", { length: 64 }).notNull().unique(), // LINE Message ID
+  // Source
+  sourceType: mysqlEnum("sourceType", ["user", "group", "room"]).notNull(),
+  lineUserId: varchar("lineUserId", { length: 64 }), // Sender's LINE User ID
+  lineGroupId: varchar("lineGroupId", { length: 64 }), // Group ID (if group message)
+  // Message content
+  messageType: varchar("messageType", { length: 32 }).notNull(), // text, image, video, audio, file, sticker, etc.
+  content: text("content"), // Text content or description
+  // Direction
+  direction: mysqlEnum("direction", ["incoming", "outgoing"]).notNull(),
+  // Status
+  isRead: boolean("isRead").default(false).notNull(),
+  // Timestamps
+  lineTimestamp: bigint("lineTimestamp", { mode: "number" }), // LINE's timestamp
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type LineMessage = typeof lineMessages.$inferSelect;
+export type InsertLineMessage = typeof lineMessages.$inferInsert;
+
+/**
+ * LINE Follow-ups table for automated follow-up messages
+ * 自動フォローアップメッセージ設定テーブル
+ */
+export const lineFollowUps = mysqlTable("line_follow_ups", {
+  id: int("id").autoincrement().primaryKey(),
+  // Target
+  targetType: mysqlEnum("targetType", ["user", "group"]).notNull(),
+  lineUserId: varchar("lineUserId", { length: 64 }),
+  lineGroupId: varchar("lineGroupId", { length: 64 }),
+  // Follow-up settings
+  triggerCondition: mysqlEnum("triggerCondition", ["no_reply", "scheduled", "event"]).notNull(),
+  delayHours: int("delayHours").default(72).notNull(), // Hours to wait before follow-up
+  maxAttempts: int("maxAttempts").default(3).notNull(), // Maximum follow-up attempts
+  currentAttempts: int("currentAttempts").default(0).notNull(),
+  // Message
+  messageTemplate: text("messageTemplate").notNull(), // Follow-up message template
+  // Status
+  status: mysqlEnum("status", ["active", "completed", "cancelled"]).default("active").notNull(),
+  lastSentAt: timestamp("lastSentAt"),
+  nextScheduledAt: timestamp("nextScheduledAt"),
+  // Reference
+  brandId: int("brandId"), // Related brand
+  createdBy: int("createdBy"), // User who created this follow-up
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type LineFollowUp = typeof lineFollowUps.$inferSelect;
+export type InsertLineFollowUp = typeof lineFollowUps.$inferInsert;

@@ -132,7 +132,12 @@ import {
   incrementQuestionUsage,
   updateQuestionFeedback,
   getRecentReportsByStaffId,
+  getAllLineUsers,
+  getAllLineGroups,
+  getLineMessages,
+  saveLineMessage,
 } from "./db";
+import { pushMessage } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { authRouter } from "./auth";
 import { checkAndSendReminders } from "./reminderScheduler";
@@ -2820,6 +2825,60 @@ ${conversationText}
           language: result.language,
           duration: result.duration,
         };
+      }),
+  }),
+
+  // LINE Management Router
+  line: router({
+    listUsers: protectedProcedure.query(async () => {
+      return await getAllLineUsers();
+    }),
+
+    listGroups: protectedProcedure.query(async () => {
+      return await getAllLineGroups();
+    }),
+
+    listMessages: protectedProcedure
+      .input(
+        z.object({
+          lineUserId: z.string().optional(),
+          lineGroupId: z.string().optional(),
+          limit: z.number().optional().default(50),
+        })
+      )
+      .query(async ({ input }) => {
+        return await getLineMessages({
+          lineUserId: input.lineUserId,
+          lineGroupId: input.lineGroupId,
+          limit: input.limit,
+        });
+      }),
+
+    sendMessage: protectedProcedure
+      .input(
+        z.object({
+          to: z.string(),
+          message: z.string(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const success = await pushMessage(input.to, [
+          { type: "text", text: input.message },
+        ]);
+
+        if (success) {
+          // Save outgoing message to database
+          await saveLineMessage({
+            messageId: `out_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            sourceType: "user",
+            lineUserId: input.to,
+            messageType: "text",
+            content: input.message,
+            direction: "outgoing",
+          });
+        }
+
+        return { success };
       }),
   }),
 });

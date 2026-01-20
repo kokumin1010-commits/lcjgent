@@ -23,6 +23,7 @@ import BrandForm from "./pages/BrandForm";
 import BrandDetail from "./pages/BrandDetail";
 import BusinessCards from "./pages/BusinessCards";
 import ChatReport from "./pages/ChatReport";
+import LineManagement from "./pages/LineManagement";
 
 function Router() {
   return (
@@ -130,6 +131,11 @@ function Router() {
       <Route path={"/business-cards"}>
         <DashboardLayout>
           <BusinessCards />
+        </DashboardLayout>
+      </Route>
+      <Route path={"/line"}>
+        <DashboardLayout>
+          <LineManagement />
         </DashboardLayout>
       </Route>
       <Route path={"/404"} component={NotFound} />
