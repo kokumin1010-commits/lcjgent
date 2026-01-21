@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { MessageSquare, Users, Send, History, RefreshCw, Search, User, Building2, Calendar, Clock, Link2 } from "lucide-react";
+import { MessageSquare, Users, Send, History, RefreshCw, Search, User, Building2, Calendar, Clock, Link2, LogOut, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 
 type LineUser = {
@@ -38,6 +38,9 @@ export default function LineManagement() {
   const [selectedUserType, setSelectedUserType] = useState<string>("");
   const [messageText, setMessageText] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [showLeaveGroupDialog, setShowLeaveGroupDialog] = useState(false);
+  const [leavingGroupId, setLeavingGroupId] = useState<string | null>(null);
+  const [leavingGroupName, setLeavingGroupName] = useState<string>("");
 
   // Fetch LINE users
   const { data: lineUsers, isLoading: loadingUsers, refetch: refetchUsers } = trpc.line.listUsers.useQuery();
@@ -64,6 +67,19 @@ export default function LineManagement() {
     },
     onError: () => {
       toast.error(language === "ja" ? "送信に失敗しました" : "发送失败");
+    },
+  });
+
+  // Leave group mutation
+  const leaveGroupMutation = trpc.line.leaveGroup.useMutation({
+    onSuccess: () => {
+      toast.success(language === "ja" ? "グループを退会しました" : "已退出群组");
+      setShowLeaveGroupDialog(false);
+      setLeavingGroupId(null);
+      refetchGroups();
+    },
+    onError: () => {
+      toast.error(language === "ja" ? "退会に失敗しました" : "退出失败");
     },
   });
 
@@ -428,6 +444,18 @@ export default function LineManagement() {
                         <Send className="h-3 w-3 mr-1" />
                         {language === "ja" ? "グループに送信" : "发送到群组"}
                       </Button>
+                      <Button 
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => {
+                          setLeavingGroupId(group.lineGroupId);
+                          setLeavingGroupName(group.groupName || group.lineGroupId.slice(0, 8) + "...");
+                          setShowLeaveGroupDialog(true);
+                        }}
+                      >
+                        <LogOut className="h-3 w-3 mr-1" />
+                        {language === "ja" ? "退会" : "退出"}
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -631,6 +659,49 @@ export default function LineManagement() {
                 <>
                   <Link2 className="h-4 w-4 mr-2" />
                   {language === "ja" ? "保存" : "保存"}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Leave Group Confirmation Dialog */}
+      <Dialog open={showLeaveGroupDialog} onOpenChange={setShowLeaveGroupDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              {language === "ja" ? "グループ退会の確認" : "确认退出群组"}
+            </DialogTitle>
+            <DialogDescription>
+              {language === "ja" 
+                ? `「${leavingGroupName}」から退会しますか？この操作は取り消せません。再度参加するには、グループのメンバーから招待してもらう必要があります。`
+                : `确定要退出「${leavingGroupName}」吗？此操作无法撤销。如需重新加入，需要群组成员重新邀请。`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowLeaveGroupDialog(false)}>
+              {language === "ja" ? "キャンセル" : "取消"}
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={() => {
+                if (leavingGroupId) {
+                  leaveGroupMutation.mutate({ lineGroupId: leavingGroupId });
+                }
+              }}
+              disabled={leaveGroupMutation.isPending}
+            >
+              {leaveGroupMutation.isPending ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  {language === "ja" ? "退会中..." : "退出中..."}
+                </>
+              ) : (
+                <>
+                  <LogOut className="h-4 w-4 mr-2" />
+                  {language === "ja" ? "退会する" : "退出"}
                 </>
               )}
             </Button>

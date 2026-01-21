@@ -171,6 +171,30 @@ export async function getGroupSummary(
   }
 }
 
+// Leave group
+export async function leaveGroup(groupId: string): Promise<boolean> {
+  try {
+    const response = await fetch(
+      `https://api.line.me/v2/bot/group/${groupId}/leave`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${ENV.lineChannelAccessToken}`,
+        },
+      }
+    );
+    if (response.ok) {
+      console.log(`[LINE] Successfully left group: ${groupId}`);
+      return true;
+    }
+    console.error(`[LINE] Failed to leave group: ${response.status}`);
+    return false;
+  } catch (error) {
+    console.error("[LINE] Leave group error:", error);
+    return false;
+  }
+}
+
 // Get bot info
 export async function getBotInfo(): Promise<{
   userId: string;

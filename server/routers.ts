@@ -141,10 +141,10 @@ import {
   updateLineFollowUpStatus,
   getAllLineFollowUps,
 } from "./db";
-import { pushMessage } from "./line";
+import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
-import { lineUsers, brands } from "../drizzle/schema";
+import { lineUsers, brands, lineGroups } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { authRouter } from "./auth";
@@ -2994,6 +2994,27 @@ ${conversationText}
       .mutation(async ({ input }) => {
         await updateLineFollowUpStatus(input.id, "cancelled");
         return { success: true };
+      }),
+
+    // Leave a LINE group
+    leaveGroup: protectedProcedure
+      .input(z.object({ lineGroupId: z.string() }))
+      .mutation(async ({ input }) => {
+        // Call LINE API to leave the group
+        const success = await leaveGroup(input.lineGroupId);
+        
+        if (success) {
+          // Update database to mark group as inactive
+          const db = await getDb();
+          if (db) {
+            await db
+              .update(lineGroups)
+              .set({ isActive: false })
+              .where(eq(lineGroups.lineGroupId, input.lineGroupId));
+          }
+        }
+        
+        return { success };
       }),
   }),
 });
