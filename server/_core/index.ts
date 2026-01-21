@@ -197,7 +197,7 @@ async function startServer() {
     }
   }
   
-  // Handle LINE message
+  // Handle LINE message with AI Agent
   async function handleLineMessage(
     event: any,
     line: typeof lineModule,
@@ -207,42 +207,9 @@ async function startServer() {
       return; // Only handle text messages for now
     }
     
-    const text = event.message.text || "";
-    const userId = event.source.userId;
-    const groupId = event.source.groupId;
-    
-    // Save message to database
-    await db.saveLineMessage({
-      messageId: event.message.id,
-      sourceType: event.source.type,
-      lineUserId: userId,
-      lineGroupId: groupId,
-      messageType: event.message.type,
-      content: text,
-      direction: "incoming",
-      lineTimestamp: event.timestamp,
-    });
-    
-    // Update user's last message time
-    if (userId) {
-      await db.updateLineUserLastMessage(userId);
-    }
-    
-    // For now, just log the message
-    console.log(`[LINE] Message from ${userId || groupId}: ${text}`);
-    
-    // Simple echo response for testing (can be replaced with AI later)
-    if (event.replyToken) {
-      // Only reply if message starts with specific keywords
-      if (text.startsWith("/help") || text.startsWith("/ヘルプ")) {
-        await line.replyMessage(event.replyToken, [
-          {
-            type: "text",
-            text: "【LCJエージェント】\n\nご利用ありがとうございます。\n\nコマンド一覧：\n/help - ヘルプを表示\n/status - ステータス確認",
-          },
-        ]);
-      }
-    }
+    // Use AI Agent to process the message
+    const { processLineMessage } = await import("../lineAgent");
+    await processLineMessage(event);
   }
   
   // Use raw body for LINE signature verification
