@@ -216,12 +216,36 @@ async function startServer() {
   app.post("/api/line/webhook", express.raw({ type: "application/json" }), async (req, res) => {
     try {
       const signature = req.headers["x-line-signature"] as string;
-      const bodyString = req.body.toString();
-      const body = JSON.parse(bodyString) as { destination: string; events: any[] };
+      
+      // Handle both Buffer and string body
+      let bodyString: string;
+      if (Buffer.isBuffer(req.body)) {
+        bodyString = req.body.toString("utf8");
+      } else if (typeof req.body === "string") {
+        bodyString = req.body;
+      } else if (typeof req.body === "object") {
+        bodyString = JSON.stringify(req.body);
+      } else {
+        bodyString = String(req.body);
+      }
+      
+      // Handle empty body
+      if (!bodyString || bodyString === "undefined") {
+        console.log("[LINE Webhook] Empty body received");
+        return res.status(200).json({ success: true });
+      }
+      
+      let body: { destination?: string; events: any[] };
+      try {
+        body = JSON.parse(bodyString);
+      } catch (parseError) {
+        console.error("[LINE Webhook] JSON parse error:", parseError, "Body:", bodyString.substring(0, 100));
+        return res.status(200).json({ success: true }); // Return 200 for malformed requests
+      }
       
       // For LINE Verify requests (empty events array), skip signature verification
       // This allows the Verify button in LINE Developers Console to work
-      if (body.events && body.events.length === 0) {
+      if (!body.events || body.events.length === 0) {
         console.log("[LINE Webhook] Verify request received (empty events)");
         return res.status(200).json({ success: true });
       }
