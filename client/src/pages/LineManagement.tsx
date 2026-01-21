@@ -48,6 +48,9 @@ export default function LineManagement() {
   const [autoFollowUpEnabled, setAutoFollowUpEnabled] = useState(false);
   const [autoFollowUpDays, setAutoFollowUpDays] = useState("2");
   const [autoFollowUpMessage, setAutoFollowUpMessage] = useState("");
+  const [showGroupDetailDialog, setShowGroupDetailDialog] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState<any>(null);
+  const [groupMessageText, setGroupMessageText] = useState("");
 
   // Fetch LINE users
   const { data: lineUsers, isLoading: loadingUsers, refetch: refetchUsers } = trpc.line.listUsers.useQuery();
@@ -63,6 +66,12 @@ export default function LineManagement() {
 
   // Fetch brands for linking
   const { data: brands } = trpc.brand.list.useQuery();
+
+  // Fetch messages for selected group
+  const { data: groupMessages, isLoading: loadingGroupMessages, refetch: refetchGroupMessages } = trpc.line.listMessages.useQuery(
+    { lineGroupId: selectedGroup?.lineGroupId, limit: 100 },
+    { enabled: !!selectedGroup?.lineGroupId }
+  );
 
   // Send message mutation
   const sendMessageMutation = trpc.line.sendMessage.useMutation({
@@ -414,7 +423,14 @@ export default function LineManagement() {
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {filteredGroups?.map((group) => (
-                <Card key={group.id}>
+                <Card 
+                  key={group.id} 
+                  className="cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => {
+                    setSelectedGroup(group);
+                    setShowGroupDetailDialog(true);
+                  }}
+                >
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -473,7 +489,8 @@ export default function LineManagement() {
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Button 
                         size="sm"
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setSelectedUser(group.lineGroupId);
                           setShowMessageDialog(true);
                         }}
@@ -484,7 +501,8 @@ export default function LineManagement() {
                       <Button 
                         size="sm"
                         variant="outline"
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setEditingGroup(group);
                           setAutoFollowUpEnabled(group.autoFollowUpEnabled || false);
                           setAutoFollowUpDays(String(group.autoFollowUpDays || 2));
@@ -498,7 +516,8 @@ export default function LineManagement() {
                       <Button 
                         size="sm"
                         variant="destructive"
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setLeavingGroupId(group.lineGroupId);
                           setLeavingGroupName(group.groupName || group.lineGroupId.slice(0, 8) + "...");
                           setShowLeaveGroupDialog(true);
@@ -819,6 +838,160 @@ export default function LineManagement() {
                   {language === "ja" ? "保存" : "保存"}
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Group Detail Dialog */}
+      <Dialog open={showGroupDetailDialog} onOpenChange={setShowGroupDetailDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              {selectedGroup?.pictureUrl ? (
+                <img 
+                  src={selectedGroup.pictureUrl} 
+                  alt={selectedGroup.groupName || "Group"} 
+                  className="w-10 h-10 rounded-full"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                  <Building2 className="h-5 w-5 text-muted-foreground" />
+                </div>
+              )}
+              <div>
+                <div>{selectedGroup?.groupName || selectedGroup?.lineGroupId?.slice(0, 8) + "..."}</div>
+                <div className="text-sm font-normal text-muted-foreground flex items-center gap-2">
+                  {selectedGroup?.autoFollowUpEnabled ? (
+                    <><Bell className="h-3 w-3 text-green-500" />
+                    <span className="text-green-600">
+                      {language === "ja" ? `自動追い: ${selectedGroup?.autoFollowUpDays || 2}日後` : `自动跟进: ${selectedGroup?.autoFollowUpDays || 2}天后`}
+                    </span></>
+                  ) : (
+                    <><BellOff className="h-3 w-3" />
+                    <span>{language === "ja" ? "自動追い: 無効" : "自动跟进: 关闭"}</span></>
+                  )}
+                </div>
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+          
+          {/* Messages Section */}
+          <div className="flex-1 overflow-y-auto border rounded-lg p-4 bg-muted/30 min-h-[300px] max-h-[400px]">
+            {loadingGroupMessages ? (
+              <div className="flex items-center justify-center h-full">
+                <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : groupMessages && groupMessages.length > 0 ? (
+              <div className="space-y-3">
+                {[...groupMessages].reverse().map((msg) => (
+                  <div 
+                    key={msg.id} 
+                    className={`flex ${msg.direction === 'outgoing' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div className={`max-w-[70%] rounded-lg px-3 py-2 ${
+                      msg.direction === 'outgoing' 
+                        ? 'bg-primary text-primary-foreground' 
+                        : 'bg-background border'
+                    }`}>
+                      {msg.direction === 'incoming' && (
+                        <div className="text-xs text-muted-foreground mb-1 font-medium">
+                          {msg.lineUserId?.slice(0, 8) || 'Unknown'}
+                        </div>
+                      )}
+                      <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
+                      <div className={`text-xs mt-1 ${
+                        msg.direction === 'outgoing' ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                      }`}>
+                        {format(new Date(msg.createdAt), "MM/dd HH:mm")}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                <MessageSquare className="h-8 w-8 mr-2" />
+                {language === "ja" ? "メッセージがありません" : "暂无消息"}
+              </div>
+            )}
+          </div>
+
+          {/* Message Input */}
+          <div className="flex gap-2 mt-4">
+            <Textarea
+              value={groupMessageText}
+              onChange={(e) => setGroupMessageText(e.target.value)}
+              placeholder={language === "ja" ? "メッセージを入力..." : "输入消息..."}
+              className="flex-1 min-h-[60px] max-h-[100px]"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  if (groupMessageText.trim() && selectedGroup?.lineGroupId) {
+                    sendMessageMutation.mutate(
+                      { to: selectedGroup.lineGroupId, message: groupMessageText.trim() },
+                      {
+                        onSuccess: () => {
+                          setGroupMessageText("");
+                          refetchGroupMessages();
+                        }
+                      }
+                    );
+                  }
+                }
+              }}
+            />
+            <Button
+              onClick={() => {
+                if (groupMessageText.trim() && selectedGroup?.lineGroupId) {
+                  sendMessageMutation.mutate(
+                    { to: selectedGroup.lineGroupId, message: groupMessageText.trim() },
+                    {
+                      onSuccess: () => {
+                        setGroupMessageText("");
+                        refetchGroupMessages();
+                      }
+                    }
+                  );
+                }
+              }}
+              disabled={!groupMessageText.trim() || sendMessageMutation.isPending}
+            >
+              {sendMessageMutation.isPending ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+
+          {/* Action Buttons */}
+          <DialogFooter className="mt-4 flex-wrap gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditingGroup(selectedGroup);
+                setAutoFollowUpEnabled(selectedGroup?.autoFollowUpEnabled || false);
+                setAutoFollowUpDays(String(selectedGroup?.autoFollowUpDays || 2));
+                setAutoFollowUpMessage(selectedGroup?.autoFollowUpMessage || "");
+                setShowGroupDetailDialog(false);
+                setShowAutoFollowUpDialog(true);
+              }}
+            >
+              <Settings className="h-4 w-4 mr-2" />
+              {language === "ja" ? "自動追い設定" : "自动跟进设置"}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setLeavingGroupId(selectedGroup?.lineGroupId);
+                setLeavingGroupName(selectedGroup?.groupName || selectedGroup?.lineGroupId?.slice(0, 8) + "...");
+                setShowGroupDetailDialog(false);
+                setShowLeaveGroupDialog(true);
+              }}
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              {language === "ja" ? "グループ退会" : "退出群组"}
             </Button>
           </DialogFooter>
         </DialogContent>
