@@ -549,6 +549,11 @@ export const lineGroups = mysqlTable("line_groups", {
   // Settings
   isActive: boolean("isActive").default(true).notNull(),
   notificationsEnabled: boolean("notificationsEnabled").default(true).notNull(),
+  // Auto follow-up settings
+  autoFollowUpEnabled: boolean("autoFollowUpEnabled").default(false).notNull(), // Enable auto follow-up
+  autoFollowUpDays: int("autoFollowUpDays").default(2), // Days of inactivity before sending follow-up (default: 2 days)
+  autoFollowUpMessage: text("autoFollowUpMessage"), // Custom follow-up message template
+  lastAutoFollowUpAt: timestamp("lastAutoFollowUpAt"), // Last auto follow-up sent timestamp
   lastMessageAt: timestamp("lastMessageAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

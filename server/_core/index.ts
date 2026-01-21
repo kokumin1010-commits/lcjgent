@@ -10,6 +10,7 @@ import { serveStatic, setupVite } from "./vite";
 import { getTaskByCompletionToken, updateTask } from "../db";
 import { notifyOwner } from "./notification";
 import { checkAndSendReminders } from "../reminderScheduler";
+import { startGroupFollowUpScheduler } from "../groupFollowUpScheduler";
 import { trackingRouter } from "../tracking";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -330,6 +331,9 @@ async function startServer() {
         console.error("[Reminder Scheduler] Error during scheduled run:", error);
       });
     }, TWELVE_HOURS);
+    
+    // Start group follow-up scheduler (checks for inactive groups every 6 hours)
+    startGroupFollowUpScheduler();
   });
 }
 

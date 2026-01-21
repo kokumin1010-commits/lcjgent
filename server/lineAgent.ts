@@ -10,6 +10,7 @@ import {
   getTasksByStatus,
   getAllBrands,
   createOrUpdateLineGroup,
+  updateGroupLastMessageAt,
 } from "./db";
 
 // System prompt for the LINE AI Agent
@@ -264,6 +265,11 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
     
     // Update last message timestamp
     await updateLineUserLastMessage(userId);
+    
+    // Update group last message timestamp (for auto follow-up tracking)
+    if (groupId) {
+      await updateGroupLastMessageAt(groupId);
+    }
     
     // For group chats, only respond if mentioned
     if (isGroupChat) {

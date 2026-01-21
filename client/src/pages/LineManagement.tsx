@@ -10,7 +10,9 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { MessageSquare, Users, Send, History, RefreshCw, Search, User, Building2, Calendar, Clock, Link2, LogOut, AlertTriangle } from "lucide-react";
+import { MessageSquare, Users, Send, History, RefreshCw, Search, User, Building2, Calendar, Clock, Link2, LogOut, AlertTriangle, Settings, Bell, BellOff } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 
 type LineUser = {
@@ -41,6 +43,11 @@ export default function LineManagement() {
   const [showLeaveGroupDialog, setShowLeaveGroupDialog] = useState(false);
   const [leavingGroupId, setLeavingGroupId] = useState<string | null>(null);
   const [leavingGroupName, setLeavingGroupName] = useState<string>("");
+  const [showAutoFollowUpDialog, setShowAutoFollowUpDialog] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<any>(null);
+  const [autoFollowUpEnabled, setAutoFollowUpEnabled] = useState(false);
+  const [autoFollowUpDays, setAutoFollowUpDays] = useState("2");
+  const [autoFollowUpMessage, setAutoFollowUpMessage] = useState("");
 
   // Fetch LINE users
   const { data: lineUsers, isLoading: loadingUsers, refetch: refetchUsers } = trpc.line.listUsers.useQuery();
@@ -80,6 +87,19 @@ export default function LineManagement() {
     },
     onError: () => {
       toast.error(language === "ja" ? "退会に失敗しました" : "退出失败");
+    },
+  });
+
+  // Auto follow-up mutation
+  const autoFollowUpMutation = trpc.line.updateGroupAutoFollowUp.useMutation({
+    onSuccess: () => {
+      toast.success(language === "ja" ? "自動フォローアップ設定を更新しました" : "自动跟进设置已更新");
+      setShowAutoFollowUpDialog(false);
+      setEditingGroup(null);
+      refetchGroups();
+    },
+    onError: () => {
+      toast.error(language === "ja" ? "設定の更新に失敗しました" : "设置更新失败");
     },
   });
 
@@ -432,8 +452,25 @@ export default function LineManagement() {
                         {language === "ja" ? "登録: " : "注册: "}
                         {format(new Date(group.createdAt), "yyyy/MM/dd")}
                       </div>
+                      <div className="flex items-center gap-2">
+                        {group.autoFollowUpEnabled ? (
+                          <>
+                            <Bell className="h-3 w-3 text-green-500" />
+                            <span className="text-green-600">
+                              {language === "ja" 
+                                ? `自動追いメッセージ: ${group.autoFollowUpDays || 2}日後` 
+                                : `自动跟进: ${group.autoFollowUpDays || 2}天后`}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <BellOff className="h-3 w-3" />
+                            <span>{language === "ja" ? "自動追いメッセージ: 無効" : "自动跟进: 关闭"}</span>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <div className="mt-3 flex gap-2">
+                    <div className="mt-3 flex flex-wrap gap-2">
                       <Button 
                         size="sm"
                         onClick={() => {
@@ -443,6 +480,20 @@ export default function LineManagement() {
                       >
                         <Send className="h-3 w-3 mr-1" />
                         {language === "ja" ? "グループに送信" : "发送到群组"}
+                      </Button>
+                      <Button 
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setEditingGroup(group);
+                          setAutoFollowUpEnabled(group.autoFollowUpEnabled || false);
+                          setAutoFollowUpDays(String(group.autoFollowUpDays || 2));
+                          setAutoFollowUpMessage(group.autoFollowUpMessage || "");
+                          setShowAutoFollowUpDialog(true);
+                        }}
+                      >
+                        <Settings className="h-3 w-3 mr-1" />
+                        {language === "ja" ? "自動追い" : "自动跟进"}
                       </Button>
                       <Button 
                         size="sm"
@@ -658,6 +709,113 @@ export default function LineManagement() {
               ) : (
                 <>
                   <Link2 className="h-4 w-4 mr-2" />
+                  {language === "ja" ? "保存" : "保存"}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Auto Follow-Up Settings Dialog */}
+      <Dialog open={showAutoFollowUpDialog} onOpenChange={setShowAutoFollowUpDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bell className="h-5 w-5" />
+              {language === "ja" ? "自動追いメッセージ設定" : "自动跟进设置"}
+            </DialogTitle>
+            <DialogDescription>
+              {language === "ja" 
+                ? `「${editingGroup?.groupName || editingGroup?.lineGroupId?.slice(0, 8) + "..."}」の自動追いメッセージ設定`
+                : `「${editingGroup?.groupName || editingGroup?.lineGroupId?.slice(0, 8) + "..."}」的自动跟进设置`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="auto-followup-enabled" className="flex flex-col gap-1">
+                <span>{language === "ja" ? "自動追いメッセージを有効にする" : "启用自动跟进"}</span>
+                <span className="text-xs text-muted-foreground font-normal">
+                  {language === "ja" 
+                    ? "指定日数話がない場合に自動でメッセージを送信" 
+                    : "指定天数无消息时自动发送"}
+                </span>
+              </Label>
+              <Switch
+                id="auto-followup-enabled"
+                checked={autoFollowUpEnabled}
+                onCheckedChange={setAutoFollowUpEnabled}
+              />
+            </div>
+
+            {autoFollowUpEnabled && (
+              <>
+                <div className="space-y-2">
+                  <Label>{language === "ja" ? "無活動日数" : "无活动天数"}</Label>
+                  <Select value={autoFollowUpDays} onValueChange={setAutoFollowUpDays}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1{language === "ja" ? "日" : "天"}</SelectItem>
+                      <SelectItem value="2">2{language === "ja" ? "日" : "天"}</SelectItem>
+                      <SelectItem value="3">3{language === "ja" ? "日" : "天"}</SelectItem>
+                      <SelectItem value="5">5{language === "ja" ? "日" : "天"}</SelectItem>
+                      <SelectItem value="7">7{language === "ja" ? "日" : "天"}</SelectItem>
+                      <SelectItem value="14">14{language === "ja" ? "日" : "天"}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {language === "ja" 
+                      ? "グループ内で誰もメッセージを送信しない日数" 
+                      : "群组内无人发送消息的天数"}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>{language === "ja" ? "メッセージ内容（任意）" : "消息内容（可选）"}</Label>
+                  <Textarea
+                    value={autoFollowUpMessage}
+                    onChange={(e) => setAutoFollowUpMessage(e.target.value)}
+                    placeholder={language === "ja" 
+                      ? "空欄の場合はデフォルトメッセージが送信されます" 
+                      : "留空则发送默认消息"}
+                    rows={4}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {language === "ja" 
+                      ? "デフォルト: 「お世話になっております。しばらくご連絡がないようですが、何かお困りのことはございませんか？」" 
+                      : "默认: 您好，我们注意到群组已有一段时间没有消息，有什么可以帮到您的吗？"}
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAutoFollowUpDialog(false)}>
+              {language === "ja" ? "キャンセル" : "取消"}
+            </Button>
+            <Button 
+              onClick={() => {
+                if (editingGroup) {
+                  autoFollowUpMutation.mutate({
+                    lineGroupId: editingGroup.lineGroupId,
+                    autoFollowUpEnabled,
+                    autoFollowUpDays: parseInt(autoFollowUpDays),
+                    autoFollowUpMessage: autoFollowUpMessage || undefined,
+                  });
+                }
+              }}
+              disabled={autoFollowUpMutation.isPending}
+            >
+              {autoFollowUpMutation.isPending ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  {language === "ja" ? "保存中..." : "保存中..."}
+                </>
+              ) : (
+                <>
+                  <Settings className="h-4 w-4 mr-2" />
                   {language === "ja" ? "保存" : "保存"}
                 </>
               )}

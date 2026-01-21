@@ -140,6 +140,7 @@ import {
   getActiveLineFollowUps,
   updateLineFollowUpStatus,
   getAllLineFollowUps,
+  updateLineGroupAutoFollowUp,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -3015,6 +3016,25 @@ ${conversationText}
         }
         
         return { success };
+      }),
+
+    // Update group auto follow-up settings
+    updateGroupAutoFollowUp: protectedProcedure
+      .input(
+        z.object({
+          lineGroupId: z.string(),
+          autoFollowUpEnabled: z.boolean().optional(),
+          autoFollowUpDays: z.number().min(1).max(30).optional(),
+          autoFollowUpMessage: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        await updateLineGroupAutoFollowUp(input.lineGroupId, {
+          autoFollowUpEnabled: input.autoFollowUpEnabled,
+          autoFollowUpDays: input.autoFollowUpDays,
+          autoFollowUpMessage: input.autoFollowUpMessage,
+        });
+        return { success: true };
       }),
   }),
 });

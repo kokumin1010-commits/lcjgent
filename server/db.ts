@@ -2222,6 +2222,87 @@ export async function getAllLineGroups() {
     .orderBy(desc(lineGroups.lastMessageAt));
 }
 
+// Update LINE group auto follow-up settings
+export async function updateLineGroupAutoFollowUp(lineGroupId: string, settings: {
+  autoFollowUpEnabled?: boolean;
+  autoFollowUpDays?: number;
+  autoFollowUpMessage?: string;
+}) {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db
+    .update(lineGroups)
+    .set(settings)
+    .where(eq(lineGroups.lineGroupId, lineGroupId));
+}
+
+// Get groups that need auto follow-up (inactive for X days)
+export async function getGroupsNeedingFollowUp() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // Get all active groups with auto follow-up enabled
+  const groups = await db
+    .select()
+    .from(lineGroups)
+    .where(
+      and(
+        eq(lineGroups.isActive, true),
+        eq(lineGroups.autoFollowUpEnabled, true)
+      )
+    );
+  
+  const now = new Date();
+  const groupsNeedingFollowUp = [];
+  
+  for (const group of groups) {
+    const inactiveDays = group.autoFollowUpDays || 2;
+    const lastActivity = group.lastMessageAt || group.createdAt;
+    const lastFollowUp = group.lastAutoFollowUpAt;
+    
+    // Calculate days since last message
+    const daysSinceLastMessage = Math.floor(
+      (now.getTime() - new Date(lastActivity).getTime()) / (1000 * 60 * 60 * 24)
+    );
+    
+    // Check if we need to send follow-up
+    if (daysSinceLastMessage >= inactiveDays) {
+      // Don't send if we already sent a follow-up recently (within the same inactive period)
+      if (!lastFollowUp || new Date(lastFollowUp) < new Date(lastActivity)) {
+        groupsNeedingFollowUp.push({
+          ...group,
+          daysSinceLastMessage,
+        });
+      }
+    }
+  }
+  
+  return groupsNeedingFollowUp;
+}
+
+// Update last auto follow-up timestamp
+export async function updateGroupLastAutoFollowUp(lineGroupId: string) {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db
+    .update(lineGroups)
+    .set({ lastAutoFollowUpAt: new Date() })
+    .where(eq(lineGroups.lineGroupId, lineGroupId));
+}
+
+// Update group last message timestamp
+export async function updateGroupLastMessageAt(lineGroupId: string) {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db
+    .update(lineGroups)
+    .set({ lastMessageAt: new Date() })
+    .where(eq(lineGroups.lineGroupId, lineGroupId));
+}
+
 // Save LINE message
 export async function saveLineMessage(data: {
   messageId: string;
