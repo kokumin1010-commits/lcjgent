@@ -1,5 +1,5 @@
 import { invokeLLM } from "./_core/llm";
-import { replyMessage, LineWebhookEvent, getUserProfile } from "./line";
+import { replyMessage, LineWebhookEvent, getUserProfile, getBotInfo } from "./line";
 import { 
   saveLineMessage, 
   getLineMessages, 
@@ -9,6 +9,7 @@ import {
   createLineFollowUp,
   getTasksByStatus,
   getAllBrands,
+  createOrUpdateLineGroup,
 } from "./db";
 
 // System prompt for the LINE AI Agent
@@ -69,8 +70,12 @@ function parseAgentAction(response: string): AgentAction | null {
 }
 
 // Get conversation history for context
-async function getConversationContext(lineUserId: string, limit: number = 10): Promise<string> {
-  const messages = await getLineMessages({ lineUserId, limit });
+async function getConversationContext(lineUserId: string, lineGroupId?: string, limit: number = 10): Promise<string> {
+  const messages = await getLineMessages({ 
+    lineUserId: lineGroupId ? undefined : lineUserId, 
+    lineGroupId,
+    limit 
+  });
   
   if (!messages || messages.length === 0) {
     return "";
@@ -83,6 +88,43 @@ async function getConversationContext(lineUserId: string, limit: number = 10): P
     const role = msg.direction === "incoming" ? "ユーザー" : "アシスタント";
     return `${role}: ${msg.content}`;
   }).join("\n");
+}
+
+// Check if message mentions the bot
+function isBotMentioned(text: string, botUserId?: string): boolean {
+  // Check for common mention patterns
+  const mentionPatterns = [
+    /@LCJ/i,
+    /@lcj/i,
+    /LCJエージェント/i,
+    /LCJ エージェント/i,
+    /エージェント/i,
+    /@714isnih/i,
+  ];
+  
+  for (const pattern of mentionPatterns) {
+    if (pattern.test(text)) {
+      return true;
+    }
+  }
+  
+  // Check if bot user ID is mentioned (LINE mentions format)
+  if (botUserId && text.includes(botUserId)) {
+    return true;
+  }
+  
+  return false;
+}
+
+// Remove mention from message text
+function removeMention(text: string): string {
+  return text
+    .replace(/@LCJ\s*/gi, "")
+    .replace(/@lcj\s*/gi, "")
+    .replace(/LCJエージェント\s*/gi, "")
+    .replace(/LCJ エージェント\s*/gi, "")
+    .replace(/@714isnih\s*/gi, "")
+    .trim();
 }
 
 // Execute agent actions
@@ -159,11 +201,16 @@ async function executeAction(action: AgentAction, lineUserId: string): Promise<s
 // Main agent function - process incoming message and generate response
 export async function processLineMessage(event: LineWebhookEvent): Promise<void> {
   // Only process text messages
-  if (event.type !== "message" || !event.message?.text || !event.replyToken) {
+  if (event.type !== "message" || !event.message?.text) {
     return;
   }
   
   const userId = event.source.userId;
+  const groupId = event.source.groupId;
+  const roomId = event.source.roomId;
+  const isGroupChat = !!(groupId || roomId);
+  const chatId = groupId || roomId;
+  
   if (!userId) {
     return;
   }
@@ -171,7 +218,7 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
   const userMessage = event.message.text;
   const messageId = event.message.id;
   
-  console.log(`[LINE Agent] Processing message from ${userId}: ${userMessage.substring(0, 50)}...`);
+  console.log(`[LINE Agent] Processing message from ${userId} in ${isGroupChat ? `group ${chatId}` : "DM"}: ${userMessage.substring(0, 50)}...`);
   
   try {
     // Get or create user profile
@@ -183,11 +230,20 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
       userType: "customer",
     });
     
-    // Save incoming message
+    // If group chat, save group info
+    if (groupId) {
+      await createOrUpdateLineGroup({
+        lineGroupId: groupId,
+        groupName: "グループ", // LINE API doesn't provide group name easily
+      });
+    }
+    
+    // Always save incoming message (for logging purposes)
     await saveLineMessage({
       messageId,
-      sourceType: "user",
+      sourceType: isGroupChat ? "group" : "user",
       lineUserId: userId,
+      lineGroupId: chatId,
       messageType: "text",
       content: userMessage,
       direction: "incoming",
@@ -197,8 +253,30 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
     // Update last message timestamp
     await updateLineUserLastMessage(userId);
     
+    // For group chats, only respond if mentioned
+    if (isGroupChat) {
+      const botInfo = await getBotInfo();
+      const mentioned = isBotMentioned(userMessage, botInfo?.userId);
+      
+      if (!mentioned) {
+        console.log(`[LINE Agent] Group message not mentioning bot, skipping response`);
+        return; // Don't respond, but message is already saved
+      }
+      
+      console.log(`[LINE Agent] Bot mentioned in group, will respond`);
+    }
+    
+    // Check if we have a reply token (needed for responding)
+    if (!event.replyToken) {
+      console.log(`[LINE Agent] No reply token, cannot respond`);
+      return;
+    }
+    
+    // Remove mention from message for processing
+    const cleanMessage = isGroupChat ? removeMention(userMessage) : userMessage;
+    
     // Get conversation context
-    const context = await getConversationContext(userId, 10);
+    const context = await getConversationContext(userId, chatId, 10);
     
     // Build messages for LLM
     const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
@@ -213,7 +291,15 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
       });
     }
     
-    messages.push({ role: "user", content: userMessage });
+    // Add group context if applicable
+    if (isGroupChat) {
+      messages.push({
+        role: "system",
+        content: "【注意】これはグループチャットでの会話です。メンションされたので応答します。",
+      });
+    }
+    
+    messages.push({ role: "user", content: cleanMessage });
     
     // Call LLM
     const llmResponse = await invokeLLM({ messages });
@@ -244,8 +330,9 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
       // Save outgoing message
       await saveLineMessage({
         messageId: `reply_${messageId}_${Date.now()}`,
-        sourceType: "user",
+        sourceType: isGroupChat ? "group" : "user",
         lineUserId: userId,
+        lineGroupId: chatId,
         messageType: "text",
         content: responseText,
         direction: "outgoing",
