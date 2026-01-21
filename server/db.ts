@@ -2174,14 +2174,17 @@ export async function createOrUpdateLineGroup(data: {
       .where(eq(lineGroups.lineGroupId, data.lineGroupId));
     return existing[0];
   } else {
-    // Create new group
+    // Create new group with auto follow-up enabled by default
     const result = await db.insert(lineGroups).values({
       lineGroupId: data.lineGroupId,
       groupName: data.groupName,
       pictureUrl: data.pictureUrl,
       brandId: data.brandId,
+      autoFollowUpEnabled: true, // Enable auto follow-up by default
+      autoFollowUpDays: 2, // Default to 2 days
+      lastMessageAt: new Date(), // Set initial lastMessageAt to now
     });
-    return { id: result[0].insertId, ...data };
+    return { id: result[0].insertId, ...data, autoFollowUpEnabled: true, autoFollowUpDays: 2 };
   }
 }
 
