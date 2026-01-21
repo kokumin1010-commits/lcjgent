@@ -136,9 +136,17 @@ import {
   getAllLineGroups,
   getLineMessages,
   saveLineMessage,
+  createLineFollowUp,
+  getActiveLineFollowUps,
+  updateLineFollowUpStatus,
+  getAllLineFollowUps,
 } from "./db";
 import { pushMessage } from "./line";
 import { notifyOwner } from "./_core/notification";
+import { getDb } from "./db";
+import { lineUsers, brands } from "../drizzle/schema";
+import { eq } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 import { authRouter } from "./auth";
 import { checkAndSendReminders } from "./reminderScheduler";
 import { completionRouter } from "./completion";
@@ -2879,6 +2887,113 @@ ${conversationText}
         }
 
         return { success };
+      }),
+
+    // Link LINE user to brand/liver
+    linkUser: protectedProcedure
+      .input(
+        z.object({
+          lineUserId: z.string(),
+          brandId: z.number().nullable().optional(),
+          liverId: z.number().nullable().optional(),
+          userType: z.enum(["customer", "staff", "liver", "unknown"]).optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+        await db
+          .update(lineUsers)
+          .set({
+            brandId: input.brandId ?? null,
+            liverId: input.liverId ?? null,
+            userType: input.userType,
+          })
+          .where(eq(lineUsers.lineUserId, input.lineUserId));
+
+        return { success: true };
+      }),
+
+    // Get LINE user details with linked brand/liver info
+    getUserDetails: protectedProcedure
+      .input(z.object({ lineUserId: z.string() }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return null;
+
+        const result = await db
+          .select()
+          .from(lineUsers)
+          .where(eq(lineUsers.lineUserId, input.lineUserId))
+          .limit(1);
+
+        if (result.length === 0) return null;
+
+        const user = result[0];
+
+        // Get linked brand if exists
+        let linkedBrand = null;
+        if (user.brandId) {
+          const brandResult = await db
+            .select()
+            .from(brands)
+            .where(eq(brands.id, user.brandId))
+            .limit(1);
+          linkedBrand = brandResult[0] || null;
+        }
+
+        return {
+          ...user,
+          linkedBrand,
+        };
+      }),
+
+    // List all follow-ups
+    listFollowUps: protectedProcedure.query(async () => {
+      return await getAllLineFollowUps();
+    }),
+
+    // Create a follow-up
+    createFollowUp: protectedProcedure
+      .input(
+        z.object({
+          targetType: z.enum(["user", "group"]),
+          lineUserId: z.string().optional(),
+          lineGroupId: z.string().optional(),
+          triggerCondition: z.enum(["no_reply", "scheduled", "event"]),
+          delayHours: z.number().optional().default(72),
+          maxAttempts: z.number().optional().default(3),
+          messageTemplate: z.string(),
+          brandId: z.number().optional(),
+          scheduledAt: z.date().optional(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        const nextScheduled = input.scheduledAt || new Date(Date.now() + input.delayHours * 60 * 60 * 1000);
+        
+        const result = await createLineFollowUp({
+          targetType: input.targetType,
+          lineUserId: input.lineUserId,
+          lineGroupId: input.lineGroupId,
+          triggerCondition: input.triggerCondition,
+          delayHours: input.delayHours,
+          maxAttempts: input.maxAttempts,
+          messageTemplate: input.messageTemplate,
+          brandId: input.brandId,
+          createdBy: ctx.user.id,
+          nextScheduledAt: nextScheduled,
+        });
+        
+        return result;
+      }),
+
+    // Cancel a follow-up
+    cancelFollowUp: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await updateLineFollowUpStatus(input.id, "cancelled");
+        return { success: true };
       }),
   }),
 });

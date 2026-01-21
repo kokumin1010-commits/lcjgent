@@ -6,18 +6,36 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { MessageSquare, Users, Send, History, Settings, RefreshCw, Search, User, Building2, Calendar, Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { MessageSquare, Users, Send, History, RefreshCw, Search, User, Building2, Calendar, Clock, Link2 } from "lucide-react";
 import { format } from "date-fns";
 
+type LineUser = {
+  id: number;
+  lineUserId: string;
+  displayName: string | null;
+  pictureUrl: string | null;
+  userType: "customer" | "staff" | "liver" | "unknown";
+  isBlocked: boolean;
+  brandId: number | null;
+  liverId: number | null;
+  lastMessageAt: Date | null;
+  createdAt: Date;
+};
+
 export default function LineManagement() {
-  const { t, language } = useLanguage();
+  const { language } = useLanguage();
   const [activeTab, setActiveTab] = useState("users");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [showMessageDialog, setShowMessageDialog] = useState(false);
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [linkingUser, setLinkingUser] = useState<LineUser | null>(null);
+  const [selectedBrandId, setSelectedBrandId] = useState<string>("");
+  const [selectedUserType, setSelectedUserType] = useState<string>("");
   const [messageText, setMessageText] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
 
@@ -33,6 +51,9 @@ export default function LineManagement() {
     limit: 50,
   });
 
+  // Fetch brands for linking
+  const { data: brands } = trpc.brand.list.useQuery();
+
   // Send message mutation
   const sendMessageMutation = trpc.line.sendMessage.useMutation({
     onSuccess: () => {
@@ -41,9 +62,23 @@ export default function LineManagement() {
       setMessageText("");
       refetchMessages();
     },
-    onError: (error) => {
+    onError: () => {
       toast.error(language === "ja" ? "送信に失敗しました" : "发送失败");
-      console.error(error);
+    },
+  });
+
+  // Link user mutation
+  const linkUserMutation = trpc.line.linkUser.useMutation({
+    onSuccess: () => {
+      toast.success(language === "ja" ? "紐付けを更新しました" : "关联已更新");
+      setShowLinkDialog(false);
+      setLinkingUser(null);
+      setSelectedBrandId("");
+      setSelectedUserType("");
+      refetchUsers();
+    },
+    onError: () => {
+      toast.error(language === "ja" ? "紐付けに失敗しました" : "关联失败");
     },
   });
 
@@ -59,6 +94,23 @@ export default function LineManagement() {
     } finally {
       setSendingMessage(false);
     }
+  };
+
+  const handleLinkUser = async () => {
+    if (!linkingUser) return;
+    
+    await linkUserMutation.mutateAsync({
+      lineUserId: linkingUser.lineUserId,
+      brandId: selectedBrandId ? parseInt(selectedBrandId) : null,
+      userType: selectedUserType as "customer" | "staff" | "liver" | "unknown" || undefined,
+    });
+  };
+
+  const openLinkDialog = (user: LineUser) => {
+    setLinkingUser(user);
+    setSelectedBrandId(user.brandId?.toString() || "");
+    setSelectedUserType(user.userType || "");
+    setShowLinkDialog(true);
   };
 
   // Filter users based on search
@@ -80,6 +132,13 @@ export default function LineManagement() {
       group.lineGroupId.toLowerCase().includes(query)
     );
   });
+
+  // Get brand name by ID
+  const getBrandName = (brandId: number | null) => {
+    if (!brandId || !brands) return null;
+    const brand = brands.find(b => b.id === brandId);
+    return brand?.name || null;
+  };
 
   return (
     <div className="space-y-6">
@@ -135,25 +194,25 @@ export default function LineManagement() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
+              {language === "ja" ? "ブランド紐付け済" : "已关联品牌"}
+            </CardTitle>
+            <Link2 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {lineUsers?.filter(u => u.brandId).length || 0}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
               {language === "ja" ? "メッセージ数" : "消息数"}
             </CardTitle>
             <MessageSquare className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{lineMessages?.length || 0}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              {language === "ja" ? "アクティブ" : "活跃"}
-            </CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {lineUsers?.filter(u => !u.isBlocked).length || 0}
-            </div>
           </CardContent>
         </Card>
       </div>
@@ -205,7 +264,7 @@ export default function LineManagement() {
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {filteredUsers?.map((user) => (
-                <Card key={user.id} className="cursor-pointer hover:shadow-md transition-shadow">
+                <Card key={user.id} className="hover:shadow-md transition-shadow">
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -256,8 +315,23 @@ export default function LineManagement() {
                           {format(new Date(user.lastMessageAt), "yyyy/MM/dd HH:mm")}
                         </div>
                       )}
+                      {user.brandId && (
+                        <div className="flex items-center gap-2">
+                          <Building2 className="h-3 w-3" />
+                          {language === "ja" ? "ブランド: " : "品牌: "}
+                          <span className="font-medium">{getBrandName(user.brandId)}</span>
+                        </div>
+                      )}
                     </div>
-                    <div className="mt-3 flex gap-2">
+                    <div className="mt-3 flex gap-2 flex-wrap">
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => openLinkDialog(user as LineUser)}
+                      >
+                        <Link2 className="h-3 w-3 mr-1" />
+                        {language === "ja" ? "紐付け" : "关联"}
+                      </Button>
                       <Button 
                         size="sm" 
                         variant="outline"
@@ -469,6 +543,94 @@ export default function LineManagement() {
                 <>
                   <Send className="h-4 w-4 mr-2" />
                   {language === "ja" ? "送信" : "发送"}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Link User Dialog */}
+      <Dialog open={showLinkDialog} onOpenChange={setShowLinkDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {language === "ja" ? "ユーザー紐付け" : "用户关联"}
+            </DialogTitle>
+            <DialogDescription>
+              {language === "ja" 
+                ? "LINEユーザーをブランドやユーザータイプに紐付けます" 
+                : "将LINE用户关联到品牌或用户类型"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+              {linkingUser?.pictureUrl ? (
+                <img 
+                  src={linkingUser.pictureUrl} 
+                  alt={linkingUser.displayName || "User"} 
+                  className="w-10 h-10 rounded-full"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-background flex items-center justify-center">
+                  <User className="h-5 w-5 text-muted-foreground" />
+                </div>
+              )}
+              <div>
+                <p className="font-medium">{linkingUser?.displayName || "Unknown"}</p>
+                <p className="text-xs text-muted-foreground">{linkingUser?.lineUserId}</p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>{language === "ja" ? "ユーザータイプ" : "用户类型"}</Label>
+              <Select value={selectedUserType} onValueChange={setSelectedUserType}>
+                <SelectTrigger>
+                  <SelectValue placeholder={language === "ja" ? "タイプを選択" : "选择类型"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unknown">{language === "ja" ? "未設定" : "未设置"}</SelectItem>
+                  <SelectItem value="customer">{language === "ja" ? "顧客" : "客户"}</SelectItem>
+                  <SelectItem value="liver">{language === "ja" ? "ライバー" : "主播"}</SelectItem>
+                  <SelectItem value="staff">{language === "ja" ? "スタッフ" : "员工"}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>{language === "ja" ? "ブランド" : "品牌"}</Label>
+              <Select value={selectedBrandId} onValueChange={setSelectedBrandId}>
+                <SelectTrigger>
+                  <SelectValue placeholder={language === "ja" ? "ブランドを選択" : "选择品牌"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">{language === "ja" ? "なし" : "无"}</SelectItem>
+                  {brands?.map((brand) => (
+                    <SelectItem key={brand.id} value={brand.id.toString()}>
+                      {brand.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowLinkDialog(false)}>
+              {language === "ja" ? "キャンセル" : "取消"}
+            </Button>
+            <Button 
+              onClick={handleLinkUser}
+              disabled={linkUserMutation.isPending}
+            >
+              {linkUserMutation.isPending ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  {language === "ja" ? "保存中..." : "保存中..."}
+                </>
+              ) : (
+                <>
+                  <Link2 className="h-4 w-4 mr-2" />
+                  {language === "ja" ? "保存" : "保存"}
                 </>
               )}
             </Button>

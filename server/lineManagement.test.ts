@@ -305,3 +305,5 @@ describe("LINE Message Flow Integration", () => {
     expect(saveLineMessage).not.toHaveBeenCalled();
   });
 });
+
+// Note: Follow-up integration tests are in a separate file to avoid mock conflicts

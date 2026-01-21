@@ -2342,3 +2342,36 @@ export async function updateLineFollowUpStatus(
     .set(updateData)
     .where(eq(lineFollowUps.id, id));
 }
+
+
+// Get all LINE follow-ups
+export async function getAllLineFollowUps() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(lineFollowUps)
+    .orderBy(desc(lineFollowUps.createdAt));
+}
+
+// Get LINE follow-ups by user
+export async function getLineFollowUpsByUser(lineUserId: string) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(lineFollowUps)
+    .where(eq(lineFollowUps.lineUserId, lineUserId))
+    .orderBy(desc(lineFollowUps.createdAt));
+}
+
+// Delete LINE follow-up
+export async function deleteLineFollowUp(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db.delete(lineFollowUps).where(eq(lineFollowUps.id, id));
+}
+

@@ -24,6 +24,7 @@ import BrandDetail from "./pages/BrandDetail";
 import BusinessCards from "./pages/BusinessCards";
 import ChatReport from "./pages/ChatReport";
 import LineManagement from "./pages/LineManagement";
+import LineFollowUps from "./pages/LineFollowUps";
 
 function Router() {
   return (
@@ -136,6 +137,11 @@ function Router() {
       <Route path={"/line"}>
         <DashboardLayout>
           <LineManagement />
+        </DashboardLayout>
+      </Route>
+      <Route path={"/line/follow-ups"}>
+        <DashboardLayout>
+          <LineFollowUps />
         </DashboardLayout>
       </Route>
       <Route path={"/404"} component={NotFound} />
