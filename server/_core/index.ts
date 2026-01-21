@@ -217,14 +217,21 @@ async function startServer() {
     try {
       const signature = req.headers["x-line-signature"] as string;
       const bodyString = req.body.toString();
+      const body = JSON.parse(bodyString) as { destination: string; events: any[] };
       
-      // Verify signature
+      // For LINE Verify requests (empty events array), skip signature verification
+      // This allows the Verify button in LINE Developers Console to work
+      if (body.events && body.events.length === 0) {
+        console.log("[LINE Webhook] Verify request received (empty events)");
+        return res.status(200).json({ success: true });
+      }
+      
+      // Verify signature for actual webhook events
       if (!lineModule.verifyLineSignature(bodyString, signature)) {
         console.error("[LINE Webhook] Invalid signature");
         return res.status(401).json({ error: "Invalid signature" });
       }
       
-      const body = JSON.parse(bodyString) as { destination: string; events: any[] };
       console.log("[LINE Webhook] Received events:", body.events.length);
       
       // Process each event
