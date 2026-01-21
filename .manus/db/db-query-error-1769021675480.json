@@ -1,0 +1,8 @@
+{
+  "query": "SELECT t.id, t.task_id, t.task_detail, ts.staffId, s.name as staff_name, s.email as staff_email\nFROM tasks t\nLEFT JOIN task_staff ts ON t.id = ts.taskId\nLEFT JOIN staff s ON ts.staffId = s.id\nWHERE t.task_id = 'TASK-gS5tOnnChN';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT t.id, t.task_id, t.task_detail, ts.staffId, s.name as staff_name, s.email as staff_email\nFROM tasks t\nLEFT JOIN task_staff ts ON t.id = ts.taskId\nLEFT JOIN staff s ON ts.staffId = s.id\nWHERE t.task_id = 'TASK-gS5tOnnChN';",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 't.task_id' in 'where clause'"
+  ]
+}

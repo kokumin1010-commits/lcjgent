@@ -1,5 +1,6 @@
 import { invokeLLM } from "./_core/llm";
-import { replyMessage, LineWebhookEvent, getUserProfile, getBotInfo, getGroupSummary, getGroupMemberProfile } from "./line";
+import { replyMessage, LineWebhookEvent, getUserProfile, getBotInfo, getGroupSummary, getGroupMemberProfile, getMessageContent, getTranscodingStatus } from "./line";
+import { analyzeVideoContent, generateVideoAnalysisPrompt, VideoAnalysisResult } from "./videoAnalysis";
 import { 
   saveLineMessage, 
   getLineMessages, 
@@ -487,5 +488,279 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
         { type: "text", text: "申し訳ありません。処理中にエラーが発生しました。しばらくしてからもう一度お試しください。" },
       ]);
     }
+  }
+}
+
+
+// ============================================
+// Video Message Processing
+// ============================================
+
+/**
+ * Wait for video transcoding to complete with retries
+ */
+async function waitForTranscoding(messageId: string, maxRetries: number = 5): Promise<boolean> {
+  for (let i = 0; i < maxRetries; i++) {
+    const status = await getTranscodingStatus(messageId);
+    
+    if (!status) {
+      console.log(`[LINE Agent] Could not get transcoding status for ${messageId}`);
+      return false;
+    }
+    
+    if (status.status === "succeeded") {
+      return true;
+    }
+    
+    if (status.status === "failed") {
+      console.log(`[LINE Agent] Transcoding failed for ${messageId}`);
+      return false;
+    }
+    
+    // Still processing, wait and retry
+    console.log(`[LINE Agent] Transcoding in progress for ${messageId}, waiting...`);
+    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+  }
+  
+  console.log(`[LINE Agent] Transcoding timeout for ${messageId}`);
+  return false;
+}
+
+/**
+ * Process video message from LINE
+ */
+export async function processVideoMessage(event: LineWebhookEvent): Promise<void> {
+  // Check if this is a video message
+  if (event.type !== "message" || event.message?.type !== "video") {
+    return;
+  }
+  
+  const userId = event.source.userId;
+  const groupId = event.source.groupId;
+  const roomId = event.source.roomId;
+  const isGroupChat = !!(groupId || roomId);
+  const chatId = groupId || roomId;
+  const messageId = event.message.id;
+  
+  if (!userId) {
+    return;
+  }
+  
+  console.log(`[LINE Agent] Processing video message ${messageId} from ${userId}`);
+  
+  try {
+    // Get or create user profile
+    const profile = await getUserProfile(userId);
+    await createOrUpdateLineUser({
+      lineUserId: userId,
+      displayName: profile?.displayName || "Unknown",
+      pictureUrl: profile?.pictureUrl,
+      userType: "customer",
+    });
+    
+    // If group chat, save group info
+    if (groupId) {
+      let groupName = "グループ";
+      try {
+        const groupSummary = await getGroupSummary(groupId);
+        if (groupSummary?.groupName) {
+          groupName = groupSummary.groupName;
+        }
+      } catch (error) {
+        console.error("[LINE Agent] Failed to get group summary:", error);
+      }
+      
+      await createOrUpdateLineGroup({
+        lineGroupId: groupId,
+        groupName,
+        pictureUrl: undefined,
+      });
+    }
+    
+    // Get sender name
+    let senderName = profile?.displayName || "Unknown";
+    if (isGroupChat && groupId) {
+      try {
+        const memberProfile = await getGroupMemberProfile(groupId, userId);
+        if (memberProfile?.displayName) {
+          senderName = memberProfile.displayName;
+        }
+      } catch (error) {
+        console.error("[LINE Agent] Failed to get group member profile:", error);
+      }
+    }
+    
+    // Save incoming video message record
+    await saveLineMessage({
+      messageId,
+      sourceType: isGroupChat ? "group" : "user",
+      lineUserId: userId,
+      lineGroupId: chatId,
+      senderName,
+      messageType: "video",
+      content: "[動画メッセージ]",
+      direction: "incoming",
+      lineTimestamp: event.timestamp,
+    });
+    
+    // Update timestamps
+    await updateLineUserLastMessage(userId);
+    if (groupId) {
+      await updateGroupLastMessageAt(groupId);
+    }
+    
+    // For group chats, check if we should respond (need mention or active session)
+    let shouldRespond = !isGroupChat; // Always respond in DM
+    
+    if (isGroupChat && groupId) {
+      const hasSession = hasActiveSession(groupId, userId);
+      if (hasSession) {
+        startOrRefreshSession(groupId, userId);
+        shouldRespond = true;
+        console.log(`[LINE Agent] User has active session, processing video`);
+      } else {
+        // For video messages in groups without session, we could optionally process
+        // For now, skip unless there's an active session
+        console.log(`[LINE Agent] Group video message without active session, skipping`);
+      }
+    }
+    
+    if (!shouldRespond) {
+      return;
+    }
+    
+    if (!event.replyToken) {
+      console.log(`[LINE Agent] No reply token for video message`);
+      return;
+    }
+    
+    // Wait for video transcoding to complete
+    const transcodingReady = await waitForTranscoding(messageId);
+    if (!transcodingReady) {
+      await replyMessage(event.replyToken, [
+        { type: "text", text: "動画の処理に時間がかかっています。しばらくしてからもう一度お送りください。" },
+      ]);
+      return;
+    }
+    
+    // Get video content
+    const content = await getMessageContent(messageId);
+    if (!content) {
+      await replyMessage(event.replyToken, [
+        { type: "text", text: "動画の取得に失敗しました。もう一度お試しください。" },
+      ]);
+      return;
+    }
+    
+    // Analyze video content
+    console.log(`[LINE Agent] Analyzing video content (${(content.data.length / 1024 / 1024).toFixed(2)}MB)`);
+    const analysisResult = await analyzeVideoContent(content.data, messageId, content.contentType);
+    
+    if (analysisResult.error) {
+      console.error(`[LINE Agent] Video analysis error: ${analysisResult.error}`);
+      await replyMessage(event.replyToken, [
+        { type: "text", text: "動画の分析中にエラーが発生しました。" },
+      ]);
+      return;
+    }
+    
+    // Generate analysis summary
+    const analysisSummary = generateVideoAnalysisPrompt(analysisResult);
+    
+    // Build messages for LLM with video analysis context
+    const messages: Array<{ role: "system" | "user" | "assistant"; content: string | Array<{ type: string; text?: string; image_url?: { url: string } }> }> = [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: `ユーザーから動画が送信されました。以下は動画の分析結果です：\n\n${analysisSummary}` },
+    ];
+    
+    // Add frame images for vision analysis if available
+    if (analysisResult.frames.length > 0) {
+      const imageContent: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
+        { type: "text", text: "以下は動画から抽出されたフレーム画像です。これらを参考に動画の内容を理解してください。" },
+      ];
+      
+      for (const frame of analysisResult.frames) {
+        imageContent.push({
+          type: "image_url",
+          image_url: { url: frame.url },
+        });
+      }
+      
+      messages.push({ role: "user", content: imageContent });
+    }
+    
+    messages.push({ 
+      role: "user", 
+      content: "この動画の内容を分析して、何が映っているか、何を伝えようとしているかを教えてください。" 
+    });
+    
+    // Call LLM
+    const llmResponse = await invokeLLM({ messages: messages as any });
+    
+    const rawContent = llmResponse.choices?.[0]?.message?.content;
+    let responseText = typeof rawContent === "string" ? rawContent : "動画の分析結果を生成できませんでした。";
+    
+    // Limit response length
+    if (responseText.length > 4500) {
+      responseText = responseText.substring(0, 4500) + "...\n\n（続きがあります）";
+    }
+    
+    // Send reply
+    const replySuccess = await replyMessage(event.replyToken, [
+      { type: "text", text: responseText },
+    ]);
+    
+    if (replySuccess) {
+      await saveLineMessage({
+        messageId: `reply_${messageId}_${Date.now()}`,
+        sourceType: isGroupChat ? "group" : "user",
+        lineUserId: userId,
+        lineGroupId: chatId,
+        messageType: "text",
+        content: responseText,
+        direction: "outgoing",
+      });
+      
+      console.log(`[LINE Agent] Video analysis reply sent to ${userId}`);
+    }
+    
+  } catch (error) {
+    console.error("[LINE Agent] Error processing video message:", error);
+    
+    if (event.replyToken) {
+      await replyMessage(event.replyToken, [
+        { type: "text", text: "動画の処理中にエラーが発生しました。しばらくしてからもう一度お試しください。" },
+      ]);
+    }
+  }
+}
+
+/**
+ * Combined message processor - handles both text and video messages
+ */
+export async function processLineMessageAll(event: LineWebhookEvent): Promise<void> {
+  if (event.type !== "message") {
+    return;
+  }
+  
+  const messageType = event.message?.type;
+  
+  switch (messageType) {
+    case "text":
+      await processLineMessage(event);
+      break;
+    case "video":
+      await processVideoMessage(event);
+      break;
+    case "image":
+      // TODO: Add image processing if needed
+      console.log(`[LINE Agent] Image message received, not yet implemented`);
+      break;
+    case "audio":
+      // TODO: Add audio processing if needed
+      console.log(`[LINE Agent] Audio message received, not yet implemented`);
+      break;
+    default:
+      console.log(`[LINE Agent] Unknown message type: ${messageType}`);
   }
 }

@@ -195,6 +195,113 @@ export async function leaveGroup(groupId: string): Promise<boolean> {
   }
 }
 
+// Get message content (images, videos, audio, files)
+// Uses different domain: api-data.line.me
+export interface MessageContentResult {
+  data: Buffer;
+  contentType: string;
+}
+
+export async function getMessageContent(
+  messageId: string
+): Promise<MessageContentResult | null> {
+  try {
+    const response = await fetch(
+      `https://api-data.line.me/v2/bot/message/${messageId}/content`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${ENV.lineChannelAccessToken}`,
+        },
+      }
+    );
+    
+    if (response.ok) {
+      const arrayBuffer = await response.arrayBuffer();
+      const contentType = response.headers.get("content-type") || "application/octet-stream";
+      return {
+        data: Buffer.from(arrayBuffer),
+        contentType,
+      };
+    }
+    
+    // Status 202 means the content is still being prepared
+    if (response.status === 202) {
+      console.log(`[LINE] Content ${messageId} is still being prepared`);
+      return null;
+    }
+    
+    console.error(`[LINE] Failed to get content: ${response.status}`);
+    return null;
+  } catch (error) {
+    console.error("[LINE] Get message content error:", error);
+    return null;
+  }
+}
+
+// Check transcoding status for video/audio content
+export interface TranscodingStatus {
+  status: "processing" | "succeeded" | "failed";
+}
+
+export async function getTranscodingStatus(
+  messageId: string
+): Promise<TranscodingStatus | null> {
+  try {
+    const response = await fetch(
+      `https://api-data.line.me/v2/bot/message/${messageId}/content/transcoding`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${ENV.lineChannelAccessToken}`,
+        },
+      }
+    );
+    
+    if (response.ok) {
+      return await response.json();
+    }
+    
+    console.error(`[LINE] Failed to get transcoding status: ${response.status}`);
+    return null;
+  } catch (error) {
+    console.error("[LINE] Get transcoding status error:", error);
+    return null;
+  }
+}
+
+// Get preview image for image/video content
+export async function getContentPreview(
+  messageId: string
+): Promise<MessageContentResult | null> {
+  try {
+    const response = await fetch(
+      `https://api-data.line.me/v2/bot/message/${messageId}/content/preview`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${ENV.lineChannelAccessToken}`,
+        },
+      }
+    );
+    
+    if (response.ok) {
+      const arrayBuffer = await response.arrayBuffer();
+      const contentType = response.headers.get("content-type") || "image/jpeg";
+      return {
+        data: Buffer.from(arrayBuffer),
+        contentType,
+      };
+    }
+    
+    console.error(`[LINE] Failed to get content preview: ${response.status}`);
+    return null;
+  } catch (error) {
+    console.error("[LINE] Get content preview error:", error);
+    return null;
+  }
+}
+
 // Get bot info
 export async function getBotInfo(): Promise<{
   userId: string;

@@ -204,13 +204,9 @@ async function startServer() {
     line: typeof lineModule,
     db: typeof lineDb
   ) {
-    if (!event.message || event.message.type !== "text") {
-      return; // Only handle text messages for now
-    }
-    
-    // Use AI Agent to process the message
-    const { processLineMessage } = await import("../lineAgent");
-    await processLineMessage(event);
+    // Use combined message processor that handles text, video, and other message types
+    const { processLineMessageAll } = await import("../lineAgent");
+    await processLineMessageAll(event);
   }
   
   // Use raw body for LINE signature verification

@@ -1,0 +1,18 @@
+{
+  "query": "SELECT t.id, t.taskId, t.taskDetail, ts.staffId, s.name as staff_name, s.email as staff_email\nFROM tasks t\nLEFT JOIN task_staff ts ON t.id = ts.taskId\nLEFT JOIN staff s ON ts.staffId = s.id\nWHERE t.taskId = 'TASK-gS5tOnnChN';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT t.id, t.taskId, t.taskDetail, ts.staffId, s.name as staff_name, s.email as staff_email\nFROM tasks t\nLEFT JOIN task_staff ts ON t.id = ts.taskId\nLEFT JOIN staff s ON ts.staffId = s.id\nWHERE t.taskId = 'TASK-gS5tOnnChN';",
+  "rows": [
+    {
+      "id": "120006",
+      "taskId": "TASK-gS5tOnnChN",
+      "taskDetail": "とりどりインフルエンサーまっけキャンペーン作成",
+      "staffId": "NULL",
+      "staff_name": "NULL",
+      "staff_email": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttaskId\ttaskDetail\tstaffId\tstaff_name\tstaff_email\n120006\tTASK-gS5tOnnChN\tとりどりインフルエンサーまっけキャンペーン作成\tNULL\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1624
+}
