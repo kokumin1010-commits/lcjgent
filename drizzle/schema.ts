@@ -573,6 +573,7 @@ export const lineMessages = mysqlTable("line_messages", {
   sourceType: mysqlEnum("sourceType", ["user", "group", "room"]).notNull(),
   lineUserId: varchar("lineUserId", { length: 64 }), // Sender's LINE User ID
   lineGroupId: varchar("lineGroupId", { length: 64 }), // Group ID (if group message)
+  senderName: varchar("senderName", { length: 255 }), // Sender's display name
   // Message content
   messageType: varchar("messageType", { length: 32 }).notNull(), // text, image, video, audio, file, sticker, etc.
   content: text("content"), // Text content or description

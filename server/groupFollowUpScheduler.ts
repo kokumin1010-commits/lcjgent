@@ -10,10 +10,32 @@ import { pushMessage } from "./line";
 
 // Default follow-up message template
 const DEFAULT_FOLLOW_UP_MESSAGE = `お世話になっております。
+LCJエージェントでございます。
 
-ご確認いただきたい件がございましたので、お手すきの際にご連絡いただけますと幸いです。
+本グループの内容につきまして、
+お時間のある際にご確認いただけましたら幸いです。
 
-何卒よろしくお願いいたします。`;
+どうぞよろしくお願いいたします。`;
+
+// Business hours configuration (JST)
+const BUSINESS_HOURS = {
+  start: 9,  // 9:00 AM
+  end: 18,   // 6:00 PM
+};
+
+/**
+ * Check if current time is within business hours (JST)
+ */
+function isWithinBusinessHours(): boolean {
+  // Get current time in JST (UTC+9)
+  const now = new Date();
+  const jstOffset = 9 * 60; // JST is UTC+9
+  const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+  const jstMinutes = utcMinutes + jstOffset;
+  const jstHour = Math.floor((jstMinutes % (24 * 60)) / 60);
+  
+  return jstHour >= BUSINESS_HOURS.start && jstHour < BUSINESS_HOURS.end;
+}
 
 /**
  * Check all groups and send follow-up messages to inactive ones
@@ -22,13 +44,26 @@ export async function checkAndSendGroupFollowUps(): Promise<{
   checked: number;
   sent: number;
   errors: number;
+  skippedOutsideBusinessHours: boolean;
 }> {
   console.log("[Group Follow-Up] Starting check for inactive groups...");
+  
+  // Check if within business hours
+  if (!isWithinBusinessHours()) {
+    console.log("[Group Follow-Up] Outside business hours (9:00-18:00 JST). Skipping.");
+    return {
+      checked: 0,
+      sent: 0,
+      errors: 0,
+      skippedOutsideBusinessHours: true,
+    };
+  }
   
   const stats = {
     checked: 0,
     sent: 0,
     errors: 0,
+    skippedOutsideBusinessHours: false,
   };
   
   try {

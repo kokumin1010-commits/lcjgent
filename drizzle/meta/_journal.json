@@ -183,6 +183,13 @@
       "when": 1768983748311,
       "tag": "0025_dusty_shaman",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1768988435530,
+      "tag": "0026_wide_wildside",
+      "breakpoints": true
     }
   ]
 }

@@ -896,7 +896,7 @@ export default function LineManagement() {
                     }`}>
                       {msg.direction === 'incoming' && (
                         <div className="text-xs text-muted-foreground mb-1 font-medium">
-                          {msg.lineUserId?.slice(0, 8) || 'Unknown'}
+                          {(msg as any).senderName || msg.lineUserId?.slice(0, 8) || 'Unknown'}
                         </div>
                       )}
                       <div className="text-sm whitespace-pre-wrap">{msg.content}</div>

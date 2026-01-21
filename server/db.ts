@@ -2312,6 +2312,7 @@ export async function saveLineMessage(data: {
   sourceType: "user" | "group" | "room";
   lineUserId?: string;
   lineGroupId?: string;
+  senderName?: string;
   messageType: string;
   content?: string;
   direction: "incoming" | "outgoing";
@@ -2325,6 +2326,7 @@ export async function saveLineMessage(data: {
     sourceType: data.sourceType,
     lineUserId: data.lineUserId,
     lineGroupId: data.lineGroupId,
+    senderName: data.senderName,
     messageType: data.messageType,
     content: data.content,
     direction: data.direction,

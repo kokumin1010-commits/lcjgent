@@ -1,5 +1,5 @@
 import { invokeLLM } from "./_core/llm";
-import { replyMessage, LineWebhookEvent, getUserProfile, getBotInfo, getGroupSummary } from "./line";
+import { replyMessage, LineWebhookEvent, getUserProfile, getBotInfo, getGroupSummary, getGroupMemberProfile } from "./line";
 import { 
   saveLineMessage, 
   getLineMessages, 
@@ -251,12 +251,26 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
       });
     }
     
+    // Get sender name for group messages
+    let senderName = profile?.displayName || "Unknown";
+    if (isGroupChat && groupId) {
+      try {
+        const memberProfile = await getGroupMemberProfile(groupId, userId);
+        if (memberProfile?.displayName) {
+          senderName = memberProfile.displayName;
+        }
+      } catch (error) {
+        console.error("[LINE Agent] Failed to get group member profile:", error);
+      }
+    }
+    
     // Always save incoming message (for logging purposes)
     await saveLineMessage({
       messageId,
       sourceType: isGroupChat ? "group" : "user",
       lineUserId: userId,
       lineGroupId: chatId,
+      senderName,
       messageType: "text",
       content: userMessage,
       direction: "incoming",
