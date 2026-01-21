@@ -9,12 +9,11 @@ import { getGroupsNeedingFollowUp, updateGroupLastAutoFollowUp, saveLineMessage 
 import { pushMessage } from "./line";
 
 // Default follow-up message template
-const DEFAULT_FOLLOW_UP_MESSAGE = `お世話になっております。LCJエージェントです。
+const DEFAULT_FOLLOW_UP_MESSAGE = `お世話になっております。
 
-しばらくご連絡がないようですが、何かお困りのことはございませんか？
-ご質問やご相談がございましたら、お気軽にお声がけください。
+ご確認いただきたい件がございましたので、お手すきの際にご連絡いただけますと幸いです。
 
-引き続きよろしくお願いいたします。`;
+何卒よろしくお願いいたします。`;
 
 /**
  * Check all groups and send follow-up messages to inactive ones
