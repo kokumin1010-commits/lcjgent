@@ -13,6 +13,90 @@ import {
   updateGroupLastMessageAt,
 } from "./db";
 
+// ============================================
+// Conversation Session Management
+// ============================================
+// When a user mentions the bot in a group, we start a "conversation session"
+// During this session (default 5 minutes), we respond to their messages without requiring mentions
+
+interface ConversationSession {
+  userId: string;
+  groupId: string;
+  startedAt: number;
+  lastActivityAt: number;
+}
+
+// In-memory session storage (key: `${groupId}:${userId}`)
+const conversationSessions = new Map<string, ConversationSession>();
+
+// Session timeout in milliseconds (5 minutes)
+const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
+
+// Check if user has an active conversation session in the group
+function hasActiveSession(groupId: string, userId: string): boolean {
+  const key = `${groupId}:${userId}`;
+  const session = conversationSessions.get(key);
+  
+  if (!session) return false;
+  
+  const now = Date.now();
+  const timeSinceLastActivity = now - session.lastActivityAt;
+  
+  // Session expired
+  if (timeSinceLastActivity > SESSION_TIMEOUT_MS) {
+    conversationSessions.delete(key);
+    console.log(`[LINE Agent] Session expired for user ${userId} in group ${groupId}`);
+    return false;
+  }
+  
+  return true;
+}
+
+// Start or refresh a conversation session
+function startOrRefreshSession(groupId: string, userId: string): void {
+  const key = `${groupId}:${userId}`;
+  const now = Date.now();
+  
+  const existingSession = conversationSessions.get(key);
+  
+  if (existingSession) {
+    // Refresh existing session
+    existingSession.lastActivityAt = now;
+    console.log(`[LINE Agent] Session refreshed for user ${userId} in group ${groupId}`);
+  } else {
+    // Start new session
+    conversationSessions.set(key, {
+      userId,
+      groupId,
+      startedAt: now,
+      lastActivityAt: now,
+    });
+    console.log(`[LINE Agent] New session started for user ${userId} in group ${groupId}`);
+  }
+}
+
+// Clean up expired sessions periodically
+setInterval(() => {
+  const now = Date.now();
+  let cleaned = 0;
+  const keysToDelete: string[] = [];
+  
+  conversationSessions.forEach((session, key) => {
+    if (now - session.lastActivityAt > SESSION_TIMEOUT_MS) {
+      keysToDelete.push(key);
+    }
+  });
+  
+  keysToDelete.forEach(key => {
+    conversationSessions.delete(key);
+    cleaned++;
+  });
+  
+  if (cleaned > 0) {
+    console.log(`[LINE Agent] Cleaned up ${cleaned} expired sessions`);
+  }
+}, 60 * 1000); // Run every minute
+
 // System prompt for the LINE AI Agent
 const SYSTEM_PROMPT = `あなたは「ライブコマースジャパン」の業務支援AIアシスタントです。
 LINEを通じてユーザーからの問い合わせに対応し、タスクを自動実行します。
@@ -285,17 +369,33 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
       await updateGroupLastMessageAt(groupId);
     }
     
-    // For group chats, only respond if mentioned
-    if (isGroupChat) {
+    // For group chats, check if mentioned OR has active conversation session
+    let shouldRespond = !isGroupChat; // Always respond in DM
+    let wasMentioned = false;
+    
+    if (isGroupChat && groupId) {
       const botInfo = await getBotInfo();
-      const mentioned = isBotMentioned(userMessage, botInfo?.userId);
+      wasMentioned = isBotMentioned(userMessage, botInfo?.userId);
+      const hasSession = hasActiveSession(groupId, userId);
       
-      if (!mentioned) {
-        console.log(`[LINE Agent] Group message not mentioning bot, skipping response`);
-        return; // Don't respond, but message is already saved
+      if (wasMentioned) {
+        // User mentioned bot - start/refresh session and respond
+        startOrRefreshSession(groupId, userId);
+        shouldRespond = true;
+        console.log(`[LINE Agent] Bot mentioned in group, starting/refreshing session`);
+      } else if (hasSession) {
+        // User has active session - refresh and respond
+        startOrRefreshSession(groupId, userId);
+        shouldRespond = true;
+        console.log(`[LINE Agent] User has active session, responding without mention`);
+      } else {
+        // No mention and no session - don't respond
+        console.log(`[LINE Agent] Group message not mentioning bot and no active session, skipping response`);
       }
-      
-      console.log(`[LINE Agent] Bot mentioned in group, will respond`);
+    }
+    
+    if (!shouldRespond) {
+      return; // Don't respond, but message is already saved
     }
     
     // Check if we have a reply token (needed for responding)
@@ -325,9 +425,12 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
     
     // Add group context if applicable
     if (isGroupChat) {
+      const sessionNote = wasMentioned 
+        ? "メンションされたので応答します。" 
+        : "会話セッション中のため応答します。";
       messages.push({
         role: "system",
-        content: "【注意】これはグループチャットでの会話です。メンションされたので応答します。",
+        content: `【注意】これはグループチャットでの会話です。${sessionNote}`,
       });
     }
     
