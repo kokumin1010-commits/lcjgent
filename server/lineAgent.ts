@@ -1,5 +1,5 @@
 import { invokeLLM } from "./_core/llm";
-import { replyMessage, LineWebhookEvent, getUserProfile, getBotInfo } from "./line";
+import { replyMessage, LineWebhookEvent, getUserProfile, getBotInfo, getGroupSummary } from "./line";
 import { 
   saveLineMessage, 
   getLineMessages, 
@@ -230,11 +230,23 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
       userType: "customer",
     });
     
-    // If group chat, save group info
+    // If group chat, save group info with actual group name
     if (groupId) {
+      let groupName = "グループ";
+      try {
+        const groupSummary = await getGroupSummary(groupId);
+        if (groupSummary?.groupName) {
+          groupName = groupSummary.groupName;
+          console.log(`[LINE Agent] Got group name: ${groupName}`);
+        }
+      } catch (error) {
+        console.error("[LINE Agent] Failed to get group summary:", error);
+      }
+      
       await createOrUpdateLineGroup({
         lineGroupId: groupId,
-        groupName: "グループ", // LINE API doesn't provide group name easily
+        groupName,
+        pictureUrl: undefined, // Can be added later if needed
       });
     }
     
