@@ -1,0 +1,22 @@
+{
+  "query": "SELECT id, title, startTime, YEAR(startTime) as year FROM schedules;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, title, startTime, YEAR(startTime) as year FROM schedules;",
+  "rows": [
+    {
+      "id": "1",
+      "title": "ライブ配信",
+      "startTime": "2026-01-25 16:00:00",
+      "year": "2026"
+    },
+    {
+      "id": "2",
+      "title": "ライブ配信",
+      "startTime": "2026-01-25 16:00:00",
+      "year": "2026"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tstartTime\tyear\n1\tライブ配信\t2026-01-25 16:00:00\t2026\n2\tライブ配信\t2026-01-25 16:00:00\t2026\n",
+  "stderr": "",
+  "execution_time_ms": 1533
+}

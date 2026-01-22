@@ -380,7 +380,42 @@ async function executeAction(action: AgentAction, lineUserId: string): Promise<s
       }
       
       // Parse date and time strings into Date objects
-      const baseDate = new Date(action.date);
+      // Handle date formats like "2026-01-25", "1/25", "01-25"
+      let baseDate: Date;
+      const dateStr = action.date;
+      
+      // Check if the date string contains a year (4 digits)
+      if (/\d{4}/.test(dateStr)) {
+        // Full date with year
+        baseDate = new Date(dateStr);
+      } else {
+        // Date without year - assume current year or next year if date has passed
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        
+        // Try to parse month/day format (e.g., "1/25" or "01-25")
+        const match = dateStr.match(/(\d{1,2})[\/\-](\d{1,2})/);
+        if (match) {
+          const month = parseInt(match[1], 10) - 1; // 0-indexed
+          const day = parseInt(match[2], 10);
+          baseDate = new Date(currentYear, month, day);
+          
+          // If the date is in the past, use next year
+          if (baseDate < now) {
+            baseDate = new Date(currentYear + 1, month, day);
+          }
+        } else {
+          // Fallback: try parsing as-is with current year prepended
+          baseDate = new Date(`${currentYear}-${dateStr}`);
+        }
+      }
+      
+      // Validate the parsed date
+      if (isNaN(baseDate.getTime())) {
+        console.error("[Schedule Add] Invalid date:", dateStr);
+        return `日付の形式が正しくありません: ${dateStr}\n例: 　1/25、2026-01-25`;
+      }
+      
       let startTime: Date;
       let endTime: Date | undefined;
       
@@ -399,19 +434,23 @@ async function executeAction(action: AgentAction, lineUserId: string): Promise<s
         endTime.setHours(hours, minutes, 0, 0);
       }
       
-      const newSchedule = await createSchedule({
-        title: action.title,
-        startTime: startTime,
-        endTime: endTime,
-        isAllDay: !action.startTime,
-        liverName: action.liverName,
-        category: action.category || "other",
-        description: action.message,
-      });
-      
-      const dateStr = baseDate.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' });
-      const timeStr = action.startTime ? `${action.startTime}${action.endTime ? `-${action.endTime}` : ""}` : "";
-      return `予定を追加しました！\n📅 ${dateStr} ${timeStr}\n📝 ${action.title}${action.liverName ? `\n👤 ${action.liverName}` : ""}`;
+      try {
+        const newSchedule = await createSchedule({
+          title: action.title,
+          startTime: startTime,
+          endTime: endTime,
+          isAllDay: !action.startTime,
+          liverName: action.liverName,
+          category: action.category || "other",
+          description: action.message,
+        });
+        const dateStr = baseDate.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' });
+        const timeStr = action.startTime ? `${action.startTime}${action.endTime ? `-${action.endTime}` : ""}` : "";
+        return `予定を追加しました！\n📅 ${dateStr} ${timeStr}\n📝 ${action.title}${action.liverName ? `\n👤 ${action.liverName}` : ""}`;
+      } catch (error) {
+        console.error("[Schedule Add] Error creating schedule:", error);
+        return `予定の追加に失敗しました。エラー: ${error instanceof Error ? error.message : '不明なエラー'}`;
+      }
     }
     
     case "schedule_liver": {

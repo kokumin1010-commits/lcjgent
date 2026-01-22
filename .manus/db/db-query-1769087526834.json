@@ -1,0 +1,19 @@
+{
+  "query": "SELECT id, title, DATE_FORMAT(startTime, '%Y-%m-%d %H:%i:%s') as startTime, DATE_FORMAT(endTime, '%Y-%m-%d %H:%i:%s') as endTime, liverName, category, status FROM schedules;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, title, DATE_FORMAT(startTime, '%Y-%m-%d %H:%i:%s') as startTime, DATE_FORMAT(endTime, '%Y-%m-%d %H:%i:%s') as endTime, liverName, category, status FROM schedules;",
+  "rows": [
+    {
+      "id": "1",
+      "title": "ライブ配信",
+      "startTime": "2024-01-25 16:00:00",
+      "endTime": "2024-01-25 18:00:00",
+      "liverName": "京極 琉",
+      "category": "live",
+      "status": "scheduled"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tstartTime\tendTime\tliverName\tcategory\tstatus\n1\tライブ配信\t2024-01-25 16:00:00\t2024-01-25 18:00:00\t京極 琉\tlive\tscheduled\n",
+  "stderr": "",
+  "execution_time_ms": 1540
+}

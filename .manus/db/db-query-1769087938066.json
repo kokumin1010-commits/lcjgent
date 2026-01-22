@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE schedules SET startTime = CONCAT('2026', SUBSTRING(startTime, 5)), endTime = CONCAT('2026', SUBSTRING(endTime, 5)) WHERE startTime LIKE '2024%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute UPDATE schedules SET startTime = CONCAT('2026', SUBSTRING(startTime, 5)), endTime = CONCAT('2026', SUBSTRING(endTime, 5)) WHERE startTime LIKE '2024%';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1522
+}

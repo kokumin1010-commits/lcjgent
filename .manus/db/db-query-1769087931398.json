@@ -1,0 +1,20 @@
+{
+  "query": "SELECT id, title, DATE_FORMAT(startTime, '%Y-%m-%d %H:%i:%s') as startTime FROM schedules;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, title, DATE_FORMAT(startTime, '%Y-%m-%d %H:%i:%s') as startTime FROM schedules;",
+  "rows": [
+    {
+      "id": "1",
+      "title": "ライブ配信",
+      "startTime": "2026-01-25 16:00:00"
+    },
+    {
+      "id": "2",
+      "title": "ライブ配信",
+      "startTime": "2026-01-25 16:00:00"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tstartTime\n1\tライブ配信\t2026-01-25 16:00:00\n2\tライブ配信\t2026-01-25 16:00:00\n",
+  "stderr": "",
+  "execution_time_ms": 1516
+}
