@@ -666,3 +666,49 @@ export const pendingResponses = mysqlTable("pending_responses", {
 
 export type PendingResponse = typeof pendingResponses.$inferSelect;
 export type InsertPendingResponse = typeof pendingResponses.$inferInsert;
+
+
+/**
+ * Schedules table for calendar/schedule management
+ * カレンダー・スケジュール管理テーブル
+ * 
+ * LINEから操作可能:
+ * - @lcj 今日の予定
+ * - @lcj 1/25 14:00-16:00 配信 追加
+ * - @lcj 〇〇さんの予定
+ */
+export const schedules = mysqlTable("schedules", {
+  id: int("id").autoincrement().primaryKey(),
+  // 予定の基本情報
+  title: varchar("title", { length: 255 }).notNull(), // 予定のタイトル
+  description: text("description"), // 詳細説明
+  // 日時
+  startTime: timestamp("startTime").notNull(), // 開始日時
+  endTime: timestamp("endTime"), // 終了日時（任意）
+  isAllDay: boolean("isAllDay").default(false).notNull(), // 終日予定かどうか
+  // カテゴリ・タイプ
+  category: mysqlEnum("category", ["delivery", "meeting", "live", "other"]).default("other").notNull(), // 配信、ミーティング、ライブ、その他
+  // 関連情報
+  liverId: int("liverId"), // ライバーID（将来のライバー管理機能と連携）
+  liverName: varchar("liverName", { length: 255 }), // ライバー名（直接入力も可能）
+  brandId: int("brandId"), // ブランドID
+  lineGroupId: varchar("lineGroupId", { length: 64 }), // 関連するLINEグループ
+  // 繰り返し設定
+  isRecurring: boolean("isRecurring").default(false).notNull(), // 繰り返し予定かどうか
+  recurringPattern: mysqlEnum("recurringPattern", ["daily", "weekly", "monthly", "yearly"]), // 繰り返しパターン
+  recurringEndDate: timestamp("recurringEndDate"), // 繰り返し終了日
+  parentScheduleId: int("parentScheduleId"), // 繰り返し予定の親ID
+  // ステータス
+  status: mysqlEnum("status", ["scheduled", "completed", "cancelled"]).default("scheduled").notNull(),
+  // メモ
+  notes: text("notes"),
+  // 作成者情報
+  createdBy: int("createdBy"), // 作成したユーザーID
+  createdByLineUserId: varchar("createdByLineUserId", { length: 64 }), // LINEから作成した場合のユーザーID
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Schedule = typeof schedules.$inferSelect;
+export type InsertSchedule = typeof schedules.$inferInsert;

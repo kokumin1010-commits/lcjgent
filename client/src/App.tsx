@@ -26,6 +26,7 @@ import ChatReport from "./pages/ChatReport";
 import LineManagement from "./pages/LineManagement";
 import LineFollowUps from "./pages/LineFollowUps";
 import PendingResponses from "./pages/PendingResponses";
+import Calendar from "./pages/Calendar";
 
 function Router() {
   return (
@@ -148,6 +149,11 @@ function Router() {
       <Route path={"/line/pending"}>
         <DashboardLayout>
           <PendingResponses />
+        </DashboardLayout>
+      </Route>
+      <Route path={"/calendar"}>
+        <DashboardLayout>
+          <Calendar />
         </DashboardLayout>
       </Route>
       <Route path={"/404"} component={NotFound} />

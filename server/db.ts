@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -2649,4 +2649,200 @@ export async function getPendingResponsesForUI() {
   }
   
   return result;
+}
+
+
+// ============================================
+// Schedule Functions (カレンダー・スケジュール管理)
+// ============================================
+
+// Create a new schedule
+export async function createSchedule(data: InsertSchedule) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(schedules).values(data);
+  const insertId = Number(result[0].insertId);
+  return { id: insertId, ...data };
+}
+
+// Get schedule by ID
+export async function getScheduleById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db
+    .select()
+    .from(schedules)
+    .where(eq(schedules.id, id))
+    .limit(1);
+  
+  return result[0] || null;
+}
+
+// Get schedules for a specific date
+export async function getSchedulesByDate(date: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const startOfDay = new Date(date);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(date);
+  endOfDay.setHours(23, 59, 59, 999);
+  
+  return await db
+    .select()
+    .from(schedules)
+    .where(
+      and(
+        sql`${schedules.startTime} >= ${startOfDay}`,
+        sql`${schedules.startTime} <= ${endOfDay}`,
+        not(eq(schedules.status, "cancelled"))
+      )
+    )
+    .orderBy(asc(schedules.startTime));
+}
+
+// Get schedules for a date range
+export async function getSchedulesByDateRange(startDate: Date, endDate: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(schedules)
+    .where(
+      and(
+        sql`${schedules.startTime} >= ${startDate}`,
+        sql`${schedules.startTime} <= ${endDate}`,
+        not(eq(schedules.status, "cancelled"))
+      )
+    )
+    .orderBy(asc(schedules.startTime));
+}
+
+// Get schedules by liver name
+export async function getSchedulesByLiverName(liverName: string, startDate?: Date, endDate?: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const conditions = [
+    like(schedules.liverName, `%${liverName}%`),
+    not(eq(schedules.status, "cancelled"))
+  ];
+  
+  if (startDate) {
+    conditions.push(sql`${schedules.startTime} >= ${startDate}`);
+  }
+  if (endDate) {
+    conditions.push(sql`${schedules.startTime} <= ${endDate}`);
+  }
+  
+  return await db
+    .select()
+    .from(schedules)
+    .where(and(...conditions))
+    .orderBy(asc(schedules.startTime));
+}
+
+// Get schedules by LINE group
+export async function getSchedulesByLineGroup(lineGroupId: string, startDate?: Date, endDate?: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const conditions = [
+    eq(schedules.lineGroupId, lineGroupId),
+    not(eq(schedules.status, "cancelled"))
+  ];
+  
+  if (startDate) {
+    conditions.push(sql`${schedules.startTime} >= ${startDate}`);
+  }
+  if (endDate) {
+    conditions.push(sql`${schedules.startTime} <= ${endDate}`);
+  }
+  
+  return await db
+    .select()
+    .from(schedules)
+    .where(and(...conditions))
+    .orderBy(asc(schedules.startTime));
+}
+
+// Update schedule
+export async function updateSchedule(id: number, data: Partial<InsertSchedule>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db
+    .update(schedules)
+    .set(data)
+    .where(eq(schedules.id, id));
+}
+
+// Delete schedule (soft delete - set status to cancelled)
+export async function deleteSchedule(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db
+    .update(schedules)
+    .set({ status: "cancelled" })
+    .where(eq(schedules.id, id));
+}
+
+// Get all schedules (for management UI)
+export async function getAllSchedules(limit: number = 100) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(schedules)
+    .where(not(eq(schedules.status, "cancelled")))
+    .orderBy(asc(schedules.startTime))
+    .limit(limit);
+}
+
+// Get upcoming schedules (from now)
+export async function getUpcomingSchedules(days: number = 7) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const now = new Date();
+  const endDate = new Date();
+  endDate.setDate(endDate.getDate() + days);
+  
+  return await db
+    .select()
+    .from(schedules)
+    .where(
+      and(
+        sql`${schedules.startTime} >= ${now}`,
+        sql`${schedules.startTime} <= ${endDate}`,
+        not(eq(schedules.status, "cancelled"))
+      )
+    )
+    .orderBy(asc(schedules.startTime));
+}
+
+// Search schedules by title or description
+export async function searchSchedules(query: string) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(schedules)
+    .where(
+      and(
+        or(
+          like(schedules.title, `%${query}%`),
+          like(schedules.description, `%${query}%`),
+          like(schedules.liverName, `%${query}%`)
+        ),
+        not(eq(schedules.status, "cancelled"))
+      )
+    )
+    .orderBy(asc(schedules.startTime));
 }

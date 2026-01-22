@@ -144,6 +144,14 @@ import {
   getPendingResponsesForUI,
   cancelPendingResponse,
   markMessageResponded,
+  createSchedule,
+  getScheduleById,
+  getSchedulesByDate,
+  getSchedulesByDateRange,
+  getSchedulesByLiverName,
+  updateSchedule,
+  deleteSchedule,
+  getUpcomingSchedules,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -3058,6 +3066,149 @@ ${conversationText}
       .input(z.object({ messageId: z.string() }))
       .mutation(async ({ input }) => {
         await cancelPendingResponse(input.messageId);
+        return { success: true };
+      }),
+  }),
+
+  // Schedule Management Router
+  schedule: router({
+    // Get all schedules for a date range
+    getByDateRange: protectedProcedure
+      .input(
+        z.object({
+          startDate: z.string(),
+          endDate: z.string(),
+        })
+      )
+      .query(async ({ input }) => {
+        const startDate = new Date(input.startDate);
+        const endDate = new Date(input.endDate);
+        return await getSchedulesByDateRange(startDate, endDate);
+      }),
+
+    // Get schedules for a specific date
+    getByDate: protectedProcedure
+      .input(z.object({ date: z.string() }))
+      .query(async ({ input }) => {
+        const date = new Date(input.date);
+        return await getSchedulesByDate(date);
+      }),
+
+    // Get upcoming schedules
+    getUpcoming: protectedProcedure
+      .input(z.object({ days: z.number().optional() }))
+      .query(async ({ input }) => {
+        return await getUpcomingSchedules(input.days || 7);
+      }),
+
+    // Get schedules by liver name
+    getByLiver: protectedProcedure
+      .input(
+        z.object({
+          liverName: z.string(),
+          startDate: z.string().optional(),
+          endDate: z.string().optional(),
+        })
+      )
+      .query(async ({ input }) => {
+        const startDate = input.startDate ? new Date(input.startDate) : undefined;
+        const endDate = input.endDate ? new Date(input.endDate) : undefined;
+        return await getSchedulesByLiverName(input.liverName, startDate, endDate);
+      }),
+
+    // Get schedule by ID
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return await getScheduleById(input.id);
+      }),
+
+    // Create a new schedule
+    create: protectedProcedure
+      .input(
+        z.object({
+          title: z.string().min(1),
+          description: z.string().optional(),
+          startTime: z.string(),
+          endTime: z.string().optional(),
+          isAllDay: z.boolean().optional(),
+          category: z.enum(["delivery", "meeting", "live", "other"]).optional(),
+          liverId: z.number().optional(),
+          liverName: z.string().optional(),
+          brandId: z.number().optional(),
+          lineGroupId: z.string().optional(),
+          isRecurring: z.boolean().optional(),
+          recurringPattern: z.enum(["daily", "weekly", "monthly", "yearly"]).optional(),
+          recurringEndDate: z.string().optional(),
+          notes: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        const schedule = await createSchedule({
+          title: input.title,
+          description: input.description,
+          startTime: new Date(input.startTime),
+          endTime: input.endTime ? new Date(input.endTime) : undefined,
+          isAllDay: input.isAllDay || false,
+          category: input.category || "other",
+          liverId: input.liverId,
+          liverName: input.liverName,
+          brandId: input.brandId,
+          lineGroupId: input.lineGroupId,
+          isRecurring: input.isRecurring || false,
+          recurringPattern: input.recurringPattern,
+          recurringEndDate: input.recurringEndDate ? new Date(input.recurringEndDate) : undefined,
+          notes: input.notes,
+          createdBy: ctx.user.id,
+        });
+        return schedule;
+      }),
+
+    // Update a schedule
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          title: z.string().optional(),
+          description: z.string().optional(),
+          startTime: z.string().optional(),
+          endTime: z.string().optional(),
+          isAllDay: z.boolean().optional(),
+          category: z.enum(["delivery", "meeting", "live", "other"]).optional(),
+          liverId: z.number().optional(),
+          liverName: z.string().optional(),
+          brandId: z.number().optional(),
+          lineGroupId: z.string().optional(),
+          status: z.enum(["scheduled", "completed", "cancelled"]).optional(),
+          notes: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        const updateData: Record<string, unknown> = {};
+        
+        if (data.title !== undefined) updateData.title = data.title;
+        if (data.description !== undefined) updateData.description = data.description;
+        if (data.startTime !== undefined) updateData.startTime = new Date(data.startTime);
+        if (data.endTime !== undefined) updateData.endTime = new Date(data.endTime);
+        if (data.isAllDay !== undefined) updateData.isAllDay = data.isAllDay;
+        if (data.category !== undefined) updateData.category = data.category;
+        if (data.liverId !== undefined) updateData.liverId = data.liverId;
+        if (data.liverName !== undefined) updateData.liverName = data.liverName;
+        if (data.brandId !== undefined) updateData.brandId = data.brandId;
+        if (data.lineGroupId !== undefined) updateData.lineGroupId = data.lineGroupId;
+        if (data.status !== undefined) updateData.status = data.status;
+        if (data.notes !== undefined) updateData.notes = data.notes;
+        
+        await updateSchedule(id, updateData);
+        return { success: true };
+      }),
+
+    // Delete a schedule
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteSchedule(input.id);
         return { success: true };
       }),
   }),
