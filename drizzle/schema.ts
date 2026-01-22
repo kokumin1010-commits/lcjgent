@@ -705,6 +705,10 @@ export const schedules = mysqlTable("schedules", {
   // 作成者情報
   createdBy: int("createdBy"), // 作成したユーザーID
   createdByLineUserId: varchar("createdByLineUserId", { length: 64 }), // LINEから作成した場合のユーザーID
+  // リマインド設定
+  reminderEnabled: boolean("reminderEnabled").default(true).notNull(), // リマインドを送信するか
+  reminderMinutesBefore: int("reminderMinutesBefore").default(30), // 何分前にリマインドを送るか
+  reminderSentAt: timestamp("reminderSentAt"), // リマインド送信済み日時
   // タイムスタンプ
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

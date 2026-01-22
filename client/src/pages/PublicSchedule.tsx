@@ -334,25 +334,27 @@ export default function PublicSchedule() {
                       )}>
                         {date.getDate()}
                       </div>
-                      <div className="space-y-0.5">
-                        {daySchedules.slice(0, 2).map((schedule) => {
-                          const category = categoryConfig[schedule.category || "other"];
+                      <div className="space-y-0.5 overflow-hidden">
+                        {daySchedules.slice(0, 3).map((schedule) => {
+                          const startTime = formatTimeJST(new Date(schedule.startTime));
+                          const endTime = schedule.endTime ? formatTimeJST(new Date(schedule.endTime)) : null;
+                          const timeStr = endTime ? `${startTime}-${endTime.split(":")[0]}:` : startTime;
+                          const liverShort = schedule.liverName ? schedule.liverName.split(" ")[0].slice(0, 4) : "";
+                          
                           return (
                             <div
                               key={schedule.id}
-                              className={cn(
-                                "text-[10px] sm:text-xs px-1 py-0.5 rounded truncate text-white",
-                                category.color
-                              )}
-                              title={`${formatTimeJST(new Date(schedule.startTime))} ${schedule.title}`}
+                              className="text-[9px] sm:text-[11px] leading-tight truncate"
+                              title={`${startTime}${endTime ? "-" + endTime : ""} ${schedule.title} (${schedule.liverName || "未指定"})`}
                             >
-                              {formatTimeJST(new Date(schedule.startTime))} {schedule.title}
+                              <span className="text-blue-600 font-medium">{timeStr}</span>
+                              {liverShort && <span className="text-pink-500">:{liverShort}</span>}
                             </div>
                           );
                         })}
-                        {daySchedules.length > 2 && (
-                          <div className="text-[10px] text-gray-500 px-1">
-                            +{daySchedules.length - 2}件
+                        {daySchedules.length > 3 && (
+                          <div className="text-[9px] text-gray-400">
+                            +{daySchedules.length - 3}
                           </div>
                         )}
                       </div>

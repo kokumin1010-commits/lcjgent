@@ -12,6 +12,7 @@ import { notifyOwner } from "./notification";
 import { checkAndSendReminders } from "../reminderScheduler";
 import { startGroupFollowUpScheduler } from "../groupFollowUpScheduler";
 import { startResponseReminderScheduler } from "../responseReminderScheduler";
+import { startScheduleReminderScheduler } from "../scheduleReminderScheduler";
 import { trackingRouter } from "../tracking";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -334,6 +335,9 @@ async function startServer() {
     
     // Start response reminder scheduler (sends reminders for pending responses every 1 hour)
     startResponseReminderScheduler();
+    
+    // Start schedule reminder scheduler (sends reminders for upcoming schedules every 5 minutes)
+    startScheduleReminderScheduler();
   });
 }
 
