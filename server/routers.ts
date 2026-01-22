@@ -141,6 +141,9 @@ import {
   updateLineFollowUpStatus,
   getAllLineFollowUps,
   updateLineGroupAutoFollowUp,
+  getPendingResponsesForUI,
+  cancelPendingResponse,
+  markMessageResponded,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -3034,6 +3037,27 @@ ${conversationText}
           autoFollowUpDays: input.autoFollowUpDays,
           autoFollowUpMessage: input.autoFollowUpMessage,
         });
+        return { success: true };
+      }),
+
+    // Get pending responses (messages that need staff response)
+    getPendingResponses: protectedProcedure.query(async () => {
+      return await getPendingResponsesForUI();
+    }),
+
+    // Mark a pending response as responded (manual)
+    markAsResponded: protectedProcedure
+      .input(z.object({ lineGroupId: z.string() }))
+      .mutation(async ({ input, ctx }) => {
+        await markMessageResponded(input.lineGroupId, ctx.user.email || "manual");
+        return { success: true };
+      }),
+
+    // Cancel a pending response (dismiss without responding)
+    cancelPendingResponse: protectedProcedure
+      .input(z.object({ messageId: z.string() }))
+      .mutation(async ({ input }) => {
+        await cancelPendingResponse(input.messageId);
         return { success: true };
       }),
   }),

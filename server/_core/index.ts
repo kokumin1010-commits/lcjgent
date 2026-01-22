@@ -11,6 +11,7 @@ import { getTaskByCompletionToken, updateTask } from "../db";
 import { notifyOwner } from "./notification";
 import { checkAndSendReminders } from "../reminderScheduler";
 import { startGroupFollowUpScheduler } from "../groupFollowUpScheduler";
+import { startResponseReminderScheduler } from "../responseReminderScheduler";
 import { trackingRouter } from "../tracking";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -330,6 +331,9 @@ async function startServer() {
     
     // Start group follow-up scheduler (checks for inactive groups every 6 hours)
     startGroupFollowUpScheduler();
+    
+    // Start response reminder scheduler (sends reminders for pending responses every 1 hour)
+    startResponseReminderScheduler();
   });
 }
 

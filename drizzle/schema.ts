@@ -581,6 +581,14 @@ export const lineMessages = mysqlTable("line_messages", {
   direction: mysqlEnum("direction", ["incoming", "outgoing"]).notNull(),
   // Status
   isRead: boolean("isRead").default(false).notNull(),
+  // Response tracking (要対応フラグ)
+  needsResponse: boolean("needsResponse").default(false).notNull(), // AIが「返事が必要」と判定した場合true
+  responseStatus: mysqlEnum("responseStatus", ["none", "pending", "responded", "cancelled"]).default("none").notNull(), // 対応ステータス
+  responseSummary: text("responseSummary"), // AIによる要約（何についての返事が必要か）
+  lastReminderAt: timestamp("lastReminderAt"), // 最後のリマインド送信日時
+  reminderCount: int("reminderCount").default(0).notNull(), // リマインド送信回数
+  respondedAt: timestamp("respondedAt"), // 返事した日時
+  respondedBy: varchar("respondedBy", { length: 64 }), // 返事したスタッフのLINE User ID
   // Timestamps
   lineTimestamp: bigint("lineTimestamp", { mode: "number" }), // LINE's timestamp
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -619,3 +627,42 @@ export const lineFollowUps = mysqlTable("line_follow_ups", {
 
 export type LineFollowUp = typeof lineFollowUps.$inferSelect;
 export type InsertLineFollowUp = typeof lineFollowUps.$inferInsert;
+
+
+/**
+ * Pending Responses table for tracking messages that require staff response
+ * スタッフの返事が必要なメッセージを追跡するテーブル
+ * 
+ * 機能:
+ * - AIが「返事が必要」と判定したメッセージを登録
+ * - 1時間ごとにリマインドを送信
+ * - スタッフが返事したら自動的に解除
+ */
+export const pendingResponses = mysqlTable("pending_responses", {
+  id: int("id").autoincrement().primaryKey(),
+  // 対象グループ・メッセージ
+  lineGroupId: varchar("lineGroupId", { length: 64 }).notNull(), // LINE Group ID
+  lineMessageId: varchar("lineMessageId", { length: 64 }).notNull(), // 元のメッセージID
+  senderLineUserId: varchar("senderLineUserId", { length: 64 }), // 送信者のLINE User ID
+  senderName: varchar("senderName", { length: 255 }), // 送信者名
+  // メッセージ内容
+  messageContent: text("messageContent").notNull(), // メッセージ内容
+  messageSummary: text("messageSummary"), // AIによる要約
+  responseType: mysqlEnum("responseType", ["question", "proposal", "confirmation", "schedule", "other"]).default("other").notNull(), // 返事の種類
+  // ステータス
+  status: mysqlEnum("status", ["pending", "responded", "cancelled", "expired"]).default("pending").notNull(),
+  // リマインド設定
+  reminderCount: int("reminderCount").default(0).notNull(), // 送信済みリマインド回数
+  lastReminderAt: timestamp("lastReminderAt"), // 最後のリマインド送信日時
+  nextReminderAt: timestamp("nextReminderAt"), // 次のリマインド予定日時
+  // 解決情報
+  respondedBy: varchar("respondedBy", { length: 64 }), // 返事したスタッフのLINE User ID
+  respondedAt: timestamp("respondedAt"), // 返事した日時
+  // タイムスタンプ
+  detectedAt: timestamp("detectedAt").defaultNow().notNull(), // 検出日時
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type PendingResponse = typeof pendingResponses.$inferSelect;
+export type InsertPendingResponse = typeof pendingResponses.$inferInsert;

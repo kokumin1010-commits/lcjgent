@@ -12,6 +12,8 @@ import {
   getAllBrands,
   createOrUpdateLineGroup,
   updateGroupLastMessageAt,
+  markMessageNeedsResponse,
+  markMessageResponded,
 } from "./db";
 
 // ============================================
@@ -312,6 +314,81 @@ async function executeAction(action: AgentAction, lineUserId: string): Promise<s
   }
 }
 
+// ============================================
+// Response Requirement Detection
+// ============================================
+
+// Check if a message requires a response from staff
+async function checkIfNeedsResponse(message: string, senderName: string): Promise<{ needsResponse: boolean; summary?: string }> {
+  // Skip very short messages or simple greetings
+  if (message.length < 10) {
+    return { needsResponse: false };
+  }
+  
+  // Skip messages that are clearly just acknowledgments
+  const acknowledgmentPatterns = [
+    /^はい$/,
+    /^わかりました$/,
+    /^了解$/,
+    /^承知$/,
+    /^ありがとう$/,
+    /^お疑いします$/,
+  ];
+  
+  for (const pattern of acknowledgmentPatterns) {
+    if (pattern.test(message.trim())) {
+      return { needsResponse: false };
+    }
+  }
+  
+  // Use AI to determine if response is needed
+  try {
+    const analysisPrompt = `以下のメッセージを分析して、スタッフからの返事が必要かどうかを判定してください。
+
+送信者: ${senderName}
+メッセージ: ${message}
+
+以下の場合は「返事が必要」と判定してください：
+- 質問や確認事項が含まれている
+- スケジュールや日程の提案がある
+- 条件や見積もりの確認がある
+- 契約や合意に関する内容
+- 具体的なアクションを求めている
+
+以下の場合は「返事不要」と判定してください：
+- 単なる挨拶やお礼
+- 情報の共有のみ（返事を求めていない）
+- スタンプや絵文字のみ
+- 「了解」「承知」などの確認応答
+
+JSON形式で回答してください：
+{"needsResponse": true/false, "summary": "返事が必要な内容の要約（返事が必要な場合のみ）"}`;
+    
+    const response = await invokeLLM({
+      messages: [
+        { role: "system", content: "あなたはビジネスメッセージの分析アシスタントです。JSON形式でのみ回答してください。" },
+        { role: "user", content: analysisPrompt },
+      ],
+    });
+    
+    const content = response.choices?.[0]?.message?.content;
+    if (typeof content === "string") {
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        return {
+          needsResponse: parsed.needsResponse === true,
+          summary: parsed.summary,
+        };
+      }
+    }
+  } catch (error) {
+    console.error("[LINE Agent] Failed to analyze message for response requirement:", error);
+  }
+  
+  return { needsResponse: false };
+}
+
 // Main agent function - process incoming message and generate response
 export async function processLineMessage(event: LineWebhookEvent): Promise<void> {
   // Only process text messages
@@ -389,6 +466,19 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
       direction: "incoming",
       lineTimestamp: event.timestamp,
     });
+    
+    // Check if this message needs a response (for group chats from non-bot users)
+    if (isGroupChat && groupId) {
+      try {
+        const needsResponseResult = await checkIfNeedsResponse(userMessage, senderName);
+        if (needsResponseResult.needsResponse) {
+          await markMessageNeedsResponse(messageId, needsResponseResult.summary);
+          console.log(`[LINE Agent] Message marked as needs response: ${needsResponseResult.summary}`);
+        }
+      } catch (error) {
+        console.error("[LINE Agent] Failed to check if message needs response:", error);
+      }
+    }
     
     // Update last message timestamp
     await updateLineUserLastMessage(userId);
@@ -501,6 +591,16 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
         content: responseText,
         direction: "outgoing",
       });
+      
+      // Mark any pending responses in this group as responded (auto-clear)
+      if (isGroupChat && chatId) {
+        try {
+          await markMessageResponded(chatId, "bot");
+          console.log(`[LINE Agent] Marked pending responses as responded in group ${chatId}`);
+        } catch (error) {
+          console.error("[LINE Agent] Failed to mark messages as responded:", error);
+        }
+      }
       
       console.log(`[LINE Agent] Reply sent successfully to ${userId}`);
     } else {
@@ -748,6 +848,16 @@ export async function processVideoMessage(event: LineWebhookEvent): Promise<void
         content: responseText,
         direction: "outgoing",
       });
+      
+      // Mark any pending responses in this group as responded (auto-clear)
+      if (isGroupChat && chatId) {
+        try {
+          await markMessageResponded(chatId, "bot");
+          console.log(`[LINE Agent] Marked pending responses as responded in group ${chatId}`);
+        } catch (error) {
+          console.error("[LINE Agent] Failed to mark messages as responded:", error);
+        }
+      }
       
       console.log(`[LINE Agent] Video analysis reply sent to ${userId}`);
     }

@@ -1,4 +1,4 @@
-import { eq, and, desc, asc, sql, or, like, inArray, not } from "drizzle-orm";
+import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp } from "../drizzle/schema";
 
@@ -2317,6 +2317,10 @@ export async function saveLineMessage(data: {
   content?: string;
   direction: "incoming" | "outgoing";
   lineTimestamp?: number;
+  // Response tracking fields
+  needsResponse?: boolean;
+  responseStatus?: "none" | "pending" | "responded" | "cancelled";
+  responseSummary?: string;
 }) {
   const db = await getDb();
   if (!db) return null;
@@ -2331,6 +2335,9 @@ export async function saveLineMessage(data: {
     content: data.content,
     direction: data.direction,
     lineTimestamp: data.lineTimestamp,
+    needsResponse: data.needsResponse || false,
+    responseStatus: data.responseStatus || "none",
+    responseSummary: data.responseSummary,
   });
   
   return { id: result[0].insertId, ...data };
@@ -2461,3 +2468,185 @@ export async function deleteLineFollowUp(id: number) {
   await db.delete(lineFollowUps).where(eq(lineFollowUps.id, id));
 }
 
+
+// ============================================
+// Response Tracking Functions (要対応メッセージ)
+// ============================================
+
+// Update message to mark as needs response
+export async function markMessageNeedsResponse(
+  messageId: string,
+  responseSummary?: string
+) {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db
+    .update(lineMessages)
+    .set({
+      needsResponse: true,
+      responseStatus: "pending",
+      responseSummary,
+    })
+    .where(eq(lineMessages.messageId, messageId));
+}
+
+// Mark message as responded
+export async function markMessageResponded(
+  lineGroupId: string,
+  respondedBy: string
+) {
+  const db = await getDb();
+  if (!db) return;
+  
+  // Mark all pending messages in this group as responded
+  await db
+    .update(lineMessages)
+    .set({
+      responseStatus: "responded",
+      respondedAt: new Date(),
+      respondedBy,
+    })
+    .where(
+      and(
+        eq(lineMessages.lineGroupId, lineGroupId),
+        eq(lineMessages.responseStatus, "pending")
+      )
+    );
+}
+
+// Get pending response messages (for reminder job)
+export async function getPendingResponseMessages() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(lineMessages)
+    .where(
+      and(
+        eq(lineMessages.needsResponse, true),
+        eq(lineMessages.responseStatus, "pending")
+      )
+    )
+    .orderBy(lineMessages.createdAt);
+}
+
+// Get pending response messages grouped by group
+export async function getPendingResponsesByGroup() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const messages = await db
+    .select()
+    .from(lineMessages)
+    .where(
+      and(
+        eq(lineMessages.needsResponse, true),
+        eq(lineMessages.responseStatus, "pending"),
+        isNotNull(lineMessages.lineGroupId)
+      )
+    )
+    .orderBy(lineMessages.createdAt);
+  
+  // Group by lineGroupId
+  const grouped = new Map<string, typeof messages>();
+  for (const msg of messages) {
+    if (!msg.lineGroupId) continue;
+    const existing = grouped.get(msg.lineGroupId) || [];
+    existing.push(msg);
+    grouped.set(msg.lineGroupId, existing);
+  }
+  
+  return Array.from(grouped.entries()).map(([groupId, msgs]) => ({
+    lineGroupId: groupId,
+    messages: msgs,
+    oldestPending: msgs[0],
+    count: msgs.length,
+  }));
+}
+
+// Update reminder sent for a message
+export async function updateMessageReminderSent(messageId: string) {
+  const db = await getDb();
+  if (!db) return;
+  
+  const current = await db
+    .select()
+    .from(lineMessages)
+    .where(eq(lineMessages.messageId, messageId))
+    .limit(1);
+  
+  if (current.length > 0) {
+    await db
+      .update(lineMessages)
+      .set({
+        lastReminderAt: new Date(),
+        reminderCount: current[0].reminderCount + 1,
+      })
+      .where(eq(lineMessages.messageId, messageId));
+  }
+}
+
+// Cancel pending response (manual)
+export async function cancelPendingResponse(messageId: string) {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db
+    .update(lineMessages)
+    .set({
+      responseStatus: "cancelled",
+    })
+    .where(eq(lineMessages.messageId, messageId));
+}
+
+// Get pending responses for management UI
+export async function getPendingResponsesForUI() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const messages = await db
+    .select({
+      id: lineMessages.id,
+      messageId: lineMessages.messageId,
+      lineGroupId: lineMessages.lineGroupId,
+      senderName: lineMessages.senderName,
+      content: lineMessages.content,
+      responseSummary: lineMessages.responseSummary,
+      reminderCount: lineMessages.reminderCount,
+      lastReminderAt: lineMessages.lastReminderAt,
+      createdAt: lineMessages.createdAt,
+    })
+    .from(lineMessages)
+    .where(
+      and(
+        eq(lineMessages.needsResponse, true),
+        eq(lineMessages.responseStatus, "pending")
+      )
+    )
+    .orderBy(desc(lineMessages.createdAt));
+  
+  // Enrich with group names
+  const result = [];
+  for (const msg of messages) {
+    let groupName = "不明";
+    if (msg.lineGroupId) {
+      const group = await db
+        .select({ groupName: lineGroups.groupName })
+        .from(lineGroups)
+        .where(eq(lineGroups.lineGroupId, msg.lineGroupId))
+        .limit(1);
+      if (group.length > 0 && group[0].groupName) {
+        groupName = group[0].groupName;
+      }
+    }
+    result.push({
+      ...msg,
+      groupName,
+      elapsedHours: Math.floor((Date.now() - new Date(msg.createdAt).getTime()) / (1000 * 60 * 60)),
+    });
+  }
+  
+  return result;
+}

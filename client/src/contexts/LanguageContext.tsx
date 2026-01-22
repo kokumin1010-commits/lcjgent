@@ -24,6 +24,7 @@ const jaTranslations: Record<string, string> = {
   "nav.businessCards": "名刺管理",
   "nav.line": "LINE管理",
   "nav.lineFollowUps": "フォローアップ",
+  "nav.pendingResponses": "要対応",
   "nav.logout": "ログアウト",
   
   // Dashboard
@@ -301,6 +302,7 @@ const zhTranslations: Record<string, string> = {
   "nav.businessCards": "名片管理",
   "nav.line": "LINE管理",
   "nav.lineFollowUps": "跟进管理",
+  "nav.pendingResponses": "待回复",
   "nav.logout": "退出登录",
   
   // Dashboard
