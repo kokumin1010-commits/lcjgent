@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE schedules SET startTime = '2026-01-25 07:00:00', endTime = '2026-01-25 09:00:00' WHERE title = 'ライブ配信';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute UPDATE schedules SET startTime = '2026-01-25 07:00:00', endTime = '2026-01-25 09:00:00' WHERE title = 'ライブ配信';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1545
+}

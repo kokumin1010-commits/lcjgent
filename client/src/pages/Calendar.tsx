@@ -52,6 +52,27 @@ const categoryColors: Record<string, string> = {
   other: "bg-gray-500",
 };
 
+// Helper function to format time in JST (UTC+9)
+const formatTimeInJST = (date: Date | string) => {
+  const d = new Date(date);
+  return d.toLocaleTimeString("ja-JP", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Tokyo",
+  });
+};
+
+// Helper function to get date string in JST for grouping
+const getDateStringInJST = (date: Date | string) => {
+  const d = new Date(date);
+  return d.toLocaleDateString("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+};
+
 const categoryLabels: Record<string, string> = {
   delivery: "配信",
   meeting: "ミーティング",
@@ -235,13 +256,16 @@ export default function CalendarPage() {
     return days;
   }, [startDate, endDate]);
 
-  // Group schedules by date
+  // Group schedules by date (using JST timezone)
   const schedulesByDate = useMemo(() => {
     const map = new Map<string, Schedule[]>();
     if (!schedules) return map;
 
     schedules.forEach((schedule) => {
-      const dateKey = new Date(schedule.startTime).toDateString();
+      // Convert UTC time to JST for correct date grouping
+      const jstDate = new Date(schedule.startTime);
+      // Get the date in JST timezone
+      const dateKey = jstDate.toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" }); // YYYY-MM-DD format
       if (!map.has(dateKey)) {
         map.set(dateKey, []);
       }
@@ -437,7 +461,9 @@ export default function CalendarPage() {
               {calendarDays.map((date, index) => {
                 const isCurrentMonth = date.getMonth() === currentDate.getMonth();
                 const isToday = date.toDateString() === new Date().toDateString();
-                const daySchedules = schedulesByDate.get(date.toDateString()) || [];
+                // Use YYYY-MM-DD format in JST for matching with schedulesByDate
+                const dateKey = date.toLocaleDateString("en-CA"); // YYYY-MM-DD format
+                const daySchedules = schedulesByDate.get(dateKey) || [];
                 const dayOfWeek = date.getDay();
 
                 return (
@@ -472,10 +498,7 @@ export default function CalendarPage() {
                             setIsAddDialogOpen(true);
                           }}
                         >
-                          {new Date(schedule.startTime).toLocaleTimeString("ja-JP", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}{" "}
+                          {formatTimeInJST(schedule.startTime)}{" "}
                           {schedule.title}
                         </div>
                       ))}
@@ -502,8 +525,9 @@ export default function CalendarPage() {
           </CardHeader>
           <CardContent>
             {(() => {
-              const todaySchedules =
-                schedulesByDate.get(new Date().toDateString()) || [];
+              // Use YYYY-MM-DD format for today's date key
+              const todayKey = new Date().toLocaleDateString("en-CA");
+              const todaySchedules = schedulesByDate.get(todayKey) || [];
               if (todaySchedules.length === 0) {
                 return (
                   <p className="text-muted-foreground text-center py-4">
@@ -528,17 +552,11 @@ export default function CalendarPage() {
                           <div className="font-medium">{schedule.title}</div>
                           <div className="text-sm text-muted-foreground flex items-center gap-2">
                             <Clock className="h-3 w-3" />
-                            {new Date(schedule.startTime).toLocaleTimeString(
-                              "ja-JP",
-                              { hour: "2-digit", minute: "2-digit" }
-                            )}
+                            {formatTimeInJST(schedule.startTime)}
                             {schedule.endTime && (
                               <>
                                 {" - "}
-                                {new Date(schedule.endTime).toLocaleTimeString(
-                                  "ja-JP",
-                                  { hour: "2-digit", minute: "2-digit" }
-                                )}
+                                {formatTimeInJST(schedule.endTime)}
                               </>
                             )}
                             {schedule.liverName && (

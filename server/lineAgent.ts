@@ -419,19 +419,25 @@ async function executeAction(action: AgentAction, lineUserId: string): Promise<s
       let startTime: Date;
       let endTime: Date | undefined;
       
+      // Create date in JST (UTC+9) and convert to UTC for storage
+      // This ensures the time is stored correctly regardless of server timezone
+      const year = baseDate.getFullYear();
+      const month = baseDate.getMonth();
+      const day = baseDate.getDate();
+      
       if (action.startTime) {
         const [hours, minutes] = action.startTime.split(":").map(Number);
-        startTime = new Date(baseDate);
-        startTime.setHours(hours, minutes, 0, 0);
+        // Create UTC date by subtracting 9 hours from JST
+        startTime = new Date(Date.UTC(year, month, day, hours - 9, minutes, 0, 0));
       } else {
-        startTime = baseDate;
-        startTime.setHours(0, 0, 0, 0);
+        // All day event - set to midnight JST (15:00 UTC previous day)
+        startTime = new Date(Date.UTC(year, month, day - 1, 15, 0, 0, 0));
       }
       
       if (action.endTime) {
         const [hours, minutes] = action.endTime.split(":").map(Number);
-        endTime = new Date(baseDate);
-        endTime.setHours(hours, minutes, 0, 0);
+        // Create UTC date by subtracting 9 hours from JST
+        endTime = new Date(Date.UTC(year, month, day, hours - 9, minutes, 0, 0));
       }
       
       try {
