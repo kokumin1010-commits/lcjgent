@@ -1,25 +1,25 @@
 /**
- * Response Reminder Scheduler
- * 要対応メッセージに対して1時間ごとにリマインドを送信するスケジューラー
+ * Inactive Group Follow-up Scheduler
+ * グループで2日間メッセージがない場合に自動フォローメッセージを送信するスケジューラー
  */
 
-import { getPendingResponsesByGroup, updateMessageReminderSent } from "./db";
+import { getGroupsNeedingFollowUp, updateGroupLastAutoFollowUp } from "./db";
 import { pushMessage } from "./line";
 
-// Reminder message template
-const REMINDER_MESSAGE = "ご案内内容について、念のためフォローさせていただきました。";
+// Follow-up message template
+const FOLLOW_UP_MESSAGE = "ご案内内容について、念のためフォローさせていただきました。";
 
-// Maximum number of reminders to send per message
-const MAX_REMINDERS = 24; // 24時間分（1時間ごと）
+// Inactivity threshold (2 days in milliseconds)
+const INACTIVITY_THRESHOLD_MS = 2 * 24 * 60 * 60 * 1000; // 2 days
 
-// Minimum time between reminders (in milliseconds)
-const MIN_REMINDER_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+// Minimum time between follow-ups for the same group (7 days)
+const MIN_FOLLOW_UP_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 /**
- * Check pending responses and send reminders
+ * Check inactive groups and send follow-up messages
  */
-export async function checkAndSendResponseReminders() {
-  console.log("[Response Reminder] Starting reminder check...");
+export async function checkAndSendInactiveGroupFollowUps() {
+  console.log("[Inactive Group Follow-up] Starting check...");
   
   const stats = {
     checked: 0,
@@ -29,116 +29,96 @@ export async function checkAndSendResponseReminders() {
   };
   
   try {
-    const pendingGroups = await getPendingResponsesByGroup();
-    stats.checked = pendingGroups.length;
+    const inactiveGroups = await getGroupsNeedingFollowUp();
+    stats.checked = inactiveGroups.length;
     
-    console.log(`[Response Reminder] Found ${pendingGroups.length} groups with pending responses`);
+    console.log(`[Inactive Group Follow-up] Found ${inactiveGroups.length} inactive groups`);
     
     const now = new Date();
     
-    for (const group of pendingGroups) {
+    for (const group of inactiveGroups) {
       try {
-        // Get the oldest pending message in this group
-        const oldestMessage = group.oldestPending;
-        
-        // Skip if max reminders reached
-        if (oldestMessage.reminderCount >= MAX_REMINDERS) {
-          console.log(`[Response Reminder] Group ${group.lineGroupId}: Max reminders reached (${oldestMessage.reminderCount})`);
-          stats.skipped++;
-          continue;
-        }
-        
-        // Check if enough time has passed since last reminder
-        if (oldestMessage.lastReminderAt) {
-          const lastReminderTime = new Date(oldestMessage.lastReminderAt).getTime();
-          const timeSinceLastReminder = now.getTime() - lastReminderTime;
+        // Skip if we already sent a follow-up recently
+        if (group.lastAutoFollowUpAt) {
+          const lastFollowUpTime = new Date(group.lastAutoFollowUpAt).getTime();
+          const timeSinceLastFollowUp = now.getTime() - lastFollowUpTime;
           
-          if (timeSinceLastReminder < MIN_REMINDER_INTERVAL_MS) {
-            console.log(`[Response Reminder] Group ${group.lineGroupId}: Too soon since last reminder (${Math.round(timeSinceLastReminder / 60000)} mins ago)`);
-            stats.skipped++;
-            continue;
-          }
-        } else {
-          // First reminder - check if at least 1 hour has passed since the message was received
-          const messageTime = new Date(oldestMessage.createdAt).getTime();
-          const timeSinceMessage = now.getTime() - messageTime;
-          
-          if (timeSinceMessage < MIN_REMINDER_INTERVAL_MS) {
-            console.log(`[Response Reminder] Group ${group.lineGroupId}: Message too recent (${Math.round(timeSinceMessage / 60000)} mins ago)`);
+          if (timeSinceLastFollowUp < MIN_FOLLOW_UP_INTERVAL_MS) {
+            console.log(`[Inactive Group Follow-up] Group ${group.lineGroupId}: Follow-up sent recently (${Math.round(timeSinceLastFollowUp / (24 * 60 * 60 * 1000))} days ago)`);
             stats.skipped++;
             continue;
           }
         }
         
-        // Send reminder to the group
-        console.log(`[Response Reminder] Sending reminder to group ${group.lineGroupId}...`);
+        // Send follow-up to the group
+        console.log(`[Inactive Group Follow-up] Sending follow-up to group ${group.lineGroupId} (${group.groupName || 'Unknown'})...`);
         
         const success = await pushMessage(group.lineGroupId, [
-          { type: "text", text: REMINDER_MESSAGE },
+          { type: "text", text: FOLLOW_UP_MESSAGE },
         ]);
         
         if (success) {
-          // Update reminder count for the oldest message
-          await updateMessageReminderSent(oldestMessage.messageId);
+          // Update last follow-up timestamp
+          await updateGroupLastAutoFollowUp(group.lineGroupId);
           stats.sent++;
-          console.log(`[Response Reminder] Reminder sent to group ${group.lineGroupId} (reminder #${oldestMessage.reminderCount + 1})`);
+          console.log(`[Inactive Group Follow-up] Follow-up sent to group ${group.lineGroupId}`);
         } else {
           stats.errors++;
-          console.error(`[Response Reminder] Failed to send reminder to group ${group.lineGroupId}`);
+          console.error(`[Inactive Group Follow-up] Failed to send follow-up to group ${group.lineGroupId}`);
         }
         
       } catch (error) {
         stats.errors++;
-        console.error(`[Response Reminder] Error processing group ${group.lineGroupId}:`, error);
+        console.error(`[Inactive Group Follow-up] Error processing group ${group.lineGroupId}:`, error);
       }
     }
     
   } catch (error) {
-    console.error("[Response Reminder] Error in scheduler:", error);
+    console.error("[Inactive Group Follow-up] Error in scheduler:", error);
   }
   
-  console.log(`[Response Reminder] Completed. Checked: ${stats.checked}, Sent: ${stats.sent}, Skipped: ${stats.skipped}, Errors: ${stats.errors}`);
+  console.log(`[Inactive Group Follow-up] Completed. Checked: ${stats.checked}, Sent: ${stats.sent}, Skipped: ${stats.skipped}, Errors: ${stats.errors}`);
   return stats;
 }
 
 // Scheduler interval reference
-const CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // Check every 6 hours
 
 let schedulerInterval: NodeJS.Timeout | null = null;
 
 /**
- * Start the response reminder scheduler
+ * Start the inactive group follow-up scheduler
  */
 export function startResponseReminderScheduler() {
   if (schedulerInterval) {
-    console.log("[Response Reminder Scheduler] Already running");
+    console.log("[Inactive Group Follow-up Scheduler] Already running");
     return;
   }
   
-  console.log("[Response Reminder Scheduler] Starting scheduler (runs every 1 hour)...");
+  console.log("[Inactive Group Follow-up Scheduler] Starting scheduler (runs every 6 hours)...");
   
   // Run immediately on startup (after a short delay to let other services initialize)
   setTimeout(() => {
-    checkAndSendResponseReminders().catch(error => {
-      console.error("[Response Reminder Scheduler] Error during initial run:", error);
+    checkAndSendInactiveGroupFollowUps().catch(error => {
+      console.error("[Inactive Group Follow-up Scheduler] Error during initial run:", error);
     });
-  }, 10000); // 10 second delay
+  }, 30000); // 30 second delay
   
-  // Then run every hour
+  // Then run every 6 hours
   schedulerInterval = setInterval(() => {
-    checkAndSendResponseReminders().catch(error => {
-      console.error("[Response Reminder Scheduler] Error during scheduled run:", error);
+    checkAndSendInactiveGroupFollowUps().catch(error => {
+      console.error("[Inactive Group Follow-up Scheduler] Error during scheduled run:", error);
     });
   }, CHECK_INTERVAL_MS);
 }
 
 /**
- * Stop the response reminder scheduler
+ * Stop the inactive group follow-up scheduler
  */
 export function stopResponseReminderScheduler() {
   if (schedulerInterval) {
     clearInterval(schedulerInterval);
     schedulerInterval = null;
-    console.log("[Response Reminder Scheduler] Stopped");
+    console.log("[Inactive Group Follow-up Scheduler] Stopped");
   }
 }

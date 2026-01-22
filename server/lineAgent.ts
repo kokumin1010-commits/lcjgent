@@ -590,19 +590,6 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
       lineTimestamp: event.timestamp,
     });
     
-    // Check if this message needs a response (for group chats from non-bot users)
-    if (isGroupChat && groupId) {
-      try {
-        const needsResponseResult = await checkIfNeedsResponse(userMessage, senderName);
-        if (needsResponseResult.needsResponse) {
-          await markMessageNeedsResponse(messageId, needsResponseResult.summary);
-          console.log(`[LINE Agent] Message marked as needs response: ${needsResponseResult.summary}`);
-        }
-      } catch (error) {
-        console.error("[LINE Agent] Failed to check if message needs response:", error);
-      }
-    }
-    
     // Update last message timestamp
     await updateLineUserLastMessage(userId);
     
