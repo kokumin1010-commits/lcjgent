@@ -27,6 +27,7 @@ import LineManagement from "./pages/LineManagement";
 import LineFollowUps from "./pages/LineFollowUps";
 import PendingResponses from "./pages/PendingResponses";
 import Calendar from "./pages/Calendar";
+import PublicSchedule from "./pages/PublicSchedule";
 
 function Router() {
   return (
@@ -156,6 +157,7 @@ function Router() {
           <Calendar />
         </DashboardLayout>
       </Route>
+      <Route path={"/s"} component={PublicSchedule} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

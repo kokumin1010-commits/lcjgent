@@ -3211,6 +3211,27 @@ ${conversationText}
         await deleteSchedule(input.id);
         return { success: true };
       }),
+
+    // Public: Get upcoming schedules (no auth required)
+    getPublicUpcoming: publicProcedure
+      .input(z.object({ days: z.number().optional() }))
+      .query(async ({ input }) => {
+        return await getUpcomingSchedules(input.days || 14);
+      }),
+
+    // Public: Get schedules by date range (no auth required)
+    getPublicByDateRange: publicProcedure
+      .input(
+        z.object({
+          startDate: z.string(),
+          endDate: z.string(),
+        })
+      )
+      .query(async ({ input }) => {
+        const startDate = new Date(input.startDate);
+        const endDate = new Date(input.endDate);
+        return await getSchedulesByDateRange(startDate, endDate);
+      }),
   }),
 });
 
