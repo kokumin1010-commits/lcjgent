@@ -3232,6 +3232,21 @@ ${conversationText}
         const endDate = new Date(input.endDate);
         return await getSchedulesByDateRange(startDate, endDate);
       }),
+
+    // Public: Get schedules by liver name (no auth required)
+    getPublicByLiver: publicProcedure
+      .input(
+        z.object({
+          liverName: z.string(),
+          startDate: z.string().optional(),
+          endDate: z.string().optional(),
+        })
+      )
+      .query(async ({ input }) => {
+        const startDate = input.startDate ? new Date(input.startDate) : undefined;
+        const endDate = input.endDate ? new Date(input.endDate) : undefined;
+        return await getSchedulesByLiverName(input.liverName, startDate, endDate);
+      }),
   }),
 });
 

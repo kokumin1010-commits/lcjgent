@@ -28,6 +28,7 @@ import LineFollowUps from "./pages/LineFollowUps";
 import PendingResponses from "./pages/PendingResponses";
 import Calendar from "./pages/Calendar";
 import PublicSchedule from "./pages/PublicSchedule";
+import PublicLiverSchedule from "./pages/PublicLiverSchedule";
 
 function Router() {
   return (
@@ -158,6 +159,7 @@ function Router() {
         </DashboardLayout>
       </Route>
       <Route path={"/s"} component={PublicSchedule} />
+      <Route path={"/s/:name"} component={PublicLiverSchedule} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>
