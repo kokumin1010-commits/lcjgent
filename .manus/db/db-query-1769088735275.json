@@ -1,0 +1,28 @@
+{
+  "query": "SELECT id, title, liverName, startTime FROM schedules ORDER BY id DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, title, liverName, startTime FROM schedules ORDER BY id DESC LIMIT 5;",
+  "rows": [
+    {
+      "id": "3",
+      "title": "ライブ配信 (ryukyogokuアカウント)",
+      "liverName": "京極 琉",
+      "startTime": "2024-01-26 20:00:00"
+    },
+    {
+      "id": "2",
+      "title": "ライブ配信",
+      "liverName": "京極 琉",
+      "startTime": "2026-01-25 07:00:00"
+    },
+    {
+      "id": "1",
+      "title": "ライブ配信",
+      "liverName": "京極 琉",
+      "startTime": "2026-01-25 07:00:00"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tliverName\tstartTime\n3\tライブ配信 (ryukyogokuアカウント)\t京極 琉\t2024-01-26 20:00:00\n2\tライブ配信\t京極 琉\t2026-01-25 07:00:00\n1\tライブ配信\t京極 琉\t2026-01-25 07:00:00\n",
+  "stderr": "",
+  "execution_time_ms": 1505
+}

@@ -1,0 +1,28 @@
+{
+  "query": "SELECT id, title, liverName, CHAR_LENGTH(liverName) as name_length FROM schedules;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, title, liverName, CHAR_LENGTH(liverName) as name_length FROM schedules;",
+  "rows": [
+    {
+      "id": "1",
+      "title": "ライブ配信",
+      "liverName": "京極 琉",
+      "name_length": "4"
+    },
+    {
+      "id": "2",
+      "title": "ライブ配信",
+      "liverName": "京極 琉",
+      "name_length": "4"
+    },
+    {
+      "id": "3",
+      "title": "ライブ配信 (ryukyogokuアカウント)",
+      "liverName": "京極 琉",
+      "name_length": "4"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tliverName\tname_length\n1\tライブ配信\t京極 琉\t4\n2\tライブ配信\t京極 琉\t4\n3\tライブ配信 (ryukyogokuアカウント)\t京極 琉\t4\n",
+  "stderr": "",
+  "execution_time_ms": 1521
+}

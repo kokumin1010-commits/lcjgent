@@ -2726,8 +2726,16 @@ export async function getSchedulesByLiverName(liverName: string, startDate?: Dat
   const db = await getDb();
   if (!db) return [];
   
+  // Normalize the search term by removing spaces for flexible matching
+  // This handles cases where "京極琉" should match "京極 琉"
+  const normalizedName = liverName.replace(/\s+/g, '');
+  
   const conditions = [
-    like(schedules.liverName, `%${liverName}%`),
+    or(
+      like(schedules.liverName, `%${liverName}%`),
+      // Also search with spaces removed from the database value
+      sql`REPLACE(${schedules.liverName}, ' ', '') LIKE ${`%${normalizedName}%`}`
+    ),
     not(eq(schedules.status, "cancelled"))
   ];
   
