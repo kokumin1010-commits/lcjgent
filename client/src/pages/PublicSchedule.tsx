@@ -1,12 +1,13 @@
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Clock, User, Plus, ChevronDown } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Calendar, Clock, User, Plus, ChevronDown, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "wouter";
 import { toast } from "sonner";
@@ -33,6 +34,14 @@ function getJSTDateKey(date: Date): string {
   return `${jst.getUTCFullYear()}-${String(jst.getUTCMonth() + 1).padStart(2, "0")}-${String(jst.getUTCDate()).padStart(2, "0")}`;
 }
 
+// Helper function to format date for bottom sheet header
+function formatDateForSheet(dateKey: string): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  const weekdays = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"];
+  return `${month}月${day}日 ${weekdays[date.getDay()]}`;
+}
+
 // Helper function to format full date for modal
 function formatFullDate(dateKey: string): string {
   const [year, month, day] = dateKey.split("-").map(Number);
@@ -43,24 +52,24 @@ function formatFullDate(dateKey: string): string {
 
 // Liver colors for visual distinction - TimeTree style
 const liverColors = [
-  { bg: "bg-pink-400", text: "text-white" },
-  { bg: "bg-blue-400", text: "text-white" },
-  { bg: "bg-green-400", text: "text-white" },
-  { bg: "bg-orange-400", text: "text-white" },
-  { bg: "bg-purple-400", text: "text-white" },
-  { bg: "bg-cyan-400", text: "text-white" },
-  { bg: "bg-rose-400", text: "text-white" },
-  { bg: "bg-indigo-400", text: "text-white" },
-  { bg: "bg-amber-400", text: "text-white" },
-  { bg: "bg-teal-400", text: "text-white" },
+  { bg: "bg-pink-400", border: "border-pink-400", text: "text-white" },
+  { bg: "bg-blue-400", border: "border-blue-400", text: "text-white" },
+  { bg: "bg-green-400", border: "border-green-400", text: "text-white" },
+  { bg: "bg-orange-400", border: "border-orange-400", text: "text-white" },
+  { bg: "bg-purple-400", border: "border-purple-400", text: "text-white" },
+  { bg: "bg-cyan-400", border: "border-cyan-400", text: "text-white" },
+  { bg: "bg-rose-400", border: "border-rose-400", text: "text-white" },
+  { bg: "bg-indigo-400", border: "border-indigo-400", text: "text-white" },
+  { bg: "bg-amber-400", border: "border-amber-400", text: "text-white" },
+  { bg: "bg-teal-400", border: "border-teal-400", text: "text-white" },
 ];
 
 // Category colors
-const categoryColors: Record<string, { bg: string; text: string }> = {
-  delivery: { bg: "bg-blue-400", text: "text-white" },
-  meeting: { bg: "bg-green-400", text: "text-white" },
-  live: { bg: "bg-pink-400", text: "text-white" },
-  other: { bg: "bg-gray-400", text: "text-white" },
+const categoryColors: Record<string, { bg: string; border: string; text: string }> = {
+  delivery: { bg: "bg-blue-400", border: "border-blue-400", text: "text-white" },
+  meeting: { bg: "bg-green-400", border: "border-green-400", text: "text-white" },
+  live: { bg: "bg-pink-400", border: "border-pink-400", text: "text-white" },
+  other: { bg: "bg-gray-400", border: "border-gray-400", text: "text-white" },
 };
 
 interface Schedule {
@@ -78,23 +87,24 @@ export default function PublicSchedule() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
+  const [bottomSheetOpen, setBottomSheetOpen] = useState(false);
   
   // Add schedule modal state
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [addModalDate, setAddModalDate] = useState<string>("");
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [datePickerMonth, setDatePickerMonth] = useState(new Date());
   const [newSchedule, setNewSchedule] = useState({
     title: "",
     description: "",
     startTime: "10:00",
     endTime: "11:00",
+    isAllDay: false,
     category: "other" as "delivery" | "meeting" | "live" | "other",
     liverName: "",
     isNewLiver: false,
     newLiverName: "",
   });
-
-  // Double tap detection
-  const lastTapRef = useRef<{ time: number; dateKey: string } | null>(null);
 
   // Get date range for the current month
   const dateRange = useMemo(() => {
@@ -131,11 +141,13 @@ export default function PublicSchedule() {
       description: "",
       startTime: "10:00",
       endTime: "11:00",
+      isAllDay: false,
       category: "other",
       liverName: "",
       isNewLiver: false,
       newLiverName: "",
     });
+    setShowDatePicker(false);
   };
 
   // Get unique liver names and assign colors
@@ -222,35 +234,67 @@ export default function PublicSchedule() {
     return weeks;
   }, [currentDate]);
 
-  // Handle date click (with double tap detection)
-  const handleDateClick = useCallback((dateKey: string, daySchedules: Schedule[], isCurrentMonth: boolean) => {
-    const now = Date.now();
-    const lastTap = lastTapRef.current;
+  // Generate date picker calendar weeks
+  const datePickerWeeks = useMemo(() => {
+    const year = datePickerMonth.getFullYear();
+    const month = datePickerMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
     
-    if (lastTap && lastTap.dateKey === dateKey && now - lastTap.time < 300) {
-      // Double tap - open add modal
-      if (isCurrentMonth) {
-        setAddModalDate(dateKey);
-        setAddModalOpen(true);
-        lastTapRef.current = null;
-        return;
+    let startDate = new Date(firstDay);
+    const dayOfWeek = firstDay.getDay();
+    const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    startDate.setDate(startDate.getDate() - daysToSubtract);
+    
+    const weeks: { date: Date; isCurrentMonth: boolean }[][] = [];
+    let currentWeek: { date: Date; isCurrentMonth: boolean }[] = [];
+    
+    for (let i = 0; i < 42; i++) {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + i);
+      
+      const isCurrentMonth = date.getMonth() === month;
+      currentWeek.push({ date, isCurrentMonth });
+      
+      if (currentWeek.length === 7) {
+        weeks.push(currentWeek);
+        currentWeek = [];
       }
     }
     
-    lastTapRef.current = { time: now, dateKey };
+    while (weeks.length > 0 && weeks[weeks.length - 1].every(d => !d.isCurrentMonth)) {
+      weeks.pop();
+    }
     
-    // Single tap - select date or show schedules
+    return weeks;
+  }, [datePickerMonth]);
+
+  // Handle date click - open bottom sheet
+  const handleDateClick = useCallback((dateKey: string, isCurrentMonth: boolean) => {
     if (isCurrentMonth) {
       setSelectedDate(dateKey);
+      setBottomSheetOpen(true);
     }
   }, []);
 
-  // Handle schedule click
-  const handleScheduleClick = (schedule: Schedule, e?: React.MouseEvent) => {
-    if (e) {
-      e.stopPropagation();
-    }
+  // Handle schedule click in bottom sheet
+  const handleScheduleClick = (schedule: Schedule) => {
     setSelectedSchedule(schedule);
+  };
+
+  // Handle add schedule from bottom sheet
+  const handleAddFromSheet = () => {
+    if (selectedDate) {
+      setAddModalDate(selectedDate);
+      setDatePickerMonth(new Date(selectedDate));
+      setBottomSheetOpen(false);
+      setAddModalOpen(true);
+    }
+  };
+
+  // Handle date selection in date picker
+  const handleDatePickerSelect = (dateKey: string) => {
+    setAddModalDate(dateKey);
+    setShowDatePicker(false);
   };
 
   // Handle add schedule submit
@@ -269,8 +313,12 @@ export default function PublicSchedule() {
     const [endHour, endMinute] = newSchedule.endTime.split(":").map(Number);
     
     // Create dates in JST, then convert to UTC for storage
-    const startTimeJST = new Date(year, month - 1, day, startHour, startMinute);
-    const endTimeJST = new Date(year, month - 1, day, endHour, endMinute);
+    const startTimeJST = newSchedule.isAllDay 
+      ? new Date(year, month - 1, day, 0, 0)
+      : new Date(year, month - 1, day, startHour, startMinute);
+    const endTimeJST = newSchedule.isAllDay
+      ? new Date(year, month - 1, day, 23, 59)
+      : new Date(year, month - 1, day, endHour, endMinute);
     
     // Convert JST to UTC (subtract 9 hours)
     const startTimeUTC = new Date(startTimeJST.getTime() - 9 * 60 * 60 * 1000);
@@ -289,6 +337,7 @@ export default function PublicSchedule() {
   // Open add modal with today's date
   const openAddModal = () => {
     setAddModalDate(todayKey);
+    setDatePickerMonth(new Date());
     setAddModalOpen(true);
   };
 
@@ -368,7 +417,7 @@ export default function PublicSchedule() {
               const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
               const daySchedules = schedulesByDate.get(dateKey) || [];
               const isToday = dateKey === todayKey;
-              const isSelected = dateKey === selectedDate;
+              const isSelected = dateKey === selectedDate && bottomSheetOpen;
               const dayOfWeek = date.getDay();
               
               return (
@@ -379,7 +428,7 @@ export default function PublicSchedule() {
                     isSelected && "bg-gray-100",
                     !isCurrentMonth && "bg-gray-50"
                   )}
-                  onClick={() => handleDateClick(dateKey, daySchedules, isCurrentMonth)}
+                  onClick={() => handleDateClick(dateKey, isCurrentMonth)}
                 >
                   {/* Date Number */}
                   <div className="flex justify-center mb-1">
@@ -408,11 +457,10 @@ export default function PublicSchedule() {
                         <div
                           key={schedule.id}
                           className={cn(
-                            "text-[10px] px-1 py-0.5 rounded truncate cursor-pointer",
+                            "text-[10px] px-1 py-0.5 rounded truncate",
                             liverColor?.bg || "bg-gray-400",
                             liverColor?.text || "text-white"
                           )}
-                          onClick={(e) => handleScheduleClick(schedule, e)}
                         >
                           {schedule.title}
                         </div>
@@ -439,268 +487,366 @@ export default function PublicSchedule() {
         <Plus className="h-6 w-6 text-gray-700" />
       </button>
 
-      {/* Date Detail Modal */}
-      <Dialog open={!!selectedDate && selectedDateSchedules.length > 0} onOpenChange={(open) => !open && setSelectedDate(null)}>
-        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-pink-500" />
-              {selectedDate && formatFullDate(selectedDate)}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 mt-4">
-            {selectedDateSchedules.map((schedule) => {
-              const liverColor = schedule.liverName 
-                ? liverColorMap.get(schedule.liverName) 
-                : categoryColors[schedule.category || "other"];
-              
-              return (
-                <div
-                  key={schedule.id}
-                  className={cn(
-                    "p-3 rounded-lg cursor-pointer hover:opacity-80 transition-opacity",
-                    liverColor?.bg || "bg-gray-400"
-                  )}
-                  onClick={() => handleScheduleClick(schedule)}
-                >
-                  <div className="text-white font-medium">
-                    {schedule.title}
-                  </div>
-                  <div className="flex items-center gap-4 mt-1 text-white/80 text-sm">
-                    <span className="flex items-center gap-1">
-                      <Clock className="h-3.5 w-3.5" />
-                      {formatTimeJST(new Date(schedule.startTime))}
-                      {schedule.endTime && ` - ${formatTimeJST(new Date(schedule.endTime))}`}
-                    </span>
-                    {schedule.liverName && (
-                      <span className="flex items-center gap-1">
-                        <User className="h-3.5 w-3.5" />
-                        {schedule.liverName}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-            
-            <Button
-              variant="outline"
-              className="w-full mt-4"
-              onClick={() => {
-                setAddModalDate(selectedDate!);
-                setSelectedDate(null);
-                setAddModalOpen(true);
-              }}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              この日にスケジュールを追加
-            </Button>
+      {/* Bottom Sheet for Date Details - TimeTree Style */}
+      <Sheet open={bottomSheetOpen} onOpenChange={setBottomSheetOpen}>
+        <SheetContent side="bottom" className="h-[85vh] rounded-t-3xl p-0">
+          {/* Handle bar */}
+          <div className="flex justify-center pt-3 pb-2">
+            <div className="w-10 h-1 bg-gray-300 rounded-full" />
           </div>
-        </DialogContent>
-      </Dialog>
+          
+          {/* Header */}
+          <div className="px-4 pb-4 border-b">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold">
+                {selectedDate && formatDateForSheet(selectedDate)}
+              </h2>
+              <div className="flex items-center gap-2">
+                <button className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center">
+                  <span className="text-lg">☺</span>
+                </button>
+                <button
+                  onClick={handleAddFromSheet}
+                  className="w-8 h-8 bg-black rounded-full flex items-center justify-center"
+                >
+                  <Plus className="h-5 w-5 text-white" />
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          {/* Content - TimeTree Style List */}
+          <div className="flex-1 overflow-y-auto px-4 py-4">
+            {selectedDateSchedules.length === 0 ? (
+              <div className="flex items-center justify-center h-64 text-gray-400">
+                予定がありません
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {selectedDateSchedules.map((schedule) => {
+                  const liverColor = schedule.liverName 
+                    ? liverColorMap.get(schedule.liverName) 
+                    : categoryColors[schedule.category || "other"];
+                  
+                  const startTime = formatTimeJST(new Date(schedule.startTime));
+                  const endTime = schedule.endTime ? formatTimeJST(new Date(schedule.endTime)) : null;
+                  const isAllDay = startTime === "00:00" && endTime === "23:59";
+                  
+                  return (
+                    <div
+                      key={schedule.id}
+                      className="flex items-start gap-3 cursor-pointer"
+                      onClick={() => handleScheduleClick(schedule)}
+                    >
+                      {/* Time column */}
+                      <div className="w-12 text-right text-sm text-gray-500 pt-0.5 flex-shrink-0">
+                        {isAllDay ? (
+                          <span>終日</span>
+                        ) : (
+                          <div>
+                            <div>{startTime}</div>
+                            {endTime && <div className="text-gray-400">{endTime}</div>}
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Color bar */}
+                      <div className={cn(
+                        "w-1 min-h-[40px] rounded-full flex-shrink-0",
+                        liverColor?.bg || "bg-gray-400"
+                      )} />
+                      
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-gray-900 truncate">
+                          {schedule.title}
+                        </div>
+                        {schedule.description && (
+                          <div className="text-sm text-gray-500 truncate">
+                            {schedule.description}
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Avatar placeholder */}
+                      {schedule.liverName && (
+                        <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs text-gray-600 flex-shrink-0">
+                          {schedule.liverName.charAt(0)}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Schedule Detail Modal */}
       <Dialog open={!!selectedSchedule} onOpenChange={(open) => !open && setSelectedSchedule(null)}>
         <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-pink-500" />
-              スケジュール詳細
-            </DialogTitle>
-          </DialogHeader>
-          {selectedSchedule && (
-            <div className="space-y-4 mt-4">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">
-                  {selectedSchedule.title}
-                </h3>
-              </div>
-              
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center gap-2 text-gray-600">
-                  <Clock className="h-4 w-4" />
-                  <span>
-                    {formatTimeJST(new Date(selectedSchedule.startTime))}
-                    {selectedSchedule.endTime && ` - ${formatTimeJST(new Date(selectedSchedule.endTime))}`}
-                  </span>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">
+                {selectedSchedule?.title}
+              </h2>
+            </div>
+            
+            {selectedSchedule && (
+              <>
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center gap-3 text-gray-600">
+                    <Clock className="h-4 w-4 flex-shrink-0" />
+                    <span>
+                      {formatTimeJST(new Date(selectedSchedule.startTime))}
+                      {selectedSchedule.endTime && ` - ${formatTimeJST(new Date(selectedSchedule.endTime))}`}
+                    </span>
+                  </div>
+                  
+                  {selectedSchedule.liverName && (
+                    <div className="flex items-center gap-3 text-gray-600">
+                      <User className="h-4 w-4 flex-shrink-0" />
+                      <span>{selectedSchedule.liverName}</span>
+                    </div>
+                  )}
                 </div>
                 
-                {selectedSchedule.liverName && (
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <User className="h-4 w-4" />
-                    <span>{selectedSchedule.liverName}</span>
+                {selectedSchedule.description && (
+                  <div className="pt-3 border-t">
+                    <p className="text-sm text-gray-600 whitespace-pre-wrap">
+                      {selectedSchedule.description}
+                    </p>
                   </div>
                 )}
-              </div>
-              
-              {selectedSchedule.description && (
-                <div className="pt-2 border-t">
-                  <p className="text-sm text-gray-600 whitespace-pre-wrap">
-                    {selectedSchedule.description}
-                  </p>
-                </div>
-              )}
-              
-              {selectedSchedule.liverName && (
-                <Link href={`/s/${encodeURIComponent(selectedSchedule.liverName)}`}>
-                  <Button variant="outline" className="w-full">
-                    {selectedSchedule.liverName}のスケジュールを見る
-                  </Button>
-                </Link>
-              )}
-            </div>
-          )}
+                
+                {selectedSchedule.liverName && (
+                  <Link href={`/s/${encodeURIComponent(selectedSchedule.liverName)}`}>
+                    <Button variant="outline" className="w-full">
+                      {selectedSchedule.liverName}のスケジュールを見る
+                    </Button>
+                  </Link>
+                )}
+              </>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 
-      {/* Add Schedule Modal */}
+      {/* Add Schedule Modal - TimeTree Style */}
       <Dialog open={addModalOpen} onOpenChange={(open) => {
         if (!open) {
           setAddModalOpen(false);
           resetNewSchedule();
         }
       }}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Plus className="h-5 w-5 text-pink-500" />
-              スケジュールを追加
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 mt-4">
-            {/* Date */}
-            <div>
-              <Label className="text-sm font-medium">日付</Label>
-              <p className="text-gray-700 mt-1">
-                {addModalDate && formatFullDate(addModalDate)}
-              </p>
-            </div>
-            
-            {/* Liver Selection */}
-            <div>
-              <Label className="text-sm font-medium">ライバー</Label>
-              {!newSchedule.isNewLiver ? (
-                <div className="space-y-2 mt-1">
-                  <Select
-                    value={newSchedule.liverName}
-                    onValueChange={(value) => {
-                      if (value === "__new__") {
-                        setNewSchedule(prev => ({ ...prev, isNewLiver: true, liverName: "" }));
-                      } else {
-                        setNewSchedule(prev => ({ ...prev, liverName: value }));
-                      }
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="ライバーを選択" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {existingLivers?.map((liver) => (
-                        <SelectItem key={liver} value={liver}>
-                          {liver}
-                        </SelectItem>
-                      ))}
-                      <SelectItem value="__new__">
-                        <span className="flex items-center gap-1">
-                          <Plus className="h-3 w-3" />
-                          新しいライバーを追加
-                        </span>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : (
-                <div className="space-y-2 mt-1">
-                  <Input
-                    placeholder="新しいライバー名を入力"
-                    value={newSchedule.newLiverName}
-                    onChange={(e) => setNewSchedule(prev => ({ ...prev, newLiverName: e.target.value }))}
-                  />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setNewSchedule(prev => ({ ...prev, isNewLiver: false, newLiverName: "" }))}
-                  >
-                    既存のライバーから選択
-                  </Button>
-                </div>
-              )}
-            </div>
-            
-            {/* Title */}
-            <div>
-              <Label className="text-sm font-medium">タイトル *</Label>
-              <Input
-                placeholder="例: ライブ配信"
-                value={newSchedule.title}
-                onChange={(e) => setNewSchedule(prev => ({ ...prev, title: e.target.value }))}
-                className="mt-1"
-              />
-            </div>
-            
-            {/* Time */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label className="text-sm font-medium">開始時間</Label>
-                <Input
-                  type="time"
-                  value={newSchedule.startTime}
-                  onChange={(e) => setNewSchedule(prev => ({ ...prev, startTime: e.target.value }))}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label className="text-sm font-medium">終了時間</Label>
-                <Input
-                  type="time"
-                  value={newSchedule.endTime}
-                  onChange={(e) => setNewSchedule(prev => ({ ...prev, endTime: e.target.value }))}
-                  className="mt-1"
-                />
-              </div>
-            </div>
-            
-            {/* Category */}
-            <div>
-              <Label className="text-sm font-medium">カテゴリ</Label>
-              <Select
-                value={newSchedule.category}
-                onValueChange={(value: "delivery" | "meeting" | "live" | "other") => 
-                  setNewSchedule(prev => ({ ...prev, category: value }))
-                }
-              >
-                <SelectTrigger className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="live">ライブ</SelectItem>
-                  <SelectItem value="delivery">配信</SelectItem>
-                  <SelectItem value="meeting">会議</SelectItem>
-                  <SelectItem value="other">その他</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            {/* Description */}
-            <div>
-              <Label className="text-sm font-medium">説明（任意）</Label>
-              <Textarea
-                placeholder="詳細を入力..."
-                value={newSchedule.description}
-                onChange={(e) => setNewSchedule(prev => ({ ...prev, description: e.target.value }))}
-                className="mt-1"
-                rows={3}
-              />
-            </div>
-            
-            {/* Submit Button */}
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto p-0">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b">
+            <button 
+              onClick={() => {
+                setAddModalOpen(false);
+                resetNewSchedule();
+              }}
+              className="text-pink-500 text-lg"
+            >
+              <X className="h-6 w-6" />
+            </button>
             <Button
               onClick={handleAddSchedule}
               disabled={createScheduleMutation.isPending}
-              className="w-full bg-pink-500 hover:bg-pink-600"
+              variant="outline"
+              className="rounded-full px-6"
             >
-              {createScheduleMutation.isPending ? "追加中..." : "スケジュールを追加"}
+              {createScheduleMutation.isPending ? "保存中..." : "保存"}
             </Button>
+          </div>
+          
+          {/* Title Input */}
+          <div className="px-4 py-4 border-b">
+            <Input
+              placeholder="タイトル"
+              value={newSchedule.title}
+              onChange={(e) => setNewSchedule(prev => ({ ...prev, title: e.target.value }))}
+              className="text-2xl font-light border-0 p-0 h-auto focus-visible:ring-0 placeholder:text-gray-300"
+            />
+          </div>
+          
+          {/* All Day Toggle */}
+          <div className="flex items-center justify-between px-4 py-3 border-b">
+            <div className="flex items-center gap-3">
+              <div className="w-6 h-6 rounded-full border-2 border-pink-400 flex items-center justify-center text-xs text-pink-400">
+                24
+              </div>
+              <span className="text-gray-700">終日</span>
+            </div>
+            <Switch
+              checked={newSchedule.isAllDay}
+              onCheckedChange={(checked) => setNewSchedule(prev => ({ ...prev, isAllDay: checked }))}
+              className="data-[state=checked]:bg-pink-500"
+            />
+          </div>
+          
+          {/* Start Date/Time */}
+          <div className="px-4 py-3 border-b">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-500">開始</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setShowDatePicker(!showDatePicker);
+                    setDatePickerMonth(new Date(addModalDate));
+                  }}
+                  className="px-3 py-1.5 bg-pink-500 text-white rounded-full text-sm"
+                >
+                  {addModalDate && formatFullDate(addModalDate)}
+                </button>
+                {!newSchedule.isAllDay && (
+                  <input
+                    type="time"
+                    value={newSchedule.startTime}
+                    onChange={(e) => setNewSchedule(prev => ({ ...prev, startTime: e.target.value }))}
+                    className="px-3 py-1.5 bg-gray-100 rounded-full text-sm border-0"
+                  />
+                )}
+              </div>
+            </div>
+            
+            {/* Inline Date Picker */}
+            {showDatePicker && (
+              <div className="mt-4 border rounded-lg p-3">
+                <div className="flex items-center justify-between mb-3">
+                  <button
+                    onClick={() => setDatePickerMonth(new Date(datePickerMonth.getFullYear(), datePickerMonth.getMonth() - 1))}
+                    className="p-1 text-pink-500"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <span className="font-medium text-pink-500">
+                    {datePickerMonth.getFullYear()}年{datePickerMonth.getMonth() + 1}月
+                  </span>
+                  <button
+                    onClick={() => setDatePickerMonth(new Date(datePickerMonth.getFullYear(), datePickerMonth.getMonth() + 1))}
+                    className="p-1 text-pink-500"
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-7 gap-1 text-center text-xs text-gray-500 mb-2">
+                  {["月", "火", "水", "木", "金", "土", "日"].map((d) => (
+                    <div key={d}>{d}</div>
+                  ))}
+                </div>
+                
+                {datePickerWeeks.map((week, wi) => (
+                  <div key={wi} className="grid grid-cols-7 gap-1">
+                    {week.map(({ date, isCurrentMonth }, di) => {
+                      const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+                      const isSelected = dateKey === addModalDate;
+                      const isToday = dateKey === todayKey;
+                      
+                      return (
+                        <button
+                          key={di}
+                          onClick={() => handleDatePickerSelect(dateKey)}
+                          className={cn(
+                            "w-8 h-8 rounded-full text-sm flex items-center justify-center",
+                            !isCurrentMonth && "text-gray-300",
+                            isCurrentMonth && "text-gray-700",
+                            isSelected && "bg-pink-100 text-pink-500",
+                            isToday && !isSelected && "text-blue-500 font-bold"
+                          )}
+                        >
+                          {date.getDate()}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          {/* End Date/Time */}
+          <div className="px-4 py-3 border-b">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-500">終了</span>
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1.5 bg-gray-100 rounded-full text-sm">
+                  {addModalDate && formatFullDate(addModalDate)}
+                </span>
+                {!newSchedule.isAllDay && (
+                  <input
+                    type="time"
+                    value={newSchedule.endTime}
+                    onChange={(e) => setNewSchedule(prev => ({ ...prev, endTime: e.target.value }))}
+                    className="px-3 py-1.5 bg-gray-100 rounded-full text-sm border-0"
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+          
+          {/* Liver Selection */}
+          <div className="px-4 py-3 border-b">
+            <div className="flex items-center gap-3">
+              <User className="h-5 w-5 text-pink-500" />
+              {!newSchedule.isNewLiver ? (
+                <Select
+                  value={newSchedule.liverName}
+                  onValueChange={(value) => {
+                    if (value === "__new__") {
+                      setNewSchedule(prev => ({ ...prev, isNewLiver: true, liverName: "" }));
+                    } else {
+                      setNewSchedule(prev => ({ ...prev, liverName: value }));
+                    }
+                  }}
+                >
+                  <SelectTrigger className="flex-1 border-0 p-0 h-auto focus:ring-0">
+                    <SelectValue placeholder="ライバーを選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {existingLivers?.map((liver) => (
+                      <SelectItem key={liver} value={liver}>
+                        {liver}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="__new__">
+                      <span className="flex items-center gap-1">
+                        <Plus className="h-3 w-3" />
+                        新しいライバーを追加
+                      </span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="flex-1 flex items-center gap-2">
+                  <Input
+                    placeholder="新しいライバー名"
+                    value={newSchedule.newLiverName}
+                    onChange={(e) => setNewSchedule(prev => ({ ...prev, newLiverName: e.target.value }))}
+                    className="border-0 p-0 h-auto focus-visible:ring-0"
+                  />
+                  <button
+                    onClick={() => setNewSchedule(prev => ({ ...prev, isNewLiver: false, newLiverName: "" }))}
+                    className="text-gray-400 text-sm"
+                  >
+                    キャンセル
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* Description */}
+          <div className="px-4 py-3">
+            <Textarea
+              placeholder="メモを追加..."
+              value={newSchedule.description}
+              onChange={(e) => setNewSchedule(prev => ({ ...prev, description: e.target.value }))}
+              className="border-0 p-0 focus-visible:ring-0 resize-none min-h-[100px]"
+            />
           </div>
         </DialogContent>
       </Dialog>
