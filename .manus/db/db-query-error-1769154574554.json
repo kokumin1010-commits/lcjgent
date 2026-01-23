@@ -1,0 +1,8 @@
+{
+  "query": "SELECT id, group_id, group_name, last_message_at, follow_up_enabled, follow_up_days, last_follow_up_at FROM line_groups LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, group_id, group_name, last_message_at, follow_up_enabled, follow_up_days, last_follow_up_at FROM line_groups LIMIT 10;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'group_id' in 'field list'"
+  ]
+}

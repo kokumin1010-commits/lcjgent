@@ -1,0 +1,21 @@
+{
+  "query": "SELECT id, lineGroupId, groupName, autoFollowUpEnabled, autoFollowUpDays, lastMessageAt, lastAutoFollowUpAt, createdAt, isActive FROM line_groups WHERE groupName LIKE '%売れるネット%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, lineGroupId, groupName, autoFollowUpEnabled, autoFollowUpDays, lastMessageAt, lastAutoFollowUpAt, createdAt, isActive FROM line_groups WHERE groupName LIKE '%売れるネット%';",
+  "rows": [
+    {
+      "id": "21",
+      "lineGroupId": "Cbd17142579eadeda6527bcc920baf96b",
+      "groupName": "売れるネット広告社様 LCJ",
+      "autoFollowUpEnabled": "1",
+      "autoFollowUpDays": "2",
+      "lastMessageAt": "2026-01-21 09:25:35",
+      "lastAutoFollowUpAt": "NULL",
+      "createdAt": "2026-01-21 07:47:03",
+      "isActive": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tlineGroupId\tgroupName\tautoFollowUpEnabled\tautoFollowUpDays\tlastMessageAt\tlastAutoFollowUpAt\tcreatedAt\tisActive\n21\tCbd17142579eadeda6527bcc920baf96b\t売れるネット広告社様 LCJ\t1\t2\t2026-01-21 09:25:35\tNULL\t2026-01-21 07:47:03\t1\n",
+  "stderr": "",
+  "execution_time_ms": 1519
+}

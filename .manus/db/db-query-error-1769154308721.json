@@ -1,0 +1,8 @@
+{
+  "query": "SELECT id, group_id, group_name, auto_follow_up, follow_up_days, last_message_at, created_at FROM line_groups WHERE group_name LIKE '%売れるネット%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, group_id, group_name, auto_follow_up, follow_up_days, last_message_at, created_at FROM line_groups WHERE group_name LIKE '%売れるネット%';",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'group_name' in 'where clause'"
+  ]
+}

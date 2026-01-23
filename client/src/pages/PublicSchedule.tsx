@@ -2,8 +2,9 @@ import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, ChevronLeft, ChevronRight, Clock, User, Tag } from "lucide-react";
+import { Calendar, ChevronLeft, ChevronRight, Clock, User, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Link } from "wouter";
 
 // Helper function to convert UTC to JST
 function toJST(date: Date): Date {
@@ -36,6 +37,20 @@ function formatDateDisplay(date: Date): string {
   const weekday = weekdays[jst.getUTCDay()];
   return `${month}/${day}(${weekday})`;
 }
+
+// Liver colors for visual distinction
+const liverColors = [
+  { bg: "bg-purple-100", border: "border-l-purple-500", text: "text-purple-700", badge: "bg-purple-500" },
+  { bg: "bg-blue-100", border: "border-l-blue-500", text: "text-blue-700", badge: "bg-blue-500" },
+  { bg: "bg-pink-100", border: "border-l-pink-500", text: "text-pink-700", badge: "bg-pink-500" },
+  { bg: "bg-green-100", border: "border-l-green-500", text: "text-green-700", badge: "bg-green-500" },
+  { bg: "bg-orange-100", border: "border-l-orange-500", text: "text-orange-700", badge: "bg-orange-500" },
+  { bg: "bg-cyan-100", border: "border-l-cyan-500", text: "text-cyan-700", badge: "bg-cyan-500" },
+  { bg: "bg-rose-100", border: "border-l-rose-500", text: "text-rose-700", badge: "bg-rose-500" },
+  { bg: "bg-indigo-100", border: "border-l-indigo-500", text: "text-indigo-700", badge: "bg-indigo-500" },
+  { bg: "bg-amber-100", border: "border-l-amber-500", text: "text-amber-700", badge: "bg-amber-500" },
+  { bg: "bg-teal-100", border: "border-l-teal-500", text: "text-teal-700", badge: "bg-teal-500" },
+];
 
 // Category colors and labels
 const categoryConfig: Record<string, { color: string; label: string }> = {
@@ -72,6 +87,18 @@ export default function PublicSchedule() {
     startDate: dateRange.start.toISOString(),
     endDate: dateRange.end.toISOString(),
   });
+
+  // Get unique liver names and assign colors
+  const liverColorMap = useMemo(() => {
+    if (!schedules) return new Map<string, typeof liverColors[0]>();
+    
+    const uniqueLivers = Array.from(new Set(schedules.map(s => s.liverName).filter((name): name is string => Boolean(name))));
+    const map = new Map<string, typeof liverColors[0]>();
+    uniqueLivers.forEach((liver, index) => {
+      map.set(liver, liverColors[index % liverColors.length]);
+    });
+    return map;
+  }, [schedules]);
 
   // Group schedules by date (JST)
   const schedulesByDate = useMemo(() => {
@@ -148,15 +175,20 @@ export default function PublicSchedule() {
     return Array.from(schedulesByDate.keys()).sort();
   }, [schedulesByDate]);
 
+  // Get unique livers for the legend
+  const uniqueLivers = useMemo(() => {
+    return Array.from(liverColorMap.keys()).sort();
+  }, [liverColorMap]);
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+    <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white">
       {/* Header */}
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-sm border-b">
         <div className="container py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Calendar className="h-6 w-6 text-blue-600" />
-              <h1 className="text-xl font-bold text-gray-900">スケジュール</h1>
+              <Users className="h-6 w-6 text-purple-600" />
+              <h1 className="text-xl font-bold text-gray-900">全員のスケジュール</h1>
             </div>
             <div className="flex gap-2">
               <Button
@@ -198,11 +230,36 @@ export default function PublicSchedule() {
         </div>
       </div>
 
+      {/* Liver Legend */}
+      {uniqueLivers.length > 0 && (
+        <div className="container pb-4">
+          <div className="flex flex-wrap gap-2">
+            {uniqueLivers.map((liver) => {
+              const colors = liverColorMap.get(liver);
+              return (
+                <Link key={liver} href={`/s/${encodeURIComponent(liver)}`}>
+                  <button
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all hover:scale-105",
+                      colors?.bg,
+                      colors?.text
+                    )}
+                  >
+                    <User className="h-3.5 w-3.5" />
+                    {liver}
+                  </button>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Content */}
       <div className="container pb-8">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
           </div>
         ) : viewMode === "list" ? (
           /* List View */
@@ -220,12 +277,12 @@ export default function PublicSchedule() {
                 const date = new Date(dateKey + "T00:00:00");
                 
                 return (
-                  <Card key={dateKey} className={cn(isToday && "ring-2 ring-blue-500")}>
+                  <Card key={dateKey} className={cn(isToday && "ring-2 ring-purple-500")}>
                     <CardHeader className="pb-2">
                       <CardTitle className="flex items-center gap-2 text-base">
                         <span className={cn(
                           "flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold",
-                          isToday ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700"
+                          isToday ? "bg-purple-600 text-white" : "bg-gray-100 text-gray-700"
                         )}>
                           {date.getDate()}
                         </span>
@@ -233,21 +290,31 @@ export default function PublicSchedule() {
                           {formatDateDisplay(new Date(dateKey + "T00:00:00+09:00"))}
                         </span>
                         {isToday && (
-                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                          <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
                             今日
                           </span>
                         )}
+                        <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full ml-auto">
+                          {daySchedules.length}件
+                        </span>
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2">
                       {daySchedules.map((schedule) => {
                         const category = categoryConfig[schedule.category || "other"];
+                        const liverColor = schedule.liverName 
+                          ? liverColorMap.get(schedule.liverName) 
+                          : null;
+                        
                         return (
                           <div
                             key={schedule.id}
-                            className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg"
+                            className={cn(
+                              "flex items-start gap-3 p-3 rounded-lg border-l-4",
+                              liverColor?.bg || "bg-gray-50",
+                              liverColor?.border || "border-l-gray-300"
+                            )}
                           >
-                            <div className={cn("w-1 self-stretch rounded-full", category.color)} />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="font-medium text-gray-900 truncate">
@@ -267,10 +334,15 @@ export default function PublicSchedule() {
                                   {schedule.endTime && ` - ${formatTimeJST(new Date(schedule.endTime))}`}
                                 </span>
                                 {schedule.liverName && (
-                                  <span className="flex items-center gap-1">
-                                    <User className="h-3.5 w-3.5" />
-                                    {schedule.liverName}
-                                  </span>
+                                  <Link href={`/s/${encodeURIComponent(schedule.liverName)}`}>
+                                    <span className={cn(
+                                      "flex items-center gap-1 hover:underline cursor-pointer",
+                                      liverColor?.text || "text-gray-600"
+                                    )}>
+                                      <User className="h-3.5 w-3.5" />
+                                      {schedule.liverName}
+                                    </span>
+                                  </Link>
                                 )}
                               </div>
                               {schedule.description && (
@@ -319,9 +391,9 @@ export default function PublicSchedule() {
                     <div
                       key={index}
                       className={cn(
-                        "min-h-[60px] sm:min-h-[80px] p-1 rounded-lg border",
+                        "min-h-[70px] sm:min-h-[90px] p-1 rounded-lg border",
                         isCurrentMonth ? "bg-white" : "bg-gray-50",
-                        isToday && "ring-2 ring-blue-500"
+                        isToday && "ring-2 ring-purple-500"
                       )}
                     >
                       <div className={cn(
@@ -330,31 +402,41 @@ export default function PublicSchedule() {
                         isCurrentMonth && dayOfWeek === 0 && "text-red-500",
                         isCurrentMonth && dayOfWeek === 6 && "text-blue-500",
                         isCurrentMonth && dayOfWeek !== 0 && dayOfWeek !== 6 && "text-gray-700",
-                        isToday && "text-blue-600 font-bold"
+                        isToday && "text-purple-600 font-bold"
                       )}>
                         {date.getDate()}
                       </div>
                       <div className="space-y-0.5 overflow-hidden">
-                        {daySchedules.slice(0, 3).map((schedule) => {
+                        {daySchedules.slice(0, 4).map((schedule) => {
                           const startTime = formatTimeJST(new Date(schedule.startTime));
-                          const endTime = schedule.endTime ? formatTimeJST(new Date(schedule.endTime)) : null;
-                          const timeStr = endTime ? `${startTime}-${endTime.split(":")[0]}:` : startTime;
-                          const liverShort = schedule.liverName ? schedule.liverName.split(" ")[0].slice(0, 4) : "";
+                          const liverColor = schedule.liverName 
+                            ? liverColorMap.get(schedule.liverName) 
+                            : null;
+                          const liverShort = schedule.liverName 
+                            ? schedule.liverName.split(" ")[0].slice(0, 3) 
+                            : "";
                           
                           return (
                             <div
                               key={schedule.id}
-                              className="text-[9px] sm:text-[11px] leading-tight truncate"
-                              title={`${startTime}${endTime ? "-" + endTime : ""} ${schedule.title} (${schedule.liverName || "未指定"})`}
+                              className={cn(
+                                "text-[9px] sm:text-[10px] leading-tight truncate px-1 py-0.5 rounded",
+                                liverColor?.bg || "bg-gray-100"
+                              )}
+                              title={`${startTime} ${schedule.title} (${schedule.liverName || "未指定"})`}
                             >
-                              <span className="text-blue-600 font-medium">{timeStr}</span>
-                              {liverShort && <span className="text-pink-500">:{liverShort}</span>}
+                              <span className="font-medium">{startTime}</span>
+                              {liverShort && (
+                                <span className={cn("ml-0.5", liverColor?.text || "text-gray-600")}>
+                                  {liverShort}
+                                </span>
+                              )}
                             </div>
                           );
                         })}
-                        {daySchedules.length > 3 && (
-                          <div className="text-[9px] text-gray-400">
-                            +{daySchedules.length - 3}
+                        {daySchedules.length > 4 && (
+                          <div className="text-[9px] text-gray-400 px-1">
+                            +{daySchedules.length - 4}件
                           </div>
                         )}
                       </div>
