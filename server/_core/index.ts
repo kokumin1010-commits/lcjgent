@@ -333,8 +333,9 @@ async function startServer() {
     // Start group follow-up scheduler (checks for inactive groups every 6 hours)
     startGroupFollowUpScheduler();
     
-    // Start response reminder scheduler (sends reminders for pending responses every 1 hour)
-    startResponseReminderScheduler();
+    // Note: startResponseReminderScheduler is disabled because groupFollowUpScheduler already handles inactive group follow-ups
+    // This was causing duplicate messages to be sent
+    // startResponseReminderScheduler();
     
     // Start schedule reminder scheduler (sends reminders for upcoming schedules every 5 minutes)
     startScheduleReminderScheduler();
