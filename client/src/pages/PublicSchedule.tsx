@@ -557,7 +557,14 @@ export default function PublicSchedule() {
 
       {/* Floating Add Button */}
       <button
-        onClick={openAddModal}
+        onClick={() => {
+          if (currentLiver) {
+            openAddModal();
+          } else {
+            toast.info("予定を追加するにはログインが必要です");
+            navigate("/liver/login");
+          }
+        }}
         className="fixed bottom-6 right-6 w-14 h-14 bg-white rounded-full shadow-lg border border-gray-200 flex items-center justify-center hover:shadow-xl transition-shadow z-20"
       >
         <Plus className="h-6 w-6 text-gray-700" />
@@ -582,7 +589,14 @@ export default function PublicSchedule() {
                   <span className="text-lg">☺</span>
                 </button>
                 <button
-                  onClick={handleAddFromSheet}
+                  onClick={() => {
+                    if (currentLiver) {
+                      handleAddFromSheet();
+                    } else {
+                      toast.info("予定を追加するにはログインが必要です");
+                      navigate("/liver/login");
+                    }
+                  }}
                   className="w-8 h-8 bg-black rounded-full flex items-center justify-center"
                 >
                   <Plus className="h-5 w-5 text-white" />
