@@ -2,7 +2,8 @@ import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, ChevronLeft, ChevronRight, Clock, User, Users } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Calendar, ChevronLeft, ChevronRight, Clock, User, Users, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "wouter";
 
@@ -36,6 +37,14 @@ function formatDateDisplay(date: Date): string {
   const day = jst.getUTCDate();
   const weekday = weekdays[jst.getUTCDay()];
   return `${month}/${day}(${weekday})`;
+}
+
+// Helper function to format full date for modal
+function formatFullDate(dateKey: string): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
+  return `${year}年${month}月${day}日(${weekdays[date.getDay()]})`;
 }
 
 // Liver colors for visual distinction
@@ -74,6 +83,8 @@ interface Schedule {
 export default function PublicSchedule() {
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
 
   // Get date range for the current month
   const dateRange = useMemo(() => {
@@ -179,6 +190,24 @@ export default function PublicSchedule() {
   const uniqueLivers = useMemo(() => {
     return Array.from(liverColorMap.keys()).sort();
   }, [liverColorMap]);
+
+  // Get schedules for selected date
+  const selectedDateSchedules = selectedDate ? schedulesByDate.get(selectedDate) || [] : [];
+
+  // Handle date click in calendar
+  const handleDateClick = (dateKey: string, daySchedules: Schedule[]) => {
+    if (daySchedules.length > 0) {
+      setSelectedDate(dateKey);
+    }
+  };
+
+  // Handle schedule click
+  const handleScheduleClick = (schedule: Schedule, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    setSelectedSchedule(schedule);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white">
@@ -310,10 +339,11 @@ export default function PublicSchedule() {
                           <div
                             key={schedule.id}
                             className={cn(
-                              "flex items-start gap-3 p-3 rounded-lg border-l-4",
+                              "flex items-start gap-3 p-3 rounded-lg border-l-4 cursor-pointer hover:opacity-80 transition-opacity",
                               liverColor?.bg || "bg-gray-50",
                               liverColor?.border || "border-l-gray-300"
                             )}
+                            onClick={() => handleScheduleClick(schedule)}
                           >
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
@@ -338,7 +368,9 @@ export default function PublicSchedule() {
                                     <span className={cn(
                                       "flex items-center gap-1 hover:underline cursor-pointer",
                                       liverColor?.text || "text-gray-600"
-                                    )}>
+                                    )}
+                                    onClick={(e) => e.stopPropagation()}
+                                    >
                                       <User className="h-3.5 w-3.5" />
                                       {schedule.liverName}
                                     </span>
@@ -386,15 +418,18 @@ export default function PublicSchedule() {
                   const daySchedules = schedulesByDate.get(dateKey) || [];
                   const isToday = dateKey === todayKey;
                   const dayOfWeek = date.getDay();
+                  const hasSchedules = daySchedules.length > 0;
                   
                   return (
                     <div
                       key={index}
                       className={cn(
-                        "min-h-[70px] sm:min-h-[90px] p-1 rounded-lg border",
+                        "min-h-[70px] sm:min-h-[90px] p-1 rounded-lg border transition-all",
                         isCurrentMonth ? "bg-white" : "bg-gray-50",
-                        isToday && "ring-2 ring-purple-500"
+                        isToday && "ring-2 ring-purple-500",
+                        hasSchedules && "cursor-pointer hover:bg-purple-50 hover:border-purple-300"
                       )}
+                      onClick={() => handleDateClick(dateKey, daySchedules)}
                     >
                       <div className={cn(
                         "text-xs sm:text-sm font-medium mb-1",
@@ -420,10 +455,11 @@ export default function PublicSchedule() {
                             <div
                               key={schedule.id}
                               className={cn(
-                                "text-[9px] sm:text-[10px] leading-tight truncate px-1 py-0.5 rounded",
+                                "text-[9px] sm:text-[10px] leading-tight truncate px-1 py-0.5 rounded cursor-pointer hover:opacity-70 transition-opacity",
                                 liverColor?.bg || "bg-gray-100"
                               )}
                               title={`${startTime} ${schedule.title} (${schedule.liverName || "未指定"})`}
+                              onClick={(e) => handleScheduleClick(schedule, e)}
                             >
                               <span className="font-medium">{startTime}</span>
                               {liverShort && (
@@ -448,6 +484,148 @@ export default function PublicSchedule() {
           </Card>
         )}
       </div>
+
+      {/* Date Detail Modal */}
+      <Dialog open={!!selectedDate} onOpenChange={(open) => !open && setSelectedDate(null)}>
+        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-purple-600" />
+              {selectedDate && formatFullDate(selectedDate)}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 mt-4">
+            {selectedDateSchedules.length === 0 ? (
+              <p className="text-center text-gray-500 py-4">予定はありません</p>
+            ) : (
+              selectedDateSchedules.map((schedule) => {
+                const category = categoryConfig[schedule.category || "other"];
+                const liverColor = schedule.liverName 
+                  ? liverColorMap.get(schedule.liverName) 
+                  : null;
+                
+                return (
+                  <div
+                    key={schedule.id}
+                    className={cn(
+                      "p-3 rounded-lg border-l-4 cursor-pointer hover:opacity-80 transition-opacity",
+                      liverColor?.bg || "bg-gray-50",
+                      liverColor?.border || "border-l-gray-300"
+                    )}
+                    onClick={() => handleScheduleClick(schedule)}
+                  >
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-gray-900">
+                        {schedule.title}
+                      </span>
+                      <span className={cn(
+                        "text-xs px-2 py-0.5 rounded-full text-white",
+                        category.color
+                      )}>
+                        {category.label}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3.5 w-3.5" />
+                        {formatTimeJST(new Date(schedule.startTime))}
+                        {schedule.endTime && ` - ${formatTimeJST(new Date(schedule.endTime))}`}
+                      </span>
+                      {schedule.liverName && (
+                        <span className={cn(
+                          "flex items-center gap-1",
+                          liverColor?.text || "text-gray-600"
+                        )}>
+                          <User className="h-3.5 w-3.5" />
+                          {schedule.liverName}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Schedule Detail Modal */}
+      <Dialog open={!!selectedSchedule} onOpenChange={(open) => !open && setSelectedSchedule(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-purple-600" />
+              スケジュール詳細
+            </DialogTitle>
+          </DialogHeader>
+          {selectedSchedule && (
+            <div className="space-y-4 mt-4">
+              {/* Title and Category */}
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    {selectedSchedule.title}
+                  </h3>
+                  <span className={cn(
+                    "text-xs px-2 py-0.5 rounded-full text-white",
+                    categoryConfig[selectedSchedule.category || "other"].color
+                  )}>
+                    {categoryConfig[selectedSchedule.category || "other"].label}
+                  </span>
+                </div>
+              </div>
+
+              {/* Date and Time */}
+              <div className="flex items-center gap-2 text-gray-600">
+                <Clock className="h-4 w-4" />
+                <span>
+                  {formatFullDate(getJSTDateKey(new Date(selectedSchedule.startTime)))}
+                </span>
+                <span className="font-medium">
+                  {formatTimeJST(new Date(selectedSchedule.startTime))}
+                  {selectedSchedule.endTime && ` - ${formatTimeJST(new Date(selectedSchedule.endTime))}`}
+                </span>
+              </div>
+
+              {/* Liver Name */}
+              {selectedSchedule.liverName && (
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-gray-600" />
+                  <Link href={`/s/${encodeURIComponent(selectedSchedule.liverName)}`}>
+                    <span className={cn(
+                      "font-medium hover:underline cursor-pointer",
+                      liverColorMap.get(selectedSchedule.liverName)?.text || "text-gray-700"
+                    )}>
+                      {selectedSchedule.liverName}
+                    </span>
+                  </Link>
+                </div>
+              )}
+
+              {/* Description */}
+              {selectedSchedule.description && (
+                <div className="pt-2 border-t">
+                  <p className="text-sm text-gray-600 whitespace-pre-wrap">
+                    {selectedSchedule.description}
+                  </p>
+                </div>
+              )}
+
+              {/* Action Button */}
+              {selectedSchedule.liverName && (
+                <div className="pt-4">
+                  <Link href={`/s/${encodeURIComponent(selectedSchedule.liverName)}`}>
+                    <Button variant="outline" className="w-full" onClick={() => setSelectedSchedule(null)}>
+                      <User className="h-4 w-4 mr-2" />
+                      {selectedSchedule.liverName}のスケジュールを見る
+                    </Button>
+                  </Link>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Footer */}
       <footer className="border-t bg-white py-4">
