@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -48,41 +49,40 @@ function formatFullDate(dateKey: string): string {
   const [year, month, day] = dateKey.split("-").map(Number);
   const date = new Date(year, month - 1, day);
   const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
-  return `${year}年${month}月${day}日(${weekdays[date.getDay()]})`;
+  return `${year}年${month}月${day}日（${weekdays[date.getDay()]}）`;
 }
 
-// Liver colors for visual distinction - TimeTree style
+// Liver colors for calendar display
 const liverColors = [
-  { bg: "bg-pink-400", border: "border-pink-400", text: "text-white" },
-  { bg: "bg-blue-400", border: "border-blue-400", text: "text-white" },
-  { bg: "bg-green-400", border: "border-green-400", text: "text-white" },
-  { bg: "bg-orange-400", border: "border-orange-400", text: "text-white" },
-  { bg: "bg-purple-400", border: "border-purple-400", text: "text-white" },
-  { bg: "bg-cyan-400", border: "border-cyan-400", text: "text-white" },
-  { bg: "bg-rose-400", border: "border-rose-400", text: "text-white" },
-  { bg: "bg-indigo-400", border: "border-indigo-400", text: "text-white" },
-  { bg: "bg-amber-400", border: "border-amber-400", text: "text-white" },
-  { bg: "bg-teal-400", border: "border-teal-400", text: "text-white" },
+  { bg: "bg-pink-100", text: "text-pink-700", border: "border-pink-300", color: "#EC4899" },
+  { bg: "bg-purple-100", text: "text-purple-700", border: "border-purple-300", color: "#8B5CF6" },
+  { bg: "bg-blue-100", text: "text-blue-700", border: "border-blue-300", color: "#3B82F6" },
+  { bg: "bg-green-100", text: "text-green-700", border: "border-green-300", color: "#10B981" },
+  { bg: "bg-yellow-100", text: "text-yellow-700", border: "border-yellow-300", color: "#F59E0B" },
+  { bg: "bg-orange-100", text: "text-orange-700", border: "border-orange-300", color: "#F97316" },
+  { bg: "bg-red-100", text: "text-red-700", border: "border-red-300", color: "#EF4444" },
+  { bg: "bg-teal-100", text: "text-teal-700", border: "border-teal-300", color: "#14B8A6" },
 ];
 
 // Category colors
-const categoryColors: Record<string, { bg: string; border: string; text: string }> = {
-  delivery: { bg: "bg-blue-400", border: "border-blue-400", text: "text-white" },
-  meeting: { bg: "bg-green-400", border: "border-green-400", text: "text-white" },
-  live: { bg: "bg-pink-400", border: "border-pink-400", text: "text-white" },
-  other: { bg: "bg-gray-400", border: "border-gray-400", text: "text-white" },
+const categoryColors: Record<string, typeof liverColors[0]> = {
+  delivery: { bg: "bg-pink-100", text: "text-pink-700", border: "border-pink-300", color: "#EC4899" },
+  meeting: { bg: "bg-blue-100", text: "text-blue-700", border: "border-blue-300", color: "#3B82F6" },
+  live: { bg: "bg-purple-100", text: "text-purple-700", border: "border-purple-300", color: "#8B5CF6" },
+  other: { bg: "bg-gray-100", text: "text-gray-700", border: "border-gray-300", color: "#6B7280" },
 };
 
-interface Schedule {
+type Schedule = {
   id: number;
   title: string;
   description?: string | null;
-  startTime: Date;
-  endTime?: Date | null;
+  startTime: string;
+  endTime?: string | null;
+  isAllDay?: boolean;
   category?: string | null;
   liverName?: string | null;
-  status?: string | null;
-}
+  liverId?: number | null;
+};
 
 export default function PublicSchedule() {
   const [, navigate] = useLocation();
@@ -91,14 +91,8 @@ export default function PublicSchedule() {
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
   const [bottomSheetOpen, setBottomSheetOpen] = useState(false);
 
-  // Liver authentication
-  const { data: currentLiver, refetch: refetchLiver } = trpc.liver.me.useQuery();
-  const logoutMutation = trpc.liver.logout.useMutation({
-    onSuccess: () => {
-      refetchLiver();
-      toast.success("ログアウトしました");
-    },
-  });
+  // Use auth from users table (same as management dashboard)
+  const { user, logout, loading: authLoading } = useAuth();
   
   // Add schedule modal state
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -133,20 +127,7 @@ export default function PublicSchedule() {
   // Fetch existing liver names
   const { data: existingLivers } = trpc.schedule.getPublicLiverNames.useQuery();
 
-  // Create schedule mutation (for logged-in livers)
-  const createLiverScheduleMutation = trpc.liver.createSchedule.useMutation({
-    onSuccess: () => {
-      toast.success("スケジュールを追加しました");
-      setAddModalOpen(false);
-      resetNewSchedule();
-      refetch();
-    },
-    onError: (error) => {
-      toast.error(error.message || "スケジュールの追加に失敗しました");
-    },
-  });
-
-  // Create schedule mutation (for public/anonymous)
+  // Create schedule mutation (uses user's name from auth)
   const createScheduleMutation = trpc.schedule.publicCreate.useMutation({
     onSuccess: () => {
       toast.success("スケジュールを追加しました");
@@ -196,7 +177,11 @@ export default function PublicSchedule() {
       if (!map.has(dateKey)) {
         map.set(dateKey, []);
       }
-      map.get(dateKey)!.push(schedule as Schedule);
+      map.get(dateKey)!.push({
+        ...schedule,
+        startTime: schedule.startTime instanceof Date ? schedule.startTime.toISOString() : schedule.startTime,
+        endTime: schedule.endTime instanceof Date ? schedule.endTime.toISOString() : schedule.endTime,
+      } as Schedule);
     });
     
     // Sort schedules within each day by start time
@@ -250,7 +235,7 @@ export default function PublicSchedule() {
       }
     }
     
-    // Remove empty weeks at the end
+    // Remove trailing weeks that are entirely in the next month
     while (weeks.length > 0 && weeks[weeks.length - 1].every(d => !d.isCurrentMonth)) {
       weeks.pop();
     }
@@ -346,29 +331,15 @@ export default function PublicSchedule() {
     const startTimeUTC = new Date(startTimeJST.getTime() - 9 * 60 * 60 * 1000);
     const endTimeUTC = new Date(endTimeJST.getTime() - 9 * 60 * 60 * 1000);
     
-    // If logged in as liver, use liver API (no need to specify liver name)
-    if (currentLiver) {
-      createLiverScheduleMutation.mutate({
-        title: newSchedule.title,
-        description: newSchedule.description || undefined,
-        startTime: startTimeUTC.toISOString(),
-        endTime: endTimeUTC.toISOString(),
-        isAllDay: newSchedule.isAllDay,
-        category: newSchedule.category,
-        notes: undefined,
-      });
-    } else {
-      // Public/anonymous - need to specify liver name
-      const liverName = newSchedule.isNewLiver ? newSchedule.newLiverName : newSchedule.liverName;
-      createScheduleMutation.mutate({
-        title: newSchedule.title,
-        description: newSchedule.description || undefined,
-        startTime: startTimeUTC.toISOString(),
-        endTime: endTimeUTC.toISOString(),
-        category: newSchedule.category,
-        liverName: liverName || "未指定",
-      });
-    }
+    // Use user's name from auth
+    createScheduleMutation.mutate({
+      title: newSchedule.title,
+      description: newSchedule.description || undefined,
+      startTime: startTimeUTC.toISOString(),
+      endTime: endTimeUTC.toISOString(),
+      category: newSchedule.category,
+      liverName: user?.name || "未指定",
+    });
   };
 
   // Open add modal with today's date
@@ -402,23 +373,22 @@ export default function PublicSchedule() {
             </div>
           </div>
           {/* User Menu */}
-          {currentLiver ? (
+          {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button 
-                  className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm"
-                  style={{ backgroundColor: currentLiver.color || "#FF69B4" }}
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm bg-gradient-to-br from-pink-400 to-pink-500"
                 >
-                  {currentLiver.name.charAt(0)}
+                  {user.name?.charAt(0) || "U"}
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 <div className="px-2 py-1.5">
-                  <p className="font-medium text-sm">{currentLiver.name}</p>
-                  <p className="text-xs text-gray-500">{currentLiver.email}</p>
+                  <p className="font-medium text-sm">{user.name}</p>
+                  <p className="text-xs text-gray-500">{user.email}</p>
                 </div>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => logoutMutation.mutate()}>
+                <DropdownMenuItem onClick={() => logout()}>
                   <LogOut className="h-4 w-4 mr-2" />
                   ログアウト
                 </DropdownMenuItem>
@@ -434,11 +404,11 @@ export default function PublicSchedule() {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem onClick={() => navigate("/liver/login")}>
+                <DropdownMenuItem onClick={() => navigate("/login")}>
                   <LogIn className="h-4 w-4 mr-2" />
                   ログイン
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate("/liver/register")}>
+                <DropdownMenuItem onClick={() => navigate("/login")}>
                   <UserPlus className="h-4 w-4 mr-2" />
                   新規登録
                 </DropdownMenuItem>
@@ -500,29 +470,29 @@ export default function PublicSchedule() {
                 <div
                   key={dayIndex}
                   className={cn(
-                    "border-r last:border-r-0 p-1 cursor-pointer transition-colors relative",
-                    isSelected && "bg-gray-100",
-                    !isCurrentMonth && "bg-gray-50"
+                    "border-r last:border-r-0 p-1 cursor-pointer hover:bg-gray-50 transition-colors",
+                    !isCurrentMonth && "bg-gray-50",
+                    isSelected && "bg-blue-50"
                   )}
                   onClick={() => handleDateClick(dateKey, isCurrentMonth)}
                 >
-                  {/* Date Number */}
+                  {/* Date number */}
                   <div className="flex justify-center mb-1">
                     <span
                       className={cn(
-                        "w-7 h-7 flex items-center justify-center text-sm font-medium rounded-full",
-                        !isCurrentMonth && "text-gray-300",
-                        isCurrentMonth && dayOfWeek === 0 && "text-red-500",
-                        isCurrentMonth && dayOfWeek === 6 && "text-blue-500",
-                        isCurrentMonth && dayOfWeek !== 0 && dayOfWeek !== 6 && "text-gray-700",
-                        isToday && "bg-blue-500 text-white"
+                        "w-7 h-7 flex items-center justify-center text-sm rounded-full",
+                        isToday && "bg-blue-500 text-white font-bold",
+                        !isToday && !isCurrentMonth && "text-gray-300",
+                        !isToday && isCurrentMonth && dayOfWeek === 0 && "text-red-500",
+                        !isToday && isCurrentMonth && dayOfWeek === 6 && "text-blue-500",
+                        !isToday && isCurrentMonth && dayOfWeek !== 0 && dayOfWeek !== 6 && "text-gray-700"
                       )}
                     >
                       {date.getDate()}
                     </span>
                   </div>
                   
-                  {/* Schedules */}
+                  {/* Schedule bars */}
                   <div className="space-y-0.5">
                     {daySchedules.slice(0, 3).map((schedule) => {
                       const liverColor = schedule.liverName 
@@ -534,17 +504,17 @@ export default function PublicSchedule() {
                           key={schedule.id}
                           className={cn(
                             "text-[10px] px-1 py-0.5 rounded truncate",
-                            liverColor?.bg || "bg-gray-400",
-                            liverColor?.text || "text-white"
+                            liverColor?.bg || "bg-gray-100",
+                            liverColor?.text || "text-gray-700"
                           )}
                         >
-                          {schedule.title}
+                          {schedule.isAllDay ? schedule.title : `${formatTimeJST(new Date(schedule.startTime)).slice(0, 5)} ${schedule.title}`}
                         </div>
                       );
                     })}
                     {daySchedules.length > 3 && (
-                      <div className="text-[10px] text-gray-400 text-center">
-                        +{daySchedules.length - 3}
+                      <div className="text-[10px] text-gray-400 px-1">
+                        +{daySchedules.length - 3}件
                       </div>
                     )}
                   </div>
@@ -558,11 +528,11 @@ export default function PublicSchedule() {
       {/* Floating Add Button */}
       <button
         onClick={() => {
-          if (currentLiver) {
+          if (user) {
             openAddModal();
           } else {
             toast.info("予定を追加するにはログインが必要です");
-            navigate("/liver/login");
+            navigate("/login");
           }
         }}
         className="fixed bottom-6 right-6 w-14 h-14 bg-white rounded-full shadow-lg border border-gray-200 flex items-center justify-center hover:shadow-xl transition-shadow z-20"
@@ -590,11 +560,11 @@ export default function PublicSchedule() {
                 </button>
                 <button
                   onClick={() => {
-                    if (currentLiver) {
+                    if (user) {
                       handleAddFromSheet();
                     } else {
                       toast.info("予定を追加するにはログインが必要です");
-                      navigate("/liver/login");
+                      navigate("/login");
                     }
                   }}
                   className="w-8 h-8 bg-black rounded-full flex items-center justify-center"
@@ -618,49 +588,37 @@ export default function PublicSchedule() {
                     ? liverColorMap.get(schedule.liverName) 
                     : categoryColors[schedule.category || "other"];
                   
-                  const startTime = formatTimeJST(new Date(schedule.startTime));
-                  const endTime = schedule.endTime ? formatTimeJST(new Date(schedule.endTime)) : null;
-                  const isAllDay = startTime === "00:00" && endTime === "23:59";
-                  
                   return (
                     <div
                       key={schedule.id}
-                      className="flex items-start gap-3 cursor-pointer"
+                      className="flex items-start gap-3 cursor-pointer hover:bg-gray-50 rounded-lg p-2 -mx-2"
                       onClick={() => handleScheduleClick(schedule)}
                     >
-                      {/* Time column */}
-                      <div className="w-12 text-right text-sm text-gray-500 pt-0.5 flex-shrink-0">
-                        {isAllDay ? (
-                          <span>終日</span>
-                        ) : (
-                          <div>
-                            <div>{startTime}</div>
-                            {endTime && <div className="text-gray-400">{endTime}</div>}
-                          </div>
-                        )}
+                      {/* Time */}
+                      <div className="w-14 text-right text-sm text-gray-500 pt-0.5">
+                        {schedule.isAllDay ? "終日" : formatTimeJST(new Date(schedule.startTime))}
                       </div>
                       
-                      {/* Color bar */}
-                      <div className={cn(
-                        "w-1 min-h-[40px] rounded-full flex-shrink-0",
-                        liverColor?.bg || "bg-gray-400"
-                      )} />
+                      {/* Vertical line */}
+                      <div 
+                        className="w-1 self-stretch rounded-full min-h-[40px]"
+                        style={{ backgroundColor: liverColor?.color || "#6B7280" }}
+                      />
                       
                       {/* Content */}
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium text-gray-900 truncate">
-                          {schedule.title}
-                        </div>
+                        <h3 className="font-medium text-gray-900 truncate">{schedule.title}</h3>
                         {schedule.description && (
-                          <div className="text-sm text-gray-500 truncate">
-                            {schedule.description}
-                          </div>
+                          <p className="text-sm text-gray-500 truncate">{schedule.description}</p>
                         )}
                       </div>
                       
-                      {/* Avatar placeholder */}
+                      {/* Avatar */}
                       {schedule.liverName && (
-                        <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs text-gray-600 flex-shrink-0">
+                        <div 
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                          style={{ backgroundColor: liverColor?.color || "#6B7280" }}
+                        >
                           {schedule.liverName.charAt(0)}
                         </div>
                       )}
@@ -673,53 +631,73 @@ export default function PublicSchedule() {
         </SheetContent>
       </Sheet>
 
-      {/* Schedule Detail Modal */}
+      {/* Schedule Detail Dialog */}
       <Dialog open={!!selectedSchedule} onOpenChange={(open) => !open && setSelectedSchedule(null)}>
-        <DialogContent className="max-w-md">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">
-                {selectedSchedule?.title}
-              </h2>
-            </div>
-            
-            {selectedSchedule && (
-              <>
-                <div className="space-y-3 text-sm">
-                  <div className="flex items-center gap-3 text-gray-600">
-                    <Clock className="h-4 w-4 flex-shrink-0" />
-                    <span>
-                      {formatTimeJST(new Date(selectedSchedule.startTime))}
-                      {selectedSchedule.endTime && ` - ${formatTimeJST(new Date(selectedSchedule.endTime))}`}
-                    </span>
-                  </div>
-                  
-                  {selectedSchedule.liverName && (
-                    <div className="flex items-center gap-3 text-gray-600">
-                      <User className="h-4 w-4 flex-shrink-0" />
-                      <span>{selectedSchedule.liverName}</span>
-                    </div>
-                  )}
+        <DialogContent className="max-w-md p-0 rounded-2xl">
+          {selectedSchedule && (
+            <>
+              {/* Header with color */}
+              <div 
+                className="p-4 rounded-t-2xl"
+                style={{ 
+                  backgroundColor: (selectedSchedule.liverName 
+                    ? liverColorMap.get(selectedSchedule.liverName)?.color 
+                    : categoryColors[selectedSchedule.category || "other"]?.color) || "#6B7280"
+                }}
+              >
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-bold text-white">{selectedSchedule.title}</h2>
+                  <button 
+                    onClick={() => setSelectedSchedule(null)}
+                    className="text-white/80 hover:text-white"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
                 </div>
-                
-                {selectedSchedule.description && (
-                  <div className="pt-3 border-t">
-                    <p className="text-sm text-gray-600 whitespace-pre-wrap">
-                      {selectedSchedule.description}
+              </div>
+              
+              {/* Content */}
+              <div className="p-4 space-y-4">
+                {/* Time */}
+                <div className="flex items-center gap-3">
+                  <Clock className="h-5 w-5 text-gray-400" />
+                  <div>
+                    <p className="font-medium">
+                      {selectedSchedule.isAllDay 
+                        ? "終日" 
+                        : `${formatTimeJST(new Date(selectedSchedule.startTime))} - ${selectedSchedule.endTime ? formatTimeJST(new Date(selectedSchedule.endTime)) : ""}`
+                      }
                     </p>
                   </div>
+                </div>
+                
+                {/* Liver */}
+                {selectedSchedule.liverName && (
+                  <div className="flex items-center gap-3">
+                    <User className="h-5 w-5 text-gray-400" />
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold"
+                        style={{ 
+                          backgroundColor: liverColorMap.get(selectedSchedule.liverName)?.color || "#6B7280"
+                        }}
+                      >
+                        {selectedSchedule.liverName.charAt(0)}
+                      </div>
+                      <span>{selectedSchedule.liverName}</span>
+                    </div>
+                  </div>
                 )}
                 
-                {selectedSchedule.liverName && (
-                  <Link href={`/s/${encodeURIComponent(selectedSchedule.liverName)}`}>
-                    <Button variant="outline" className="w-full">
-                      {selectedSchedule.liverName}のスケジュールを見る
-                    </Button>
-                  </Link>
+                {/* Description */}
+                {selectedSchedule.description && (
+                  <div className="pt-2 border-t">
+                    <p className="text-gray-600 whitespace-pre-wrap">{selectedSchedule.description}</p>
+                  </div>
                 )}
-              </>
-            )}
-          </div>
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -730,122 +708,116 @@ export default function PublicSchedule() {
           resetNewSchedule();
         }
       }}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto p-0">
+        <DialogContent className="max-w-md p-0 rounded-2xl max-h-[90vh] overflow-y-auto">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b">
+          <div className="sticky top-0 bg-white z-10 flex items-center justify-between p-4 border-b">
             <button 
               onClick={() => {
                 setAddModalOpen(false);
                 resetNewSchedule();
               }}
-              className="text-pink-500 text-lg"
+              className="text-gray-500"
             >
-              <X className="h-6 w-6" />
+              キャンセル
             </button>
-            <Button
+            <h2 className="font-bold">予定を追加</h2>
+            <button 
               onClick={handleAddSchedule}
               disabled={createScheduleMutation.isPending}
-              variant="outline"
-              className="rounded-full px-6"
+              className="text-pink-500 font-medium disabled:opacity-50"
             >
               {createScheduleMutation.isPending ? "保存中..." : "保存"}
-            </Button>
+            </button>
           </div>
           
           {/* Title Input */}
-          <div className="px-4 py-4 border-b">
+          <div className="px-4 py-3 border-b">
             <Input
               placeholder="タイトル"
               value={newSchedule.title}
               onChange={(e) => setNewSchedule(prev => ({ ...prev, title: e.target.value }))}
-              className="text-2xl font-light border-0 p-0 h-auto focus-visible:ring-0 placeholder:text-gray-300"
+              className="border-0 p-0 text-xl font-medium focus-visible:ring-0 placeholder:text-gray-300"
             />
           </div>
           
           {/* All Day Toggle */}
-          <div className="flex items-center justify-between px-4 py-3 border-b">
-            <div className="flex items-center gap-3">
-              <div className="w-6 h-6 rounded-full border-2 border-pink-400 flex items-center justify-center text-xs text-pink-400">
-                24
-              </div>
-              <span className="text-gray-700">終日</span>
-            </div>
+          <div className="px-4 py-3 border-b flex items-center justify-between">
+            <span className="text-gray-700">終日</span>
             <Switch
               checked={newSchedule.isAllDay}
               onCheckedChange={(checked) => setNewSchedule(prev => ({ ...prev, isAllDay: checked }))}
-              className="data-[state=checked]:bg-pink-500"
             />
           </div>
           
-          {/* Start Date/Time */}
+          {/* Date Selection */}
           <div className="px-4 py-3 border-b">
-            <div className="flex items-center justify-between">
-              <span className="text-gray-500">開始</span>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    setShowDatePicker(!showDatePicker);
-                    setDatePickerMonth(new Date(addModalDate));
-                  }}
-                  className="px-3 py-1.5 bg-pink-500 text-white rounded-full text-sm"
-                >
-                  {addModalDate && formatFullDate(addModalDate)}
-                </button>
-                {!newSchedule.isAllDay && (
-                  <input
-                    type="time"
-                    value={newSchedule.startTime}
-                    onChange={(e) => setNewSchedule(prev => ({ ...prev, startTime: e.target.value }))}
-                    className="px-3 py-1.5 bg-gray-100 rounded-full text-sm border-0"
-                  />
-                )}
-              </div>
+            <div className="flex items-center gap-3">
+              <Calendar className="h-5 w-5 text-pink-500" />
+              <button
+                onClick={() => setShowDatePicker(!showDatePicker)}
+                className="flex-1 text-left"
+              >
+                {addModalDate ? formatFullDate(addModalDate) : "日付を選択"}
+              </button>
             </div>
             
             {/* Inline Date Picker */}
             {showDatePicker && (
-              <div className="mt-4 border rounded-lg p-3">
+              <div className="mt-3 border rounded-lg p-3">
+                {/* Month Navigation */}
                 <div className="flex items-center justify-between mb-3">
                   <button
-                    onClick={() => setDatePickerMonth(new Date(datePickerMonth.getFullYear(), datePickerMonth.getMonth() - 1))}
-                    className="p-1 text-pink-500"
+                    onClick={() => setDatePickerMonth(new Date(datePickerMonth.getFullYear(), datePickerMonth.getMonth() - 1, 1))}
+                    className="p-1"
                   >
                     <ChevronLeft className="h-5 w-5" />
                   </button>
-                  <span className="font-medium text-pink-500">
+                  <span className="font-medium">
                     {datePickerMonth.getFullYear()}年{datePickerMonth.getMonth() + 1}月
                   </span>
                   <button
-                    onClick={() => setDatePickerMonth(new Date(datePickerMonth.getFullYear(), datePickerMonth.getMonth() + 1))}
-                    className="p-1 text-pink-500"
+                    onClick={() => setDatePickerMonth(new Date(datePickerMonth.getFullYear(), datePickerMonth.getMonth() + 1, 1))}
+                    className="p-1"
                   >
                     <ChevronRight className="h-5 w-5" />
                   </button>
                 </div>
                 
-                <div className="grid grid-cols-7 gap-1 text-center text-xs text-gray-500 mb-2">
-                  {["月", "火", "水", "木", "金", "土", "日"].map((d) => (
-                    <div key={d}>{d}</div>
+                {/* Weekday Headers */}
+                <div className="grid grid-cols-7 mb-2">
+                  {["月", "火", "水", "木", "金", "土", "日"].map((day, i) => (
+                    <div
+                      key={day}
+                      className={cn(
+                        "text-center text-xs font-medium py-1",
+                        i === 5 ? "text-blue-500" : i === 6 ? "text-red-500" : "text-gray-500"
+                      )}
+                    >
+                      {day}
+                    </div>
                   ))}
                 </div>
                 
-                {datePickerWeeks.map((week, wi) => (
-                  <div key={wi} className="grid grid-cols-7 gap-1">
-                    {week.map(({ date, isCurrentMonth }, di) => {
+                {/* Calendar Grid */}
+                {datePickerWeeks.map((week, weekIndex) => (
+                  <div key={weekIndex} className="grid grid-cols-7">
+                    {week.map(({ date, isCurrentMonth }, dayIndex) => {
                       const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
                       const isSelected = dateKey === addModalDate;
                       const isToday = dateKey === todayKey;
+                      const dayOfWeek = date.getDay();
                       
                       return (
                         <button
-                          key={di}
+                          key={dayIndex}
                           onClick={() => handleDatePickerSelect(dateKey)}
                           className={cn(
-                            "w-8 h-8 rounded-full text-sm flex items-center justify-center",
+                            "w-8 h-8 flex items-center justify-center text-sm rounded-full mx-auto",
                             !isCurrentMonth && "text-gray-300",
-                            isCurrentMonth && "text-gray-700",
-                            isSelected && "bg-pink-100 text-pink-500",
-                            isToday && !isSelected && "text-blue-500 font-bold"
+                            isCurrentMonth && !isSelected && dayOfWeek === 0 && "text-red-500",
+                            isCurrentMonth && !isSelected && dayOfWeek === 6 && "text-blue-500",
+                            isSelected && "bg-pink-500 text-white",
+                            isToday && !isSelected && "border border-pink-500"
                           )}
                         >
                           {date.getDate()}
@@ -858,88 +830,41 @@ export default function PublicSchedule() {
             )}
           </div>
           
-          {/* End Date/Time */}
-          <div className="px-4 py-3 border-b">
-            <div className="flex items-center justify-between">
-              <span className="text-gray-500">終了</span>
-              <div className="flex items-center gap-2">
-                <span className="px-3 py-1.5 bg-gray-100 rounded-full text-sm">
-                  {addModalDate && formatFullDate(addModalDate)}
-                </span>
-                {!newSchedule.isAllDay && (
-                  <input
+          {/* Time Selection */}
+          {!newSchedule.isAllDay && (
+            <div className="px-4 py-3 border-b">
+              <div className="flex items-center gap-3">
+                <Clock className="h-5 w-5 text-pink-500" />
+                <div className="flex items-center gap-2 flex-1">
+                  <Input
+                    type="time"
+                    value={newSchedule.startTime}
+                    onChange={(e) => setNewSchedule(prev => ({ ...prev, startTime: e.target.value }))}
+                    className="border-0 p-0 w-24 focus-visible:ring-0"
+                  />
+                  <span className="text-gray-400">〜</span>
+                  <Input
                     type="time"
                     value={newSchedule.endTime}
                     onChange={(e) => setNewSchedule(prev => ({ ...prev, endTime: e.target.value }))}
-                    className="px-3 py-1.5 bg-gray-100 rounded-full text-sm border-0"
+                    className="border-0 p-0 w-24 focus-visible:ring-0"
                   />
-                )}
+                </div>
               </div>
             </div>
-          </div>
+          )}
           
-          {/* Liver Selection - only show if not logged in */}
-          {currentLiver ? (
+          {/* User Info - Show logged in user */}
+          {user && (
             <div className="px-4 py-3 border-b">
               <div className="flex items-center gap-3">
                 <div 
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm"
-                  style={{ backgroundColor: currentLiver.color || "#FF69B4" }}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm bg-gradient-to-br from-pink-400 to-pink-500"
                 >
-                  {currentLiver.name.charAt(0)}
+                  {user.name?.charAt(0) || "U"}
                 </div>
-                <span className="text-gray-700 font-medium">{currentLiver.name}</span>
+                <span className="text-gray-700 font-medium">{user.name}</span>
                 <span className="text-xs text-gray-400 ml-auto">ログイン中</span>
-              </div>
-            </div>
-          ) : (
-            <div className="px-4 py-3 border-b">
-              <div className="flex items-center gap-3">
-                <User className="h-5 w-5 text-pink-500" />
-                {!newSchedule.isNewLiver ? (
-                  <Select
-                    value={newSchedule.liverName}
-                    onValueChange={(value) => {
-                      if (value === "__new__") {
-                        setNewSchedule(prev => ({ ...prev, isNewLiver: true, liverName: "" }));
-                      } else {
-                        setNewSchedule(prev => ({ ...prev, liverName: value }));
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="flex-1 border-0 p-0 h-auto focus:ring-0">
-                      <SelectValue placeholder="ライバーを選択" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {existingLivers?.map((liver) => (
-                        <SelectItem key={liver} value={liver}>
-                          {liver}
-                        </SelectItem>
-                      ))}
-                      <SelectItem value="__new__">
-                        <span className="flex items-center gap-1">
-                          <Plus className="h-3 w-3" />
-                          新しいライバーを追加
-                        </span>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                <div className="flex-1 flex items-center gap-2">
-                  <Input
-                    placeholder="新しいライバー名"
-                    value={newSchedule.newLiverName}
-                    onChange={(e) => setNewSchedule(prev => ({ ...prev, newLiverName: e.target.value }))}
-                    className="border-0 p-0 h-auto focus-visible:ring-0"
-                  />
-                  <button
-                    onClick={() => setNewSchedule(prev => ({ ...prev, isNewLiver: false, newLiverName: "" }))}
-                    className="text-gray-400 text-sm"
-                  >
-                    キャンセル
-                  </button>
-                </div>
-              )}
               </div>
             </div>
           )}

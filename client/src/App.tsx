@@ -162,8 +162,19 @@ function Router() {
       </Route>
       <Route path={"/s"} component={PublicSchedule} />
       <Route path={"/s/:name"} component={PublicLiverSchedule} />
-      <Route path={"/liver/register"} component={LiverRegister} />
-      <Route path={"/liver/login"} component={LiverLogin} />
+      {/* Liver login pages redirect to main login */}
+      <Route path={"/liver/register"}>
+        {() => {
+          window.location.href = "/login";
+          return null;
+        }}
+      </Route>
+      <Route path={"/liver/login"}>
+        {() => {
+          window.location.href = "/login";
+          return null;
+        }}
+      </Route>
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>
