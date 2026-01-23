@@ -1,11 +1,16 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Calendar, ChevronLeft, ChevronRight, Clock, User, Users, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calendar, ChevronLeft, ChevronRight, Clock, User, Users, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "wouter";
+import { toast } from "sonner";
 
 // Helper function to convert UTC to JST
 function toJST(date: Date): Date {
@@ -85,6 +90,23 @@ export default function PublicSchedule() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
+  
+  // Add schedule modal state
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [addModalDate, setAddModalDate] = useState<string>("");
+  const [newSchedule, setNewSchedule] = useState({
+    title: "",
+    description: "",
+    startTime: "10:00",
+    endTime: "11:00",
+    category: "other" as "delivery" | "meeting" | "live" | "other",
+    liverName: "",
+    isNewLiver: false,
+    newLiverName: "",
+  });
+
+  // Double tap detection
+  const lastTapRef = useRef<{ time: number; dateKey: string } | null>(null);
 
   // Get date range for the current month
   const dateRange = useMemo(() => {
@@ -94,10 +116,43 @@ export default function PublicSchedule() {
   }, [currentDate]);
 
   // Fetch schedules
-  const { data: schedules, isLoading } = trpc.schedule.getPublicByDateRange.useQuery({
+  const { data: schedules, isLoading, refetch } = trpc.schedule.getPublicByDateRange.useQuery({
     startDate: dateRange.start.toISOString(),
     endDate: dateRange.end.toISOString(),
   });
+
+  // Fetch existing liver names
+  const { data: existingLivers } = trpc.schedule.getPublicLiverNames.useQuery();
+
+  // Create schedule mutation
+  const createScheduleMutation = trpc.schedule.publicCreate.useMutation({
+    onSuccess: () => {
+      toast.success("スケジュールを追加しました", {
+        description: "新しいスケジュールが登録されました。",
+      });
+      setAddModalOpen(false);
+      resetNewSchedule();
+      refetch();
+    },
+    onError: (error) => {
+      toast.error("エラー", {
+        description: error.message || "スケジュールの追加に失敗しました。",
+      });
+    },
+  });
+
+  const resetNewSchedule = () => {
+    setNewSchedule({
+      title: "",
+      description: "",
+      startTime: "10:00",
+      endTime: "11:00",
+      category: "other",
+      liverName: "",
+      isNewLiver: false,
+      newLiverName: "",
+    });
+  };
 
   // Get unique liver names and assign colors
   const liverColorMap = useMemo(() => {
@@ -194,12 +249,35 @@ export default function PublicSchedule() {
   // Get schedules for selected date
   const selectedDateSchedules = selectedDate ? schedulesByDate.get(selectedDate) || [] : [];
 
-  // Handle date click in calendar
-  const handleDateClick = (dateKey: string, daySchedules: Schedule[]) => {
-    if (daySchedules.length > 0) {
-      setSelectedDate(dateKey);
+  // Handle date click in calendar (with double tap detection)
+  const handleDateClick = useCallback((dateKey: string, daySchedules: Schedule[], isCurrentMonth: boolean) => {
+    const now = Date.now();
+    const lastTap = lastTapRef.current;
+    
+    // Check for double tap (within 300ms on the same date)
+    if (lastTap && lastTap.dateKey === dateKey && now - lastTap.time < 300) {
+      // Double tap detected - open add modal
+      if (isCurrentMonth) {
+        setAddModalDate(dateKey);
+        setAddModalOpen(true);
+        lastTapRef.current = null;
+        return;
+      }
     }
-  };
+    
+    // Single tap - update last tap info
+    lastTapRef.current = { time: now, dateKey };
+    
+    // If there are schedules, show them after a short delay (to allow for double tap)
+    if (daySchedules.length > 0) {
+      setTimeout(() => {
+        // Only show if no double tap occurred
+        if (lastTapRef.current?.dateKey === dateKey) {
+          setSelectedDate(dateKey);
+        }
+      }, 300);
+    }
+  }, []);
 
   // Handle schedule click
   const handleScheduleClick = (schedule: Schedule, e?: React.MouseEvent) => {
@@ -207,6 +285,43 @@ export default function PublicSchedule() {
       e.stopPropagation();
     }
     setSelectedSchedule(schedule);
+  };
+
+  // Handle add schedule submit
+  const handleAddSchedule = () => {
+    const liverName = newSchedule.isNewLiver ? newSchedule.newLiverName : newSchedule.liverName;
+    
+    if (!newSchedule.title.trim()) {
+      toast.error("タイトルを入力してください");
+      return;
+    }
+    
+    if (!liverName.trim()) {
+      toast.error("ライバー名を選択または入力してください");
+      return;
+    }
+
+    // Convert JST time to UTC
+    const [startHour, startMin] = newSchedule.startTime.split(":").map(Number);
+    const [endHour, endMin] = newSchedule.endTime.split(":").map(Number);
+    const [year, month, day] = addModalDate.split("-").map(Number);
+    
+    // Create date in JST and convert to UTC
+    const startTimeJST = new Date(year, month - 1, day, startHour, startMin);
+    const endTimeJST = new Date(year, month - 1, day, endHour, endMin);
+    
+    // Subtract 9 hours to convert JST to UTC
+    const startTimeUTC = new Date(startTimeJST.getTime() - 9 * 60 * 60 * 1000);
+    const endTimeUTC = new Date(endTimeJST.getTime() - 9 * 60 * 60 * 1000);
+
+    createScheduleMutation.mutate({
+      title: newSchedule.title,
+      description: newSchedule.description || undefined,
+      startTime: startTimeUTC.toISOString(),
+      endTime: endTimeUTC.toISOString(),
+      category: newSchedule.category,
+      liverName: liverName,
+    });
   };
 
   return (
@@ -396,6 +511,12 @@ export default function PublicSchedule() {
           /* Calendar View */
           <Card>
             <CardContent className="p-2 sm:p-4">
+              {/* Hint for adding schedule */}
+              <div className="mb-3 text-center text-xs text-gray-500">
+                <Plus className="inline h-3 w-3 mr-1" />
+                日付をダブルタップでスケジュールを追加
+              </div>
+              
               {/* Weekday headers */}
               <div className="grid grid-cols-7 mb-2">
                 {["日", "月", "火", "水", "木", "金", "土"].map((day, i) => (
@@ -425,11 +546,10 @@ export default function PublicSchedule() {
                       key={index}
                       className={cn(
                         "min-h-[70px] sm:min-h-[90px] p-1 rounded-lg border transition-all",
-                        isCurrentMonth ? "bg-white" : "bg-gray-50",
-                        isToday && "ring-2 ring-purple-500",
-                        hasSchedules && "cursor-pointer hover:bg-purple-50 hover:border-purple-300"
+                        isCurrentMonth ? "bg-white cursor-pointer hover:bg-purple-50 hover:border-purple-300" : "bg-gray-50",
+                        isToday && "ring-2 ring-purple-500"
                       )}
-                      onClick={() => handleDateClick(dateKey, daySchedules)}
+                      onClick={() => handleDateClick(dateKey, daySchedules, isCurrentMonth)}
                     >
                       <div className={cn(
                         "text-xs sm:text-sm font-medium mb-1",
@@ -545,6 +665,20 @@ export default function PublicSchedule() {
                 );
               })
             )}
+            
+            {/* Add schedule button in date modal */}
+            <Button
+              variant="outline"
+              className="w-full mt-4"
+              onClick={() => {
+                setAddModalDate(selectedDate!);
+                setSelectedDate(null);
+                setAddModalOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              この日にスケジュールを追加
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -624,6 +758,161 @@ export default function PublicSchedule() {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Schedule Modal */}
+      <Dialog open={addModalOpen} onOpenChange={(open) => {
+        if (!open) {
+          setAddModalOpen(false);
+          resetNewSchedule();
+        }
+      }}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5 text-purple-600" />
+              スケジュールを追加
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            {/* Date display */}
+            <div className="text-center text-lg font-semibold text-purple-600">
+              {addModalDate && formatFullDate(addModalDate)}
+            </div>
+
+            {/* Liver selection */}
+            <div className="space-y-2">
+              <Label>ライバー名 *</Label>
+              {!newSchedule.isNewLiver ? (
+                <div className="space-y-2">
+                  <Select
+                    value={newSchedule.liverName}
+                    onValueChange={(value) => {
+                      if (value === "__new__") {
+                        setNewSchedule({ ...newSchedule, isNewLiver: true, liverName: "" });
+                      } else {
+                        setNewSchedule({ ...newSchedule, liverName: value });
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="ライバーを選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {existingLivers?.map((liver) => (
+                        <SelectItem key={liver} value={liver}>
+                          {liver}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="__new__">
+                        <span className="flex items-center gap-1">
+                          <Plus className="h-3 w-3" />
+                          新しいライバーを追加
+                        </span>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Input
+                    placeholder="新しいライバー名を入力"
+                    value={newSchedule.newLiverName}
+                    onChange={(e) => setNewSchedule({ ...newSchedule, newLiverName: e.target.value })}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setNewSchedule({ ...newSchedule, isNewLiver: false, newLiverName: "" })}
+                  >
+                    既存のライバーから選択
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Title */}
+            <div className="space-y-2">
+              <Label>タイトル *</Label>
+              <Input
+                placeholder="例: ライブ配信"
+                value={newSchedule.title}
+                onChange={(e) => setNewSchedule({ ...newSchedule, title: e.target.value })}
+              />
+            </div>
+
+            {/* Time */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>開始時間</Label>
+                <Input
+                  type="time"
+                  value={newSchedule.startTime}
+                  onChange={(e) => setNewSchedule({ ...newSchedule, startTime: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>終了時間</Label>
+                <Input
+                  type="time"
+                  value={newSchedule.endTime}
+                  onChange={(e) => setNewSchedule({ ...newSchedule, endTime: e.target.value })}
+                />
+              </div>
+            </div>
+
+            {/* Category */}
+            <div className="space-y-2">
+              <Label>カテゴリ</Label>
+              <Select
+                value={newSchedule.category}
+                onValueChange={(value: "delivery" | "meeting" | "live" | "other") => 
+                  setNewSchedule({ ...newSchedule, category: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="live">ライブ</SelectItem>
+                  <SelectItem value="delivery">配信</SelectItem>
+                  <SelectItem value="meeting">会議</SelectItem>
+                  <SelectItem value="other">その他</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Description */}
+            <div className="space-y-2">
+              <Label>説明（任意）</Label>
+              <Textarea
+                placeholder="詳細を入力..."
+                value={newSchedule.description}
+                onChange={(e) => setNewSchedule({ ...newSchedule, description: e.target.value })}
+                rows={3}
+              />
+            </div>
+
+            {/* Submit button */}
+            <Button
+              className="w-full"
+              onClick={handleAddSchedule}
+              disabled={createScheduleMutation.isPending}
+            >
+              {createScheduleMutation.isPending ? (
+                <span className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  追加中...
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <Plus className="h-4 w-4" />
+                  スケジュールを追加
+                </span>
+              )}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

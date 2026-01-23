@@ -156,8 +156,8 @@ import {
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
-import { lineUsers, brands, lineGroups } from "../drizzle/schema";
-import { eq } from "drizzle-orm";
+import { lineUsers, brands, lineGroups, schedules } from "../drizzle/schema";
+import { eq, and, not, isNotNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { authRouter } from "./auth";
 import { checkAndSendReminders } from "./reminderScheduler";
@@ -3246,6 +3246,52 @@ ${conversationText}
         const startDate = input.startDate ? new Date(input.startDate) : undefined;
         const endDate = input.endDate ? new Date(input.endDate) : undefined;
         return await getSchedulesByLiverName(input.liverName, startDate, endDate);
+      }),
+
+    // Public: Get all unique liver names from schedules
+    getPublicLiverNames: publicProcedure
+      .query(async () => {
+        const db = await getDb();
+        if (!db) return [];
+        const result = await db
+          .selectDistinct({ liverName: schedules.liverName })
+          .from(schedules)
+          .where(and(
+            isNotNull(schedules.liverName),
+            not(eq(schedules.status, "cancelled"))
+          ));
+        return result
+          .map(r => r.liverName)
+          .filter((name): name is string => Boolean(name))
+          .sort();
+      }),
+
+    // Public: Create a schedule (no auth required for public calendar)
+    publicCreate: publicProcedure
+      .input(
+        z.object({
+          title: z.string().min(1),
+          description: z.string().optional(),
+          startTime: z.string(),
+          endTime: z.string().optional(),
+          isAllDay: z.boolean().optional(),
+          category: z.enum(["delivery", "meeting", "live", "other"]).optional(),
+          liverName: z.string().min(1),
+          notes: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const schedule = await createSchedule({
+          title: input.title,
+          description: input.description,
+          startTime: new Date(input.startTime),
+          endTime: input.endTime ? new Date(input.endTime) : undefined,
+          isAllDay: input.isAllDay || false,
+          category: input.category || "other",
+          liverName: input.liverName,
+          notes: input.notes,
+        });
+        return schedule;
       }),
   }),
 });
