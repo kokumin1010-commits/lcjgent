@@ -716,3 +716,38 @@ export const schedules = mysqlTable("schedules", {
 
 export type Schedule = typeof schedules.$inferSelect;
 export type InsertSchedule = typeof schedules.$inferInsert;
+
+
+/**
+ * Livers table for liver (streamer) accounts
+ * ライバー（配信者）アカウント管理テーブル
+ * 
+ * 機能:
+ * - ライバー専用アカウント
+ * - 共有カレンダーで全員の予定を閲覧
+ * - 自分のスケジュールのみ追加・編集・削除可能
+ */
+export const livers = mysqlTable("livers", {
+  id: int("id").autoincrement().primaryKey(),
+  // 基本情報
+  name: varchar("name", { length: 255 }).notNull(), // ライバー名
+  email: varchar("email", { length: 320 }).notNull().unique(), // メールアドレス
+  password: varchar("password", { length: 255 }).notNull(), // ハッシュ化されたパスワード
+  // プロフィール
+  avatarUrl: text("avatarUrl"), // アバター画像URL
+  avatarKey: varchar("avatarKey", { length: 512 }), // アバター画像S3 key
+  bio: text("bio"), // 自己紹介
+  // カラー設定（カレンダー表示用）
+  color: varchar("color", { length: 20 }).default("#FF69B4"), // 表示色（ピンクがデフォルト）
+  // ステータス
+  isActive: boolean("isActive").default(true).notNull(), // アクティブかどうか
+  role: mysqlEnum("role", ["liver", "admin"]).default("liver").notNull(), // 権限
+  // セッション
+  lastLoginAt: timestamp("lastLoginAt"), // 最終ログイン日時
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Liver = typeof livers.$inferSelect;
+export type InsertLiver = typeof livers.$inferInsert;

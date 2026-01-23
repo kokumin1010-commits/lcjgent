@@ -29,6 +29,8 @@ import PendingResponses from "./pages/PendingResponses";
 import Calendar from "./pages/Calendar";
 import PublicSchedule from "./pages/PublicSchedule";
 import PublicLiverSchedule from "./pages/PublicLiverSchedule";
+import LiverRegister from "./pages/LiverRegister";
+import LiverLogin from "./pages/LiverLogin";
 
 function Router() {
   return (
@@ -160,6 +162,8 @@ function Router() {
       </Route>
       <Route path={"/s"} component={PublicSchedule} />
       <Route path={"/s/:name"} component={PublicLiverSchedule} />
+      <Route path={"/liver/register"} component={LiverRegister} />
+      <Route path={"/liver/login"} component={LiverLogin} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

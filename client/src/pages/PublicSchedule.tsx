@@ -7,10 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Calendar, Clock, User, Plus, ChevronDown, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Calendar, Clock, User, Plus, ChevronDown, ChevronLeft, ChevronRight, X, LogIn, LogOut, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 // Helper function to convert UTC to JST
 function toJST(date: Date): Date {
@@ -84,10 +85,20 @@ interface Schedule {
 }
 
 export default function PublicSchedule() {
+  const [, navigate] = useLocation();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
   const [bottomSheetOpen, setBottomSheetOpen] = useState(false);
+
+  // Liver authentication
+  const { data: currentLiver, refetch: refetchLiver } = trpc.liver.me.useQuery();
+  const logoutMutation = trpc.liver.logout.useMutation({
+    onSuccess: () => {
+      refetchLiver();
+      toast.success("ログアウトしました");
+    },
+  });
   
   // Add schedule modal state
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -122,7 +133,20 @@ export default function PublicSchedule() {
   // Fetch existing liver names
   const { data: existingLivers } = trpc.schedule.getPublicLiverNames.useQuery();
 
-  // Create schedule mutation
+  // Create schedule mutation (for logged-in livers)
+  const createLiverScheduleMutation = trpc.liver.createSchedule.useMutation({
+    onSuccess: () => {
+      toast.success("スケジュールを追加しました");
+      setAddModalOpen(false);
+      resetNewSchedule();
+      refetch();
+    },
+    onError: (error) => {
+      toast.error(error.message || "スケジュールの追加に失敗しました");
+    },
+  });
+
+  // Create schedule mutation (for public/anonymous)
   const createScheduleMutation = trpc.schedule.publicCreate.useMutation({
     onSuccess: () => {
       toast.success("スケジュールを追加しました");
@@ -301,8 +325,6 @@ export default function PublicSchedule() {
   const handleAddSchedule = () => {
     if (!addModalDate) return;
     
-    const liverName = newSchedule.isNewLiver ? newSchedule.newLiverName : newSchedule.liverName;
-    
     if (!newSchedule.title.trim()) {
       toast.error("タイトルを入力してください");
       return;
@@ -324,14 +346,29 @@ export default function PublicSchedule() {
     const startTimeUTC = new Date(startTimeJST.getTime() - 9 * 60 * 60 * 1000);
     const endTimeUTC = new Date(endTimeJST.getTime() - 9 * 60 * 60 * 1000);
     
-    createScheduleMutation.mutate({
-      title: newSchedule.title,
-      description: newSchedule.description || undefined,
-      startTime: startTimeUTC.toISOString(),
-      endTime: endTimeUTC.toISOString(),
-      category: newSchedule.category,
-      liverName: liverName || "未指定",
-    });
+    // If logged in as liver, use liver API (no need to specify liver name)
+    if (currentLiver) {
+      createLiverScheduleMutation.mutate({
+        title: newSchedule.title,
+        description: newSchedule.description || undefined,
+        startTime: startTimeUTC.toISOString(),
+        endTime: endTimeUTC.toISOString(),
+        isAllDay: newSchedule.isAllDay,
+        category: newSchedule.category,
+        notes: undefined,
+      });
+    } else {
+      // Public/anonymous - need to specify liver name
+      const liverName = newSchedule.isNewLiver ? newSchedule.newLiverName : newSchedule.liverName;
+      createScheduleMutation.mutate({
+        title: newSchedule.title,
+        description: newSchedule.description || undefined,
+        startTime: startTimeUTC.toISOString(),
+        endTime: endTimeUTC.toISOString(),
+        category: newSchedule.category,
+        liverName: liverName || "未指定",
+      });
+    }
   };
 
   // Open add modal with today's date
@@ -364,11 +401,50 @@ export default function PublicSchedule() {
               <p className="text-xs text-gray-500">LCJ スケジュール</p>
             </div>
           </div>
-          <button className="text-pink-500">
-            <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-            </svg>
-          </button>
+          {/* User Menu */}
+          {currentLiver ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button 
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm"
+                  style={{ backgroundColor: currentLiver.color || "#FF69B4" }}
+                >
+                  {currentLiver.name.charAt(0)}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <div className="px-2 py-1.5">
+                  <p className="font-medium text-sm">{currentLiver.name}</p>
+                  <p className="text-xs text-gray-500">{currentLiver.email}</p>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => logoutMutation.mutate()}>
+                  <LogOut className="h-4 w-4 mr-2" />
+                  ログアウト
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="text-pink-500">
+                  <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                  </svg>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={() => navigate("/liver/login")}>
+                  <LogIn className="h-4 w-4 mr-2" />
+                  ログイン
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/liver/register")}>
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  新規登録
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </div>
 
@@ -788,39 +864,53 @@ export default function PublicSchedule() {
             </div>
           </div>
           
-          {/* Liver Selection */}
-          <div className="px-4 py-3 border-b">
-            <div className="flex items-center gap-3">
-              <User className="h-5 w-5 text-pink-500" />
-              {!newSchedule.isNewLiver ? (
-                <Select
-                  value={newSchedule.liverName}
-                  onValueChange={(value) => {
-                    if (value === "__new__") {
-                      setNewSchedule(prev => ({ ...prev, isNewLiver: true, liverName: "" }));
-                    } else {
-                      setNewSchedule(prev => ({ ...prev, liverName: value }));
-                    }
-                  }}
+          {/* Liver Selection - only show if not logged in */}
+          {currentLiver ? (
+            <div className="px-4 py-3 border-b">
+              <div className="flex items-center gap-3">
+                <div 
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm"
+                  style={{ backgroundColor: currentLiver.color || "#FF69B4" }}
                 >
-                  <SelectTrigger className="flex-1 border-0 p-0 h-auto focus:ring-0">
-                    <SelectValue placeholder="ライバーを選択" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {existingLivers?.map((liver) => (
-                      <SelectItem key={liver} value={liver}>
-                        {liver}
+                  {currentLiver.name.charAt(0)}
+                </div>
+                <span className="text-gray-700 font-medium">{currentLiver.name}</span>
+                <span className="text-xs text-gray-400 ml-auto">ログイン中</span>
+              </div>
+            </div>
+          ) : (
+            <div className="px-4 py-3 border-b">
+              <div className="flex items-center gap-3">
+                <User className="h-5 w-5 text-pink-500" />
+                {!newSchedule.isNewLiver ? (
+                  <Select
+                    value={newSchedule.liverName}
+                    onValueChange={(value) => {
+                      if (value === "__new__") {
+                        setNewSchedule(prev => ({ ...prev, isNewLiver: true, liverName: "" }));
+                      } else {
+                        setNewSchedule(prev => ({ ...prev, liverName: value }));
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="flex-1 border-0 p-0 h-auto focus:ring-0">
+                      <SelectValue placeholder="ライバーを選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {existingLivers?.map((liver) => (
+                        <SelectItem key={liver} value={liver}>
+                          {liver}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="__new__">
+                        <span className="flex items-center gap-1">
+                          <Plus className="h-3 w-3" />
+                          新しいライバーを追加
+                        </span>
                       </SelectItem>
-                    ))}
-                    <SelectItem value="__new__">
-                      <span className="flex items-center gap-1">
-                        <Plus className="h-3 w-3" />
-                        新しいライバーを追加
-                      </span>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              ) : (
+                    </SelectContent>
+                  </Select>
+                ) : (
                 <div className="flex-1 flex items-center gap-2">
                   <Input
                     placeholder="新しいライバー名"
@@ -836,8 +926,9 @@ export default function PublicSchedule() {
                   </button>
                 </div>
               )}
+              </div>
             </div>
-          </div>
+          )}
           
           {/* Description */}
           <div className="px-4 py-3">

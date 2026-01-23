@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -2852,5 +2852,143 @@ export async function searchSchedules(query: string) {
         not(eq(schedules.status, "cancelled"))
       )
     )
+    .orderBy(asc(schedules.startTime));
+}
+
+
+// =====================================================
+// Liver (Streamer) Management Functions
+// ライバー（配信者）管理関数
+// =====================================================
+
+// Create a new liver
+export async function createLiver(data: InsertLiver) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(livers).values(data);
+  const insertId = Number(result[0].insertId);
+  return insertId;
+}
+
+// Get liver by email
+export async function getLiverByEmail(email: string) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db
+    .select()
+    .from(livers)
+    .where(eq(livers.email, email))
+    .limit(1);
+  
+  return result.length > 0 ? result[0] : null;
+}
+
+// Get liver by ID
+export async function getLiverById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db
+    .select()
+    .from(livers)
+    .where(eq(livers.id, id))
+    .limit(1);
+  
+  return result.length > 0 ? result[0] : null;
+}
+
+// Get all active livers
+export async function getAllActiveLivers() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(livers)
+    .where(eq(livers.isActive, true))
+    .orderBy(asc(livers.name));
+}
+
+// Get all livers (including inactive)
+export async function getAllLivers() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(livers)
+    .orderBy(desc(livers.createdAt));
+}
+
+// Update liver
+export async function updateLiver(id: number, data: Partial<InsertLiver>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db
+    .update(livers)
+    .set(data)
+    .where(eq(livers.id, id));
+}
+
+// Update liver last login
+export async function updateLiverLastLogin(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db
+    .update(livers)
+    .set({ lastLoginAt: new Date() })
+    .where(eq(livers.id, id));
+}
+
+// Delete liver (soft delete - set isActive to false)
+export async function deleteLiver(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db
+    .update(livers)
+    .set({ isActive: false })
+    .where(eq(livers.id, id));
+}
+
+// Check if email already exists
+export async function checkLiverEmailExists(email: string) {
+  const db = await getDb();
+  if (!db) return false;
+  
+  const result = await db
+    .select({ id: livers.id })
+    .from(livers)
+    .where(eq(livers.email, email))
+    .limit(1);
+  
+  return result.length > 0;
+}
+
+// Get schedules by liver ID
+export async function getSchedulesByLiverId(liverId: number, startDate?: Date, endDate?: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const conditions = [
+    eq(schedules.liverId, liverId),
+    not(eq(schedules.status, "cancelled"))
+  ];
+  
+  if (startDate) {
+    conditions.push(sql`${schedules.startTime} >= ${startDate}`);
+  }
+  if (endDate) {
+    conditions.push(sql`${schedules.startTime} <= ${endDate}`);
+  }
+  
+  return await db
+    .select()
+    .from(schedules)
+    .where(and(...conditions))
     .orderBy(asc(schedules.startTime));
 }

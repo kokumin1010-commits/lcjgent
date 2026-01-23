@@ -152,6 +152,15 @@ import {
   updateSchedule,
   deleteSchedule,
   getUpcomingSchedules,
+  createLiver,
+  getLiverByEmail,
+  getLiverById,
+  getAllActiveLivers,
+  getAllLivers,
+  updateLiver,
+  updateLiverLastLogin,
+  checkLiverEmailExists,
+  getSchedulesByLiverId,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -160,6 +169,7 @@ import { lineUsers, brands, lineGroups, schedules } from "../drizzle/schema";
 import { eq, and, not, isNotNull } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { authRouter } from "./auth";
+import { liverRouter } from "./liverRouter";
 import { checkAndSendReminders } from "./reminderScheduler";
 import { completionRouter } from "./completion";
 import { sendReminderEmail } from "./emailService";
@@ -3294,6 +3304,9 @@ ${conversationText}
         return schedule;
       }),
   }),
+
+  // Liver (Streamer) Authentication Router
+  liver: liverRouter,
 });
 
 export type AppRouter = typeof appRouter;
