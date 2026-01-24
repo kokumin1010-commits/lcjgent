@@ -30,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Plus, Trash2, Edit2, TrendingUp, ImageIcon, X } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit2, TrendingUp, ImageIcon, X, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, ShoppingCart, Tag, Sparkles, FileText, Truck, MessageSquare, CheckCircle2, AlertCircle, PauseCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
 
@@ -975,9 +975,15 @@ export default function BrandDetail() {
         </Card>
 
         {/* Contracts */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>{t.contracts}</CardTitle>
+        <Card className="overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20">
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-orange-500" />
+              {t.contracts}
+              {contracts.length > 0 && (
+                <Badge variant="secondary" className="ml-2">{contracts.length}</Badge>
+              )}
+            </CardTitle>
             <Dialog open={isContractDialogOpen} onOpenChange={setIsContractDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="bg-red-600 hover:bg-red-700">
@@ -1198,9 +1204,15 @@ export default function BrandDetail() {
         </Card>
 
         {/* Products */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>{t.products}</CardTitle>
+        <Card className="overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20">
+            <CardTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5 text-blue-500" />
+              {t.products}
+              {products.length > 0 && (
+                <Badge variant="secondary" className="ml-2">{products.length}</Badge>
+              )}
+            </CardTitle>
             <div className="flex gap-2">
               {/* AI商品登録ボタン */}
               <Dialog open={isAiProductDialogOpen} onOpenChange={(open) => {
@@ -1618,54 +1630,107 @@ export default function BrandDetail() {
           </CardHeader>
           <CardContent>
             {products.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t.productName}</TableHead>
-                    <TableHead className="text-right">{t.listPrice}</TableHead>
-                    <TableHead className="text-right">{t.specialPrice}</TableHead>
-                    <TableHead>{t.influencer}</TableHead>
-                    <TableHead className="w-[50px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {products.map((product) => (
-                    <TableRow key={product.id}>
-                      <TableCell>{product.productName}</TableCell>
-                      <TableCell className="text-right">
-                        {formatCurrency(product.listPrice)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatCurrency(product.specialPrice)}
-                      </TableCell>
-                      <TableCell>{product.influencer || "-"}</TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            deleteProductMutation.mutate({ id: product.id })
-                          }
-                        >
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {products.map((product) => (
+                  <div
+                    key={product.id}
+                    className="group relative bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-300"
+                  >
+                    {/* 削除ボタン */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => deleteProductMutation.mutate({ id: product.id })}
+                    >
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                    </Button>
+
+                    {/* 商品画像またはアイコン */}
+                    <div className="flex items-start gap-3 mb-3">
+                      <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900 dark:to-purple-900 flex items-center justify-center flex-shrink-0">
+                        {product.imageUrls && product.imageUrls.length > 0 ? (
+                          <img
+                            src={product.imageUrls[0]}
+                            alt={product.productName}
+                            className="w-full h-full object-cover rounded-lg"
+                          />
+                        ) : (
+                          <Package className="h-8 w-8 text-blue-500" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-sm line-clamp-2 mb-1">{product.productName}</h4>
+                        {product.productCode && (
+                          <p className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Tag className="h-3 w-3" />
+                            {product.productCode}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 価格情報 */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          <DollarSign className="h-3 w-3" />
+                          {t.listPrice}
+                        </span>
+                        <span className="font-medium text-sm">{formatCurrency(product.listPrice)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Sparkles className="h-3 w-3 text-orange-500" />
+                          {t.specialPrice}
+                        </span>
+                        <span className="font-bold text-sm text-red-600">{formatCurrency(product.specialPrice)}</span>
+                      </div>
+                      {product.discountRate && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Percent className="h-3 w-3 text-green-500" />
+                            {t.discountRate}
+                          </span>
+                          <Badge className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                            {product.discountRate}
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* インフルエンサー */}
+                    {product.influencer && (
+                      <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                        <div className="flex items-center gap-2">
+                          <Users className="h-3 w-3 text-purple-500" />
+                          <span className="text-xs text-muted-foreground">{t.influencer}:</span>
+                          <span className="text-xs font-medium">{product.influencer}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                {t.noProducts}
+              <div className="text-center py-12 text-muted-foreground">
+                <Package className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p>{t.noProducts}</p>
               </div>
             )}
           </CardContent>
         </Card>
 
         {/* Activities */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>{t.activities}</CardTitle>
+        <Card className="overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20">
+            <CardTitle className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5 text-purple-500" />
+              {t.activities}
+              {activities.length > 0 && (
+                <Badge variant="secondary" className="ml-2">{activities.length}</Badge>
+              )}
+            </CardTitle>
             <Dialog open={isActivityDialogOpen} onOpenChange={setIsActivityDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="bg-red-600 hover:bg-red-700">
@@ -1768,74 +1833,115 @@ export default function BrandDetail() {
           </CardHeader>
           <CardContent>
             {activities.length > 0 ? (
-              <div className="space-y-4">
-                {activities.map((activity) => (
-                  <div
-                    key={activity.id}
-                    className="border rounded-lg p-4 space-y-2"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-sm text-muted-foreground">
-                          {new Date(activity.activityDate).toLocaleDateString()}
-                        </p>
-                        <Badge className="mt-1">{activity.activityType}</Badge>
+              <div className="relative">
+                {/* タイムラインの縦線 */}
+                <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gradient-to-b from-blue-500 via-purple-500 to-pink-500" />
+                
+                <div className="space-y-4">
+                  {activities.map((activity, index) => {
+                    const statusConfig = {
+                      "進行中": { icon: AlertCircle, color: "bg-blue-500", textColor: "text-blue-600" },
+                      "打ち合わせ": { icon: MessageSquare, color: "bg-purple-500", textColor: "text-purple-600" },
+                      "完了": { icon: CheckCircle2, color: "bg-green-500", textColor: "text-green-600" },
+                    };
+                    const config = statusConfig[activity.activityType as keyof typeof statusConfig] || statusConfig["進行中"];
+                    const IconComponent = config.icon;
+                    
+                    return (
+                      <div key={activity.id} className="relative pl-10">
+                        {/* タイムラインのドット */}
+                        <div className={`absolute left-2 w-5 h-5 rounded-full ${config.color} flex items-center justify-center ring-4 ring-white dark:ring-gray-900`}>
+                          <IconComponent className="h-3 w-3 text-white" />
+                        </div>
+                        
+                        <div className="bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition-shadow">
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-sm font-medium">
+                                  {new Date(activity.activityDate).toLocaleDateString()}
+                                </span>
+                              </div>
+                              <Badge className={`${config.textColor} bg-opacity-10`}>
+                                {activity.activityType}
+                              </Badge>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="opacity-50 hover:opacity-100"
+                              onClick={() => deleteActivityMutation.mutate({ id: activity.id })}
+                            >
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
+                          </div>
+                          
+                          {activity.contactPerson && (
+                            <div className="flex items-center gap-2 mb-2">
+                              <Users className="h-4 w-4 text-purple-500" />
+                              <span className="text-sm">{activity.contactPerson}</span>
+                            </div>
+                          )}
+                          
+                          {activity.content && (
+                            <p className="text-sm text-muted-foreground whitespace-pre-wrap mb-2">
+                              {activity.content}
+                            </p>
+                          )}
+                          
+                          {activity.nextAction && (
+                            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                              <ArrowLeft className="h-4 w-4 text-blue-500 rotate-180" />
+                              <span className="text-sm font-medium text-blue-600">{activity.nextAction}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          deleteActivityMutation.mutate({ id: activity.id })
-                        }
-                      >
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
-                    </div>
-                    {activity.contactPerson && (
-                      <p className="text-sm">
-                        <span className="text-muted-foreground">担当者: </span>
-                        {activity.contactPerson}
-                      </p>
-                    )}
-                    {activity.content && (
-                      <p className="text-sm whitespace-pre-wrap">{activity.content}</p>
-                    )}
-                    {activity.nextAction && (
-                      <p className="text-sm text-blue-600">
-                        <span className="text-muted-foreground">次のアクション: </span>
-                        {activity.nextAction}
-                      </p>
-                    )}
-                  </div>
-                ))}
+                    );
+                  })}
+                </div>
               </div>
             ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                {t.noActivities}
+              <div className="text-center py-12 text-muted-foreground">
+                <MessageSquare className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p>{t.noActivities}</p>
               </div>
             )}
           </CardContent>
         </Card>
 
         {/* 直播履歴セクション */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+        <Card className="overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between bg-gradient-to-r from-pink-50 to-red-50 dark:from-pink-900/20 dark:to-red-900/20">
             <div className="flex items-center gap-4">
               <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5" />
+                <Video className="h-5 w-5 text-pink-500" />
                 {t.livestreams}
+                {livestreams.length > 0 && (
+                  <Badge variant="secondary" className="ml-2">{livestreams.length}</Badge>
+                )}
               </CardTitle>
-              {livestreamStats && (
-                <div className="flex gap-4 text-sm">
-                  <span className="text-muted-foreground">
-                    {t.totalSales}: <span className="text-foreground font-medium">{formatCurrency(livestreamStats.totalSales)}</span>
-                  </span>
-                  <span className="text-muted-foreground">
-                    {t.totalStreams}: <span className="text-foreground font-medium">{livestreamStats.totalStreams}</span>
-                  </span>
-                  <span className="text-muted-foreground">
-                    {t.avgSales}: <span className="text-foreground font-medium">{formatCurrency(livestreamStats.avgSales)}</span>
-                  </span>
+              {livestreamStats && livestreamStats.totalStreams > 0 && (
+                <div className="hidden md:flex gap-3">
+                  <div className="flex items-center gap-1 px-3 py-1 bg-green-100 dark:bg-green-900/30 rounded-full">
+                    <DollarSign className="h-3 w-3 text-green-600" />
+                    <span className="text-xs font-medium text-green-700 dark:text-green-400">
+                      {formatCurrency(livestreamStats.totalSales)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 rounded-full">
+                    <Video className="h-3 w-3 text-blue-600" />
+                    <span className="text-xs font-medium text-blue-700 dark:text-blue-400">
+                      {livestreamStats.totalStreams}回
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 px-3 py-1 bg-purple-100 dark:bg-purple-900/30 rounded-full">
+                    <TrendingUp className="h-3 w-3 text-purple-600" />
+                    <span className="text-xs font-medium text-purple-700 dark:text-purple-400">
+                      平均 {formatCurrency(livestreamStats.avgSales)}
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
@@ -1972,49 +2078,109 @@ export default function BrandDetail() {
           </CardHeader>
           <CardContent>
             {livestreams.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t.livestreamDate}</TableHead>
-                    <TableHead>{t.streamerName}</TableHead>
-                    <TableHead className="text-right">{t.salesAmount}</TableHead>
-                    <TableHead className="text-right">{t.duration}</TableHead>
-                    <TableHead>{t.platform}</TableHead>
-                    <TableHead className="w-[50px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {livestreams.map((ls) => (
-                    <TableRow key={ls.id}>
-                      <TableCell>
-                        {new Date(ls.livestreamDate).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell>{ls.streamerName}</TableCell>
-                      <TableCell className="text-right">
-                        {formatCurrency(ls.salesAmount)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {ls.duration ? `${ls.duration}分` : "-"}
-                      </TableCell>
-                      <TableCell>{ls.platform || "-"}</TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            deleteLivestreamMutation.mutate({ id: ls.id })
-                          }
-                        >
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {livestreams.map((ls) => {
+                  const platformColors: Record<string, string> = {
+                    "抖音": "from-pink-500 to-red-500",
+                    "淘宝": "from-orange-500 to-red-500",
+                    "快手": "from-orange-400 to-yellow-500",
+                    "TikTok": "from-cyan-500 to-pink-500",
+                    "小红书": "from-red-400 to-pink-500",
+                  };
+                  const gradientClass = platformColors[ls.platform || ""] || "from-gray-500 to-gray-600";
+                  
+                  return (
+                    <div
+                      key={ls.id}
+                      className="group relative bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-lg transition-all duration-300"
+                    >
+                      {/* ヘッダーグラデーション */}
+                      <div className={`h-2 bg-gradient-to-r ${gradientClass}`} />
+                      
+                      {/* 削除ボタン */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="absolute top-3 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                        onClick={() => deleteLivestreamMutation.mutate({ id: ls.id })}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                      
+                      <div className="p-4">
+                        {/* ヘッダー */}
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${gradientClass} flex items-center justify-center`}>
+                              <Video className="h-4 w-4 text-white" />
+                            </div>
+                            <div>
+                              <p className="font-semibold text-sm">{ls.streamerName}</p>
+                              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {new Date(ls.livestreamDate).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                          {ls.platform && (
+                            <Badge className={`bg-gradient-to-r ${gradientClass} text-white border-0`}>
+                              {ls.platform}
+                            </Badge>
+                          )}
+                        </div>
+                        
+                        {/* メトリクス */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg p-3">
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                              <DollarSign className="h-3 w-3 text-green-500" />
+                              {t.salesAmount}
+                            </div>
+                            <p className="font-bold text-green-600 dark:text-green-400">
+                              {formatCurrency(ls.salesAmount)}
+                            </p>
+                          </div>
+                          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg p-3">
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                              <Clock className="h-3 w-3 text-blue-500" />
+                              {t.duration}
+                            </div>
+                            <p className="font-bold text-blue-600 dark:text-blue-400">
+                              {ls.duration ? `${ls.duration}分` : "-"}
+                            </p>
+                          </div>
+                          {ls.viewerCount && (
+                            <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-lg p-3">
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                                <Eye className="h-3 w-3 text-purple-500" />
+                                {t.viewerCount}
+                              </div>
+                              <p className="font-bold text-purple-600 dark:text-purple-400">
+                                {ls.viewerCount.toLocaleString()}
+                              </p>
+                            </div>
+                          )}
+                          {ls.orderCount && (
+                            <div className="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 rounded-lg p-3">
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                                <ShoppingCart className="h-3 w-3 text-orange-500" />
+                                {t.orderCount}
+                              </div>
+                              <p className="font-bold text-orange-600 dark:text-orange-400">
+                                {ls.orderCount.toLocaleString()}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                {t.noLivestreams}
+              <div className="text-center py-12 text-muted-foreground">
+                <Video className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p>{t.noLivestreams}</p>
               </div>
             )}
           </CardContent>
