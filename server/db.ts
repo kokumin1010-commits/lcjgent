@@ -958,7 +958,9 @@ export async function createBrandLivestream(livestreamData: InsertBrandLivestrea
   if (!db) throw new Error("Database not available");
   
   const result = await db.insert(brandLivestreams).values(livestreamData);
-  return result;
+  // 作成したIDを取得
+  const insertId = (result as any)[0]?.insertId;
+  return { id: insertId, ...livestreamData };
 }
 
 // Get livestreams by brand ID
