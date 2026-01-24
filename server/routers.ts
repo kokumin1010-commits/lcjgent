@@ -3303,6 +3303,66 @@ ${conversationText}
         });
         return schedule;
       }),
+
+    // Public: Update a schedule (requires matching liverName)
+    publicUpdate: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          title: z.string().optional(),
+          description: z.string().optional(),
+          startTime: z.string().optional(),
+          endTime: z.string().optional(),
+          isAllDay: z.boolean().optional(),
+          category: z.enum(["delivery", "meeting", "live", "other"]).optional(),
+          notes: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        // Get the schedule to check ownership
+        const schedule = await getScheduleById(input.id);
+        if (!schedule) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "予定が見つかりません" });
+        }
+        
+        // Check if user owns this schedule (by matching liverName with user name)
+        if (schedule.liverName !== ctx.user.name) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "この予定を編集する権限がありません" });
+        }
+        
+        const { id, ...data } = input;
+        const updateData: Record<string, unknown> = {};
+        
+        if (data.title !== undefined) updateData.title = data.title;
+        if (data.description !== undefined) updateData.description = data.description;
+        if (data.startTime !== undefined) updateData.startTime = new Date(data.startTime);
+        if (data.endTime !== undefined) updateData.endTime = new Date(data.endTime);
+        if (data.isAllDay !== undefined) updateData.isAllDay = data.isAllDay;
+        if (data.category !== undefined) updateData.category = data.category;
+        if (data.notes !== undefined) updateData.notes = data.notes;
+        
+        await updateSchedule(id, updateData);
+        return { success: true };
+      }),
+
+    // Public: Delete a schedule (requires matching liverName)
+    publicDelete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        // Get the schedule to check ownership
+        const schedule = await getScheduleById(input.id);
+        if (!schedule) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "予定が見つかりません" });
+        }
+        
+        // Check if user owns this schedule (by matching liverName with user name)
+        if (schedule.liverName !== ctx.user.name) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "この予定を削除する権限がありません" });
+        }
+        
+        await deleteSchedule(input.id);
+        return { success: true };
+      }),
   }),
 
   // Liver (Streamer) Authentication Router

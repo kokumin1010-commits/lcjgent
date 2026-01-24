@@ -130,6 +130,18 @@ export default function PublicSchedule() {
   // Fetch existing liver names
   const { data: existingLivers } = trpc.schedule.getPublicLiverNames.useQuery();
 
+  // Edit mode state
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editSchedule, setEditSchedule] = useState<{
+    id: number;
+    title: string;
+    description: string;
+    startTime: string;
+    endTime: string;
+    isAllDay: boolean;
+    category: "delivery" | "meeting" | "live" | "other";
+  } | null>(null);
+
   // Create schedule mutation (uses user's name from auth)
   const createScheduleMutation = trpc.schedule.publicCreate.useMutation({
     onSuccess: () => {
@@ -142,6 +154,89 @@ export default function PublicSchedule() {
       toast.error(error.message || "スケジュールの追加に失敗しました");
     },
   });
+
+  // Update schedule mutation
+  const updateScheduleMutation = trpc.schedule.publicUpdate.useMutation({
+    onSuccess: () => {
+      toast.success("スケジュールを更新しました");
+      setSelectedSchedule(null);
+      setIsEditMode(false);
+      setEditSchedule(null);
+      refetch();
+    },
+    onError: (error) => {
+      toast.error(error.message || "スケジュールの更新に失敗しました");
+    },
+  });
+
+  // Delete schedule mutation
+  const deleteScheduleMutation = trpc.schedule.publicDelete.useMutation({
+    onSuccess: () => {
+      toast.success("スケジュールを削除しました");
+      setSelectedSchedule(null);
+      setBottomSheetOpen(false);
+      refetch();
+    },
+    onError: (error) => {
+      toast.error(error.message || "スケジュールの削除に失敗しました");
+    },
+  });
+
+  // Check if user can edit/delete this schedule
+  const canEditSchedule = (schedule: Schedule) => {
+    return user && schedule.liverName === user.name;
+  };
+
+  // Start editing a schedule
+  const startEditSchedule = (schedule: Schedule) => {
+    const startDate = new Date(schedule.startTime);
+    const endDate = schedule.endTime ? new Date(schedule.endTime) : startDate;
+    
+    setEditSchedule({
+      id: schedule.id,
+      title: schedule.title,
+      description: schedule.description || "",
+      startTime: formatTimeJST(startDate),
+      endTime: schedule.endTime ? formatTimeJST(endDate) : formatTimeJST(startDate),
+      isAllDay: schedule.isAllDay || false,
+      category: (schedule.category as "delivery" | "meeting" | "live" | "other") || "other",
+    });
+    setIsEditMode(true);
+  };
+
+  // Save edited schedule
+  const saveEditSchedule = () => {
+    if (!editSchedule || !selectedSchedule) return;
+    
+    const startDate = new Date(selectedSchedule.startTime);
+    const [startHour, startMin] = editSchedule.startTime.split(":").map(Number);
+    const [endHour, endMin] = editSchedule.endTime.split(":").map(Number);
+    
+    // Create start time in JST
+    const jstStartDate = new Date(startDate);
+    jstStartDate.setUTCHours(startHour - 9, startMin, 0, 0);
+    
+    // Create end time in JST
+    const jstEndDate = new Date(startDate);
+    jstEndDate.setUTCHours(endHour - 9, endMin, 0, 0);
+    
+    updateScheduleMutation.mutate({
+      id: editSchedule.id,
+      title: editSchedule.title,
+      description: editSchedule.description || undefined,
+      startTime: jstStartDate.toISOString(),
+      endTime: jstEndDate.toISOString(),
+      isAllDay: editSchedule.isAllDay,
+      category: editSchedule.category,
+    });
+  };
+
+  // Delete schedule
+  const handleDeleteSchedule = (schedule: Schedule) => {
+    if (confirm("この予定を削除しますか？")) {
+      deleteScheduleMutation.mutate({ id: schedule.id });
+    }
+  };
 
   const resetNewSchedule = () => {
     setNewSchedule({
@@ -753,6 +848,103 @@ export default function PublicSchedule() {
                 {selectedSchedule.description && (
                   <div className="pt-2 border-t">
                     <p className="text-gray-600 whitespace-pre-wrap">{selectedSchedule.description}</p>
+                  </div>
+                )}
+
+                {/* Edit/Delete Buttons - Only show for own schedules */}
+                {canEditSchedule(selectedSchedule) && !isEditMode && (
+                  <div className="pt-4 border-t flex gap-2">
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => startEditSchedule(selectedSchedule)}
+                    >
+                      編集
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="flex-1 text-red-500 border-red-200 hover:bg-red-50"
+                      onClick={() => handleDeleteSchedule(selectedSchedule)}
+                      disabled={deleteScheduleMutation.isPending}
+                    >
+                      {deleteScheduleMutation.isPending ? "削除中..." : "削除"}
+                    </Button>
+                  </div>
+                )}
+
+                {/* Edit Form */}
+                {isEditMode && editSchedule && (
+                  <div className="pt-4 border-t space-y-4">
+                    <div>
+                      <label className="text-sm text-gray-500">タイトル</label>
+                      <Input
+                        value={editSchedule.title}
+                        onChange={(e) => setEditSchedule(prev => prev ? { ...prev, title: e.target.value } : null)}
+                        className="mt-1"
+                      />
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-500">終日</span>
+                      <Switch
+                        checked={editSchedule.isAllDay}
+                        onCheckedChange={(checked) => setEditSchedule(prev => prev ? { ...prev, isAllDay: checked } : null)}
+                      />
+                    </div>
+                    
+                    {!editSchedule.isAllDay && (
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1">
+                          <label className="text-sm text-gray-500">開始</label>
+                          <Input
+                            type="time"
+                            value={editSchedule.startTime}
+                            onChange={(e) => setEditSchedule(prev => prev ? { ...prev, startTime: e.target.value } : null)}
+                            className="mt-1"
+                          />
+                        </div>
+                        <span className="text-gray-400 pt-5">～</span>
+                        <div className="flex-1">
+                          <label className="text-sm text-gray-500">終了</label>
+                          <Input
+                            type="time"
+                            value={editSchedule.endTime}
+                            onChange={(e) => setEditSchedule(prev => prev ? { ...prev, endTime: e.target.value } : null)}
+                            className="mt-1"
+                          />
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div>
+                      <label className="text-sm text-gray-500">メモ</label>
+                      <Textarea
+                        value={editSchedule.description}
+                        onChange={(e) => setEditSchedule(prev => prev ? { ...prev, description: e.target.value } : null)}
+                        className="mt-1"
+                        rows={3}
+                      />
+                    </div>
+                    
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => {
+                          setIsEditMode(false);
+                          setEditSchedule(null);
+                        }}
+                      >
+                        キャンセル
+                      </Button>
+                      <Button
+                        className="flex-1 bg-pink-500 hover:bg-pink-600"
+                        onClick={saveEditSchedule}
+                        disabled={updateScheduleMutation.isPending}
+                      >
+                        {updateScheduleMutation.isPending ? "保存中..." : "保存"}
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
