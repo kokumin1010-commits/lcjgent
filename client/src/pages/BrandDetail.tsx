@@ -1771,183 +1771,165 @@ export default function BrandDetail() {
           </CardContent>
         </Card>
 
-        {/* 商品詳細ダイアログ */}
-        <Dialog open={isProductDetailDialogOpen} onOpenChange={setIsProductDetailDialogOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Package className="h-5 w-5 text-blue-500" />
-                {t.productDetail}
-              </DialogTitle>
-            </DialogHeader>
-            {selectedProduct && (
-              <div className="space-y-6">
-                {/* 提案書画像 - タップで拡大 */}
-                {selectedProduct.proposalImageUrl && (
-                  <div className="space-y-2">
-                    <h3 className="font-semibold flex items-center gap-2">
-                      <ImageIcon className="h-4 w-4 text-purple-500" />
-                      {t.proposalImage}
-                      <span className="text-xs text-muted-foreground ml-2">(タップで拡大)</span>
-                    </h3>
-                    <div 
-                      className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 cursor-zoom-in hover:shadow-lg transition-shadow"
-                      onClick={() => setIsImageZoomed(true)}
-                    >
-                      <img
-                        src={selectedProduct.proposalImageUrl}
-                        alt={selectedProduct.productName}
-                        className="w-full max-h-[300px] object-contain"
-                      />
-                    </div>
-                  </div>
-                )}
+        {/* 商品詳細ポップアップ - 画像中心のフルスクリーン表示 */}
+        {isProductDetailDialogOpen && selectedProduct && (
+          <div 
+            className="fixed inset-0 z-50 bg-black/95 overflow-y-auto"
+            onClick={() => setIsProductDetailDialogOpen(false)}
+          >
+            {/* 閉じるボタン */}
+            <button
+              className="fixed top-4 right-4 z-[60] text-white bg-white/20 hover:bg-white/30 rounded-full p-3 backdrop-blur-sm transition-all"
+              onClick={() => setIsProductDetailDialogOpen(false)}
+            >
+              <X className="h-6 w-6" />
+            </button>
 
-                {/* 価格情報カード */}
-                <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl p-4 border border-blue-100 dark:border-blue-800">
-                  <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-3 flex items-center gap-2">
-                    <DollarSign className="h-4 w-4" />
-                    価格情報
-                  </h3>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="text-center">
-                      <p className="text-xs text-muted-foreground">{t.listPrice}</p>
-                      <p className="text-lg font-bold text-gray-600 dark:text-gray-300 line-through">{formatCurrency(selectedProduct.listPrice)}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs text-muted-foreground">{t.specialPrice}</p>
-                      <p className="text-2xl font-bold text-red-600">{formatCurrency(selectedProduct.specialPrice)}</p>
-                    </div>
-                    {selectedProduct.discountRate && (
-                      <div className="text-center">
-                        <p className="text-xs text-muted-foreground">{t.discountRate}</p>
-                        <Badge className="bg-green-500 text-white text-lg px-3 py-1">
-                          {selectedProduct.discountRate}
-                        </Badge>
-                      </div>
-                    )}
+            {/* メインコンテンツ */}
+            <div 
+              className="min-h-screen flex flex-col items-center py-8 px-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* 商品名ヘッダー */}
+              <div className="text-center mb-6 max-w-4xl">
+                <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
+                  {selectedProduct.productName}
+                </h1>
+                {selectedProduct.productCode && (
+                  <p className="text-white/60 font-mono text-sm">
+                    {selectedProduct.productCode}
+                  </p>
+                )}
+              </div>
+
+              {/* 提案書画像 - 大きくポップ表示 */}
+              {selectedProduct.proposalImageUrl && (
+                <div className="w-full max-w-5xl mb-8">
+                  <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
+                    <img
+                      src={selectedProduct.proposalImageUrl}
+                      alt={selectedProduct.productName}
+                      className="w-full h-auto object-contain"
+                      style={{ maxHeight: '70vh' }}
+                    />
                   </div>
                 </div>
+              )}
 
-                {/* 基本情報カード */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 shadow-sm">
-                  <h3 className="font-semibold text-gray-800 dark:text-gray-200 mb-3 flex items-center gap-2">
-                    <Package className="h-4 w-4" />
+              {/* 価格情報バッジ */}
+              <div className="flex flex-wrap items-center justify-center gap-4 mb-8">
+                <div className="bg-white/10 backdrop-blur-sm rounded-xl px-6 py-3 text-center">
+                  <p className="text-white/60 text-xs mb-1">定価</p>
+                  <p className="text-white text-lg line-through">{formatCurrency(selectedProduct.listPrice)}</p>
+                </div>
+                <div className="bg-gradient-to-r from-red-500 to-pink-500 rounded-xl px-8 py-4 text-center shadow-lg">
+                  <p className="text-white/80 text-xs mb-1">特価</p>
+                  <p className="text-white text-3xl font-bold">{formatCurrency(selectedProduct.specialPrice)}</p>
+                </div>
+                {selectedProduct.discountRate && (
+                  <div className="bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl px-6 py-3 text-center">
+                    <p className="text-white text-2xl font-bold">{selectedProduct.discountRate}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* 詳細情報カード */}
+              <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                {/* 基本情報 */}
+                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-5">
+                  <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+                    <Package className="h-5 w-5 text-blue-400" />
                     基本情報
                   </h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">{t.productName}</p>
-                      <p className="font-semibold text-sm">{selectedProduct.productName}</p>
-                    </div>
-                    {selectedProduct.productCode && (
-                      <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">{t.productCode}</p>
-                        <p className="font-mono text-sm bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded inline-block">{selectedProduct.productCode}</p>
-                      </div>
-                    )}
+                  <div className="space-y-3">
                     {selectedProduct.releaseDate && (
-                      <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">{t.releaseDate}</p>
-                        <p className="text-sm flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {selectedProduct.releaseDate}
-                        </p>
+                      <div className="flex justify-between items-center">
+                        <span className="text-white/60 text-sm">発売日</span>
+                        <span className="text-white font-medium">{selectedProduct.releaseDate}</span>
                       </div>
                     )}
                     {selectedProduct.stock !== null && selectedProduct.stock !== undefined && (
-                      <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">{t.stock}</p>
-                        <p className="text-sm font-semibold">{selectedProduct.stock} 個</p>
+                      <div className="flex justify-between items-center">
+                        <span className="text-white/60 text-sm">在庫</span>
+                        <span className="text-white font-medium">{selectedProduct.stock} 個</span>
                       </div>
                     )}
                     {selectedProduct.influencer && (
-                      <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">{t.influencer}</p>
-                        <p className="text-sm">{selectedProduct.influencer}</p>
+                      <div className="flex justify-between items-center">
+                        <span className="text-white/60 text-sm">インフルエンサー</span>
+                        <span className="text-white font-medium">{selectedProduct.influencer}</span>
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* キャッチコピー */}
-                {selectedProduct.catchCopy && (
-                  <div className="bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 rounded-xl p-4 border border-yellow-200 dark:border-yellow-800">
-                    <h3 className="font-semibold text-yellow-800 dark:text-yellow-200 mb-2 flex items-center gap-2">
-                      <Star className="h-4 w-4" />
-                      {t.catchCopy}
+                {/* 配送情報 */}
+                {selectedProduct.shippingInfo && (
+                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-5">
+                    <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+                      <Truck className="h-5 w-5 text-cyan-400" />
+                      配送情報
                     </h3>
-                    <p className="text-sm leading-relaxed">{selectedProduct.catchCopy}</p>
+                    <p className="text-white/80 text-sm leading-relaxed">{selectedProduct.shippingInfo}</p>
                   </div>
                 )}
+              </div>
 
-                {/* 商品詳細 */}
-                {selectedProduct.productDetails && (
-                  <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 shadow-sm">
-                    <h3 className="font-semibold text-gray-800 dark:text-gray-200 mb-3 flex items-center gap-2">
-                      <FileText className="h-4 w-4" />
-                      {t.productDetails}
+              {/* キャッチコピー */}
+              {selectedProduct.catchCopy && (
+                <div className="w-full max-w-4xl mb-6">
+                  <div className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 backdrop-blur-sm rounded-xl p-5 border border-yellow-500/30">
+                    <h3 className="text-yellow-400 font-semibold mb-3 flex items-center gap-2">
+                      <Star className="h-5 w-5" />
+                      キャッチコピー
                     </h3>
-                    <div className="text-sm leading-relaxed space-y-2 max-h-[300px] overflow-y-auto">
-                      {selectedProduct.productDetails.split(/[■●★※・]/).filter((s: string) => s.trim()).map((section: string, idx: number) => (
-                        <div key={idx} className="pl-3 border-l-2 border-blue-300 dark:border-blue-600">
-                          {section.trim()}
+                    <p className="text-white text-lg leading-relaxed">{selectedProduct.catchCopy}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* 商品詳細 */}
+              {selectedProduct.productDetails && (
+                <div className="w-full max-w-4xl mb-6">
+                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-5">
+                    <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-purple-400" />
+                      商品詳細
+                    </h3>
+                    <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+                      {selectedProduct.productDetails.split(/[■●★※]/).filter((s: string) => s.trim()).map((section: string, idx: number) => (
+                        <div key={idx} className="bg-white/5 rounded-lg p-3 border-l-3 border-purple-400">
+                          <p className="text-white/90 text-sm leading-relaxed">{section.trim()}</p>
                         </div>
                       ))}
                     </div>
                   </div>
-                )}
+                </div>
+              )}
 
-                {/* 配送情報 */}
-                {selectedProduct.shippingInfo && (
-                  <div className="bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
-                    <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-2 flex items-center gap-2">
-                      <Truck className="h-4 w-4" />
-                      {t.shippingInfo}
+              {/* 備考 */}
+              {selectedProduct.remarks && (
+                <div className="w-full max-w-4xl mb-8">
+                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-5">
+                    <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
+                      <MessageSquare className="h-5 w-5 text-gray-400" />
+                      備考
                     </h3>
-                    <p className="text-sm leading-relaxed">{selectedProduct.shippingInfo}</p>
+                    <p className="text-white/80 text-sm leading-relaxed">{selectedProduct.remarks}</p>
                   </div>
-                )}
+                </div>
+              )}
 
-                {/* 備考 */}
-                {selectedProduct.remarks && (
-                  <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-                    <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
-                      <MessageSquare className="h-4 w-4" />
-                      {t.memo}
-                    </h3>
-                    <p className="text-sm leading-relaxed">{selectedProduct.remarks}</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* 画像拡大モーダル */}
-            {isImageZoomed && selectedProduct?.proposalImageUrl && (
-              <div 
-                className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center cursor-zoom-out"
-                onClick={() => setIsImageZoomed(false)}
+              {/* 閉じるボタン（下部） */}
+              <button
+                className="bg-white/20 hover:bg-white/30 text-white px-8 py-3 rounded-full font-medium transition-all backdrop-blur-sm"
+                onClick={() => setIsProductDetailDialogOpen(false)}
               >
-                <img
-                  src={selectedProduct.proposalImageUrl}
-                  alt={selectedProduct.productName}
-                  className="max-w-[95vw] max-h-[95vh] object-contain"
-                />
-                <button
-                  className="absolute top-4 right-4 text-white bg-black/50 rounded-full p-2 hover:bg-black/70"
-                  onClick={() => setIsImageZoomed(false)}
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-            )}
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsProductDetailDialogOpen(false)}>
                 {t.close}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Activities */}
         <Card className="overflow-hidden">
