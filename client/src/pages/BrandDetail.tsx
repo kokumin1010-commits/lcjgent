@@ -426,6 +426,9 @@ export default function BrandDetail() {
     },
   });
 
+  // 画像アップロードミューテーション
+  const uploadImageMutation = trpc.brand.uploadImage.useMutation();
+
   // AI分析ミューテーション
   const aiExtractMutation = trpc.brandProduct.extractFromImage.useMutation({
     onSuccess: (result) => {
@@ -807,20 +810,18 @@ export default function BrandDetail() {
                         </td>
                         <td className="py-3 px-2 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            {/* AI学習ボタン - 画像がある場合のみ表示 */}
-                            {(product.imageUrls && product.imageUrls.length > 0) && (
-                              <button
-                                onClick={() => { 
-                                  setSelectedProductForAi(product); 
-                                  setSelectedImageForAi(null);
-                                  setAiAnalysisDialogOpen(true); 
-                                }}
-                                className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-yellow-400 transition-all"
-                                title="AI学習"
-                              >
-                                <Sparkles className="h-4 w-4" />
-                              </button>
-                            )}
+                            {/* AI学習ボタン - 全商品に表示 */}
+                            <button
+                              onClick={() => { 
+                                setSelectedProductForAi(product); 
+                                setSelectedImageForAi(null);
+                                setAiAnalysisDialogOpen(true); 
+                              }}
+                              className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-yellow-400 transition-all"
+                              title={language === 'ja' ? 'AI学習' : 'AI学习'}
+                            >
+                              <Sparkles className="h-4 w-4" />
+                            </button>
                             <button
                               onClick={() => { setEditingProduct(product); setEditProductDialogOpen(true); }}
                               className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-cyan-400 transition-all"
@@ -1543,33 +1544,101 @@ export default function BrandDetail() {
                 <p className="text-gray-400 text-sm mb-2">商品名: <span className="text-white font-medium">{selectedProductForAi.productName}</span></p>
               </div>
               
-              {/* 画像選択 */}
+              {/* 画像選択または新規アップロード */}
               <div>
-                <Label className="text-gray-400 mb-2 block">分析する画像を選択</Label>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {selectedProductForAi.imageUrls?.map((url: string, index: number) => (
-                    <button
-                      key={index}
-                      onClick={() => setSelectedImageForAi(url)}
-                      className={`relative rounded-lg overflow-hidden border-2 transition-all ${
-                        selectedImageForAi === url 
-                          ? 'border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.4)]' 
-                          : 'border-red-900/30 hover:border-red-500/50'
-                      }`}
-                    >
-                      <img 
-                        src={url} 
-                        alt={`商品画像 ${index + 1}`} 
-                        className="w-full h-32 object-cover"
-                      />
-                      {selectedImageForAi === url && (
-                        <div className="absolute inset-0 bg-yellow-400/20 flex items-center justify-center">
-                          <Sparkles className="h-8 w-8 text-yellow-400" />
-                        </div>
-                      )}
-                    </button>
-                  ))}
+                <Label className="text-gray-400 mb-2 block">{language === 'ja' ? '分析する画像を選択またはアップロード' : '选择或上传要分析的图片'}</Label>
+                
+                {/* 新規アップロードボタン */}
+                <div className="mb-3">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file || !selectedProductForAi) return;
+                      
+                      setIsUploading(true);
+                      try {
+                        // Convert to base64
+                        const reader = new FileReader();
+                        reader.onload = async () => {
+                          const base64 = (reader.result as string).split(',')[1];
+                          
+                          // Upload image
+                          const result = await uploadImageMutation.mutateAsync({
+                            base64,
+                            filename: file.name,
+                            type: 'product',
+                          });
+                          
+                          // Set as selected image for AI analysis
+                          setSelectedImageForAi(result.url);
+                          
+                          // Also add to product's imageUrls
+                          const currentUrls = selectedProductForAi.imageUrls || [];
+                          await updateProductMutation.mutateAsync({
+                            id: selectedProductForAi.id,
+                            imageUrls: [...currentUrls, result.url],
+                          });
+                          
+                          toast.success(language === 'ja' ? '画像をアップロードしました' : '图片上传成功');
+                          setIsUploading(false);
+                        };
+                        reader.readAsDataURL(file);
+                      } catch (error) {
+                        toast.error(language === 'ja' ? 'アップロードに失敗しました' : '上传失败');
+                        setIsUploading(false);
+                      }
+                      e.target.value = '';
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="w-full border-dashed border-2 border-yellow-500/50 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-400 h-20"
+                  >
+                    {isUploading ? (
+                      <><Loader2 className="h-5 w-5 mr-2 animate-spin" /> {language === 'ja' ? 'アップロード中...' : '上传中...'}</>
+                    ) : (
+                      <><Upload className="h-5 w-5 mr-2" /> {language === 'ja' ? '新しいスクショをアップロード' : '上传新截图'}</>
+                    )}
+                  </Button>
                 </div>
+                
+                {/* 既存画像一覧 */}
+                {selectedProductForAi.imageUrls && selectedProductForAi.imageUrls.length > 0 && (
+                  <>
+                    <p className="text-gray-500 text-xs mb-2">{language === 'ja' ? 'または既存の画像を選択:' : '或选择已有图片:'}</p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {selectedProductForAi.imageUrls?.map((url: string, index: number) => (
+                        <button
+                          key={index}
+                          onClick={() => setSelectedImageForAi(url)}
+                          className={`relative rounded-lg overflow-hidden border-2 transition-all ${
+                            selectedImageForAi === url 
+                              ? 'border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.4)]' 
+                              : 'border-red-900/30 hover:border-red-500/50'
+                          }`}
+                        >
+                          <img 
+                            src={url} 
+                            alt={`商品画像 ${index + 1}`} 
+                            className="w-full h-32 object-cover"
+                          />
+                          {selectedImageForAi === url && (
+                            <div className="absolute inset-0 bg-yellow-400/20 flex items-center justify-center">
+                              <Sparkles className="h-8 w-8 text-yellow-400" />
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* 選択された画像のプレビュー */}
