@@ -511,8 +511,8 @@ export default function BrandDetail() {
     aiExtractMutation.mutate({ imageUrl: selectedImageForAi });
   };
 
-  // Calculate GMV totals
-  const totalGmv = monthlyGmvSummary.reduce((sum, m) => sum + (m.gmv || 0), 0);
+  // Calculate GMV totals from livestreams data
+  const totalGmv = livestreams.reduce((sum, ls) => sum + (ls.gmv || ls.salesAmount || 0), 0);
   const currentMonth = new Date().toISOString().slice(0, 7);
   const currentMonthData = monthlyGmvSummary.find(m => m.month === currentMonth);
   const monthlyGmvValue = currentMonthData?.gmv || 0;
@@ -688,17 +688,17 @@ export default function BrandDetail() {
             <div className="absolute top-0 right-0 w-48 h-48 bg-red-500/30 rounded-full blur-3xl animate-pulse" />
             <div className="absolute bottom-0 left-0 w-40 h-40 bg-red-600/20 rounded-full blur-2xl" />
             <div className="absolute inset-0 bg-gradient-to-br from-red-500/10 via-transparent to-red-500/5" />
-            <div className="relative">
-              <div className="flex items-center gap-3 mb-4">
-                <span className="text-3xl animate-bounce">🔥</span>
-                <span className="text-red-300 text-sm font-bold uppercase tracking-widest">{t.totalGmv}（全期間）</span>
+            <div className="relative text-center">
+              <div className="flex items-center justify-center gap-3 mb-4">
+                <span className="text-4xl animate-bounce">🔥</span>
+                <span className="text-red-300 text-lg font-bold uppercase tracking-widest">{t.totalGmv}（全期間）</span>
               </div>
               <p 
-                className="text-5xl md:text-6xl font-black tracking-tight"
+                className="text-6xl md:text-8xl font-black tracking-tight"
                 style={{ 
                   fontFamily: 'JetBrains Mono, monospace',
                   color: '#ff2222',
-                  textShadow: '0 0 15px rgba(255, 0, 0, 1), 0 0 30px rgba(255, 0, 0, 0.8), 0 0 45px rgba(255, 0, 0, 0.6), 0 0 60px rgba(255, 0, 0, 0.4)',
+                  textShadow: '0 0 20px rgba(255, 0, 0, 1), 0 0 40px rgba(255, 0, 0, 0.8), 0 0 60px rgba(255, 0, 0, 0.6), 0 0 80px rgba(255, 0, 0, 0.4)',
                   animation: 'pulse 2s ease-in-out infinite',
                 }}
               >
