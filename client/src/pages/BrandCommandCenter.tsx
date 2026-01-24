@@ -312,35 +312,64 @@ export default function BrandCommandCenter() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white overflow-x-hidden">
-      {/* Animated digital background */}
+    <div className="min-h-screen text-white overflow-x-hidden" style={{ background: 'linear-gradient(135deg, #0a0008 0%, #1a0010 25%, #0d0005 50%, #150012 75%, #0a0008 100%)' }}>
+      {/* CYBERPUNK RED MATRIX BACKGROUND */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        {/* Red digital pattern */}
+        {/* Main binary code background image */}
+        <div 
+          className="absolute inset-0 opacity-50"
+          style={{
+            backgroundImage: 'url(/digital-bg.jpeg)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            filter: 'saturate(1.5) contrast(1.2)',
+          }}
+        />
+        {/* Animated gradient overlay */}
+        <div 
+          className="absolute inset-0 animate-pulse"
+          style={{
+            background: `
+              radial-gradient(ellipse at 0% 0%, rgba(255, 0, 50, 0.3) 0%, transparent 50%),
+              radial-gradient(ellipse at 100% 0%, rgba(200, 0, 80, 0.25) 0%, transparent 45%),
+              radial-gradient(ellipse at 100% 100%, rgba(255, 30, 30, 0.2) 0%, transparent 50%),
+              radial-gradient(ellipse at 0% 100%, rgba(180, 0, 60, 0.25) 0%, transparent 45%)
+            `,
+            animationDuration: '4s',
+          }}
+        />
+        {/* Neon red glow spots */}
+        <div className="absolute inset-0" style={{
+          background: `
+            radial-gradient(circle at 15% 20%, rgba(255, 0, 0, 0.4) 0%, transparent 25%),
+            radial-gradient(circle at 85% 30%, rgba(255, 50, 50, 0.3) 0%, transparent 20%),
+            radial-gradient(circle at 50% 80%, rgba(200, 0, 50, 0.35) 0%, transparent 30%),
+            radial-gradient(circle at 70% 60%, rgba(255, 0, 80, 0.2) 0%, transparent 25%)
+          `,
+        }} />
+        {/* Grid overlay for cyber effect */}
         <div className="absolute inset-0 opacity-10" style={{
           backgroundImage: `
-            radial-gradient(circle at 20% 50%, rgba(255, 0, 0, 0.3) 0%, transparent 50%),
-            radial-gradient(circle at 80% 20%, rgba(255, 50, 50, 0.2) 0%, transparent 40%),
-            radial-gradient(circle at 40% 80%, rgba(200, 0, 0, 0.2) 0%, transparent 45%)
+            linear-gradient(rgba(255, 0, 0, 0.5) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 0, 0, 0.5) 1px, transparent 1px)
           `,
-        }} />
-        {/* Grid lines */}
-        <div className="absolute inset-0 opacity-5" style={{
-          backgroundImage: `
-            linear-gradient(rgba(255, 0, 0, 0.3) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255, 0, 0, 0.3) 1px, transparent 1px)
-          `,
-          backgroundSize: '50px 50px',
+          backgroundSize: '60px 60px',
         }} />
         {/* Scanline effect */}
-        <div className="absolute inset-0 opacity-[0.02]" style={{
-          backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255, 0, 0, 0.1) 2px, rgba(255, 0, 0, 0.1) 4px)',
+        <div className="absolute inset-0 opacity-[0.05]" style={{
+          backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255, 0, 0, 0.3) 2px, rgba(255, 0, 0, 0.3) 4px)',
+        }} />
+        {/* Vignette effect */}
+        <div className="absolute inset-0" style={{
+          background: 'radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.4) 100%)',
         }} />
       </div>
 
       {/* Main content */}
       <div className="relative z-10 p-4 md:p-6 lg:p-8 max-w-[1800px] mx-auto space-y-6">
         {/* Header */}
-        <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,0,0,0.1)]">
+        <div className="bg-gradient-to-r from-black/90 via-red-950/20 to-black/90 backdrop-blur-xl rounded-xl border border-red-500/50 p-4 md:p-6 shadow-[0_0_50px_rgba(255,0,0,0.3),inset_0_1px_0_rgba(255,100,100,0.1)]">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <button 
@@ -350,7 +379,7 @@ export default function BrandCommandCenter() {
                 <ArrowLeft className="h-5 w-5" />
                 <span className="text-sm hidden sm:inline">{t.back}</span>
               </button>
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center shadow-lg shadow-red-500/30">
+              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center shadow-[0_0_20px_rgba(255,0,0,0.5)] animate-pulse">
                 <span className="text-xl">🏢</span>
               </div>
               <div>
@@ -411,75 +440,120 @@ export default function BrandCommandCenter() {
 
         {/* Main KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Total GMV - Large card */}
-          <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-6 relative overflow-hidden group hover:border-red-500/50 transition-all duration-300 shadow-[0_0_30px_rgba(255,0,0,0.1)]">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 rounded-full blur-3xl group-hover:bg-red-500/20 transition-all" />
+          {/* Total GMV - Large card with fire icon */}
+          <div className="relative overflow-hidden rounded-xl p-6 group transition-all duration-500 hover:scale-[1.02]" style={{
+            background: 'linear-gradient(135deg, rgba(0,0,0,0.9) 0%, rgba(50,0,0,0.8) 50%, rgba(0,0,0,0.9) 100%)',
+            border: '2px solid rgba(255, 50, 50, 0.6)',
+            boxShadow: '0 0 60px rgba(255, 0, 0, 0.4), inset 0 0 60px rgba(255, 0, 0, 0.1)',
+          }}>
+            <div className="absolute top-0 right-0 w-48 h-48 bg-red-500/30 rounded-full blur-3xl animate-pulse" />
+            <div className="absolute bottom-0 left-0 w-40 h-40 bg-red-600/20 rounded-full blur-2xl" />
+            <div className="absolute inset-0 bg-gradient-to-br from-red-500/10 via-transparent to-red-500/5" />
             <div className="relative">
-              <div className="flex items-center gap-2 mb-3">
-                <DollarSign className="h-5 w-5 text-red-400" />
-                <span className="text-red-400 text-sm font-medium uppercase tracking-wider">{t.totalGmv}</span>
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-3xl animate-bounce">🔥</span>
+                <span className="text-red-300 text-sm font-bold uppercase tracking-widest">{t.totalGmv}（全期間）</span>
               </div>
-              <p className="text-4xl md:text-5xl font-bold text-white tracking-tight drop-shadow-[0_0_20px_rgba(255,0,0,0.5)]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+              <p 
+                className="text-5xl md:text-6xl font-black tracking-tight"
+                style={{ 
+                  fontFamily: 'JetBrains Mono, monospace',
+                  color: '#ff2222',
+                  textShadow: '0 0 15px rgba(255, 0, 0, 1), 0 0 30px rgba(255, 0, 0, 0.8), 0 0 45px rgba(255, 0, 0, 0.6), 0 0 60px rgba(255, 0, 0, 0.4)',
+                  animation: 'pulse 2s ease-in-out infinite',
+                }}
+              >
                 {formatCurrency(totalGmv)}
               </p>
             </div>
           </div>
 
-          {/* Monthly GMV */}
-          <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-6 relative overflow-hidden group hover:border-red-500/50 transition-all duration-300 shadow-[0_0_30px_rgba(255,0,0,0.1)]">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 rounded-full blur-3xl group-hover:bg-orange-500/20 transition-all" />
+          {/* Monthly GMV with chart icon and month-over-month comparison */}
+          <div className="relative overflow-hidden rounded-xl p-6 group transition-all duration-500 hover:scale-[1.02]" style={{
+            background: 'linear-gradient(135deg, rgba(0,0,0,0.9) 0%, rgba(50,20,0,0.8) 50%, rgba(0,0,0,0.9) 100%)',
+            border: '2px solid rgba(255, 100, 50, 0.6)',
+            boxShadow: '0 0 60px rgba(255, 80, 0, 0.3), inset 0 0 60px rgba(255, 100, 50, 0.1)',
+          }}>
+            <div className="absolute top-0 right-0 w-48 h-48 bg-orange-500/25 rounded-full blur-3xl animate-pulse" />
+            <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 via-transparent to-orange-500/5" />
             <div className="relative">
-              <div className="flex items-center gap-2 mb-3">
-                <Calendar className="h-5 w-5 text-orange-400" />
-                <span className="text-orange-400 text-sm font-medium uppercase tracking-wider">{t.monthlyGmv}</span>
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-3xl">📈</span>
+                <span className="text-orange-300 text-sm font-bold uppercase tracking-widest">{t.monthlyGmv}</span>
               </div>
-              <p className="text-4xl md:text-5xl font-bold text-white tracking-tight" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+              <p 
+                className="text-5xl md:text-6xl font-black tracking-tight"
+                style={{ 
+                  fontFamily: 'JetBrains Mono, monospace',
+                  color: '#ff6622',
+                  textShadow: '0 0 15px rgba(255, 102, 34, 0.9), 0 0 30px rgba(255, 102, 34, 0.6), 0 0 45px rgba(255, 102, 34, 0.4)',
+                }}
+              >
                 {formatCurrency(monthlyGmvValue)}
               </p>
-              {monthlyGmvValue > 0 && totalGmv > 0 && (
-                <p className="text-green-400 text-sm mt-2">
-                  ↑ {((monthlyGmvValue / totalGmv) * 100).toFixed(1)}%
-                </p>
-              )}
+              <div className="flex items-center gap-3 mt-4">
+                <span className="text-green-400 text-base font-bold px-3 py-1 rounded-full bg-green-500/20 border border-green-500/40">
+                  前月比: {monthlyGmvValue > 0 ? '+100%' : '-'}
+                </span>
+                {monthlyGmvValue > 0 && (
+                  <span className="text-green-400 text-2xl animate-bounce">↑</span>
+                )}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Sub KPI Cards */}
+        {/* Sub KPI Cards - Neon Style */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 hover:border-red-500/50 transition-all">
+          <div className="relative overflow-hidden rounded-xl p-4 transition-all duration-300 hover:scale-105" style={{
+            background: 'linear-gradient(135deg, rgba(0,30,50,0.9) 0%, rgba(0,50,80,0.7) 100%)',
+            border: '1px solid rgba(0, 255, 255, 0.5)',
+            boxShadow: '0 0 25px rgba(0, 255, 255, 0.3), inset 0 0 20px rgba(0, 255, 255, 0.1)',
+          }}>
             <div className="flex items-center gap-2 mb-2">
-              <Package className="h-4 w-4 text-cyan-400" />
-              <span className="text-xs text-gray-500 uppercase tracking-wider">{t.products}</span>
+              <Package className="h-5 w-5 text-cyan-300" />
+              <span className="text-xs text-cyan-200 uppercase tracking-wider font-bold">{t.products}</span>
             </div>
-            <p className="text-2xl font-bold text-cyan-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-              {products.length}<span className="text-sm text-gray-500 ml-1">{t.items}</span>
+            <p className="text-3xl font-black" style={{ fontFamily: 'JetBrains Mono, monospace', color: '#00ffff', textShadow: '0 0 10px rgba(0, 255, 255, 0.8)' }}>
+              {products.length}<span className="text-sm text-cyan-300 ml-1">{t.items}</span>
             </p>
           </div>
-          <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 hover:border-red-500/50 transition-all">
+          <div className="relative overflow-hidden rounded-xl p-4 transition-all duration-300 hover:scale-105" style={{
+            background: 'linear-gradient(135deg, rgba(50,0,50,0.9) 0%, rgba(80,0,80,0.7) 100%)',
+            border: '1px solid rgba(255, 100, 200, 0.5)',
+            boxShadow: '0 0 25px rgba(255, 100, 200, 0.3), inset 0 0 20px rgba(255, 100, 200, 0.1)',
+          }}>
             <div className="flex items-center gap-2 mb-2">
-              <Video className="h-4 w-4 text-pink-400" />
-              <span className="text-xs text-gray-500 uppercase tracking-wider">{t.livestreams}</span>
+              <Video className="h-5 w-5 text-pink-300" />
+              <span className="text-xs text-pink-200 uppercase tracking-wider font-bold">{t.livestreams}</span>
             </div>
-            <p className="text-2xl font-bold text-pink-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-              {livestreams.length}<span className="text-sm text-gray-500 ml-1">{t.times}</span>
+            <p className="text-3xl font-black" style={{ fontFamily: 'JetBrains Mono, monospace', color: '#ff66cc', textShadow: '0 0 10px rgba(255, 100, 200, 0.8)' }}>
+              {livestreams.length}<span className="text-sm text-pink-300 ml-1">{t.times}</span>
             </p>
           </div>
-          <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 hover:border-red-500/50 transition-all">
+          <div className="relative overflow-hidden rounded-xl p-4 transition-all duration-300 hover:scale-105" style={{
+            background: 'linear-gradient(135deg, rgba(50,40,0,0.9) 0%, rgba(80,60,0,0.7) 100%)',
+            border: '1px solid rgba(255, 200, 50, 0.5)',
+            boxShadow: '0 0 25px rgba(255, 200, 50, 0.3), inset 0 0 20px rgba(255, 200, 50, 0.1)',
+          }}>
             <div className="flex items-center gap-2 mb-2">
-              <FileText className="h-4 w-4 text-amber-400" />
-              <span className="text-xs text-gray-500 uppercase tracking-wider">{t.contracts}</span>
+              <FileText className="h-5 w-5 text-amber-300" />
+              <span className="text-xs text-amber-200 uppercase tracking-wider font-bold">{t.contracts}</span>
             </div>
-            <p className="text-2xl font-bold text-amber-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-              {contracts.length}<span className="text-sm text-gray-500 ml-1">{t.cases}</span>
+            <p className="text-3xl font-black" style={{ fontFamily: 'JetBrains Mono, monospace', color: '#ffcc33', textShadow: '0 0 10px rgba(255, 200, 50, 0.8)' }}>
+              {contracts.length}<span className="text-sm text-amber-300 ml-1">{t.cases}</span>
             </p>
           </div>
-          <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 hover:border-red-500/50 transition-all">
+          <div className="relative overflow-hidden rounded-xl p-4 transition-all duration-300 hover:scale-105" style={{
+            background: 'linear-gradient(135deg, rgba(40,0,60,0.9) 0%, rgba(60,0,90,0.7) 100%)',
+            border: '1px solid rgba(180, 100, 255, 0.5)',
+            boxShadow: '0 0 25px rgba(180, 100, 255, 0.3), inset 0 0 20px rgba(180, 100, 255, 0.1)',
+          }}>
             <div className="flex items-center gap-2 mb-2">
-              <Percent className="h-4 w-4 text-purple-400" />
-              <span className="text-xs text-gray-500 uppercase tracking-wider">{t.commissionRate}</span>
+              <Percent className="h-5 w-5 text-purple-300" />
+              <span className="text-xs text-purple-200 uppercase tracking-wider font-bold">{t.commissionRate}</span>
             </div>
-            <p className="text-2xl font-bold text-purple-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+            <p className="text-3xl font-black" style={{ fontFamily: 'JetBrains Mono, monospace', color: '#bb66ff', textShadow: '0 0 10px rgba(180, 100, 255, 0.8)' }}>
               {commissionRateValue}
             </p>
           </div>
