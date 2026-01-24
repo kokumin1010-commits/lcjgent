@@ -1324,13 +1324,24 @@ export default function BrandDetail() {
                   </div>
                 </div>
               )}
-              <div>
-                <Label className="text-gray-400">商品名</Label>
-                <Input
-                  value={editingProduct.productName || ""}
-                  onChange={(e) => setEditingProduct({ ...editingProduct, productName: e.target.value })}
-                  className="bg-black/60 border-red-900/50 text-white mt-1"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-400">{language === 'ja' ? '登録日' : '登记日期'}</Label>
+                  <Input
+                    type="date"
+                    value={editingProduct.createdAt ? new Date(editingProduct.createdAt).toISOString().split('T')[0] : ''}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, createdAt: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-400">{language === 'ja' ? '商品名' : '商品名'}</Label>
+                  <Input
+                    value={editingProduct.productName || ""}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, productName: e.target.value })}
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -1489,6 +1500,7 @@ export default function BrandDetail() {
                     shippingInfo: editingProduct.shippingInfo,
                     targetAudience: editingProduct.targetAudience,
                     usageMethod: editingProduct.usageMethod,
+                    createdAt: editingProduct.createdAt,
                   });
                 }
               }}

@@ -1722,11 +1722,16 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           shippingInfo: z.string().optional(),
           targetAudience: z.string().optional(),
           usageMethod: z.string().optional(),
+          createdAt: z.string().optional(), // 登録日の編集用
         })
       )
       .mutation(async ({ input }) => {
-        const { id, ...updateData } = input;
-        await updateBrandProduct(id, updateData);
+        const { id, createdAt, ...updateData } = input;
+        // createdAtが指定されている場合は変換して追加
+        const finalUpdateData = createdAt 
+          ? { ...updateData, createdAt: new Date(createdAt) }
+          : updateData;
+        await updateBrandProduct(id, finalUpdateData);
         return { success: true };
       }),
 
