@@ -1,0 +1,18 @@
+{
+  "query": "SHOW COLUMNS FROM brand_contracts LIKE 'serviceType';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SHOW COLUMNS FROM brand_contracts LIKE 'serviceType';",
+  "rows": [
+    {
+      "Field": "serviceType",
+      "Type": "enum('TSP','ライブコマース','広告運用代行','SNS運用代行','その他')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "その他",
+      "Extra": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nserviceType\tenum('TSP','ライブコマース','広告運用代行','SNS運用代行','その他')\tNO\t\tその他\t\n",
+  "stderr": "",
+  "execution_time_ms": 1511
+}

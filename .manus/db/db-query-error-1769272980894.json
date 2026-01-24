@@ -1,0 +1,8 @@
+{
+  "query": "UPDATE brand_contracts SET serviceType = '単発ライブ契約' WHERE serviceType IN ('TSP', 'ライブコマース', '広告運用代行', 'SNS運用代行', 'その他');",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute UPDATE brand_contracts SET serviceType = '単発ライブ契約' WHERE serviceType IN ('TSP', 'ライブコマース', '広告運用代行', 'SNS運用代行', 'その他');",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1265 (01000) at line 1: Data truncated for column '%s' at row %d"
+  ]
+}

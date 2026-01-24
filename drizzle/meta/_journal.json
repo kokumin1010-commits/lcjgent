@@ -281,6 +281,20 @@
       "when": 1769269919718,
       "tag": "0039_flowery_mikhail_rasputin",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "5",
+      "when": 1769272969634,
+      "tag": "0040_perfect_polaris",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "5",
+      "when": 1769273084224,
+      "tag": "0041_harsh_runaways",
+      "breakpoints": true
     }
   ]
 }

@@ -352,7 +352,7 @@ export default function BrandDetail() {
   const [addContractDialogOpen, setAddContractDialogOpen] = useState(false);
   const [newProduct, setNewProduct] = useState({ productName: "", listPrice: 0, specialPrice: 0, commissionRate: "", remarks: "" });
   const [newLivestream, setNewLivestream] = useState({ livestreamDate: "", livestreamStartTime: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "", productClicks: 0, impressions: 0, salesCount: 0, cartAddCount: 0, productId: null as number | null, productCommission: "", adCost: 0, ctr: "", cvr: "", cpc: 0, acos: "", roas: "" });
-  const [newContract, setNewContract] = useState({ serviceType: "ライブコマース" as "TSP" | "ライブコマース" | "広告運用代行" | "SNS運用代行" | "その他", contractType: "月額契約" as "月額契約" | "年間契約" | "単発契約" | "広告案件" | "その他", fixedFee: 0, commissionRate: "", status: "契約中" as "契約中" | "完了" | "保留" | "終了", startDate: "", endDate: "", memo: "" });
+  const [newContract, setNewContract] = useState({ serviceType: "単発ライブ契約" as "単発ライブ契約" | "期間契約" | "運用代行型（TSP）" | "パッケージ／複合契約", fixedFee: 0, status: "契約中" as "契約中" | "完了" | "保留" | "終了", startDate: "", endDate: "", memo: "", linkedLivestreamIds: [] as number[] });
   // Delete states
   const [deleteProductDialogOpen, setDeleteProductDialogOpen] = useState(false);
   const [deleteLivestreamDialogOpen, setDeleteLivestreamDialogOpen] = useState(false);
@@ -434,7 +434,7 @@ export default function BrandDetail() {
     onSuccess: () => {
       refetchContracts();
       setAddContractDialogOpen(false);
-      setNewContract({ serviceType: "ライブコマース", contractType: "月額契約", fixedFee: 0, commissionRate: "", status: "契約中", startDate: "", endDate: "", memo: "" });
+      setNewContract({ serviceType: "単発ライブ契約", fixedFee: 0, status: "契約中", startDate: "", endDate: "", memo: "", linkedLivestreamIds: [] });
       toast.success(language === 'zh' ? '合同已添加' : '契約を追加しました');
     },
     onError: () => {
@@ -915,29 +915,34 @@ export default function BrandDetail() {
                     products.map((product) => (
                       <tr key={product.id} className="border-b border-red-900/20 hover:bg-red-900/10 transition-colors group">
                         <td className="py-3 px-2">
-                          {product.imageUrls && product.imageUrls.length > 0 ? (
-                            <img 
-                              src={product.imageUrls[0]} 
-                              alt={product.productName} 
-                              className="w-12 h-12 object-cover rounded-lg border border-red-900/30 cursor-pointer hover:border-pink-400 hover:scale-110 transition-all" 
-                              onClick={() => {
-                                setSelectedProductForDetail(product);
-                                setProductDetailDialogOpen(true);
-                              }}
-                            />
-                          ) : (
-                            <div className="w-12 h-12 bg-red-900/20 rounded-lg border border-red-900/30 flex items-center justify-center">
-                              <Package className="w-6 h-6 text-gray-600" />
+                          <div className="flex items-center gap-3">
+                            {/* 登録日表示 */}
+                            <div className="flex flex-col items-center min-w-[50px]">
+                              <span className="text-[9px] text-gray-400">{language === 'ja' ? '登録日' : '登记日'}</span>
+                              <span className="text-[11px] text-white font-mono">
+                                {product.createdAt ? new Date(product.createdAt).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit' }).replace('/', '/') : '-'}
+                              </span>
                             </div>
-                          )}
+                            {/* 商品画像 */}
+                            {product.imageUrls && product.imageUrls.length > 0 ? (
+                              <img 
+                                src={product.imageUrls[0]} 
+                                alt={product.productName} 
+                                className="w-12 h-12 object-cover rounded-lg border border-red-900/30 cursor-pointer hover:border-pink-400 hover:scale-110 transition-all" 
+                                onClick={() => {
+                                  setSelectedProductForDetail(product);
+                                  setProductDetailDialogOpen(true);
+                                }}
+                              />
+                            ) : (
+                              <div className="w-12 h-12 bg-red-900/20 rounded-lg border border-red-900/30 flex items-center justify-center">
+                                <Package className="w-6 h-6 text-gray-600" />
+                              </div>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3 px-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] text-gray-500 font-mono whitespace-nowrap">
-                              {product.createdAt ? new Date(product.createdAt).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit' }).replace(/\//g, '/') : ''}
-                            </span>
-                            <span className="text-white font-medium">{product.productName}</span>
-                          </div>
+                          <span className="text-white font-medium">{product.productName}</span>
                         </td>
                         <td className="py-3 px-2 text-right text-gray-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                           {formatCurrency(product.listPrice)}
@@ -2660,20 +2665,19 @@ export default function BrandDetail() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
-              <Label className="text-gray-400">{t.serviceType}</Label>
+              <Label className="text-gray-400">{language === 'ja' ? '契約タイプ' : '合同类型'}</Label>
               <Select
                 value={newContract.serviceType}
-                onValueChange={(value) => setNewContract({ ...newContract, serviceType: value as "TSP" | "ライブコマース" | "広告運用代行" | "SNS運用代行" | "その他" })}
+                onValueChange={(value) => setNewContract({ ...newContract, serviceType: value as "単発ライブ契約" | "期間契約" | "運用代行型（TSP）" | "パッケージ／複合契約" })}
               >
                 <SelectTrigger className="bg-black/60 border-red-900/50 text-white mt-1">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-gray-900 border-red-900/50">
-                  <SelectItem value="ライブコマース" className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">{language === 'zh' ? '直播电商' : 'ライブコマース'}</SelectItem>
-                  <SelectItem value="TSP" className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">{language === 'zh' ? 'TSP' : 'TSP'}</SelectItem>
-                  <SelectItem value="広告運用代行" className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">{language === 'zh' ? '广告运营' : '広告運用代行'}</SelectItem>
-                  <SelectItem value="SNS運用代行" className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">{language === 'zh' ? 'SNS运营' : 'SNS運用代行'}</SelectItem>
-                  <SelectItem value="その他" className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">{language === 'zh' ? '其他' : 'その他'}</SelectItem>
+                  <SelectItem value="単発ライブ契約" className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">{language === 'zh' ? '单次直播合同' : '単発ライブ契約'}</SelectItem>
+                  <SelectItem value="期間契約" className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">{language === 'zh' ? '期限合同（月付/年付）' : '期間契約（月額 or 年額）'}</SelectItem>
+                  <SelectItem value="運用代行型（TSP）" className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">{language === 'zh' ? '运营代理型（TSP）' : '運用代行型（TSP）'}</SelectItem>
+                  <SelectItem value="パッケージ／複合契約" className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">{language === 'zh' ? '套餐/复合合同' : 'パッケージ／複合契約'}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -2734,6 +2738,60 @@ export default function BrandDetail() {
                 rows={3}
               />
             </div>
+            
+            {/* ライブ選択セクション */}
+            <div className="border-t border-red-900/30 pt-4">
+              <Label className="text-gray-400 flex items-center gap-2">
+                <Video className="h-4 w-4" />
+                {language === 'zh' ? '关联直播' : 'ライブ紐付け'}
+              </Label>
+              <div className="mt-2 max-h-40 overflow-y-auto space-y-2">
+                {livestreams && livestreams.length > 0 ? (
+                  livestreams.map((ls) => (
+                    <label
+                      key={ls.id}
+                      className="flex items-center gap-3 p-2 rounded-lg bg-black/40 hover:bg-red-900/20 cursor-pointer transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={newContract.linkedLivestreamIds.includes(ls.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setNewContract({
+                              ...newContract,
+                              linkedLivestreamIds: [...newContract.linkedLivestreamIds, ls.id],
+                            });
+                          } else {
+                            setNewContract({
+                              ...newContract,
+                              linkedLivestreamIds: newContract.linkedLivestreamIds.filter((id) => id !== ls.id),
+                            });
+                          }
+                        }}
+                        className="w-4 h-4 rounded border-red-900/50 bg-black/60 text-amber-500 focus:ring-amber-500"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-white truncate">
+                          {ls.livestreamDate ? new Date(ls.livestreamDate).toLocaleDateString('ja-JP') : ''} - {ls.streamerName || (language === 'zh' ? '未知主播' : '不明')}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          GMV: ¥{(ls.gmv || ls.salesAmount || 0).toLocaleString()}
+                        </div>
+                      </div>
+                    </label>
+                  ))
+                ) : (
+                  <div className="text-gray-500 text-sm py-2">
+                    {language === 'zh' ? '暂无直播记录' : 'ライブ履歴がありません'}
+                  </div>
+                )}
+              </div>
+              {newContract.linkedLivestreamIds.length > 0 && (
+                <div className="mt-2 text-xs text-amber-400">
+                  {language === 'zh' ? `已选择 ${newContract.linkedLivestreamIds.length} 个直播` : `${newContract.linkedLivestreamIds.length}件のライブを選択中`}
+                </div>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button
@@ -2744,18 +2802,23 @@ export default function BrandDetail() {
               {t.cancel}
             </Button>
             <Button
-              onClick={() => {
-                createContractMutation.mutate({
+              onClick={async () => {
+                const result = await createContractMutation.mutateAsync({
                   brandId,
                   serviceType: newContract.serviceType,
-                  contractType: newContract.contractType,
                   fixedFee: newContract.fixedFee,
-                  commissionRate: newContract.commissionRate || undefined,
                   status: newContract.status,
                   startDate: newContract.startDate ? new Date(newContract.startDate) : undefined,
                   endDate: newContract.endDate ? new Date(newContract.endDate) : undefined,
                   memo: newContract.memo || undefined,
                 });
+                // ライブ紐付けがあれば実行
+                if (newContract.linkedLivestreamIds.length > 0 && result.contractId) {
+                  bulkLinkLivestreamsMutation.mutate({
+                    contractId: result.contractId,
+                    livestreamIds: newContract.linkedLivestreamIds,
+                  });
+                }
               }}
               className="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white"
             >

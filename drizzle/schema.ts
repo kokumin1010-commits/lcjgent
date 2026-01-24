@@ -378,9 +378,9 @@ export type InsertActivityLog = typeof activityLogs.$inferInsert;
 export const brandContracts = mysqlTable("brand_contracts", {
   id: int("id").autoincrement().primaryKey(),
   brandId: int("brandId").notNull(), // References brands.id
-  // サービスタイプ: LCJが提供するサービスの種類
-  serviceType: mysqlEnum("serviceType", ["TSP", "ライブコマース", "広告運用代行", "SNS運用代行", "その他"]).default("その他").notNull(), // サービスタイプ
-  contractType: mysqlEnum("contractType", ["月額契約", "年間契約", "単発契約", "広告案件", "その他"]).notNull(), // 契約タイプ
+  // 契約タイプ: 既存の値も含めて互換性を維持
+  serviceType: mysqlEnum("serviceType", ["TSP", "ライブコマース", "広告運用代行", "SNS運用代行", "その他", "単発ライブ契約", "期間契約", "運用代行型（TSP）", "パッケージ／複合契約"]).default("単発ライブ契約").notNull(), // 契約タイプ
+  contractType: mysqlEnum("contractType", ["月額契約", "年間契約", "単発契約", "広告案件", "その他"]).default("その他"), // 互換性のため残す
   fixedFee: bigint("fixedFee", { mode: "number" }), // 固定費（円）
   commissionRate: varchar("commissionRate", { length: 50 }), // 成果報酬（例：10%、または固定金額）
   startDate: timestamp("startDate"), // 契約開始日

@@ -2460,10 +2460,8 @@ Return ONLY valid JSON, no markdown or explanation.`,
       .input(
         z.object({
           brandId: z.number(),
-          serviceType: z.enum(["TSP", "ライブコマース", "広告運用代行", "SNS運用代行", "その他"]).default("その他"),
-          contractType: z.enum(["月額契約", "年間契約", "単発契約", "広告案件", "その他"]),
+          serviceType: z.enum(["TSP", "ライブコマース", "広告運用代行", "SNS運用代行", "その他", "単発ライブ契約", "期間契約", "運用代行型（TSP）", "パッケージ／複合契約"]).default("単発ライブ契約"),
           fixedFee: z.number().optional(),
-          commissionRate: z.string().optional(),
           startDate: z.date().optional(),
           endDate: z.date().optional(),
           status: z.enum(["契約中", "完了", "保留", "終了"]).default("契約中"),
@@ -2488,13 +2486,11 @@ Return ONLY valid JSON, no markdown or explanation.`,
           targetName: brand?.name || `ブランド #${input.brandId}`,
           metadata: {
             serviceType: input.serviceType,
-            contractType: input.contractType,
             fixedFee: input.fixedFee,
-            commissionRate: input.commissionRate,
           },
         });
 
-        return contract;
+        return { ...contract, contractId: contract.id };
       }),
 
     // Get contracts by brand ID
@@ -2516,7 +2512,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
       .input(
         z.object({
           id: z.number(),
-          serviceType: z.enum(["TSP", "ライブコマース", "広告運用代行", "SNS運用代行", "その他"]).optional(),
+          serviceType: z.enum(["TSP", "ライブコマース", "広告運用代行", "SNS運用代行", "その他", "単発ライブ契約", "期間契約", "運用代行型（TSP）", "パッケージ／複合契約"]).optional(),
           contractType: z.enum(["月額契約", "年間契約", "単発契約", "広告案件", "その他"]).optional(),
           fixedFee: z.number().optional(),
           commissionRate: z.string().optional(),

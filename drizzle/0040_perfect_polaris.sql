@@ -1,0 +1,2 @@
+ALTER TABLE `brand_contracts` MODIFY COLUMN `serviceType` enum('単発ライブ契約','期間契約','運用代行型（TSP）','パッケージ／複合契約') NOT NULL DEFAULT '単発ライブ契約';--> statement-breakpoint
+ALTER TABLE `brand_contracts` MODIFY COLUMN `contractType` enum('月額契約','年間契約','単発契約','広告案件','その他') DEFAULT 'その他';

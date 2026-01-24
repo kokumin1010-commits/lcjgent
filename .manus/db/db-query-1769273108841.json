@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE brand_contracts MODIFY COLUMN serviceType enum('TSP', 'ライブコマース', '広告運用代行', 'SNS運用代行', 'その他', '単発ライブ契約', '期間契約', '運用代行型（TSP）', 'パッケージ／複合契約') NOT NULL DEFAULT '単発ライブ契約';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute ALTER TABLE brand_contracts MODIFY COLUMN serviceType enum('TSP', 'ライブコマース', '広告運用代行', 'SNS運用代行', 'その他', '単発ライブ契約', '期間契約', '運用代行型（TSP）', 'パッケージ／複合契約') NOT NULL DEFAULT '単発ライブ契約';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1791
+}

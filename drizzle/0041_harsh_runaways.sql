@@ -1,0 +1,1 @@
+ALTER TABLE `brand_contracts` MODIFY COLUMN `serviceType` enum('TSP','ライブコマース','広告運用代行','SNS運用代行','その他','単発ライブ契約','期間契約','運用代行型（TSP）','パッケージ／複合契約') NOT NULL DEFAULT '単発ライブ契約';
