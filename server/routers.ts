@@ -171,6 +171,7 @@ import {
   createBrandMemo,
   getMemosByBrandId,
   deleteBrandMemo,
+  updateBrandMemo,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -2068,6 +2069,19 @@ ${JSON.stringify(teamSummary, null, 2)}`;
       .input(z.object({ brandId: z.number() }))
       .query(async ({ input }) => {
         return await getMemosByBrandId(input.brandId);
+      }),
+
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          content: z.string().min(1),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { id, content } = input;
+        await updateBrandMemo(id, { content });
+        return { success: true };
       }),
 
     delete: protectedProcedure

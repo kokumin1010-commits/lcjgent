@@ -247,14 +247,24 @@ export default function BrandDetail() {
   const [isContractExpanded, setIsContractExpanded] = useState(false);
   const [newMemo, setNewMemo] = useState("");
 
+  // Edit modal states
+  const [editProductDialogOpen, setEditProductDialogOpen] = useState(false);
+  const [editLivestreamDialogOpen, setEditLivestreamDialogOpen] = useState(false);
+  const [editContractDialogOpen, setEditContractDialogOpen] = useState(false);
+  const [editMemoDialogOpen, setEditMemoDialogOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<any>(null);
+  const [editingLivestream, setEditingLivestream] = useState<any>(null);
+  const [editingContract, setEditingContract] = useState<any>(null);
+  const [editingMemo, setEditingMemo] = useState<any>(null);
+
   const brandId = parseInt(id || "0");
 
   // Data fetching
   const { data: brand, isLoading: brandLoading } = trpc.brand.getById.useQuery({ id: brandId });
   const { data: allBrands = [] } = trpc.brand.list.useQuery();
-  const { data: products = [] } = trpc.brandProduct.listByBrand.useQuery({ brandId });
-  const { data: livestreams = [] } = trpc.brandLivestream.listByBrand.useQuery({ brandId });
-  const { data: contracts = [] } = trpc.brandContract.listByBrand.useQuery({ brandId }, { enabled: brandId > 0 });
+  const { data: products = [], refetch: refetchProducts } = trpc.brandProduct.listByBrand.useQuery({ brandId });
+  const { data: livestreams = [], refetch: refetchLivestreams } = trpc.brandLivestream.listByBrand.useQuery({ brandId });
+  const { data: contracts = [], refetch: refetchContracts } = trpc.brandContract.listByBrand.useQuery({ brandId }, { enabled: brandId > 0 });
   const { data: memos = [], refetch: refetchMemos } = trpc.brandMemo.listByBrand.useQuery({ brandId });
   const { data: monthlyGmvSummary = [] } = trpc.brandLivestream.monthlyGmvSummary.useQuery({ brandId });
   const { data: lcjStaff = [] } = trpc.brand.getLcjStaff.useQuery({ brandId }, { enabled: brandId > 0 });
@@ -275,6 +285,55 @@ export default function BrandDetail() {
     onSuccess: () => {
       refetchMemos();
       toast.success("削除しました");
+    },
+    onError: () => {
+      toast.error("エラーが発生しました");
+    },
+  });
+
+  // Edit mutations
+  const updateProductMutation = trpc.brandProduct.update.useMutation({
+    onSuccess: () => {
+      refetchProducts();
+      setEditProductDialogOpen(false);
+      setEditingProduct(null);
+      toast.success("商品を更新しました");
+    },
+    onError: () => {
+      toast.error("エラーが発生しました");
+    },
+  });
+
+  const updateLivestreamMutation = trpc.brandLivestream.update.useMutation({
+    onSuccess: () => {
+      refetchLivestreams();
+      setEditLivestreamDialogOpen(false);
+      setEditingLivestream(null);
+      toast.success("直播を更新しました");
+    },
+    onError: () => {
+      toast.error("エラーが発生しました");
+    },
+  });
+
+  const updateContractMutation = trpc.brandContract.update.useMutation({
+    onSuccess: () => {
+      refetchContracts();
+      setEditContractDialogOpen(false);
+      setEditingContract(null);
+      toast.success("契約を更新しました");
+    },
+    onError: () => {
+      toast.error("エラーが発生しました");
+    },
+  });
+
+  const updateMemoMutation = trpc.brandMemo.update.useMutation({
+    onSuccess: () => {
+      refetchMemos();
+      setEditMemoDialogOpen(false);
+      setEditingMemo(null);
+      toast.success("メモを更新しました");
     },
     onError: () => {
       toast.error("エラーが発生しました");
@@ -587,7 +646,7 @@ export default function BrandDetail() {
                         </td>
                         <td className="py-3 px-2 text-right">
                           <button
-                            onClick={() => toast.info("編集機能は開発中です")}
+                            onClick={() => { setEditingProduct(product); setEditProductDialogOpen(true); }}
                             className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-cyan-400 transition-all"
                           >
                             <Edit2 className="h-4 w-4" />
@@ -640,7 +699,7 @@ export default function BrandDetail() {
                         </td>
                         <td className="py-3 px-2 text-right">
                           <button
-                            onClick={() => toast.info("編集機能は開発中です")}
+                            onClick={() => { setEditingLivestream(ls); setEditLivestreamDialogOpen(true); }}
                             className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-pink-400 transition-all"
                           >
                             <Edit2 className="h-4 w-4" />
@@ -694,7 +753,7 @@ export default function BrandDetail() {
                             </Badge>
                           </div>
                           <button
-                            onClick={() => toast.info("編集機能は開発中です")}
+                            onClick={() => { setEditingContract(contract); setEditContractDialogOpen(true); }}
                             className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-amber-400 transition-all"
                           >
                             <Edit2 className="h-4 w-4" />
@@ -789,7 +848,7 @@ export default function BrandDetail() {
                       </div>
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => toast.info("編集機能は開発中です")}
+                          onClick={() => { setEditingMemo(memo); setEditMemoDialogOpen(true); }}
                           className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-green-400 transition-all"
                         >
                           <Edit2 className="h-4 w-4" />
@@ -809,6 +868,375 @@ export default function BrandDetail() {
           </div>
         </div>
       </div>
+
+      {/* Product Edit Dialog */}
+      <Dialog open={editProductDialogOpen} onOpenChange={setEditProductDialogOpen}>
+        <DialogContent className="bg-black/95 border-red-900/50 text-white max-w-lg backdrop-blur-xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-3">
+              <div className="w-1 h-6 bg-gradient-to-b from-cyan-400 to-cyan-600 rounded-full" />
+              商品編集
+            </DialogTitle>
+          </DialogHeader>
+          {editingProduct && (
+            <div className="space-y-4 py-4">
+              <div>
+                <Label className="text-gray-400">商品名</Label>
+                <Input
+                  value={editingProduct.productName || ""}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, productName: e.target.value })}
+                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-400">定価</Label>
+                  <Input
+                    type="number"
+                    value={editingProduct.listPrice || ""}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, listPrice: parseInt(e.target.value) || 0 })}
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-400">特価</Label>
+                  <Input
+                    type="number"
+                    value={editingProduct.specialPrice || ""}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, specialPrice: parseInt(e.target.value) || 0 })}
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label className="text-gray-400">成果報酬</Label>
+                <Input
+                  value={editingProduct.commissionRate || ""}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, commissionRate: e.target.value })}
+                  placeholder="例: 15%"
+                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-gray-400">備考</Label>
+                <Textarea
+                  value={editingProduct.remarks || ""}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, remarks: e.target.value })}
+                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => { setEditProductDialogOpen(false); setEditingProduct(null); }}
+              className="border-red-900/50 text-gray-300 hover:bg-red-900/20 hover:text-white"
+            >
+              {t.cancel}
+            </Button>
+            <Button
+              onClick={() => {
+                if (editingProduct) {
+                  updateProductMutation.mutate({
+                    id: editingProduct.id,
+                    productName: editingProduct.productName,
+                    listPrice: editingProduct.listPrice,
+                    specialPrice: editingProduct.specialPrice,
+                    discountRate: editingProduct.commissionRate,
+                    remarks: editingProduct.remarks,
+                  });
+                }
+              }}
+              className="bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white"
+            >
+              {t.save}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Livestream Edit Dialog */}
+      <Dialog open={editLivestreamDialogOpen} onOpenChange={setEditLivestreamDialogOpen}>
+        <DialogContent className="bg-black/95 border-red-900/50 text-white max-w-lg backdrop-blur-xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-3">
+              <div className="w-1 h-6 bg-gradient-to-b from-pink-400 to-pink-600 rounded-full" />
+              直播編集
+            </DialogTitle>
+          </DialogHeader>
+          {editingLivestream && (
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-400">日付</Label>
+                  <Input
+                    type="date"
+                    value={editingLivestream.livestreamDate ? new Date(editingLivestream.livestreamDate).toISOString().split('T')[0] : ""}
+                    onChange={(e) => setEditingLivestream({ ...editingLivestream, livestreamDate: e.target.value })}
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-400">アカウント</Label>
+                  <Input
+                    value={editingLivestream.streamerName || ""}
+                    onChange={(e) => setEditingLivestream({ ...editingLivestream, streamerName: e.target.value })}
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-400">プラットフォーム</Label>
+                  <Select
+                    value={editingLivestream.platform || ""}
+                    onValueChange={(value) => setEditingLivestream({ ...editingLivestream, platform: value })}
+                  >
+                    <SelectTrigger className="bg-black/60 border-red-900/50 text-white mt-1">
+                      <SelectValue placeholder="選択" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-black/95 border-red-900/50">
+                      <SelectItem value="TikTok">TikTok</SelectItem>
+                      <SelectItem value="Instagram">Instagram</SelectItem>
+                      <SelectItem value="YouTube">YouTube</SelectItem>
+                      <SelectItem value="その他">その他</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-gray-400">時間（分）</Label>
+                  <Input
+                    type="number"
+                    value={editingLivestream.duration || ""}
+                    onChange={(e) => setEditingLivestream({ ...editingLivestream, duration: parseInt(e.target.value) || 0 })}
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label className="text-gray-400">GMV</Label>
+                <Input
+                  type="number"
+                  value={editingLivestream.gmv || editingLivestream.salesAmount || ""}
+                  onChange={(e) => setEditingLivestream({ ...editingLivestream, gmv: parseInt(e.target.value) || 0 })}
+                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-gray-400">備考</Label>
+                <Textarea
+                  value={editingLivestream.remarks || ""}
+                  onChange={(e) => setEditingLivestream({ ...editingLivestream, remarks: e.target.value })}
+                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => { setEditLivestreamDialogOpen(false); setEditingLivestream(null); }}
+              className="border-red-900/50 text-gray-300 hover:bg-red-900/20 hover:text-white"
+            >
+              {t.cancel}
+            </Button>
+            <Button
+              onClick={() => {
+                if (editingLivestream) {
+                  updateLivestreamMutation.mutate({
+                    id: editingLivestream.id,
+                    livestreamDate: editingLivestream.livestreamDate,
+                    streamerName: editingLivestream.streamerName,
+                    platform: editingLivestream.platform,
+                    duration: editingLivestream.duration,
+                    gmv: editingLivestream.gmv,
+                    remarks: editingLivestream.remarks,
+                  });
+                }
+              }}
+              className="bg-gradient-to-r from-pink-600 to-pink-500 hover:from-pink-500 hover:to-pink-400 text-white"
+            >
+              {t.save}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Contract Edit Dialog */}
+      <Dialog open={editContractDialogOpen} onOpenChange={setEditContractDialogOpen}>
+        <DialogContent className="bg-black/95 border-red-900/50 text-white max-w-lg backdrop-blur-xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-3">
+              <div className="w-1 h-6 bg-gradient-to-b from-amber-400 to-amber-600 rounded-full" />
+              契約編集
+            </DialogTitle>
+          </DialogHeader>
+          {editingContract && (
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-400">サービス種類</Label>
+                  <Select
+                    value={editingContract.serviceType || ""}
+                    onValueChange={(value) => setEditingContract({ ...editingContract, serviceType: value })}
+                  >
+                    <SelectTrigger className="bg-black/60 border-red-900/50 text-white mt-1">
+                      <SelectValue placeholder="選択" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-black/95 border-red-900/50">
+                      <SelectItem value="TSP">TSP</SelectItem>
+                      <SelectItem value="ライブコマース">ライブコマース</SelectItem>
+                      <SelectItem value="広告運用代行">広告運用代行</SelectItem>
+                      <SelectItem value="SNS運用代行">SNS運用代行</SelectItem>
+                      <SelectItem value="その他">その他</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-gray-400">ステータス</Label>
+                  <Select
+                    value={editingContract.status || ""}
+                    onValueChange={(value) => setEditingContract({ ...editingContract, status: value })}
+                  >
+                    <SelectTrigger className="bg-black/60 border-red-900/50 text-white mt-1">
+                      <SelectValue placeholder="選択" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-black/95 border-red-900/50">
+                      <SelectItem value="契約中">契約中</SelectItem>
+                      <SelectItem value="完了">完了</SelectItem>
+                      <SelectItem value="保留">保留</SelectItem>
+                      <SelectItem value="終了">終了</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-400">固定費</Label>
+                  <Input
+                    type="number"
+                    value={editingContract.fixedFee || ""}
+                    onChange={(e) => setEditingContract({ ...editingContract, fixedFee: parseInt(e.target.value) || 0 })}
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-400">成果報酬</Label>
+                  <Input
+                    value={editingContract.commissionRate || ""}
+                    onChange={(e) => setEditingContract({ ...editingContract, commissionRate: e.target.value })}
+                    placeholder="例: 15-20%"
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-400">開始日</Label>
+                  <Input
+                    type="date"
+                    value={editingContract.startDate ? new Date(editingContract.startDate).toISOString().split('T')[0] : ""}
+                    onChange={(e) => setEditingContract({ ...editingContract, startDate: new Date(e.target.value) })}
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-400">終了日</Label>
+                  <Input
+                    type="date"
+                    value={editingContract.endDate ? new Date(editingContract.endDate).toISOString().split('T')[0] : ""}
+                    onChange={(e) => setEditingContract({ ...editingContract, endDate: new Date(e.target.value) })}
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label className="text-gray-400">メモ</Label>
+                <Textarea
+                  value={editingContract.memo || ""}
+                  onChange={(e) => setEditingContract({ ...editingContract, memo: e.target.value })}
+                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => { setEditContractDialogOpen(false); setEditingContract(null); }}
+              className="border-red-900/50 text-gray-300 hover:bg-red-900/20 hover:text-white"
+            >
+              {t.cancel}
+            </Button>
+            <Button
+              onClick={() => {
+                if (editingContract) {
+                  updateContractMutation.mutate({
+                    id: editingContract.id,
+                    serviceType: editingContract.serviceType,
+                    status: editingContract.status,
+                    fixedFee: editingContract.fixedFee,
+                    commissionRate: editingContract.commissionRate,
+                    startDate: editingContract.startDate,
+                    endDate: editingContract.endDate,
+                    memo: editingContract.memo,
+                  });
+                }
+              }}
+              className="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white"
+            >
+              {t.save}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Memo Edit Dialog */}
+      <Dialog open={editMemoDialogOpen} onOpenChange={setEditMemoDialogOpen}>
+        <DialogContent className="bg-black/95 border-red-900/50 text-white max-w-lg backdrop-blur-xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-3">
+              <div className="w-1 h-6 bg-gradient-to-b from-green-400 to-green-600 rounded-full" />
+              メモ編集
+            </DialogTitle>
+          </DialogHeader>
+          {editingMemo && (
+            <div className="space-y-4 py-4">
+              <div>
+                <Label className="text-gray-400">メモ内容</Label>
+                <Textarea
+                  value={editingMemo.content || ""}
+                  onChange={(e) => setEditingMemo({ ...editingMemo, content: e.target.value })}
+                  className="bg-black/60 border-red-900/50 text-white mt-1 min-h-[120px]"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => { setEditMemoDialogOpen(false); setEditingMemo(null); }}
+              className="border-red-900/50 text-gray-300 hover:bg-red-900/20 hover:text-white"
+            >
+              {t.cancel}
+            </Button>
+            <Button
+              onClick={() => {
+                if (editingMemo) {
+                  updateMemoMutation.mutate({
+                    id: editingMemo.id,
+                    content: editingMemo.content,
+                  });
+                }
+              }}
+              className="bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white"
+            >
+              {t.save}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Details Dialog */}
       <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>

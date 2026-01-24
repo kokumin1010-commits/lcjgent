@@ -3196,3 +3196,10 @@ export async function deleteBrandMemo(id: number) {
 
   return await db.delete(brandMemos).where(eq(brandMemos.id, id));
 }
+
+export async function updateBrandMemo(id: number, updateData: Partial<InsertBrandMemo>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.update(brandMemos).set(updateData).where(eq(brandMemos.id, id));
+}
