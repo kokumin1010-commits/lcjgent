@@ -865,134 +865,85 @@ export default function BrandDetail() {
           </div>
         </div>
 
-        {/* Content Grid - 商品テーブル */}
-        <div className="grid grid-cols-1 gap-6 mb-6">
-          {/* Product Performance Table */}
-          <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,0,0,0.1)]">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-white flex items-center gap-3">
-                <div className="w-1 h-6 bg-gradient-to-b from-cyan-400 to-cyan-600 rounded-full" />
-                {t.productPerformance}
-              </h2>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  onClick={() => setAiImageAddDialogOpen(true)}
-                  className="bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-500 hover:to-pink-400 text-white"
-                >
-                  <Sparkles className="h-4 w-4 mr-1" />
-                  {t.aiImageAdd}
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => setAddProductDialogOpen(true)}
-                  className="bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white"
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  {t.add}
-                </Button>
-              </div>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-red-900/30">
-                    <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2 w-16"></th>
-                    <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.productName}</th>
-                    <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.listPrice}</th>
-                    <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.specialPrice}</th>
-                    <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.gmv}</th>
-                    <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.commissionRate}</th>
-                    <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2 w-12"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {products.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="text-center text-gray-500 py-8">{t.noData}</td>
-                    </tr>
-                  ) : (
-                    products.map((product) => (
-                      <tr key={product.id} className="border-b border-red-900/20 hover:bg-red-900/10 transition-colors group">
-                        <td className="py-3 px-2">
-                          <div className="flex items-center gap-3">
-                            {/* 登録日表示 */}
-                            <div className="flex flex-col items-center min-w-[50px]">
-                              <span className="text-[9px] text-gray-400">{language === 'ja' ? '登録日' : '登记日'}</span>
-                              <span className="text-[11px] text-white font-mono">
-                                {product.createdAt ? new Date(product.createdAt).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit' }).replace('/', '/') : '-'}
-                              </span>
-                            </div>
-                            {/* 商品画像 */}
-                            {product.imageUrls && product.imageUrls.length > 0 ? (
-                              <img 
-                                src={product.imageUrls[0]} 
-                                alt={product.productName} 
-                                className="w-12 h-12 object-cover rounded-lg border border-red-900/30 cursor-pointer hover:border-pink-400 hover:scale-110 transition-all" 
-                                onClick={() => {
-                                  setSelectedProductForDetail(product);
-                                  setProductDetailDialogOpen(true);
-                                }}
-                              />
-                            ) : (
-                              <div className="w-12 h-12 bg-red-900/20 rounded-lg border border-red-900/30 flex items-center justify-center">
-                                <Package className="w-6 h-6 text-gray-600" />
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-3 px-2">
-                          <span className="text-white font-medium">{product.productName}</span>
-                        </td>
-                        <td className="py-3 px-2 text-right text-gray-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                          {formatCurrency(product.listPrice)}
-                        </td>
-                        <td className="py-3 px-2 text-right text-red-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                          {formatCurrency(product.specialPrice)}
-                        </td>
-                        <td className="py-3 px-2 text-right text-cyan-400 font-bold" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                          -
-                        </td>
-                        <td className="py-3 px-2 text-right text-purple-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                          {product.commissionRate || "-"}
-                        </td>
-                        <td className="py-3 px-2 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {/* AI学習ボタン - 全商品に表示 */}
-                            <button
-                              onClick={() => { 
-                                setSelectedProductForAi(product); 
-                                setSelectedImageForAi(null);
-                                setAiAnalysisDialogOpen(true); 
-                              }}
-                              className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-yellow-400 transition-all"
-                              title={language === 'ja' ? 'AI学習' : 'AI学习'}
-                            >
-                              <Sparkles className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => { setEditingProduct(product); setEditProductDialogOpen(true); }}
-                              className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-cyan-400 transition-all"
-                              title={language === 'ja' ? '編集' : '编辑'}
-                            >
-                              <Edit2 className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => { setProductToDelete(product); setDeleteProductDialogOpen(true); }}
-                              className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all"
-                              title={language === 'ja' ? '削除' : '删除'}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+        {/* Contract Section - 大きく目立つデザイン */}
+        <div className="bg-gradient-to-br from-amber-900/30 to-orange-900/20 backdrop-blur-xl rounded-2xl border-2 border-amber-500/40 p-6 md:p-8 shadow-[0_0_50px_rgba(255,180,0,0.2)]">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl md:text-3xl font-black text-white flex items-center gap-4">
+              <div className="w-2 h-10 bg-gradient-to-b from-amber-400 to-orange-500 rounded-full" />
+              <span className="bg-gradient-to-r from-amber-300 to-orange-400 bg-clip-text text-transparent">
+                {t.contractInfo}
+              </span>
+              <Badge className="ml-2 bg-amber-500/30 text-amber-300 border-2 border-amber-400/50 text-lg px-3 py-1">
+                {contracts.length}
+              </Badge>
+            </h2>
+            <Button
+              onClick={() => setAddContractDialogOpen(true)}
+              className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-bold shadow-lg shadow-amber-500/30"
+              size="lg"
+            >
+              <Plus className="h-5 w-5 mr-2" />
+              {language === 'zh' ? '添加合同' : '契約追加'}
+            </Button>
           </div>
+          {contracts.length === 0 ? (
+            <p className="text-gray-400 text-center py-8 text-lg">{t.noData}</p>
+          ) : (
+            <div className="space-y-4">
+              {contracts.map((contract) => (
+                <div key={contract.id} className="bg-black/60 rounded-xl border border-amber-500/30 p-5 group hover:border-amber-400/50 transition-all">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <Badge className="bg-amber-500/30 text-amber-300 border border-amber-400/50 text-base px-3 py-1">
+                        {serviceTypeTranslations[language][contract.serviceType] || contract.serviceType}
+                      </Badge>
+                      <Badge className={`text-base px-3 py-1 ${
+                        contract.status === '契約中' 
+                          ? 'bg-green-500/30 text-green-300 border border-green-400/50'
+                          : 'bg-gray-500/30 text-gray-300 border border-gray-400/50'
+                      }`}>
+                        {statusTranslations[language][contract.status] || contract.status}
+                      </Badge>
+                    </div>
+                    <button
+                      onClick={() => handleEditContract(contract)}
+                      className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-amber-400 transition-all"
+                    >
+                      <Edit2 className="h-5 w-5" />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                    <div>
+                      <p className="text-gray-400 text-sm uppercase tracking-wider mb-2">{t.fixedFee}</p>
+                      <p className="text-3xl font-black text-amber-300" style={{ fontFamily: 'JetBrains Mono, monospace', textShadow: '0 0 20px rgba(255, 180, 0, 0.5)' }}>
+                        {formatCurrency(contract.fixedFee)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 text-sm uppercase tracking-wider mb-2">{t.commissionRate}</p>
+                      <p className="text-3xl font-black text-purple-400" style={{ fontFamily: 'JetBrains Mono, monospace', textShadow: '0 0 20px rgba(180, 100, 255, 0.5)' }}>
+                        {contract.commissionRate || "-"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 text-sm uppercase tracking-wider mb-2">{t.startDate}</p>
+                      <p className="text-2xl font-bold text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                        {formatDate(contract.startDate)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 text-sm uppercase tracking-wider mb-2">{t.endDate}</p>
+                      <p className="text-2xl font-bold text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                        {formatDate(contract.endDate)}
+                      </p>
+                    </div>
+                  </div>
+                  {/* ROAS表示コンポーネント */}
+                  <ContractRoasDisplay contractId={contract.id} fixedFee={contract.fixedFee || 0} />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Livestream Performance Table - 全幅表示 */}
@@ -1018,7 +969,7 @@ export default function BrandDetail() {
                     <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.date}</th>
                     <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{language === 'ja' ? '開始時間' : '开始时间'}</th>
                     <th className="text-center text-xs text-gray-500 uppercase tracking-wider py-3 px-2 w-16">{language === 'ja' ? '画像' : '图片'}</th>
-                    <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{language === 'ja' ? '商品' : '商品'}</th>
+                    <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2 max-w-[120px]">{language === 'ja' ? '商品' : '商品'}</th>
                     <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{language === 'ja' ? '手数料' : '手续费'}</th>
                     <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.account}</th>
                     <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.platform}</th>
@@ -1079,8 +1030,13 @@ export default function BrandDetail() {
                             );
                           })()}
                         </td>
-                        <td className="py-3 px-2 text-cyan-400 font-medium">
-                          {(ls as any).productId ? products.find(p => p.id === (ls as any).productId)?.productName || '-' : '-'}
+                        <td className="py-3 px-2 text-cyan-400 font-medium max-w-[120px]">
+                          <span 
+                            className="block truncate cursor-help" 
+                            title={(ls as any).productId ? products.find(p => p.id === (ls as any).productId)?.productName || '-' : '-'}
+                          >
+                            {(ls as any).productId ? products.find(p => p.id === (ls as any).productId)?.productName || '-' : '-'}
+                          </span>
                         </td>
                         <td className="py-3 px-2 text-purple-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                           {(ls as any).productCommission || '-'}
@@ -1131,92 +1087,140 @@ export default function BrandDetail() {
             </div>
         </div>
 
-        {/* Contract Section - Collapsible */}
-        <Collapsible open={isContractExpanded} onOpenChange={setIsContractExpanded}>
-          <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 shadow-[0_0_30px_rgba(255,0,0,0.1)]">
-            <CollapsibleTrigger className="w-full p-4 md:p-6 flex items-center justify-between hover:bg-red-900/10 transition-colors rounded-xl">
+        {/* Content Grid - 商品テーブル */}
+        <div className="grid grid-cols-1 gap-6 mb-6">
+          {/* Product Performance Table */}
+          <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,0,0,0.1)]">
+            <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-white flex items-center gap-3">
-                <div className="w-1 h-6 bg-gradient-to-b from-amber-400 to-amber-600 rounded-full" />
-                {t.contractInfo}
-                <Badge className="ml-2 bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                  {contracts.length}
-                </Badge>
+                <div className="w-1 h-6 bg-gradient-to-b from-cyan-400 to-cyan-600 rounded-full" />
+                {t.productPerformance}
               </h2>
-              {isContractExpanded ? (
-                <ChevronUp className="h-5 w-5 text-gray-400" />
-              ) : (
-                <ChevronDown className="h-5 w-5 text-gray-400" />
-              )}
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="px-4 md:px-6 pb-4 md:pb-6">
-                {/* 契約追加ボタン */}
-                <div className="flex justify-end mb-4">
-                  <Button
-                    onClick={() => setAddContractDialogOpen(true)}
-                    className="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white"
-                    size="sm"
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    {language === 'zh' ? '添加合同' : '契約追加'}
-                  </Button>
-                </div>
-                {contracts.length === 0 ? (
-                  <p className="text-gray-500 text-center py-4">{t.noData}</p>
-                ) : (
-                  <div className="space-y-3">
-                    {contracts.map((contract) => (
-                      <div key={contract.id} className="bg-black/50 rounded-lg border border-red-900/20 p-4 group">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-3">
-                            <Badge className="bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                              {serviceTypeTranslations[language][contract.serviceType] || contract.serviceType}
-                            </Badge>
-                            <Badge className={`${
-                              contract.status === '契約中' 
-                                ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                                : 'bg-gray-500/20 text-gray-400 border border-gray-500/30'
-                            }`}>
-                              {statusTranslations[language][contract.status] || contract.status}
-                            </Badge>
-                          </div>
-                          <button
-                            onClick={() => { 
-                              handleEditContract(contract);
-                            }}
-                            className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-amber-400 transition-all"
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">{t.fixedFee}</p>
-                            <p className="text-white font-mono">{formatCurrency(contract.fixedFee)}</p>
-                          </div>
-                          <div>
-                            <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">{t.commissionRate}</p>
-                            <p className="text-purple-400 font-mono">{contract.commissionRate || "-"}</p>
-                          </div>
-                          <div>
-                            <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">{t.startDate}</p>
-                            <p className="text-white font-mono">{formatDate(contract.startDate)}</p>
-                          </div>
-                          <div>
-                            <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">{t.endDate}</p>
-                            <p className="text-white font-mono">{formatDate(contract.endDate)}</p>
-                          </div>
-                        </div>
-                        {/* ROAS表示コンポーネント */}
-                        <ContractRoasDisplay contractId={contract.id} fixedFee={contract.fixedFee || 0} />
-                      </div>
-                    ))}
-                  </div>
-                )}
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => setAiImageAddDialogOpen(true)}
+                  className="bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-500 hover:to-pink-400 text-white"
+                >
+                  <Sparkles className="h-4 w-4 mr-1" />
+                  {t.aiImageAdd}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => setAddProductDialogOpen(true)}
+                  className="bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  {t.add}
+                </Button>
               </div>
-            </CollapsibleContent>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-red-900/30">
+                    <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2 w-16"></th>
+                    <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2 max-w-[150px]">{t.productName}</th>
+                    <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.listPrice}</th>
+                    <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.specialPrice}</th>
+                    <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.gmv}</th>
+                    <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.commissionRate}</th>
+                    <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2 w-12"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {products.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="text-center text-gray-500 py-8">{t.noData}</td>
+                    </tr>
+                  ) : (
+                    products.map((product) => (
+                      <tr key={product.id} className="border-b border-red-900/20 hover:bg-red-900/10 transition-colors group">
+                        <td className="py-3 px-2">
+                          <div className="flex items-center gap-3">
+                            {/* 登録日表示 */}
+                            <div className="flex flex-col items-center min-w-[50px]">
+                              <span className="text-[9px] text-gray-400">{language === 'ja' ? '登録日' : '登记日'}</span>
+                              <span className="text-[11px] text-white font-mono">
+                                {product.createdAt ? new Date(product.createdAt).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit' }).replace('/', '/') : '-'}
+                              </span>
+                            </div>
+                            {/* 商品画像 */}
+                            {product.imageUrls && product.imageUrls.length > 0 ? (
+                              <img 
+                                src={product.imageUrls[0]} 
+                                alt={product.productName} 
+                                className="w-12 h-12 object-cover rounded-lg border border-red-900/30 cursor-pointer hover:border-pink-400 hover:scale-110 transition-all" 
+                                onClick={() => {
+                                  setSelectedProductForDetail(product);
+                                  setProductDetailDialogOpen(true);
+                                }}
+                              />
+                            ) : (
+                              <div className="w-12 h-12 bg-red-900/20 rounded-lg border border-red-900/30 flex items-center justify-center">
+                                <Package className="w-6 h-6 text-gray-600" />
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-2 max-w-[150px]">
+                          <span 
+                            className="text-white font-medium block truncate cursor-help" 
+                            title={product.productName}
+                          >
+                            {product.productName}
+                          </span>
+                        </td>
+                        <td className="py-3 px-2 text-right text-gray-400 text-lg" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                          {formatCurrency(product.listPrice)}
+                        </td>
+                        <td className="py-3 px-2 text-right text-red-400 text-lg font-bold" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                          {formatCurrency(product.specialPrice)}
+                        </td>
+                        <td className="py-3 px-2 text-right text-cyan-400 text-lg font-bold" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                          -
+                        </td>
+                        <td className="py-3 px-2 text-right text-purple-400 text-lg" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                          {product.commissionRate || "-"}
+                        </td>
+                        <td className="py-3 px-2 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {/* AI学習ボタン - 全商品に表示 */}
+                            <button
+                              onClick={() => { 
+                                setSelectedProductForAi(product); 
+                                setSelectedImageForAi(null);
+                                setAiAnalysisDialogOpen(true); 
+                              }}
+                              className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-yellow-400 transition-all"
+                              title={language === 'ja' ? 'AI学習' : 'AI学习'}
+                            >
+                              <Sparkles className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => { setEditingProduct(product); setEditProductDialogOpen(true); }}
+                              className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-cyan-400 transition-all"
+                              title={language === 'ja' ? '編集' : '编辑'}
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => { setProductToDelete(product); setDeleteProductDialogOpen(true); }}
+                              className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all"
+                              title={language === 'ja' ? '削除' : '删除'}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </Collapsible>
+        </div>
 
         {/* Activity Memos - Timeline */}
         <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,0,0,0.1)]">
