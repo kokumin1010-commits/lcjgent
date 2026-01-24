@@ -168,6 +168,9 @@ import {
   getLivestreamProductsTotalGmv,
   deleteLivestreamProductsByLivestreamId,
   getMonthlyGmvSummary,
+  createBrandMemo,
+  getMemosByBrandId,
+  deleteBrandMemo,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -2041,6 +2044,37 @@ ${JSON.stringify(teamSummary, null, 2)}`;
       .input(z.object({ brandId: z.number() }))
       .query(async ({ input }) => {
         return await getMonthlyGmvSummary(input.brandId);
+      }),
+  }),
+
+  // Brand Memo Router
+  brandMemo: router({
+    create: protectedProcedure
+      .input(
+        z.object({
+          brandId: z.number(),
+          content: z.string().min(1),
+          authorName: z.string().min(1),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        return await createBrandMemo({
+          ...input,
+          createdBy: ctx.user.id,
+        });
+      }),
+
+    listByBrand: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        return await getMemosByBrandId(input.brandId);
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteBrandMemo(input.id);
+        return { success: true };
       }),
   }),
 

@@ -785,3 +785,21 @@ export const livestreamProducts = mysqlTable("livestream_products", {
 
 export type LivestreamProduct = typeof livestreamProducts.$inferSelect;
 export type InsertLivestreamProduct = typeof livestreamProducts.$inferInsert;
+
+
+/**
+ * Brand Memos table for activity notes and timeline
+ * ブランドの活動メモ（タイムライン形式）を管理するテーブル
+ */
+export const brandMemos = mysqlTable("brand_memos", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(), // References brands.id
+  content: text("content").notNull(), // メモ内容
+  authorName: varchar("authorName", { length: 255 }).notNull(), // 作成者名
+  createdBy: int("createdBy").notNull(), // User ID who created the memo
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type BrandMemo = typeof brandMemos.$inferSelect;
+export type InsertBrandMemo = typeof brandMemos.$inferInsert;

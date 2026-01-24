@@ -246,6 +246,13 @@
       "when": 1769244061755,
       "tag": "0034_abnormal_karnak",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "5",
+      "when": 1769245384394,
+      "tag": "0035_typical_daredevil",
+      "breakpoints": true
     }
   ]
 }
