@@ -1477,12 +1477,52 @@ export default function BrandDetail() {
                   />
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-400">{language === 'ja' ? '商品クリック' : '商品点击'}</Label>
+                  <Input
+                    type="number"
+                    value={(editingLivestream as any).productClicks || ""}
+                    onChange={(e) => setEditingLivestream({ ...editingLivestream, productClicks: parseInt(e.target.value) || 0 })}
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-400">{language === 'ja' ? 'インプレッション' : '商品曝光'}</Label>
+                  <Input
+                    type="number"
+                    value={(editingLivestream as any).impressions || ""}
+                    onChange={(e) => setEditingLivestream({ ...editingLivestream, impressions: parseInt(e.target.value) || 0 })}
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-400">{language === 'ja' ? '販売件数' : '销售件数'}</Label>
+                  <Input
+                    type="number"
+                    value={(editingLivestream as any).salesCount || ""}
+                    onChange={(e) => setEditingLivestream({ ...editingLivestream, salesCount: parseInt(e.target.value) || 0 })}
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-400">GMV</Label>
+                  <Input
+                    type="number"
+                    value={editingLivestream.gmv || editingLivestream.salesAmount || ""}
+                    onChange={(e) => setEditingLivestream({ ...editingLivestream, gmv: parseInt(e.target.value) || 0 })}
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
+              </div>
               <div>
-                <Label className="text-gray-400">GMV</Label>
+                <Label className="text-gray-400">{language === 'ja' ? 'カート追加数' : '加购数'}</Label>
                 <Input
                   type="number"
-                  value={editingLivestream.gmv || editingLivestream.salesAmount || ""}
-                  onChange={(e) => setEditingLivestream({ ...editingLivestream, gmv: parseInt(e.target.value) || 0 })}
+                  value={(editingLivestream as any).cartAddCount || ""}
+                  onChange={(e) => setEditingLivestream({ ...editingLivestream, cartAddCount: parseInt(e.target.value) || 0 })}
                   className="bg-black/60 border-red-900/50 text-white mt-1"
                 />
               </div>
@@ -1556,6 +1596,10 @@ export default function BrandDetail() {
                     duration: editingLivestream.duration,
                     gmv: editingLivestream.gmv,
                     remarks: editingLivestream.remarks,
+                    productClicks: (editingLivestream as any).productClicks,
+                    impressions: (editingLivestream as any).impressions,
+                    salesCount: (editingLivestream as any).salesCount,
+                    cartAddCount: (editingLivestream as any).cartAddCount,
                     productId: editingLivestream.productId,
                     productCommission: editingLivestream.productCommission,
                     adCost: editingLivestream.adCost,
