@@ -900,6 +900,7 @@ export default function BrandDetail() {
                   <tr className="border-b border-red-900/30">
                     <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.date}</th>
                     <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{language === 'ja' ? '開始時間' : '开始时间'}</th>
+                    <th className="text-center text-xs text-gray-500 uppercase tracking-wider py-3 px-2 w-16">{language === 'ja' ? '画像' : '图片'}</th>
                     <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{language === 'ja' ? '商品' : '商品'}</th>
                     <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{language === 'ja' ? '手数料' : '手续费'}</th>
                     <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.account}</th>
@@ -922,7 +923,7 @@ export default function BrandDetail() {
                 <tbody>
                   {livestreams.length === 0 ? (
                     <tr>
-                      <td colSpan={19} className="text-center text-gray-500 py-8">{t.noData}</td>
+                      <td colSpan={20} className="text-center text-gray-500 py-8">{t.noData}</td>
                     </tr>
                   ) : (
                     livestreams.slice(0, 10).map((ls) => (
@@ -932,6 +933,22 @@ export default function BrandDetail() {
                         </td>
                         <td className="py-3 px-2 text-yellow-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                           {(ls as any).livestreamStartTime || '-'}
+                        </td>
+                        <td className="py-3 px-2 text-center">
+                          {(() => {
+                            const product = (ls as any).productId ? products.find(p => p.id === (ls as any).productId) : null;
+                            const imageUrl = product?.imageUrls ? (Array.isArray(product.imageUrls) ? product.imageUrls[0] : (typeof product.imageUrls === 'string' ? JSON.parse(product.imageUrls)[0] : null)) : null;
+                            if (imageUrl) {
+                              return (
+                                <img 
+                                  src={imageUrl} 
+                                  alt={product?.productName || ''}
+                                  className="w-10 h-10 object-cover rounded-md border border-red-900/30 mx-auto"
+                                />
+                              );
+                            }
+                            return <div className="w-10 h-10 bg-gray-800 rounded-md border border-red-900/30 flex items-center justify-center mx-auto"><Package className="w-4 h-4 text-gray-600" /></div>;
+                          })()}
                         </td>
                         <td className="py-3 px-2 text-cyan-400 font-medium">
                           {(ls as any).productId ? products.find(p => p.id === (ls as any).productId)?.productName || '-' : '-'}
