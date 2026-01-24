@@ -1187,145 +1187,180 @@ export default function BrandDetail() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/brands")}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold">{brand.name}</h1>
-            <p className="text-sm text-muted-foreground">{brand.companyName}</p>
+      <div className="min-h-screen tech-gradient-bg tech-grid-bg p-6 space-y-6">
+        {/* Tech Header */}
+        <div className="tech-card p-6">
+          <div className="flex items-center gap-4">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => navigate("/brands")}
+              className="text-gray-400 hover:text-white hover:bg-white/10"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex-1">
+              <h1 className="text-3xl font-bold neon-text-red tech-stat-value">{brand.name}</h1>
+              <p className="text-gray-400 mt-1">{brand.companyName}</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Badge className={`tech-badge-${brand.status === '契約済み' ? 'green' : brand.status === '打ち合わせ中' ? 'amber' : 'cyan'}`}>
+                {statusTranslations[language][brand.status] || brand.status}
+              </Badge>
+              <Button
+                onClick={() => navigate(`/brands/${id}/edit`)}
+                className="bg-red-600 hover:bg-red-700 neon-border-red"
+              >
+                <Edit2 className="h-4 w-4 mr-2" />
+                {t.edit}
+              </Button>
+            </div>
           </div>
-          <Button
-            onClick={() => navigate(`/brands/${id}/edit`)}
-            className="bg-red-600 hover:bg-red-700"
-          >
-            <Edit2 className="h-4 w-4 mr-2" />
-            {t.edit}
-          </Button>
         </div>
 
-        {/* Basic Info */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t.basicInfo}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">{t.category}</p>
-                  <p className="font-medium">{brand.category ? (categoryTranslations[language][brand.category] || brand.category) : "-"}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">{t.phoneNumber}</p>
-                  <p className="font-medium">{brand.phoneNumber || "-"}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">{t.email}</p>
-                  <p className="font-medium">{brand.email || "-"}</p>
-                </div>
+        {/* KPI Dashboard */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="tech-card p-5">
+            <div className="flex items-center gap-2 mb-2">
+              <DollarSign className="h-4 w-4 text-red-400" />
+              <span className="text-xs text-gray-400 uppercase tracking-wider">{t.adBudget}</span>
+            </div>
+            <p className="text-2xl font-bold neon-text-red tech-stat-value">
+              {formatCurrency(brand.adBudget)}
+            </p>
+          </div>
+          <div className="tech-card-cyan p-5">
+            <div className="flex items-center gap-2 mb-2">
+              <TrendingUp className="h-4 w-4 text-cyan-400" />
+              <span className="text-xs text-gray-400 uppercase tracking-wider">{t.salesTarget}</span>
+            </div>
+            <p className="text-2xl font-bold neon-text-cyan tech-stat-value">
+              {formatCurrency(brand.salesTarget)}
+            </p>
+          </div>
+          <div className="tech-card p-5" style={{borderColor: 'rgba(168, 85, 247, 0.3)', boxShadow: '0 0 20px rgba(168, 85, 247, 0.1)'}}>
+            <div className="flex items-center gap-2 mb-2">
+              <Percent className="h-4 w-4 text-purple-400" />
+              <span className="text-xs text-gray-400 uppercase tracking-wider">{t.commissionRate}</span>
+            </div>
+            <p className="text-2xl font-bold neon-text-purple tech-stat-value">
+              {brand.commissionRate || "-"}
+            </p>
+          </div>
+          <div className="tech-card p-5" style={{borderColor: 'rgba(16, 185, 129, 0.3)', boxShadow: '0 0 20px rgba(16, 185, 129, 0.1)'}}>
+            <div className="flex items-center gap-2 mb-2">
+              <Package className="h-4 w-4 text-emerald-400" />
+              <span className="text-xs text-gray-400 uppercase tracking-wider">{t.products}</span>
+            </div>
+            <p className="text-2xl font-bold neon-text-green tech-stat-value">
+              {products.length}
+            </p>
+          </div>
+        </div>
+
+        {/* Basic Info - Tech Style */}
+        <div className="tech-card p-6">
+          <h2 className="text-lg font-bold text-gray-200 mb-6 flex items-center gap-2">
+            <span className="w-1 h-5 bg-cyan-500 rounded"></span>
+            {t.basicInfo}
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div className="p-3 rounded-lg bg-slate-800/50">
+                <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">{t.category}</p>
+                <p className="text-gray-200 font-medium">{brand.category ? (categoryTranslations[language][brand.category] || brand.category) : "-"}</p>
               </div>
-              <div className="space-y-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">{t.status}</p>
-                  <Badge className={statusColors[brand.status] || "bg-gray-100"}>
-                    {statusTranslations[language][brand.status] || brand.status}
-                  </Badge>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">{t.contactPerson}</p>
-                  <p className="font-medium">{brand.contactPerson || "-"}</p>
-                </div>
+              <div className="p-3 rounded-lg bg-slate-800/50">
+                <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">{t.phoneNumber}</p>
+                <p className="text-gray-200 font-medium tech-stat-value">{brand.phoneNumber || "-"}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-slate-800/50">
+                <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">{t.email}</p>
+                <p className="text-gray-200 font-medium">{brand.email || "-"}</p>
               </div>
             </div>
-
-            {/* Financial Info */}
-            <div className="mt-6 pt-6 border-t grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground">{t.adBudget}</p>
-                <p className="font-medium text-lg">{formatCurrency(brand.adBudget)}</p>
+            <div className="space-y-4">
+              <div className="p-3 rounded-lg bg-slate-800/50">
+                <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">{t.status}</p>
+                <Badge className={`tech-badge-${brand.status === '契約済み' ? 'green' : brand.status === '打ち合わせ中' ? 'amber' : 'cyan'}`}>
+                  {statusTranslations[language][brand.status] || brand.status}
+                </Badge>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{t.salesTarget}</p>
-                <p className="font-medium text-lg">{formatCurrency(brand.salesTarget)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{t.commissionRate}</p>
-                <p className="font-medium text-lg">{brand.commissionRate || "-"}</p>
+              <div className="p-3 rounded-lg bg-slate-800/50">
+                <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">{t.contactPerson}</p>
+                <p className="text-gray-200 font-medium">{brand.contactPerson || "-"}</p>
               </div>
             </div>
+          </div>
 
-            {brand.memo && (
-              <div className="mt-6 pt-6 border-t">
-                <p className="text-sm text-muted-foreground">{t.memo}</p>
-                <p className="font-medium whitespace-pre-wrap">{brand.memo}</p>
-              </div>
-            )}
+          {brand.memo && (
+            <div className="mt-6 pt-6 border-t border-gray-700/50">
+              <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">{t.memo}</p>
+              <p className="text-gray-300 whitespace-pre-wrap">{brand.memo}</p>
+            </div>
+          )}
 
-            {/* LCJ担当者セクション */}
-            <div className="mt-6 pt-6 border-t">
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-sm font-medium text-muted-foreground">{t.lcjStaff}</p>
-                <Select
-                  onValueChange={(value) => {
-                    const staffId = parseInt(value);
-                    if (staffId > 0) {
-                      assignLcjStaffMutation.mutate({ brandId, reportStaffId: staffId });
-                    }
-                  }}
-                >
-                  <SelectTrigger className="w-[200px]">
-                    <SelectValue placeholder={t.selectLcjStaff} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {reportStaff
-                      .filter((staff: any) => !lcjStaff.some((assigned: any) => assigned.reportStaffId === staff.id))
-                      .map((staff: any) => (
-                        <SelectItem key={staff.id} value={staff.id.toString()}>
-                          {staff.name} ({staff.country})
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {lcjStaff.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {lcjStaff.map((staff: any) => (
-                    <Badge
-                      key={staff.id}
-                      variant="secondary"
-                      className="flex items-center gap-2 px-3 py-1.5"
+          {/* LCJ担当者セクション */}
+          <div className="mt-6 pt-6 border-t border-gray-700/50">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm font-medium text-gray-400">{t.lcjStaff}</p>
+              <Select
+                onValueChange={(value) => {
+                  const staffId = parseInt(value);
+                  if (staffId > 0) {
+                    assignLcjStaffMutation.mutate({ brandId, reportStaffId: staffId });
+                  }
+                }}
+              >
+                <SelectTrigger className="w-[200px] bg-slate-800 border-gray-700 text-gray-200">
+                  <SelectValue placeholder={t.selectLcjStaff} />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-800 border-gray-700">
+                  {reportStaff
+                    .filter((staff: any) => !lcjStaff.some((assigned: any) => assigned.reportStaffId === staff.id))
+                    .map((staff: any) => (
+                      <SelectItem key={staff.id} value={staff.id.toString()} className="text-gray-200 hover:bg-slate-700">
+                        {staff.name} ({staff.country})
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {lcjStaff.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {lcjStaff.map((staff: any) => (
+                  <Badge
+                    key={staff.id}
+                    className="tech-badge-cyan flex items-center gap-2 px-3 py-1.5"
+                  >
+                    <span>{staff.staffName}</span>
+                    <span className="text-xs opacity-70">({staff.staffCountry})</span>
+                    <button
+                      onClick={() => removeLcjStaffMutation.mutate({ brandId, reportStaffId: staff.reportStaffId })}
+                      className="ml-1 hover:text-red-400"
                     >
-                      <span>{staff.staffName}</span>
-                      <span className="text-xs text-muted-foreground">({staff.staffCountry})</span>
-                      <button
-                        onClick={() => removeLcjStaffMutation.mutate({ brandId, reportStaffId: staff.reportStaffId })}
-                        className="ml-1 hover:text-red-500"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">{t.noLcjStaff}</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">{t.noLcjStaff}</p>
+            )}
+          </div>
+        </div>
 
-        {/* Contracts */}
-        <Card className="overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20">
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-orange-500" />
+        {/* Contracts - Tech Style */}
+        <div className="tech-card p-6">
+          <div className="flex flex-row items-center justify-between mb-6">
+            <h2 className="text-lg font-bold text-gray-200 flex items-center gap-2">
+              <span className="w-1 h-5 bg-amber-500 rounded"></span>
+              <FileText className="h-5 w-5 text-amber-500" />
               {t.contracts}
               {contracts.length > 0 && (
-                <Badge variant="secondary" className="ml-2">{contracts.length}</Badge>
+                <Badge className="tech-badge-amber ml-2">{contracts.length}</Badge>
               )}
-            </CardTitle>
+            </h2>
             <Dialog open={isContractDialogOpen} onOpenChange={setIsContractDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="bg-red-600 hover:bg-red-700">
@@ -1470,8 +1505,8 @@ export default function BrandDetail() {
                 </div>
               </DialogContent>
             </Dialog>
-          </CardHeader>
-          <CardContent>
+          </div>
+          <div>
             {contracts.length > 0 ? (
               <div className="space-y-4">
                 {contracts.map((contract: any) => (
@@ -1558,8 +1593,8 @@ export default function BrandDetail() {
                 {t.noContracts}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* 契約編集ダイアログ */}
         <Dialog open={isEditContractDialogOpen} onOpenChange={setIsEditContractDialogOpen}>
@@ -1706,16 +1741,17 @@ export default function BrandDetail() {
           </DialogContent>
         </Dialog>
 
-        {/* Products */}
-        <Card className="overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20">
-            <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5 text-blue-500" />
+        {/* Products - Tech Style */}
+        <div className="tech-card p-6">
+          <div className="flex flex-row items-center justify-between mb-6">
+            <h2 className="text-lg font-bold text-gray-200 flex items-center gap-2">
+              <span className="w-1 h-5 bg-cyan-500 rounded"></span>
+              <Package className="h-5 w-5 text-cyan-500" />
               {t.products}
               {products.length > 0 && (
-                <Badge variant="secondary" className="ml-2">{products.length}</Badge>
+                <Badge className="tech-badge-cyan ml-2">{products.length}</Badge>
               )}
-            </CardTitle>
+            </h2>
             <div className="flex gap-2">
               {/* AI商品登録ボタン */}
               <Dialog open={isAiProductDialogOpen} onOpenChange={(open) => {
@@ -2130,14 +2166,14 @@ export default function BrandDetail() {
               </DialogContent>
             </Dialog>
             </div>
-          </CardHeader>
-          <CardContent>
+          </div>
+          <div>
             {products.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {products.map((product) => (
                   <div
                     key={product.id}
-                    className="group relative bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-300 cursor-pointer"
+                    className="group relative tech-card p-4 hover:border-cyan-500/50 transition-all duration-300 cursor-pointer"
                     onClick={() => {
                       setSelectedProduct(product);
                       setIsProductDetailDialogOpen(true);
@@ -2169,7 +2205,7 @@ export default function BrandDetail() {
 
                     {/* 商品名とコード */}
                     <div className="mb-3">
-                      <h4 className="font-semibold text-sm line-clamp-2 mb-1">{product.productName}</h4>
+                      <h4 className="font-semibold text-sm line-clamp-2 mb-1 text-gray-200">{product.productName}</h4>
                       {product.productCode && (
                         <p className="text-xs text-muted-foreground flex items-center gap-1">
                           <Tag className="h-3 w-3" />
@@ -2178,29 +2214,29 @@ export default function BrandDetail() {
                       )}
                     </div>
 
-                    {/* 価格情報 */}
+                    {/* 価格情報 - Tech Style */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <span className="text-xs text-gray-400 flex items-center gap-1">
                           <DollarSign className="h-3 w-3" />
                           {t.listPrice}
                         </span>
-                        <span className="font-medium text-sm">{formatCurrency(product.listPrice)}</span>
+                        <span className="font-medium text-sm text-gray-300">{formatCurrency(product.listPrice)}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Sparkles className="h-3 w-3 text-orange-500" />
+                        <span className="text-xs text-gray-400 flex items-center gap-1">
+                          <Sparkles className="h-3 w-3 text-cyan-500" />
                           {t.specialPrice}
                         </span>
-                        <span className="font-bold text-sm text-red-600">{formatCurrency(product.specialPrice)}</span>
+                        <span className="font-bold text-sm text-cyan-400 neon-text-cyan">{formatCurrency(product.specialPrice)}</span>
                       </div>
                       {product.discountRate && (
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          <span className="text-xs text-gray-400 flex items-center gap-1">
                             <Percent className="h-3 w-3 text-green-500" />
                             {t.discountRate}
                           </span>
-                          <Badge className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                          <Badge className="tech-badge-green">
                             {product.discountRate}
                           </Badge>
                         </div>
@@ -2226,8 +2262,8 @@ export default function BrandDetail() {
                 <p>{t.noProducts}</p>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* 商品詳細ポップアップ - 画像中心のフルスクリーン表示 */}
         {isProductDetailDialogOpen && selectedProduct && (
@@ -2608,34 +2644,35 @@ export default function BrandDetail() {
           </CardContent>
         </Card>
 
-        {/* 直播履歴セクション */}
-        <Card className="overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between bg-gradient-to-r from-pink-50 to-red-50 dark:from-pink-900/20 dark:to-red-900/20">
+        {/* 直播履歴セクション - Tech Style */}
+        <div className="tech-card p-6">
+          <div className="flex flex-row items-center justify-between mb-6">
             <div className="flex items-center gap-4">
-              <CardTitle className="flex items-center gap-2">
+              <h2 className="text-lg font-bold text-gray-200 flex items-center gap-2">
+                <span className="w-1 h-5 bg-pink-500 rounded"></span>
                 <Video className="h-5 w-5 text-pink-500" />
                 {t.livestreams}
                 {livestreams.length > 0 && (
-                  <Badge variant="secondary" className="ml-2">{livestreams.length}</Badge>
+                  <Badge className="tech-badge-pink ml-2">{livestreams.length}</Badge>
                 )}
-              </CardTitle>
+              </h2>
               {livestreamStats && livestreamStats.totalStreams > 0 && (
                 <div className="hidden md:flex gap-3">
-                  <div className="flex items-center gap-1 px-3 py-1 bg-green-100 dark:bg-green-900/30 rounded-full">
-                    <DollarSign className="h-3 w-3 text-green-600" />
-                    <span className="text-xs font-medium text-green-700 dark:text-green-400">
+                  <div className="flex items-center gap-1 px-3 py-1 bg-green-500/20 border border-green-500/30 rounded-full">
+                    <DollarSign className="h-3 w-3 text-green-400" />
+                    <span className="text-xs font-medium text-green-400">
                       {formatCurrency(livestreamStats.totalSales)}
                     </span>
                   </div>
-                  <div className="flex items-center gap-1 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 rounded-full">
-                    <Video className="h-3 w-3 text-blue-600" />
-                    <span className="text-xs font-medium text-blue-700 dark:text-blue-400">
+                  <div className="flex items-center gap-1 px-3 py-1 bg-cyan-500/20 border border-cyan-500/30 rounded-full">
+                    <Video className="h-3 w-3 text-cyan-400" />
+                    <span className="text-xs font-medium text-cyan-400">
                       {livestreamStats.totalStreams}回
                     </span>
                   </div>
-                  <div className="flex items-center gap-1 px-3 py-1 bg-purple-100 dark:bg-purple-900/30 rounded-full">
-                    <TrendingUp className="h-3 w-3 text-purple-600" />
-                    <span className="text-xs font-medium text-purple-700 dark:text-purple-400">
+                  <div className="flex items-center gap-1 px-3 py-1 bg-purple-500/20 border border-purple-500/30 rounded-full">
+                    <TrendingUp className="h-3 w-3 text-purple-400" />
+                    <span className="text-xs font-medium text-purple-400">
                       平均 {formatCurrency(livestreamStats.avgSales)}
                     </span>
                   </div>
@@ -2929,39 +2966,39 @@ export default function BrandDetail() {
                 </div>
               </DialogContent>
             </Dialog>
-          </CardHeader>
-          <CardContent>
+          </div>
+          <div>
             {/* 月別GMVサマリー */}
             {monthlyGmvSummary.length > 0 && (
               <div className="mb-6">
-                <h4 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
+                <h4 className="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-cyan-400" />
                   月別GMV集計
                 </h4>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                   {monthlyGmvSummary.map((summary) => (
                     <div
                       key={summary.month}
-                      className="bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-lg p-3 border border-indigo-100 dark:border-indigo-800"
+                      className="bg-gray-800/50 backdrop-blur-sm rounded-lg p-3 border border-purple-500/30 hover:border-purple-500/50 transition-colors"
                     >
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
+                        <span className="text-sm font-semibold text-purple-400">
                           {summary.year}年{summary.monthNum}月
                         </span>
-                        <Badge variant="outline" className="text-xs bg-white/50 dark:bg-gray-800/50">
+                        <Badge className="text-xs bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
                           {summary.livestreamCount}回
                         </Badge>
                       </div>
                       <div className="space-y-1">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">商品数</span>
-                          <span className="text-sm font-medium text-purple-600 dark:text-purple-400">
+                          <span className="text-xs text-gray-500">商品数</span>
+                          <span className="text-sm font-medium text-pink-400">
                             {summary.productCount}品
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">GMV合計</span>
-                          <span className="text-sm font-bold text-green-600 dark:text-green-400">
+                          <span className="text-xs text-gray-500">GMV合計</span>
+                          <span className="text-sm font-bold text-green-400">
                             {formatCurrency(summary.gmv)}
                           </span>
                         </div>
@@ -2976,53 +3013,61 @@ export default function BrandDetail() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {livestreams.map((ls) => {
                   const platformColors: Record<string, string> = {
-                    "抖音": "from-pink-500 to-red-500",
-                    "淘宝": "from-orange-500 to-red-500",
-                    "快手": "from-orange-400 to-yellow-500",
-                    "TikTok": "from-cyan-500 to-pink-500",
-                    "小红书": "from-red-400 to-pink-500",
+                    "抖音": "border-pink-500/50 shadow-pink-500/20",
+                    "淘宝": "border-orange-500/50 shadow-orange-500/20",
+                    "快手": "border-yellow-500/50 shadow-yellow-500/20",
+                    "TikTok": "border-cyan-500/50 shadow-cyan-500/20",
+                    "小红书": "border-red-500/50 shadow-red-500/20",
                   };
-                  const gradientClass = platformColors[ls.platform || ""] || "from-gray-500 to-gray-600";
+                  const platformBadgeColors: Record<string, string> = {
+                    "抖音": "bg-pink-500/20 text-pink-400 border-pink-500/30",
+                    "淘宝": "bg-orange-500/20 text-orange-400 border-orange-500/30",
+                    "快手": "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+                    "TikTok": "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
+                    "小红书": "bg-red-500/20 text-red-400 border-red-500/30",
+                  };
+                  const borderClass = platformColors[ls.platform || ""] || "border-gray-500/50 shadow-gray-500/20";
+                  const badgeClass = platformBadgeColors[ls.platform || ""] || "bg-gray-500/20 text-gray-400 border-gray-500/30";
                   
                   return (
                     <div
                       key={ls.id}
-                      className="group relative bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-lg transition-all duration-300 cursor-pointer"
+                      className={`group relative bg-gray-900/80 backdrop-blur-sm rounded-xl border ${borderClass} overflow-hidden hover:shadow-lg transition-all duration-300 cursor-pointer`}
                       onClick={() => openEditLivestreamDialog(ls)}
                     >
-                      {/* ヘッダーグラデーション */}
-                      <div className={`h-2 bg-gradient-to-r ${gradientClass}`} />
+                      {/* テクノロジー風グローエフェクト */}
+                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 via-pink-500 to-purple-500 opacity-60" />
                       
                       {/* 削除ボタン */}
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="absolute top-3 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                        className="absolute top-3 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-red-500/20"
                         onClick={(e) => {
                           e.stopPropagation();
                           deleteLivestreamMutation.mutate({ id: ls.id });
                         }}
                       >
-                        <Trash2 className="h-4 w-4 text-red-500" />
+                        <Trash2 className="h-4 w-4 text-red-400" />
                       </Button>
                       
                       <div className="p-4">
                         {/* ヘッダー */}
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-2">
-                            <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${gradientClass} flex items-center justify-center`}>
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-pink-500 flex items-center justify-center">
                               <Video className="h-4 w-4 text-white" />
                             </div>
                             <div>
-                              <p className="font-semibold text-sm">{ls.streamerName}</p>
-                              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                              <p className="font-semibold text-sm text-gray-200">@{ls.streamerName}</p>
+                              <p className="text-xs text-gray-400 flex items-center gap-1">
                                 <Calendar className="h-3 w-3" />
                                 {new Date(ls.livestreamDate).toLocaleDateString()}
                               </p>
                             </div>
                           </div>
                           {ls.platform && (
-                            <Badge className={`bg-gradient-to-r ${gradientClass} text-white border-0`}>
+                            <Badge className={`${badgeClass} border`}>
                               {ls.platform}
                             </Badge>
                           )}
@@ -3030,42 +3075,42 @@ export default function BrandDetail() {
                         
                         {/* メトリクス */}
                         <div className="grid grid-cols-2 gap-3">
-                          <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg p-3">
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
-                              <DollarSign className="h-3 w-3 text-green-500" />
+                          <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3">
+                            <div className="flex items-center gap-1 text-xs text-gray-400 mb-1">
+                              <DollarSign className="h-3 w-3 text-green-400" />
                               {t.salesAmount}
                             </div>
-                            <p className="font-bold text-green-600 dark:text-green-400">
+                            <p className="font-bold text-green-400">
                               {formatCurrency(ls.salesAmount)}
                             </p>
                           </div>
-                          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg p-3">
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
-                              <Clock className="h-3 w-3 text-blue-500" />
+                          <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-lg p-3">
+                            <div className="flex items-center gap-1 text-xs text-gray-400 mb-1">
+                              <Clock className="h-3 w-3 text-cyan-400" />
                               {t.duration}
                             </div>
-                            <p className="font-bold text-blue-600 dark:text-blue-400">
+                            <p className="font-bold text-cyan-400">
                               {ls.duration ? `${ls.duration}分` : "-"}
                             </p>
                           </div>
                           {ls.viewerCount && (
-                            <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-lg p-3">
-                              <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
-                                <Eye className="h-3 w-3 text-purple-500" />
+                            <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-3">
+                              <div className="flex items-center gap-1 text-xs text-gray-400 mb-1">
+                                <Eye className="h-3 w-3 text-purple-400" />
                                 {t.viewerCount}
                               </div>
-                              <p className="font-bold text-purple-600 dark:text-purple-400">
+                              <p className="font-bold text-purple-400">
                                 {ls.viewerCount.toLocaleString()}
                               </p>
                             </div>
                           )}
                           {ls.orderCount && (
-                            <div className="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 rounded-lg p-3">
-                              <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
-                                <ShoppingCart className="h-3 w-3 text-orange-500" />
+                            <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-3">
+                              <div className="flex items-center gap-1 text-xs text-gray-400 mb-1">
+                                <ShoppingCart className="h-3 w-3 text-orange-400" />
                                 {t.orderCount}
                               </div>
-                              <p className="font-bold text-orange-600 dark:text-orange-400">
+                              <p className="font-bold text-orange-400">
                                 {ls.orderCount.toLocaleString()}
                               </p>
                             </div>
@@ -3073,8 +3118,8 @@ export default function BrandDetail() {
                         </div>
                         
                         {/* 編集ヒント */}
-                        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
-                          <p className="text-xs text-center text-muted-foreground">
+                        <div className="mt-3 pt-3 border-t border-gray-700/50">
+                          <p className="text-xs text-center text-gray-500">
                             クリックして編集
                           </p>
                         </div>
@@ -3084,14 +3129,13 @@ export default function BrandDetail() {
                 })}
               </div>
             ) : (
-              <div className="text-center py-12 text-muted-foreground">
-                <Video className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                <p>{t.noLivestreams}</p>
+              <div className="text-center py-12">
+                <Video className="h-12 w-12 mx-auto mb-3 text-gray-600" />
+                <p className="text-gray-500">{t.noLivestreams}</p>
               </div>
             )}
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </div>
 
       {/* 直播商品別GMVダイアログ */}
       <Dialog open={isLivestreamProductDialogOpen} onOpenChange={setIsLivestreamProductDialogOpen}>
@@ -3498,6 +3542,7 @@ export default function BrandDetail() {
           )}
         </DialogContent>
       </Dialog>
+      </div>
     </DashboardLayout>
   );
 }
