@@ -1921,6 +1921,15 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           salesCount: z.number().optional(),
           gmv: z.number().optional(),
           cartAddCount: z.number().optional(),
+          // 商品紐付けフィールド
+          productId: z.number().optional(),
+          productCommission: z.string().optional(),
+          adCost: z.number().optional(),
+          ctr: z.string().optional(),
+          cvr: z.string().optional(),
+          cpc: z.number().optional(),
+          acos: z.string().optional(),
+          roas: z.string().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -1961,6 +1970,15 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           salesCount: z.number().optional(),
           gmv: z.number().optional(),
           cartAddCount: z.number().optional(),
+          // 商品紐付けフィールド
+          productId: z.number().nullable().optional(),
+          productCommission: z.string().optional(),
+          adCost: z.number().optional(),
+          ctr: z.string().optional(),
+          cvr: z.string().optional(),
+          cpc: z.number().optional(),
+          acos: z.string().optional(),
+          roas: z.string().optional(),
         })
       )
       .mutation(async ({ input }) => {

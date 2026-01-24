@@ -248,6 +248,14 @@ export const brandLivestreams = mysqlTable("brand_livestreams", {
   salesCount: int("salesCount"), // 販売件数
   gmv: bigint("gmv", { mode: "number" }), // GMV（総取引額）
   cartAddCount: int("cartAddCount"), // カート追加回数
+  productId: int("productId"), // References brandProducts.id - 紐付いた商品
+  productCommission: varchar("productCommission", { length: 50 }), // 商品手数料 (e.g., "15%", "20%")
+  adCost: bigint("adCost", { mode: "number" }), // 広告費
+  ctr: varchar("ctr", { length: 20 }), // CTR（クリック率）
+  cvr: varchar("cvr", { length: 20 }), // CVR（コンバージョン率）
+  cpc: bigint("cpc", { mode: "number" }), // CPC（クリック単価）
+  acos: varchar("acos", { length: 20 }), // ACOS（広告費売上比率）
+  roas: varchar("roas", { length: 20 }), // ROAS（広告費用対効果）
   createdBy: int("createdBy").notNull(), // User ID who created the record
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

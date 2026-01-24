@@ -300,7 +300,7 @@ export default function BrandDetail() {
   const [addProductDialogOpen, setAddProductDialogOpen] = useState(false);
   const [addLivestreamDialogOpen, setAddLivestreamDialogOpen] = useState(false);
   const [newProduct, setNewProduct] = useState({ productName: "", listPrice: 0, specialPrice: 0, commissionRate: "", remarks: "" });
-  const [newLivestream, setNewLivestream] = useState({ livestreamDate: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "", productClicks: 0, impressions: 0, salesCount: 0, cartAddCount: 0 });
+  const [newLivestream, setNewLivestream] = useState({ livestreamDate: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "", productClicks: 0, impressions: 0, salesCount: 0, cartAddCount: 0, productId: null as number | null, productCommission: "", adCost: 0, ctr: "", cvr: "", cpc: 0, acos: "", roas: "" });
   // Delete states
   const [deleteProductDialogOpen, setDeleteProductDialogOpen] = useState(false);
   const [deleteLivestreamDialogOpen, setDeleteLivestreamDialogOpen] = useState(false);
@@ -365,7 +365,7 @@ export default function BrandDetail() {
     onSuccess: () => {
       refetchLivestreams();
       setAddLivestreamDialogOpen(false);
-      setNewLivestream({ livestreamDate: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "", productClicks: 0, impressions: 0, salesCount: 0, cartAddCount: 0 });
+      setNewLivestream({ livestreamDate: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "", productClicks: 0, impressions: 0, salesCount: 0, cartAddCount: 0, productId: null, productCommission: "", adCost: 0, ctr: "", cvr: "", cpc: 0, acos: "", roas: "" });
       toast.success("直播を追加しました");
     },
     onError: () => {
@@ -648,7 +648,7 @@ export default function BrandDetail() {
               <Button
                 variant="outline"
                 onClick={() => setIsDetailsDialogOpen(true)}
-                className="border-red-900/50 text-gray-300 hover:bg-red-900/20 hover:text-white hover:border-red-500/50"
+                className="border-red-500/50 bg-red-950/50 text-gray-200 hover:bg-red-900/40 hover:text-white hover:border-red-400/70"
               >
                 {t.details}
               </Button>
@@ -663,7 +663,7 @@ export default function BrandDetail() {
               <Button
                 variant="outline"
                 onClick={() => setLanguage(language === 'ja' ? 'zh' : 'ja')}
-                className="border-red-900/50 text-gray-300 hover:bg-red-900/20 hover:text-white hover:border-red-500/50"
+                className="border-red-500/50 bg-red-950/50 text-gray-200 hover:bg-red-900/40 hover:text-white hover:border-red-400/70"
               >
                 <Globe className="h-4 w-4 mr-2" />
                 {language === 'ja' ? '中文' : '日本語'}
@@ -899,6 +899,8 @@ export default function BrandDetail() {
                 <thead>
                   <tr className="border-b border-red-900/30">
                     <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.date}</th>
+                    <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{language === 'ja' ? '商品' : '商品'}</th>
+                    <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{language === 'ja' ? '手数料' : '手续费'}</th>
                     <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.account}</th>
                     <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.platform}</th>
                     <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.productClicks}</th>
@@ -919,13 +921,19 @@ export default function BrandDetail() {
                 <tbody>
                   {livestreams.length === 0 ? (
                     <tr>
-                      <td colSpan={16} className="text-center text-gray-500 py-8">{t.noData}</td>
+                      <td colSpan={18} className="text-center text-gray-500 py-8">{t.noData}</td>
                     </tr>
                   ) : (
                     livestreams.slice(0, 10).map((ls) => (
                       <tr key={ls.id} className="border-b border-red-900/20 hover:bg-red-900/10 transition-colors group">
                         <td className="py-3 px-2 text-gray-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                           {formatDate(ls.livestreamDate)}
+                        </td>
+                        <td className="py-3 px-2 text-cyan-400 font-medium">
+                          {(ls as any).productId ? products.find(p => p.id === (ls as any).productId)?.productName || '-' : '-'}
+                        </td>
+                        <td className="py-3 px-2 text-purple-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                          {(ls as any).productCommission || '-'}
                         </td>
                         <td className="py-3 px-2 text-white font-medium">{ls.streamerName}</td>
                         <td className="py-3 px-2 text-gray-400">{ls.platform || "-"}</td>
@@ -1208,7 +1216,7 @@ export default function BrandDetail() {
             <Button
               variant="outline"
               onClick={() => { setEditProductDialogOpen(false); setEditingProduct(null); }}
-              className="border-red-900/50 text-gray-300 hover:bg-red-900/20 hover:text-white"
+              className="border-red-500/50 bg-red-950/50 text-gray-200 hover:bg-red-900/40 hover:text-white hover:border-red-400/70"
             >
               {t.cancel}
             </Button>
@@ -1300,6 +1308,108 @@ export default function BrandDetail() {
                   className="bg-black/60 border-red-900/50 text-white mt-1"
                 />
               </div>
+              {/* 商品選択と手数料 */}
+              <div className="border-t border-red-900/30 pt-4 mt-4">
+                <p className="text-sm text-pink-400 mb-3 font-medium">{language === 'ja' ? '商品紐付け' : '商品关联'}</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-gray-400">{language === 'ja' ? '商品' : '商品'}</Label>
+                    <Select
+                      value={editingLivestream.productId?.toString() || ""}
+                      onValueChange={(value) => {
+                        const selectedProduct = products.find(p => p.id.toString() === value);
+                        setEditingLivestream({ 
+                          ...editingLivestream, 
+                          productId: value ? parseInt(value) : null,
+                          productCommission: selectedProduct?.commissionRate || editingLivestream.productCommission
+                        });
+                      }}
+                    >
+                      <SelectTrigger className="bg-black/60 border-red-900/50 text-white mt-1">
+                        <SelectValue placeholder={language === 'ja' ? '商品を選択' : '选择商品'} />
+                      </SelectTrigger>
+                      <SelectContent className="bg-black/95 border-red-900/50">
+                        {products.map((product) => (
+                          <SelectItem key={product.id} value={product.id.toString()}>
+                            {product.productName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-gray-400">{language === 'ja' ? '商品手数料' : '商品手续费'}</Label>
+                    <Input
+                      value={editingLivestream.productCommission || ""}
+                      onChange={(e) => setEditingLivestream({ ...editingLivestream, productCommission: e.target.value })}
+                      placeholder={language === 'ja' ? '例: 15%' : '例: 15%'}
+                      className="bg-black/60 border-red-900/50 text-white mt-1"
+                    />
+                  </div>
+                </div>
+              </div>
+              {/* 広告メトリクス */}
+              <div className="border-t border-red-900/30 pt-4 mt-4">
+                <p className="text-sm text-orange-400 mb-3 font-medium">{language === 'ja' ? '広告メトリクス' : '广告指标'}</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-gray-400">{t.adCost}</Label>
+                    <Input
+                      type="number"
+                      value={editingLivestream.adCost || ""}
+                      onChange={(e) => setEditingLivestream({ ...editingLivestream, adCost: parseInt(e.target.value) || 0 })}
+                      className="bg-black/60 border-red-900/50 text-white mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-gray-400">{t.ctr}</Label>
+                    <Input
+                      value={editingLivestream.ctr || ""}
+                      onChange={(e) => setEditingLivestream({ ...editingLivestream, ctr: e.target.value })}
+                      placeholder="例: 2.5%"
+                      className="bg-black/60 border-red-900/50 text-white mt-1"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-4 mt-3">
+                  <div>
+                    <Label className="text-gray-400">{t.cvr}</Label>
+                    <Input
+                      value={editingLivestream.cvr || ""}
+                      onChange={(e) => setEditingLivestream({ ...editingLivestream, cvr: e.target.value })}
+                      placeholder="例: 5%"
+                      className="bg-black/60 border-red-900/50 text-white mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-gray-400">{t.cpc}</Label>
+                    <Input
+                      type="number"
+                      value={editingLivestream.cpc || ""}
+                      onChange={(e) => setEditingLivestream({ ...editingLivestream, cpc: parseInt(e.target.value) || 0 })}
+                      className="bg-black/60 border-red-900/50 text-white mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-gray-400">{t.acos}</Label>
+                    <Input
+                      value={editingLivestream.acos || ""}
+                      onChange={(e) => setEditingLivestream({ ...editingLivestream, acos: e.target.value })}
+                      placeholder="例: 20%"
+                      className="bg-black/60 border-red-900/50 text-white mt-1"
+                    />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <Label className="text-gray-400">{t.roas}</Label>
+                  <Input
+                    value={editingLivestream.roas || ""}
+                    onChange={(e) => setEditingLivestream({ ...editingLivestream, roas: e.target.value })}
+                    placeholder="例: 3.5"
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
+              </div>
               <div>
                 <Label className="text-gray-400">備考</Label>
                 <Textarea
@@ -1314,7 +1424,7 @@ export default function BrandDetail() {
             <Button
               variant="outline"
               onClick={() => { setEditLivestreamDialogOpen(false); setEditingLivestream(null); }}
-              className="border-red-900/50 text-gray-300 hover:bg-red-900/20 hover:text-white"
+              className="border-red-500/50 bg-red-950/50 text-gray-200 hover:bg-red-900/40 hover:text-white hover:border-red-400/70"
             >
               {t.cancel}
             </Button>
@@ -1329,6 +1439,14 @@ export default function BrandDetail() {
                     duration: editingLivestream.duration,
                     gmv: editingLivestream.gmv,
                     remarks: editingLivestream.remarks,
+                    productId: editingLivestream.productId,
+                    productCommission: editingLivestream.productCommission,
+                    adCost: editingLivestream.adCost,
+                    ctr: editingLivestream.ctr,
+                    cvr: editingLivestream.cvr,
+                    cpc: editingLivestream.cpc,
+                    acos: editingLivestream.acos,
+                    roas: editingLivestream.roas,
                   });
                 }
               }}
@@ -1442,7 +1560,7 @@ export default function BrandDetail() {
             <Button
               variant="outline"
               onClick={() => { setEditContractDialogOpen(false); setEditingContract(null); }}
-              className="border-red-900/50 text-gray-300 hover:bg-red-900/20 hover:text-white"
+              className="border-red-500/50 bg-red-950/50 text-gray-200 hover:bg-red-900/40 hover:text-white hover:border-red-400/70"
             >
               {t.cancel}
             </Button>
@@ -1494,7 +1612,7 @@ export default function BrandDetail() {
             <Button
               variant="outline"
               onClick={() => { setEditMemoDialogOpen(false); setEditingMemo(null); }}
-              className="border-red-900/50 text-gray-300 hover:bg-red-900/20 hover:text-white"
+              className="border-red-500/50 bg-red-950/50 text-gray-200 hover:bg-red-900/40 hover:text-white hover:border-red-400/70"
             >
               {t.cancel}
             </Button>
@@ -1576,7 +1694,7 @@ export default function BrandDetail() {
             <Button
               variant="outline"
               onClick={() => setIsDetailsDialogOpen(false)}
-              className="border-red-900/50 text-gray-300 hover:bg-red-900/20 hover:text-white"
+              className="border-red-500/50 bg-red-950/50 text-gray-200 hover:bg-red-900/40 hover:text-white hover:border-red-400/70"
             >
               {t.close}
             </Button>
@@ -1731,7 +1849,7 @@ export default function BrandDetail() {
                 setSelectedProductForAi(null); 
                 setSelectedImageForAi(null);
               }}
-              className="border-red-900/50 text-gray-300 hover:bg-red-900/20 hover:text-white"
+              className="border-red-500/50 bg-red-950/50 text-gray-200 hover:bg-red-900/40 hover:text-white hover:border-red-400/70"
               disabled={isAnalyzing}
             >
               {t.cancel}
@@ -1818,7 +1936,7 @@ export default function BrandDetail() {
             <Button
               variant="outline"
               onClick={() => { setAddProductDialogOpen(false); setNewProduct({ productName: "", listPrice: 0, specialPrice: 0, commissionRate: "", remarks: "" }); }}
-              className="border-red-900/50 text-gray-300 hover:bg-red-900/20 hover:text-white"
+              className="border-red-500/50 bg-red-950/50 text-gray-200 hover:bg-red-900/40 hover:text-white hover:border-red-400/70"
             >
               {t.cancel}
             </Button>
@@ -1950,6 +2068,108 @@ export default function BrandDetail() {
                 className="bg-black/60 border-red-900/50 text-white mt-1"
               />
             </div>
+            {/* 商品選択と手数料 */}
+            <div className="border-t border-red-900/30 pt-4 mt-4">
+              <p className="text-sm text-pink-400 mb-3 font-medium">{language === 'ja' ? '商品紐付け' : '商品关联'}</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-400">{language === 'ja' ? '商品' : '商品'}</Label>
+                  <Select
+                    value={newLivestream.productId?.toString() || ""}
+                    onValueChange={(value) => {
+                      const selectedProduct = products.find(p => p.id.toString() === value);
+                      setNewLivestream({ 
+                        ...newLivestream, 
+                        productId: value ? parseInt(value) : null,
+                        productCommission: selectedProduct?.commissionRate || newLivestream.productCommission
+                      });
+                    }}
+                  >
+                    <SelectTrigger className="bg-black/60 border-red-900/50 text-white mt-1">
+                      <SelectValue placeholder={language === 'ja' ? '商品を選択' : '选择商品'} />
+                    </SelectTrigger>
+                    <SelectContent className="bg-black/95 border-red-900/50">
+                      {products.map((product) => (
+                        <SelectItem key={product.id} value={product.id.toString()}>
+                          {product.productName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-gray-400">{language === 'ja' ? '商品手数料' : '商品手续费'}</Label>
+                  <Input
+                    value={newLivestream.productCommission}
+                    onChange={(e) => setNewLivestream({ ...newLivestream, productCommission: e.target.value })}
+                    placeholder={language === 'ja' ? '例: 15%' : '例: 15%'}
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
+              </div>
+            </div>
+            {/* 広告メトリクス */}
+            <div className="border-t border-red-900/30 pt-4 mt-4">
+              <p className="text-sm text-orange-400 mb-3 font-medium">{language === 'ja' ? '広告メトリクス' : '广告指标'}</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-400">{t.adCost}</Label>
+                  <Input
+                    type="number"
+                    value={newLivestream.adCost || ""}
+                    onChange={(e) => setNewLivestream({ ...newLivestream, adCost: parseInt(e.target.value) || 0 })}
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-400">{t.ctr}</Label>
+                  <Input
+                    value={newLivestream.ctr}
+                    onChange={(e) => setNewLivestream({ ...newLivestream, ctr: e.target.value })}
+                    placeholder="例: 2.5%"
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4 mt-3">
+                <div>
+                  <Label className="text-gray-400">{t.cvr}</Label>
+                  <Input
+                    value={newLivestream.cvr}
+                    onChange={(e) => setNewLivestream({ ...newLivestream, cvr: e.target.value })}
+                    placeholder="例: 5%"
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-400">{t.cpc}</Label>
+                  <Input
+                    type="number"
+                    value={newLivestream.cpc || ""}
+                    onChange={(e) => setNewLivestream({ ...newLivestream, cpc: parseInt(e.target.value) || 0 })}
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-400">{t.acos}</Label>
+                  <Input
+                    value={newLivestream.acos}
+                    onChange={(e) => setNewLivestream({ ...newLivestream, acos: e.target.value })}
+                    placeholder="例: 20%"
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
+              </div>
+              <div className="mt-3">
+                <Label className="text-gray-400">{t.roas}</Label>
+                <Input
+                  value={newLivestream.roas}
+                  onChange={(e) => setNewLivestream({ ...newLivestream, roas: e.target.value })}
+                  placeholder="例: 3.5"
+                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                />
+              </div>
+            </div>
             <div>
               <Label className="text-gray-400">{language === 'ja' ? '備考' : '备注'}</Label>
               <Textarea
@@ -1962,8 +2182,8 @@ export default function BrandDetail() {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => { setAddLivestreamDialogOpen(false); setNewLivestream({ livestreamDate: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "", productClicks: 0, impressions: 0, salesCount: 0, cartAddCount: 0 }); }}
-              className="border-red-900/50 text-gray-300 hover:bg-red-900/20 hover:text-white"
+              onClick={() => { setAddLivestreamDialogOpen(false); setNewLivestream({ livestreamDate: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "", productClicks: 0, impressions: 0, salesCount: 0, cartAddCount: 0, productId: null, productCommission: "", adCost: 0, ctr: "", cvr: "", cpc: 0, acos: "", roas: "" }); }}
+              className="border-red-500/50 bg-red-950/50 text-gray-200 hover:bg-red-900/40 hover:text-white hover:border-red-400/70"
             >
               {t.cancel}
             </Button>
@@ -1982,6 +2202,14 @@ export default function BrandDetail() {
                     impressions: newLivestream.impressions,
                     salesCount: newLivestream.salesCount,
                     cartAddCount: newLivestream.cartAddCount,
+                    productId: newLivestream.productId || undefined,
+                    productCommission: newLivestream.productCommission || undefined,
+                    adCost: newLivestream.adCost || undefined,
+                    ctr: newLivestream.ctr || undefined,
+                    cvr: newLivestream.cvr || undefined,
+                    cpc: newLivestream.cpc || undefined,
+                    acos: newLivestream.acos || undefined,
+                    roas: newLivestream.roas || undefined,
                   });
                 }
               }}
@@ -2009,7 +2237,7 @@ export default function BrandDetail() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="border-red-900/50 text-gray-300 hover:bg-red-900/20 hover:text-white">
+            <AlertDialogCancel className="border-red-500/50 bg-red-950/50 text-gray-200 hover:bg-red-900/40 hover:text-white hover:border-red-400/70">
               {t.cancel}
             </AlertDialogCancel>
             <AlertDialogAction
@@ -2041,7 +2269,7 @@ export default function BrandDetail() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="border-red-900/50 text-gray-300 hover:bg-red-900/20 hover:text-white">
+            <AlertDialogCancel className="border-red-500/50 bg-red-950/50 text-gray-200 hover:bg-red-900/40 hover:text-white hover:border-red-400/70">
               {t.cancel}
             </AlertDialogCancel>
             <AlertDialogAction
@@ -2245,7 +2473,7 @@ export default function BrandDetail() {
                 setAiImagePreview(null);
                 setExtractedProductData(null);
               }}
-              className="border-red-900/50 text-gray-300 hover:bg-red-900/20 hover:text-white"
+              className="border-red-500/50 bg-red-950/50 text-gray-200 hover:bg-red-900/40 hover:text-white hover:border-red-400/70"
             >
               {t.cancel}
             </Button>
