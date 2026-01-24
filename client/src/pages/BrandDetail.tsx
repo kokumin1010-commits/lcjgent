@@ -1199,7 +1199,7 @@ export default function BrandDetail() {
 
       {/* Product Edit Dialog */}
       <Dialog open={editProductDialogOpen} onOpenChange={setEditProductDialogOpen}>
-        <DialogContent className="bg-black/95 border-red-900/50 text-white max-w-lg backdrop-blur-xl">
+        <DialogContent className="bg-black/95 border-red-900/50 text-white max-w-2xl backdrop-blur-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold flex items-center gap-3">
               <div className="w-1 h-6 bg-gradient-to-b from-cyan-400 to-cyan-600 rounded-full" />
@@ -1208,6 +1208,23 @@ export default function BrandDetail() {
           </DialogHeader>
           {editingProduct && (
             <div className="space-y-4 py-4">
+              {/* 商品画像表示 */}
+              {editingProduct.imageUrls && editingProduct.imageUrls.length > 0 && (
+                <div className="border border-cyan-900/30 rounded-lg p-3 bg-cyan-950/20">
+                  <Label className="text-cyan-400 text-sm font-medium mb-2 block">商品画像</Label>
+                  <div className="flex gap-2 flex-wrap">
+                    {editingProduct.imageUrls.map((url: string, idx: number) => (
+                      <img
+                        key={idx}
+                        src={url}
+                        alt={`商品画像 ${idx + 1}`}
+                        className="w-24 h-24 object-cover rounded-lg border border-cyan-900/50 cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => window.open(url, '_blank')}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
               <div>
                 <Label className="text-gray-400">商品名</Label>
                 <Input
@@ -1250,7 +1267,7 @@ export default function BrandDetail() {
                 <Textarea
                   value={editingProduct.remarks || ""}
                   onChange={(e) => setEditingProduct({ ...editingProduct, remarks: e.target.value })}
-                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                  className="bg-black/60 border-red-900/50 text-white mt-1 min-h-[100px]"
                 />
               </div>
             </div>
