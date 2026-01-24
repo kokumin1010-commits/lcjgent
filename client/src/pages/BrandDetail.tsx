@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -27,7 +27,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe } from "lucide-react";
 import { toast } from "sonner";
 
 const translations = {
@@ -107,6 +107,7 @@ const translations = {
     items: "品",
     times: "回",
     cases: "件",
+    add: "追加",
   },
   zh: {
     title: "品牌详情",
@@ -184,6 +185,7 @@ const translations = {
     items: "品",
     times: "回",
     cases: "件",
+    add: "添加",
   },
 };
 
@@ -239,7 +241,7 @@ const formatDate = (date: Date | string | null | undefined) => {
 export default function BrandDetail() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
-  const { language } = useLanguage();
+  const { language, setLanguage } = useLanguage();
 
   const t = translations[language as keyof typeof translations] || translations.ja;
 
@@ -260,6 +262,13 @@ export default function BrandDetail() {
   const [selectedProductForAi, setSelectedProductForAi] = useState<any>(null);
   const [selectedImageForAi, setSelectedImageForAi] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadingProductId, setUploadingProductId] = useState<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [addProductDialogOpen, setAddProductDialogOpen] = useState(false);
+  const [addLivestreamDialogOpen, setAddLivestreamDialogOpen] = useState(false);
+  const [newProduct, setNewProduct] = useState({ productName: "", listPrice: 0, specialPrice: 0, commissionRate: "", remarks: "" });
+  const [newLivestream, setNewLivestream] = useState({ livestreamDate: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "" });
 
   const brandId = parseInt(id || "0");
 
@@ -289,6 +298,31 @@ export default function BrandDetail() {
     onSuccess: () => {
       refetchMemos();
       toast.success("削除しました");
+    },
+    onError: () => {
+      toast.error("エラーが発生しました");
+    },
+  });
+
+  // Create mutations
+  const createProductMutation = trpc.brandProduct.create.useMutation({
+    onSuccess: () => {
+      refetchProducts();
+      setAddProductDialogOpen(false);
+      setNewProduct({ productName: "", listPrice: 0, specialPrice: 0, commissionRate: "", remarks: "" });
+      toast.success("商品を追加しました");
+    },
+    onError: () => {
+      toast.error("エラーが発生しました");
+    },
+  });
+
+  const createLivestreamMutation = trpc.brandLivestream.create.useMutation({
+    onSuccess: () => {
+      refetchLivestreams();
+      setAddLivestreamDialogOpen(false);
+      setNewLivestream({ livestreamDate: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "" });
+      toast.success("直播を追加しました");
     },
     onError: () => {
       toast.error("エラーが発生しました");
@@ -553,6 +587,15 @@ export default function BrandDetail() {
                 <Edit2 className="h-4 w-4 mr-2" />
                 {t.edit}
               </Button>
+              {/* Language Toggle */}
+              <Button
+                variant="outline"
+                onClick={() => setLanguage(language === 'ja' ? 'zh' : 'ja')}
+                className="border-red-900/50 text-gray-300 hover:bg-red-900/20 hover:text-white hover:border-red-500/50"
+              >
+                <Globe className="h-4 w-4 mr-2" />
+                {language === 'ja' ? '中文' : '日本語'}
+              </Button>
             </div>
           </div>
         </div>
@@ -657,10 +700,20 @@ export default function BrandDetail() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Product Performance Table */}
           <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,0,0,0.1)]">
-            <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-3">
-              <div className="w-1 h-6 bg-gradient-to-b from-cyan-400 to-cyan-600 rounded-full" />
-              {t.productPerformance}
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-white flex items-center gap-3">
+                <div className="w-1 h-6 bg-gradient-to-b from-cyan-400 to-cyan-600 rounded-full" />
+                {t.productPerformance}
+              </h2>
+              <Button
+                size="sm"
+                onClick={() => setAddProductDialogOpen(true)}
+                className="bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white"
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                {t.add}
+              </Button>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
@@ -738,10 +791,20 @@ export default function BrandDetail() {
 
           {/* Livestream Performance Table */}
           <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,0,0,0.1)]">
-            <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-3">
-              <div className="w-1 h-6 bg-gradient-to-b from-pink-400 to-pink-600 rounded-full" />
-              {t.livestreamPerformance}
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-white flex items-center gap-3">
+                <div className="w-1 h-6 bg-gradient-to-b from-pink-400 to-pink-600 rounded-full" />
+                {t.livestreamPerformance}
+              </h2>
+              <Button
+                size="sm"
+                onClick={() => setAddLivestreamDialogOpen(true)}
+                className="bg-gradient-to-r from-pink-600 to-pink-500 hover:from-pink-500 hover:to-pink-400 text-white"
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                {t.add}
+              </Button>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
@@ -1483,6 +1546,199 @@ export default function BrandDetail() {
                   AI分析を実行
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Product Dialog */}
+      <Dialog open={addProductDialogOpen} onOpenChange={setAddProductDialogOpen}>
+        <DialogContent className="bg-black/95 border-red-900/50 text-white max-w-lg backdrop-blur-xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-3">
+              <div className="w-1 h-6 bg-gradient-to-b from-cyan-400 to-cyan-600 rounded-full" />
+              {language === 'ja' ? '商品追加' : '添加商品'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label className="text-gray-400">{t.productName}</Label>
+              <Input
+                value={newProduct.productName}
+                onChange={(e) => setNewProduct({ ...newProduct, productName: e.target.value })}
+                placeholder={language === 'ja' ? '商品名を入力' : '输入商品名'}
+                className="bg-black/60 border-red-900/50 text-white mt-1"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-gray-400">{t.listPrice}</Label>
+                <Input
+                  type="number"
+                  value={newProduct.listPrice || ""}
+                  onChange={(e) => setNewProduct({ ...newProduct, listPrice: parseInt(e.target.value) || 0 })}
+                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-gray-400">{t.specialPrice}</Label>
+                <Input
+                  type="number"
+                  value={newProduct.specialPrice || ""}
+                  onChange={(e) => setNewProduct({ ...newProduct, specialPrice: parseInt(e.target.value) || 0 })}
+                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                />
+              </div>
+            </div>
+            <div>
+              <Label className="text-gray-400">{t.commissionRate}</Label>
+              <Input
+                value={newProduct.commissionRate}
+                onChange={(e) => setNewProduct({ ...newProduct, commissionRate: e.target.value })}
+                placeholder={language === 'ja' ? '例: 15%' : '例: 15%'}
+                className="bg-black/60 border-red-900/50 text-white mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-gray-400">{language === 'ja' ? '備考' : '备注'}</Label>
+              <Textarea
+                value={newProduct.remarks}
+                onChange={(e) => setNewProduct({ ...newProduct, remarks: e.target.value })}
+                className="bg-black/60 border-red-900/50 text-white mt-1"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => { setAddProductDialogOpen(false); setNewProduct({ productName: "", listPrice: 0, specialPrice: 0, commissionRate: "", remarks: "" }); }}
+              className="border-red-900/50 text-gray-300 hover:bg-red-900/20 hover:text-white"
+            >
+              {t.cancel}
+            </Button>
+            <Button
+              onClick={() => {
+                if (newProduct.productName.trim()) {
+                  createProductMutation.mutate({
+                    brandId,
+                    productName: newProduct.productName,
+                    listPrice: newProduct.listPrice,
+                    specialPrice: newProduct.specialPrice,
+                    discountRate: newProduct.commissionRate,
+                    remarks: newProduct.remarks,
+                  });
+                }
+              }}
+              disabled={!newProduct.productName.trim()}
+              className="bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white"
+            >
+              {t.add}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Livestream Dialog */}
+      <Dialog open={addLivestreamDialogOpen} onOpenChange={setAddLivestreamDialogOpen}>
+        <DialogContent className="bg-black/95 border-red-900/50 text-white max-w-lg backdrop-blur-xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-3">
+              <div className="w-1 h-6 bg-gradient-to-b from-pink-400 to-pink-600 rounded-full" />
+              {language === 'ja' ? '直播追加' : '添加直播'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-gray-400">{t.date}</Label>
+                <Input
+                  type="date"
+                  value={newLivestream.livestreamDate}
+                  onChange={(e) => setNewLivestream({ ...newLivestream, livestreamDate: e.target.value })}
+                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-gray-400">{t.account}</Label>
+                <Input
+                  value={newLivestream.streamerName}
+                  onChange={(e) => setNewLivestream({ ...newLivestream, streamerName: e.target.value })}
+                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-gray-400">{t.platform}</Label>
+                <Select
+                  value={newLivestream.platform}
+                  onValueChange={(value) => setNewLivestream({ ...newLivestream, platform: value })}
+                >
+                  <SelectTrigger className="bg-black/60 border-red-900/50 text-white mt-1">
+                    <SelectValue placeholder={language === 'ja' ? '選択' : '选择'} />
+                  </SelectTrigger>
+                  <SelectContent className="bg-black/95 border-red-900/50">
+                    <SelectItem value="TikTok">TikTok</SelectItem>
+                    <SelectItem value="Instagram">Instagram</SelectItem>
+                    <SelectItem value="YouTube">YouTube</SelectItem>
+                    <SelectItem value="その他">{language === 'ja' ? 'その他' : '其他'}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-gray-400">{t.duration}{language === 'ja' ? '（分）' : '（分钟）'}</Label>
+                <Input
+                  type="number"
+                  value={newLivestream.duration || ""}
+                  onChange={(e) => setNewLivestream({ ...newLivestream, duration: parseInt(e.target.value) || 0 })}
+                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                />
+              </div>
+            </div>
+            <div>
+              <Label className="text-gray-400">{t.gmv}</Label>
+              <Input
+                type="number"
+                value={newLivestream.gmv || ""}
+                onChange={(e) => setNewLivestream({ ...newLivestream, gmv: parseInt(e.target.value) || 0 })}
+                className="bg-black/60 border-red-900/50 text-white mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-gray-400">{language === 'ja' ? '備考' : '备注'}</Label>
+              <Textarea
+                value={newLivestream.remarks}
+                onChange={(e) => setNewLivestream({ ...newLivestream, remarks: e.target.value })}
+                className="bg-black/60 border-red-900/50 text-white mt-1"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => { setAddLivestreamDialogOpen(false); setNewLivestream({ livestreamDate: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "" }); }}
+              className="border-red-900/50 text-gray-300 hover:bg-red-900/20 hover:text-white"
+            >
+              {t.cancel}
+            </Button>
+            <Button
+              onClick={() => {
+                if (newLivestream.livestreamDate && newLivestream.streamerName.trim()) {
+                  createLivestreamMutation.mutate({
+                    brandId,
+                    livestreamDate: newLivestream.livestreamDate,
+                    streamerName: newLivestream.streamerName,
+                    platform: newLivestream.platform,
+                    duration: newLivestream.duration,
+                    gmv: newLivestream.gmv,
+                    remarks: newLivestream.remarks,
+                  });
+                }
+              }}
+              disabled={!newLivestream.livestreamDate || !newLivestream.streamerName.trim()}
+              className="bg-gradient-to-r from-pink-600 to-pink-500 hover:from-pink-500 hover:to-pink-400 text-white"
+            >
+              {t.add}
             </Button>
           </DialogFooter>
         </DialogContent>
