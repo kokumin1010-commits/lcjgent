@@ -1300,7 +1300,7 @@ export default function BrandDetail() {
                   <Label className="text-gray-400">日付</Label>
                   <Input
                     type="date"
-                    value={editingLivestream.livestreamDate ? new Date(editingLivestream.livestreamDate).toISOString().split('T')[0] : ""}
+                    value={editingLivestream.livestreamDate ? (typeof editingLivestream.livestreamDate === 'string' && editingLivestream.livestreamDate.includes('-') ? editingLivestream.livestreamDate.split('T')[0] : (editingLivestream.livestreamDate instanceof Date ? editingLivestream.livestreamDate.toISOString().split('T')[0] : new Date(editingLivestream.livestreamDate).toISOString().split('T')[0])) : ""}
                     onChange={(e) => setEditingLivestream({ ...editingLivestream, livestreamDate: e.target.value })}
                     className="bg-black/60 border-red-900/50 text-white mt-1"
                   />
