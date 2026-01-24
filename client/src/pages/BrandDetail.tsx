@@ -2189,53 +2189,16 @@ export default function BrandDetail() {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>{t.salesAmount}</Label>
-                      <Input
-                        type="number"
-                        value={newLivestream.salesAmount}
-                        onChange={(e) =>
-                          setNewLivestream({ ...newLivestream, salesAmount: e.target.value })
-                        }
-                        placeholder="0"
-                      />
-                    </div>
-                    <div>
-                      <Label>{t.duration}</Label>
-                      <Input
-                        type="number"
-                        value={newLivestream.duration}
-                        onChange={(e) =>
-                          setNewLivestream({ ...newLivestream, duration: e.target.value })
-                        }
-                        placeholder="分"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>{t.viewerCount}</Label>
-                      <Input
-                        type="number"
-                        value={newLivestream.viewerCount}
-                        onChange={(e) =>
-                          setNewLivestream({ ...newLivestream, viewerCount: e.target.value })
-                        }
-                        placeholder="0"
-                      />
-                    </div>
-                    <div>
-                      <Label>{t.orderCount}</Label>
-                      <Input
-                        type="number"
-                        value={newLivestream.orderCount}
-                        onChange={(e) =>
-                          setNewLivestream({ ...newLivestream, orderCount: e.target.value })
-                        }
-                        placeholder="0"
-                      />
-                    </div>
+                  <div>
+                    <Label>{t.duration}</Label>
+                    <Input
+                      type="number"
+                      value={newLivestream.duration}
+                      onChange={(e) =>
+                        setNewLivestream({ ...newLivestream, duration: e.target.value })
+                      }
+                      placeholder="分"
+                    />
                   </div>
                   <div>
                     <Label>{t.platform}</Label>
