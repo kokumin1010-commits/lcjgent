@@ -112,9 +112,7 @@ function Router() {
         </DashboardLayout>
       </Route>
       <Route path={"/brands"}>
-        <DashboardLayout>
-          <BrandList />
-        </DashboardLayout>
+        <BrandList />
       </Route>
       <Route path={"/brands/new"}>
         <DashboardLayout>
