@@ -97,7 +97,10 @@ export default function PublicSchedule() {
   // Add schedule modal state
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [addModalDate, setAddModalDate] = useState<string>("");
+  const [addModalEndDate, setAddModalEndDate] = useState<string>("");
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [endDatePickerMonth, setEndDatePickerMonth] = useState(new Date());
   const [datePickerMonth, setDatePickerMonth] = useState(new Date());
   const [newSchedule, setNewSchedule] = useState({
     title: "",
@@ -153,6 +156,8 @@ export default function PublicSchedule() {
       newLiverName: "",
     });
     setShowDatePicker(false);
+    setShowEndDatePicker(false);
+    setAddModalEndDate("");
   };
 
   // Get unique liver names and assign colors
@@ -277,6 +282,40 @@ export default function PublicSchedule() {
     return weeks;
   }, [datePickerMonth]);
 
+  // Generate end date picker calendar weeks
+  const endDatePickerWeeks = useMemo(() => {
+    const year = endDatePickerMonth.getFullYear();
+    const month = endDatePickerMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    
+    let startDate = new Date(firstDay);
+    const dayOfWeek = firstDay.getDay();
+    const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    startDate.setDate(startDate.getDate() - daysToSubtract);
+    
+    const weeks: { date: Date; isCurrentMonth: boolean }[][] = [];
+    let currentWeek: { date: Date; isCurrentMonth: boolean }[] = [];
+    
+    for (let i = 0; i < 42; i++) {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + i);
+      
+      const isCurrentMonth = date.getMonth() === month;
+      currentWeek.push({ date, isCurrentMonth });
+      
+      if (currentWeek.length === 7) {
+        weeks.push(currentWeek);
+        currentWeek = [];
+      }
+    }
+    
+    while (weeks.length > 0 && weeks[weeks.length - 1].every(d => !d.isCurrentMonth)) {
+      weeks.pop();
+    }
+    
+    return weeks;
+  }, [endDatePickerMonth]);
+
   // Handle date click - open bottom sheet
   const handleDateClick = useCallback((dateKey: string, isCurrentMonth: boolean) => {
     if (isCurrentMonth) {
@@ -294,16 +333,33 @@ export default function PublicSchedule() {
   const handleAddFromSheet = () => {
     if (selectedDate) {
       setAddModalDate(selectedDate);
+      setAddModalEndDate(selectedDate);
       setDatePickerMonth(new Date(selectedDate));
+      setEndDatePickerMonth(new Date(selectedDate));
       setBottomSheetOpen(false);
       setAddModalOpen(true);
     }
   };
 
-  // Handle date selection in date picker
+  // Handle date selection in date picker (start date)
   const handleDatePickerSelect = (dateKey: string) => {
     setAddModalDate(dateKey);
+    // If end date is before start date, update end date
+    if (addModalEndDate && dateKey > addModalEndDate) {
+      setAddModalEndDate(dateKey);
+    }
     setShowDatePicker(false);
+  };
+
+  // Handle end date selection in date picker
+  const handleEndDatePickerSelect = (dateKey: string) => {
+    // End date cannot be before start date
+    if (dateKey < addModalDate) {
+      toast.error("終了日は開始日以降を選択してください");
+      return;
+    }
+    setAddModalEndDate(dateKey);
+    setShowEndDatePicker(false);
   };
 
   // Handle add schedule submit
@@ -315,17 +371,19 @@ export default function PublicSchedule() {
       return;
     }
     
-    const [year, month, day] = addModalDate.split("-").map(Number);
+    const [startYear, startMonth, startDay] = addModalDate.split("-").map(Number);
+    const endDate = addModalEndDate || addModalDate;
+    const [endYear, endMonth, endDay] = endDate.split("-").map(Number);
     const [startHour, startMinute] = newSchedule.startTime.split(":").map(Number);
     const [endHour, endMinute] = newSchedule.endTime.split(":").map(Number);
     
     // Create dates in JST, then convert to UTC for storage
     const startTimeJST = newSchedule.isAllDay 
-      ? new Date(year, month - 1, day, 0, 0)
-      : new Date(year, month - 1, day, startHour, startMinute);
+      ? new Date(startYear, startMonth - 1, startDay, 0, 0)
+      : new Date(startYear, startMonth - 1, startDay, startHour, startMinute);
     const endTimeJST = newSchedule.isAllDay
-      ? new Date(year, month - 1, day, 23, 59)
-      : new Date(year, month - 1, day, endHour, endMinute);
+      ? new Date(endYear, endMonth - 1, endDay, 23, 59)
+      : new Date(endYear, endMonth - 1, endDay, endHour, endMinute);
     
     // Convert JST to UTC (subtract 9 hours)
     const startTimeUTC = new Date(startTimeJST.getTime() - 9 * 60 * 60 * 1000);
@@ -345,7 +403,9 @@ export default function PublicSchedule() {
   // Open add modal with today's date
   const openAddModal = () => {
     setAddModalDate(todayKey);
+    setAddModalEndDate(todayKey);
     setDatePickerMonth(new Date());
+    setEndDatePickerMonth(new Date());
     setAddModalOpen(true);
   };
 
@@ -749,15 +809,19 @@ export default function PublicSchedule() {
             />
           </div>
           
-          {/* Date Selection */}
+          {/* Start Date Selection */}
           <div className="px-4 py-3 border-b">
             <div className="flex items-center gap-3">
               <Calendar className="h-5 w-5 text-pink-500" />
+              <span className="text-sm text-gray-500 w-8">開始</span>
               <button
-                onClick={() => setShowDatePicker(!showDatePicker)}
+                onClick={() => {
+                  setShowDatePicker(!showDatePicker);
+                  setShowEndDatePicker(false);
+                }}
                 className="flex-1 text-left"
               >
-                {addModalDate ? formatFullDate(addModalDate) : "日付を選択"}
+                {addModalDate ? formatFullDate(addModalDate) : "開始日を選択"}
               </button>
             </div>
             
@@ -816,6 +880,94 @@ export default function PublicSchedule() {
                             !isCurrentMonth && "text-gray-300",
                             isCurrentMonth && !isSelected && dayOfWeek === 0 && "text-red-500",
                             isCurrentMonth && !isSelected && dayOfWeek === 6 && "text-blue-500",
+                            isSelected && "bg-pink-500 text-white",
+                            isToday && !isSelected && "border border-pink-500"
+                          )}
+                        >
+                          {date.getDate()}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* End Date Selection */}
+          <div className="px-4 py-3 border-b">
+            <div className="flex items-center gap-3">
+              <Calendar className="h-5 w-5 text-pink-500" />
+              <span className="text-sm text-gray-500 w-8">終了</span>
+              <button
+                onClick={() => {
+                  setShowEndDatePicker(!showEndDatePicker);
+                  setShowDatePicker(false);
+                }}
+                className="flex-1 text-left"
+              >
+                {addModalEndDate ? formatFullDate(addModalEndDate) : "終了日を選択"}
+              </button>
+            </div>
+            
+            {/* Inline End Date Picker */}
+            {showEndDatePicker && (
+              <div className="mt-3 border rounded-lg p-3">
+                {/* Month Navigation */}
+                <div className="flex items-center justify-between mb-3">
+                  <button
+                    onClick={() => setEndDatePickerMonth(new Date(endDatePickerMonth.getFullYear(), endDatePickerMonth.getMonth() - 1, 1))}
+                    className="p-1"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <span className="font-medium">
+                    {endDatePickerMonth.getFullYear()}年{endDatePickerMonth.getMonth() + 1}月
+                  </span>
+                  <button
+                    onClick={() => setEndDatePickerMonth(new Date(endDatePickerMonth.getFullYear(), endDatePickerMonth.getMonth() + 1, 1))}
+                    className="p-1"
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+                </div>
+                
+                {/* Weekday Headers */}
+                <div className="grid grid-cols-7 mb-2">
+                  {["月", "火", "水", "木", "金", "土", "日"].map((day, i) => (
+                    <div
+                      key={day}
+                      className={cn(
+                        "text-center text-xs font-medium py-1",
+                        i === 5 ? "text-blue-500" : i === 6 ? "text-red-500" : "text-gray-500"
+                      )}
+                    >
+                      {day}
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Calendar Grid */}
+                {endDatePickerWeeks.map((week, weekIndex) => (
+                  <div key={weekIndex} className="grid grid-cols-7">
+                    {week.map(({ date, isCurrentMonth }, dayIndex) => {
+                      const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+                      const isSelected = dateKey === addModalEndDate;
+                      const isToday = dateKey === todayKey;
+                      const dayOfWeek = date.getDay();
+                      const isBeforeStartDate = dateKey < addModalDate;
+                      
+                      return (
+                        <button
+                          key={dayIndex}
+                          onClick={() => !isBeforeStartDate && handleEndDatePickerSelect(dateKey)}
+                          disabled={isBeforeStartDate}
+                          className={cn(
+                            "w-8 h-8 flex items-center justify-center text-sm rounded-full mx-auto",
+                            !isCurrentMonth && "text-gray-300",
+                            isBeforeStartDate && "text-gray-300 cursor-not-allowed",
+                            isCurrentMonth && !isSelected && !isBeforeStartDate && dayOfWeek === 0 && "text-red-500",
+                            isCurrentMonth && !isSelected && !isBeforeStartDate && dayOfWeek === 6 && "text-blue-500",
                             isSelected && "bg-pink-500 text-white",
                             isToday && !isSelected && "border border-pink-500"
                           )}
