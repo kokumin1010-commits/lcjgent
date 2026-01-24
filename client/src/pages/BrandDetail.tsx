@@ -504,6 +504,16 @@ export default function BrandDetail() {
   const [editingContract, setEditingContract] = useState<any>(null);
   const [isEditContractDialogOpen, setIsEditContractDialogOpen] = useState(false);
 
+  // 直播商品別GMV用のstate
+  const [selectedLivestream, setSelectedLivestream] = useState<any>(null);
+  const [isLivestreamProductDialogOpen, setIsLivestreamProductDialogOpen] = useState(false);
+  const [newLivestreamProduct, setNewLivestreamProduct] = useState({
+    productName: "",
+    gmv: "",
+    quantity: "",
+    unitPrice: "",
+  });
+
   // AI商品登録用のstate
   const [isAiProductDialogOpen, setIsAiProductDialogOpen] = useState(false);
   const [aiProposalImageUrl, setAiProposalImageUrl] = useState("");
@@ -662,6 +672,33 @@ export default function BrandDetail() {
   const deleteLivestreamMutation = trpc.brandLivestream.delete.useMutation({
     onSuccess: () => {
       toast.success("削除しました");
+    },
+    onError: () => {
+      toast.error(t.error);
+    },
+  });
+
+  // 直播商品別GMVの操作
+  const { data: livestreamProducts, refetch: refetchLivestreamProducts } = trpc.brandLivestream.listProducts.useQuery(
+    { livestreamId: selectedLivestream?.id || 0 },
+    { enabled: !!selectedLivestream?.id }
+  );
+
+  const addLivestreamProductMutation = trpc.brandLivestream.addProduct.useMutation({
+    onSuccess: () => {
+      toast.success("商品を追加しました");
+      setNewLivestreamProduct({ productName: "", gmv: "", quantity: "", unitPrice: "" });
+      refetchLivestreamProducts();
+    },
+    onError: () => {
+      toast.error(t.error);
+    },
+  });
+
+  const deleteLivestreamProductMutation = trpc.brandLivestream.deleteProduct.useMutation({
+    onSuccess: () => {
+      toast.success("削除しました");
+      refetchLivestreamProducts();
     },
     onError: () => {
       toast.error(t.error);
@@ -925,6 +962,26 @@ export default function BrandDetail() {
       gmv: newLivestream.gmv ? parseFloat(newLivestream.gmv) : undefined,
       cartAddCount: newLivestream.cartAddCount ? parseInt(newLivestream.cartAddCount) : undefined,
     });
+  };
+
+  const handleAddLivestreamProduct = async () => {
+    if (!selectedLivestream || !newLivestreamProduct.productName) {
+      toast.error("商品名を入力してください");
+      return;
+    }
+
+    await addLivestreamProductMutation.mutateAsync({
+      livestreamId: selectedLivestream.id,
+      productName: newLivestreamProduct.productName,
+      gmv: newLivestreamProduct.gmv ? parseFloat(newLivestreamProduct.gmv) : undefined,
+      quantity: newLivestreamProduct.quantity ? parseInt(newLivestreamProduct.quantity) : undefined,
+      unitPrice: newLivestreamProduct.unitPrice ? parseFloat(newLivestreamProduct.unitPrice) : undefined,
+    });
+  };
+
+  const openLivestreamProductDialog = (livestream: any) => {
+    setSelectedLivestream(livestream);
+    setIsLivestreamProductDialogOpen(true);
   };
 
   const handleAddContract = async () => {
@@ -2737,6 +2794,19 @@ export default function BrandDetail() {
                             </div>
                           )}
                         </div>
+                        
+                        {/* 商品別GMVボタン */}
+                        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full text-xs"
+                            onClick={() => openLivestreamProductDialog(ls)}
+                          >
+                            <Package className="h-3 w-3 mr-1" />
+                            商品別GMVを管理
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -2751,6 +2821,144 @@ export default function BrandDetail() {
           </CardContent>
         </Card>
       </div>
+
+      {/* 直播商品別GMVダイアログ */}
+      <Dialog open={isLivestreamProductDialogOpen} onOpenChange={setIsLivestreamProductDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5 text-pink-500" />
+              商品別GMV管理
+              {selectedLivestream && (
+                <Badge variant="outline" className="ml-2">
+                  {selectedLivestream.streamerName} - {new Date(selectedLivestream.livestreamDate).toLocaleDateString()}
+                </Badge>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* 商品追加フォーム */}
+            <div className="bg-gradient-to-r from-pink-50 to-red-50 dark:from-pink-900/20 dark:to-red-900/20 rounded-lg p-4">
+              <h4 className="font-medium mb-3 flex items-center gap-2">
+                <Plus className="h-4 w-4" />
+                新しい商品を追加
+              </h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>商品名 *</Label>
+                  <Input
+                    value={newLivestreamProduct.productName}
+                    onChange={(e) => setNewLivestreamProduct({ ...newLivestreamProduct, productName: e.target.value })}
+                    placeholder="商品名を入力"
+                  />
+                </div>
+                <div>
+                  <Label>GMV（売上）</Label>
+                  <Input
+                    type="number"
+                    value={newLivestreamProduct.gmv}
+                    onChange={(e) => setNewLivestreamProduct({ ...newLivestreamProduct, gmv: e.target.value })}
+                    placeholder="例: 100000"
+                  />
+                </div>
+                <div>
+                  <Label>販売数量</Label>
+                  <Input
+                    type="number"
+                    value={newLivestreamProduct.quantity}
+                    onChange={(e) => setNewLivestreamProduct({ ...newLivestreamProduct, quantity: e.target.value })}
+                    placeholder="例: 50"
+                  />
+                </div>
+                <div>
+                  <Label>単価</Label>
+                  <Input
+                    type="number"
+                    value={newLivestreamProduct.unitPrice}
+                    onChange={(e) => setNewLivestreamProduct({ ...newLivestreamProduct, unitPrice: e.target.value })}
+                    placeholder="例: 2000"
+                  />
+                </div>
+              </div>
+              <Button
+                className="mt-3 bg-pink-600 hover:bg-pink-700"
+                onClick={handleAddLivestreamProduct}
+                disabled={addLivestreamProductMutation.isPending}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                商品を追加
+              </Button>
+            </div>
+
+            {/* 商品リスト */}
+            <div>
+              <h4 className="font-medium mb-3 flex items-center gap-2">
+                <Package className="h-4 w-4" />
+                登録済み商品
+                {livestreamProducts && livestreamProducts.length > 0 && (
+                  <Badge variant="secondary">{livestreamProducts.length}件</Badge>
+                )}
+              </h4>
+              
+              {livestreamProducts && livestreamProducts.length > 0 ? (
+                <div className="space-y-2">
+                  {/* 合計GMV */}
+                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg p-3 mb-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-green-700 dark:text-green-400">商品別GMV合計</span>
+                      <span className="text-lg font-bold text-green-600 dark:text-green-400">
+                        {formatCurrency(livestreamProducts.reduce((sum, p) => sum + (p.gmv || 0), 0))}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {livestreamProducts.map((product) => (
+                    <div
+                      key={product.id}
+                      className="flex items-center justify-between bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3"
+                    >
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{product.productName}</p>
+                        <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <DollarSign className="h-3 w-3 text-green-500" />
+                            GMV: {formatCurrency(product.gmv)}
+                          </span>
+                          {product.quantity && (
+                            <span className="flex items-center gap-1">
+                              <Package className="h-3 w-3 text-blue-500" />
+                              数量: {product.quantity}
+                            </span>
+                          )}
+                          {product.unitPrice && (
+                            <span className="flex items-center gap-1">
+                              <Tag className="h-3 w-3 text-purple-500" />
+                              単価: {formatCurrency(product.unitPrice)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => deleteLivestreamProductMutation.mutate({ id: product.id })}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Package className="h-10 w-10 mx-auto mb-2 text-gray-300" />
+                  <p className="text-sm">まだ商品が登録されていません</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

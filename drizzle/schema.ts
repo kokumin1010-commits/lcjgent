@@ -759,3 +759,28 @@ export const livers = mysqlTable("livers", {
 
 export type Liver = typeof livers.$inferSelect;
 export type InsertLiver = typeof livers.$inferInsert;
+
+
+/**
+ * 直播商品別GMVテーブル - ライブ配信ごとの商品別売上を記録
+ * 1つの直播に複数の商品を紐付けて、それぞれのGMVを記録できる
+ */
+export const livestreamProducts = mysqlTable("livestream_products", {
+  id: int("id").autoincrement().primaryKey(),
+  livestreamId: int("livestreamId").notNull(), // References brandLivestreams.id
+  productName: varchar("productName", { length: 255 }).notNull(), // 商品名
+  gmv: bigint("gmv", { mode: "number" }), // GMV（売上金額）
+  quantity: int("quantity"), // 販売数量
+  unitPrice: bigint("unitPrice", { mode: "number" }), // 単価
+  // 追加メトリクス
+  productClicks: int("productClicks"), // 商品クリック数
+  impressions: int("impressions"), // 商品インプレッション数
+  cartAddCount: int("cartAddCount"), // カート追加回数
+  conversionRate: varchar("conversionRate", { length: 20 }), // コンバージョン率
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type LivestreamProduct = typeof livestreamProducts.$inferSelect;
+export type InsertLivestreamProduct = typeof livestreamProducts.$inferInsert;

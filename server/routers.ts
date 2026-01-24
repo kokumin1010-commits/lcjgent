@@ -161,6 +161,12 @@ import {
   updateLiverLastLogin,
   checkLiverEmailExists,
   getSchedulesByLiverId,
+  createLivestreamProduct,
+  getLivestreamProductsByLivestreamId,
+  updateLivestreamProduct,
+  deleteLivestreamProduct,
+  getLivestreamProductsTotalGmv,
+  deleteLivestreamProductsByLivestreamId,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -1964,8 +1970,68 @@ ${JSON.stringify(teamSummary, null, 2)}`;
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
+        // 商品別GMVも削除
+        await deleteLivestreamProductsByLivestreamId(input.id);
         await deleteBrandLivestream(input.id);
         return { success: true };
+      }),
+
+    // 商品別GMV操作
+    addProduct: protectedProcedure
+      .input(
+        z.object({
+          livestreamId: z.number(),
+          productName: z.string().min(1),
+          gmv: z.number().optional(),
+          quantity: z.number().optional(),
+          unitPrice: z.number().optional(),
+          productClicks: z.number().optional(),
+          impressions: z.number().optional(),
+          cartAddCount: z.number().optional(),
+          conversionRate: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        return await createLivestreamProduct(input);
+      }),
+
+    listProducts: protectedProcedure
+      .input(z.object({ livestreamId: z.number() }))
+      .query(async ({ input }) => {
+        return await getLivestreamProductsByLivestreamId(input.livestreamId);
+      }),
+
+    updateProduct: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          productName: z.string().optional(),
+          gmv: z.number().optional(),
+          quantity: z.number().optional(),
+          unitPrice: z.number().optional(),
+          productClicks: z.number().optional(),
+          impressions: z.number().optional(),
+          cartAddCount: z.number().optional(),
+          conversionRate: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        await updateLivestreamProduct(id, data);
+        return { success: true };
+      }),
+
+    deleteProduct: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteLivestreamProduct(input.id);
+        return { success: true };
+      }),
+
+    getProductsTotalGmv: protectedProcedure
+      .input(z.object({ livestreamId: z.number() }))
+      .query(async ({ input }) => {
+        return await getLivestreamProductsTotalGmv(input.livestreamId);
       }),
   }),
 

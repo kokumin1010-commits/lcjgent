@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -2991,4 +2991,75 @@ export async function getSchedulesByLiverId(liverId: number, startDate?: Date, e
     .from(schedules)
     .where(and(...conditions))
     .orderBy(asc(schedules.startTime));
+}
+
+
+// ============================================
+// Livestream Products Functions (直播商品別GMV)
+// ============================================
+
+// Create a new livestream product
+export async function createLivestreamProduct(data: InsertLivestreamProduct) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(livestreamProducts).values(data);
+  const insertId = Number(result[0].insertId);
+  return { id: insertId, ...data };
+}
+
+// Get products by livestream ID
+export async function getLivestreamProductsByLivestreamId(livestreamId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(livestreamProducts)
+    .where(eq(livestreamProducts.livestreamId, livestreamId))
+    .orderBy(desc(livestreamProducts.gmv));
+}
+
+// Update livestream product
+export async function updateLivestreamProduct(id: number, data: Partial<InsertLivestreamProduct>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db
+    .update(livestreamProducts)
+    .set(data)
+    .where(eq(livestreamProducts.id, id));
+}
+
+// Delete livestream product
+export async function deleteLivestreamProduct(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db
+    .delete(livestreamProducts)
+    .where(eq(livestreamProducts.id, id));
+}
+
+// Get total GMV for a livestream from products
+export async function getLivestreamProductsTotalGmv(livestreamId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+  
+  const products = await db
+    .select({ gmv: livestreamProducts.gmv })
+    .from(livestreamProducts)
+    .where(eq(livestreamProducts.livestreamId, livestreamId));
+  
+  return products.reduce((sum, p) => sum + (p.gmv || 0), 0);
+}
+
+// Delete all products for a livestream
+export async function deleteLivestreamProductsByLivestreamId(livestreamId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db
+    .delete(livestreamProducts)
+    .where(eq(livestreamProducts.livestreamId, livestreamId));
 }
