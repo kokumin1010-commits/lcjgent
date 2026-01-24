@@ -306,6 +306,10 @@ export default function BrandDetail() {
   const [deleteLivestreamDialogOpen, setDeleteLivestreamDialogOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<any>(null);
   const [livestreamToDelete, setLivestreamToDelete] = useState<any>(null);
+  // Product Detail Popup states
+  const [productDetailDialogOpen, setProductDetailDialogOpen] = useState(false);
+  const [selectedProductForDetail, setSelectedProductForDetail] = useState<any>(null);
+  
   // AI Image Add states
   const [aiImageAddDialogOpen, setAiImageAddDialogOpen] = useState(false);
   const [aiImageFile, setAiImageFile] = useState<File | null>(null);
@@ -943,11 +947,29 @@ export default function BrandDetail() {
                                 <img 
                                   src={imageUrl} 
                                   alt={product?.productName || ''}
-                                  className="w-10 h-10 object-cover rounded-md border border-red-900/30 mx-auto"
+                                  className="w-10 h-10 object-cover rounded-md border border-red-900/30 mx-auto cursor-pointer hover:border-pink-400 hover:scale-110 transition-all"
+                                  onClick={() => {
+                                    if (product) {
+                                      setSelectedProductForDetail(product);
+                                      setProductDetailDialogOpen(true);
+                                    }
+                                  }}
                                 />
                               );
                             }
-                            return <div className="w-10 h-10 bg-gray-800 rounded-md border border-red-900/30 flex items-center justify-center mx-auto"><Package className="w-4 h-4 text-gray-600" /></div>;
+                            return (
+                              <div 
+                                className="w-10 h-10 bg-gray-800 rounded-md border border-red-900/30 flex items-center justify-center mx-auto cursor-pointer hover:border-pink-400 hover:bg-gray-700 transition-all"
+                                onClick={() => {
+                                  if (product) {
+                                    setSelectedProductForDetail(product);
+                                    setProductDetailDialogOpen(true);
+                                  }
+                                }}
+                              >
+                                <Package className="w-4 h-4 text-gray-600" />
+                              </div>
+                            );
                           })()}
                         </td>
                         <td className="py-3 px-2 text-cyan-400 font-medium">
@@ -1359,9 +1381,9 @@ export default function BrandDetail() {
                       <SelectTrigger className="bg-black/60 border-red-900/50 text-white mt-1">
                         <SelectValue placeholder={language === 'ja' ? '商品を選択' : '选择商品'} />
                       </SelectTrigger>
-                      <SelectContent className="bg-black/95 border-red-900/50">
+                      <SelectContent className="bg-black/95 border-red-900/50 text-white">
                         {products.map((product) => (
-                          <SelectItem key={product.id} value={product.id.toString()}>
+                          <SelectItem key={product.id} value={product.id.toString()} className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">
                             {product.productName}
                           </SelectItem>
                         ))}
@@ -2130,9 +2152,9 @@ export default function BrandDetail() {
                     <SelectTrigger className="bg-black/60 border-red-900/50 text-white mt-1">
                       <SelectValue placeholder={language === 'ja' ? '商品を選択' : '选择商品'} />
                     </SelectTrigger>
-                    <SelectContent className="bg-black/95 border-red-900/50">
+                    <SelectContent className="bg-black/95 border-red-900/50 text-white">
                       {products.map((product) => (
-                        <SelectItem key={product.id} value={product.id.toString()}>
+                        <SelectItem key={product.id} value={product.id.toString()} className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">
                           {product.productName}
                         </SelectItem>
                       ))}
@@ -2548,6 +2570,95 @@ export default function BrandDetail() {
                 {t.add}
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Product Detail Popup Dialog */}
+      <Dialog open={productDetailDialogOpen} onOpenChange={setProductDetailDialogOpen}>
+        <DialogContent className="bg-black/95 border-red-900/50 text-white backdrop-blur-xl max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              <Package className="h-5 w-5 text-pink-400" />
+              {language === 'ja' ? '商品詳細' : '商品详情'}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedProductForDetail && (
+            <div className="space-y-4">
+              {/* Product Image */}
+              <div className="flex justify-center">
+                {(() => {
+                  const imageUrl = selectedProductForDetail.imageUrls 
+                    ? (Array.isArray(selectedProductForDetail.imageUrls) 
+                        ? selectedProductForDetail.imageUrls[0] 
+                        : (typeof selectedProductForDetail.imageUrls === 'string' 
+                            ? JSON.parse(selectedProductForDetail.imageUrls)[0] 
+                            : null)) 
+                    : null;
+                  if (imageUrl) {
+                    return (
+                      <img 
+                        src={imageUrl} 
+                        alt={selectedProductForDetail.productName || ''}
+                        className="max-w-full max-h-64 object-contain rounded-lg border border-red-900/30"
+                      />
+                    );
+                  }
+                  return (
+                    <div className="w-48 h-48 bg-gray-800 rounded-lg border border-red-900/30 flex items-center justify-center">
+                      <Package className="w-16 h-16 text-gray-600" />
+                    </div>
+                  );
+                })()}
+              </div>
+              
+              {/* Product Info */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <Label className="text-gray-400 text-xs">{language === 'ja' ? '商品名' : '商品名'}</Label>
+                  <p className="text-white font-medium text-lg mt-1">{selectedProductForDetail.productName}</p>
+                </div>
+                <div>
+                  <Label className="text-gray-400 text-xs">{language === 'ja' ? '定価' : '定价'}</Label>
+                  <p className="text-white font-medium mt-1">
+                    {selectedProductForDetail.listPrice ? `¥${selectedProductForDetail.listPrice.toLocaleString()}` : '-'}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-gray-400 text-xs">{language === 'ja' ? '特価' : '特价'}</Label>
+                  <p className="text-pink-400 font-bold mt-1">
+                    {selectedProductForDetail.specialPrice ? `¥${selectedProductForDetail.specialPrice.toLocaleString()}` : '-'}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-gray-400 text-xs">{language === 'ja' ? '手数料' : '手续费'}</Label>
+                  <p className="text-cyan-400 font-medium mt-1">
+                    {selectedProductForDetail.commissionRate || '-'}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-gray-400 text-xs">{language === 'ja' ? 'GMV' : 'GMV'}</Label>
+                  <p className="text-green-400 font-medium mt-1">
+                    {selectedProductForDetail.gmv ? `¥${selectedProductForDetail.gmv.toLocaleString()}` : '-'}
+                  </p>
+                </div>
+                {selectedProductForDetail.remarks && (
+                  <div className="col-span-2">
+                    <Label className="text-gray-400 text-xs">{language === 'ja' ? '備考' : '备注'}</Label>
+                    <p className="text-gray-300 mt-1">{selectedProductForDetail.remarks}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setProductDetailDialogOpen(false)}
+              className="border-red-500/50 bg-red-950/50 text-gray-200 hover:bg-red-900/40 hover:text-white hover:border-red-400/70"
+            >
+              {language === 'ja' ? '閉じる' : '关闭'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
