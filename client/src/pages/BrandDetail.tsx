@@ -575,6 +575,10 @@ export default function BrandDetail() {
   const { data: livestreamStats } = trpc.brandLivestream.stats.useQuery(
     { brandId }
   );
+  // 月別GMV集計を取得
+  const { data: monthlyGmvSummary = [] } = trpc.brandLivestream.monthlyGmvSummary.useQuery(
+    { brandId }
+  );
 
   // 契約情報を取得
   const { data: contracts = [] } = trpc.brandContract.listByBrand.useQuery(
@@ -2927,6 +2931,47 @@ export default function BrandDetail() {
             </Dialog>
           </CardHeader>
           <CardContent>
+            {/* 月別GMVサマリー */}
+            {monthlyGmvSummary.length > 0 && (
+              <div className="mb-6">
+                <h4 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  月別GMV集計
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {monthlyGmvSummary.map((summary) => (
+                    <div
+                      key={summary.month}
+                      className="bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-lg p-3 border border-indigo-100 dark:border-indigo-800"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
+                          {summary.year}年{summary.monthNum}月
+                        </span>
+                        <Badge variant="outline" className="text-xs bg-white/50 dark:bg-gray-800/50">
+                          {summary.livestreamCount}回
+                        </Badge>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">商品数</span>
+                          <span className="text-sm font-medium text-purple-600 dark:text-purple-400">
+                            {summary.productCount}品
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">GMV合計</span>
+                          <span className="text-sm font-bold text-green-600 dark:text-green-400">
+                            {formatCurrency(summary.gmv)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {livestreams.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {livestreams.map((ls) => {

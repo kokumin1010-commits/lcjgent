@@ -3065,3 +3065,85 @@ export async function deleteLivestreamProductsByLivestreamId(livestreamId: numbe
     .delete(livestreamProducts)
     .where(eq(livestreamProducts.livestreamId, livestreamId));
 }
+
+// Get all livestream products for a brand with livestream date info
+export async function getAllLivestreamProductsForBrand(brandId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // Get all livestreams for the brand
+  const livestreamList = await db
+    .select()
+    .from(brandLivestreams)
+    .where(eq(brandLivestreams.brandId, brandId));
+  
+  // Get all products for these livestreams
+  const livestreamIds = livestreamList.map(ls => ls.id);
+  if (livestreamIds.length === 0) return [];
+  
+  const products = await db
+    .select()
+    .from(livestreamProducts)
+    .where(inArray(livestreamProducts.livestreamId, livestreamIds));
+  
+  // Combine with livestream date info
+  return products.map(product => {
+    const livestream = livestreamList.find(ls => ls.id === product.livestreamId);
+    return {
+      ...product,
+      livestreamDate: livestream?.livestreamDate,
+    };
+  });
+}
+
+// Get monthly GMV summary for a brand
+export async function getMonthlyGmvSummary(brandId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // Get all livestreams for the brand
+  const livestreamList = await db
+    .select()
+    .from(brandLivestreams)
+    .where(eq(brandLivestreams.brandId, brandId))
+    .orderBy(desc(brandLivestreams.livestreamDate));
+  
+  if (livestreamList.length === 0) return [];
+  
+  // Get all products for these livestreams
+  const livestreamIds = livestreamList.map(ls => ls.id);
+  const products = await db
+    .select()
+    .from(livestreamProducts)
+    .where(inArray(livestreamProducts.livestreamId, livestreamIds));
+  
+  // Group by month
+  const monthlyData: Record<string, { gmv: number; productCount: number; livestreamCount: number }> = {};
+  
+  livestreamList.forEach(ls => {
+    const date = new Date(ls.livestreamDate);
+    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    
+    if (!monthlyData[monthKey]) {
+      monthlyData[monthKey] = { gmv: 0, productCount: 0, livestreamCount: 0 };
+    }
+    monthlyData[monthKey].livestreamCount++;
+    
+    // Add products GMV for this livestream
+    const livestreamProducts = products.filter(p => p.livestreamId === ls.id);
+    livestreamProducts.forEach(p => {
+      monthlyData[monthKey].gmv += p.gmv || 0;
+      monthlyData[monthKey].productCount++;
+    });
+  });
+  
+  // Convert to array and sort by month descending
+  return Object.entries(monthlyData)
+    .map(([month, data]) => ({
+      month,
+      year: parseInt(month.split('-')[0]),
+      monthNum: parseInt(month.split('-')[1]),
+      ...data,
+    }))
+    .sort((a, b) => b.month.localeCompare(a.month));
+}

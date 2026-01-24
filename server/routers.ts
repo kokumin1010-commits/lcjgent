@@ -167,6 +167,7 @@ import {
   deleteLivestreamProduct,
   getLivestreamProductsTotalGmv,
   deleteLivestreamProductsByLivestreamId,
+  getMonthlyGmvSummary,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -2032,6 +2033,13 @@ ${JSON.stringify(teamSummary, null, 2)}`;
       .input(z.object({ livestreamId: z.number() }))
       .query(async ({ input }) => {
         return await getLivestreamProductsTotalGmv(input.livestreamId);
+      }),
+
+    // 月別GMV集計を取得
+    monthlyGmvSummary: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        return await getMonthlyGmvSummary(input.brandId);
       }),
   }),
 
