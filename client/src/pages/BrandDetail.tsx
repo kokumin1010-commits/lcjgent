@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Plus, Trash2, Edit2, TrendingUp, ImageIcon, X, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, ShoppingCart, Tag, Sparkles, FileText, Truck, MessageSquare, CheckCircle2, AlertCircle, PauseCircle, XCircle } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit2, TrendingUp, ImageIcon, X, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, ShoppingCart, Tag, Sparkles, FileText, Truck, MessageSquare, CheckCircle2, AlertCircle, PauseCircle, XCircle, Star } from "lucide-react";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
 
@@ -401,6 +401,7 @@ export default function BrandDetail() {
   // 商品詳細ダイアログ用のstate
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [isProductDetailDialogOpen, setIsProductDetailDialogOpen] = useState(false);
+  const [isImageZoomed, setIsImageZoomed] = useState(false);
 
   // AI商品登録用のstate
   const [isAiProductDialogOpen, setIsAiProductDialogOpen] = useState(false);
@@ -1781,72 +1782,89 @@ export default function BrandDetail() {
             </DialogHeader>
             {selectedProduct && (
               <div className="space-y-6">
-                {/* 提案書画像 */}
+                {/* 提案書画像 - タップで拡大 */}
                 {selectedProduct.proposalImageUrl && (
                   <div className="space-y-2">
                     <h3 className="font-semibold flex items-center gap-2">
                       <ImageIcon className="h-4 w-4 text-purple-500" />
                       {t.proposalImage}
+                      <span className="text-xs text-muted-foreground ml-2">(タップで拡大)</span>
                     </h3>
-                    <div className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+                    <div 
+                      className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 cursor-zoom-in hover:shadow-lg transition-shadow"
+                      onClick={() => setIsImageZoomed(true)}
+                    >
                       <img
                         src={selectedProduct.proposalImageUrl}
                         alt={selectedProduct.productName}
-                        className="w-full max-h-[500px] object-contain"
+                        className="w-full max-h-[300px] object-contain"
                       />
                     </div>
                   </div>
                 )}
 
-                {/* 基本情報 */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-xs text-muted-foreground">{t.productName}</label>
-                      <p className="font-semibold">{selectedProduct.productName}</p>
+                {/* 価格情報カード */}
+                <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl p-4 border border-blue-100 dark:border-blue-800">
+                  <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-3 flex items-center gap-2">
+                    <DollarSign className="h-4 w-4" />
+                    価格情報
+                  </h3>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="text-center">
+                      <p className="text-xs text-muted-foreground">{t.listPrice}</p>
+                      <p className="text-lg font-bold text-gray-600 dark:text-gray-300 line-through">{formatCurrency(selectedProduct.listPrice)}</p>
                     </div>
-                    {selectedProduct.productCode && (
-                      <div>
-                        <label className="text-xs text-muted-foreground">{t.productCode}</label>
-                        <p className="font-mono text-sm">{selectedProduct.productCode}</p>
+                    <div className="text-center">
+                      <p className="text-xs text-muted-foreground">{t.specialPrice}</p>
+                      <p className="text-2xl font-bold text-red-600">{formatCurrency(selectedProduct.specialPrice)}</p>
+                    </div>
+                    {selectedProduct.discountRate && (
+                      <div className="text-center">
+                        <p className="text-xs text-muted-foreground">{t.discountRate}</p>
+                        <Badge className="bg-green-500 text-white text-lg px-3 py-1">
+                          {selectedProduct.discountRate}
+                        </Badge>
                       </div>
                     )}
-                    <div className="flex gap-4">
-                      <div>
-                        <label className="text-xs text-muted-foreground">{t.listPrice}</label>
-                        <p className="font-semibold">{formatCurrency(selectedProduct.listPrice)}</p>
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">{t.specialPrice}</label>
-                        <p className="font-bold text-red-600">{formatCurrency(selectedProduct.specialPrice)}</p>
-                      </div>
-                      {selectedProduct.discountRate && (
-                        <div>
-                          <label className="text-xs text-muted-foreground">{t.discountRate}</label>
-                          <Badge className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
-                            {selectedProduct.discountRate}
-                          </Badge>
-                        </div>
-                      )}
-                    </div>
                   </div>
-                  <div className="space-y-3">
+                </div>
+
+                {/* 基本情報カード */}
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 shadow-sm">
+                  <h3 className="font-semibold text-gray-800 dark:text-gray-200 mb-3 flex items-center gap-2">
+                    <Package className="h-4 w-4" />
+                    基本情報
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">{t.productName}</p>
+                      <p className="font-semibold text-sm">{selectedProduct.productName}</p>
+                    </div>
+                    {selectedProduct.productCode && (
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">{t.productCode}</p>
+                        <p className="font-mono text-sm bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded inline-block">{selectedProduct.productCode}</p>
+                      </div>
+                    )}
                     {selectedProduct.releaseDate && (
-                      <div>
-                        <label className="text-xs text-muted-foreground">{t.releaseDate}</label>
-                        <p>{selectedProduct.releaseDate}</p>
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">{t.releaseDate}</p>
+                        <p className="text-sm flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {selectedProduct.releaseDate}
+                        </p>
                       </div>
                     )}
                     {selectedProduct.stock !== null && selectedProduct.stock !== undefined && (
-                      <div>
-                        <label className="text-xs text-muted-foreground">{t.stock}</label>
-                        <p>{selectedProduct.stock}</p>
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">{t.stock}</p>
+                        <p className="text-sm font-semibold">{selectedProduct.stock} 個</p>
                       </div>
                     )}
                     {selectedProduct.influencer && (
-                      <div>
-                        <label className="text-xs text-muted-foreground">{t.influencer}</label>
-                        <p>{selectedProduct.influencer}</p>
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">{t.influencer}</p>
+                        <p className="text-sm">{selectedProduct.influencer}</p>
                       </div>
                     )}
                   </div>
@@ -1854,43 +1872,73 @@ export default function BrandDetail() {
 
                 {/* キャッチコピー */}
                 {selectedProduct.catchCopy && (
-                  <div>
-                    <label className="text-xs text-muted-foreground">{t.catchCopy}</label>
-                    <p className="mt-1 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800 text-sm">
-                      {selectedProduct.catchCopy}
-                    </p>
+                  <div className="bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 rounded-xl p-4 border border-yellow-200 dark:border-yellow-800">
+                    <h3 className="font-semibold text-yellow-800 dark:text-yellow-200 mb-2 flex items-center gap-2">
+                      <Star className="h-4 w-4" />
+                      {t.catchCopy}
+                    </h3>
+                    <p className="text-sm leading-relaxed">{selectedProduct.catchCopy}</p>
                   </div>
                 )}
 
                 {/* 商品詳細 */}
                 {selectedProduct.productDetails && (
-                  <div>
-                    <label className="text-xs text-muted-foreground">{t.productDetails}</label>
-                    <p className="mt-1 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-sm whitespace-pre-wrap">
-                      {selectedProduct.productDetails}
-                    </p>
+                  <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 shadow-sm">
+                    <h3 className="font-semibold text-gray-800 dark:text-gray-200 mb-3 flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      {t.productDetails}
+                    </h3>
+                    <div className="text-sm leading-relaxed space-y-2 max-h-[300px] overflow-y-auto">
+                      {selectedProduct.productDetails.split(/[■●★※・]/).filter((s: string) => s.trim()).map((section: string, idx: number) => (
+                        <div key={idx} className="pl-3 border-l-2 border-blue-300 dark:border-blue-600">
+                          {section.trim()}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 
                 {/* 配送情報 */}
                 {selectedProduct.shippingInfo && (
-                  <div>
-                    <label className="text-xs text-muted-foreground">{t.shippingInfo}</label>
-                    <p className="mt-1 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 text-sm">
-                      {selectedProduct.shippingInfo}
-                    </p>
+                  <div className="bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
+                    <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-2 flex items-center gap-2">
+                      <Truck className="h-4 w-4" />
+                      {t.shippingInfo}
+                    </h3>
+                    <p className="text-sm leading-relaxed">{selectedProduct.shippingInfo}</p>
                   </div>
                 )}
 
                 {/* 備考 */}
                 {selectedProduct.remarks && (
-                  <div>
-                    <label className="text-xs text-muted-foreground">{t.memo}</label>
-                    <p className="mt-1 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-sm">
-                      {selectedProduct.remarks}
-                    </p>
+                  <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+                    <h3 className="font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4" />
+                      {t.memo}
+                    </h3>
+                    <p className="text-sm leading-relaxed">{selectedProduct.remarks}</p>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* 画像拡大モーダル */}
+            {isImageZoomed && selectedProduct?.proposalImageUrl && (
+              <div 
+                className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center cursor-zoom-out"
+                onClick={() => setIsImageZoomed(false)}
+              >
+                <img
+                  src={selectedProduct.proposalImageUrl}
+                  alt={selectedProduct.productName}
+                  className="max-w-[95vw] max-h-[95vh] object-contain"
+                />
+                <button
+                  className="absolute top-4 right-4 text-white bg-black/50 rounded-full p-2 hover:bg-black/70"
+                  onClick={() => setIsImageZoomed(false)}
+                >
+                  <X className="h-6 w-6" />
+                </button>
               </div>
             )}
             <DialogFooter>
