@@ -21,7 +21,6 @@ import ReportAnalysis from "./pages/ReportAnalysis";
 import BrandList from "./pages/BrandList";
 import BrandForm from "./pages/BrandForm";
 import BrandDetail from "./pages/BrandDetail";
-import BrandCommandCenter from "./pages/BrandCommandCenter";
 import BusinessCards from "./pages/BusinessCards";
 import ChatReport from "./pages/ChatReport";
 import LineManagement from "./pages/LineManagement";
@@ -130,11 +129,6 @@ function Router() {
       <Route path={"/brands/:id"}>
         {(params) => (
           <BrandDetail />
-        )}
-      </Route>
-      <Route path={"/brands/:id/command"}>
-        {(params) => (
-          <BrandCommandCenter />
         )}
       </Route>
       <Route path={"/business-cards"}>

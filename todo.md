@@ -1163,3 +1163,9 @@
 - [x] GMV実績（全期間）と今月GMVを並べて表示
 - [x] 前月比表示を追加
 - [x] バッジ表示（商品、直播、契約、報酬、負責人）を追加
+
+## BrandDetailページをサイバーパンク風に置き換え
+- [x] BrandDetailページをBrandCommandCenterのデザインに置き換え
+- [x] 司令塔ページ（BrandCommandCenter.tsx）を削除
+- [x] App.tsxから司令塔ルートを削除
+- [x] ブランド一覧ページから司令塔ボタンを削除
