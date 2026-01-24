@@ -823,7 +823,15 @@ export default function BrandDetail() {
                       <tr key={product.id} className="border-b border-red-900/20 hover:bg-red-900/10 transition-colors group">
                         <td className="py-3 px-2">
                           {product.imageUrls && product.imageUrls.length > 0 ? (
-                            <img src={product.imageUrls[0]} alt={product.productName} className="w-12 h-12 object-cover rounded-lg border border-red-900/30" />
+                            <img 
+                              src={product.imageUrls[0]} 
+                              alt={product.productName} 
+                              className="w-12 h-12 object-cover rounded-lg border border-red-900/30 cursor-pointer hover:border-pink-400 hover:scale-110 transition-all" 
+                              onClick={() => {
+                                setSelectedProductForDetail(product);
+                                setProductDetailDialogOpen(true);
+                              }}
+                            />
                           ) : (
                             <div className="w-12 h-12 bg-red-900/20 rounded-lg border border-red-900/30 flex items-center justify-center">
                               <Package className="w-6 h-6 text-gray-600" />
@@ -1491,7 +1499,7 @@ export default function BrandDetail() {
                         setEditingLivestream({ 
                           ...editingLivestream, 
                           productId: value ? parseInt(value) : null,
-                          productCommission: selectedProduct?.commissionRate || editingLivestream.productCommission
+                          productCommission: selectedProduct?.commissionRate || ""
                         });
                       }}
                     >
@@ -1508,13 +1516,13 @@ export default function BrandDetail() {
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-gray-400">{language === 'ja' ? '商品手数料' : '商品手续费'}</Label>
-                    <Input
-                      value={editingLivestream.productCommission || ""}
-                      onChange={(e) => setEditingLivestream({ ...editingLivestream, productCommission: e.target.value })}
-                      placeholder={language === 'ja' ? '例: 15%' : '例: 15%'}
-                      className="bg-black/60 border-red-900/50 text-white mt-1"
-                    />
+                    <Label className="text-gray-400">{language === 'ja' ? '成果報酬' : '成果报酬'}</Label>
+                    <div className="bg-black/60 border border-red-900/50 rounded-md px-3 py-2 mt-1 text-cyan-400 font-medium">
+                      {(() => {
+                        const selectedProduct = editingLivestream.productId ? products.find(p => p.id === editingLivestream.productId) : null;
+                        return selectedProduct?.commissionRate || '-';
+                      })()}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2201,7 +2209,7 @@ export default function BrandDetail() {
                       setNewLivestream({ 
                         ...newLivestream, 
                         productId: value ? parseInt(value) : null,
-                        productCommission: selectedProduct?.commissionRate || newLivestream.productCommission
+                        productCommission: selectedProduct?.commissionRate || ""
                       });
                     }}
                   >
@@ -2218,13 +2226,13 @@ export default function BrandDetail() {
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-gray-400">{language === 'ja' ? '商品手数料' : '商品手续费'}</Label>
-                  <Input
-                    value={newLivestream.productCommission}
-                    onChange={(e) => setNewLivestream({ ...newLivestream, productCommission: e.target.value })}
-                    placeholder={language === 'ja' ? '例: 15%' : '例: 15%'}
-                    className="bg-black/60 border-red-900/50 text-white mt-1"
-                  />
+                  <Label className="text-gray-400">{language === 'ja' ? '成果報酬' : '成果报酬'}</Label>
+                  <div className="bg-black/60 border border-red-900/50 rounded-md px-3 py-2 mt-1 text-cyan-400 font-medium">
+                    {(() => {
+                      const selectedProduct = newLivestream.productId ? products.find(p => p.id === newLivestream.productId) : null;
+                      return selectedProduct?.commissionRate || '-';
+                    })()}
+                  </div>
                 </div>
               </div>
             </div>
@@ -2702,7 +2710,7 @@ export default function BrandDetail() {
 
       {/* Product Detail Popup Dialog */}
       <Dialog open={productDetailDialogOpen} onOpenChange={setProductDetailDialogOpen}>
-        <DialogContent className="bg-black/95 border-red-900/50 text-white backdrop-blur-xl max-w-2xl">
+        <DialogContent className="bg-black/95 border-red-900/50 text-white backdrop-blur-xl max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-white flex items-center gap-2">
               <Package className="h-5 w-5 text-pink-400" />
@@ -2710,9 +2718,9 @@ export default function BrandDetail() {
             </DialogTitle>
           </DialogHeader>
           {selectedProductForDetail && (
-            <div className="space-y-4">
-              {/* Product Image */}
-              <div className="flex justify-center">
+            <div className="space-y-6">
+              {/* Product Image - Large */}
+              <div className="flex justify-center bg-gray-900/50 rounded-xl p-4">
                 {(() => {
                   const imageUrl = selectedProductForDetail.imageUrls 
                     ? (Array.isArray(selectedProductForDetail.imageUrls) 
@@ -2723,61 +2731,148 @@ export default function BrandDetail() {
                     : null;
                   if (imageUrl) {
                     return (
-                      <img 
-                        src={imageUrl} 
-                        alt={selectedProductForDetail.productName || ''}
-                        className="max-w-full max-h-64 object-contain rounded-lg border border-red-900/30"
-                      />
+                      <a href={imageUrl} target="_blank" rel="noopener noreferrer">
+                        <img 
+                          src={imageUrl} 
+                          alt={selectedProductForDetail.productName || ''}
+                          className="max-w-full max-h-96 object-contain rounded-lg border border-red-900/30 cursor-pointer hover:scale-105 transition-transform"
+                        />
+                      </a>
                     );
                   }
                   return (
-                    <div className="w-48 h-48 bg-gray-800 rounded-lg border border-red-900/30 flex items-center justify-center">
-                      <Package className="w-16 h-16 text-gray-600" />
+                    <div className="w-64 h-64 bg-gray-800 rounded-lg border border-red-900/30 flex items-center justify-center">
+                      <Package className="w-20 h-20 text-gray-600" />
                     </div>
                   );
                 })()}
               </div>
               
-              {/* Product Info */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <Label className="text-gray-400 text-xs">{language === 'ja' ? '商品名' : '商品名'}</Label>
-                  <p className="text-white font-medium text-lg mt-1">{selectedProductForDetail.productName}</p>
-                </div>
-                <div>
-                  <Label className="text-gray-400 text-xs">{language === 'ja' ? '定価' : '定价'}</Label>
-                  <p className="text-white font-medium mt-1">
-                    {selectedProductForDetail.listPrice ? `¥${selectedProductForDetail.listPrice.toLocaleString()}` : '-'}
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-gray-400 text-xs">{language === 'ja' ? '特価' : '特价'}</Label>
-                  <p className="text-pink-400 font-bold mt-1">
-                    {selectedProductForDetail.specialPrice ? `¥${selectedProductForDetail.specialPrice.toLocaleString()}` : '-'}
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-gray-400 text-xs">{language === 'ja' ? '手数料' : '手续费'}</Label>
-                  <p className="text-cyan-400 font-medium mt-1">
-                    {selectedProductForDetail.commissionRate || '-'}
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-gray-400 text-xs">{language === 'ja' ? 'GMV' : 'GMV'}</Label>
-                  <p className="text-green-400 font-medium mt-1">
-                    {selectedProductForDetail.gmv ? `¥${selectedProductForDetail.gmv.toLocaleString()}` : '-'}
-                  </p>
-                </div>
-                {selectedProductForDetail.remarks && (
+              {/* Basic Info */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-bold text-pink-400 border-b border-red-900/30 pb-2">
+                  {language === 'ja' ? '基本情報' : '基本信息'}
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
-                    <Label className="text-gray-400 text-xs">{language === 'ja' ? '備考' : '备注'}</Label>
-                    <p className="text-gray-300 mt-1">{selectedProductForDetail.remarks}</p>
+                    <Label className="text-gray-400 text-xs">{language === 'ja' ? '商品名' : '商品名'}</Label>
+                    <p className="text-white font-medium text-lg mt-1">{selectedProductForDetail.productName}</p>
                   </div>
-                )}
+                  <div>
+                    <Label className="text-gray-400 text-xs">{language === 'ja' ? '定価' : '定价'}</Label>
+                    <p className="text-white font-medium mt-1">
+                      {selectedProductForDetail.listPrice ? `¥${selectedProductForDetail.listPrice.toLocaleString()}` : '-'}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-gray-400 text-xs">{language === 'ja' ? '特価' : '特价'}</Label>
+                    <p className="text-pink-400 font-bold mt-1">
+                      {selectedProductForDetail.specialPrice ? `¥${selectedProductForDetail.specialPrice.toLocaleString()}` : '-'}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-gray-400 text-xs">{language === 'ja' ? '成果報酬' : '成果报酬'}</Label>
+                    <p className="text-cyan-400 font-medium mt-1">
+                      {selectedProductForDetail.commissionRate || '-'}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-gray-400 text-xs">{language === 'ja' ? '発売日' : '发售日'}</Label>
+                    <p className="text-white font-medium mt-1">
+                      {selectedProductForDetail.releaseDate || '-'}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-gray-400 text-xs">{language === 'ja' ? '商品コード' : '商品编码'}</Label>
+                    <p className="text-white font-medium mt-1">
+                      {selectedProductForDetail.productCode || '-'}
+                    </p>
+                  </div>
+                </div>
               </div>
+
+              {/* AI Extracted Info */}
+              {(selectedProductForDetail.catchCopy || selectedProductForDetail.features || selectedProductForDetail.productDetails || selectedProductForDetail.accessories || selectedProductForDetail.shippingInfo || selectedProductForDetail.targetAudience || selectedProductForDetail.usageMethod) && (
+                <div className="space-y-4">
+                  <h3 className="text-lg font-bold text-purple-400 border-b border-red-900/30 pb-2">
+                    {language === 'ja' ? 'AI抽出情報' : 'AI提取信息'}
+                  </h3>
+                  
+                  {selectedProductForDetail.catchCopy && (
+                    <div>
+                      <Label className="text-gray-400 text-xs">{language === 'ja' ? 'キャッチコピー・広告語' : '广告语'}</Label>
+                      <p className="text-yellow-300 mt-1 whitespace-pre-wrap">{selectedProductForDetail.catchCopy}</p>
+                    </div>
+                  )}
+                  
+                  {selectedProductForDetail.features && (
+                    <div>
+                      <Label className="text-gray-400 text-xs">{language === 'ja' ? '商品の特徴・セールスポイント' : '商品特点/卖点'}</Label>
+                      <p className="text-gray-200 mt-1 whitespace-pre-wrap text-sm">{selectedProductForDetail.features}</p>
+                    </div>
+                  )}
+                  
+                  {selectedProductForDetail.productDetails && (
+                    <div>
+                      <Label className="text-gray-400 text-xs">{language === 'ja' ? '商品詳細（内容量・容量等）' : '商品详情（内容量/容量等）'}</Label>
+                      <p className="text-gray-200 mt-1 whitespace-pre-wrap text-sm">{selectedProductForDetail.productDetails}</p>
+                    </div>
+                  )}
+                  
+                  {selectedProductForDetail.accessories && (
+                    <div>
+                      <Label className="text-gray-400 text-xs">{language === 'ja' ? '付属品・セット内容' : '附件/套装内容'}</Label>
+                      <p className="text-gray-200 mt-1 whitespace-pre-wrap text-sm">{selectedProductForDetail.accessories}</p>
+                    </div>
+                  )}
+                  
+                  {selectedProductForDetail.shippingInfo && (
+                    <div>
+                      <Label className="text-gray-400 text-xs">{language === 'ja' ? '配送情報' : '配送信息'}</Label>
+                      <p className="text-gray-200 mt-1 whitespace-pre-wrap text-sm">{selectedProductForDetail.shippingInfo}</p>
+                    </div>
+                  )}
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    {selectedProductForDetail.targetAudience && (
+                      <div>
+                        <Label className="text-gray-400 text-xs">{language === 'ja' ? 'ターゲット層' : '目标人群'}</Label>
+                        <p className="text-gray-200 mt-1 text-sm">{selectedProductForDetail.targetAudience}</p>
+                      </div>
+                    )}
+                    {selectedProductForDetail.usageMethod && (
+                      <div>
+                        <Label className="text-gray-400 text-xs">{language === 'ja' ? '使用方法' : '使用方法'}</Label>
+                        <p className="text-gray-200 mt-1 text-sm">{selectedProductForDetail.usageMethod}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Remarks */}
+              {selectedProductForDetail.remarks && (
+                <div className="space-y-2">
+                  <h3 className="text-lg font-bold text-gray-400 border-b border-red-900/30 pb-2">
+                    {language === 'ja' ? '備考' : '备注'}
+                  </h3>
+                  <p className="text-gray-300 whitespace-pre-wrap text-sm">{selectedProductForDetail.remarks}</p>
+                </div>
+              )}
             </div>
           )}
           <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditingProduct(selectedProductForDetail);
+                setProductDetailDialogOpen(false);
+                setEditProductDialogOpen(true);
+              }}
+              className="border-cyan-500/50 bg-cyan-950/50 text-cyan-200 hover:bg-cyan-900/40 hover:text-white hover:border-cyan-400/70"
+            >
+              {language === 'ja' ? '編集' : '编辑'}
+            </Button>
             <Button
               variant="outline"
               onClick={() => setProductDetailDialogOpen(false)}
