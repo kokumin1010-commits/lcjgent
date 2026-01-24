@@ -810,7 +810,7 @@ export async function createBrand(brandData: InsertBrand) {
   };
 }
 
-// Get all brands with optional filters
+// Get all brands with optional filters and GMV totals
 export async function getAllBrands(filters?: { status?: string; search?: string }) {
   const db = await getDb();
   if (!db) return [];
@@ -829,7 +829,26 @@ export async function getAllBrands(filters?: { status?: string; search?: string 
     query = query.where(and(...conditions)) as any;
   }
   
-  return await query.orderBy(desc(brands.updatedAt));
+  const brandsResult = await query.orderBy(desc(brands.updatedAt));
+  
+  // Get GMV totals for each brand from livestreams
+  const brandsWithGmv = await Promise.all(
+    brandsResult.map(async (brand) => {
+      const livestreams = await db
+        .select({ gmv: brandLivestreams.gmv })
+        .from(brandLivestreams)
+        .where(eq(brandLivestreams.brandId, brand.id));
+      
+      const totalGmv = livestreams.reduce((sum, ls) => sum + (ls.gmv || 0), 0);
+      
+      return {
+        ...brand,
+        totalGmv,
+      };
+    })
+  );
+  
+  return brandsWithGmv;
 }
 
 // Get brand by ID

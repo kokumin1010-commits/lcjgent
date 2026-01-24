@@ -275,7 +275,7 @@ export default function BrandList() {
                         GMV
                       </div>
                       <div className="text-lg font-semibold text-green-400">
-                        -
+                        {(brand as any).totalGmv ? `¥${((brand as any).totalGmv).toLocaleString()}` : "-"}
                       </div>
                     </div>
                   </div>
