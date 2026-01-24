@@ -2393,14 +2393,14 @@ export default function BrandDetail() {
                       try {
                         // Upload image first
                         const base64 = aiImagePreview?.split(',')[1] || '';
-                        const uploadResult = await (window as any).trpcClient.brand.uploadImage.mutate({
+                        const uploadResult = await uploadImageMutation.mutateAsync({
                           base64: base64,
                           filename: aiImageFile.name,
                           type: 'product',
                         });
                         
                         // Extract product info from image
-                        const extractResult = await (window as any).trpcClient.brandProduct.extractFromImage.mutate({
+                        const extractResult = await aiExtractMutation.mutateAsync({
                           imageUrl: uploadResult.url,
                         });
                         
