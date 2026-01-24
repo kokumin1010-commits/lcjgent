@@ -1,0 +1,35 @@
+{
+  "query": "SELECT id, email, name FROM livers LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, email, name FROM livers LIMIT 5;",
+  "rows": [
+    {
+      "id": "1",
+      "email": "test-liver-1769189637766@example.com",
+      "name": "Test Liver"
+    },
+    {
+      "id": "2",
+      "email": "test-liver-1769189665012@example.com",
+      "name": "Test Liver"
+    },
+    {
+      "id": "30001",
+      "email": "test-liver-1769231892926@example.com",
+      "name": "Test Liver"
+    },
+    {
+      "id": "30002",
+      "email": "test-liver-1769232519878@example.com",
+      "name": "Test Liver"
+    },
+    {
+      "id": "30003",
+      "email": "test-liver-1769233032436@example.com",
+      "name": "Test Liver"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\temail\tname\n1\ttest-liver-1769189637766@example.com\tTest Liver\n2\ttest-liver-1769189665012@example.com\tTest Liver\n30001\ttest-liver-1769231892926@example.com\tTest Liver\n30002\ttest-liver-1769232519878@example.com\tTest Liver\n30003\ttest-liver-1769233032436@example.com\tTest Liver\n",
+  "stderr": "",
+  "execution_time_ms": 1502
+}

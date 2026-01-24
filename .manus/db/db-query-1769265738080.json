@@ -1,0 +1,40 @@
+{
+  "query": "SELECT id, email, name, password FROM users LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, email, name, password FROM users LIMIT 5;",
+  "rows": [
+    {
+      "id": "1",
+      "email": "ryuhairartist@gmail.com",
+      "name": "Ryu Hair Artist",
+      "password": ""
+    },
+    {
+      "id": "73",
+      "email": "test-1768338291542@example.com",
+      "name": "Test User",
+      "password": "$2b$10$Rxls/Qxbv1flu4LsSWfGaeiUDt8xKYkV8T/vBbj5zTT5RTaqI2piO"
+    },
+    {
+      "id": "74",
+      "email": "duplicate-1768338293454@example.com",
+      "name": "First User",
+      "password": "$2b$10$pzMlR1k7s/iKShlczCo0LO3jjste6CSNND4BuMtz9P.t6PepD/5o6"
+    },
+    {
+      "id": "75",
+      "email": "login-test-1768338294180@example.com",
+      "name": "Login Test User",
+      "password": "$2b$10$upkbHANCxKsD3jXT5uuQmeQLwSe5DsJu1UOo75yUz.or4MU5nsdBW"
+    },
+    {
+      "id": "76",
+      "email": "wrong-password-1768338295196@example.com",
+      "name": "Wrong Password Test",
+      "password": "$2b$10$oyGE4vpA7s2Jb562W3L/5.L.lPTxNMwnX.yw3uP/XLKYO3wScfp16"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\temail\tname\tpassword\n1\tryuhairartist@gmail.com\tRyu Hair Artist\t\n73\ttest-1768338291542@example.com\tTest User\t$2b$10$Rxls/Qxbv1flu4LsSWfGaeiUDt8xKYkV8T/vBbj5zTT5RTaqI2piO\n74\tduplicate-1768338293454@example.com\tFirst User\t$2b$10$pzMlR1k7s/iKShlczCo0LO3jjste6CSNND4BuMtz9P.t6PepD/5o6\n75\tlogin-test-1768338294180@example.com\tLogin Test User\t$2b$10$upkbHANCxKsD3jXT5uuQmeQLwSe5DsJu1UOo75yUz.or4MU5nsdBW\n76\twrong-password-1768338295196@example.com\tWrong Password Test\t$2b$10$oyGE4vpA7s2Jb562W3L/5.L.lPTxNMwnX.yw3uP/XLKYO3wScfp16\n",
+  "stderr": "",
+  "execution_time_ms": 1534
+}

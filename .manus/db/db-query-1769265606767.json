@@ -1,0 +1,112 @@
+{
+  "query": "SHOW TABLES;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SHOW TABLES;",
+  "rows": [
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "__drizzle_migrations"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "activity_logs"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "ai_advice_feedback"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "ai_learning_examples"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "ai_question_templates"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "brand_activities"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "brand_contracts"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "brand_lcj_staff"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "brand_livestreams"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "brand_memos"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "brand_products"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "brands"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "business_cards"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "chat_report_messages"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "chat_report_sessions"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "email_tracking"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "line_follow_ups"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "line_groups"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "line_messages"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "line_users"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "livers"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "livestream_products"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "pending_responses"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "reminders"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "report_ai_advice"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "report_followups"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "report_staff"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "reports"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "schedules"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "staff"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "staff_ai_profiles"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "task_staff"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "tasks"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "users"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_GgA9WvTBCZMf6mjyMMwACw\n__drizzle_migrations\nactivity_logs\nai_advice_feedback\nai_learning_examples\nai_question_templates\nbrand_activities\nbrand_contracts\nbrand_lcj_staff\nbrand_livestreams\nbrand_memos\nbrand_products\nbrands\nbusiness_cards\nchat_report_messages\nchat_report_sessions\nemail_tracking\nline_follow_ups\nline_groups\nline_messages\nline_users\nlivers\nlivestream_products\npending_responses\nreminders\nreport_ai_advice\nreport_followups\nreport_staff\nreports\nschedules\nstaff\nstaff_ai_profiles\ntask_staff\ntasks\nusers\n",
+  "stderr": "",
+  "execution_time_ms": 1535
+}

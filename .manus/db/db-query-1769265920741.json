@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE users SET password = '$2b$10$U6fVf2DoW0tQ9VMDYj1C8Oh5TQbL8eUsfDG/QnbKEwKlaXYdOCx6a' WHERE email = 'ryuhairartist@gmail.com';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute UPDATE users SET password = '$2b$10$U6fVf2DoW0tQ9VMDYj1C8Oh5TQbL8eUsfDG/QnbKEwKlaXYdOCx6a' WHERE email = 'ryuhairartist@gmail.com';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1554
+}

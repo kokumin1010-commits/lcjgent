@@ -2752,179 +2752,221 @@ export default function BrandDetail() {
         </DialogContent>
       </Dialog>
 
-      {/* Product Detail Popup Dialog */}
+      {/* Product Detail Popup Dialog - Exciting Design */}
       <Dialog open={productDetailDialogOpen} onOpenChange={setProductDetailDialogOpen}>
-        <DialogContent className="bg-black/95 border-red-900/50 text-white backdrop-blur-xl max-w-5xl max-h-[95vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-white flex items-center gap-3 text-2xl">
-              <Package className="h-7 w-7 text-pink-400" />
-              {language === 'ja' ? '商品詳細' : '商品详情'}
-            </DialogTitle>
-          </DialogHeader>
-          {selectedProductForDetail && (
-            <div className="space-y-8 p-2">
-              {/* Product Image - Large */}
-              <div className="flex justify-center bg-gray-900/50 rounded-xl p-6">
-                {(() => {
-                  const imageUrl = selectedProductForDetail.imageUrls 
-                    ? (Array.isArray(selectedProductForDetail.imageUrls) 
-                        ? selectedProductForDetail.imageUrls[0] 
-                        : (typeof selectedProductForDetail.imageUrls === 'string' 
-                            ? JSON.parse(selectedProductForDetail.imageUrls)[0] 
-                            : null)) 
-                    : null;
-                  if (imageUrl) {
-                    return (
-                      <a href={imageUrl} target="_blank" rel="noopener noreferrer">
-                        <img 
-                          src={imageUrl} 
-                          alt={selectedProductForDetail.productName || ''}
-                          className="max-w-full max-h-[500px] object-contain rounded-lg border border-red-900/30 cursor-pointer hover:scale-105 transition-transform shadow-lg"
-                        />
-                      </a>
-                    );
-                  }
-                  return (
-                    <div className="w-80 h-80 bg-gray-800 rounded-lg border border-red-900/30 flex items-center justify-center">
-                      <Package className="w-24 h-24 text-gray-600" />
-                    </div>
-                  );
-                })()}
-              </div>
-              
-              {/* Basic Info */}
-              <div className="space-y-5">
-                <h3 className="text-xl font-bold text-pink-400 border-b border-red-900/30 pb-3">
-                  {language === 'ja' ? '基本情報' : '基本信息'}
-                </h3>
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="col-span-2">
-                    <Label className="text-gray-400 text-sm">{language === 'ja' ? '商品名' : '商品名'}</Label>
-                    <p className="text-white font-bold text-2xl mt-2">{selectedProductForDetail.productName}</p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-400 text-sm">{language === 'ja' ? '定価' : '定价'}</Label>
-                    <p className="text-white font-semibold text-xl mt-2">
-                      {selectedProductForDetail.listPrice ? `¥${selectedProductForDetail.listPrice.toLocaleString()}` : '-'}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-400 text-sm">{language === 'ja' ? '特価' : '特价'}</Label>
-                    <p className="text-pink-400 font-bold text-xl mt-2">
-                      {selectedProductForDetail.specialPrice ? `¥${selectedProductForDetail.specialPrice.toLocaleString()}` : '-'}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-400 text-sm">{language === 'ja' ? '成果報酬' : '成果报酬'}</Label>
-                    <p className="text-cyan-400 font-bold text-xl mt-2">
-                      {selectedProductForDetail.commissionRate || '-'}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-400 text-sm">{language === 'ja' ? '発売日' : '发售日'}</Label>
-                    <p className="text-white font-semibold text-lg mt-2">
-                      {selectedProductForDetail.releaseDate || '-'}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-400 text-sm">{language === 'ja' ? '商品コード' : '商品编码'}</Label>
-                    <p className="text-white font-semibold text-lg mt-2">
-                      {selectedProductForDetail.productCode || '-'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* AI Extracted Info */}
-              {(selectedProductForDetail.catchCopy || selectedProductForDetail.features || selectedProductForDetail.productDetails || selectedProductForDetail.accessories || selectedProductForDetail.shippingInfo || selectedProductForDetail.targetAudience || selectedProductForDetail.usageMethod) && (
-                <div className="space-y-5">
-                  <h3 className="text-xl font-bold text-purple-400 border-b border-red-900/30 pb-3">
-                    {language === 'ja' ? 'AI抽出情報' : 'AI提取信息'}
-                  </h3>
-                  
-                  {selectedProductForDetail.catchCopy && (
-                    <div className="bg-yellow-900/20 rounded-lg p-4 border border-yellow-600/30">
-                      <Label className="text-gray-400 text-sm">{language === 'ja' ? 'キャッチコピー・広告語' : '广告语'}</Label>
-                      <p className="text-yellow-300 mt-2 whitespace-pre-wrap text-lg font-medium">{selectedProductForDetail.catchCopy}</p>
-                    </div>
-                  )}
-                  
-                  {selectedProductForDetail.features && (
-                    <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-700/50">
-                      <Label className="text-gray-400 text-sm">{language === 'ja' ? '商品の特徴・セールスポイント' : '商品特点/卖点'}</Label>
-                      <p className="text-gray-200 mt-2 whitespace-pre-wrap text-base leading-relaxed">{selectedProductForDetail.features}</p>
-                    </div>
-                  )}
-                  
-                  {selectedProductForDetail.productDetails && (
-                    <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-700/50">
-                      <Label className="text-gray-400 text-sm">{language === 'ja' ? '商品詳細（内容量・容量等）' : '商品详情（内容量/容量等）'}</Label>
-                      <p className="text-gray-200 mt-2 whitespace-pre-wrap text-base leading-relaxed">{selectedProductForDetail.productDetails}</p>
-                    </div>
-                  )}
-                  
-                  {selectedProductForDetail.accessories && (
-                    <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-700/50">
-                      <Label className="text-gray-400 text-sm">{language === 'ja' ? '付属品・セット内容' : '附件/套装内容'}</Label>
-                      <p className="text-gray-200 mt-2 whitespace-pre-wrap text-base leading-relaxed">{selectedProductForDetail.accessories}</p>
-                    </div>
-                  )}
-                  
-                  {selectedProductForDetail.shippingInfo && (
-                    <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-700/50">
-                      <Label className="text-gray-400 text-sm">{language === 'ja' ? '配送情報' : '配送信息'}</Label>
-                      <p className="text-gray-200 mt-2 whitespace-pre-wrap text-base leading-relaxed">{selectedProductForDetail.shippingInfo}</p>
-                    </div>
-                  )}
-                  
-                  <div className="grid grid-cols-2 gap-6">
-                    {selectedProductForDetail.targetAudience && (
-                      <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-700/50">
-                        <Label className="text-gray-400 text-sm">{language === 'ja' ? 'ターゲット層' : '目标人群'}</Label>
-                        <p className="text-gray-200 mt-2 text-base">{selectedProductForDetail.targetAudience}</p>
-                      </div>
-                    )}
-                    {selectedProductForDetail.usageMethod && (
-                      <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-700/50">
-                        <Label className="text-gray-400 text-sm">{language === 'ja' ? '使用方法' : '使用方法'}</Label>
-                        <p className="text-gray-200 mt-2 text-base">{selectedProductForDetail.usageMethod}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Remarks */}
-              {selectedProductForDetail.remarks && (
-                <div className="space-y-3">
-                  <h3 className="text-xl font-bold text-gray-400 border-b border-red-900/30 pb-3">
-                    {language === 'ja' ? '備考' : '备注'}
-                  </h3>
-                  <p className="text-gray-300 whitespace-pre-wrap text-base leading-relaxed">{selectedProductForDetail.remarks}</p>
-                </div>
-              )}
+        <DialogContent className="bg-gradient-to-br from-gray-950 via-black to-gray-950 border-2 border-pink-500/40 text-white backdrop-blur-xl w-[98vw] !max-w-[1600px] h-[95vh] overflow-hidden p-0 shadow-[0_0_60px_rgba(236,72,153,0.3)]" showCloseButton={false}>
+          <div className="flex flex-col h-full relative">
+            {/* Animated Background Glow */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+              <div className="absolute -top-40 -right-40 w-96 h-96 bg-pink-500/20 rounded-full blur-3xl animate-pulse" />
+              <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-radial from-pink-500/5 to-transparent rounded-full" />
             </div>
-          )}
-          <DialogFooter className="mt-6">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setEditingProduct(selectedProductForDetail);
-                setProductDetailDialogOpen(false);
-                setEditProductDialogOpen(true);
-              }}
-              className="border-cyan-500/50 bg-cyan-950/50 text-cyan-200 hover:bg-cyan-900/40 hover:text-white hover:border-cyan-400/70"
-            >
-              {language === 'ja' ? '編集' : '编辑'}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setProductDetailDialogOpen(false)}
-              className="border-red-500/50 bg-red-950/50 text-gray-200 hover:bg-red-900/40 hover:text-white hover:border-red-400/70"
-            >
-              {language === 'ja' ? '閉じる' : '关闭'}
-            </Button>
-          </DialogFooter>
+            
+            {/* Header */}
+            <div className="relative flex items-center justify-between px-10 py-6 border-b border-pink-500/30 bg-gradient-to-r from-pink-950/40 via-purple-950/30 to-pink-950/40">
+              <DialogTitle className="text-white flex items-center gap-5 text-4xl font-bold">
+                <div className="p-3 bg-gradient-to-br from-pink-500 to-purple-600 rounded-xl shadow-lg shadow-pink-500/30">
+                  <Package className="h-10 w-10 text-white" />
+                </div>
+                <span className="bg-gradient-to-r from-pink-300 via-white to-purple-300 bg-clip-text text-transparent">
+                  {language === 'ja' ? '商品詳細' : '商品详情'}
+                </span>
+              </DialogTitle>
+              <div className="flex gap-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setEditingProduct(selectedProductForDetail);
+                    setProductDetailDialogOpen(false);
+                    setEditProductDialogOpen(true);
+                  }}
+                  className="border-2 border-cyan-400/60 bg-cyan-950/50 text-cyan-200 hover:bg-cyan-500/30 hover:text-white hover:border-cyan-300 hover:shadow-[0_0_20px_rgba(34,211,238,0.4)] text-xl px-8 py-3 transition-all duration-300"
+                >
+                  <Edit2 className="w-5 h-5 mr-2" />
+                  {language === 'ja' ? '編集' : '编辑'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setProductDetailDialogOpen(false)}
+                  className="border-2 border-gray-500/60 bg-gray-900/50 text-gray-200 hover:bg-gray-700/50 hover:text-white hover:border-gray-400 text-xl px-8 py-3 transition-all duration-300"
+                >
+                  <X className="w-5 h-5 mr-2" />
+                  {language === 'ja' ? '閉じる' : '关闭'}
+                </Button>
+              </div>
+            </div>
+            
+            {/* Content - Side by Side Layout */}
+            {selectedProductForDetail && (
+              <div className="flex flex-1 overflow-hidden relative">
+                {/* Left Side - Image with Glow Effect */}
+                <div className="w-[48%] bg-gradient-to-br from-gray-900/90 via-black to-gray-900/90 p-10 flex items-center justify-center border-r border-pink-500/20 relative">
+                  <div className="absolute inset-0 bg-gradient-to-br from-pink-500/5 via-transparent to-purple-500/5" />
+                  {(() => {
+                    const imageUrl = selectedProductForDetail.imageUrls 
+                      ? (Array.isArray(selectedProductForDetail.imageUrls) 
+                          ? selectedProductForDetail.imageUrls[0] 
+                          : (typeof selectedProductForDetail.imageUrls === 'string' 
+                              ? JSON.parse(selectedProductForDetail.imageUrls)[0] 
+                              : null)) 
+                      : null;
+                    if (imageUrl) {
+                      return (
+                        <a href={imageUrl} target="_blank" rel="noopener noreferrer" className="block w-full h-full flex items-center justify-center relative group">
+                          <div className="absolute inset-0 bg-gradient-to-br from-pink-500/20 to-purple-500/20 rounded-2xl blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                          <img 
+                            src={imageUrl} 
+                            alt={selectedProductForDetail.productName || ''}
+                            className="max-w-full max-h-full object-contain rounded-2xl border-4 border-pink-500/40 cursor-pointer hover:scale-[1.03] transition-all duration-500 shadow-[0_0_40px_rgba(236,72,153,0.3)] hover:shadow-[0_0_60px_rgba(236,72,153,0.5)] relative z-10"
+                          />
+                        </a>
+                      );
+                    }
+                    return (
+                      <div className="w-96 h-96 bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl border-4 border-pink-500/30 flex items-center justify-center shadow-[0_0_30px_rgba(236,72,153,0.2)]">
+                        <Package className="w-40 h-40 text-gray-600" />
+                      </div>
+                    );
+                  })()}
+                </div>
+                
+                {/* Right Side - Info with Enhanced Styling */}
+                <div className="w-[52%] overflow-y-auto p-10 space-y-8 relative">
+                  {/* Product Name - Hero Style */}
+                  <div className="pb-6 border-b border-pink-500/20">
+                    <h2 className="text-4xl font-black text-white leading-tight tracking-tight">
+                      {selectedProductForDetail.productName}
+                    </h2>
+                  </div>
+                  
+                  {/* Price Info - Glowing Cards */}
+                  <div className="grid grid-cols-3 gap-5">
+                    <div className="bg-gradient-to-br from-gray-900/80 to-gray-800/50 rounded-2xl p-6 border-2 border-gray-600/40 hover:border-white/40 transition-all duration-300 group">
+                      <Label className="text-gray-400 text-lg font-medium">{language === 'ja' ? '定価' : '定价'}</Label>
+                      <p className="text-white font-black text-4xl mt-3 group-hover:scale-105 transition-transform">
+                        {selectedProductForDetail.listPrice ? `¥${selectedProductForDetail.listPrice.toLocaleString()}` : '-'}
+                      </p>
+                    </div>
+                    <div className="bg-gradient-to-br from-pink-950/60 to-pink-900/30 rounded-2xl p-6 border-2 border-pink-500/50 hover:border-pink-400 hover:shadow-[0_0_30px_rgba(236,72,153,0.3)] transition-all duration-300 group">
+                      <Label className="text-pink-300 text-lg font-medium">{language === 'ja' ? '特価' : '特价'}</Label>
+                      <p className="text-pink-300 font-black text-4xl mt-3 group-hover:scale-105 transition-transform" style={{ textShadow: '0 0 20px rgba(236,72,153,0.6)' }}>
+                        {selectedProductForDetail.specialPrice ? `¥${selectedProductForDetail.specialPrice.toLocaleString()}` : '-'}
+                      </p>
+                    </div>
+                    <div className="bg-gradient-to-br from-cyan-950/60 to-cyan-900/30 rounded-2xl p-6 border-2 border-cyan-500/50 hover:border-cyan-400 hover:shadow-[0_0_30px_rgba(34,211,238,0.3)] transition-all duration-300 group">
+                      <Label className="text-cyan-300 text-lg font-medium">{language === 'ja' ? '成果報酬' : '成果报酬'}</Label>
+                      <p className="text-cyan-300 font-black text-4xl mt-3 group-hover:scale-105 transition-transform" style={{ textShadow: '0 0 20px rgba(34,211,238,0.6)' }}>
+                        {selectedProductForDetail.commissionRate || '-'}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Basic Info - Modern Cards */}
+                  <div className="grid grid-cols-2 gap-5">
+                    <div className="bg-gray-900/60 rounded-2xl p-6 border border-gray-700/50 hover:border-purple-500/50 transition-all duration-300">
+                      <Label className="text-gray-400 text-lg">{language === 'ja' ? '発売日' : '发售日'}</Label>
+                      <p className="text-white font-bold text-2xl mt-3">
+                        {selectedProductForDetail.releaseDate || '-'}
+                      </p>
+                    </div>
+                    <div className="bg-gray-900/60 rounded-2xl p-6 border border-gray-700/50 hover:border-purple-500/50 transition-all duration-300">
+                      <Label className="text-gray-400 text-lg">{language === 'ja' ? '商品コード' : '商品编码'}</Label>
+                      <p className="text-white font-bold text-2xl mt-3">
+                        {selectedProductForDetail.productCode || '-'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* AI Extracted Info - Exciting Section */}
+                  {(selectedProductForDetail.catchCopy || selectedProductForDetail.features || selectedProductForDetail.productDetails || selectedProductForDetail.accessories || selectedProductForDetail.shippingInfo || selectedProductForDetail.targetAudience || selectedProductForDetail.usageMethod) && (
+                    <div className="space-y-6 pt-4">
+                      <h3 className="text-3xl font-black bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 bg-clip-text text-transparent border-b-2 border-purple-500/30 pb-4 flex items-center gap-4">
+                        <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg">
+                          <Sparkles className="h-7 w-7 text-white" />
+                        </div>
+                        {language === 'ja' ? 'AI抽出情報' : 'AI提取信息'}
+                      </h3>
+                      
+                      {selectedProductForDetail.catchCopy && (
+                        <div className="bg-gradient-to-r from-yellow-950/50 via-orange-950/40 to-yellow-950/50 rounded-2xl p-8 border-2 border-yellow-500/50 shadow-[0_0_30px_rgba(234,179,8,0.15)] hover:shadow-[0_0_40px_rgba(234,179,8,0.25)] transition-all duration-300">
+                          <Label className="text-yellow-400 text-xl font-bold flex items-center gap-2">
+                            <span className="text-2xl">✨</span> {language === 'ja' ? 'キャッチコピー・広告語' : '广告语'}
+                          </Label>
+                          <p className="text-yellow-100 mt-4 whitespace-pre-wrap text-2xl font-bold leading-relaxed" style={{ textShadow: '0 0 10px rgba(234,179,8,0.3)' }}>{selectedProductForDetail.catchCopy}</p>
+                        </div>
+                      )}
+                      
+                      {selectedProductForDetail.features && (
+                        <div className="bg-gray-900/70 rounded-2xl p-7 border border-gray-600/50 hover:border-pink-500/40 transition-all duration-300">
+                          <Label className="text-pink-300 text-xl font-bold flex items-center gap-2">
+                            <span className="text-2xl">🎯</span> {language === 'ja' ? '商品の特徴・セールスポイント' : '商品特点/卖点'}
+                          </Label>
+                          <p className="text-gray-100 mt-4 whitespace-pre-wrap text-xl leading-relaxed">{selectedProductForDetail.features}</p>
+                        </div>
+                      )}
+                      
+                      {selectedProductForDetail.productDetails && (
+                        <div className="bg-gray-900/70 rounded-2xl p-7 border border-gray-600/50 hover:border-cyan-500/40 transition-all duration-300">
+                          <Label className="text-cyan-300 text-xl font-bold flex items-center gap-2">
+                            <span className="text-2xl">📦</span> {language === 'ja' ? '商品詳細（内容量・容量等）' : '商品详情（内容量/容量等）'}
+                          </Label>
+                          <p className="text-gray-100 mt-4 whitespace-pre-wrap text-xl leading-relaxed">{selectedProductForDetail.productDetails}</p>
+                        </div>
+                      )}
+                      
+                      {selectedProductForDetail.accessories && (
+                        <div className="bg-gray-900/70 rounded-2xl p-7 border border-gray-600/50 hover:border-purple-500/40 transition-all duration-300">
+                          <Label className="text-purple-300 text-xl font-bold flex items-center gap-2">
+                            <span className="text-2xl">🎁</span> {language === 'ja' ? '付属品・セット内容' : '附件/套装内容'}
+                          </Label>
+                          <p className="text-gray-100 mt-4 whitespace-pre-wrap text-xl leading-relaxed">{selectedProductForDetail.accessories}</p>
+                        </div>
+                      )}
+                      
+                      {selectedProductForDetail.shippingInfo && (
+                        <div className="bg-gray-900/70 rounded-2xl p-7 border border-gray-600/50 hover:border-green-500/40 transition-all duration-300">
+                          <Label className="text-green-300 text-xl font-bold flex items-center gap-2">
+                            <span className="text-2xl">🚚</span> {language === 'ja' ? '配送情報' : '配送信息'}
+                          </Label>
+                          <p className="text-gray-100 mt-4 whitespace-pre-wrap text-xl leading-relaxed">{selectedProductForDetail.shippingInfo}</p>
+                        </div>
+                      )}
+                      
+                      <div className="grid grid-cols-2 gap-5">
+                        {selectedProductForDetail.targetAudience && (
+                          <div className="bg-gray-900/70 rounded-2xl p-6 border border-gray-600/50 hover:border-orange-500/40 transition-all duration-300">
+                            <Label className="text-orange-300 text-lg font-bold flex items-center gap-2">
+                              <span className="text-xl">👥</span> {language === 'ja' ? 'ターゲット層' : '目标人群'}
+                            </Label>
+                            <p className="text-gray-100 mt-3 text-xl">{selectedProductForDetail.targetAudience}</p>
+                          </div>
+                        )}
+                        {selectedProductForDetail.usageMethod && (
+                          <div className="bg-gray-900/70 rounded-2xl p-6 border border-gray-600/50 hover:border-blue-500/40 transition-all duration-300">
+                            <Label className="text-blue-300 text-lg font-bold flex items-center gap-2">
+                              <span className="text-xl">📋</span> {language === 'ja' ? '使用方法' : '使用方法'}
+                            </Label>
+                            <p className="text-gray-100 mt-3 text-xl">{selectedProductForDetail.usageMethod}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Remarks */}
+                  {selectedProductForDetail.remarks && (
+                    <div className="bg-gray-900/50 rounded-2xl p-7 border border-gray-700/50 hover:border-gray-500/50 transition-all duration-300">
+                      <Label className="text-gray-300 text-xl font-bold flex items-center gap-2">
+                        <span className="text-xl">📝</span> {language === 'ja' ? '備考' : '备注'}
+                      </Label>
+                      <p className="text-gray-200 mt-4 whitespace-pre-wrap text-xl leading-relaxed">{selectedProductForDetail.remarks}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
