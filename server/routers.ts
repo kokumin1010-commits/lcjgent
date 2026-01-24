@@ -1655,6 +1655,8 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           remarks: z.string().optional(),
           imageUrls: z.array(z.string()).max(2).optional(), // 最大2枚の商品画像
           imageKeys: z.array(z.string()).max(2).optional(),
+          proposalImageUrl: z.string().optional(), // 提案書画像URL
+          proposalImageKey: z.string().optional(), // 提案書画像S3 key
         })
       )
       .mutation(async ({ input }) => {
@@ -1723,83 +1725,95 @@ ${JSON.stringify(teamSummary, null, 2)}`;
 
 画像から読み取れない情報はnullとしてください。`;
 
-        const response = await invokeLLM({
-          messages: [
-            { role: "system", content: systemPrompt },
-            {
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: "この提案書画像から商品情報を抽出してください。",
-                },
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: input.imageUrl,
-                    detail: "high",
+        try {
+          console.log("[AI Product Extract] Starting extraction for image:", input.imageUrl);
+          
+          const response = await invokeLLM({
+            messages: [
+              { role: "system", content: systemPrompt },
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "text",
+                    text: "この提案書画像から商品情報を抽出してください。",
                   },
-                },
-              ],
-            },
-          ],
-          response_format: {
-            type: "json_schema",
-            json_schema: {
-              name: "product_info",
-              strict: true,
-              schema: {
-                type: "object",
-                properties: {
-                  productName: { type: ["string", "null"], description: "商品名" },
-                  listPrice: { type: ["number", "null"], description: "公式価格・定価" },
-                  specialPrice: { type: ["number", "null"], description: "ライブ価格・特別価格" },
-                  discountRate: { type: ["string", "null"], description: "割引率" },
-                  releaseDate: { type: ["string", "null"], description: "発売日" },
-                  stock: { type: ["number", "null"], description: "在庫数" },
-                  productCode: { type: ["string", "null"], description: "商品ID・コード品番" },
-                  catchCopy: { type: ["string", "null"], description: "キャッチコピー・特徴" },
-                  productDetails: { type: ["string", "null"], description: "商品詳細" },
-                  shippingInfo: { type: ["string", "null"], description: "配送情報" },
-                  remarks: { type: ["string", "null"], description: "その他の備考" },
-                },
-                required: [
-                  "productName",
-                  "listPrice",
-                  "specialPrice",
-                  "discountRate",
-                  "releaseDate",
-                  "stock",
-                  "productCode",
-                  "catchCopy",
-                  "productDetails",
-                  "shippingInfo",
-                  "remarks",
+                  {
+                    type: "image_url",
+                    image_url: {
+                      url: input.imageUrl,
+                      detail: "high",
+                    },
+                  },
                 ],
-                additionalProperties: false,
+              },
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "product_info",
+                strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    productName: { type: ["string", "null"], description: "商品名" },
+                    listPrice: { type: ["number", "null"], description: "公式価格・定価" },
+                    specialPrice: { type: ["number", "null"], description: "ライブ価格・特別価格" },
+                    discountRate: { type: ["string", "null"], description: "割引率" },
+                    releaseDate: { type: ["string", "null"], description: "発売日" },
+                    stock: { type: ["number", "null"], description: "在庫数" },
+                    productCode: { type: ["string", "null"], description: "商品ID・コード品番" },
+                    catchCopy: { type: ["string", "null"], description: "キャッチコピー・特徴" },
+                    productDetails: { type: ["string", "null"], description: "商品詳細" },
+                    shippingInfo: { type: ["string", "null"], description: "配送情報" },
+                    remarks: { type: ["string", "null"], description: "その他の備考" },
+                  },
+                  required: [
+                    "productName",
+                    "listPrice",
+                    "specialPrice",
+                    "discountRate",
+                    "releaseDate",
+                    "stock",
+                    "productCode",
+                    "catchCopy",
+                    "productDetails",
+                    "shippingInfo",
+                    "remarks",
+                  ],
+                  additionalProperties: false,
+                },
               },
             },
-          },
-        });
-
-        const content = response.choices[0]?.message?.content;
-        if (!content || typeof content !== "string") {
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "AI解析に失敗しました",
           });
-        }
 
-        try {
+          console.log("[AI Product Extract] LLM response received");
+
+          const content = response.choices[0]?.message?.content;
+          if (!content || typeof content !== "string") {
+            console.error("[AI Product Extract] No content in response:", response);
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "AI解析に失敗しました（レスポンスが空）",
+            });
+          }
+
+          console.log("[AI Product Extract] Parsing content:", content.substring(0, 200));
           const extractedData = JSON.parse(content);
+          console.log("[AI Product Extract] Extraction successful:", extractedData.productName);
+          
           return {
             success: true,
             data: extractedData,
           };
-        } catch (e) {
+        } catch (e: any) {
+          console.error("[AI Product Extract] Error:", e.message || e);
+          if (e instanceof TRPCError) {
+            throw e;
+          }
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
-            message: "AI解析結果のパースに失敗しました",
+            message: `AI解析に失敗しました: ${e.message || "不明なエラー"}`,
           });
         }
       }),

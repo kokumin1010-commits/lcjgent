@@ -197,6 +197,8 @@ export const brandProducts = mysqlTable("brand_products", {
   remarks: text("remarks"), // 備考
   imageUrls: json("imageUrls").$type<string[]>(), // 商品画像URLs (最大2枚)
   imageKeys: json("imageKeys").$type<string[]>(), // 商品画像S3 keys
+  proposalImageUrl: text("proposalImageUrl"), // 提案書画像URL
+  proposalImageKey: varchar("proposalImageKey", { length: 512 }), // 提案書画像S3 key
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

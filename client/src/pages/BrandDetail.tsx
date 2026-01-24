@@ -725,8 +725,8 @@ export default function BrandDetail() {
         discountRate: extractedProductData.discountRate || undefined,
         productCode: extractedProductData.productCode || undefined,
         remarks: remarksArray.length > 0 ? remarksArray.join("\n") : undefined,
-        imageUrls: aiProposalImageUrl ? [aiProposalImageUrl] : undefined,
-        imageKeys: aiProposalImageKey ? [aiProposalImageKey] : undefined,
+        proposalImageUrl: aiProposalImageUrl || undefined, // 提案書画像を保存
+        proposalImageKey: aiProposalImageKey || undefined, // 提案書画像S3 keyを保存
       });
 
       // ダイアログを閉じてリセット
