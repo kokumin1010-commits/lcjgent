@@ -112,6 +112,10 @@ export default function PublicSchedule() {
     liverName: "",
     isNewLiver: false,
     newLiverName: "",
+    // 繰り返し設定
+    repeatType: "none" as "none" | "weekly" | "monthly",
+    repeatWeekdays: [] as number[], // 0=日, 1=月, ..., 6=土
+    repeatUntil: "", // 繰り返し終了日
   });
 
   // Get date range for the current month
@@ -249,6 +253,9 @@ export default function PublicSchedule() {
       liverName: "",
       isNewLiver: false,
       newLiverName: "",
+      repeatType: "none",
+      repeatWeekdays: [],
+      repeatUntil: "",
     });
     setShowDatePicker(false);
     setShowEndDatePicker(false);
@@ -267,21 +274,63 @@ export default function PublicSchedule() {
     return map;
   }, [schedules]);
 
-  // Group schedules by date (JST)
+  // Group schedules by date (JST) - 複数日予定は各日に展開
   const schedulesByDate = useMemo(() => {
-    if (!schedules) return new Map<string, Schedule[]>();
+    if (!schedules) return new Map<string, (Schedule & { isMultiDay?: boolean; isStart?: boolean; isEnd?: boolean; spanDays?: number })[]>();
     
-    const map = new Map<string, Schedule[]>();
+    const map = new Map<string, (Schedule & { isMultiDay?: boolean; isStart?: boolean; isEnd?: boolean; spanDays?: number })[]>();
+    
     schedules.forEach((schedule) => {
-      const dateKey = getJSTDateKey(new Date(schedule.startTime));
-      if (!map.has(dateKey)) {
-        map.set(dateKey, []);
+      const startDate = new Date(schedule.startTime);
+      const endDate = schedule.endTime ? new Date(schedule.endTime) : startDate;
+      const startKey = getJSTDateKey(startDate);
+      const endKey = getJSTDateKey(endDate);
+      
+      // 複数日にまたがる予定かどうか判定
+      const isMultiDay = startKey !== endKey;
+      
+      if (!isMultiDay) {
+        // 単日予定
+        if (!map.has(startKey)) {
+          map.set(startKey, []);
+        }
+        map.get(startKey)!.push({
+          ...schedule,
+          startTime: schedule.startTime instanceof Date ? schedule.startTime.toISOString() : schedule.startTime,
+          endTime: schedule.endTime instanceof Date ? schedule.endTime.toISOString() : schedule.endTime,
+          isMultiDay: false,
+        } as Schedule & { isMultiDay: boolean });
+      } else {
+        // 複数日予定 - 各日に展開
+        const current = new Date(toJST(startDate));
+        current.setUTCHours(0, 0, 0, 0);
+        const end = new Date(toJST(endDate));
+        end.setUTCHours(0, 0, 0, 0);
+        
+        const spanDays = Math.ceil((end.getTime() - current.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        let dayIndex = 0;
+        
+        while (current <= end) {
+          const dateKey = `${current.getUTCFullYear()}-${String(current.getUTCMonth() + 1).padStart(2, "0")}-${String(current.getUTCDate()).padStart(2, "0")}`;
+          
+          if (!map.has(dateKey)) {
+            map.set(dateKey, []);
+          }
+          
+          map.get(dateKey)!.push({
+            ...schedule,
+            startTime: schedule.startTime instanceof Date ? schedule.startTime.toISOString() : schedule.startTime,
+            endTime: schedule.endTime instanceof Date ? schedule.endTime.toISOString() : schedule.endTime,
+            isMultiDay: true,
+            isStart: dayIndex === 0,
+            isEnd: dayIndex === spanDays - 1,
+            spanDays,
+          } as Schedule & { isMultiDay: boolean; isStart: boolean; isEnd: boolean; spanDays: number });
+          
+          current.setUTCDate(current.getUTCDate() + 1);
+          dayIndex++;
+        }
       }
-      map.get(dateKey)!.push({
-        ...schedule,
-        startTime: schedule.startTime instanceof Date ? schedule.startTime.toISOString() : schedule.startTime,
-        endTime: schedule.endTime instanceof Date ? schedule.endTime.toISOString() : schedule.endTime,
-      } as Schedule);
     });
     
     // Sort schedules within each day by start time
@@ -457,8 +506,47 @@ export default function PublicSchedule() {
     setShowEndDatePicker(false);
   };
 
+  // Generate dates for repeat schedules
+  const generateRepeatDates = (startDate: string, repeatType: string, repeatWeekdays: number[], repeatUntil: string): string[] => {
+    const dates: string[] = [startDate];
+    if (repeatType === "none" || !repeatUntil) return dates;
+    
+    const [startYear, startMonth, startDay] = startDate.split("-").map(Number);
+    const [endYear, endMonth, endDay] = repeatUntil.split("-").map(Number);
+    const start = new Date(startYear, startMonth - 1, startDay);
+    const end = new Date(endYear, endMonth - 1, endDay);
+    
+    if (repeatType === "weekly" && repeatWeekdays.length > 0) {
+      // Generate weekly repeats for selected weekdays
+      const current = new Date(start);
+      current.setDate(current.getDate() + 1); // Start from next day
+      
+      while (current <= end) {
+        if (repeatWeekdays.includes(current.getDay())) {
+          const dateKey = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, "0")}-${String(current.getDate()).padStart(2, "0")}`;
+          if (!dates.includes(dateKey)) {
+            dates.push(dateKey);
+          }
+        }
+        current.setDate(current.getDate() + 1);
+      }
+    } else if (repeatType === "monthly") {
+      // Generate monthly repeats on the same day
+      const current = new Date(start);
+      current.setMonth(current.getMonth() + 1);
+      
+      while (current <= end) {
+        const dateKey = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, "0")}-${String(current.getDate()).padStart(2, "0")}`;
+        dates.push(dateKey);
+        current.setMonth(current.getMonth() + 1);
+      }
+    }
+    
+    return dates;
+  };
+
   // Handle add schedule submit
-  const handleAddSchedule = () => {
+  const handleAddSchedule = async () => {
     if (!addModalDate) return;
     
     if (!newSchedule.title.trim()) {
@@ -466,33 +554,62 @@ export default function PublicSchedule() {
       return;
     }
     
-    const [startYear, startMonth, startDay] = addModalDate.split("-").map(Number);
-    const endDate = addModalEndDate || addModalDate;
-    const [endYear, endMonth, endDay] = endDate.split("-").map(Number);
+    // 繰り返し設定の場合、繰り返し終了日が必須
+    if (newSchedule.repeatType !== "none" && !newSchedule.repeatUntil) {
+      toast.error("繰り返し終了日を設定してください");
+      return;
+    }
+    
+    // 毎週の場合、曜日選択が必須
+    if (newSchedule.repeatType === "weekly" && newSchedule.repeatWeekdays.length === 0) {
+      toast.error("繰り返す曜日を選択してください");
+      return;
+    }
+    
     const [startHour, startMinute] = newSchedule.startTime.split(":").map(Number);
     const [endHour, endMinute] = newSchedule.endTime.split(":").map(Number);
     
-    // Create dates in JST, then convert to UTC for storage
-    const startTimeJST = newSchedule.isAllDay 
-      ? new Date(startYear, startMonth - 1, startDay, 0, 0)
-      : new Date(startYear, startMonth - 1, startDay, startHour, startMinute);
-    const endTimeJST = newSchedule.isAllDay
-      ? new Date(endYear, endMonth - 1, endDay, 23, 59)
-      : new Date(endYear, endMonth - 1, endDay, endHour, endMinute);
+    // Generate all dates for repeat schedules
+    const allDates = generateRepeatDates(
+      addModalDate,
+      newSchedule.repeatType,
+      newSchedule.repeatWeekdays,
+      newSchedule.repeatUntil
+    );
     
-    // Convert JST to UTC (subtract 9 hours)
-    const startTimeUTC = new Date(startTimeJST.getTime() - 9 * 60 * 60 * 1000);
-    const endTimeUTC = new Date(endTimeJST.getTime() - 9 * 60 * 60 * 1000);
+    // Create schedules for all dates
+    for (const dateStr of allDates) {
+      const [year, month, day] = dateStr.split("-").map(Number);
+      const endDateStr = addModalEndDate || dateStr;
+      const [endYear, endMonth, endDay] = endDateStr.split("-").map(Number);
+      
+      // For repeat schedules, end date is same as start date
+      const actualEndDate = newSchedule.repeatType !== "none" ? dateStr : endDateStr;
+      const [actualEndYear, actualEndMonth, actualEndDay] = actualEndDate.split("-").map(Number);
+      
+      const startTimeJST = newSchedule.isAllDay 
+        ? new Date(year, month - 1, day, 0, 0)
+        : new Date(year, month - 1, day, startHour, startMinute);
+      const endTimeJST = newSchedule.isAllDay
+        ? new Date(actualEndYear, actualEndMonth - 1, actualEndDay, 23, 59)
+        : new Date(actualEndYear, actualEndMonth - 1, actualEndDay, endHour, endMinute);
+      
+      const startTimeUTC = new Date(startTimeJST.getTime() - 9 * 60 * 60 * 1000);
+      const endTimeUTC = new Date(endTimeJST.getTime() - 9 * 60 * 60 * 1000);
+      
+      await createScheduleMutation.mutateAsync({
+        title: newSchedule.title,
+        description: newSchedule.description || undefined,
+        startTime: startTimeUTC.toISOString(),
+        endTime: endTimeUTC.toISOString(),
+        category: newSchedule.category,
+        liverName: user?.name || "未指定",
+      });
+    }
     
-    // Use user's name from auth
-    createScheduleMutation.mutate({
-      title: newSchedule.title,
-      description: newSchedule.description || undefined,
-      startTime: startTimeUTC.toISOString(),
-      endTime: endTimeUTC.toISOString(),
-      category: newSchedule.category,
-      liverName: user?.name || "未指定",
-    });
+    if (allDates.length > 1) {
+      toast.success(`${allDates.length}件のスケジュールを追加しました`);
+    }
   };
 
   // Open add modal with today's date
@@ -649,21 +766,39 @@ export default function PublicSchedule() {
                   
                   {/* Schedule bars */}
                   <div className="space-y-0.5">
-                    {daySchedules.slice(0, 3).map((schedule) => {
+                    {daySchedules.slice(0, 3).map((schedule: Schedule & { isMultiDay?: boolean; isStart?: boolean; isEnd?: boolean }) => {
                       const liverColor = schedule.liverName 
                         ? liverColorMap.get(schedule.liverName) 
                         : categoryColors[schedule.category || "other"];
                       
+                      // 複数日予定のスタイル
+                      const isMultiDay = schedule.isMultiDay;
+                      const isStart = schedule.isStart;
+                      const isEnd = schedule.isEnd;
+                      
                       return (
                         <div
-                          key={schedule.id}
+                          key={`${schedule.id}-${dateKey}`}
                           className={cn(
-                            "text-[10px] px-1 py-0.5 rounded truncate",
+                            "text-[10px] py-0.5 truncate",
                             liverColor?.bg || "bg-gray-100",
-                            liverColor?.text || "text-gray-700"
+                            liverColor?.text || "text-gray-700",
+                            // 複数日予定の場合は横に広がるスタイル
+                            isMultiDay ? [
+                              "relative",
+                              isStart ? "rounded-l pl-1 -mr-1" : "-mx-1",
+                              isEnd ? "rounded-r pr-1 -ml-1" : "-mx-1",
+                              !isStart && !isEnd && "-mx-1",
+                            ] : "rounded px-1"
                           )}
+                          style={isMultiDay && !isStart && !isEnd ? { marginLeft: '-4px', marginRight: '-4px' } : undefined}
                         >
-                          {schedule.isAllDay ? schedule.title : `${formatTimeJST(new Date(schedule.startTime)).slice(0, 5)} ${schedule.title}`}
+                          {isMultiDay && !isStart ? (
+                            // 複数日予定の途中はタイトルを表示しない（バーのみ）
+                            <span className="opacity-0"> </span>
+                          ) : (
+                            schedule.isAllDay || isMultiDay ? schedule.title : `${formatTimeJST(new Date(schedule.startTime)).slice(0, 5)} ${schedule.title}`
+                          )}
                         </div>
                       );
                     })}
@@ -1197,6 +1332,72 @@ export default function PublicSchedule() {
               </div>
             </div>
           )}
+          
+          {/* Repeat Settings */}
+          <div className="px-4 py-3 border-b">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-gray-700">繰り返し</span>
+              <Select
+                value={newSchedule.repeatType}
+                onValueChange={(value: "none" | "weekly" | "monthly") => 
+                  setNewSchedule(prev => ({ ...prev, repeatType: value, repeatWeekdays: [] }))
+                }
+              >
+                <SelectTrigger className="w-32 border-0 p-0 h-auto focus:ring-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">なし</SelectItem>
+                  <SelectItem value="weekly">毎週</SelectItem>
+                  <SelectItem value="monthly">毎月</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Weekday Selection for Weekly Repeat */}
+            {newSchedule.repeatType === "weekly" && (
+              <div className="mt-3">
+                <p className="text-sm text-gray-500 mb-2">繰り返す曜日</p>
+                <div className="flex gap-2">
+                  {["日", "月", "火", "水", "木", "金", "土"].map((day, index) => (
+                    <button
+                      key={day}
+                      onClick={() => {
+                        const weekdays = newSchedule.repeatWeekdays.includes(index)
+                          ? newSchedule.repeatWeekdays.filter(d => d !== index)
+                          : [...newSchedule.repeatWeekdays, index];
+                        setNewSchedule(prev => ({ ...prev, repeatWeekdays: weekdays }));
+                      }}
+                      className={cn(
+                        "w-8 h-8 rounded-full text-sm font-medium transition-colors",
+                        newSchedule.repeatWeekdays.includes(index)
+                          ? "bg-pink-500 text-white"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200",
+                        index === 0 && "text-red-500",
+                        index === 6 && "text-blue-500"
+                      )}
+                    >
+                      {day}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Repeat Until Date */}
+            {newSchedule.repeatType !== "none" && (
+              <div className="mt-3">
+                <p className="text-sm text-gray-500 mb-2">繰り返し終了日</p>
+                <Input
+                  type="date"
+                  value={newSchedule.repeatUntil}
+                  onChange={(e) => setNewSchedule(prev => ({ ...prev, repeatUntil: e.target.value }))}
+                  min={addModalDate}
+                  className="w-full"
+                />
+              </div>
+            )}
+          </div>
           
           {/* User Info - Show logged in user */}
           {user && (
