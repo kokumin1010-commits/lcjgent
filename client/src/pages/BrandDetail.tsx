@@ -291,35 +291,31 @@ function ContractRoasDisplay({ contractId, fixedFee }: { contractId: number; fix
   const vsIndustry = roas / INDUSTRY_AVG_ROAS;
 
   return (
-    <div className="mt-3 bg-gradient-to-r from-amber-950/40 via-pink-950/30 to-purple-950/40 rounded-lg p-3 border border-amber-500/30">
+    <div className="mt-2 bg-gradient-to-r from-amber-950/40 via-pink-950/30 to-purple-950/40 rounded-lg p-2 border border-amber-500/30">
       {/* メイン数値（コンパクト） */}
-      <div className="grid grid-cols-4 gap-2 mb-2">
+      <div className="grid grid-cols-4 gap-1 mb-1">
         <div className="text-center">
           <div className="flex items-center justify-center gap-1">
             <Video className="h-3 w-3 text-amber-400" />
             <span className="text-[10px] text-gray-500">紐付け</span>
           </div>
-          <span className="text-lg font-black text-amber-400">{linkedLivestreams.length}<span className="text-xs">件</span></span>
+          <span className="text-base font-black text-amber-400">{linkedLivestreams.length}<span className="text-xs">件</span></span>
         </div>
         <div className="text-center">
           <div className="text-[10px] text-gray-500">GMV</div>
-          <span className="text-lg font-black text-cyan-400 font-mono">{formatCurrency(totalGmv)}</span>
+          <span className="text-base font-black text-cyan-400 font-mono">{formatCurrency(totalGmv)}</span>
         </div>
         <div className="text-center">
           <div className="text-[10px] text-gray-500">曝光</div>
-          <span className="text-lg font-black text-pink-400 font-mono">{totalImpressions.toLocaleString()}</span>
+          <span className="text-base font-black text-pink-400 font-mono">{totalImpressions.toLocaleString()}</span>
         </div>
         <div className="text-center">
           <div className="text-[10px] text-gray-500">広告換算</div>
-          <span className="text-lg font-black text-purple-400 font-mono">{formatCurrency(adValue)}</span>
+          <span className="text-base font-black text-purple-400 font-mono">{formatCurrency(adValue)}</span>
         </div>
       </div>
-      {/* ROAS（業界平均比較付き） */}
-      <div className="flex items-center justify-between pt-2 border-t border-amber-500/20">
-        <div className="flex flex-col">
-          <span className="text-[9px] text-gray-600">※ CPM ¥15,000 × 実際曝光量</span>
-          <span className="text-[10px] text-gray-500">業界平均：{INDUSTRY_AVG_ROAS}倍</span>
-        </div>
+      {/* ROAS（右側に大きく、注釈はその下に小さく） */}
+      <div className="flex items-end justify-end pt-1 border-t border-amber-500/20">
         <div className="text-right">
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-400">📊 広告換算ROAS</span>
@@ -329,6 +325,9 @@ function ContractRoasDisplay({ contractId, fixedFee }: { contractId: number; fix
           </div>
           <div className="text-xs text-emerald-400 font-medium">
             → 業界平均の {vsIndustry.toFixed(1)}倍（{vsIndustry > 1 ? '显著高于基准' : '基准以下'}）
+          </div>
+          <div className="text-[8px] text-gray-600 mt-0.5">
+            ※ CPM ¥15,000 × 実際曝光量　業界平均：{INDUSTRY_AVG_ROAS}倍
           </div>
         </div>
       </div>
@@ -2013,45 +2012,41 @@ export default function BrandDetail() {
                   </Select>
                 </div>
 
-                {/* ROAS計算結果（新フォーマット） */}
+                {/* ROAS計算結果（コンパクトフォーマット） */}
                 {editingContract.linkedLivestreams && editingContract.linkedLivestreams.length > 0 && editingContract.fixedFee > 0 && (
-                  <div className="mt-3 bg-gradient-to-r from-amber-950/50 via-pink-950/30 to-purple-950/50 rounded-lg p-3 border border-amber-500/30">
-                    <div className="grid grid-cols-4 gap-2 mb-2 text-center">
+                  <div className="mt-2 bg-gradient-to-r from-amber-950/50 via-pink-950/30 to-purple-950/50 rounded-lg p-2 border border-amber-500/30">
+                    <div className="grid grid-cols-4 gap-1 mb-1 text-center">
                       <div>
                         <p className="text-[10px] text-gray-500">GMV合計</p>
-                        <p className="text-base font-bold text-cyan-400">
+                        <p className="text-sm font-bold text-cyan-400">
                           {formatCurrency(editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.gmv || 0), 0))}
                         </p>
                       </div>
                       <div>
                         <p className="text-[10px] text-gray-500">曝光合計</p>
-                        <p className="text-base font-bold text-pink-400">
+                        <p className="text-sm font-bold text-pink-400">
                           {editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.impressions || 0), 0).toLocaleString()}
                         </p>
                       </div>
                       <div>
                         <p className="text-[10px] text-gray-500">広告換算</p>
-                        <p className="text-base font-bold text-purple-400">
+                        <p className="text-sm font-bold text-purple-400">
                           {formatCurrency(editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.impressions || 0), 0) * 15)}
                         </p>
                       </div>
                       <div>
                         <p className="text-[10px] text-gray-500">固定費</p>
-                        <p className="text-base font-bold text-amber-400">
+                        <p className="text-sm font-bold text-amber-400">
                           {formatCurrency(editingContract.fixedFee)}
                         </p>
                       </div>
                     </div>
-                    {/* ROAS（業界平均比較付き） */}
-                    <div className="flex items-center justify-between pt-2 border-t border-amber-500/20">
-                      <div className="flex flex-col">
-                        <span className="text-[9px] text-gray-600">※ CPM ¥15,000 × 実際曝光量</span>
-                        <span className="text-[10px] text-gray-500">業界平均：{INDUSTRY_AVG_ROAS}倍</span>
-                      </div>
+                    {/* ROAS（右側に大きく、注釈はその下に小さく） */}
+                    <div className="flex items-end justify-end pt-1 border-t border-amber-500/20">
                       <div className="text-right">
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-gray-400">📊 広告換算ROAS</span>
-                          <span className="text-2xl font-black bg-gradient-to-r from-amber-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">
+                          <span className="text-xl font-black bg-gradient-to-r from-amber-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">
                             {(() => {
                               const totalGmv = editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.gmv || 0), 0);
                               const totalImpressions = editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.impressions || 0), 0);
@@ -2070,6 +2065,9 @@ export default function BrandDetail() {
                             const vsIndustry = roas / INDUSTRY_AVG_ROAS;
                             return `→ 業界平均の ${vsIndustry.toFixed(1)}倍（${vsIndustry > 1 ? '显著高于基准' : '基准以下'}）`;
                           })()}
+                        </div>
+                        <div className="text-[8px] text-gray-600 mt-0.5">
+                          ※ CPM ¥15,000 × 実際曝光量　業界平均：{INDUSTRY_AVG_ROAS}倍
                         </div>
                       </div>
                     </div>
