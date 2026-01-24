@@ -2649,12 +2649,12 @@ export default function BrandDetail() {
                 <SelectTrigger className="bg-black/60 border-red-900/50 text-white mt-1">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-black/95 border-red-900/50">
-                  <SelectItem value="ライブコマース">{language === 'zh' ? '直播电商' : 'ライブコマース'}</SelectItem>
-                  <SelectItem value="TSP">{language === 'zh' ? 'TSP' : 'TSP'}</SelectItem>
-                  <SelectItem value="広告運用代行">{language === 'zh' ? '广告运营' : '広告運用代行'}</SelectItem>
-                  <SelectItem value="SNS運用代行">{language === 'zh' ? 'SNS运营' : 'SNS運用代行'}</SelectItem>
-                  <SelectItem value="その他">{language === 'zh' ? '其他' : 'その他'}</SelectItem>
+                <SelectContent className="bg-gray-900 border-red-900/50">
+                  <SelectItem value="ライブコマース" className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">{language === 'zh' ? '直播电商' : 'ライブコマース'}</SelectItem>
+                  <SelectItem value="TSP" className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">{language === 'zh' ? 'TSP' : 'TSP'}</SelectItem>
+                  <SelectItem value="広告運用代行" className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">{language === 'zh' ? '广告运营' : '広告運用代行'}</SelectItem>
+                  <SelectItem value="SNS運用代行" className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">{language === 'zh' ? 'SNS运营' : 'SNS運用代行'}</SelectItem>
+                  <SelectItem value="その他" className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">{language === 'zh' ? '其他' : 'その他'}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -2668,15 +2668,7 @@ export default function BrandDetail() {
                 className="bg-black/60 border-red-900/50 text-white mt-1"
               />
             </div>
-            <div>
-              <Label className="text-gray-400">{t.commissionRate}</Label>
-              <Input
-                value={newContract.commissionRate}
-                onChange={(e) => setNewContract({ ...newContract, commissionRate: e.target.value })}
-                placeholder="例: 15-20%"
-                className="bg-black/60 border-red-900/50 text-white mt-1"
-              />
-            </div>
+
             <div>
               <Label className="text-gray-400">{t.status}</Label>
               <Select
@@ -2686,11 +2678,11 @@ export default function BrandDetail() {
                 <SelectTrigger className="bg-black/60 border-red-900/50 text-white mt-1">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-black/95 border-red-900/50">
-                  <SelectItem value="契約中">{language === 'zh' ? '合同中' : '契約中'}</SelectItem>
-                  <SelectItem value="完了">{language === 'zh' ? '已完成' : '完了'}</SelectItem>
-                  <SelectItem value="保留">{language === 'zh' ? '暂停' : '保留'}</SelectItem>
-                  <SelectItem value="終了">{language === 'zh' ? '结束' : '終了'}</SelectItem>
+                <SelectContent className="bg-gray-900 border-red-900/50">
+                  <SelectItem value="契約中" className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">{language === 'zh' ? '合同中' : '契約中'}</SelectItem>
+                  <SelectItem value="完了" className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">{language === 'zh' ? '已完成' : '完了'}</SelectItem>
+                  <SelectItem value="保留" className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">{language === 'zh' ? '暂停' : '保留'}</SelectItem>
+                  <SelectItem value="終了" className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">{language === 'zh' ? '结束' : '終了'}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
