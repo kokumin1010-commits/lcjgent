@@ -37,7 +37,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn, Info } from "lucide-react";
 import { toast } from "sonner";
 
 const translations = {
@@ -288,33 +288,35 @@ function ContractRoasDisplay({ contractId, fixedFee }: { contractId: number; fix
   const roas = totalValue / fixedFee;
 
   return (
-    <div className="mt-4 bg-gradient-to-r from-amber-950/30 via-pink-950/20 to-purple-950/30 rounded-lg p-3 border border-amber-500/20">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4 text-xs">
-          <div className="flex items-center gap-1">
-            <Video className="h-3 w-3 text-amber-400" />
-            <span className="text-gray-400">紐付け:</span>
-            <span className="text-amber-400 font-medium">{linkedLivestreams.length}件</span>
+    <div className="mt-6 bg-gradient-to-r from-amber-950/40 via-pink-950/30 to-purple-950/40 rounded-xl p-5 border border-amber-500/30">
+      {/* メイン数値（大きく目立つ） */}
+      <div className="grid grid-cols-4 gap-4 mb-4">
+        <div className="text-center">
+          <div className="flex items-center justify-center gap-1 mb-1">
+            <Video className="h-4 w-4 text-amber-400" />
+            <span className="text-xs text-gray-400">紐付け</span>
           </div>
-          <div>
-            <span className="text-gray-400">GMV:</span>
-            <span className="text-cyan-400 font-mono ml-1">{formatCurrency(totalGmv)}</span>
-          </div>
-          <div>
-            <span className="text-gray-400">曝光:</span>
-            <span className="text-pink-400 font-mono ml-1">{totalImpressions.toLocaleString()}</span>
-          </div>
-          <div>
-            <span className="text-gray-400">広告換算:</span>
-            <span className="text-purple-400 font-mono ml-1">{formatCurrency(adValue)}</span>
-          </div>
+          <span className="text-2xl font-black text-amber-400">{linkedLivestreams.length}<span className="text-base">件</span></span>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400">概算ROAS:</span>
-          <span className="text-xl font-black bg-gradient-to-r from-amber-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">
-            {roas.toFixed(2)}倍
-          </span>
+        <div className="text-center">
+          <div className="text-xs text-gray-400 mb-1">GMV</div>
+          <span className="text-2xl font-black text-cyan-400 font-mono">{formatCurrency(totalGmv)}</span>
         </div>
+        <div className="text-center">
+          <div className="text-xs text-gray-400 mb-1">曝光</div>
+          <span className="text-2xl font-black text-pink-400 font-mono">{totalImpressions.toLocaleString()}</span>
+        </div>
+        <div className="text-center">
+          <div className="text-xs text-gray-400 mb-1">広告換算</div>
+          <span className="text-2xl font-black text-purple-400 font-mono">{formatCurrency(adValue)}</span>
+        </div>
+      </div>
+      {/* ROAS（右下に大きく） */}
+      <div className="flex justify-end items-center gap-3 pt-3 border-t border-amber-500/20">
+        <span className="text-sm text-gray-400">概算ROAS:</span>
+        <span className="text-3xl font-black bg-gradient-to-r from-amber-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">
+          {roas.toFixed(2)}倍
+        </span>
       </div>
     </div>
   );
@@ -798,6 +800,59 @@ export default function BrandDetail() {
               </p>
             </div>
           </div>
+          
+          {/* 品牌投入（ブランド投入）- 契約がある場合のみ表示 */}
+          {contracts.length > 0 && (
+            <div className="relative overflow-hidden rounded-xl p-6 mt-4 group transition-all duration-500 hover:scale-[1.01]" style={{
+              background: 'linear-gradient(135deg, rgba(0,0,0,0.9) 0%, rgba(50,30,0,0.8) 50%, rgba(0,0,0,0.9) 100%)',
+              border: '2px solid rgba(255, 180, 50, 0.6)',
+              boxShadow: '0 0 40px rgba(255, 180, 0, 0.3), inset 0 0 40px rgba(255, 180, 0, 0.1)',
+            }}>
+              <div className="absolute top-0 right-0 w-40 h-40 bg-amber-500/20 rounded-full blur-3xl" />
+              <div className="absolute bottom-0 left-0 w-32 h-32 bg-amber-600/15 rounded-full blur-2xl" />
+              <div className="relative text-center">
+                <div className="flex items-center justify-center gap-3 mb-3">
+                  <span className="text-3xl">💰</span>
+                  <span className="text-amber-300 text-base font-bold uppercase tracking-widest">
+                    {language === 'zh' ? '品牌投入' : 'ブランド投入'}
+                  </span>
+                  <button
+                    className="text-gray-400 hover:text-amber-400 transition-colors"
+                    title={language === 'zh' ? '查看合同明细' : '契約内訳を表示'}
+                  >
+                    <Info className="h-4 w-4" />
+                  </button>
+                </div>
+                <p 
+                  className="text-5xl md:text-6xl font-black tracking-tight"
+                  style={{ 
+                    fontFamily: 'JetBrains Mono, monospace',
+                    color: '#ffbb00',
+                    textShadow: '0 0 15px rgba(255, 180, 0, 0.8), 0 0 30px rgba(255, 180, 0, 0.6), 0 0 45px rgba(255, 180, 0, 0.4)',
+                  }}
+                >
+                  {formatCurrency(contracts.reduce((sum, c) => sum + (c.fixedFee || 0), 0))}
+                </p>
+                {/* 契約タイプ別内訳 */}
+                <div className="mt-4 pt-4 border-t border-amber-500/20">
+                  <div className="flex flex-wrap justify-center gap-4 text-sm">
+                    {Object.entries(
+                      contracts.reduce((acc, c) => {
+                        const type = c.serviceType || 'その他';
+                        acc[type] = (acc[type] || 0) + (c.fixedFee || 0);
+                        return acc;
+                      }, {} as Record<string, number>)
+                    ).map(([type, amount]) => (
+                      <div key={type} className="flex items-center gap-2">
+                        <span className="text-gray-400">{type}:</span>
+                        <span className="text-amber-400 font-mono font-bold">{formatCurrency(amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Sub KPI Cards - Neon Style */}
@@ -912,31 +967,29 @@ export default function BrandDetail() {
                       <Edit2 className="h-5 w-5" />
                     </button>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                    <div>
-                      <p className="text-gray-400 text-sm uppercase tracking-wider mb-2">{t.fixedFee}</p>
-                      <p className="text-3xl font-black text-amber-300" style={{ fontFamily: 'JetBrains Mono, monospace', textShadow: '0 0 20px rgba(255, 180, 0, 0.5)' }}>
-                        {formatCurrency(contract.fixedFee)}
-                      </p>
+                  {/* 固定費を大きく表示 */}
+                  <div className="mb-4">
+                    <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">{t.fixedFee}</p>
+                    <p className="text-4xl font-black text-amber-300" style={{ fontFamily: 'JetBrains Mono, monospace', textShadow: '0 0 30px rgba(255, 180, 0, 0.6)' }}>
+                      {formatCurrency(contract.fixedFee)}
+                    </p>
+                  </div>
+                  {/* 日付を小さく表示 */}
+                  <div className="flex items-center gap-6 text-sm text-gray-400">
+                    <div className="flex items-center gap-2">
+                      <span>{t.startDate}:</span>
+                      <span className="text-white font-mono">{formatDate(contract.startDate)}</span>
                     </div>
-                    <div>
-                      <p className="text-gray-400 text-sm uppercase tracking-wider mb-2">{t.commissionRate}</p>
-                      <p className="text-3xl font-black text-purple-400" style={{ fontFamily: 'JetBrains Mono, monospace', textShadow: '0 0 20px rgba(180, 100, 255, 0.5)' }}>
-                        {contract.commissionRate || "-"}
-                      </p>
+                    <div className="flex items-center gap-2">
+                      <span>{t.endDate}:</span>
+                      <span className="text-white font-mono">{formatDate(contract.endDate)}</span>
                     </div>
-                    <div>
-                      <p className="text-gray-400 text-sm uppercase tracking-wider mb-2">{t.startDate}</p>
-                      <p className="text-2xl font-bold text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                        {formatDate(contract.startDate)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400 text-sm uppercase tracking-wider mb-2">{t.endDate}</p>
-                      <p className="text-2xl font-bold text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                        {formatDate(contract.endDate)}
-                      </p>
-                    </div>
+                    {contract.commissionRate && (
+                      <div className="flex items-center gap-2">
+                        <span>{t.commissionRate}:</span>
+                        <span className="text-purple-400 font-mono">{contract.commissionRate}</span>
+                      </div>
+                    )}
                   </div>
                   {/* ROAS表示コンポーネント */}
                   <ContractRoasDisplay contractId={contract.id} fixedFee={contract.fixedFee || 0} />
