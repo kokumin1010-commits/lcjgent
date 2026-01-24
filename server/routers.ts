@@ -1664,6 +1664,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           imageKeys: z.array(z.string()).max(2).optional(),
           proposalImageUrl: z.string().optional(), // 提案書画像URL
           proposalImageKey: z.string().optional(), // 提案書画像S3 key
+          commissionRate: z.string().optional(), // 成果報酬
         })
       )
       .mutation(async ({ input }) => {

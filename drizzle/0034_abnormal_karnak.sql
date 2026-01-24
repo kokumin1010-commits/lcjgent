@@ -1,0 +1,1 @@
+ALTER TABLE `brand_products` ADD `commissionRate` varchar(50);

@@ -454,6 +454,7 @@ export default function BrandDetail() {
     productCode: "",
     influencer: "",
     purchasePrice: "",
+    commissionRate: "",
     remarks: "",
     imageUrls: [] as string[],
     imageKeys: [] as string[],
@@ -619,6 +620,7 @@ export default function BrandDetail() {
         productCode: "",
         influencer: "",
         purchasePrice: "",
+        commissionRate: "",
         remarks: "",
         imageUrls: [],
         imageKeys: [],
@@ -1268,56 +1270,29 @@ export default function BrandDetail() {
           </div>
         </div>
 
-        {/* メインKPIカード - 広告司令塔スタイル */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* 広告費カード */}
-          <div className="bg-gradient-to-br from-red-950/40 to-slate-900/80 backdrop-blur-xl rounded-2xl border border-red-500/20 p-6 relative overflow-hidden group hover:border-red-500/40 transition-all duration-300">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 rounded-full blur-3xl group-hover:bg-red-500/20 transition-all duration-300" />
-            <div className="absolute -bottom-4 -left-4 w-24 h-24 bg-orange-500/10 rounded-full blur-2xl" />
-            <div className="relative">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center">
-                  <DollarSign className="h-5 w-5 text-red-400" />
-                </div>
-                <span className="text-red-400 text-sm font-medium">{t.adBudget}</span>
+        {/* メインKPIカード - GMV実績を大きく表示 */}
+        <div className="bg-gradient-to-br from-emerald-950/40 to-slate-900/80 backdrop-blur-xl rounded-2xl border border-emerald-500/20 p-8 relative overflow-hidden group hover:border-emerald-500/40 transition-all duration-300">
+          <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl group-hover:bg-emerald-500/20 transition-all duration-300" />
+          <div className="absolute -bottom-8 -left-8 w-40 h-40 bg-teal-500/10 rounded-full blur-2xl" />
+          <div className="relative">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                <Sparkles className="h-7 w-7 text-emerald-400" />
               </div>
-              <p className="text-4xl md:text-5xl font-bold text-white tracking-tight drop-shadow-[0_0_15px_rgba(239,68,68,0.3)]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                {brand.adBudget ? formatCurrency(brand.adBudget) : <span className="text-gray-500">-</span>}
-              </p>
-              {brand.adBudget && (
-                <div className="mt-2 flex items-center gap-2">
-                  <span className="text-xs text-gray-500">月額予算</span>
-                </div>
-              )}
+              <span className="text-emerald-400 text-lg font-medium">GMV実績（全期間）</span>
             </div>
-          </div>
-
-          {/* 売上目標カード - GMV合計を表示 */}
-          <div className="bg-gradient-to-br from-emerald-950/40 to-slate-900/80 backdrop-blur-xl rounded-2xl border border-emerald-500/20 p-6 relative overflow-hidden group hover:border-emerald-500/40 transition-all duration-300">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl group-hover:bg-emerald-500/20 transition-all duration-300" />
-            <div className="absolute -bottom-4 -left-4 w-24 h-24 bg-teal-500/10 rounded-full blur-2xl" />
-            <div className="relative">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-                  <Sparkles className="h-5 w-5 text-emerald-400" />
-                </div>
-                <span className="text-emerald-400 text-sm font-medium">{t.salesTarget}</span>
+            <p className="text-5xl md:text-6xl font-bold text-white tracking-tight drop-shadow-[0_0_20px_rgba(16,185,129,0.4)]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+              {monthlyGmvSummary.length > 0 
+                ? formatCurrency(monthlyGmvSummary.reduce((sum, m) => sum + (m.gmv || 0), 0))
+                : <span className="text-gray-500">-</span>
+              }
+            </p>
+            {monthlyGmvSummary.length > 0 && (
+              <div className="mt-4 flex items-center gap-4 text-sm">
+                <span className="text-gray-400">直播回数: <span className="text-emerald-400 font-bold">{livestreams.length}回</span></span>
+                <span className="text-gray-400">商品数: <span className="text-cyan-400 font-bold">{products.length}品</span></span>
               </div>
-              <p className="text-4xl md:text-5xl font-bold text-white tracking-tight drop-shadow-[0_0_15px_rgba(16,185,129,0.3)]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                {brand.salesTarget ? formatCurrency(brand.salesTarget) : <span className="text-gray-500">-</span>}
-              </p>
-              {/* GMV実績表示 */}
-              {monthlyGmvSummary.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-emerald-500/20">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-400">GMV実績（全期間）</span>
-                    <span className="text-lg font-bold text-emerald-400 drop-shadow-[0_0_10px_rgba(16,185,129,0.5)]">
-                      {formatCurrency(monthlyGmvSummary.reduce((sum, m) => sum + (m.gmv || 0), 0))}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
+            )}
           </div>
         </div>
 
@@ -2190,6 +2165,16 @@ export default function BrandDetail() {
                     />
                   </div>
                   <div>
+                    <Label>{t.commissionRate}</Label>
+                    <Input
+                      value={newProduct.commissionRate}
+                      onChange={(e) =>
+                        setNewProduct({ ...newProduct, commissionRate: e.target.value })
+                      }
+                      placeholder="例: 15%, 20%"
+                    />
+                  </div>
+                  <div>
                     <Label>{t.remarks}</Label>
                     <Textarea
                       value={newProduct.remarks}
@@ -2409,6 +2394,17 @@ export default function BrandDetail() {
                           </span>
                           <Badge className="tech-badge-green">
                             {product.discountRate}
+                          </Badge>
+                        </div>
+                      )}
+                      {product.commissionRate && (
+                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-purple-500/20">
+                          <span className="text-xs text-purple-400 flex items-center gap-1">
+                            <Percent className="h-3 w-3" />
+                            {t.commissionRate}
+                          </span>
+                          <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30">
+                            {product.commissionRate}
                           </Badge>
                         </div>
                       )}

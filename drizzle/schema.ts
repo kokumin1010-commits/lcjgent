@@ -195,6 +195,7 @@ export const brandProducts = mysqlTable("brand_products", {
   influencer: varchar("influencer", { length: 255 }), // インフルエンサー
   purchasePrice: bigint("purchasePrice", { mode: "number" }), // 仕入金額
   remarks: text("remarks"), // 備考
+  commissionRate: varchar("commissionRate", { length: 50 }), // 成果報酬 (e.g., "15%", "20%")
   imageUrls: json("imageUrls").$type<string[]>(), // 商品画像URLs (最大2枚)
   imageKeys: json("imageKeys").$type<string[]>(), // 商品画像S3 keys
   proposalImageUrl: text("proposalImageUrl"), // 提案書画像URL

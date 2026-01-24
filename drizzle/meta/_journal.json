@@ -239,6 +239,13 @@
       "when": 1769237178479,
       "tag": "0033_mixed_lady_deathstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "5",
+      "when": 1769244061755,
+      "tag": "0034_abnormal_karnak",
+      "breakpoints": true
     }
   ]
 }
