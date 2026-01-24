@@ -1903,6 +1903,12 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           orderCount: z.number().optional(),
           platform: z.string().optional(),
           remarks: z.string().optional(),
+          // 追加メトリクスフィールド
+          productClicks: z.number().optional(),
+          impressions: z.number().optional(),
+          salesCount: z.number().optional(),
+          gmv: z.number().optional(),
+          cartAddCount: z.number().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -1937,6 +1943,12 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           orderCount: z.number().optional(),
           platform: z.string().optional(),
           remarks: z.string().optional(),
+          // 追加メトリクスフィールド
+          productClicks: z.number().optional(),
+          impressions: z.number().optional(),
+          salesCount: z.number().optional(),
+          gmv: z.number().optional(),
+          cartAddCount: z.number().optional(),
         })
       )
       .mutation(async ({ input }) => {

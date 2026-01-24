@@ -93,6 +93,12 @@ const translations = {
     totalSales: "総売上",
     totalStreams: "総配信数",
     avgSales: "平均売上",
+    // 追加メトリクス
+    productClicks: "商品クリック数",
+    impressions: "インプレッション数",
+    salesCount: "販売件数",
+    gmv: "GMV",
+    cartAddCount: "カート追加回数",
     productImages: "商品画像",
     uploadImages: "画像をアップロード（最大2枚）",
     uploading: "アップロード中...",
@@ -204,6 +210,12 @@ const translations = {
     totalSales: "总销售额",
     totalStreams: "总直播数",
     avgSales: "平均销售额",
+    // 追加指标
+    productClicks: "商品点击数",
+    impressions: "商品曝光数",
+    salesCount: "销售件数",
+    gmv: "GMV",
+    cartAddCount: "加购物车次数",
     productImages: "商品图片",
     uploadImages: "上传图片（最多2张）",
     uploading: "上传中...",
@@ -367,6 +379,12 @@ export default function BrandDetail() {
     orderCount: "",
     platform: "",
     remarks: "",
+    // 追加メトリクス
+    productClicks: "",
+    impressions: "",
+    salesCount: "",
+    gmv: "",
+    cartAddCount: "",
   });
   const [isContractDialogOpen, setIsContractDialogOpen] = useState(false);
   const [newContract, setNewContract] = useState({
@@ -527,6 +545,11 @@ export default function BrandDetail() {
         orderCount: "",
         platform: "",
         remarks: "",
+        productClicks: "",
+        impressions: "",
+        salesCount: "",
+        gmv: "",
+        cartAddCount: "",
       });
     },
     onError: () => {
@@ -782,6 +805,12 @@ export default function BrandDetail() {
       orderCount: newLivestream.orderCount ? parseInt(newLivestream.orderCount) : undefined,
       platform: newLivestream.platform || undefined,
       remarks: newLivestream.remarks || undefined,
+      // 追加メトリクス
+      productClicks: newLivestream.productClicks ? parseInt(newLivestream.productClicks) : undefined,
+      impressions: newLivestream.impressions ? parseInt(newLivestream.impressions) : undefined,
+      salesCount: newLivestream.salesCount ? parseInt(newLivestream.salesCount) : undefined,
+      gmv: newLivestream.gmv ? parseFloat(newLivestream.gmv) : undefined,
+      cartAddCount: newLivestream.cartAddCount ? parseInt(newLivestream.cartAddCount) : undefined,
     });
   };
 
@@ -2207,6 +2236,69 @@ export default function BrandDetail() {
                         setNewLivestream({ ...newLivestream, remarks: e.target.value })
                       }
                     />
+                  </div>
+                  {/* 追加メトリクスフィールド */}
+                  <div className="border-t pt-4 mt-4">
+                    <Label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 block">商品メトリクス</Label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>{t.productClicks}</Label>
+                        <Input
+                          type="number"
+                          value={newLivestream.productClicks}
+                          onChange={(e) =>
+                            setNewLivestream({ ...newLivestream, productClicks: e.target.value })
+                          }
+                          placeholder="0"
+                        />
+                      </div>
+                      <div>
+                        <Label>{t.impressions}</Label>
+                        <Input
+                          type="number"
+                          value={newLivestream.impressions}
+                          onChange={(e) =>
+                            setNewLivestream({ ...newLivestream, impressions: e.target.value })
+                          }
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4 mt-4">
+                      <div>
+                        <Label>{t.salesCount}</Label>
+                        <Input
+                          type="number"
+                          value={newLivestream.salesCount}
+                          onChange={(e) =>
+                            setNewLivestream({ ...newLivestream, salesCount: e.target.value })
+                          }
+                          placeholder="0"
+                        />
+                      </div>
+                      <div>
+                        <Label>{t.gmv}</Label>
+                        <Input
+                          type="number"
+                          value={newLivestream.gmv}
+                          onChange={(e) =>
+                            setNewLivestream({ ...newLivestream, gmv: e.target.value })
+                          }
+                          placeholder="0"
+                        />
+                      </div>
+                      <div>
+                        <Label>{t.cartAddCount}</Label>
+                        <Input
+                          type="number"
+                          value={newLivestream.cartAddCount}
+                          onChange={(e) =>
+                            setNewLivestream({ ...newLivestream, cartAddCount: e.target.value })
+                          }
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
                   </div>
                   <div className="flex justify-end gap-2">
                     <Button
