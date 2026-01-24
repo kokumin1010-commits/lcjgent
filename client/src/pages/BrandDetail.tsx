@@ -340,6 +340,103 @@ const statusTranslations: Record<string, Record<string, string>> = {
   },
 };
 
+// 備考テキストをセクション別に解析するヘルパー関数
+const parseRemarksText = (remarks: string) => {
+  const sections: { type: string; icon: string; title: string; content: string }[] = [];
+  
+  // キャッチコピーを抽出
+  const catchCopyMatch = remarks.match(/キャッチコピー[:：]\s*([^\n]+(?:\n(?!商品詳細|配送情報|発売日|在庫)[^\n]+)*)/i);
+  if (catchCopyMatch) {
+    sections.push({
+      type: 'catchCopy',
+      icon: '⭐',
+      title: 'キャッチコピー',
+      content: catchCopyMatch[1].trim()
+    });
+  }
+  
+  // 商品詳細を抽出
+  const productDetailsMatch = remarks.match(/商品詳細[:：]\s*([^]*?)(?=配送情報[:：]|発売日[:：]|在庫[:：]|$)/i);
+  if (productDetailsMatch) {
+    const content = productDetailsMatch[1].trim();
+    // 特徴、使用方法などのサブセクションを分割
+    const subSections = content.split(/[■●★※]/).filter(s => s.trim());
+    if (subSections.length > 0) {
+      sections.push({
+        type: 'productDetails',
+        icon: '📦',
+        title: '商品詳細',
+        content: subSections.map(s => s.trim()).join('\n\n')
+      });
+    }
+  }
+  
+  // 配送情報を抽出
+  const shippingMatch = remarks.match(/配送情報[:：]\s*([^\n]+(?:\n(?!発売日|在庫)[^\n]+)*)/i);
+  if (shippingMatch) {
+    sections.push({
+      type: 'shipping',
+      icon: '🚚',
+      title: '配送情報',
+      content: shippingMatch[1].trim()
+    });
+  }
+  
+  // 発売日を抽出
+  const releaseDateMatch = remarks.match(/発売日[:：]\s*([^\n]+)/i);
+  if (releaseDateMatch) {
+    sections.push({
+      type: 'releaseDate',
+      icon: '📅',
+      title: '発売日',
+      content: releaseDateMatch[1].trim()
+    });
+  }
+  
+  // 在庫を抽出
+  const stockMatch = remarks.match(/在庫[:：]\s*([^\n]+)/i);
+  if (stockMatch) {
+    sections.push({
+      type: 'stock',
+      icon: '📊',
+      title: '在庫',
+      content: stockMatch[1].trim()
+    });
+  }
+  
+  // セクションに分類されなかったテキストがあれば「その他」として追加
+  let remainingText = remarks;
+  const patterns = [
+    /キャッチコピー[:：]\s*[^]*?(?=商品詳細[:：]|配送情報[:：]|発売日[:：]|在庫[:：]|$)/gi,
+    /商品詳細[:：]\s*[^]*?(?=配送情報[:：]|発売日[:：]|在庫[:：]|$)/gi,
+    /配送情報[:：]\s*[^]*?(?=発売日[:：]|在庫[:：]|$)/gi,
+    /発売日[:：]\s*[^\n]+/gi,
+    /在庫[:：]\s*[^\n]+/gi,
+  ];
+  patterns.forEach(pattern => {
+    remainingText = remainingText.replace(pattern, '');
+  });
+  remainingText = remainingText.trim();
+  if (remainingText && sections.length === 0) {
+    // セクションが全くない場合は、テキスト全体を表示
+    sections.push({
+      type: 'other',
+      icon: '📝',
+      title: '備考',
+      content: remarks
+    });
+  } else if (remainingText) {
+    sections.push({
+      type: 'other',
+      icon: '📝',
+      title: 'その他',
+      content: remainingText
+    });
+  }
+  
+  return sections;
+};
+
 export default function BrandDetail() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
@@ -402,6 +499,10 @@ export default function BrandDetail() {
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [isProductDetailDialogOpen, setIsProductDetailDialogOpen] = useState(false);
   const [isImageZoomed, setIsImageZoomed] = useState(false);
+
+  // 契約編集用のstate
+  const [editingContract, setEditingContract] = useState<any>(null);
+  const [isEditContractDialogOpen, setIsEditContractDialogOpen] = useState(false);
 
   // AI商品登録用のstate
   const [isAiProductDialogOpen, setIsAiProductDialogOpen] = useState(false);
@@ -618,6 +719,17 @@ export default function BrandDetail() {
     },
   });
 
+  const updateContractMutation = trpc.brandContract.update.useMutation({
+    onSuccess: () => {
+      toast.success(t.success);
+      setIsEditContractDialogOpen(false);
+      setEditingContract(null);
+    },
+    onError: () => {
+      toast.error(t.error);
+    },
+  });
+
   const handleAddProduct = async () => {
     if (!newProduct.productName) {
       toast.error("商品名を入力してください");
@@ -827,6 +939,33 @@ export default function BrandDetail() {
       status: newContract.status,
       memo: newContract.memo || undefined,
     });
+  };
+
+  const handleUpdateContract = async () => {
+    if (!editingContract) return;
+    await updateContractMutation.mutateAsync({
+      id: editingContract.id,
+      serviceType: editingContract.serviceType,
+      contractType: editingContract.contractType,
+      fixedFee: editingContract.fixedFee ? parseFloat(editingContract.fixedFee.toString()) : undefined,
+      commissionRate: editingContract.commissionRate || undefined,
+      startDate: editingContract.startDate ? new Date(editingContract.startDate) : undefined,
+      endDate: editingContract.endDate ? new Date(editingContract.endDate) : undefined,
+      status: editingContract.status,
+      memo: editingContract.memo || undefined,
+    });
+  };
+
+  const openEditContractDialog = (contract: any) => {
+    setEditingContract({
+      ...contract,
+      fixedFee: contract.fixedFee?.toString() || "",
+      commissionRate: contract.commissionRate || "",
+      startDate: contract.startDate ? new Date(contract.startDate).toISOString().split("T")[0] : "",
+      endDate: contract.endDate ? new Date(contract.endDate).toISOString().split("T")[0] : "",
+      memo: contract.memo || "",
+    });
+    setIsEditContractDialogOpen(true);
   };
 
   const formatCurrency = (value: number | null | undefined) => {
@@ -1180,7 +1319,8 @@ export default function BrandDetail() {
                 {contracts.map((contract: any) => (
                   <div
                     key={contract.id}
-                    className="border rounded-lg p-4 space-y-3 hover:bg-muted/50 transition-colors"
+                    className="border rounded-lg p-4 space-y-3 hover:bg-muted/50 transition-colors cursor-pointer"
+                    onClick={() => openEditContractDialog(contract)}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -1199,13 +1339,28 @@ export default function BrandDetail() {
                           </div>
                         </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => deleteContractMutation.mutate({ id: contract.id })}
-                      >
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEditContractDialog(contract);
+                          }}
+                        >
+                          <Edit2 className="h-4 w-4 text-blue-500" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteContractMutation.mutate({ id: contract.id });
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </div>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm pl-10">
                       <div>
@@ -1247,6 +1402,151 @@ export default function BrandDetail() {
             )}
           </CardContent>
         </Card>
+
+        {/* 契約編集ダイアログ */}
+        <Dialog open={isEditContractDialogOpen} onOpenChange={setIsEditContractDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{t.edit}</DialogTitle>
+            </DialogHeader>
+            {editingContract && (
+              <div className="space-y-4">
+                <div>
+                  <Label>{t.serviceType}</Label>
+                  <Select
+                    value={editingContract.serviceType}
+                    onValueChange={(value) =>
+                      setEditingContract({ ...editingContract, serviceType: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="TSP">{t.tsp}</SelectItem>
+                      <SelectItem value="ライブコマース">{t.liveCommerce}</SelectItem>
+                      <SelectItem value="広告運用代行">{t.adManagement}</SelectItem>
+                      <SelectItem value="SNS運用代行">{t.snsManagement}</SelectItem>
+                      <SelectItem value="その他">{t.otherService}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>{t.contractType}</Label>
+                  <Select
+                    value={editingContract.contractType}
+                    onValueChange={(value) =>
+                      setEditingContract({ ...editingContract, contractType: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="月額契約">{t.monthlyContract}</SelectItem>
+                      <SelectItem value="年間契約">{t.annualContract}</SelectItem>
+                      <SelectItem value="単発契約">{t.oneTimeContract}</SelectItem>
+                      <SelectItem value="広告案件">{t.adCampaign}</SelectItem>
+                      <SelectItem value="その他">{t.otherContract}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>{t.fixedFee}</Label>
+                    <Input
+                      type="number"
+                      value={editingContract.fixedFee}
+                      onChange={(e) =>
+                        setEditingContract({ ...editingContract, fixedFee: e.target.value })
+                      }
+                      placeholder="500000"
+                    />
+                  </div>
+                  <div>
+                    <Label>{t.commissionRateContract}</Label>
+                    <Input
+                      value={editingContract.commissionRate}
+                      onChange={(e) =>
+                        setEditingContract({ ...editingContract, commissionRate: e.target.value })
+                      }
+                      placeholder="10%"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>{t.startDate}</Label>
+                    <Input
+                      type="date"
+                      value={editingContract.startDate}
+                      onChange={(e) =>
+                        setEditingContract({ ...editingContract, startDate: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label>{t.endDate}</Label>
+                    <Input
+                      type="date"
+                      value={editingContract.endDate}
+                      onChange={(e) =>
+                        setEditingContract({ ...editingContract, endDate: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label>{t.contractStatus}</Label>
+                  <Select
+                    value={editingContract.status}
+                    onValueChange={(value) =>
+                      setEditingContract({ ...editingContract, status: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="契約中">{t.contractActive}</SelectItem>
+                      <SelectItem value="完了">{t.contractCompleted}</SelectItem>
+                      <SelectItem value="保留">{t.contractOnHold}</SelectItem>
+                      <SelectItem value="終了">{t.contractEnded}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>{t.contractMemo}</Label>
+                  <Textarea
+                    value={editingContract.memo}
+                    onChange={(e) =>
+                      setEditingContract({ ...editingContract, memo: e.target.value })
+                    }
+                    rows={2}
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsEditContractDialogOpen(false);
+                      setEditingContract(null);
+                    }}
+                  >
+                    {t.cancel}
+                  </Button>
+                  <Button
+                    onClick={handleUpdateContract}
+                    className="bg-red-600 hover:bg-red-700"
+                    disabled={updateContractMutation.isPending}
+                  >
+                    {t.save}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* Products */}
         <Card className="overflow-hidden">
@@ -1907,15 +2207,44 @@ export default function BrandDetail() {
                 </div>
               )}
 
-              {/* 備考 */}
+              {/* 備考 - セクション別に解析して表示 */}
               {selectedProduct.remarks && (
                 <div className="w-full max-w-4xl mb-8">
-                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-5">
-                    <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
-                      <MessageSquare className="h-5 w-5 text-gray-400" />
-                      備考
-                    </h3>
-                    <p className="text-white/80 text-sm leading-relaxed">{selectedProduct.remarks}</p>
+                  <div className="space-y-4">
+                    {parseRemarksText(selectedProduct.remarks).map((section, idx) => {
+                      const sectionColors: Record<string, string> = {
+                        catchCopy: 'from-yellow-500/20 to-orange-500/20 border-yellow-500/30',
+                        productDetails: 'from-purple-500/20 to-indigo-500/20 border-purple-500/30',
+                        shipping: 'from-cyan-500/20 to-blue-500/20 border-cyan-500/30',
+                        releaseDate: 'from-green-500/20 to-emerald-500/20 border-green-500/30',
+                        stock: 'from-pink-500/20 to-rose-500/20 border-pink-500/30',
+                        other: 'from-gray-500/20 to-slate-500/20 border-gray-500/30',
+                      };
+                      const colorClass = sectionColors[section.type] || sectionColors.other;
+                      
+                      return (
+                        <div 
+                          key={idx} 
+                          className={`bg-gradient-to-r ${colorClass} backdrop-blur-sm rounded-xl p-5 border`}
+                        >
+                          <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
+                            <span className="text-xl">{section.icon}</span>
+                            {section.title}
+                          </h3>
+                          {section.type === 'productDetails' ? (
+                            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                              {section.content.split('\n\n').map((paragraph, pIdx) => (
+                                <div key={pIdx} className="bg-white/5 rounded-lg p-3 border-l-2 border-purple-400">
+                                  <p className="text-white/90 text-sm leading-relaxed whitespace-pre-wrap">{paragraph}</p>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-white/90 text-sm leading-relaxed whitespace-pre-wrap">{section.content}</p>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
