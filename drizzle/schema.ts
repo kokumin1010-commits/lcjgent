@@ -200,6 +200,15 @@ export const brandProducts = mysqlTable("brand_products", {
   imageKeys: json("imageKeys").$type<string[]>(), // 商品画像S3 keys
   proposalImageUrl: text("proposalImageUrl"), // 提案書画像URL
   proposalImageKey: varchar("proposalImageKey", { length: 512 }), // 提案書画像S3 key
+  // AI抽出情報フィールド
+  releaseDate: varchar("releaseDate", { length: 100 }), // 発売日
+  catchCopy: text("catchCopy"), // キャッチコピー・広告語
+  features: text("features"), // 商品の特徴・セールスポイント
+  productDetails: text("productDetails"), // 商品詳細（内容量・容量等）
+  accessories: text("accessories"), // 付属品・セット内容
+  shippingInfo: text("shippingInfo"), // 配送情報
+  targetAudience: varchar("targetAudience", { length: 255 }), // ターゲット層
+  usageMethod: text("usageMethod"), // 使用方法
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

@@ -267,6 +267,13 @@
       "when": 1769256334919,
       "tag": "0037_elite_cable",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "5",
+      "when": 1769261098440,
+      "tag": "0038_colossal_red_wolf",
+      "breakpoints": true
     }
   ]
 }

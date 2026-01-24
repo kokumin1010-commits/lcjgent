@@ -1253,6 +1253,26 @@ export default function BrandDetail() {
                   />
                 </div>
               </div>
+              {/* 発売日・商品コード */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-400">{language === 'ja' ? '発売日' : '发售日'}</Label>
+                  <Input
+                    value={editingProduct.releaseDate || ""}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, releaseDate: e.target.value })}
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-400">{language === 'ja' ? '商品コード' : '商品编码'}</Label>
+                  <Input
+                    value={editingProduct.productCode || ""}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, productCode: e.target.value })}
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
+              </div>
+              {/* 成果報酬 */}
               <div>
                 <Label className="text-gray-400">成果報酬</Label>
                 <Input
@@ -1262,6 +1282,76 @@ export default function BrandDetail() {
                   className="bg-black/60 border-red-900/50 text-white mt-1"
                 />
               </div>
+              {/* キャッチコピー・広告語 */}
+              <div>
+                <Label className="text-gray-400">{language === 'ja' ? 'キャッチコピー・広告語' : '广告语'}</Label>
+                <Textarea
+                  value={editingProduct.catchCopy || ""}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, catchCopy: e.target.value })}
+                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                  rows={2}
+                />
+              </div>
+              {/* 商品の特徴・セールスポイント */}
+              <div>
+                <Label className="text-gray-400">{language === 'ja' ? '商品の特徴・セールスポイント' : '商品特点/卖点'}</Label>
+                <Textarea
+                  value={editingProduct.features || ""}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, features: e.target.value })}
+                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                  rows={3}
+                />
+              </div>
+              {/* 商品詳細（内容量・容量等） */}
+              <div>
+                <Label className="text-gray-400">{language === 'ja' ? '商品詳細（内容量・容量等）' : '商品详情（内容量/容量等）'}</Label>
+                <Textarea
+                  value={editingProduct.productDetails || ""}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, productDetails: e.target.value })}
+                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                  rows={2}
+                />
+              </div>
+              {/* 付属品・セット内容 */}
+              <div>
+                <Label className="text-gray-400">{language === 'ja' ? '付属品・セット内容' : '附件/套装内容'}</Label>
+                <Textarea
+                  value={editingProduct.accessories || ""}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, accessories: e.target.value })}
+                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                  rows={2}
+                />
+              </div>
+              {/* 配送情報 */}
+              <div>
+                <Label className="text-gray-400">{language === 'ja' ? '配送情報' : '配送信息'}</Label>
+                <Textarea
+                  value={editingProduct.shippingInfo || ""}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, shippingInfo: e.target.value })}
+                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                  rows={2}
+                />
+              </div>
+              {/* ターゲット層・使用方法 */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-400">{language === 'ja' ? 'ターゲット層' : '目标人群'}</Label>
+                  <Input
+                    value={editingProduct.targetAudience || ""}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, targetAudience: e.target.value })}
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-400">{language === 'ja' ? '使用方法' : '使用方法'}</Label>
+                  <Input
+                    value={editingProduct.usageMethod || ""}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, usageMethod: e.target.value })}
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
+              </div>
+              {/* 備考 */}
               <div>
                 <Label className="text-gray-400">備考</Label>
                 <Textarea
@@ -1290,6 +1380,16 @@ export default function BrandDetail() {
                     specialPrice: editingProduct.specialPrice,
                     discountRate: editingProduct.commissionRate,
                     remarks: editingProduct.remarks,
+                    commissionRate: editingProduct.commissionRate,
+                    productCode: editingProduct.productCode,
+                    releaseDate: editingProduct.releaseDate,
+                    catchCopy: editingProduct.catchCopy,
+                    features: editingProduct.features,
+                    productDetails: editingProduct.productDetails,
+                    accessories: editingProduct.accessories,
+                    shippingInfo: editingProduct.shippingInfo,
+                    targetAudience: editingProduct.targetAudience,
+                    usageMethod: editingProduct.usageMethod,
                   });
                 }
               }}
@@ -2573,6 +2673,16 @@ export default function BrandDetail() {
                       specialPrice: extractedProductData.specialPrice || 0,
                       commissionRate: extractedProductData.commissionRate || '',
                       remarks: extractedProductData.remarks || '',
+                      productCode: extractedProductData.productCode || '',
+                      releaseDate: extractedProductData.releaseDate || '',
+                      catchCopy: extractedProductData.catchCopy || '',
+                      features: extractedProductData.features || '',
+                      productDetails: extractedProductData.productDetails || '',
+                      accessories: extractedProductData.accessories || '',
+                      shippingInfo: extractedProductData.shippingInfo || '',
+                      targetAudience: extractedProductData.targetAudience || '',
+                      usageMethod: extractedProductData.usageMethod || '',
+                      imageUrls: extractedProductData.imageUrl ? [extractedProductData.imageUrl] : [],
                     });
                     setAiImageAddDialogOpen(false);
                     setAiImageFile(null);

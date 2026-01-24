@@ -1669,6 +1669,15 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           proposalImageUrl: z.string().optional(), // 提案書画像URL
           proposalImageKey: z.string().optional(), // 提案書画像S3 key
           commissionRate: z.string().optional(), // 成果報酬
+          // AI抽出情報フィールド
+          releaseDate: z.string().optional(),
+          catchCopy: z.string().optional(),
+          features: z.string().optional(),
+          productDetails: z.string().optional(),
+          accessories: z.string().optional(),
+          shippingInfo: z.string().optional(),
+          targetAudience: z.string().optional(),
+          usageMethod: z.string().optional(),
         })
       )
       .mutation(async ({ input }) => {
@@ -1696,6 +1705,16 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           remarks: z.string().optional(),
           imageUrls: z.array(z.string()).max(2).optional(), // 最大2枚の商品画像
           imageKeys: z.array(z.string()).max(2).optional(),
+          // AI抽出情報フィールド
+          commissionRate: z.string().optional(),
+          releaseDate: z.string().optional(),
+          catchCopy: z.string().optional(),
+          features: z.string().optional(),
+          productDetails: z.string().optional(),
+          accessories: z.string().optional(),
+          shippingInfo: z.string().optional(),
+          targetAudience: z.string().optional(),
+          usageMethod: z.string().optional(),
         })
       )
       .mutation(async ({ input }) => {
