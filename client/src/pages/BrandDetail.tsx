@@ -2393,10 +2393,10 @@ export default function BrandDetail() {
                       try {
                         // Upload image first
                         const base64 = aiImagePreview?.split(',')[1] || '';
-                        const uploadResult = await (window as any).trpcClient.brandProduct.uploadImage.mutate({
-                          productId: 0, // Temporary, will create new product
-                          imageData: base64,
-                          fileName: aiImageFile.name,
+                        const uploadResult = await (window as any).trpcClient.brand.uploadImage.mutate({
+                          base64: base64,
+                          filename: aiImageFile.name,
+                          type: 'product',
                         });
                         
                         // Extract product info from image
@@ -2404,14 +2404,18 @@ export default function BrandDetail() {
                           imageUrl: uploadResult.url,
                         });
                         
-                        setExtractedProductData({
-                          ...extractResult,
-                          imageUrl: uploadResult.url,
-                        });
-                        toast.success(language === 'ja' ? '商品情報を抽出しました' : '已提取商品信息');
-                      } catch (error) {
+                        if (extractResult.success && extractResult.data) {
+                          setExtractedProductData({
+                            ...extractResult.data,
+                            imageUrl: uploadResult.url,
+                          });
+                          toast.success(language === 'ja' ? '商品情報を抽出しました' : '已提取商品信息');
+                        } else {
+                          throw new Error('AI解析に失敗しました');
+                        }
+                      } catch (error: any) {
                         console.error('AI analysis error:', error);
-                        toast.error(language === 'ja' ? 'AI分析に失敗しました' : 'AI分析失败');
+                        toast.error(language === 'ja' ? `AI分析に失敗しました: ${error.message || '不明なエラー'}` : `AI分析失败: ${error.message || '未知错误'}`);
                       } finally {
                         setIsAiProcessing(false);
                       }
