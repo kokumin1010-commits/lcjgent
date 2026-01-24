@@ -27,6 +27,16 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe } from "lucide-react";
 import { toast } from "sonner";
 
@@ -269,6 +279,11 @@ export default function BrandDetail() {
   const [addLivestreamDialogOpen, setAddLivestreamDialogOpen] = useState(false);
   const [newProduct, setNewProduct] = useState({ productName: "", listPrice: 0, specialPrice: 0, commissionRate: "", remarks: "" });
   const [newLivestream, setNewLivestream] = useState({ livestreamDate: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "" });
+  // Delete states
+  const [deleteProductDialogOpen, setDeleteProductDialogOpen] = useState(false);
+  const [deleteLivestreamDialogOpen, setDeleteLivestreamDialogOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<any>(null);
+  const [livestreamToDelete, setLivestreamToDelete] = useState<any>(null);
 
   const brandId = parseInt(id || "0");
 
@@ -323,6 +338,31 @@ export default function BrandDetail() {
       setAddLivestreamDialogOpen(false);
       setNewLivestream({ livestreamDate: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "" });
       toast.success("直播を追加しました");
+    },
+    onError: () => {
+      toast.error("エラーが発生しました");
+    },
+  });
+
+  // Delete mutations
+  const deleteProductMutation = trpc.brandProduct.delete.useMutation({
+    onSuccess: () => {
+      refetchProducts();
+      setDeleteProductDialogOpen(false);
+      setProductToDelete(null);
+      toast.success("商品を削除しました");
+    },
+    onError: () => {
+      toast.error("エラーが発生しました");
+    },
+  });
+
+  const deleteLivestreamMutation = trpc.brandLivestream.delete.useMutation({
+    onSuccess: () => {
+      refetchLivestreams();
+      setDeleteLivestreamDialogOpen(false);
+      setLivestreamToDelete(null);
+      toast.success("直播を削除しました");
     },
     onError: () => {
       toast.error("エラーが発生しました");
@@ -776,8 +816,16 @@ export default function BrandDetail() {
                             <button
                               onClick={() => { setEditingProduct(product); setEditProductDialogOpen(true); }}
                               className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-cyan-400 transition-all"
+                              title={language === 'ja' ? '編集' : '编辑'}
                             >
                               <Edit2 className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => { setProductToDelete(product); setDeleteProductDialogOpen(true); }}
+                              className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all"
+                              title={language === 'ja' ? '削除' : '删除'}
+                            >
+                              <Trash2 className="h-4 w-4" />
                             </button>
                           </div>
                         </td>
@@ -837,12 +885,22 @@ export default function BrandDetail() {
                           {ls.duration ? `${ls.duration}分` : "-"}
                         </td>
                         <td className="py-3 px-2 text-right">
-                          <button
-                            onClick={() => { setEditingLivestream(ls); setEditLivestreamDialogOpen(true); }}
-                            className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-pink-400 transition-all"
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </button>
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => { setEditingLivestream(ls); setEditLivestreamDialogOpen(true); }}
+                              className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-pink-400 transition-all"
+                              title={language === 'ja' ? '編集' : '编辑'}
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => { setLivestreamToDelete(ls); setDeleteLivestreamDialogOpen(true); }}
+                              className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all"
+                              title={language === 'ja' ? '削除' : '删除'}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -1743,6 +1801,70 @@ export default function BrandDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Product Confirmation Dialog */}
+      <AlertDialog open={deleteProductDialogOpen} onOpenChange={setDeleteProductDialogOpen}>
+        <AlertDialogContent className="bg-black/95 border-red-900/50 text-white backdrop-blur-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">
+              {language === 'ja' ? '商品を削除' : '删除商品'}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-400">
+              {language === 'ja' 
+                ? `「${productToDelete?.productName}」を削除しますか？この操作は取り消せません。`
+                : `确定要删除「${productToDelete?.productName}」吗？此操作无法撤消。`
+              }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-red-900/50 text-gray-300 hover:bg-red-900/20 hover:text-white">
+              {t.cancel}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (productToDelete) {
+                  deleteProductMutation.mutate({ id: productToDelete.id });
+                }
+              }}
+              className="bg-red-600 hover:bg-red-500 text-white"
+            >
+              {language === 'ja' ? '削除' : '删除'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Livestream Confirmation Dialog */}
+      <AlertDialog open={deleteLivestreamDialogOpen} onOpenChange={setDeleteLivestreamDialogOpen}>
+        <AlertDialogContent className="bg-black/95 border-red-900/50 text-white backdrop-blur-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">
+              {language === 'ja' ? '直播を削除' : '删除直播'}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-400">
+              {language === 'ja' 
+                ? `${formatDate(livestreamToDelete?.livestreamDate)}の直播（${livestreamToDelete?.streamerName}）を削除しますか？この操作は取り消せません。`
+                : `确定要删除${formatDate(livestreamToDelete?.livestreamDate)}的直播（${livestreamToDelete?.streamerName}）吗？此操作无法撤消。`
+              }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-red-900/50 text-gray-300 hover:bg-red-900/20 hover:text-white">
+              {t.cancel}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (livestreamToDelete) {
+                  deleteLivestreamMutation.mutate({ id: livestreamToDelete.id });
+                }
+              }}
+              className="bg-red-600 hover:bg-red-500 text-white"
+            >
+              {language === 'ja' ? '削除' : '删除'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
