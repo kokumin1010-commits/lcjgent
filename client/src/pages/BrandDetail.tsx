@@ -1401,68 +1401,7 @@ export default function BrandDetail() {
                   </div>
                 </div>
               </div>
-              {/* 広告メトリクス */}
-              <div className="border-t border-red-900/30 pt-4 mt-4">
-                <p className="text-sm text-orange-400 mb-3 font-medium">{language === 'ja' ? '広告メトリクス' : '广告指标'}</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-gray-400">{t.adCost}</Label>
-                    <Input
-                      type="number"
-                      value={editingLivestream.adCost || ""}
-                      onChange={(e) => setEditingLivestream({ ...editingLivestream, adCost: parseInt(e.target.value) || 0 })}
-                      className="bg-black/60 border-red-900/50 text-white mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-gray-400">{t.ctr}</Label>
-                    <Input
-                      value={editingLivestream.ctr || ""}
-                      onChange={(e) => setEditingLivestream({ ...editingLivestream, ctr: e.target.value })}
-                      placeholder="例: 2.5%"
-                      className="bg-black/60 border-red-900/50 text-white mt-1"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-4 mt-3">
-                  <div>
-                    <Label className="text-gray-400">{t.cvr}</Label>
-                    <Input
-                      value={editingLivestream.cvr || ""}
-                      onChange={(e) => setEditingLivestream({ ...editingLivestream, cvr: e.target.value })}
-                      placeholder="例: 5%"
-                      className="bg-black/60 border-red-900/50 text-white mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-gray-400">{t.cpc}</Label>
-                    <Input
-                      type="number"
-                      value={editingLivestream.cpc || ""}
-                      onChange={(e) => setEditingLivestream({ ...editingLivestream, cpc: parseInt(e.target.value) || 0 })}
-                      className="bg-black/60 border-red-900/50 text-white mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-gray-400">{t.acos}</Label>
-                    <Input
-                      value={editingLivestream.acos || ""}
-                      onChange={(e) => setEditingLivestream({ ...editingLivestream, acos: e.target.value })}
-                      placeholder="例: 20%"
-                      className="bg-black/60 border-red-900/50 text-white mt-1"
-                    />
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <Label className="text-gray-400">{t.roas}</Label>
-                  <Input
-                    value={editingLivestream.roas || ""}
-                    onChange={(e) => setEditingLivestream({ ...editingLivestream, roas: e.target.value })}
-                    placeholder="例: 3.5"
-                    className="bg-black/60 border-red-900/50 text-white mt-1"
-                  />
-                </div>
-              </div>
+
               <div>
                 <Label className="text-gray-400">備考</Label>
                 <Textarea
@@ -2172,68 +2111,7 @@ export default function BrandDetail() {
                 </div>
               </div>
             </div>
-            {/* 広告メトリクス */}
-            <div className="border-t border-red-900/30 pt-4 mt-4">
-              <p className="text-sm text-orange-400 mb-3 font-medium">{language === 'ja' ? '広告メトリクス' : '广告指标'}</p>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-gray-400">{t.adCost}</Label>
-                  <Input
-                    type="number"
-                    value={newLivestream.adCost || ""}
-                    onChange={(e) => setNewLivestream({ ...newLivestream, adCost: parseInt(e.target.value) || 0 })}
-                    className="bg-black/60 border-red-900/50 text-white mt-1"
-                  />
-                </div>
-                <div>
-                  <Label className="text-gray-400">{t.ctr}</Label>
-                  <Input
-                    value={newLivestream.ctr}
-                    onChange={(e) => setNewLivestream({ ...newLivestream, ctr: e.target.value })}
-                    placeholder="例: 2.5%"
-                    className="bg-black/60 border-red-900/50 text-white mt-1"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-4 mt-3">
-                <div>
-                  <Label className="text-gray-400">{t.cvr}</Label>
-                  <Input
-                    value={newLivestream.cvr}
-                    onChange={(e) => setNewLivestream({ ...newLivestream, cvr: e.target.value })}
-                    placeholder="例: 5%"
-                    className="bg-black/60 border-red-900/50 text-white mt-1"
-                  />
-                </div>
-                <div>
-                  <Label className="text-gray-400">{t.cpc}</Label>
-                  <Input
-                    type="number"
-                    value={newLivestream.cpc || ""}
-                    onChange={(e) => setNewLivestream({ ...newLivestream, cpc: parseInt(e.target.value) || 0 })}
-                    className="bg-black/60 border-red-900/50 text-white mt-1"
-                  />
-                </div>
-                <div>
-                  <Label className="text-gray-400">{t.acos}</Label>
-                  <Input
-                    value={newLivestream.acos}
-                    onChange={(e) => setNewLivestream({ ...newLivestream, acos: e.target.value })}
-                    placeholder="例: 20%"
-                    className="bg-black/60 border-red-900/50 text-white mt-1"
-                  />
-                </div>
-              </div>
-              <div className="mt-3">
-                <Label className="text-gray-400">{t.roas}</Label>
-                <Input
-                  value={newLivestream.roas}
-                  onChange={(e) => setNewLivestream({ ...newLivestream, roas: e.target.value })}
-                  placeholder="例: 3.5"
-                  className="bg-black/60 border-red-900/50 text-white mt-1"
-                />
-              </div>
-            </div>
+
             <div>
               <Label className="text-gray-400">{language === 'ja' ? '備考' : '备注'}</Label>
               <Textarea
