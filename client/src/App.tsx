@@ -130,9 +130,7 @@ function Router() {
       </Route>
       <Route path={"/brands/:id"}>
         {(params) => (
-          <DashboardLayout>
-            <BrandDetail />
-          </DashboardLayout>
+          <BrandDetail />
         )}
       </Route>
       <Route path={"/business-cards"}>
