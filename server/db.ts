@@ -1565,11 +1565,15 @@ export async function updateBrandContract(id: number, data: Partial<InsertBrandC
   await db.update(brandContracts).set(data).where(eq(brandContracts.id, id));
 }
 
-// Delete a brand contract
+// Delete a brand contract (and all related livestream links)
 export async function deleteBrandContract(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
+  // First, delete all related livestream links
+  await deleteAllContractLivestreamLinks(id);
+  
+  // Then delete the contract itself
   await db.delete(brandContracts).where(eq(brandContracts.id, id));
 }
 

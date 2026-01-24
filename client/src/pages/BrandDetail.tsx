@@ -271,6 +271,8 @@ const formatDate = (date: Date | string | null | undefined) => {
 };
 
 // 契約ROAS表示コンポーネント
+const INDUSTRY_AVG_ROAS = 0.8; // 業界平均ROAS
+
 function ContractRoasDisplay({ contractId, fixedFee }: { contractId: number; fixedFee: number }) {
   const { data: linkedLivestreams = [] } = trpc.brandContract.getLinkedLivestreams.useQuery(
     { contractId },
@@ -286,37 +288,49 @@ function ContractRoasDisplay({ contractId, fixedFee }: { contractId: number; fix
   const adValue = totalImpressions * 15; // CPM ¥15,000
   const totalValue = totalGmv + adValue;
   const roas = totalValue / fixedFee;
+  const vsIndustry = roas / INDUSTRY_AVG_ROAS;
 
   return (
-    <div className="mt-6 bg-gradient-to-r from-amber-950/40 via-pink-950/30 to-purple-950/40 rounded-xl p-5 border border-amber-500/30">
-      {/* メイン数値（大きく目立つ） */}
-      <div className="grid grid-cols-4 gap-4 mb-4">
+    <div className="mt-3 bg-gradient-to-r from-amber-950/40 via-pink-950/30 to-purple-950/40 rounded-lg p-3 border border-amber-500/30">
+      {/* メイン数値（コンパクト） */}
+      <div className="grid grid-cols-4 gap-2 mb-2">
         <div className="text-center">
-          <div className="flex items-center justify-center gap-1 mb-1">
-            <Video className="h-4 w-4 text-amber-400" />
-            <span className="text-xs text-gray-400">紐付け</span>
+          <div className="flex items-center justify-center gap-1">
+            <Video className="h-3 w-3 text-amber-400" />
+            <span className="text-[10px] text-gray-500">紐付け</span>
           </div>
-          <span className="text-2xl font-black text-amber-400">{linkedLivestreams.length}<span className="text-base">件</span></span>
+          <span className="text-lg font-black text-amber-400">{linkedLivestreams.length}<span className="text-xs">件</span></span>
         </div>
         <div className="text-center">
-          <div className="text-xs text-gray-400 mb-1">GMV</div>
-          <span className="text-2xl font-black text-cyan-400 font-mono">{formatCurrency(totalGmv)}</span>
+          <div className="text-[10px] text-gray-500">GMV</div>
+          <span className="text-lg font-black text-cyan-400 font-mono">{formatCurrency(totalGmv)}</span>
         </div>
         <div className="text-center">
-          <div className="text-xs text-gray-400 mb-1">曝光</div>
-          <span className="text-2xl font-black text-pink-400 font-mono">{totalImpressions.toLocaleString()}</span>
+          <div className="text-[10px] text-gray-500">曝光</div>
+          <span className="text-lg font-black text-pink-400 font-mono">{totalImpressions.toLocaleString()}</span>
         </div>
         <div className="text-center">
-          <div className="text-xs text-gray-400 mb-1">広告換算</div>
-          <span className="text-2xl font-black text-purple-400 font-mono">{formatCurrency(adValue)}</span>
+          <div className="text-[10px] text-gray-500">広告換算</div>
+          <span className="text-lg font-black text-purple-400 font-mono">{formatCurrency(adValue)}</span>
         </div>
       </div>
-      {/* ROAS（右下に大きく） */}
-      <div className="flex justify-end items-center gap-3 pt-3 border-t border-amber-500/20">
-        <span className="text-sm text-gray-400">概算ROAS:</span>
-        <span className="text-3xl font-black bg-gradient-to-r from-amber-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">
-          {roas.toFixed(2)}倍
-        </span>
+      {/* ROAS（業界平均比較付き） */}
+      <div className="flex items-center justify-between pt-2 border-t border-amber-500/20">
+        <div className="flex flex-col">
+          <span className="text-[9px] text-gray-600">※ CPM ¥15,000 × 実際曝光量</span>
+          <span className="text-[10px] text-gray-500">業界平均：{INDUSTRY_AVG_ROAS}倍</span>
+        </div>
+        <div className="text-right">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400">📊 広告換算ROAS</span>
+            <span className="text-2xl font-black bg-gradient-to-r from-amber-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">
+              {roas.toFixed(2)}倍
+            </span>
+          </div>
+          <div className="text-xs text-emerald-400 font-medium">
+            → 業界平均の {vsIndustry.toFixed(1)}倍（{vsIndustry > 1 ? '显著高于基准' : '基准以下'}）
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -358,8 +372,10 @@ export default function BrandDetail() {
   // Delete states
   const [deleteProductDialogOpen, setDeleteProductDialogOpen] = useState(false);
   const [deleteLivestreamDialogOpen, setDeleteLivestreamDialogOpen] = useState(false);
+  const [deleteContractDialogOpen, setDeleteContractDialogOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<any>(null);
   const [livestreamToDelete, setLivestreamToDelete] = useState<any>(null);
+  const [contractToDelete, setContractToDelete] = useState<any>(null);
   // Product Detail Popup states
   const [productDetailDialogOpen, setProductDetailDialogOpen] = useState(false);
   const [selectedProductForDetail, setSelectedProductForDetail] = useState<any>(null);
@@ -463,6 +479,18 @@ export default function BrandDetail() {
       setDeleteLivestreamDialogOpen(false);
       setLivestreamToDelete(null);
       toast.success("直播を削除しました");
+    },
+    onError: () => {
+      toast.error("エラーが発生しました");
+    },
+  });
+
+  const deleteContractMutation = trpc.brandContract.delete.useMutation({
+    onSuccess: () => {
+      refetchContracts();
+      setDeleteContractDialogOpen(false);
+      setContractToDelete(null);
+      toast.success(language === 'zh' ? '合同已删除' : '契約を削除しました');
     },
     onError: () => {
       toast.error("エラーが発生しました");
@@ -960,12 +988,22 @@ export default function BrandDetail() {
                         {statusTranslations[language][contract.status] || contract.status}
                       </Badge>
                     </div>
-                    <button
-                      onClick={() => handleEditContract(contract)}
-                      className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-amber-400 transition-all"
-                    >
-                      <Edit2 className="h-5 w-5" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleEditContract(contract)}
+                        className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-amber-400 transition-all"
+                        title={language === 'ja' ? '編集' : '编辑'}
+                      >
+                        <Edit2 className="h-5 w-5" />
+                      </button>
+                      <button
+                        onClick={() => { setContractToDelete(contract); setDeleteContractDialogOpen(true); }}
+                        className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-400 transition-all"
+                        title={language === 'ja' ? '削除' : '删除'}
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </button>
+                    </div>
                   </div>
                   {/* 固定費を大きく表示 */}
                   <div className="mb-4">
@@ -1975,45 +2013,66 @@ export default function BrandDetail() {
                   </Select>
                 </div>
 
-                {/* ROAS計算結果 */}
+                {/* ROAS計算結果（新フォーマット） */}
                 {editingContract.linkedLivestreams && editingContract.linkedLivestreams.length > 0 && editingContract.fixedFee > 0 && (
-                  <div className="mt-4 bg-gradient-to-r from-amber-950/50 via-pink-950/30 to-purple-950/50 rounded-xl p-4 border border-amber-500/30">
-                    <p className="text-sm text-gray-400 mb-3">概算ROAS計算</p>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                  <div className="mt-3 bg-gradient-to-r from-amber-950/50 via-pink-950/30 to-purple-950/50 rounded-lg p-3 border border-amber-500/30">
+                    <div className="grid grid-cols-4 gap-2 mb-2 text-center">
                       <div>
-                        <p className="text-xs text-gray-500 mb-1">GMV合計</p>
-                        <p className="text-lg font-bold text-cyan-400">
+                        <p className="text-[10px] text-gray-500">GMV合計</p>
+                        <p className="text-base font-bold text-cyan-400">
                           {formatCurrency(editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.gmv || 0), 0))}
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500 mb-1">曝光合計</p>
-                        <p className="text-lg font-bold text-pink-400">
+                        <p className="text-[10px] text-gray-500">曝光合計</p>
+                        <p className="text-base font-bold text-pink-400">
                           {editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.impressions || 0), 0).toLocaleString()}
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500 mb-1">広告費換算</p>
-                        <p className="text-lg font-bold text-purple-400">
+                        <p className="text-[10px] text-gray-500">広告換算</p>
+                        <p className="text-base font-bold text-purple-400">
                           {formatCurrency(editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.impressions || 0), 0) * 15)}
                         </p>
                       </div>
-                      <div className="bg-gradient-to-r from-amber-500/20 to-pink-500/20 rounded-lg p-2">
-                        <p className="text-xs text-gray-400 mb-1">概算ROAS</p>
-                        <p className="text-2xl font-black bg-gradient-to-r from-amber-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">
+                      <div>
+                        <p className="text-[10px] text-gray-500">固定費</p>
+                        <p className="text-base font-bold text-amber-400">
+                          {formatCurrency(editingContract.fixedFee)}
+                        </p>
+                      </div>
+                    </div>
+                    {/* ROAS（業界平均比較付き） */}
+                    <div className="flex items-center justify-between pt-2 border-t border-amber-500/20">
+                      <div className="flex flex-col">
+                        <span className="text-[9px] text-gray-600">※ CPM ¥15,000 × 実際曝光量</span>
+                        <span className="text-[10px] text-gray-500">業界平均：{INDUSTRY_AVG_ROAS}倍</span>
+                      </div>
+                      <div className="text-right">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-400">📊 広告換算ROAS</span>
+                          <span className="text-2xl font-black bg-gradient-to-r from-amber-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">
+                            {(() => {
+                              const totalGmv = editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.gmv || 0), 0);
+                              const totalImpressions = editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.impressions || 0), 0);
+                              const adValue = totalImpressions * 15;
+                              const roas = (totalGmv + adValue) / editingContract.fixedFee;
+                              return roas.toFixed(2) + '倍';
+                            })()}
+                          </span>
+                        </div>
+                        <div className="text-xs text-emerald-400 font-medium">
                           {(() => {
                             const totalGmv = editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.gmv || 0), 0);
                             const totalImpressions = editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.impressions || 0), 0);
                             const adValue = totalImpressions * 15;
                             const roas = (totalGmv + adValue) / editingContract.fixedFee;
-                            return roas.toFixed(2) + '倍';
+                            const vsIndustry = roas / INDUSTRY_AVG_ROAS;
+                            return `→ 業界平均の ${vsIndustry.toFixed(1)}倍（${vsIndustry > 1 ? '显著高于基准' : '基准以下'}）`;
                           })()}
-                        </p>
+                        </div>
                       </div>
                     </div>
-                    <p className="text-xs text-gray-500 mt-3 text-center">
-                      計算式: (GMV合計 + 広告費換算) ÷ 固定費 = ({formatCurrency(editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.gmv || 0), 0))} + {formatCurrency(editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.impressions || 0), 0) * 15)}) ÷ {formatCurrency(editingContract.fixedFee)}
-                    </p>
                   </div>
                 )}
               </div>
@@ -2701,6 +2760,38 @@ export default function BrandDetail() {
               onClick={() => {
                 if (livestreamToDelete) {
                   deleteLivestreamMutation.mutate({ id: livestreamToDelete.id });
+                }
+              }}
+              className="bg-red-600 hover:bg-red-500 text-white"
+            >
+              {language === 'ja' ? '削除' : '删除'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Contract Confirmation Dialog */}
+      <AlertDialog open={deleteContractDialogOpen} onOpenChange={setDeleteContractDialogOpen}>
+        <AlertDialogContent className="bg-black/95 border-red-900/50 text-white backdrop-blur-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">
+              {language === 'ja' ? '契約を削除' : '删除合同'}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-400">
+              {language === 'ja' 
+                ? `${serviceTypeTranslations[language][contractToDelete?.serviceType] || contractToDelete?.serviceType}（固定費: ${formatCurrency(contractToDelete?.fixedFee)}）を削除しますか？紐付けられたライブとの関連も削除されます。この操作は取り消せません。`
+                : `确定要删除${serviceTypeTranslations[language][contractToDelete?.serviceType] || contractToDelete?.serviceType}（固定费: ${formatCurrency(contractToDelete?.fixedFee)}）吗？与直播的关联也将被删除。此操作无法撤消。`
+              }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-red-500/50 bg-red-950/50 text-gray-200 hover:bg-red-900/40 hover:text-white hover:border-red-400/70">
+              {t.cancel}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (contractToDelete) {
+                  deleteContractMutation.mutate({ id: contractToDelete.id });
                 }
               }}
               className="bg-red-600 hover:bg-red-500 text-white"
