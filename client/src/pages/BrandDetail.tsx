@@ -349,8 +349,10 @@ export default function BrandDetail() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [addProductDialogOpen, setAddProductDialogOpen] = useState(false);
   const [addLivestreamDialogOpen, setAddLivestreamDialogOpen] = useState(false);
+  const [addContractDialogOpen, setAddContractDialogOpen] = useState(false);
   const [newProduct, setNewProduct] = useState({ productName: "", listPrice: 0, specialPrice: 0, commissionRate: "", remarks: "" });
   const [newLivestream, setNewLivestream] = useState({ livestreamDate: "", livestreamStartTime: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "", productClicks: 0, impressions: 0, salesCount: 0, cartAddCount: 0, productId: null as number | null, productCommission: "", adCost: 0, ctr: "", cvr: "", cpc: 0, acos: "", roas: "" });
+  const [newContract, setNewContract] = useState({ serviceType: "ライブコマース" as "TSP" | "ライブコマース" | "広告運用代行" | "SNS運用代行" | "その他", contractType: "月額契約" as "月額契約" | "年間契約" | "単発契約" | "広告案件" | "その他", fixedFee: 0, commissionRate: "", status: "契約中" as "契約中" | "完了" | "保留" | "終了", startDate: "", endDate: "", memo: "" });
   // Delete states
   const [deleteProductDialogOpen, setDeleteProductDialogOpen] = useState(false);
   const [deleteLivestreamDialogOpen, setDeleteLivestreamDialogOpen] = useState(false);
@@ -422,6 +424,18 @@ export default function BrandDetail() {
       setAddLivestreamDialogOpen(false);
       setNewLivestream({ livestreamDate: "", livestreamStartTime: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "", productClicks: 0, impressions: 0, salesCount: 0, cartAddCount: 0, productId: null, productCommission: "", adCost: 0, ctr: "", cvr: "", cpc: 0, acos: "", roas: "" });
       toast.success("直播を追加しました");
+    },
+    onError: () => {
+      toast.error("エラーが発生しました");
+    },
+  });
+
+  const createContractMutation = trpc.brandContract.create.useMutation({
+    onSuccess: () => {
+      refetchContracts();
+      setAddContractDialogOpen(false);
+      setNewContract({ serviceType: "ライブコマース", contractType: "月額契約", fixedFee: 0, commissionRate: "", status: "契約中", startDate: "", endDate: "", memo: "" });
+      toast.success(language === 'zh' ? '合同已添加' : '契約を追加しました');
     },
     onError: () => {
       toast.error("エラーが発生しました");
@@ -1124,6 +1138,17 @@ export default function BrandDetail() {
             </CollapsibleTrigger>
             <CollapsibleContent>
               <div className="px-4 md:px-6 pb-4 md:pb-6">
+                {/* 契約追加ボタン */}
+                <div className="flex justify-end mb-4">
+                  <Button
+                    onClick={() => setAddContractDialogOpen(true)}
+                    className="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white"
+                    size="sm"
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    {language === 'zh' ? '添加合同' : '契約追加'}
+                  </Button>
+                </div>
                 {contracts.length === 0 ? (
                   <p className="text-gray-500 text-center py-4">{t.noData}</p>
                 ) : (
@@ -2604,6 +2629,130 @@ export default function BrandDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Add Contract Dialog */}
+      <Dialog open={addContractDialogOpen} onOpenChange={setAddContractDialogOpen}>
+        <DialogContent className="bg-black/95 border-red-900/50 text-white max-w-lg backdrop-blur-xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-3">
+              <div className="w-1 h-6 bg-gradient-to-b from-amber-400 to-amber-600 rounded-full" />
+              {language === 'zh' ? '添加合同' : '契約追加'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label className="text-gray-400">{t.serviceType}</Label>
+              <Select
+                value={newContract.serviceType}
+                onValueChange={(value) => setNewContract({ ...newContract, serviceType: value as "TSP" | "ライブコマース" | "広告運用代行" | "SNS運用代行" | "その他" })}
+              >
+                <SelectTrigger className="bg-black/60 border-red-900/50 text-white mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-black/95 border-red-900/50">
+                  <SelectItem value="ライブコマース">{language === 'zh' ? '直播电商' : 'ライブコマース'}</SelectItem>
+                  <SelectItem value="TSP">{language === 'zh' ? 'TSP' : 'TSP'}</SelectItem>
+                  <SelectItem value="広告運用代行">{language === 'zh' ? '广告运营' : '広告運用代行'}</SelectItem>
+                  <SelectItem value="SNS運用代行">{language === 'zh' ? 'SNS运营' : 'SNS運用代行'}</SelectItem>
+                  <SelectItem value="その他">{language === 'zh' ? '其他' : 'その他'}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-gray-400">{t.fixedFee}</Label>
+              <Input
+                type="number"
+                value={newContract.fixedFee || ""}
+                onChange={(e) => setNewContract({ ...newContract, fixedFee: parseInt(e.target.value) || 0 })}
+                placeholder="例: 1000000"
+                className="bg-black/60 border-red-900/50 text-white mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-gray-400">{t.commissionRate}</Label>
+              <Input
+                value={newContract.commissionRate}
+                onChange={(e) => setNewContract({ ...newContract, commissionRate: e.target.value })}
+                placeholder="例: 15-20%"
+                className="bg-black/60 border-red-900/50 text-white mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-gray-400">{t.status}</Label>
+              <Select
+                value={newContract.status}
+                onValueChange={(value) => setNewContract({ ...newContract, status: value as "契約中" | "完了" | "保留" | "終了" })}
+              >
+                <SelectTrigger className="bg-black/60 border-red-900/50 text-white mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-black/95 border-red-900/50">
+                  <SelectItem value="契約中">{language === 'zh' ? '合同中' : '契約中'}</SelectItem>
+                  <SelectItem value="完了">{language === 'zh' ? '已完成' : '完了'}</SelectItem>
+                  <SelectItem value="保留">{language === 'zh' ? '暂停' : '保留'}</SelectItem>
+                  <SelectItem value="終了">{language === 'zh' ? '结束' : '終了'}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-gray-400">{t.startDate}</Label>
+                <Input
+                  type="date"
+                  value={newContract.startDate}
+                  onChange={(e) => setNewContract({ ...newContract, startDate: e.target.value })}
+                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-gray-400">{t.endDate}</Label>
+                <Input
+                  type="date"
+                  value={newContract.endDate}
+                  onChange={(e) => setNewContract({ ...newContract, endDate: e.target.value })}
+                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                />
+              </div>
+            </div>
+            <div>
+              <Label className="text-gray-400">{t.memo}</Label>
+              <Textarea
+                value={newContract.memo}
+                onChange={(e) => setNewContract({ ...newContract, memo: e.target.value })}
+                className="bg-black/60 border-red-900/50 text-white mt-1"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setAddContractDialogOpen(false)}
+              className="border-red-500/50 bg-red-950/50 text-gray-200 hover:bg-red-900/40 hover:text-white hover:border-red-400/70"
+            >
+              {t.cancel}
+            </Button>
+            <Button
+              onClick={() => {
+                createContractMutation.mutate({
+                  brandId,
+                  serviceType: newContract.serviceType,
+                  contractType: newContract.contractType,
+                  fixedFee: newContract.fixedFee,
+                  commissionRate: newContract.commissionRate || undefined,
+                  status: newContract.status,
+                  startDate: newContract.startDate ? new Date(newContract.startDate) : undefined,
+                  endDate: newContract.endDate ? new Date(newContract.endDate) : undefined,
+                  memo: newContract.memo || undefined,
+                });
+              }}
+              className="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white"
+            >
+              {t.add}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* AI Image Add Dialog */}
       <Dialog open={aiImageAddDialogOpen} onOpenChange={(open) => {
