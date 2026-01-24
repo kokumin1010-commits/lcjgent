@@ -1271,30 +1271,52 @@ export default function BrandDetail() {
         {/* メインKPIカード - 広告司令塔スタイル */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* 広告費カード */}
-          <div className="bg-gradient-to-br from-red-950/40 to-slate-900/80 backdrop-blur-xl rounded-2xl border border-red-500/20 p-6 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 rounded-full blur-3xl" />
+          <div className="bg-gradient-to-br from-red-950/40 to-slate-900/80 backdrop-blur-xl rounded-2xl border border-red-500/20 p-6 relative overflow-hidden group hover:border-red-500/40 transition-all duration-300">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 rounded-full blur-3xl group-hover:bg-red-500/20 transition-all duration-300" />
+            <div className="absolute -bottom-4 -left-4 w-24 h-24 bg-orange-500/10 rounded-full blur-2xl" />
             <div className="relative">
               <div className="flex items-center gap-2 mb-2">
-                <DollarSign className="h-5 w-5 text-red-400" />
+                <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center">
+                  <DollarSign className="h-5 w-5 text-red-400" />
+                </div>
                 <span className="text-red-400 text-sm font-medium">{t.adBudget}</span>
               </div>
-              <p className="text-4xl md:text-5xl font-bold text-white tracking-tight" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                {formatCurrency(brand.adBudget)}
+              <p className="text-4xl md:text-5xl font-bold text-white tracking-tight drop-shadow-[0_0_15px_rgba(239,68,68,0.3)]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                {brand.adBudget ? formatCurrency(brand.adBudget) : <span className="text-gray-500">-</span>}
               </p>
+              {brand.adBudget && (
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-xs text-gray-500">月額予算</span>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* 売上目標カード */}
-          <div className="bg-gradient-to-br from-emerald-950/40 to-slate-900/80 backdrop-blur-xl rounded-2xl border border-emerald-500/20 p-6 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl" />
+          {/* 売上目標カード - GMV合計を表示 */}
+          <div className="bg-gradient-to-br from-emerald-950/40 to-slate-900/80 backdrop-blur-xl rounded-2xl border border-emerald-500/20 p-6 relative overflow-hidden group hover:border-emerald-500/40 transition-all duration-300">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl group-hover:bg-emerald-500/20 transition-all duration-300" />
+            <div className="absolute -bottom-4 -left-4 w-24 h-24 bg-teal-500/10 rounded-full blur-2xl" />
             <div className="relative">
               <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="h-5 w-5 text-emerald-400" />
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                  <Sparkles className="h-5 w-5 text-emerald-400" />
+                </div>
                 <span className="text-emerald-400 text-sm font-medium">{t.salesTarget}</span>
               </div>
-              <p className="text-4xl md:text-5xl font-bold text-white tracking-tight" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                {formatCurrency(brand.salesTarget)}
+              <p className="text-4xl md:text-5xl font-bold text-white tracking-tight drop-shadow-[0_0_15px_rgba(16,185,129,0.3)]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                {brand.salesTarget ? formatCurrency(brand.salesTarget) : <span className="text-gray-500">-</span>}
               </p>
+              {/* GMV実績表示 */}
+              {monthlyGmvSummary.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-emerald-500/20">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-400">GMV実績（全期間）</span>
+                    <span className="text-lg font-bold text-emerald-400 drop-shadow-[0_0_10px_rgba(16,185,129,0.5)]">
+                      {formatCurrency(monthlyGmvSummary.reduce((sum, m) => sum + (m.gmv || 0), 0))}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -3223,22 +3245,31 @@ export default function BrandDetail() {
                           )}
                         </div>
                         
-                        {/* メトリクス */}
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3">
-                            <div className="flex items-center gap-1 text-xs text-gray-400 mb-1">
-                              <DollarSign className="h-3 w-3 text-green-400" />
-                              GMV
+                        {/* GMVメイン表示 - 大きく目立たせる */}
+                        <div className="bg-gradient-to-r from-green-500/20 via-emerald-500/20 to-teal-500/20 border border-green-500/30 rounded-xl p-4 mb-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
+                                <DollarSign className="h-5 w-5 text-green-400" />
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-400">GMV</p>
+                                <p className="text-2xl font-bold text-green-400 drop-shadow-[0_0_10px_rgba(74,222,128,0.5)]">
+                                  {formatCurrency((ls as any).productGmvTotal || 0)}
+                                </p>
+                              </div>
                             </div>
-                            <p className="font-bold text-green-400">
-                              {formatCurrency((ls as any).productGmvTotal || 0)}
-                            </p>
                             {(ls as any).productCount > 0 && (
-                              <p className="text-xs text-gray-500 mt-1">
-                                {(ls as any).productCount}品
-                              </p>
+                              <div className="text-right">
+                                <p className="text-xs text-gray-400">商品数</p>
+                                <p className="text-lg font-bold text-green-300">{(ls as any).productCount}品</p>
+                              </div>
                             )}
                           </div>
+                        </div>
+                        
+                        {/* サブメトリクス */}
+                        <div className="grid grid-cols-2 gap-3">
                           <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-lg p-3">
                             <div className="flex items-center gap-1 text-xs text-gray-400 mb-1">
                               <Clock className="h-3 w-3 text-cyan-400" />
