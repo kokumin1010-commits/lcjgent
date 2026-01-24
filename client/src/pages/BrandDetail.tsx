@@ -923,12 +923,6 @@ export default function BrandDetail() {
                     <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.salesCount}</th>
                     <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.gmv}</th>
                     <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.cartAddCount}</th>
-                    <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.adCost}</th>
-                    <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.ctr}</th>
-                    <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.cvr}</th>
-                    <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.cpc}</th>
-                    <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.acos}</th>
-                    <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.roas}</th>
                     <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.duration}</th>
                     <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2 w-12"></th>
                   </tr>
@@ -936,7 +930,7 @@ export default function BrandDetail() {
                 <tbody>
                   {livestreams.length === 0 ? (
                     <tr>
-                      <td colSpan={20} className="text-center text-gray-500 py-8">{t.noData}</td>
+                      <td colSpan={14} className="text-center text-gray-500 py-8">{t.noData}</td>
                     </tr>
                   ) : (
                     livestreams.slice(0, 10).map((ls) => (
@@ -1003,24 +997,6 @@ export default function BrandDetail() {
                         </td>
                         <td className="py-3 px-2 text-right text-orange-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                           {ls.cartAddCount?.toLocaleString() || "-"}
-                        </td>
-                        <td className="py-3 px-2 text-right text-red-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                          {(ls as any).adCost ? formatCurrency((ls as any).adCost) : "-"}
-                        </td>
-                        <td className="py-3 px-2 text-right text-yellow-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                          {(ls as any).ctr ? `${(ls as any).ctr}%` : "-"}
-                        </td>
-                        <td className="py-3 px-2 text-right text-green-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                          {(ls as any).cvr ? `${(ls as any).cvr}%` : "-"}
-                        </td>
-                        <td className="py-3 px-2 text-right text-blue-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                          {(ls as any).cpc ? formatCurrency((ls as any).cpc) : "-"}
-                        </td>
-                        <td className="py-3 px-2 text-right text-purple-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                          {(ls as any).acos ? `${(ls as any).acos}%` : "-"}
-                        </td>
-                        <td className="py-3 px-2 text-right text-emerald-400 font-bold" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                          {(ls as any).roas ? (ls as any).roas.toFixed(2) : "-"}
                         </td>
                         <td className="py-3 px-2 text-right text-gray-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                           {ls.duration ? `${ls.duration}分` : "-"}
