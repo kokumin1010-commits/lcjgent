@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -140,6 +141,11 @@ const translations = {
     shippingInfo: "配送情報",
     aiExtractFailed: "AI解析に失敗しました",
     noImageSelected: "画像を選択してください",
+    // 商品詳細ダイアログ
+    productDetail: "商品詳細",
+    proposalImage: "提案書画像",
+    noProposalImage: "提案書画像なし",
+    close: "閉じる",
   },
   zh: {
     title: "品牌详情",
@@ -246,6 +252,11 @@ const translations = {
     shippingInfo: "配送信息",
     aiExtractFailed: "AI分析失败",
     noImageSelected: "请选择图片",
+    // 商品詳細ダイアログ
+    productDetail: "商品详情",
+    proposalImage: "提案图片",
+    noProposalImage: "无提案图片",
+    close: "关闭",
   },
 };
 
@@ -368,6 +379,10 @@ export default function BrandDetail() {
     status: "契約中" as "契約中" | "完了" | "保留" | "終了",
     memo: "",
   });
+
+  // 商品詳細ダイアログ用のstate
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [isProductDetailDialogOpen, setIsProductDetailDialogOpen] = useState(false);
 
   // AI商品登録用のstate
   const [isAiProductDialogOpen, setIsAiProductDialogOpen] = useState(false);
@@ -1634,40 +1649,45 @@ export default function BrandDetail() {
                 {products.map((product) => (
                   <div
                     key={product.id}
-                    className="group relative bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-300"
+                    className="group relative bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-300 cursor-pointer"
+                    onClick={() => {
+                      setSelectedProduct(product);
+                      setIsProductDetailDialogOpen(true);
+                    }}
                   >
                     {/* 削除ボタン */}
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => deleteProductMutation.mutate({ id: product.id })}
+                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteProductMutation.mutate({ id: product.id });
+                      }}
                     >
                       <Trash2 className="h-4 w-4 text-red-500" />
                     </Button>
 
-                    {/* 商品画像またはアイコン */}
-                    <div className="flex items-start gap-3 mb-3">
-                      <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900 dark:to-purple-900 flex items-center justify-center flex-shrink-0">
-                        {product.imageUrls && product.imageUrls.length > 0 ? (
-                          <img
-                            src={product.imageUrls[0]}
-                            alt={product.productName}
-                            className="w-full h-full object-cover rounded-lg"
-                          />
-                        ) : (
-                          <Package className="h-8 w-8 text-blue-500" />
-                        )}
+                    {/* 提案書画像または商品画像 */}
+                    {(product.proposalImageUrl || (product.imageUrls && product.imageUrls.length > 0)) && (
+                      <div className="mb-3 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
+                        <img
+                          src={product.proposalImageUrl || product.imageUrls?.[0]}
+                          alt={product.productName}
+                          className="w-full h-40 object-contain"
+                        />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-sm line-clamp-2 mb-1">{product.productName}</h4>
-                        {product.productCode && (
-                          <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Tag className="h-3 w-3" />
-                            {product.productCode}
-                          </p>
-                        )}
-                      </div>
+                    )}
+
+                    {/* 商品名とコード */}
+                    <div className="mb-3">
+                      <h4 className="font-semibold text-sm line-clamp-2 mb-1">{product.productName}</h4>
+                      {product.productCode && (
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Tag className="h-3 w-3" />
+                          {product.productCode}
+                        </p>
+                      )}
                     </div>
 
                     {/* 価格情報 */}
@@ -1720,6 +1740,137 @@ export default function BrandDetail() {
             )}
           </CardContent>
         </Card>
+
+        {/* 商品詳細ダイアログ */}
+        <Dialog open={isProductDetailDialogOpen} onOpenChange={setIsProductDetailDialogOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5 text-blue-500" />
+                {t.productDetail}
+              </DialogTitle>
+            </DialogHeader>
+            {selectedProduct && (
+              <div className="space-y-6">
+                {/* 提案書画像 */}
+                {selectedProduct.proposalImageUrl && (
+                  <div className="space-y-2">
+                    <h3 className="font-semibold flex items-center gap-2">
+                      <ImageIcon className="h-4 w-4 text-purple-500" />
+                      {t.proposalImage}
+                    </h3>
+                    <div className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+                      <img
+                        src={selectedProduct.proposalImageUrl}
+                        alt={selectedProduct.productName}
+                        className="w-full max-h-[500px] object-contain"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* 基本情報 */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs text-muted-foreground">{t.productName}</label>
+                      <p className="font-semibold">{selectedProduct.productName}</p>
+                    </div>
+                    {selectedProduct.productCode && (
+                      <div>
+                        <label className="text-xs text-muted-foreground">{t.productCode}</label>
+                        <p className="font-mono text-sm">{selectedProduct.productCode}</p>
+                      </div>
+                    )}
+                    <div className="flex gap-4">
+                      <div>
+                        <label className="text-xs text-muted-foreground">{t.listPrice}</label>
+                        <p className="font-semibold">{formatCurrency(selectedProduct.listPrice)}</p>
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">{t.specialPrice}</label>
+                        <p className="font-bold text-red-600">{formatCurrency(selectedProduct.specialPrice)}</p>
+                      </div>
+                      {selectedProduct.discountRate && (
+                        <div>
+                          <label className="text-xs text-muted-foreground">{t.discountRate}</label>
+                          <Badge className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                            {selectedProduct.discountRate}
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    {selectedProduct.releaseDate && (
+                      <div>
+                        <label className="text-xs text-muted-foreground">{t.releaseDate}</label>
+                        <p>{selectedProduct.releaseDate}</p>
+                      </div>
+                    )}
+                    {selectedProduct.stock !== null && selectedProduct.stock !== undefined && (
+                      <div>
+                        <label className="text-xs text-muted-foreground">{t.stock}</label>
+                        <p>{selectedProduct.stock}</p>
+                      </div>
+                    )}
+                    {selectedProduct.influencer && (
+                      <div>
+                        <label className="text-xs text-muted-foreground">{t.influencer}</label>
+                        <p>{selectedProduct.influencer}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* キャッチコピー */}
+                {selectedProduct.catchCopy && (
+                  <div>
+                    <label className="text-xs text-muted-foreground">{t.catchCopy}</label>
+                    <p className="mt-1 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800 text-sm">
+                      {selectedProduct.catchCopy}
+                    </p>
+                  </div>
+                )}
+
+                {/* 商品詳細 */}
+                {selectedProduct.productDetails && (
+                  <div>
+                    <label className="text-xs text-muted-foreground">{t.productDetails}</label>
+                    <p className="mt-1 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-sm whitespace-pre-wrap">
+                      {selectedProduct.productDetails}
+                    </p>
+                  </div>
+                )}
+
+                {/* 配送情報 */}
+                {selectedProduct.shippingInfo && (
+                  <div>
+                    <label className="text-xs text-muted-foreground">{t.shippingInfo}</label>
+                    <p className="mt-1 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 text-sm">
+                      {selectedProduct.shippingInfo}
+                    </p>
+                  </div>
+                )}
+
+                {/* 備考 */}
+                {selectedProduct.remarks && (
+                  <div>
+                    <label className="text-xs text-muted-foreground">{t.memo}</label>
+                    <p className="mt-1 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-sm">
+                      {selectedProduct.remarks}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsProductDetailDialogOpen(false)}>
+                {t.close}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Activities */}
         <Card className="overflow-hidden">
