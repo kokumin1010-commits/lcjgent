@@ -3350,8 +3350,8 @@ export async function calculateContractRoas(contractId: number, fixedFee: number
   // Total value = GMV + Ad Value
   const totalValue = totalGmv + adValue;
   
-  // ROAS = Total Value / Fixed Fee
-  const roas = fixedFee > 0 ? totalValue / fixedFee : 0;
+  // 広告換算ROAS = GMV ÷ 広告換算費用
+  const roas = adValue > 0 ? totalGmv / adValue : 0;
   
   return {
     totalGmv,

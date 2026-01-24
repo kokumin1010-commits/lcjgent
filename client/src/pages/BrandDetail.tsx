@@ -286,8 +286,8 @@ function ContractRoasDisplay({ contractId, fixedFee }: { contractId: number; fix
   const totalGmv = linkedLivestreams.reduce((sum, ls) => sum + (ls.gmv || 0), 0);
   const totalImpressions = linkedLivestreams.reduce((sum, ls) => sum + (ls.impressions || 0), 0);
   const adValue = totalImpressions * 15; // CPM ¥15,000
-  const totalValue = totalGmv + adValue;
-  const roas = totalValue / fixedFee;
+  // 広告換算ROAS = GMV ÷ 広告換算費用
+  const roas = adValue > 0 ? totalGmv / adValue : 0;
   const vsIndustry = roas / INDUSTRY_AVG_ROAS;
 
   return (
@@ -2051,7 +2051,8 @@ export default function BrandDetail() {
                               const totalGmv = editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.gmv || 0), 0);
                               const totalImpressions = editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.impressions || 0), 0);
                               const adValue = totalImpressions * 15;
-                              const roas = (totalGmv + adValue) / editingContract.fixedFee;
+                              // 広告換算ROAS = GMV ÷ 広告換算費用
+                              const roas = adValue > 0 ? totalGmv / adValue : 0;
                               return roas.toFixed(2) + '倍';
                             })()}
                           </span>
@@ -2061,7 +2062,8 @@ export default function BrandDetail() {
                             const totalGmv = editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.gmv || 0), 0);
                             const totalImpressions = editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.impressions || 0), 0);
                             const adValue = totalImpressions * 15;
-                            const roas = (totalGmv + adValue) / editingContract.fixedFee;
+                            // 広告換算ROAS = GMV ÷ 広告換算費用
+                            const roas = adValue > 0 ? totalGmv / adValue : 0;
                             const vsIndustry = roas / INDUSTRY_AVG_ROAS;
                             return `→ 業界平均の ${vsIndustry.toFixed(1)}倍（${vsIndustry > 1 ? '显著高于基准' : '基准以下'}）`;
                           })()}
