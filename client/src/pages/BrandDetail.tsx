@@ -283,7 +283,7 @@ function ContractRoasDisplay({ contractId, fixedFee }: { contractId: number; fix
 
   const totalGmv = linkedLivestreams.reduce((sum, ls) => sum + (ls.gmv || 0), 0);
   const totalImpressions = linkedLivestreams.reduce((sum, ls) => sum + (ls.impressions || 0), 0);
-  const adValue = totalImpressions * 3; // CPM ¥3,000
+  const adValue = totalImpressions * 15; // CPM ¥15,000
   const totalValue = totalGmv + adValue;
   const roas = totalValue / fixedFee;
 
@@ -1902,7 +1902,7 @@ export default function BrandDetail() {
                     関連ライブ配信
                   </p>
                   <Badge className="bg-pink-500/20 text-pink-400 border border-pink-500/30">
-                    CPM: ¥3,000
+                    CPM: ¥15,000
                   </Badge>
                 </div>
                 
@@ -1995,7 +1995,7 @@ export default function BrandDetail() {
                       <div>
                         <p className="text-xs text-gray-500 mb-1">広告費換算</p>
                         <p className="text-lg font-bold text-purple-400">
-                          {formatCurrency(editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.impressions || 0), 0) * 3)}
+                          {formatCurrency(editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.impressions || 0), 0) * 15)}
                         </p>
                       </div>
                       <div className="bg-gradient-to-r from-amber-500/20 to-pink-500/20 rounded-lg p-2">
@@ -2004,7 +2004,7 @@ export default function BrandDetail() {
                           {(() => {
                             const totalGmv = editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.gmv || 0), 0);
                             const totalImpressions = editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.impressions || 0), 0);
-                            const adValue = totalImpressions * 3;
+                            const adValue = totalImpressions * 15;
                             const roas = (totalGmv + adValue) / editingContract.fixedFee;
                             return roas.toFixed(2) + '倍';
                           })()}
@@ -2012,7 +2012,7 @@ export default function BrandDetail() {
                       </div>
                     </div>
                     <p className="text-xs text-gray-500 mt-3 text-center">
-                      計算式: (GMV合計 + 広告費換算) ÷ 固定費 = ({formatCurrency(editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.gmv || 0), 0))} + {formatCurrency(editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.impressions || 0), 0) * 3)}) ÷ {formatCurrency(editingContract.fixedFee)}
+                      計算式: (GMV合計 + 広告費換算) ÷ 固定費 = ({formatCurrency(editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.gmv || 0), 0))} + {formatCurrency(editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.impressions || 0), 0) * 15)}) ÷ {formatCurrency(editingContract.fixedFee)}
                     </p>
                   </div>
                 )}

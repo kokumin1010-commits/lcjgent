@@ -133,18 +133,18 @@ describe("Contract-Livestream Link Functions", () => {
     // Livestream 2: GMV ¥3,000,000, Impressions 50,000
     // Total GMV: ¥8,000,000
     // Total Impressions: 150,000
-    // Ad Value: 150,000 × ¥3 = ¥450,000
-    // Total Value: ¥8,000,000 + ¥450,000 = ¥8,450,000
-    // ROAS: ¥8,450,000 / ¥1,000,000 = 8.45
+    // Ad Value: 150,000 × ¥15 = ¥2,250,000
+    // Total Value: ¥8,000,000 + ¥2,250,000 = ¥10,250,000
+    // ROAS: ¥10,250,000 / ¥1,000,000 = 10.25
 
     const roasData = await calculateContractRoas(testContractId, 1000000);
     
     expect(roasData).toBeDefined();
     expect(roasData?.totalGmv).toBe(8000000);
     expect(roasData?.totalImpressions).toBe(150000);
-    expect(roasData?.adValue).toBe(450000); // 150,000 × 3
-    expect(roasData?.totalValue).toBe(8450000);
-    expect(roasData?.roas).toBeCloseTo(8.45, 2);
+    expect(roasData?.adValue).toBe(2250000); // 150,000 × 15
+    expect(roasData?.totalValue).toBe(10250000);
+    expect(roasData?.roas).toBeCloseTo(10.25, 2);
     expect(roasData?.livestreamCount).toBe(2);
   });
 

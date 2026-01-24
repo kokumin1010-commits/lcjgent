@@ -3317,7 +3317,7 @@ export async function checkContractLivestreamLinkExists(contractId: number, live
 }
 
 // Calculate contract ROAS (GMV + Ad Value) / Fixed Fee
-// CPM = ¥3,000 (3円/インプレッション)
+// CPM = ¥15,000 (15円/インプレッション)
 export async function calculateContractRoas(contractId: number, fixedFee: number) {
   const db = await getDb();
   if (!db) return null;
@@ -3340,8 +3340,8 @@ export async function calculateContractRoas(contractId: number, fixedFee: number
   const totalGmv = livestreams.reduce((sum, ls) => sum + (ls.gmv || 0), 0);
   const totalImpressions = livestreams.reduce((sum, ls) => sum + (ls.impressions || 0), 0);
   
-  // Ad value calculation: impressions × ¥3 (CPM ¥3,000)
-  const adValue = totalImpressions * 3;
+  // Ad value calculation: impressions × ¥15 (CPM ¥15,000)
+  const adValue = totalImpressions * 15;
   
   // Total value = GMV + Ad Value
   const totalValue = totalGmv + adValue;
