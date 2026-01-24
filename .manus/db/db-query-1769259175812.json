@@ -1,0 +1,28 @@
+{
+  "query": "SELECT id, brandId, livestreamDate, streamerName, productId, productCommission, livestreamStartTime FROM brand_livestreams LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, brandId, livestreamDate, streamerName, productId, productCommission, livestreamStartTime FROM brand_livestreams LIMIT 5;",
+  "rows": [
+    {
+      "id": "3",
+      "brandId": "120001",
+      "livestreamDate": "2025-12-25 00:00:00",
+      "streamerName": "@ryukyogoku",
+      "productId": "NULL",
+      "productCommission": "NULL",
+      "livestreamStartTime": "NULL"
+    },
+    {
+      "id": "4",
+      "brandId": "120001",
+      "livestreamDate": "2025-12-25 00:00:00",
+      "streamerName": "@ryukyogoku",
+      "productId": "NULL",
+      "productCommission": "NULL",
+      "livestreamStartTime": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tbrandId\tlivestreamDate\tstreamerName\tproductId\tproductCommission\tlivestreamStartTime\n3\t120001\t2025-12-25 00:00:00\t@ryukyogoku\tNULL\tNULL\tNULL\n4\t120001\t2025-12-25 00:00:00\t@ryukyogoku\tNULL\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1537
+}
