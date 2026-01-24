@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Plus, Trash2, Edit2, TrendingUp, ImageIcon, X, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, ShoppingCart, Tag, Sparkles, FileText, Truck, MessageSquare, CheckCircle2, AlertCircle, PauseCircle, XCircle, Star } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit2, TrendingUp, ImageIcon, X, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, ShoppingCart, Tag, Sparkles, FileText, Truck, MessageSquare, CheckCircle2, AlertCircle, PauseCircle, XCircle, Star, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
 
@@ -499,6 +499,8 @@ export default function BrandDetail() {
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [isProductDetailDialogOpen, setIsProductDetailDialogOpen] = useState(false);
   const [isImageZoomed, setIsImageZoomed] = useState(false);
+  // 商品カードのカルーセル用state（商品IDごとに現在の画像インデックスを管理）
+  const [productImageIndexes, setProductImageIndexes] = useState<Record<number, number>>({});
 
   // 契約編集用のstate
   const [editingContract, setEditingContract] = useState<any>(null);
@@ -2192,16 +2194,84 @@ export default function BrandDetail() {
                       <Trash2 className="h-4 w-4 text-red-500" />
                     </Button>
 
-                    {/* 提案書画像または商品画像 */}
-                    {(product.proposalImageUrl || (product.imageUrls && product.imageUrls.length > 0)) && (
-                      <div className="mb-3 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
-                        <img
-                          src={product.proposalImageUrl || product.imageUrls?.[0]}
-                          alt={product.productName}
-                          className="w-full h-40 object-contain"
-                        />
-                      </div>
-                    )}
+                    {/* 提案書画像と商品画像のカルーセル */}
+                    {(() => {
+                      // 全ての画像を配列にまとめる
+                      const allImages: string[] = [];
+                      if (product.proposalImageUrl) allImages.push(product.proposalImageUrl);
+                      if (product.imageUrls && product.imageUrls.length > 0) {
+                        allImages.push(...product.imageUrls);
+                      }
+                      
+                      if (allImages.length === 0) return null;
+                      
+                      const currentIndex = productImageIndexes[product.id] || 0;
+                      
+                      return (
+                        <div className="mb-3 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 relative group">
+                          <img
+                            src={allImages[currentIndex]}
+                            alt={product.productName}
+                            className="w-full h-40 object-contain"
+                          />
+                          
+                          {/* 画像が複数ある場合のナビゲーション */}
+                          {allImages.length > 1 && (
+                            <>
+                              {/* 左矢印 */}
+                              <button
+                                className="absolute left-1 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setProductImageIndexes(prev => ({
+                                    ...prev,
+                                    [product.id]: currentIndex === 0 ? allImages.length - 1 : currentIndex - 1
+                                  }));
+                                }}
+                              >
+                                <ChevronLeft className="h-4 w-4" />
+                              </button>
+                              
+                              {/* 右矢印 */}
+                              <button
+                                className="absolute right-1 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setProductImageIndexes(prev => ({
+                                    ...prev,
+                                    [product.id]: currentIndex === allImages.length - 1 ? 0 : currentIndex + 1
+                                  }));
+                                }}
+                              >
+                                <ChevronRight className="h-4 w-4" />
+                              </button>
+                              
+                              {/* インジケータードット */}
+                              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+                                {allImages.map((_, idx) => (
+                                  <button
+                                    key={idx}
+                                    className={`w-2 h-2 rounded-full transition-all ${idx === currentIndex ? 'bg-cyan-400 scale-125' : 'bg-white/50 hover:bg-white/80'}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setProductImageIndexes(prev => ({
+                                        ...prev,
+                                        [product.id]: idx
+                                      }));
+                                    }}
+                                  />
+                                ))}
+                              </div>
+                              
+                              {/* 画像カウントバッジ */}
+                              <div className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full">
+                                {currentIndex + 1}/{allImages.length}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* 商品名とコード */}
                     <div className="mb-3">
@@ -3413,39 +3483,6 @@ export default function BrandDetail() {
                       value={editingLivestream.cartAddCount}
                       onChange={(e) =>
                         setEditingLivestream({ ...editingLivestream, cartAddCount: e.target.value })
-                      }
-                      placeholder="0"
-                    />
-                  </div>
-                  <div>
-                    <Label>{t.viewerCount}</Label>
-                    <Input
-                      type="number"
-                      value={editingLivestream.viewerCount}
-                      onChange={(e) =>
-                        setEditingLivestream({ ...editingLivestream, viewerCount: e.target.value })
-                      }
-                      placeholder="0"
-                    />
-                  </div>
-                  <div>
-                    <Label>{t.orderCount}</Label>
-                    <Input
-                      type="number"
-                      value={editingLivestream.orderCount}
-                      onChange={(e) =>
-                        setEditingLivestream({ ...editingLivestream, orderCount: e.target.value })
-                      }
-                      placeholder="0"
-                    />
-                  </div>
-                  <div>
-                    <Label>{t.salesAmount}</Label>
-                    <Input
-                      type="number"
-                      value={editingLivestream.salesAmount}
-                      onChange={(e) =>
-                        setEditingLivestream({ ...editingLivestream, salesAmount: e.target.value })
                       }
                       placeholder="0"
                     />
