@@ -37,7 +37,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X } from "lucide-react";
 import { toast } from "sonner";
 
 const translations = {
@@ -75,6 +75,7 @@ const translations = {
     acos: "ACOS",
     roas: "ROAS",
     adCost: "広告費",
+    aiImageAdd: "AI画像追加",
     // Contract
     contractInfo: "契約情報",
     serviceType: "サービス種類",
@@ -163,6 +164,7 @@ const translations = {
     acos: "ACOS",
     roas: "ROAS",
     adCost: "广告费",
+    aiImageAdd: "AI图片添加",
     // Contract
     contractInfo: "合同信息",
     serviceType: "服务类型",
@@ -304,6 +306,13 @@ export default function BrandDetail() {
   const [deleteLivestreamDialogOpen, setDeleteLivestreamDialogOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<any>(null);
   const [livestreamToDelete, setLivestreamToDelete] = useState<any>(null);
+  // AI Image Add states
+  const [aiImageAddDialogOpen, setAiImageAddDialogOpen] = useState(false);
+  const [aiImageFile, setAiImageFile] = useState<File | null>(null);
+  const [aiImagePreview, setAiImagePreview] = useState<string | null>(null);
+  const [isAiProcessing, setIsAiProcessing] = useState(false);
+  const [extractedProductData, setExtractedProductData] = useState<any>(null);
+  const aiImageInputRef = useRef<HTMLInputElement>(null);
 
   const brandId = parseInt(id || "0");
 
@@ -768,14 +777,24 @@ export default function BrandDetail() {
                 <div className="w-1 h-6 bg-gradient-to-b from-cyan-400 to-cyan-600 rounded-full" />
                 {t.productPerformance}
               </h2>
-              <Button
-                size="sm"
-                onClick={() => setAddProductDialogOpen(true)}
-                className="bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white"
-              >
-                <Plus className="h-4 w-4 mr-1" />
-                {t.add}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => setAiImageAddDialogOpen(true)}
+                  className="bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-500 hover:to-pink-400 text-white"
+                >
+                  <Sparkles className="h-4 w-4 mr-1" />
+                  {t.aiImageAdd}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => setAddProductDialogOpen(true)}
+                  className="bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  {t.add}
+                </Button>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -2038,6 +2057,225 @@ export default function BrandDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* AI Image Add Dialog */}
+      <Dialog open={aiImageAddDialogOpen} onOpenChange={(open) => {
+        setAiImageAddDialogOpen(open);
+        if (!open) {
+          setAiImageFile(null);
+          setAiImagePreview(null);
+          setExtractedProductData(null);
+        }
+      }}>
+        <DialogContent className="bg-black/95 border-red-900/50 text-white backdrop-blur-xl max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              <div className="w-1 h-6 bg-gradient-to-b from-purple-400 to-pink-500 rounded-full" />
+              {t.aiImageAdd}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Hidden file input */}
+            <input
+              type="file"
+              ref={aiImageInputRef}
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  setAiImageFile(file);
+                  const reader = new FileReader();
+                  reader.onload = (ev) => {
+                    setAiImagePreview(ev.target?.result as string);
+                  };
+                  reader.readAsDataURL(file);
+                  setExtractedProductData(null);
+                }
+              }}
+            />
+            
+            {/* Upload area */}
+            {!aiImagePreview ? (
+              <div
+                onClick={() => aiImageInputRef.current?.click()}
+                className="border-2 border-dashed border-purple-500/50 rounded-xl p-8 text-center cursor-pointer hover:border-purple-400 hover:bg-purple-900/10 transition-all"
+              >
+                <Upload className="h-12 w-12 mx-auto text-purple-400 mb-4" />
+                <p className="text-gray-300">
+                  {language === 'ja' ? 'クリックしてスクショをアップロード' : '点击上传截图'}
+                </p>
+                <p className="text-gray-500 text-sm mt-2">
+                  {language === 'ja' ? 'AIが商品情報を自動抽出します' : 'AI将自动提取商品信息'}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Image preview */}
+                <div className="relative">
+                  <img
+                    src={aiImagePreview}
+                    alt="Preview"
+                    className="w-full max-h-64 object-contain rounded-lg border border-purple-500/30"
+                  />
+                  <button
+                    onClick={() => {
+                      setAiImageFile(null);
+                      setAiImagePreview(null);
+                      setExtractedProductData(null);
+                    }}
+                    className="absolute top-2 right-2 bg-red-600 hover:bg-red-500 text-white rounded-full p-1"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {/* AI Analysis button */}
+                {!extractedProductData && (
+                  <Button
+                    onClick={async () => {
+                      if (!aiImageFile) return;
+                      setIsAiProcessing(true);
+                      try {
+                        // Upload image first
+                        const base64 = aiImagePreview?.split(',')[1] || '';
+                        const uploadResult = await (window as any).trpcClient.brandProduct.uploadImage.mutate({
+                          productId: 0, // Temporary, will create new product
+                          imageData: base64,
+                          fileName: aiImageFile.name,
+                        });
+                        
+                        // Extract product info from image
+                        const extractResult = await (window as any).trpcClient.brandProduct.extractFromImage.mutate({
+                          imageUrl: uploadResult.url,
+                        });
+                        
+                        setExtractedProductData({
+                          ...extractResult,
+                          imageUrl: uploadResult.url,
+                        });
+                        toast.success(language === 'ja' ? '商品情報を抽出しました' : '已提取商品信息');
+                      } catch (error) {
+                        console.error('AI analysis error:', error);
+                        toast.error(language === 'ja' ? 'AI分析に失敗しました' : 'AI分析失败');
+                      } finally {
+                        setIsAiProcessing(false);
+                      }
+                    }}
+                    disabled={isAiProcessing}
+                    className="w-full bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-500 hover:to-pink-400 text-white"
+                  >
+                    {isAiProcessing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        {language === 'ja' ? 'AI分析中...' : 'AI分析中...'}
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        {language === 'ja' ? 'AIで商品情報を抽出' : 'AI提取商品信息'}
+                      </>
+                    )}
+                  </Button>
+                )}
+
+                {/* Extracted data preview and edit */}
+                {extractedProductData && (
+                  <div className="space-y-4 border border-purple-500/30 rounded-lg p-4 bg-purple-900/10">
+                    <h4 className="text-sm font-bold text-purple-300">
+                      {language === 'ja' ? '抽出された商品情報' : '提取的商品信息'}
+                    </h4>
+                    <div>
+                      <Label className="text-gray-400">{t.productName}</Label>
+                      <Input
+                        value={extractedProductData.productName || ''}
+                        onChange={(e) => setExtractedProductData({ ...extractedProductData, productName: e.target.value })}
+                        className="bg-black/60 border-purple-500/50 text-white mt-1"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-gray-400">{t.listPrice}</Label>
+                        <Input
+                          type="number"
+                          value={extractedProductData.listPrice || ''}
+                          onChange={(e) => setExtractedProductData({ ...extractedProductData, listPrice: parseInt(e.target.value) || 0 })}
+                          className="bg-black/60 border-purple-500/50 text-white mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-gray-400">{t.specialPrice}</Label>
+                        <Input
+                          type="number"
+                          value={extractedProductData.specialPrice || ''}
+                          onChange={(e) => setExtractedProductData({ ...extractedProductData, specialPrice: parseInt(e.target.value) || 0 })}
+                          className="bg-black/60 border-purple-500/50 text-white mt-1"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-gray-400">{t.commissionRate}</Label>
+                      <Input
+                        value={extractedProductData.commissionRate || ''}
+                        onChange={(e) => setExtractedProductData({ ...extractedProductData, commissionRate: e.target.value })}
+                        placeholder="例: 15%"
+                        className="bg-black/60 border-purple-500/50 text-white mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-gray-400">{language === 'ja' ? '備考' : '备注'}</Label>
+                      <Textarea
+                        value={extractedProductData.remarks || ''}
+                        onChange={(e) => setExtractedProductData({ ...extractedProductData, remarks: e.target.value })}
+                        className="bg-black/60 border-purple-500/50 text-white mt-1"
+                        rows={3}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setAiImageAddDialogOpen(false);
+                setAiImageFile(null);
+                setAiImagePreview(null);
+                setExtractedProductData(null);
+              }}
+              className="border-red-900/50 text-gray-300 hover:bg-red-900/20 hover:text-white"
+            >
+              {t.cancel}
+            </Button>
+            {extractedProductData && (
+              <Button
+                onClick={() => {
+                  if (extractedProductData.productName) {
+                    createProductMutation.mutate({
+                      brandId,
+                      productName: extractedProductData.productName,
+                      listPrice: extractedProductData.listPrice || 0,
+                      specialPrice: extractedProductData.specialPrice || 0,
+                      commissionRate: extractedProductData.commissionRate || '',
+                      remarks: extractedProductData.remarks || '',
+                    });
+                    setAiImageAddDialogOpen(false);
+                    setAiImageFile(null);
+                    setAiImagePreview(null);
+                    setExtractedProductData(null);
+                  }
+                }}
+                disabled={!extractedProductData.productName}
+                className="bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-500 hover:to-pink-400 text-white"
+              >
+                {t.add}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
