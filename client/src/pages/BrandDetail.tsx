@@ -438,8 +438,8 @@ export default function BrandDetail() {
           </div>
         </div>
 
-        {/* Main KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Main KPI Card */}
+        <div className="grid grid-cols-1 gap-4">
           {/* Total GMV - Large card with fire icon */}
           <div className="relative overflow-hidden rounded-xl p-6 group transition-all duration-500 hover:scale-[1.02]" style={{
             background: 'linear-gradient(135deg, rgba(0,0,0,0.9) 0%, rgba(50,0,0,0.8) 50%, rgba(0,0,0,0.9) 100%)',
@@ -465,40 +465,6 @@ export default function BrandDetail() {
               >
                 {formatCurrency(totalGmv)}
               </p>
-            </div>
-          </div>
-
-          {/* Monthly GMV with chart icon and month-over-month comparison */}
-          <div className="relative overflow-hidden rounded-xl p-6 group transition-all duration-500 hover:scale-[1.02]" style={{
-            background: 'linear-gradient(135deg, rgba(0,0,0,0.9) 0%, rgba(50,20,0,0.8) 50%, rgba(0,0,0,0.9) 100%)',
-            border: '2px solid rgba(255, 100, 50, 0.6)',
-            boxShadow: '0 0 60px rgba(255, 80, 0, 0.3), inset 0 0 60px rgba(255, 100, 50, 0.1)',
-          }}>
-            <div className="absolute top-0 right-0 w-48 h-48 bg-orange-500/25 rounded-full blur-3xl animate-pulse" />
-            <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 via-transparent to-orange-500/5" />
-            <div className="relative">
-              <div className="flex items-center gap-3 mb-4">
-                <span className="text-3xl">📈</span>
-                <span className="text-orange-300 text-sm font-bold uppercase tracking-widest">{t.monthlyGmv}</span>
-              </div>
-              <p 
-                className="text-5xl md:text-6xl font-black tracking-tight"
-                style={{ 
-                  fontFamily: 'JetBrains Mono, monospace',
-                  color: '#ff6622',
-                  textShadow: '0 0 15px rgba(255, 102, 34, 0.9), 0 0 30px rgba(255, 102, 34, 0.6), 0 0 45px rgba(255, 102, 34, 0.4)',
-                }}
-              >
-                {formatCurrency(monthlyGmvValue)}
-              </p>
-              <div className="flex items-center gap-3 mt-4">
-                <span className="text-green-400 text-base font-bold px-3 py-1 rounded-full bg-green-500/20 border border-green-500/40">
-                  前月比: {monthlyGmvValue > 0 ? '+100%' : '-'}
-                </span>
-                {monthlyGmvValue > 0 && (
-                  <span className="text-green-400 text-2xl animate-bounce">↑</span>
-                )}
-              </div>
             </div>
           </div>
         </div>
@@ -580,21 +546,32 @@ export default function BrandDetail() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-red-900/30">
+                    <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2 w-16"></th>
                     <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.productName}</th>
                     <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.listPrice}</th>
                     <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.specialPrice}</th>
                     <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.gmv}</th>
                     <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.commissionRate}</th>
+                    <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2 w-12"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {products.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="text-center text-gray-500 py-8">{t.noData}</td>
+                      <td colSpan={7} className="text-center text-gray-500 py-8">{t.noData}</td>
                     </tr>
                   ) : (
                     products.map((product) => (
-                      <tr key={product.id} className="border-b border-red-900/20 hover:bg-red-900/10 transition-colors">
+                      <tr key={product.id} className="border-b border-red-900/20 hover:bg-red-900/10 transition-colors group">
+                        <td className="py-3 px-2">
+                          {product.imageUrls && product.imageUrls.length > 0 ? (
+                            <img src={product.imageUrls[0]} alt={product.productName} className="w-12 h-12 object-cover rounded-lg border border-red-900/30" />
+                          ) : (
+                            <div className="w-12 h-12 bg-red-900/20 rounded-lg border border-red-900/30 flex items-center justify-center">
+                              <Package className="w-6 h-6 text-gray-600" />
+                            </div>
+                          )}
+                        </td>
                         <td className="py-3 px-2 text-white font-medium">{product.productName}</td>
                         <td className="py-3 px-2 text-right text-gray-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                           {formatCurrency(product.listPrice)}
@@ -607,6 +584,14 @@ export default function BrandDetail() {
                         </td>
                         <td className="py-3 px-2 text-right text-purple-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                           {product.commissionRate || "-"}
+                        </td>
+                        <td className="py-3 px-2 text-right">
+                          <button
+                            onClick={() => toast.info("編集機能は開発中です")}
+                            className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-cyan-400 transition-all"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -631,16 +616,17 @@ export default function BrandDetail() {
                     <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.platform}</th>
                     <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.gmv}</th>
                     <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.duration}</th>
+                    <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2 w-12"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {livestreams.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="text-center text-gray-500 py-8">{t.noData}</td>
+                      <td colSpan={6} className="text-center text-gray-500 py-8">{t.noData}</td>
                     </tr>
                   ) : (
                     livestreams.slice(0, 10).map((ls) => (
-                      <tr key={ls.id} className="border-b border-red-900/20 hover:bg-red-900/10 transition-colors">
+                      <tr key={ls.id} className="border-b border-red-900/20 hover:bg-red-900/10 transition-colors group">
                         <td className="py-3 px-2 text-gray-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                           {formatDate(ls.livestreamDate)}
                         </td>
@@ -651,6 +637,14 @@ export default function BrandDetail() {
                         </td>
                         <td className="py-3 px-2 text-right text-gray-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                           {ls.duration ? `${ls.duration}分` : "-"}
+                        </td>
+                        <td className="py-3 px-2 text-right">
+                          <button
+                            onClick={() => toast.info("編集機能は開発中です")}
+                            className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-pink-400 transition-all"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -685,7 +679,7 @@ export default function BrandDetail() {
                 ) : (
                   <div className="space-y-3">
                     {contracts.map((contract) => (
-                      <div key={contract.id} className="bg-black/50 rounded-lg border border-red-900/20 p-4">
+                      <div key={contract.id} className="bg-black/50 rounded-lg border border-red-900/20 p-4 group">
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-3">
                             <Badge className="bg-amber-500/20 text-amber-400 border border-amber-500/30">
@@ -699,6 +693,12 @@ export default function BrandDetail() {
                               {statusTranslations[language][contract.status] || contract.status}
                             </Badge>
                           </div>
+                          <button
+                            onClick={() => toast.info("編集機能は開発中です")}
+                            className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-amber-400 transition-all"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </button>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                           <div>
@@ -787,12 +787,20 @@ export default function BrandDetail() {
                           </span>
                         </div>
                       </div>
-                      <button
-                        onClick={() => deleteMemoMutation.mutate({ id: memo.id })}
-                        className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => toast.info("編集機能は開発中です")}
+                          className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-green-400 transition-all"
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => deleteMemoMutation.mutate({ id: memo.id })}
+                          className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
