@@ -65,6 +65,10 @@ const translations = {
     account: "アカウント",
     platform: "プラットフォーム",
     duration: "時間",
+    productClicks: "商品クリック",
+    impressions: "インプレッション",
+    salesCount: "販売件数",
+    cartAddCount: "カート追加",
     // Contract
     contractInfo: "契約情報",
     serviceType: "サービス種類",
@@ -143,6 +147,10 @@ const translations = {
     account: "账号",
     platform: "平台",
     duration: "时长",
+    productClicks: "商品点击",
+    impressions: "商品曝光",
+    salesCount: "销售件数",
+    cartAddCount: "加购数",
     // Contract
     contractInfo: "合同信息",
     serviceType: "服务类型",
@@ -278,7 +286,7 @@ export default function BrandDetail() {
   const [addProductDialogOpen, setAddProductDialogOpen] = useState(false);
   const [addLivestreamDialogOpen, setAddLivestreamDialogOpen] = useState(false);
   const [newProduct, setNewProduct] = useState({ productName: "", listPrice: 0, specialPrice: 0, commissionRate: "", remarks: "" });
-  const [newLivestream, setNewLivestream] = useState({ livestreamDate: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "" });
+  const [newLivestream, setNewLivestream] = useState({ livestreamDate: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "", productClicks: 0, impressions: 0, salesCount: 0, cartAddCount: 0 });
   // Delete states
   const [deleteProductDialogOpen, setDeleteProductDialogOpen] = useState(false);
   const [deleteLivestreamDialogOpen, setDeleteLivestreamDialogOpen] = useState(false);
@@ -336,7 +344,7 @@ export default function BrandDetail() {
     onSuccess: () => {
       refetchLivestreams();
       setAddLivestreamDialogOpen(false);
-      setNewLivestream({ livestreamDate: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "" });
+      setNewLivestream({ livestreamDate: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "", productClicks: 0, impressions: 0, salesCount: 0, cartAddCount: 0 });
       toast.success("直播を追加しました");
     },
     onError: () => {
@@ -582,7 +590,7 @@ export default function BrandDetail() {
                   </h1>
                   <Select
                     value={brandId.toString()}
-                    onValueChange={(value) => navigate(`/brands/${value}/command`)}
+                    onValueChange={(value) => navigate(`/brands/${value}`)}
                   >
                     <SelectTrigger className="w-[180px] bg-black/60 border-red-900/50 text-white hover:border-red-500/50 transition-colors">
                       <SelectValue placeholder="ブランドを選択" />
@@ -860,7 +868,11 @@ export default function BrandDetail() {
                     <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.date}</th>
                     <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.account}</th>
                     <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.platform}</th>
+                    <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.productClicks}</th>
+                    <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.impressions}</th>
+                    <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.salesCount}</th>
                     <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.gmv}</th>
+                    <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.cartAddCount}</th>
                     <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.duration}</th>
                     <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2 w-12"></th>
                   </tr>
@@ -868,7 +880,7 @@ export default function BrandDetail() {
                 <tbody>
                   {livestreams.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="text-center text-gray-500 py-8">{t.noData}</td>
+                      <td colSpan={10} className="text-center text-gray-500 py-8">{t.noData}</td>
                     </tr>
                   ) : (
                     livestreams.slice(0, 10).map((ls) => (
@@ -878,8 +890,20 @@ export default function BrandDetail() {
                         </td>
                         <td className="py-3 px-2 text-white font-medium">{ls.streamerName}</td>
                         <td className="py-3 px-2 text-gray-400">{ls.platform || "-"}</td>
+                        <td className="py-3 px-2 text-right text-blue-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                          {ls.productClicks?.toLocaleString() || "-"}
+                        </td>
+                        <td className="py-3 px-2 text-right text-cyan-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                          {ls.impressions?.toLocaleString() || "-"}
+                        </td>
+                        <td className="py-3 px-2 text-right text-green-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                          {ls.salesCount?.toLocaleString() || "-"}
+                        </td>
                         <td className="py-3 px-2 text-right text-pink-400 font-bold" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                           {formatCurrency(ls.gmv || ls.salesAmount)}
+                        </td>
+                        <td className="py-3 px-2 text-right text-orange-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                          {ls.cartAddCount?.toLocaleString() || "-"}
                         </td>
                         <td className="py-3 px-2 text-right text-gray-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                           {ls.duration ? `${ls.duration}分` : "-"}
@@ -1753,12 +1777,52 @@ export default function BrandDetail() {
                 />
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-gray-400">{t.productClicks}</Label>
+                <Input
+                  type="number"
+                  value={newLivestream.productClicks || ""}
+                  onChange={(e) => setNewLivestream({ ...newLivestream, productClicks: parseInt(e.target.value) || 0 })}
+                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-gray-400">{t.impressions}</Label>
+                <Input
+                  type="number"
+                  value={newLivestream.impressions || ""}
+                  onChange={(e) => setNewLivestream({ ...newLivestream, impressions: parseInt(e.target.value) || 0 })}
+                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-gray-400">{t.salesCount}</Label>
+                <Input
+                  type="number"
+                  value={newLivestream.salesCount || ""}
+                  onChange={(e) => setNewLivestream({ ...newLivestream, salesCount: parseInt(e.target.value) || 0 })}
+                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-gray-400">{t.gmv}</Label>
+                <Input
+                  type="number"
+                  value={newLivestream.gmv || ""}
+                  onChange={(e) => setNewLivestream({ ...newLivestream, gmv: parseInt(e.target.value) || 0 })}
+                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                />
+              </div>
+            </div>
             <div>
-              <Label className="text-gray-400">{t.gmv}</Label>
+              <Label className="text-gray-400">{t.cartAddCount}</Label>
               <Input
                 type="number"
-                value={newLivestream.gmv || ""}
-                onChange={(e) => setNewLivestream({ ...newLivestream, gmv: parseInt(e.target.value) || 0 })}
+                value={newLivestream.cartAddCount || ""}
+                onChange={(e) => setNewLivestream({ ...newLivestream, cartAddCount: parseInt(e.target.value) || 0 })}
                 className="bg-black/60 border-red-900/50 text-white mt-1"
               />
             </div>
@@ -1774,7 +1838,7 @@ export default function BrandDetail() {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => { setAddLivestreamDialogOpen(false); setNewLivestream({ livestreamDate: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "" }); }}
+              onClick={() => { setAddLivestreamDialogOpen(false); setNewLivestream({ livestreamDate: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "", productClicks: 0, impressions: 0, salesCount: 0, cartAddCount: 0 }); }}
               className="border-red-900/50 text-gray-300 hover:bg-red-900/20 hover:text-white"
             >
               {t.cancel}
@@ -1790,6 +1854,10 @@ export default function BrandDetail() {
                     duration: newLivestream.duration,
                     gmv: newLivestream.gmv,
                     remarks: newLivestream.remarks,
+                    productClicks: newLivestream.productClicks,
+                    impressions: newLivestream.impressions,
+                    salesCount: newLivestream.salesCount,
+                    cartAddCount: newLivestream.cartAddCount,
                   });
                 }
               }}
