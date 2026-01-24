@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Building2, X, ArrowLeft, Package, Video, FileText, TrendingUp } from "lucide-react";
+import { Plus, Search, Building2, X, ArrowLeft, Package, Video, FileText, TrendingUp, Radar } from "lucide-react";
 
 const translations = {
   ja: {
@@ -39,6 +39,7 @@ const translations = {
     totalProducts: "総商品数",
     totalLivestreams: "総直播数",
     back: "戻る",
+    commandCenter: "司令塔",
   },
   zh: {
     title: "品牌司令塔",
@@ -64,6 +65,7 @@ const translations = {
     totalProducts: "总商品数",
     totalLivestreams: "总直播数",
     back: "返回",
+    commandCenter: "指挥塔",
   },
 };
 
@@ -260,7 +262,7 @@ export default function BrandList() {
                     </Badge>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-4 mb-4">
                     <div className="bg-gray-700/30 rounded-lg p-3">
                       <div className="text-xs text-gray-400 mb-1">{t.commissionRate}</div>
                       <div className="text-lg font-semibold text-cyan-400">
@@ -277,6 +279,19 @@ export default function BrandList() {
                       </div>
                     </div>
                   </div>
+                  
+                  {/* 司令塔ボタン */}
+                  <Button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setLocation(`/brands/${brand.id}/command`);
+                    }}
+                    className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 text-white shadow-lg shadow-red-500/20"
+                  >
+                    <Radar className="h-4 w-4 mr-2" />
+                    {t.commandCenter}
+                  </Button>
                 </div>
               </Link>
             ))}
