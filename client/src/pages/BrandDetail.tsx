@@ -273,13 +273,28 @@ const formatDate = (date: Date | string | null | undefined) => {
 // 契約ROAS表示コンポーネント
 const INDUSTRY_AVG_ROAS = 0.8; // 業界平均ROAS
 
-function ContractRoasDisplay({ contractId, fixedFee }: { contractId: number; fixedFee: number }) {
+function ContractRoasDisplay({ contractId, fixedFee, onLinkClick, onViewDetails }: { contractId: number; fixedFee: number; onLinkClick?: () => void; onViewDetails?: (livestreams: any[]) => void }) {
   const { data: linkedLivestreams = [] } = trpc.brandContract.getLinkedLivestreams.useQuery(
     { contractId },
     { enabled: contractId > 0 }
   );
 
-  if (linkedLivestreams.length === 0 || fixedFee <= 0) {
+  // 紐付けがない場合は紐付けボタンを表示
+  if (linkedLivestreams.length === 0) {
+    return (
+      <div className="mt-1 bg-black/40 rounded-lg p-2 border border-dashed border-amber-500/30">
+        <button
+          onClick={onLinkClick}
+          className="w-full flex items-center justify-center gap-2 text-amber-400/70 hover:text-amber-400 transition-colors py-1"
+        >
+          <Video className="h-4 w-4" />
+          <span className="text-sm">ライブを紐付けてROASを計算</span>
+        </button>
+      </div>
+    );
+  }
+
+  if (fixedFee <= 0) {
     return null;
   }
 
@@ -291,7 +306,10 @@ function ContractRoasDisplay({ contractId, fixedFee }: { contractId: number; fix
   const vsIndustry = roas / INDUSTRY_AVG_ROAS;
 
   return (
-    <div className="mt-1 bg-gradient-to-r from-amber-950/40 via-pink-950/30 to-purple-950/40 rounded-lg p-1.5 border border-amber-500/30">
+    <div 
+      className="mt-1 bg-gradient-to-r from-amber-950/40 via-pink-950/30 to-purple-950/40 rounded-lg p-1.5 border border-amber-500/30 cursor-pointer hover:border-amber-400/50 transition-all"
+      onClick={() => onViewDetails?.(linkedLivestreams)}
+    >
       {/* メイン数値とROASを横並びにコンパクト配置 */}
       <div className="flex items-center justify-between gap-2">
         {/* 左側: 数値グリッド */}
@@ -380,6 +398,10 @@ export default function BrandDetail() {
   const [productDetailDialogOpen, setProductDetailDialogOpen] = useState(false);
   const [selectedProductForDetail, setSelectedProductForDetail] = useState<any>(null);
   const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
+  // 紐付けライブ詳細ダイアログ
+  const [linkedLivestreamDetailDialogOpen, setLinkedLivestreamDetailDialogOpen] = useState(false);
+  const [linkedLivestreamDetailData, setLinkedLivestreamDetailData] = useState<any[]>([]);
+  const [linkedLivestreamContractInfo, setLinkedLivestreamContractInfo] = useState<any>(null);
   
   // AI Image Add states
   const [aiImageAddDialogOpen, setAiImageAddDialogOpen] = useState(false);
@@ -1030,7 +1052,16 @@ export default function BrandDetail() {
                     )}
                   </div>
                   {/* ROAS表示コンポーネント */}
-                  <ContractRoasDisplay contractId={contract.id} fixedFee={contract.fixedFee || 0} />
+                  <ContractRoasDisplay 
+                    contractId={contract.id} 
+                    fixedFee={contract.fixedFee || 0}
+                    onLinkClick={() => handleEditContract(contract)}
+                    onViewDetails={(livestreams) => {
+                      setLinkedLivestreamDetailData(livestreams);
+                      setLinkedLivestreamContractInfo(contract);
+                      setLinkedLivestreamDetailDialogOpen(true);
+                    }}
+                  />
                 </div>
               ))}
             </div>
@@ -3577,6 +3608,138 @@ export default function BrandDetail() {
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 紐付けライブ詳細ダイアログ */}
+      <Dialog open={linkedLivestreamDetailDialogOpen} onOpenChange={setLinkedLivestreamDetailDialogOpen}>
+        <DialogContent className="bg-black/95 border-amber-500/30 text-white max-w-4xl backdrop-blur-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-3">
+              <div className="w-1 h-6 bg-gradient-to-b from-amber-400 to-pink-600 rounded-full" />
+              {language === 'ja' ? '紐付けライブ詳細' : '关联直播详情'}
+            </DialogTitle>
+          </DialogHeader>
+          {linkedLivestreamContractInfo && (
+            <div className="space-y-4 py-4">
+              {/* 契約情報サマリー */}
+              <div className="bg-gradient-to-r from-amber-950/50 to-pink-950/50 rounded-lg p-4 border border-amber-500/30">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-amber-500/30 text-amber-300 border border-amber-400/50">
+                      {serviceTypeTranslations[language][linkedLivestreamContractInfo.serviceType] || linkedLivestreamContractInfo.serviceType}
+                    </Badge>
+                    <Badge className={`${linkedLivestreamContractInfo.status === '契約中' ? 'bg-green-500/30 text-green-300 border border-green-400/50' : 'bg-gray-500/30 text-gray-300 border border-gray-400/50'}`}>
+                      {statusTranslations[language][linkedLivestreamContractInfo.status] || linkedLivestreamContractInfo.status}
+                    </Badge>
+                  </div>
+                  <span className="text-2xl font-black text-amber-300">{formatCurrency(linkedLivestreamContractInfo.fixedFee)}</span>
+                </div>
+                <div className="text-xs text-gray-400">
+                  {t.startDate}: {formatDate(linkedLivestreamContractInfo.startDate)} ～ {t.endDate}: {formatDate(linkedLivestreamContractInfo.endDate)}
+                </div>
+              </div>
+
+              {/* ROASサマリー */}
+              {linkedLivestreamDetailData.length > 0 && linkedLivestreamContractInfo.fixedFee > 0 && (() => {
+                const totalGmv = linkedLivestreamDetailData.reduce((sum, ls) => sum + (ls.gmv || 0), 0);
+                const totalImpressions = linkedLivestreamDetailData.reduce((sum, ls) => sum + (ls.impressions || 0), 0);
+                const adValue = totalImpressions * 15;
+                const roas = adValue > 0 ? totalGmv / adValue : 0;
+                const vsIndustry = roas / INDUSTRY_AVG_ROAS;
+                return (
+                  <div className="grid grid-cols-5 gap-3 bg-black/60 rounded-lg p-3 border border-pink-500/30">
+                    <div className="text-center">
+                      <div className="text-[10px] text-gray-500">紐付け</div>
+                      <div className="text-lg font-black text-amber-400">{linkedLivestreamDetailData.length}<span className="text-xs">件</span></div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-[10px] text-gray-500">GMV合計</div>
+                      <div className="text-lg font-black text-cyan-400 font-mono">{formatCurrency(totalGmv)}</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-[10px] text-gray-500">曝光合計</div>
+                      <div className="text-lg font-black text-pink-400 font-mono">{totalImpressions.toLocaleString()}</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-[10px] text-gray-500">広告換算</div>
+                      <div className="text-lg font-black text-purple-400 font-mono">{formatCurrency(adValue)}</div>
+                    </div>
+                    <div className="text-center border-l border-pink-500/30">
+                      <div className="text-[10px] text-gray-500">広告換算ROAS</div>
+                      <div className="text-xl font-black bg-gradient-to-r from-amber-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">{roas.toFixed(2)}倍</div>
+                      <div className="text-[9px] text-emerald-400">業界平均の{vsIndustry.toFixed(1)}倍</div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* ライブ一覧 */}
+              <div>
+                <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
+                  <Video className="h-5 w-5 text-pink-400" />
+                  {language === 'ja' ? '紐付けライブ一覧' : '关联直播列表'}
+                </h3>
+                <div className="space-y-2 max-h-[40vh] overflow-y-auto">
+                  {linkedLivestreamDetailData.map((ls: any) => (
+                    <div key={ls.id} className="bg-black/60 rounded-lg p-3 border border-pink-500/20 hover:border-pink-500/40 transition-all">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3">
+                          <span className="text-white font-bold">{formatDate(ls.livestreamDate)}</span>
+                          <Badge className="bg-purple-500/20 text-purple-400 text-xs">{ls.platform}</Badge>
+                          <span className="text-gray-400">{ls.streamerName}</span>
+                        </div>
+                        {ls.duration && <span className="text-xs text-gray-500">{ls.duration}分</span>}
+                      </div>
+                      <div className="grid grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-500">GMV:</span>
+                          <span className="text-cyan-400 font-bold ml-2">{formatCurrency(ls.gmv)}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">曝光:</span>
+                          <span className="text-pink-400 font-bold ml-2">{(ls.impressions || 0).toLocaleString()}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">クリック:</span>
+                          <span className="text-amber-400 font-bold ml-2">{(ls.productClicks || 0).toLocaleString()}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">販売数:</span>
+                          <span className="text-green-400 font-bold ml-2">{(ls.salesCount || 0).toLocaleString()}</span>
+                        </div>
+                      </div>
+                      {ls.remarks && (
+                        <div className="mt-2 text-xs text-gray-500 truncate">
+                          {ls.remarks}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setLinkedLivestreamDetailDialogOpen(false)}
+              className="border-amber-500/50 bg-amber-950/50 text-gray-200 hover:bg-amber-900/40 hover:text-white"
+            >
+              {t.close}
+            </Button>
+            <Button
+              onClick={() => {
+                setLinkedLivestreamDetailDialogOpen(false);
+                if (linkedLivestreamContractInfo) {
+                  handleEditContract(linkedLivestreamContractInfo);
+                }
+              }}
+              className="bg-gradient-to-r from-amber-600 to-pink-600 hover:from-amber-500 hover:to-pink-500 text-white"
+            >
+              {language === 'ja' ? '紐付けを編集' : '编辑关联'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
