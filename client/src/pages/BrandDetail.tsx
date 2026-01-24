@@ -291,42 +291,43 @@ function ContractRoasDisplay({ contractId, fixedFee }: { contractId: number; fix
   const vsIndustry = roas / INDUSTRY_AVG_ROAS;
 
   return (
-    <div className="mt-2 bg-gradient-to-r from-amber-950/40 via-pink-950/30 to-purple-950/40 rounded-lg p-2 border border-amber-500/30">
-      {/* メイン数値（コンパクト） */}
-      <div className="grid grid-cols-4 gap-1 mb-1">
-        <div className="text-center">
-          <div className="flex items-center justify-center gap-1">
-            <Video className="h-3 w-3 text-amber-400" />
-            <span className="text-[10px] text-gray-500">紐付け</span>
+    <div className="mt-1 bg-gradient-to-r from-amber-950/40 via-pink-950/30 to-purple-950/40 rounded-lg p-1.5 border border-amber-500/30">
+      {/* メイン数値とROASを横並びにコンパクト配置 */}
+      <div className="flex items-center justify-between gap-2">
+        {/* 左側: 数値グリッド */}
+        <div className="grid grid-cols-4 gap-2 flex-1">
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-0.5">
+              <Video className="h-2.5 w-2.5 text-amber-400" />
+              <span className="text-[9px] text-gray-500">紐付け</span>
+            </div>
+            <span className="text-sm font-black text-amber-400">{linkedLivestreams.length}<span className="text-[10px]">件</span></span>
           </div>
-          <span className="text-base font-black text-amber-400">{linkedLivestreams.length}<span className="text-xs">件</span></span>
+          <div className="text-center">
+            <div className="text-[9px] text-gray-500">GMV</div>
+            <span className="text-sm font-black text-cyan-400 font-mono">{formatCurrency(totalGmv)}</span>
+          </div>
+          <div className="text-center">
+            <div className="text-[9px] text-gray-500">曝光</div>
+            <span className="text-sm font-black text-pink-400 font-mono">{totalImpressions.toLocaleString()}</span>
+          </div>
+          <div className="text-center">
+            <div className="text-[9px] text-gray-500">広告換算</div>
+            <span className="text-sm font-black text-purple-400 font-mono">{formatCurrency(adValue)}</span>
+          </div>
         </div>
-        <div className="text-center">
-          <div className="text-[10px] text-gray-500">GMV</div>
-          <span className="text-base font-black text-cyan-400 font-mono">{formatCurrency(totalGmv)}</span>
-        </div>
-        <div className="text-center">
-          <div className="text-[10px] text-gray-500">曝光</div>
-          <span className="text-base font-black text-pink-400 font-mono">{totalImpressions.toLocaleString()}</span>
-        </div>
-        <div className="text-center">
-          <div className="text-[10px] text-gray-500">広告換算</div>
-          <span className="text-base font-black text-purple-400 font-mono">{formatCurrency(adValue)}</span>
-        </div>
-      </div>
-      {/* ROAS（右側に大きく、注釈はその下に小さく） */}
-      <div className="flex items-end justify-end pt-1 border-t border-amber-500/20">
-        <div className="text-right">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400">📊 広告換算ROAS</span>
-            <span className="text-2xl font-black bg-gradient-to-r from-amber-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">
+        {/* 右側: ROAS */}
+        <div className="text-right border-l border-amber-500/20 pl-2">
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-gray-400">📊 広告換算ROAS</span>
+            <span className="text-xl font-black bg-gradient-to-r from-amber-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">
               {roas.toFixed(2)}倍
             </span>
           </div>
-          <div className="text-xs text-emerald-400 font-medium">
+          <div className="text-[10px] text-emerald-400 font-medium">
             → 業界平均の {vsIndustry.toFixed(1)}倍（{vsIndustry > 1 ? '显著高于基准' : '基准以下'}）
           </div>
-          <div className="text-[8px] text-gray-600 mt-0.5">
+          <div className="text-[7px] text-gray-600">
             ※ CPM ¥15,000 × 実際曝光量　業界平均：{INDUSTRY_AVG_ROAS}倍
           </div>
         </div>
@@ -948,14 +949,14 @@ export default function BrandDetail() {
         </div>
 
         {/* Contract Section - 大きく目立つデザイン */}
-        <div className="bg-gradient-to-br from-amber-900/30 to-orange-900/20 backdrop-blur-xl rounded-2xl border-2 border-amber-500/40 p-6 md:p-8 shadow-[0_0_50px_rgba(255,180,0,0.2)]">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl md:text-3xl font-black text-white flex items-center gap-4">
-              <div className="w-2 h-10 bg-gradient-to-b from-amber-400 to-orange-500 rounded-full" />
+        <div className="bg-gradient-to-br from-amber-900/30 to-orange-900/20 backdrop-blur-xl rounded-2xl border-2 border-amber-500/40 p-4 md:p-5 shadow-[0_0_50px_rgba(255,180,0,0.2)]">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xl md:text-2xl font-black text-white flex items-center gap-3">
+              <div className="w-1.5 h-8 bg-gradient-to-b from-amber-400 to-orange-500 rounded-full" />
               <span className="bg-gradient-to-r from-amber-300 to-orange-400 bg-clip-text text-transparent">
                 {t.contractInfo}
               </span>
-              <Badge className="ml-2 bg-amber-500/30 text-amber-300 border-2 border-amber-400/50 text-lg px-3 py-1">
+              <Badge className="ml-1 bg-amber-500/30 text-amber-300 border border-amber-400/50 text-base px-2 py-0.5">
                 {contracts.length}
               </Badge>
             </h2>
@@ -971,15 +972,15 @@ export default function BrandDetail() {
           {contracts.length === 0 ? (
             <p className="text-gray-400 text-center py-8 text-lg">{t.noData}</p>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-2">
               {contracts.map((contract) => (
-                <div key={contract.id} className="bg-black/60 rounded-xl border border-amber-500/30 p-5 group hover:border-amber-400/50 transition-all">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <Badge className="bg-amber-500/30 text-amber-300 border border-amber-400/50 text-base px-3 py-1">
+                <div key={contract.id} className="bg-black/60 rounded-xl border border-amber-500/30 p-3 group hover:border-amber-400/50 transition-all">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-amber-500/30 text-amber-300 border border-amber-400/50 text-sm px-2 py-0.5">
                         {serviceTypeTranslations[language][contract.serviceType] || contract.serviceType}
                       </Badge>
-                      <Badge className={`text-base px-3 py-1 ${
+                      <Badge className={`text-sm px-2 py-0.5 ${
                         contract.status === '契約中' 
                           ? 'bg-green-500/30 text-green-300 border border-green-400/50'
                           : 'bg-gray-500/30 text-gray-300 border border-gray-400/50'
@@ -1005,14 +1006,14 @@ export default function BrandDetail() {
                     </div>
                   </div>
                   {/* 固定費を大きく表示 */}
-                  <div className="mb-4">
-                    <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">{t.fixedFee}</p>
-                    <p className="text-4xl font-black text-amber-300" style={{ fontFamily: 'JetBrains Mono, monospace', textShadow: '0 0 30px rgba(255, 180, 0, 0.6)' }}>
+                  <div className="mb-1">
+                    <p className="text-gray-400 text-[10px] uppercase tracking-wider">{t.fixedFee}</p>
+                    <p className="text-3xl font-black text-amber-300" style={{ fontFamily: 'JetBrains Mono, monospace', textShadow: '0 0 30px rgba(255, 180, 0, 0.6)' }}>
                       {formatCurrency(contract.fixedFee)}
                     </p>
                   </div>
                   {/* 日付を小さく表示 */}
-                  <div className="flex items-center gap-6 text-sm text-gray-400">
+                  <div className="flex items-center gap-4 text-xs text-gray-400">
                     <div className="flex items-center gap-2">
                       <span>{t.startDate}:</span>
                       <span className="text-white font-mono">{formatDate(contract.startDate)}</span>
