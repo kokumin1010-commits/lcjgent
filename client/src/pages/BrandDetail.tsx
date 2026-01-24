@@ -27,7 +27,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 const translations = {
@@ -256,6 +256,10 @@ export default function BrandDetail() {
   const [editingLivestream, setEditingLivestream] = useState<any>(null);
   const [editingContract, setEditingContract] = useState<any>(null);
   const [editingMemo, setEditingMemo] = useState<any>(null);
+  const [aiAnalysisDialogOpen, setAiAnalysisDialogOpen] = useState(false);
+  const [selectedProductForAi, setSelectedProductForAi] = useState<any>(null);
+  const [selectedImageForAi, setSelectedImageForAi] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const brandId = parseInt(id || "0");
 
@@ -339,6 +343,62 @@ export default function BrandDetail() {
       toast.error("エラーが発生しました");
     },
   });
+
+  // AI分析ミューテーション
+  const aiExtractMutation = trpc.brandProduct.extractFromImage.useMutation({
+    onSuccess: (result) => {
+      if (result.success && result.data && selectedProductForAi) {
+        // 既存の備考を保持しつつ、AI分析結果を追記
+        const existingRemarks = selectedProductForAi.remarks || "";
+        const aiInfo = formatAiResult(result.data);
+        const newRemarks = existingRemarks 
+          ? `${existingRemarks}\n\n--- AI分析結果 (${new Date().toLocaleDateString('ja-JP')}) ---\n${aiInfo}`
+          : `--- AI分析結果 (${new Date().toLocaleDateString('ja-JP')}) ---\n${aiInfo}`;
+        
+        // 商品の備考を更新
+        updateProductMutation.mutate({
+          id: selectedProductForAi.id,
+          remarks: newRemarks,
+        });
+        
+        toast.success("AI分析が完了しました");
+      }
+      setIsAnalyzing(false);
+      setAiAnalysisDialogOpen(false);
+      setSelectedProductForAi(null);
+      setSelectedImageForAi(null);
+    },
+    onError: (error) => {
+      toast.error(`AI分析に失敗しました: ${error.message}`);
+      setIsAnalyzing(false);
+    },
+  });
+
+  // AI分析結果をフォーマット
+  const formatAiResult = (data: any) => {
+    const lines: string[] = [];
+    if (data.catchCopy) lines.push(`【キャッチコピー】${data.catchCopy}`);
+    if (data.productDetails) lines.push(`【商品詳細】${data.productDetails}`);
+    if (data.listPrice) lines.push(`【定価】¥${data.listPrice.toLocaleString()}`);
+    if (data.specialPrice) lines.push(`【特価】¥${data.specialPrice.toLocaleString()}`);
+    if (data.discountRate) lines.push(`【割引率】${data.discountRate}`);
+    if (data.shippingInfo) lines.push(`【配送情報】${data.shippingInfo}`);
+    if (data.stock) lines.push(`【在庫】${data.stock}`);
+    if (data.releaseDate) lines.push(`【発売日】${data.releaseDate}`);
+    if (data.productCode) lines.push(`【品番】${data.productCode}`);
+    if (data.remarks) lines.push(`【その他】${data.remarks}`);
+    return lines.join('\n');
+  };
+
+  // AI分析を実行
+  const handleAiAnalysis = () => {
+    if (!selectedImageForAi) {
+      toast.error("画像を選択してください");
+      return;
+    }
+    setIsAnalyzing(true);
+    aiExtractMutation.mutate({ imageUrl: selectedImageForAi });
+  };
 
   // Calculate GMV totals
   const totalGmv = monthlyGmvSummary.reduce((sum, m) => sum + (m.gmv || 0), 0);
@@ -645,12 +705,28 @@ export default function BrandDetail() {
                           {product.commissionRate || "-"}
                         </td>
                         <td className="py-3 px-2 text-right">
-                          <button
-                            onClick={() => { setEditingProduct(product); setEditProductDialogOpen(true); }}
-                            className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-cyan-400 transition-all"
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </button>
+                          <div className="flex items-center justify-end gap-2">
+                            {/* AI学習ボタン - 画像がある場合のみ表示 */}
+                            {(product.imageUrls && product.imageUrls.length > 0) && (
+                              <button
+                                onClick={() => { 
+                                  setSelectedProductForAi(product); 
+                                  setSelectedImageForAi(null);
+                                  setAiAnalysisDialogOpen(true); 
+                                }}
+                                className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-yellow-400 transition-all"
+                                title="AI学習"
+                              >
+                                <Sparkles className="h-4 w-4" />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => { setEditingProduct(product); setEditProductDialogOpen(true); }}
+                              className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-cyan-400 transition-all"
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -1302,6 +1378,111 @@ export default function BrandDetail() {
               className="border-red-900/50 text-gray-300 hover:bg-red-900/20 hover:text-white"
             >
               {t.close}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI Analysis Dialog */}
+      <Dialog open={aiAnalysisDialogOpen} onOpenChange={setAiAnalysisDialogOpen}>
+        <DialogContent className="bg-black/95 border-red-900/50 text-white max-w-2xl backdrop-blur-xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-3">
+              <div className="w-1 h-6 bg-gradient-to-b from-yellow-400 to-yellow-600 rounded-full" />
+              AI学習 - 商品情報抽出
+            </DialogTitle>
+          </DialogHeader>
+          {selectedProductForAi && (
+            <div className="space-y-4 py-4">
+              <div>
+                <p className="text-gray-400 text-sm mb-2">商品名: <span className="text-white font-medium">{selectedProductForAi.productName}</span></p>
+              </div>
+              
+              {/* 画像選択 */}
+              <div>
+                <Label className="text-gray-400 mb-2 block">分析する画像を選択</Label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {selectedProductForAi.imageUrls?.map((url: string, index: number) => (
+                    <button
+                      key={index}
+                      onClick={() => setSelectedImageForAi(url)}
+                      className={`relative rounded-lg overflow-hidden border-2 transition-all ${
+                        selectedImageForAi === url 
+                          ? 'border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.4)]' 
+                          : 'border-red-900/30 hover:border-red-500/50'
+                      }`}
+                    >
+                      <img 
+                        src={url} 
+                        alt={`商品画像 ${index + 1}`} 
+                        className="w-full h-32 object-cover"
+                      />
+                      {selectedImageForAi === url && (
+                        <div className="absolute inset-0 bg-yellow-400/20 flex items-center justify-center">
+                          <Sparkles className="h-8 w-8 text-yellow-400" />
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 選択された画像のプレビュー */}
+              {selectedImageForAi && (
+                <div className="bg-black/50 rounded-lg border border-red-900/20 p-4">
+                  <p className="text-gray-400 text-sm mb-2">選択された画像:</p>
+                  <img 
+                    src={selectedImageForAi} 
+                    alt="選択された画像" 
+                    className="max-h-64 mx-auto rounded-lg"
+                  />
+                </div>
+              )}
+
+              {/* 既存の備考表示 */}
+              {selectedProductForAi.remarks && (
+                <div className="bg-black/50 rounded-lg border border-red-900/20 p-4">
+                  <p className="text-gray-400 text-sm mb-2">現在の備考 (保持されます):</p>
+                  <p className="text-gray-300 text-sm whitespace-pre-wrap">{selectedProductForAi.remarks}</p>
+                </div>
+              )}
+
+              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
+                <p className="text-yellow-400 text-sm">
+                  ℹ️ AIが画像から商品情報（キャッチコピー、詳細、価格、配送情報など）を抽出し、備考欄に追記します。既存の備考は削除されません。
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => { 
+                setAiAnalysisDialogOpen(false); 
+                setSelectedProductForAi(null); 
+                setSelectedImageForAi(null);
+              }}
+              className="border-red-900/50 text-gray-300 hover:bg-red-900/20 hover:text-white"
+              disabled={isAnalyzing}
+            >
+              {t.cancel}
+            </Button>
+            <Button
+              onClick={handleAiAnalysis}
+              disabled={!selectedImageForAi || isAnalyzing}
+              className="bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-black font-bold"
+            >
+              {isAnalyzing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  分析中...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  AI分析を実行
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
