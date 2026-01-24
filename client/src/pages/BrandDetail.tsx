@@ -270,6 +270,56 @@ const formatDate = (date: Date | string | null | undefined) => {
   return d.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" });
 };
 
+// 契約ROAS表示コンポーネント
+function ContractRoasDisplay({ contractId, fixedFee }: { contractId: number; fixedFee: number }) {
+  const { data: linkedLivestreams = [] } = trpc.brandContract.getLinkedLivestreams.useQuery(
+    { contractId },
+    { enabled: contractId > 0 }
+  );
+
+  if (linkedLivestreams.length === 0 || fixedFee <= 0) {
+    return null;
+  }
+
+  const totalGmv = linkedLivestreams.reduce((sum, ls) => sum + (ls.gmv || 0), 0);
+  const totalImpressions = linkedLivestreams.reduce((sum, ls) => sum + (ls.impressions || 0), 0);
+  const adValue = totalImpressions * 3; // CPM ¥3,000
+  const totalValue = totalGmv + adValue;
+  const roas = totalValue / fixedFee;
+
+  return (
+    <div className="mt-4 bg-gradient-to-r from-amber-950/30 via-pink-950/20 to-purple-950/30 rounded-lg p-3 border border-amber-500/20">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4 text-xs">
+          <div className="flex items-center gap-1">
+            <Video className="h-3 w-3 text-amber-400" />
+            <span className="text-gray-400">紐付け:</span>
+            <span className="text-amber-400 font-medium">{linkedLivestreams.length}件</span>
+          </div>
+          <div>
+            <span className="text-gray-400">GMV:</span>
+            <span className="text-cyan-400 font-mono ml-1">{formatCurrency(totalGmv)}</span>
+          </div>
+          <div>
+            <span className="text-gray-400">曝光:</span>
+            <span className="text-pink-400 font-mono ml-1">{totalImpressions.toLocaleString()}</span>
+          </div>
+          <div>
+            <span className="text-gray-400">広告換算:</span>
+            <span className="text-purple-400 font-mono ml-1">{formatCurrency(adValue)}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400">概算ROAS:</span>
+          <span className="text-xl font-black bg-gradient-to-r from-amber-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">
+            {roas.toFixed(2)}倍
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function BrandDetail() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
@@ -440,6 +490,16 @@ export default function BrandDetail() {
     },
   });
 
+  // ライブ紐付けミューテーション
+  const bulkLinkLivestreamsMutation = trpc.brandContract.bulkLinkLivestreams.useMutation({
+    onSuccess: () => {
+      refetchContracts();
+    },
+    onError: (error) => {
+      console.error('ライブ紐付けエラー:', error);
+    },
+  });
+
   const updateMemoMutation = trpc.brandMemo.update.useMutation({
     onSuccess: () => {
       refetchMemos();
@@ -531,6 +591,24 @@ export default function BrandDetail() {
       content: newMemo.trim(),
       authorName: "User",
     });
+  };
+
+  // 契約編集ハンドラ（紐付けられたライブを取得）
+  const trpcUtils = trpc.useUtils();
+  const handleEditContract = async (contract: any) => {
+    try {
+      // 紐付けられたライブを取得
+      const linkedLivestreams = await trpcUtils.brandContract.getLinkedLivestreams.fetch({ contractId: contract.id });
+      setEditingContract({ 
+        ...contract, 
+        linkedLivestreams: linkedLivestreams || [] 
+      });
+      setEditContractDialogOpen(true);
+    } catch (error) {
+      console.error('紐付けライブ取得エラー:', error);
+      setEditingContract({ ...contract, linkedLivestreams: [] });
+      setEditContractDialogOpen(true);
+    }
   };
 
   if (brandLoading || !brand) {
@@ -1066,7 +1144,9 @@ export default function BrandDetail() {
                             </Badge>
                           </div>
                           <button
-                            onClick={() => { setEditingContract(contract); setEditContractDialogOpen(true); }}
+                            onClick={() => { 
+                              handleEditContract(contract);
+                            }}
                             className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-amber-400 transition-all"
                           >
                             <Edit2 className="h-4 w-4" />
@@ -1090,6 +1170,8 @@ export default function BrandDetail() {
                             <p className="text-white font-mono">{formatDate(contract.endDate)}</p>
                           </div>
                         </div>
+                        {/* ROAS表示コンポーネント */}
+                        <ContractRoasDisplay contractId={contract.id} fixedFee={contract.fixedFee || 0} />
                       </div>
                     ))}
                   </div>
@@ -1611,7 +1693,7 @@ export default function BrandDetail() {
 
       {/* Contract Edit Dialog */}
       <Dialog open={editContractDialogOpen} onOpenChange={setEditContractDialogOpen}>
-        <DialogContent className="bg-black/95 border-red-900/50 text-white max-w-lg backdrop-blur-xl">
+        <DialogContent className="bg-black/95 border-red-900/50 text-white max-w-3xl backdrop-blur-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold flex items-center gap-3">
               <div className="w-1 h-6 bg-gradient-to-b from-amber-400 to-amber-600 rounded-full" />
@@ -1705,6 +1787,130 @@ export default function BrandDetail() {
                   className="bg-black/60 border-red-900/50 text-white mt-1"
                 />
               </div>
+
+              {/* ライブ紐付けセクション */}
+              <div className="border-t border-amber-500/30 pt-4 mt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-lg font-bold text-amber-400 flex items-center gap-2">
+                    <Video className="h-5 w-5" />
+                    関連ライブ配信
+                  </p>
+                  <Badge className="bg-pink-500/20 text-pink-400 border border-pink-500/30">
+                    CPM: ¥3,000
+                  </Badge>
+                </div>
+                
+                {/* 紐付けられたライブ一覧 */}
+                <div className="space-y-2 mb-4 max-h-48 overflow-y-auto">
+                  {editingContract.linkedLivestreams && editingContract.linkedLivestreams.length > 0 ? (
+                    editingContract.linkedLivestreams.map((ls: any) => (
+                      <div key={ls.id} className="flex items-center justify-between bg-black/40 rounded-lg p-3 border border-amber-500/20">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-white font-medium">{formatDate(ls.livestreamDate)}</span>
+                            <Badge className="bg-purple-500/20 text-purple-400 text-xs">{ls.platform}</Badge>
+                          </div>
+                          <div className="flex items-center gap-4 text-sm text-gray-400 mt-1">
+                            <span>{ls.streamerName}</span>
+                            <span className="text-cyan-400">GMV: {formatCurrency(ls.gmv)}</span>
+                            <span className="text-pink-400">曝光: {(ls.impressions || 0).toLocaleString()}</span>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            const newLinked = editingContract.linkedLivestreams.filter((l: any) => l.id !== ls.id);
+                            setEditingContract({ ...editingContract, linkedLivestreams: newLinked });
+                          }}
+                          className="text-red-400 hover:text-red-300 hover:bg-red-500/20"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-gray-500 text-sm text-center py-4">紐付けられたライブがありません</p>
+                  )}
+                </div>
+
+                {/* ライブ追加ドロップダウン */}
+                <div className="flex gap-2">
+                  <Select
+                    value=""
+                    onValueChange={(value) => {
+                      const selectedLs = livestreams.find(ls => ls.id.toString() === value);
+                      if (selectedLs && !editingContract.linkedLivestreams?.find((l: any) => l.id === selectedLs.id)) {
+                        setEditingContract({
+                          ...editingContract,
+                          linkedLivestreams: [...(editingContract.linkedLivestreams || []), selectedLs]
+                        });
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="bg-black/60 border-amber-500/50 text-white flex-1">
+                      <SelectValue placeholder="ライブを追加..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-black/95 border-amber-500/50 max-h-60">
+                      {livestreams
+                        .filter(ls => !editingContract.linkedLivestreams?.find((l: any) => l.id === ls.id))
+                        .map((ls) => (
+                          <SelectItem key={ls.id} value={ls.id.toString()} className="text-white hover:bg-amber-900/30 focus:bg-amber-900/30 focus:text-white">
+                            <div className="flex items-center gap-2">
+                              <span>{formatDate(ls.livestreamDate)}</span>
+                              <span className="text-gray-400">-</span>
+                              <span className="text-gray-300">{ls.streamerName}</span>
+                              <span className="text-cyan-400 ml-2">{formatCurrency(ls.gmv)}</span>
+                            </div>
+                          </SelectItem>
+                        ))
+                      }
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* ROAS計算結果 */}
+                {editingContract.linkedLivestreams && editingContract.linkedLivestreams.length > 0 && editingContract.fixedFee > 0 && (
+                  <div className="mt-4 bg-gradient-to-r from-amber-950/50 via-pink-950/30 to-purple-950/50 rounded-xl p-4 border border-amber-500/30">
+                    <p className="text-sm text-gray-400 mb-3">概算ROAS計算</p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">GMV合計</p>
+                        <p className="text-lg font-bold text-cyan-400">
+                          {formatCurrency(editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.gmv || 0), 0))}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">曝光合計</p>
+                        <p className="text-lg font-bold text-pink-400">
+                          {editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.impressions || 0), 0).toLocaleString()}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">広告費換算</p>
+                        <p className="text-lg font-bold text-purple-400">
+                          {formatCurrency(editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.impressions || 0), 0) * 3)}
+                        </p>
+                      </div>
+                      <div className="bg-gradient-to-r from-amber-500/20 to-pink-500/20 rounded-lg p-2">
+                        <p className="text-xs text-gray-400 mb-1">概算ROAS</p>
+                        <p className="text-2xl font-black bg-gradient-to-r from-amber-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">
+                          {(() => {
+                            const totalGmv = editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.gmv || 0), 0);
+                            const totalImpressions = editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.impressions || 0), 0);
+                            const adValue = totalImpressions * 3;
+                            const roas = (totalGmv + adValue) / editingContract.fixedFee;
+                            return roas.toFixed(2) + '倍';
+                          })()}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-3 text-center">
+                      計算式: (GMV合計 + 広告費換算) ÷ 固定費 = ({formatCurrency(editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.gmv || 0), 0))} + {formatCurrency(editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.impressions || 0), 0) * 3)}) ÷ {formatCurrency(editingContract.fixedFee)}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
           <DialogFooter>
@@ -1716,8 +1922,9 @@ export default function BrandDetail() {
               {t.cancel}
             </Button>
             <Button
-              onClick={() => {
+              onClick={async () => {
                 if (editingContract) {
+                  // 契約情報を更新
                   updateContractMutation.mutate({
                     id: editingContract.id,
                     serviceType: editingContract.serviceType,
@@ -1728,6 +1935,17 @@ export default function BrandDetail() {
                     endDate: editingContract.endDate,
                     memo: editingContract.memo,
                   });
+                  
+                  // ライブ紐付けを更新
+                  const linkedIds = (editingContract.linkedLivestreams || []).map((ls: any) => ls.id);
+                  try {
+                    await bulkLinkLivestreamsMutation.mutateAsync({
+                      contractId: editingContract.id,
+                      livestreamIds: linkedIds,
+                    });
+                  } catch (error) {
+                    console.error('ライブ紐付けの保存に失敗:', error);
+                  }
                 }
               }}
               className="bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white"

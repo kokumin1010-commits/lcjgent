@@ -172,6 +172,13 @@ import {
   getMemosByBrandId,
   deleteBrandMemo,
   updateBrandMemo,
+  createContractLivestreamLink,
+  getContractLivestreamLinks,
+  getContractLinkedLivestreams,
+  deleteContractLivestreamLink,
+  deleteAllContractLivestreamLinks,
+  checkContractLivestreamLinkExists,
+  calculateContractRoas,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -2533,6 +2540,92 @@ Return ONLY valid JSON, no markdown or explanation.`,
       .input(z.object({ brandId: z.number() }))
       .query(async ({ input }) => {
         return await getActiveContractsCount(input.brandId);
+      }),
+
+    // Link a livestream to a contract
+    linkLivestream: protectedProcedure
+      .input(
+        z.object({
+          contractId: z.number(),
+          livestreamId: z.number(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        // Check if link already exists
+        const exists = await checkContractLivestreamLinkExists(
+          input.contractId,
+          input.livestreamId
+        );
+        if (exists) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "この直播は既に契約に紐付けられています",
+          });
+        }
+
+        const link = await createContractLivestreamLink({
+          contractId: input.contractId,
+          livestreamId: input.livestreamId,
+          createdBy: ctx.user.id,
+        });
+        return link;
+      }),
+
+    // Unlink a livestream from a contract
+    unlinkLivestream: protectedProcedure
+      .input(
+        z.object({
+          contractId: z.number(),
+          livestreamId: z.number(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        await deleteContractLivestreamLink(input.contractId, input.livestreamId);
+        return { success: true };
+      }),
+
+    // Get linked livestreams for a contract
+    getLinkedLivestreams: protectedProcedure
+      .input(z.object({ contractId: z.number() }))
+      .query(async ({ input }) => {
+        return await getContractLinkedLivestreams(input.contractId);
+      }),
+
+    // Calculate ROAS for a contract
+    calculateRoas: protectedProcedure
+      .input(
+        z.object({
+          contractId: z.number(),
+          fixedFee: z.number(),
+        })
+      )
+      .query(async ({ input }) => {
+        return await calculateContractRoas(input.contractId, input.fixedFee);
+      }),
+
+    // Bulk link livestreams to a contract
+    bulkLinkLivestreams: protectedProcedure
+      .input(
+        z.object({
+          contractId: z.number(),
+          livestreamIds: z.array(z.number()),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        // First, delete all existing links
+        await deleteAllContractLivestreamLinks(input.contractId);
+
+        // Then create new links
+        const results = [];
+        for (const livestreamId of input.livestreamIds) {
+          const link = await createContractLivestreamLink({
+            contractId: input.contractId,
+            livestreamId,
+            createdBy: ctx.user.id,
+          });
+          results.push(link);
+        }
+        return results;
       }),
   }),
 

@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -3221,4 +3221,140 @@ export async function updateBrandMemo(id: number, updateData: Partial<InsertBran
   if (!db) throw new Error("Database not available");
 
   return await db.update(brandMemos).set(updateData).where(eq(brandMemos.id, id));
+}
+
+
+// ============================================
+// Contract-Livestream Links Functions (契約と直播の紐付け)
+// ============================================
+
+// Create a new contract-livestream link
+export async function createContractLivestreamLink(data: InsertContractLivestreamLink) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(contractLivestreamLinks).values(data);
+  return { id: Number(result[0].insertId), ...data };
+}
+
+// Get all livestream links for a contract
+export async function getContractLivestreamLinks(contractId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(contractLivestreamLinks)
+    .where(eq(contractLivestreamLinks.contractId, contractId));
+}
+
+// Get linked livestreams with details for a contract
+export async function getContractLinkedLivestreams(contractId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // Get all links for this contract
+  const links = await db
+    .select()
+    .from(contractLivestreamLinks)
+    .where(eq(contractLivestreamLinks.contractId, contractId));
+  
+  if (links.length === 0) return [];
+  
+  // Get the livestream details
+  const livestreamIds = links.map(l => l.livestreamId);
+  const livestreams = await db
+    .select()
+    .from(brandLivestreams)
+    .where(inArray(brandLivestreams.id, livestreamIds))
+    .orderBy(desc(brandLivestreams.livestreamDate));
+  
+  return livestreams;
+}
+
+// Delete a contract-livestream link
+export async function deleteContractLivestreamLink(contractId: number, livestreamId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db
+    .delete(contractLivestreamLinks)
+    .where(
+      and(
+        eq(contractLivestreamLinks.contractId, contractId),
+        eq(contractLivestreamLinks.livestreamId, livestreamId)
+      )
+    );
+}
+
+// Delete all links for a contract
+export async function deleteAllContractLivestreamLinks(contractId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db
+    .delete(contractLivestreamLinks)
+    .where(eq(contractLivestreamLinks.contractId, contractId));
+}
+
+// Check if a link already exists
+export async function checkContractLivestreamLinkExists(contractId: number, livestreamId: number) {
+  const db = await getDb();
+  if (!db) return false;
+  
+  const result = await db
+    .select({ id: contractLivestreamLinks.id })
+    .from(contractLivestreamLinks)
+    .where(
+      and(
+        eq(contractLivestreamLinks.contractId, contractId),
+        eq(contractLivestreamLinks.livestreamId, livestreamId)
+      )
+    )
+    .limit(1);
+  
+  return result.length > 0;
+}
+
+// Calculate contract ROAS (GMV + Ad Value) / Fixed Fee
+// CPM = ¥3,000 (3円/インプレッション)
+export async function calculateContractRoas(contractId: number, fixedFee: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  // Get linked livestreams
+  const livestreams = await getContractLinkedLivestreams(contractId);
+  
+  if (livestreams.length === 0) {
+    return {
+      totalGmv: 0,
+      totalImpressions: 0,
+      adValue: 0,
+      totalValue: 0,
+      roas: 0,
+      livestreamCount: 0,
+    };
+  }
+  
+  // Calculate totals
+  const totalGmv = livestreams.reduce((sum, ls) => sum + (ls.gmv || 0), 0);
+  const totalImpressions = livestreams.reduce((sum, ls) => sum + (ls.impressions || 0), 0);
+  
+  // Ad value calculation: impressions × ¥3 (CPM ¥3,000)
+  const adValue = totalImpressions * 3;
+  
+  // Total value = GMV + Ad Value
+  const totalValue = totalGmv + adValue;
+  
+  // ROAS = Total Value / Fixed Fee
+  const roas = fixedFee > 0 ? totalValue / fixedFee : 0;
+  
+  return {
+    totalGmv,
+    totalImpressions,
+    adValue,
+    totalValue,
+    roas,
+    livestreamCount: livestreams.length,
+  };
 }

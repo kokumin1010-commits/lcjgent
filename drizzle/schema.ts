@@ -821,3 +821,19 @@ export const brandMemos = mysqlTable("brand_memos", {
 
 export type BrandMemo = typeof brandMemos.$inferSelect;
 export type InsertBrandMemo = typeof brandMemos.$inferInsert;
+
+
+/**
+ * Contract-Livestream Links table for linking contracts to livestreams
+ * 契約と直播の紐付けテーブル - 契約に関連する直播を紐付けてROASを計算
+ */
+export const contractLivestreamLinks = mysqlTable("contract_livestream_links", {
+  id: int("id").autoincrement().primaryKey(),
+  contractId: int("contractId").notNull(), // References brandContracts.id
+  livestreamId: int("livestreamId").notNull(), // References brandLivestreams.id
+  createdBy: int("createdBy").notNull(), // User ID who created the link
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ContractLivestreamLink = typeof contractLivestreamLinks.$inferSelect;
+export type InsertContractLivestreamLink = typeof contractLivestreamLinks.$inferInsert;
