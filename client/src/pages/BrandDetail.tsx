@@ -931,7 +931,14 @@ export default function BrandDetail() {
                             </div>
                           )}
                         </td>
-                        <td className="py-3 px-2 text-white font-medium">{product.productName}</td>
+                        <td className="py-3 px-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-gray-500 font-mono whitespace-nowrap">
+                              {product.createdAt ? new Date(product.createdAt).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit' }).replace(/\//g, '/') : ''}
+                            </span>
+                            <span className="text-white font-medium">{product.productName}</span>
+                          </div>
+                        </td>
                         <td className="py-3 px-2 text-right text-gray-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                           {formatCurrency(product.listPrice)}
                         </td>
