@@ -1696,6 +1696,113 @@ ${JSON.stringify(teamSummary, null, 2)}`;
         await deleteBrandProduct(input.id);
         return { success: true };
       }),
+
+    // AI画像解析による商品情報抽出
+    extractFromImage: protectedProcedure
+      .input(
+        z.object({
+          imageUrl: z.string(), // S3にアップロードされた提案書画像のURL
+        })
+      )
+      .mutation(async ({ input }) => {
+        const systemPrompt = `あなたは商品提案書から情報を抽出する専門家です。
+提案書画像から以下の情報を正確に抽出してください。日本語のテキストを正確に読み取ってください。
+
+抽出する情報：
+- productName: 商品名（必須）
+- listPrice: 公式価格・定価（数値のみ、円記号なし）
+- specialPrice: ライブ価格・特別価格（数値のみ、円記号なし）
+- discountRate: 割引率（例: "20%"）
+- releaseDate: 発売日（YYYY-MM-DD形式）
+- stock: 在庫数（数値のみ）
+- productCode: 商品ID・コード品番
+- catchCopy: キャッチコピー・特徴
+- productDetails: 商品詳細（内容量、販売価格、生産ロット、使用期限など）
+- shippingInfo: 配送情報
+- remarks: その他の備考
+
+画像から読み取れない情報はnullとしてください。`;
+
+        const response = await invokeLLM({
+          messages: [
+            { role: "system", content: systemPrompt },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: "この提案書画像から商品情報を抽出してください。",
+                },
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: input.imageUrl,
+                    detail: "high",
+                  },
+                },
+              ],
+            },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "product_info",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  productName: { type: ["string", "null"], description: "商品名" },
+                  listPrice: { type: ["number", "null"], description: "公式価格・定価" },
+                  specialPrice: { type: ["number", "null"], description: "ライブ価格・特別価格" },
+                  discountRate: { type: ["string", "null"], description: "割引率" },
+                  releaseDate: { type: ["string", "null"], description: "発売日" },
+                  stock: { type: ["number", "null"], description: "在庫数" },
+                  productCode: { type: ["string", "null"], description: "商品ID・コード品番" },
+                  catchCopy: { type: ["string", "null"], description: "キャッチコピー・特徴" },
+                  productDetails: { type: ["string", "null"], description: "商品詳細" },
+                  shippingInfo: { type: ["string", "null"], description: "配送情報" },
+                  remarks: { type: ["string", "null"], description: "その他の備考" },
+                },
+                required: [
+                  "productName",
+                  "listPrice",
+                  "specialPrice",
+                  "discountRate",
+                  "releaseDate",
+                  "stock",
+                  "productCode",
+                  "catchCopy",
+                  "productDetails",
+                  "shippingInfo",
+                  "remarks",
+                ],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+
+        const content = response.choices[0]?.message?.content;
+        if (!content || typeof content !== "string") {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "AI解析に失敗しました",
+          });
+        }
+
+        try {
+          const extractedData = JSON.parse(content);
+          return {
+            success: true,
+            data: extractedData,
+          };
+        } catch (e) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "AI解析結果のパースに失敗しました",
+          });
+        }
+      }),
   }),
 
   // Brand Activities Router

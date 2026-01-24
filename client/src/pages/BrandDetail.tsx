@@ -127,6 +127,19 @@ const translations = {
     contractOnHold: "保留",
     contractEnded: "終了",
     perMonth: "/月",
+    // AI商品登録
+    aiProductRegister: "AI画像から商品登録",
+    uploadProposalImage: "提案書画像をアップロード",
+    analyzing: "AI解析中...",
+    extractedInfo: "抽出された情報",
+    confirmAndRegister: "確認して登録",
+    releaseDate: "発売日",
+    stock: "在庫数",
+    catchCopy: "キャッチコピー",
+    productDetails: "商品詳細",
+    shippingInfo: "配送情報",
+    aiExtractFailed: "AI解析に失敗しました",
+    noImageSelected: "画像を選択してください",
   },
   zh: {
     title: "品牌详情",
@@ -220,6 +233,19 @@ const translations = {
     contractOnHold: "暂停",
     contractEnded: "已结束",
     perMonth: "/月",
+    // AI商品登録
+    aiProductRegister: "AI图片商品登记",
+    uploadProposalImage: "上传提案图片",
+    analyzing: "AI分析中...",
+    extractedInfo: "提取的信息",
+    confirmAndRegister: "确认并登记",
+    releaseDate: "发售日",
+    stock: "库存数",
+    catchCopy: "宣传语",
+    productDetails: "商品详情",
+    shippingInfo: "配送信息",
+    aiExtractFailed: "AI分析失败",
+    noImageSelected: "请选择图片",
   },
 };
 
@@ -343,6 +369,26 @@ export default function BrandDetail() {
     memo: "",
   });
 
+  // AI商品登録用のstate
+  const [isAiProductDialogOpen, setIsAiProductDialogOpen] = useState(false);
+  const [aiProposalImageUrl, setAiProposalImageUrl] = useState("");
+  const [aiProposalImageKey, setAiProposalImageKey] = useState("");
+  const [isUploadingProposalImage, setIsUploadingProposalImage] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [extractedProductData, setExtractedProductData] = useState<{
+    productName: string | null;
+    listPrice: number | null;
+    specialPrice: number | null;
+    discountRate: string | null;
+    releaseDate: string | null;
+    stock: number | null;
+    productCode: string | null;
+    catchCopy: string | null;
+    productDetails: string | null;
+    shippingInfo: string | null;
+    remarks: string | null;
+  } | null>(null);
+
   const brandId = parseInt(id || "0");
 
   const { data: brand, isLoading: brandLoading } = trpc.brand.getById.useQuery(
@@ -381,6 +427,19 @@ export default function BrandDetail() {
   );
 
   const uploadImageMutation = trpc.brand.uploadImage.useMutation();
+
+  // AI商品情報抽出mutation
+  const extractProductMutation = trpc.brandProduct.extractFromImage.useMutation({
+    onSuccess: (result) => {
+      if (result.success && result.data) {
+        setExtractedProductData(result.data);
+        toast.success("商品情報を抽出しました");
+      }
+    },
+    onError: () => {
+      toast.error(t.aiExtractFailed);
+    },
+  });
 
   const createProductMutation = trpc.brandProduct.create.useMutation({
     onSuccess: () => {
@@ -592,6 +651,92 @@ export default function BrandDetail() {
       imageUrls: newProduct.imageUrls.filter((_, i) => i !== index),
       imageKeys: newProduct.imageKeys.filter((_, i) => i !== index),
     });
+  };
+
+  // AI提案書画像アップロードハンドラー
+  const handleProposalImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    setIsUploadingProposalImage(true);
+
+    try {
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.readAsDataURL(file);
+      });
+
+      const result = await uploadImageMutation.mutateAsync({
+        base64: base64.split(",")[1],
+        filename: file.name,
+        type: "product" as const,
+      });
+
+      setAiProposalImageUrl(result.url);
+      setAiProposalImageKey(result.key);
+    } catch (error) {
+      toast.error("画像のアップロードに失敗しました");
+    } finally {
+      setIsUploadingProposalImage(false);
+    }
+  };
+
+  // AI解析実行ハンドラー
+  const handleAnalyzeProposalImage = async () => {
+    if (!aiProposalImageUrl) {
+      toast.error(t.noImageSelected);
+      return;
+    }
+
+    setIsAnalyzing(true);
+    try {
+      await extractProductMutation.mutateAsync({
+        imageUrl: aiProposalImageUrl,
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  // AI抽出データを商品として登録
+  const handleRegisterExtractedProduct = async () => {
+    if (!extractedProductData || !extractedProductData.productName) {
+      toast.error("商品名が必要です");
+      return;
+    }
+
+    try {
+      // 備考に商品詳細、配送情報、キャッチコピーなどをまとめる
+      const remarksArray: string[] = [];
+      if (extractedProductData.catchCopy) remarksArray.push(`キャッチコピー: ${extractedProductData.catchCopy}`);
+      if (extractedProductData.productDetails) remarksArray.push(`商品詳細: ${extractedProductData.productDetails}`);
+      if (extractedProductData.shippingInfo) remarksArray.push(`配送情報: ${extractedProductData.shippingInfo}`);
+      if (extractedProductData.releaseDate) remarksArray.push(`発売日: ${extractedProductData.releaseDate}`);
+      if (extractedProductData.stock) remarksArray.push(`在庫: ${extractedProductData.stock}`);
+      if (extractedProductData.remarks) remarksArray.push(extractedProductData.remarks);
+
+      await createProductMutation.mutateAsync({
+        brandId,
+        productName: extractedProductData.productName,
+        listPrice: extractedProductData.listPrice || undefined,
+        specialPrice: extractedProductData.specialPrice || undefined,
+        discountRate: extractedProductData.discountRate || undefined,
+        productCode: extractedProductData.productCode || undefined,
+        remarks: remarksArray.length > 0 ? remarksArray.join("\n") : undefined,
+        imageUrls: aiProposalImageUrl ? [aiProposalImageUrl] : undefined,
+        imageKeys: aiProposalImageKey ? [aiProposalImageKey] : undefined,
+      });
+
+      // ダイアログを閉じてリセット
+      setIsAiProductDialogOpen(false);
+      setAiProposalImageUrl("");
+      setAiProposalImageKey("");
+      setExtractedProductData(null);
+    } catch (error) {
+      toast.error(t.error);
+    }
   };
 
   const handleAddActivity = async () => {
@@ -1056,13 +1201,264 @@ export default function BrandDetail() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>{t.products}</CardTitle>
-            <Dialog open={isProductDialogOpen} onOpenChange={setIsProductDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-red-600 hover:bg-red-700">
-                  <Plus className="h-4 w-4 mr-2" />
-                  {t.addProduct}
-                </Button>
-              </DialogTrigger>
+            <div className="flex gap-2">
+              {/* AI商品登録ボタン */}
+              <Dialog open={isAiProductDialogOpen} onOpenChange={(open) => {
+                setIsAiProductDialogOpen(open);
+                if (!open) {
+                  setAiProposalImageUrl("");
+                  setAiProposalImageKey("");
+                  setExtractedProductData(null);
+                }
+              }}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="border-blue-500 text-blue-600 hover:bg-blue-50">
+                    <ImageIcon className="h-4 w-4 mr-2" />
+                    {t.aiProductRegister}
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>{t.aiProductRegister}</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    {/* 提案書画像アップロード */}
+                    <div>
+                      <Label>{t.uploadProposalImage}</Label>
+                      <div className="mt-2">
+                        {aiProposalImageUrl ? (
+                          <div className="relative">
+                            <img
+                              src={aiProposalImageUrl}
+                              alt="提案書画像"
+                              className="w-full max-h-64 object-contain rounded border"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAiProposalImageUrl("");
+                                setAiProposalImageKey("");
+                                setExtractedProductData(null);
+                              }}
+                              className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="cursor-pointer">
+                            <div className="flex flex-col items-center justify-center gap-2 px-4 py-8 border-2 border-dashed rounded-lg hover:bg-gray-50">
+                              {isUploadingProposalImage ? (
+                                <span className="text-sm text-gray-500">{t.uploading}</span>
+                              ) : (
+                                <>
+                                  <ImageIcon className="h-10 w-10 text-gray-400" />
+                                  <span className="text-sm text-gray-500">{t.uploadProposalImage}</span>
+                                </>
+                              )}
+                            </div>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={handleProposalImageUpload}
+                              disabled={isUploadingProposalImage}
+                            />
+                          </label>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* AI解析ボタン */}
+                    {aiProposalImageUrl && !extractedProductData && (
+                      <Button
+                        onClick={handleAnalyzeProposalImage}
+                        disabled={isAnalyzing}
+                        className="w-full bg-blue-600 hover:bg-blue-700"
+                      >
+                        {isAnalyzing ? t.analyzing : "AIで商品情報を抽出"}
+                      </Button>
+                    )}
+
+                    {/* 抽出結果表示 */}
+                    {extractedProductData && (
+                      <div className="space-y-4 border-t pt-4">
+                        <h4 className="font-semibold text-lg">{t.extractedInfo}</h4>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label>{t.productName}</Label>
+                            <Input
+                              value={extractedProductData.productName || ""}
+                              onChange={(e) =>
+                                setExtractedProductData({
+                                  ...extractedProductData,
+                                  productName: e.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                          <div>
+                            <Label>{t.productCode}</Label>
+                            <Input
+                              value={extractedProductData.productCode || ""}
+                              onChange={(e) =>
+                                setExtractedProductData({
+                                  ...extractedProductData,
+                                  productCode: e.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-4">
+                          <div>
+                            <Label>{t.listPrice}</Label>
+                            <Input
+                              type="number"
+                              value={extractedProductData.listPrice || ""}
+                              onChange={(e) =>
+                                setExtractedProductData({
+                                  ...extractedProductData,
+                                  listPrice: e.target.value ? parseInt(e.target.value) : null,
+                                })
+                              }
+                            />
+                          </div>
+                          <div>
+                            <Label>{t.specialPrice}</Label>
+                            <Input
+                              type="number"
+                              value={extractedProductData.specialPrice || ""}
+                              onChange={(e) =>
+                                setExtractedProductData({
+                                  ...extractedProductData,
+                                  specialPrice: e.target.value ? parseInt(e.target.value) : null,
+                                })
+                              }
+                            />
+                          </div>
+                          <div>
+                            <Label>{t.discountRate}</Label>
+                            <Input
+                              value={extractedProductData.discountRate || ""}
+                              onChange={(e) =>
+                                setExtractedProductData({
+                                  ...extractedProductData,
+                                  discountRate: e.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label>{t.releaseDate}</Label>
+                            <Input
+                              value={extractedProductData.releaseDate || ""}
+                              onChange={(e) =>
+                                setExtractedProductData({
+                                  ...extractedProductData,
+                                  releaseDate: e.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                          <div>
+                            <Label>{t.stock}</Label>
+                            <Input
+                              type="number"
+                              value={extractedProductData.stock || ""}
+                              onChange={(e) =>
+                                setExtractedProductData({
+                                  ...extractedProductData,
+                                  stock: e.target.value ? parseInt(e.target.value) : null,
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <Label>{t.catchCopy}</Label>
+                          <Textarea
+                            value={extractedProductData.catchCopy || ""}
+                            onChange={(e) =>
+                              setExtractedProductData({
+                                ...extractedProductData,
+                                catchCopy: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label>{t.productDetails}</Label>
+                          <Textarea
+                            value={extractedProductData.productDetails || ""}
+                            onChange={(e) =>
+                              setExtractedProductData({
+                                ...extractedProductData,
+                                productDetails: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label>{t.shippingInfo}</Label>
+                          <Textarea
+                            value={extractedProductData.shippingInfo || ""}
+                            onChange={(e) =>
+                              setExtractedProductData({
+                                ...extractedProductData,
+                                shippingInfo: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label>{t.remarks}</Label>
+                          <Textarea
+                            value={extractedProductData.remarks || ""}
+                            onChange={(e) =>
+                              setExtractedProductData({
+                                ...extractedProductData,
+                                remarks: e.target.value,
+                              })
+                            }
+                          />
+                        </div>
+                        <div className="flex justify-end gap-2 pt-4">
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setIsAiProductDialogOpen(false);
+                              setAiProposalImageUrl("");
+                              setAiProposalImageKey("");
+                              setExtractedProductData(null);
+                            }}
+                          >
+                            {t.cancel}
+                          </Button>
+                          <Button
+                            onClick={handleRegisterExtractedProduct}
+                            disabled={createProductMutation.isPending}
+                            className="bg-red-600 hover:bg-red-700"
+                          >
+                            {t.confirmAndRegister}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              {/* 通常の商品追加ボタン */}
+              <Dialog open={isProductDialogOpen} onOpenChange={setIsProductDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="bg-red-600 hover:bg-red-700">
+                    <Plus className="h-4 w-4 mr-2" />
+                    {t.addProduct}
+                  </Button>
+                </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>{t.addProduct}</DialogTitle>
@@ -1218,6 +1614,7 @@ export default function BrandDetail() {
                 </div>
               </DialogContent>
             </Dialog>
+            </div>
           </CardHeader>
           <CardContent>
             {products.length > 0 ? (
