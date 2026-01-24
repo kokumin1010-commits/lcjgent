@@ -37,7 +37,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn } from "lucide-react";
 import { toast } from "sonner";
 
 const translations = {
@@ -309,6 +309,7 @@ export default function BrandDetail() {
   // Product Detail Popup states
   const [productDetailDialogOpen, setProductDetailDialogOpen] = useState(false);
   const [selectedProductForDetail, setSelectedProductForDetail] = useState<any>(null);
+  const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
   
   // AI Image Add states
   const [aiImageAddDialogOpen, setAiImageAddDialogOpen] = useState(false);
@@ -1588,28 +1589,40 @@ export default function BrandDetail() {
             <Button
               onClick={() => {
                 if (editingLivestream) {
-                  updateLivestreamMutation.mutate({
+                  // 日付をstring形式に変換（YYYY-MM-DD）
+                  let dateStr = editingLivestream.livestreamDate;
+                  if (dateStr) {
+                    if (typeof dateStr !== 'string') {
+                      dateStr = new Date(dateStr).toISOString().split('T')[0];
+                    } else if (dateStr.includes('T')) {
+                      dateStr = dateStr.split('T')[0];
+                    }
+                  }
+                  // undefinedやnullの値をフィルタリング
+                  const updateData: Record<string, any> = {
                     id: editingLivestream.id,
-                    livestreamDate: editingLivestream.livestreamDate,
-                    streamerName: editingLivestream.streamerName,
-                    platform: editingLivestream.platform,
-                    duration: editingLivestream.duration,
-                    gmv: editingLivestream.gmv,
-                    remarks: editingLivestream.remarks,
-                    productClicks: (editingLivestream as any).productClicks,
-                    impressions: (editingLivestream as any).impressions,
-                    salesCount: (editingLivestream as any).salesCount,
-                    cartAddCount: (editingLivestream as any).cartAddCount,
-                    productId: editingLivestream.productId,
-                    productCommission: editingLivestream.productCommission,
-                    adCost: editingLivestream.adCost,
-                    ctr: editingLivestream.ctr,
-                    cvr: editingLivestream.cvr,
-                    cpc: editingLivestream.cpc,
-                    acos: editingLivestream.acos,
-                    roas: editingLivestream.roas,
-                    livestreamStartTime: editingLivestream.livestreamStartTime,
-                  });
+                  };
+                  if (dateStr) updateData.livestreamDate = dateStr;
+                  if (editingLivestream.streamerName) updateData.streamerName = editingLivestream.streamerName;
+                  if (editingLivestream.platform) updateData.platform = editingLivestream.platform;
+                  if (editingLivestream.duration !== undefined && editingLivestream.duration !== null) updateData.duration = editingLivestream.duration;
+                  if (editingLivestream.gmv !== undefined && editingLivestream.gmv !== null) updateData.gmv = editingLivestream.gmv;
+                  if (editingLivestream.remarks) updateData.remarks = editingLivestream.remarks;
+                  if ((editingLivestream as any).productClicks !== undefined && (editingLivestream as any).productClicks !== null) updateData.productClicks = (editingLivestream as any).productClicks;
+                  if ((editingLivestream as any).impressions !== undefined && (editingLivestream as any).impressions !== null) updateData.impressions = (editingLivestream as any).impressions;
+                  if ((editingLivestream as any).salesCount !== undefined && (editingLivestream as any).salesCount !== null) updateData.salesCount = (editingLivestream as any).salesCount;
+                  if ((editingLivestream as any).cartAddCount !== undefined && (editingLivestream as any).cartAddCount !== null) updateData.cartAddCount = (editingLivestream as any).cartAddCount;
+                  if (editingLivestream.productId !== undefined) updateData.productId = editingLivestream.productId;
+                  if (editingLivestream.productCommission) updateData.productCommission = editingLivestream.productCommission;
+                  if (editingLivestream.adCost !== undefined && editingLivestream.adCost !== null) updateData.adCost = editingLivestream.adCost;
+                  if (editingLivestream.ctr) updateData.ctr = editingLivestream.ctr;
+                  if (editingLivestream.cvr) updateData.cvr = editingLivestream.cvr;
+                  if (editingLivestream.cpc !== undefined && editingLivestream.cpc !== null) updateData.cpc = editingLivestream.cpc;
+                  if (editingLivestream.acos) updateData.acos = editingLivestream.acos;
+                  if (editingLivestream.roas) updateData.roas = editingLivestream.roas;
+                  if (editingLivestream.livestreamStartTime) updateData.livestreamStartTime = editingLivestream.livestreamStartTime;
+                  
+                  updateLivestreamMutation.mutate(updateData as any);
                 }
               }}
               className="bg-gradient-to-r from-pink-600 to-pink-500 hover:from-pink-500 hover:to-pink-400 text-white"
@@ -2813,14 +2826,21 @@ export default function BrandDetail() {
                       : null;
                     if (imageUrl) {
                       return (
-                        <a href={imageUrl} target="_blank" rel="noopener noreferrer" className="block w-full h-full flex items-center justify-center relative group">
+                        <div 
+                          className="block w-full h-full flex items-center justify-center relative group cursor-pointer"
+                          onClick={() => setExpandedImageUrl(imageUrl)}
+                        >
                           <div className="absolute inset-0 bg-gradient-to-br from-pink-500/20 to-purple-500/20 rounded-2xl blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                           <img 
                             src={imageUrl} 
                             alt={selectedProductForDetail.productName || ''}
                             className="max-w-full max-h-full object-contain rounded-2xl border-4 border-pink-500/40 cursor-pointer hover:scale-[1.03] transition-all duration-500 shadow-[0_0_40px_rgba(236,72,153,0.3)] hover:shadow-[0_0_60px_rgba(236,72,153,0.5)] relative z-10"
                           />
-                        </a>
+                          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/70 text-white px-4 py-2 rounded-full text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center gap-2">
+                            <ZoomIn className="w-4 h-4" />
+                            {language === 'ja' ? 'クリックで拡大' : '点击放大'}
+                          </div>
+                        </div>
                       );
                     }
                     return (
@@ -2964,6 +2984,30 @@ export default function BrandDetail() {
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+            
+            {/* Image Expanded Overlay */}
+            {expandedImageUrl && (
+              <div 
+                className="absolute inset-0 z-50 bg-black/95 flex items-center justify-center animate-in fade-in duration-200"
+                onClick={() => setExpandedImageUrl(null)}
+              >
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setExpandedImageUrl(null);
+                  }}
+                  className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all duration-200 hover:scale-110 z-10"
+                >
+                  <X className="w-8 h-8" />
+                </button>
+                <img 
+                  src={expandedImageUrl} 
+                  alt="拡大画像"
+                  className="max-w-[95%] max-h-[95%] object-contain rounded-lg shadow-2xl"
+                  onClick={(e) => e.stopPropagation()}
+                />
               </div>
             )}
           </div>
