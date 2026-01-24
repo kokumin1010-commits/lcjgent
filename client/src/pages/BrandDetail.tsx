@@ -553,6 +553,9 @@ export default function BrandDetail() {
     { id: brandId }
   );
 
+  // ブランド一覧を取得（ブランド選択用）
+  const { data: allBrands = [] } = trpc.brand.list.useQuery();
+
   const { data: products = [] } = trpc.brandProduct.listByBrand.useQuery(
     { brandId }
   );
@@ -1226,6 +1229,26 @@ export default function BrandDetail() {
               <div>
                 <div className="flex items-center gap-3">
                   <h1 className="text-2xl md:text-3xl font-bold text-white">ブランド司令塔</h1>
+                  {/* ブランド選択ドロップダウン */}
+                  <Select
+                    value={brandId.toString()}
+                    onValueChange={(value) => navigate(`/brands/${value}`)}
+                  >
+                    <SelectTrigger className="w-[200px] bg-slate-800/50 border-white/10 text-white">
+                      <SelectValue placeholder="ブランドを選択" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-800 border-white/10 max-h-[300px]">
+                      {allBrands.map((b) => (
+                        <SelectItem 
+                          key={b.id} 
+                          value={b.id.toString()}
+                          className="text-white hover:bg-slate-700"
+                        >
+                          {b.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <p className="text-gray-400 text-sm mt-0.5">{brand.name} - {brand.companyName}</p>
               </div>
@@ -3205,11 +3228,16 @@ export default function BrandDetail() {
                           <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3">
                             <div className="flex items-center gap-1 text-xs text-gray-400 mb-1">
                               <DollarSign className="h-3 w-3 text-green-400" />
-                              {t.salesAmount}
+                              GMV
                             </div>
                             <p className="font-bold text-green-400">
-                              {formatCurrency(ls.salesAmount)}
+                              {formatCurrency((ls as any).productGmvTotal || 0)}
                             </p>
+                            {(ls as any).productCount > 0 && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                {(ls as any).productCount}品
+                              </p>
+                            )}
                           </div>
                           <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-lg p-3">
                             <div className="flex items-center gap-1 text-xs text-gray-400 mb-1">

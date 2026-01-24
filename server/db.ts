@@ -963,12 +963,33 @@ export async function createBrandLivestream(livestreamData: InsertBrandLivestrea
   return { id: insertId, ...livestreamData };
 }
 
-// Get livestreams by brand ID
+// Get livestreams by brand ID with product GMV totals
 export async function getLivestreamsByBrandId(brandId: number) {
   const db = await getDb();
   if (!db) return [];
   
-  return await db.select().from(brandLivestreams).where(eq(brandLivestreams.brandId, brandId)).orderBy(desc(brandLivestreams.livestreamDate));
+  const livestreams = await db.select().from(brandLivestreams).where(eq(brandLivestreams.brandId, brandId)).orderBy(desc(brandLivestreams.livestreamDate));
+  
+  // 各直播の商品別GMV合計を取得
+  const livestreamsWithGmv = await Promise.all(
+    livestreams.map(async (ls) => {
+      const products = await db
+        .select()
+        .from(livestreamProducts)
+        .where(eq(livestreamProducts.livestreamId, ls.id));
+      
+      const productGmvTotal = products.reduce((sum, p) => sum + (p.gmv || 0), 0);
+      const productCount = products.length;
+      
+      return {
+        ...ls,
+        productGmvTotal,
+        productCount,
+      };
+    })
+  );
+  
+  return livestreamsWithGmv;
 }
 
 // Update livestream
