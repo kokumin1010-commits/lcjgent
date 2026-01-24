@@ -1930,6 +1930,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           cpc: z.number().optional(),
           acos: z.string().optional(),
           roas: z.string().optional(),
+          livestreamStartTime: z.string().optional(), // ライブ開始時間 (e.g., "14:30")
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -1979,6 +1980,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           cpc: z.number().optional(),
           acos: z.string().optional(),
           roas: z.string().optional(),
+          livestreamStartTime: z.string().optional(), // ライブ開始時間 (e.g., "14:30")
         })
       )
       .mutation(async ({ input }) => {

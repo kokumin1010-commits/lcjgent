@@ -256,6 +256,7 @@ export const brandLivestreams = mysqlTable("brand_livestreams", {
   cpc: bigint("cpc", { mode: "number" }), // CPC（クリック単価）
   acos: varchar("acos", { length: 20 }), // ACOS（広告費売上比率）
   roas: varchar("roas", { length: 20 }), // ROAS（広告費用対効果）
+  livestreamStartTime: varchar("livestreamStartTime", { length: 10 }), // ライブ開始時間 (e.g., "14:30", "20:00")
   createdBy: int("createdBy").notNull(), // User ID who created the record
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

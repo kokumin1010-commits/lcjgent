@@ -260,6 +260,13 @@
       "when": 1769255741924,
       "tag": "0036_silly_whirlwind",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "5",
+      "when": 1769256334919,
+      "tag": "0037_elite_cable",
+      "breakpoints": true
     }
   ]
 }

@@ -300,7 +300,7 @@ export default function BrandDetail() {
   const [addProductDialogOpen, setAddProductDialogOpen] = useState(false);
   const [addLivestreamDialogOpen, setAddLivestreamDialogOpen] = useState(false);
   const [newProduct, setNewProduct] = useState({ productName: "", listPrice: 0, specialPrice: 0, commissionRate: "", remarks: "" });
-  const [newLivestream, setNewLivestream] = useState({ livestreamDate: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "", productClicks: 0, impressions: 0, salesCount: 0, cartAddCount: 0, productId: null as number | null, productCommission: "", adCost: 0, ctr: "", cvr: "", cpc: 0, acos: "", roas: "" });
+  const [newLivestream, setNewLivestream] = useState({ livestreamDate: "", livestreamStartTime: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "", productClicks: 0, impressions: 0, salesCount: 0, cartAddCount: 0, productId: null as number | null, productCommission: "", adCost: 0, ctr: "", cvr: "", cpc: 0, acos: "", roas: "" });
   // Delete states
   const [deleteProductDialogOpen, setDeleteProductDialogOpen] = useState(false);
   const [deleteLivestreamDialogOpen, setDeleteLivestreamDialogOpen] = useState(false);
@@ -365,7 +365,7 @@ export default function BrandDetail() {
     onSuccess: () => {
       refetchLivestreams();
       setAddLivestreamDialogOpen(false);
-      setNewLivestream({ livestreamDate: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "", productClicks: 0, impressions: 0, salesCount: 0, cartAddCount: 0, productId: null, productCommission: "", adCost: 0, ctr: "", cvr: "", cpc: 0, acos: "", roas: "" });
+      setNewLivestream({ livestreamDate: "", livestreamStartTime: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "", productClicks: 0, impressions: 0, salesCount: 0, cartAddCount: 0, productId: null, productCommission: "", adCost: 0, ctr: "", cvr: "", cpc: 0, acos: "", roas: "" });
       toast.success("直播を追加しました");
     },
     onError: () => {
@@ -899,6 +899,7 @@ export default function BrandDetail() {
                 <thead>
                   <tr className="border-b border-red-900/30">
                     <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.date}</th>
+                    <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{language === 'ja' ? '開始時間' : '开始时间'}</th>
                     <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{language === 'ja' ? '商品' : '商品'}</th>
                     <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{language === 'ja' ? '手数料' : '手续费'}</th>
                     <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.account}</th>
@@ -921,13 +922,16 @@ export default function BrandDetail() {
                 <tbody>
                   {livestreams.length === 0 ? (
                     <tr>
-                      <td colSpan={18} className="text-center text-gray-500 py-8">{t.noData}</td>
+                      <td colSpan={19} className="text-center text-gray-500 py-8">{t.noData}</td>
                     </tr>
                   ) : (
                     livestreams.slice(0, 10).map((ls) => (
                       <tr key={ls.id} className="border-b border-red-900/20 hover:bg-red-900/10 transition-colors group">
                         <td className="py-3 px-2 text-gray-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                           {formatDate(ls.livestreamDate)}
+                        </td>
+                        <td className="py-3 px-2 text-yellow-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                          {(ls as any).livestreamStartTime || '-'}
                         </td>
                         <td className="py-3 px-2 text-cyan-400 font-medium">
                           {(ls as any).productId ? products.find(p => p.id === (ls as any).productId)?.productName || '-' : '-'}
@@ -977,14 +981,14 @@ export default function BrandDetail() {
                           <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={() => { setEditingLivestream(ls); setEditLivestreamDialogOpen(true); }}
-                              className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-pink-400 transition-all"
+                              className="text-pink-400/70 hover:text-pink-400 transition-all"
                               title={language === 'ja' ? '編集' : '编辑'}
                             >
                               <Edit2 className="h-4 w-4" />
                             </button>
                             <button
                               onClick={() => { setLivestreamToDelete(ls); setDeleteLivestreamDialogOpen(true); }}
-                              className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all"
+                              className="text-red-400/70 hover:text-red-400 transition-all"
                               title={language === 'ja' ? '削除' : '删除'}
                             >
                               <Trash2 className="h-4 w-4" />
@@ -1263,6 +1267,18 @@ export default function BrandDetail() {
                   />
                 </div>
                 <div>
+                  <Label className="text-gray-400">開始時間</Label>
+                  <Input
+                    type="time"
+                    value={editingLivestream.livestreamStartTime || ""}
+                    onChange={(e) => setEditingLivestream({ ...editingLivestream, livestreamStartTime: e.target.value })}
+                    placeholder="14:30"
+                    className="bg-black/60 border-red-900/50 text-white mt-1"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
                   <Label className="text-gray-400">アカウント</Label>
                   <Input
                     value={editingLivestream.streamerName || ""}
@@ -1270,8 +1286,6 @@ export default function BrandDetail() {
                     className="bg-black/60 border-red-900/50 text-white mt-1"
                   />
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-gray-400">プラットフォーム</Label>
                   <Select
@@ -1447,6 +1461,7 @@ export default function BrandDetail() {
                     cpc: editingLivestream.cpc,
                     acos: editingLivestream.acos,
                     roas: editingLivestream.roas,
+                    livestreamStartTime: editingLivestream.livestreamStartTime,
                   });
                 }
               }}
@@ -1983,6 +1998,18 @@ export default function BrandDetail() {
                 />
               </div>
               <div>
+                <Label className="text-gray-400">{language === 'ja' ? '開始時間' : '开始时间'}</Label>
+                <Input
+                  type="time"
+                  value={newLivestream.livestreamStartTime}
+                  onChange={(e) => setNewLivestream({ ...newLivestream, livestreamStartTime: e.target.value })}
+                  placeholder="14:30"
+                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
                 <Label className="text-gray-400">{t.account}</Label>
                 <Input
                   value={newLivestream.streamerName}
@@ -1990,8 +2017,6 @@ export default function BrandDetail() {
                   className="bg-black/60 border-red-900/50 text-white mt-1"
                 />
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label className="text-gray-400">{t.platform}</Label>
                 <Select
@@ -2182,7 +2207,7 @@ export default function BrandDetail() {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => { setAddLivestreamDialogOpen(false); setNewLivestream({ livestreamDate: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "", productClicks: 0, impressions: 0, salesCount: 0, cartAddCount: 0, productId: null, productCommission: "", adCost: 0, ctr: "", cvr: "", cpc: 0, acos: "", roas: "" }); }}
+              onClick={() => { setAddLivestreamDialogOpen(false); setNewLivestream({ livestreamDate: "", livestreamStartTime: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "", productClicks: 0, impressions: 0, salesCount: 0, cartAddCount: 0, productId: null, productCommission: "", adCost: 0, ctr: "", cvr: "", cpc: 0, acos: "", roas: "" }); }}
               className="border-red-500/50 bg-red-950/50 text-gray-200 hover:bg-red-900/40 hover:text-white hover:border-red-400/70"
             >
               {t.cancel}
@@ -2210,6 +2235,7 @@ export default function BrandDetail() {
                     cpc: newLivestream.cpc || undefined,
                     acos: newLivestream.acos || undefined,
                     roas: newLivestream.roas || undefined,
+                    livestreamStartTime: newLivestream.livestreamStartTime || undefined,
                   });
                 }
               }}
