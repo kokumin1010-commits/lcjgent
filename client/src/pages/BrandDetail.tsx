@@ -2478,10 +2478,12 @@ export default function BrandDetail() {
 
                 {/* Extracted data preview and edit */}
                 {extractedProductData && (
-                  <div className="space-y-4 border border-purple-500/30 rounded-lg p-4 bg-purple-900/10">
-                    <h4 className="text-sm font-bold text-purple-300">
+                  <div className="space-y-4 border border-purple-500/30 rounded-lg p-4 bg-purple-900/10 max-h-[60vh] overflow-y-auto">
+                    <h4 className="text-sm font-bold text-purple-300 sticky top-0 bg-purple-900/90 py-2 -mt-2 -mx-4 px-4">
                       {language === 'ja' ? '抽出された商品情報' : '提取的商品信息'}
                     </h4>
+                    
+                    {/* 商品名 */}
                     <div>
                       <Label className="text-gray-400">{t.productName}</Label>
                       <Input
@@ -2490,7 +2492,9 @@ export default function BrandDetail() {
                         className="bg-black/60 border-purple-500/50 text-white mt-1"
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    
+                    {/* 価格情報 */}
+                    <div className="grid grid-cols-3 gap-3">
                       <div>
                         <Label className="text-gray-400">{t.listPrice}</Label>
                         <Input
@@ -2509,18 +2513,135 @@ export default function BrandDetail() {
                           className="bg-black/60 border-purple-500/50 text-white mt-1"
                         />
                       </div>
+                      <div>
+                        <Label className="text-gray-400">{language === 'ja' ? '割引率' : '折扣率'}</Label>
+                        <Input
+                          value={extractedProductData.discountRate || ''}
+                          onChange={(e) => setExtractedProductData({ ...extractedProductData, discountRate: e.target.value })}
+                          placeholder="例: 20%"
+                          className="bg-black/60 border-purple-500/50 text-white mt-1"
+                        />
+                      </div>
                     </div>
+                    
+                    {/* 発売日・在庫・商品コード */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <Label className="text-gray-400">{language === 'ja' ? '発売日' : '发售日'}</Label>
+                        <Input
+                          value={extractedProductData.releaseDate || ''}
+                          onChange={(e) => setExtractedProductData({ ...extractedProductData, releaseDate: e.target.value })}
+                          className="bg-black/60 border-purple-500/50 text-white mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-gray-400">{language === 'ja' ? '在庫数' : '库存'}</Label>
+                        <Input
+                          type="number"
+                          value={extractedProductData.stock || ''}
+                          onChange={(e) => setExtractedProductData({ ...extractedProductData, stock: parseInt(e.target.value) || 0 })}
+                          className="bg-black/60 border-purple-500/50 text-white mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-gray-400">{language === 'ja' ? '商品コード' : '商品编码'}</Label>
+                        <Input
+                          value={extractedProductData.productCode || ''}
+                          onChange={(e) => setExtractedProductData({ ...extractedProductData, productCode: e.target.value })}
+                          className="bg-black/60 border-purple-500/50 text-white mt-1"
+                        />
+                      </div>
+                    </div>
+                    
+                    {/* キャッチコピー */}
                     <div>
-                      <Label className="text-gray-400">{t.commissionRate}</Label>
-                      <Input
-                        value={extractedProductData.commissionRate || ''}
-                        onChange={(e) => setExtractedProductData({ ...extractedProductData, commissionRate: e.target.value })}
-                        placeholder="例: 15%"
+                      <Label className="text-gray-400">{language === 'ja' ? 'キャッチコピー' : '广告语'}</Label>
+                      <Textarea
+                        value={extractedProductData.catchCopy || ''}
+                        onChange={(e) => setExtractedProductData({ ...extractedProductData, catchCopy: e.target.value })}
                         className="bg-black/60 border-purple-500/50 text-white mt-1"
+                        rows={2}
                       />
                     </div>
+                    
+                    {/* 商品の特徴・セールスポイント */}
                     <div>
-                      <Label className="text-gray-400">{language === 'ja' ? '備考' : '备注'}</Label>
+                      <Label className="text-gray-400">{language === 'ja' ? '商品の特徴・セールスポイント' : '商品特点/卖点'}</Label>
+                      <Textarea
+                        value={extractedProductData.features || ''}
+                        onChange={(e) => setExtractedProductData({ ...extractedProductData, features: e.target.value })}
+                        className="bg-black/60 border-purple-500/50 text-white mt-1"
+                        rows={4}
+                      />
+                    </div>
+                    
+                    {/* 商品詳細 */}
+                    <div>
+                      <Label className="text-gray-400">{language === 'ja' ? '商品詳細（内容量・容量等）' : '商品详情（内容量/容量等）'}</Label>
+                      <Textarea
+                        value={extractedProductData.productDetails || ''}
+                        onChange={(e) => setExtractedProductData({ ...extractedProductData, productDetails: e.target.value })}
+                        className="bg-black/60 border-purple-500/50 text-white mt-1"
+                        rows={3}
+                      />
+                    </div>
+                    
+                    {/* 付属品・セット内容 */}
+                    <div>
+                      <Label className="text-gray-400">{language === 'ja' ? '付属品・セット内容' : '附件/套装内容'}</Label>
+                      <Textarea
+                        value={extractedProductData.accessories || ''}
+                        onChange={(e) => setExtractedProductData({ ...extractedProductData, accessories: e.target.value })}
+                        className="bg-black/60 border-purple-500/50 text-white mt-1"
+                        rows={2}
+                      />
+                    </div>
+                    
+                    {/* 配送情報・成果報酬 */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-gray-400">{language === 'ja' ? '配送情報' : '配送信息'}</Label>
+                        <Textarea
+                          value={extractedProductData.shippingInfo || ''}
+                          onChange={(e) => setExtractedProductData({ ...extractedProductData, shippingInfo: e.target.value })}
+                          className="bg-black/60 border-purple-500/50 text-white mt-1"
+                          rows={2}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-gray-400">{t.commissionRate}</Label>
+                        <Input
+                          value={extractedProductData.commissionRate || ''}
+                          onChange={(e) => setExtractedProductData({ ...extractedProductData, commissionRate: e.target.value })}
+                          placeholder="例: 15%"
+                          className="bg-black/60 border-purple-500/50 text-white mt-1"
+                        />
+                      </div>
+                    </div>
+                    
+                    {/* ターゲット層・使用方法 */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-gray-400">{language === 'ja' ? 'ターゲット層' : '目标人群'}</Label>
+                        <Input
+                          value={extractedProductData.targetAudience || ''}
+                          onChange={(e) => setExtractedProductData({ ...extractedProductData, targetAudience: e.target.value })}
+                          className="bg-black/60 border-purple-500/50 text-white mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-gray-400">{language === 'ja' ? '使用方法' : '使用方法'}</Label>
+                        <Input
+                          value={extractedProductData.usageMethod || ''}
+                          onChange={(e) => setExtractedProductData({ ...extractedProductData, usageMethod: e.target.value })}
+                          className="bg-black/60 border-purple-500/50 text-white mt-1"
+                        />
+                      </div>
+                    </div>
+                    
+                    {/* 備考 */}
+                    <div>
+                      <Label className="text-gray-400">{language === 'ja' ? '備考・その他' : '备注/其他'}</Label>
                       <Textarea
                         value={extractedProductData.remarks || ''}
                         onChange={(e) => setExtractedProductData({ ...extractedProductData, remarks: e.target.value })}

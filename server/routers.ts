@@ -1720,22 +1720,28 @@ ${JSON.stringify(teamSummary, null, 2)}`;
       )
       .mutation(async ({ input }) => {
         const systemPrompt = `あなたは商品提案書から情報を抽出する専門家です。
-提案書画像から以下の情報を正確に抽出してください。日本語のテキストを正確に読み取ってください。
+提案書画像から以下の情報をできるだけ詳細に抽出してください。日本語・中国語のテキストを正確に読み取ってください。
 
 抽出する情報：
-- productName: 商品名（必須）
+- productName: 商品名（必須、ブランド名も含む）
 - listPrice: 公式価格・定価（数値のみ、円記号なし）
 - specialPrice: ライブ価格・特別価格（数値のみ、円記号なし）
 - discountRate: 割引率（例: "20%"）
-- releaseDate: 発売日（YYYY-MM-DD形式）
+- releaseDate: 発売日（YYYY年MM月形式でも可）
 - stock: 在庫数（数値のみ）
 - productCode: 商品ID・コード品番
-- catchCopy: キャッチコピー・特徴
-- productDetails: 商品詳細（内容量、販売価格、生産ロット、使用期限など）
-- shippingInfo: 配送情報
-- remarks: その他の備考
+- catchCopy: キャッチコピー・商品の特徴を表すフレーズ
+- features: 商品の特徴・セールスポイント（箇条書きで複数あれば改行区切り）
+- productDetails: 商品詳細（内容量、容量、カプセル数、生産ロット、使用期限など）
+- accessories: 付属品・セット内容
+- shippingInfo: 配送情報（配送方法、配送期間、送料など）
+- commissionRate: 成果報酬・手数料率（例: "15%"）
+- targetAudience: ターゲット層・対象者
+- usageMethod: 使用方法・使い方
+- remarks: その他の備考・注意事項
 
-画像から読み取れない情報はnullとしてください。`;
+画像内のすべてのテキストを注意深く読み取り、該当するフィールドに割り当ててください。
+画像から読み取れない情報は空文字列としてください。`;
 
         try {
           console.log("[AI Product Extract] Starting extraction for image:", input.imageUrl);
@@ -1776,8 +1782,13 @@ ${JSON.stringify(teamSummary, null, 2)}`;
                     stock: { type: "number", description: "在庫数（不明な場合は0）" },
                     productCode: { type: "string", description: "商品ID・コード品番（不明な場合は空文字列）" },
                     catchCopy: { type: "string", description: "キャッチコピー・特徴（不明な場合は空文字列）" },
+                    features: { type: "string", description: "商品の特徴・セールスポイント（不明な場合は空文字列）" },
                     productDetails: { type: "string", description: "商品詳細（不明な場合は空文字列）" },
+                    accessories: { type: "string", description: "付属品・セット内容（不明な場合は空文字列）" },
                     shippingInfo: { type: "string", description: "配送情報（不明な場合は空文字列）" },
+                    commissionRate: { type: "string", description: "成果報酬・手数料率（不明な場合は空文字列）" },
+                    targetAudience: { type: "string", description: "ターゲット層・対象者（不明な場合は空文字列）" },
+                    usageMethod: { type: "string", description: "使用方法・使い方（不明な場合は空文字列）" },
                     remarks: { type: "string", description: "その他の備考（不明な場合は空文字列）" },
                   },
                   required: [
@@ -1789,8 +1800,13 @@ ${JSON.stringify(teamSummary, null, 2)}`;
                     "stock",
                     "productCode",
                     "catchCopy",
+                    "features",
                     "productDetails",
+                    "accessories",
                     "shippingInfo",
+                    "commissionRate",
+                    "targetAudience",
+                    "usageMethod",
                     "remarks",
                   ],
                   additionalProperties: false,
