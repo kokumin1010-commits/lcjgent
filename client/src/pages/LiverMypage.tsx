@@ -231,7 +231,7 @@ export default function LiverMypage() {
           <h1 className="text-xl font-bold text-yellow-500">マイページ</h1>
           <div className="flex items-center gap-2">
             <Link href="/livers">
-              <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+              <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white">
                 ライバーリスト
               </Button>
             </Link>
@@ -239,7 +239,7 @@ export default function LiverMypage() {
               variant="ghost"
               size="icon"
               onClick={() => logoutMutation.mutate()}
-              className="text-gray-400 hover:text-white"
+              className="text-gray-300 hover:text-white"
             >
               <LogOut className="h-5 w-5" />
             </Button>
@@ -275,7 +275,7 @@ export default function LiverMypage() {
                   href={liverInfo.tiktokAccount.startsWith('http') ? liverInfo.tiktokAccount : `https://www.tiktok.com/${liverInfo.tiktokAccount.replace('@', '')}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-gray-400 hover:text-white transition-colors"
+                  className="flex items-center gap-1 text-gray-300 hover:text-white transition-colors"
                   title="TikTok"
                 >
                   <SiTiktok className="w-5 h-5" />
@@ -286,7 +286,7 @@ export default function LiverMypage() {
                   href={liverInfo.instagramAccount.startsWith('http') ? liverInfo.instagramAccount : `https://www.instagram.com/${liverInfo.instagramAccount.replace('@', '')}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-gray-400 hover:text-pink-400 transition-colors"
+                  className="flex items-center gap-1 text-gray-300 hover:text-pink-400 transition-colors"
                   title="Instagram"
                 >
                   <SiInstagram className="w-5 h-5" />
@@ -297,7 +297,7 @@ export default function LiverMypage() {
                   href={liverInfo.youtubeAccount.startsWith('http') ? liverInfo.youtubeAccount : `https://www.youtube.com/${liverInfo.youtubeAccount}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-gray-400 hover:text-red-500 transition-colors"
+                  className="flex items-center gap-1 text-gray-300 hover:text-red-500 transition-colors"
                   title="YouTube"
                 >
                   <SiYoutube className="w-5 h-5" />
@@ -308,7 +308,7 @@ export default function LiverMypage() {
                   href={liverInfo.otherAccount.startsWith('http') ? liverInfo.otherAccount : `https://${liverInfo.otherAccount}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-gray-400 hover:text-blue-400 transition-colors"
+                  className="flex items-center gap-1 text-gray-300 hover:text-blue-400 transition-colors"
                   title="Other"
                 >
                   <Link2 className="w-5 h-5" />
@@ -321,7 +321,7 @@ export default function LiverMypage() {
             variant="ghost"
             size="sm"
             onClick={() => navigate("/liver/profile")}
-            className="mt-2 text-gray-400 hover:text-white"
+            className="mt-2 text-gray-300 hover:text-white"
           >
             <Settings className="h-4 w-4 mr-1" />
             プロフィール編集
@@ -333,7 +333,7 @@ export default function LiverMypage() {
               <SelectTrigger className="w-48 bg-yellow-500 text-black border-0 font-medium">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-gray-900 border-gray-700">
+              <SelectContent className="bg-white border-gray-300 text-black">
                 {monthOptions.map((opt) => (
                   <SelectItem key={opt.value} value={opt.value}>
                     {opt.label} 実績
@@ -346,7 +346,7 @@ export default function LiverMypage() {
 
         {/* Main Stats Cards */}
         <div className="grid grid-cols-2 gap-4">
-          <Card className="bg-gray-900 border-gray-800">
+          <Card className="bg-slate-800 border-slate-700">
             <CardContent className="p-4 text-center">
               <div className="flex items-center justify-center gap-2 mb-2">
                 <DollarSign className="h-5 w-5 text-yellow-500" />
@@ -361,10 +361,10 @@ export default function LiverMypage() {
                 ¥{monthlyStats.sales.toLocaleString()}
               </p>
               <div className="mt-1 h-1 bg-yellow-500 rounded" />
-              <p className="mt-1 text-sm text-gray-400">月間売上</p>
+              <p className="mt-1 text-sm text-gray-300">月間売上</p>
             </CardContent>
           </Card>
-          <Card className="bg-gray-900 border-gray-800">
+          <Card className="bg-slate-800 border-slate-700">
             <CardContent className="p-4 text-center">
               <div className="flex items-center justify-center gap-2 mb-2">
                 <Clock className="h-5 w-5 text-yellow-500" />
@@ -373,53 +373,53 @@ export default function LiverMypage() {
                 {monthlyStats.hours}h
               </p>
               <div className="mt-1 h-1 bg-yellow-500 rounded" />
-              <p className="mt-1 text-sm text-gray-400">配信時間</p>
+              <p className="mt-1 text-sm text-gray-300">配信時間</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Detailed Stats */}
         <div className="grid grid-cols-4 gap-3">
-          <Card className="bg-gray-900/50 border-gray-800">
+          <Card className="bg-slate-800 border-slate-700">
             <CardContent className="p-3 text-center">
               <Video className="h-4 w-4 text-red-500 mx-auto mb-1" />
               <p className="text-xl font-bold text-white">{monthlyStats.count}</p>
-              <p className="text-xs text-gray-400">配信回数</p>
+              <p className="text-xs text-gray-300">配信回数</p>
             </CardContent>
           </Card>
-          <Card className="bg-gray-900/50 border-gray-800">
+          <Card className="bg-slate-800 border-slate-700">
             <CardContent className="p-3 text-center">
               <Target className="h-4 w-4 text-blue-500 mx-auto mb-1" />
               <p className="text-xl font-bold text-white">
                 ¥{monthlyStats.avgSales.toLocaleString()}
               </p>
-              <p className="text-xs text-gray-400">平均売上</p>
+              <p className="text-xs text-gray-300">平均売上</p>
             </CardContent>
           </Card>
-          <Card className="bg-gray-900/50 border-gray-800">
+          <Card className="bg-slate-800 border-slate-700">
             <CardContent className="p-3 text-center">
               <Eye className="h-4 w-4 text-green-500 mx-auto mb-1" />
               <p className="text-xl font-bold text-white">
                 {monthlyStats.viewerCount.toLocaleString()}
               </p>
-              <p className="text-xs text-gray-400">視聴者数</p>
+              <p className="text-xs text-gray-300">視聴者数</p>
             </CardContent>
           </Card>
-          <Card className="bg-gray-900/50 border-gray-800">
+          <Card className="bg-slate-800 border-slate-700">
             <CardContent className="p-3 text-center">
               <ShoppingCart className="h-4 w-4 text-purple-500 mx-auto mb-1" />
               <p className="text-xl font-bold text-white">
                 {monthlyStats.orderCount.toLocaleString()}
               </p>
-              <p className="text-xs text-gray-400">注文数</p>
+              <p className="text-xs text-gray-300">注文数</p>
             </CardContent>
           </Card>
         </div>
 
         {/* All-time Stats */}
-        <Card className="bg-gradient-to-r from-gray-900 to-gray-800 border-gray-700">
+        <Card className="bg-gradient-to-r from-slate-800 to-slate-700 border-slate-600">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-gray-400 flex items-center gap-2">
+            <CardTitle className="text-sm text-gray-300 flex items-center gap-2">
               <Award className="h-4 w-4 text-yellow-500" />
               累計実績
             </CardTitle>
@@ -429,19 +429,19 @@ export default function LiverMypage() {
               <p className="text-lg font-bold text-yellow-500">
                 ¥{allTimeStats.totalSales.toLocaleString()}
               </p>
-              <p className="text-xs text-gray-400">総売上</p>
+              <p className="text-xs text-gray-300">総売上</p>
             </div>
             <div className="text-center">
               <p className="text-lg font-bold text-yellow-500">
                 {allTimeStats.totalHours}h
               </p>
-              <p className="text-xs text-gray-400">総配信時間</p>
+              <p className="text-xs text-gray-300">総配信時間</p>
             </div>
             <div className="text-center">
               <p className="text-lg font-bold text-yellow-500">
                 {allTimeStats.totalCount}
               </p>
-              <p className="text-xs text-gray-400">総配信回数</p>
+              <p className="text-xs text-gray-300">総配信回数</p>
             </div>
           </CardContent>
         </Card>
@@ -472,10 +472,10 @@ export default function LiverMypage() {
               配信履歴
             </h3>
             <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-              <SelectTrigger className="w-32 bg-transparent border-gray-700 text-sm">
+              <SelectTrigger className="w-32 bg-slate-700 border-slate-600 text-white text-sm">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-gray-900 border-gray-700">
+              <SelectContent className="bg-white border-gray-300 text-black">
                 {monthOptions.map((opt) => (
                   <SelectItem key={opt.value} value={opt.value}>
                     {opt.label}
@@ -490,8 +490,8 @@ export default function LiverMypage() {
               <div className="w-6 h-6 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : filteredLivestreams.length === 0 ? (
-            <Card className="bg-gray-900 border-gray-800">
-              <CardContent className="p-8 text-center text-gray-400">
+            <Card className="bg-slate-800 border-slate-700">
+              <CardContent className="p-8 text-center text-gray-300">
                 <Video className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>配信履歴がありません。</p>
                 <p className="text-sm mt-2">「配信内容の記録」から配信を記録しましょう！</p>
@@ -521,7 +521,7 @@ export default function LiverMypage() {
                 return (
                   <Card 
                     key={ls.id} 
-                    className="bg-gray-900 border-gray-800 hover:border-gray-700 transition-colors cursor-pointer"
+                    className="bg-slate-800 border-slate-700 hover:border-yellow-500 hover:bg-slate-700 transition-colors cursor-pointer"
                     onClick={() => navigate(`/livestreams/${ls.id}`)}
                   >
                     <CardContent className="p-4">
@@ -545,7 +545,7 @@ export default function LiverMypage() {
                                 </Badge>
                               )}
                             </div>
-                            <p className="text-sm text-gray-400">
+                            <p className="text-sm text-gray-300">
                               {startDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
                               {endDate && ` - ${endDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}`}
                               {duration > 0 && ` (${duration}h)`}
@@ -557,7 +557,7 @@ export default function LiverMypage() {
                             ¥{(ls.salesAmount || ls.gmv || 0).toLocaleString()}
                           </p>
                           {ls.viewerCount && (
-                            <p className="text-xs text-gray-400">
+                            <p className="text-xs text-gray-300">
                               <Eye className="h-3 w-3 inline mr-1" />
                               {ls.viewerCount.toLocaleString()}
                             </p>
@@ -573,7 +573,7 @@ export default function LiverMypage() {
 
           {filteredLivestreams.length > 10 && (
             <div className="mt-4 text-center">
-              <Button variant="outline" className="border-gray-700 text-gray-400">
+              <Button variant="outline" className="border-slate-600 text-white bg-slate-700 hover:bg-slate-600">
                 VIEW MORE
               </Button>
             </div>
