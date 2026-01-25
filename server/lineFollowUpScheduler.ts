@@ -8,16 +8,72 @@
 import { getActiveLineFollowUps, updateLineFollowUpStatus, getLineUserByLineId, updateLineUserLastMessage } from "./db";
 import { pushMessage } from "./line";
 
+// Business hours configuration (JST)
+const BUSINESS_HOURS = {
+  start: 9,  // 9:00 AM
+  end: 18,   // 6:00 PM
+};
+
+/**
+ * Get current JST date info
+ */
+function getJSTDateInfo(): { hour: number; dayOfWeek: number } {
+  const now = new Date();
+  const jstOffset = 9 * 60; // JST is UTC+9
+  const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+  const jstMinutes = utcMinutes + jstOffset;
+  const jstHour = Math.floor((jstMinutes % (24 * 60)) / 60);
+  
+  // Calculate JST day of week
+  const jstDate = new Date(now.getTime() + jstOffset * 60 * 1000);
+  const dayOfWeek = jstDate.getUTCDay(); // 0 = Sunday, 6 = Saturday
+  
+  return { hour: jstHour, dayOfWeek };
+}
+
+/**
+ * Check if current time is within business hours (JST)
+ * Business hours: Monday-Friday 9:00-18:00 JST
+ * No messages on weekends (Saturday/Sunday)
+ */
+function isWithinBusinessHours(): boolean {
+  const { hour, dayOfWeek } = getJSTDateInfo();
+  
+  // Check if weekend (Saturday = 6, Sunday = 0)
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    return false;
+  }
+  
+  // Check if within business hours (9:00-18:00)
+  return hour >= BUSINESS_HOURS.start && hour < BUSINESS_HOURS.end;
+}
+
 /**
  * Check and send LINE follow-up messages
  * This function should be called periodically (e.g., every hour)
+ * Only sends during business hours: Mon-Fri 9:00-18:00 JST
  */
 export async function checkAndSendLineFollowUps(): Promise<{
   processed: number;
   sent: number;
   errors: number;
+  skippedOutsideBusinessHours?: boolean;
 }> {
   console.log("[LINE Follow-up] Starting follow-up check...");
+  
+  // Check if within business hours (Mon-Fri 9:00-18:00 JST)
+  if (!isWithinBusinessHours()) {
+    const { hour, dayOfWeek } = getJSTDateInfo();
+    const dayNames = ["日", "月", "火", "水", "木", "金", "土"];
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    console.log(`[LINE Follow-up] Outside business hours. Current: ${dayNames[dayOfWeek]}曜日 ${hour}:00 JST. ${isWeekend ? "土日は送信しません。" : "営業時間外(9:00-18:00)です。"} Skipping.`);
+    return {
+      processed: 0,
+      sent: 0,
+      errors: 0,
+      skippedOutsideBusinessHours: true,
+    };
+  }
   
   const stats = {
     processed: 0,
