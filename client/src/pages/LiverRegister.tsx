@@ -41,15 +41,21 @@ export default function LiverRegister() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const utils = trpc.useUtils();
+  
   const registerMutation = trpc.liver.register.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
+      // キャッシュを無効化して新しいセッションを反映
+      await utils.liver.me.invalidate();
+      
       addBotMessage("登録完了！🎉");
       setTimeout(() => {
         addBotMessage(`${name}さん、これからよろしくね！✨`);
         setTimeout(() => {
           addBotMessage("マイページに移動するね！");
           setTimeout(() => {
-            navigate("/liver/mypage");
+            // ページをリロードしてCookieを確実に反映
+            window.location.href = "/liver/mypage";
           }, 1500);
         }, 1500);
       }, 1000);

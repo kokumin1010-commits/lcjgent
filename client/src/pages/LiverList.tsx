@@ -230,6 +230,41 @@ export default function LiverList() {
           </CardContent>
         </Card>
         
+        {/* All Livers List */}
+        <Card className="bg-gray-900/50 border-gray-800">
+          <CardContent className="p-4">
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <Users className="w-5 h-5 text-green-500" />
+              {tr.liverList}
+            </h2>
+            
+            {livers && livers.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {livers.map((liver) => (
+                  <Link key={liver.id} href={`/livers/${liver.id}`}>
+                    <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800/50 transition-colors cursor-pointer border border-gray-800">
+                      <Avatar className="w-10 h-10">
+                        <AvatarImage src={liver.avatarUrl || undefined} />
+                        <AvatarFallback className="bg-gray-700 text-white" style={{ backgroundColor: liver.color || undefined }}>
+                          {liver.name?.charAt(0) || "?"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{liver.name}</p>
+                        <p className="text-xs text-gray-500">
+                          {liver.livestreamCount > 0 ? `${liver.livestreamCount}回配信` : "配信なし"}
+                        </p>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-center py-4">{tr.noData}</p>
+            )}
+          </CardContent>
+        </Card>
+        
         {/* Duration Ranking */}
         <Card className="bg-gray-900/50 border-gray-800">
           <CardContent className="p-4">
