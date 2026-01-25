@@ -64,6 +64,8 @@ export default function LiverRecord() {
     },
   });
   
+  const uploadScreenshotMutation = trpc.liverManagement.uploadScreenshot.useMutation();
+  
   const translations = {
     ja: {
       title: "配信内容の記録",
@@ -187,28 +189,26 @@ export default function LiverRecord() {
       // Upload screenshot if exists
       let screenshotUrl: string | undefined;
       if (screenshotFile) {
-        // Convert to base64 and upload
+        // Convert to base64 and upload via tRPC
         const reader = new FileReader();
         const base64Promise = new Promise<string>((resolve) => {
-          reader.onloadend = () => resolve(reader.result as string);
+          reader.onloadend = () => {
+            const result = reader.result as string;
+            // Remove data:image/xxx;base64, prefix
+            const base64 = result.split(",")[1];
+            resolve(base64);
+          };
           reader.readAsDataURL(screenshotFile);
         });
         const base64 = await base64Promise;
         
-        // Upload via API
-        const uploadResult = await fetch("/api/upload", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            file: base64,
-            filename: screenshotFile.name,
-          }),
+        // Upload via tRPC mutation
+        const uploadResult = await uploadScreenshotMutation.mutateAsync({
+          base64,
+          filename: screenshotFile.name,
+          liverId,
         });
-        
-        if (uploadResult.ok) {
-          const { url } = await uploadResult.json();
-          screenshotUrl = url;
-        }
+        screenshotUrl = uploadResult.url;
       }
       
       // Create livestream record

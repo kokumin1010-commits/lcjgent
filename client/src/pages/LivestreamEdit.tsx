@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, Save, Upload, X } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 
@@ -35,6 +35,10 @@ export default function LivestreamEdit() {
     remarks: "",
     screenshotUrl: "",
   });
+
+  const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
+  const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const { data: livestream, isLoading } = trpc.liverManagement.getLivestreamDetail.useQuery({
     id: livestreamId,
@@ -66,6 +70,11 @@ export default function LivestreamEdit() {
         remarks: livestream.remarks || "",
         screenshotUrl: livestream.screenshotUrl || "",
       });
+      
+      // Set existing screenshot as preview
+      if (livestream.screenshotUrl) {
+        setScreenshotPreview(livestream.screenshotUrl);
+      }
     }
   }, [livestream]);
 
@@ -78,6 +87,8 @@ export default function LivestreamEdit() {
       toast.error(error.message);
     },
   });
+
+  const uploadScreenshotMutation = trpc.liverManagement.uploadScreenshot.useMutation();
 
   const translations = {
     ja: {
@@ -98,9 +109,11 @@ export default function LivestreamEdit() {
       other: "その他",
       reason: "理由",
       memo: "メモ",
-      screenshotUrl: "スクリーンショットURL",
+      screenshot: "スクリーンショット",
+      uploadImage: "画像をアップロード",
       back: "戻る",
       save: "保存",
+      saving: "保存中...",
       notSet: "未設定",
     },
     zh: {
@@ -121,30 +134,83 @@ export default function LivestreamEdit() {
       other: "其他",
       reason: "原因",
       memo: "备注",
-      screenshotUrl: "截图URL",
+      screenshot: "截图",
+      uploadImage: "上传图片",
       back: "返回",
       save: "保存",
+      saving: "保存中...",
       notSet: "未设置",
     },
   };
 
   const tr = translations[language as keyof typeof translations] || translations.ja;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleScreenshotChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setScreenshotFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setScreenshotPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeScreenshot = () => {
+    setScreenshotFile(null);
+    setScreenshotPreview(null);
+    setFormData({ ...formData, screenshotUrl: "" });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    updateMutation.mutate({
-      id: livestreamId,
-      brandId: formData.brandId,
-      livestreamDate: formData.livestreamDate,
-      livestreamEndTime: formData.livestreamEndTime || null,
-      salesAmount: formData.salesAmount ? parseInt(formData.salesAmount, 10) : null,
-      result: formData.result || null,
-      impactFactor: formData.impactFactor || null,
-      resultReason: formData.resultReason || null,
-      remarks: formData.remarks || null,
-      screenshotUrl: formData.screenshotUrl || null,
-    });
+    setIsUploading(true);
+
+    try {
+      let screenshotUrl = formData.screenshotUrl;
+
+      // Upload new screenshot if selected
+      if (screenshotFile) {
+        const reader = new FileReader();
+        const base64Promise = new Promise<string>((resolve) => {
+          reader.onloadend = () => {
+            const result = reader.result as string;
+            // Remove data:image/xxx;base64, prefix
+            const base64 = result.split(",")[1];
+            resolve(base64);
+          };
+          reader.readAsDataURL(screenshotFile);
+        });
+        const base64 = await base64Promise;
+
+        // Upload via tRPC mutation
+        const uploadResult = await uploadScreenshotMutation.mutateAsync({
+          base64,
+          filename: screenshotFile.name,
+          liverId: livestream?.liverId ?? undefined,
+        });
+        screenshotUrl = uploadResult.url;
+      }
+
+      updateMutation.mutate({
+        id: livestreamId,
+        brandId: formData.brandId,
+        livestreamDate: formData.livestreamDate,
+        livestreamEndTime: formData.livestreamEndTime || null,
+        salesAmount: formData.salesAmount ? parseInt(formData.salesAmount, 10) : null,
+        result: formData.result || null,
+        impactFactor: formData.impactFactor || null,
+        resultReason: formData.resultReason || null,
+        remarks: formData.remarks || null,
+        screenshotUrl: screenshotUrl || null,
+      });
+    } catch (error) {
+      console.error("Failed to update livestream:", error);
+      toast.error("更新に失敗しました");
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   if (isLoading) {
@@ -313,27 +379,35 @@ export default function LivestreamEdit() {
                 />
               </div>
 
-              {/* Screenshot URL */}
+              {/* Screenshot Upload */}
               <div className="space-y-2">
-                <Label className="text-red-500">{tr.screenshotUrl}</Label>
-                <Input
-                  type="url"
-                  value={formData.screenshotUrl}
-                  onChange={(e) => setFormData({ ...formData, screenshotUrl: e.target.value })}
-                  placeholder="https://..."
-                  className="bg-gray-800 border-gray-700 text-white"
-                />
-                {formData.screenshotUrl && (
-                  <div className="mt-2 border border-gray-700 rounded-lg overflow-hidden">
+                <Label className="text-red-500">{tr.screenshot}</Label>
+                {screenshotPreview ? (
+                  <div className="relative border border-gray-700 rounded-lg overflow-hidden">
                     <img 
-                      src={formData.screenshotUrl} 
-                      alt="プレビュー"
-                      className="w-full h-auto max-h-48 object-contain"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
+                      src={screenshotPreview} 
+                      alt="Screenshot preview"
+                      className="w-full h-auto max-h-64 object-contain"
                     />
+                    <button
+                      type="button"
+                      onClick={removeScreenshot}
+                      className="absolute top-2 right-2 bg-red-600 rounded-full p-1 hover:bg-red-700"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-700 rounded-lg cursor-pointer hover:border-gray-500 transition-colors">
+                    <Upload className="w-8 h-8 text-gray-500 mb-2" />
+                    <span className="text-gray-500">{tr.uploadImage}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleScreenshotChange}
+                      className="hidden"
+                    />
+                  </label>
                 )}
               </div>
 
@@ -349,11 +423,11 @@ export default function LivestreamEdit() {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={updateMutation.isPending}
+                  disabled={updateMutation.isPending || isUploading}
                   className="bg-red-600 hover:bg-red-700 px-8"
                 >
                   <Save className="w-4 h-4 mr-2" />
-                  {updateMutation.isPending ? "保存中..." : tr.save}
+                  {updateMutation.isPending || isUploading ? tr.saving : tr.save}
                 </Button>
               </div>
             </form>

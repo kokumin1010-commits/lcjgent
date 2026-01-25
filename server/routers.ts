@@ -3969,6 +3969,24 @@ ${conversationText}
         await deleteBrandLivestream(input.id);
         return { success: true };
       }),
+
+    // Upload screenshot for livestream
+    uploadScreenshot: protectedProcedure
+      .input(z.object({
+        base64: z.string(),
+        filename: z.string(),
+        liverId: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const buffer = Buffer.from(input.base64, "base64");
+        const ext = input.filename.split(".").pop() || "png";
+        const timestamp = Date.now();
+        const key = `livestreams/${input.liverId || ctx.user.id}/${timestamp}-${nanoid()}.${ext}`;
+        const contentType = `image/${ext === "jpg" ? "jpeg" : ext}`;
+        
+        const { url } = await storagePut(key, buffer, contentType);
+        return { url, key };
+      }),
   }),
 });
 

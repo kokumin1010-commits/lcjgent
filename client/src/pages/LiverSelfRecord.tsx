@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Upload, Video, Calendar, DollarSign, Clock } from "lucide-react";
+import { ArrowLeft, Upload, Video, Calendar, DollarSign, Clock, X } from "lucide-react";
 import { toast } from "sonner";
 
 export default function LiverSelfRecord() {
@@ -29,8 +29,10 @@ export default function LiverSelfRecord() {
     impactFactor: "",
     resultReason: "",
     remarks: "",
-    screenshotUrl: "",
   });
+  
+  const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
+  const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const createLivestreamMutation = trpc.liverManagement.createLivestream.useMutation({
@@ -44,7 +46,26 @@ export default function LiverSelfRecord() {
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const uploadScreenshotMutation = trpc.liverManagement.uploadScreenshot.useMutation();
+
+  const handleScreenshotChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setScreenshotFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setScreenshotPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeScreenshot = () => {
+    setScreenshotFile(null);
+    setScreenshotPreview(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!liverInfo?.id) {
@@ -64,23 +85,53 @@ export default function LiverSelfRecord() {
 
     setIsSubmitting(true);
 
-    const livestreamDateTime = new Date(`${formData.livestreamDate}T${formData.livestreamStartTime}`);
-    const endDateTime = formData.livestreamEndTime 
-      ? new Date(`${formData.livestreamDate}T${formData.livestreamEndTime}`)
-      : undefined;
+    try {
+      // Upload screenshot if exists
+      let screenshotUrl: string | undefined;
+      if (screenshotFile) {
+        const reader = new FileReader();
+        const base64Promise = new Promise<string>((resolve) => {
+          reader.onloadend = () => {
+            const result = reader.result as string;
+            // Remove data:image/xxx;base64, prefix
+            const base64 = result.split(",")[1];
+            resolve(base64);
+          };
+          reader.readAsDataURL(screenshotFile);
+        });
+        const base64 = await base64Promise;
 
-    createLivestreamMutation.mutate({
-      brandId: parseInt(formData.brandId),
-      liverId: liverInfo.id,
-      livestreamDate: livestreamDateTime.toISOString(),
-      livestreamEndTime: endDateTime?.toISOString(),
-      salesAmount: formData.salesAmount ? parseInt(formData.salesAmount) : undefined,
-      result: formData.result as "成功" | "失敗" | undefined,
-      impactFactor: formData.impactFactor as "構成" | "商品" | "ライバー" | "広告" | "その他" | undefined,
-      resultReason: formData.resultReason || undefined,
-      remarks: formData.remarks || undefined,
-      screenshotUrl: formData.screenshotUrl || undefined,
-    });
+        // Upload via tRPC mutation
+        const uploadResult = await uploadScreenshotMutation.mutateAsync({
+          base64,
+          filename: screenshotFile.name,
+          liverId: liverInfo.id,
+        });
+        screenshotUrl = uploadResult.url;
+      }
+
+      const livestreamDateTime = new Date(`${formData.livestreamDate}T${formData.livestreamStartTime}`);
+      const endDateTime = formData.livestreamEndTime 
+        ? new Date(`${formData.livestreamDate}T${formData.livestreamEndTime}`)
+        : undefined;
+
+      createLivestreamMutation.mutate({
+        brandId: parseInt(formData.brandId),
+        liverId: liverInfo.id,
+        livestreamDate: livestreamDateTime.toISOString(),
+        livestreamEndTime: endDateTime?.toISOString(),
+        salesAmount: formData.salesAmount ? parseInt(formData.salesAmount) : undefined,
+        result: formData.result as "成功" | "失敗" | undefined,
+        impactFactor: formData.impactFactor as "構成" | "商品" | "ライバー" | "広告" | "その他" | undefined,
+        resultReason: formData.resultReason || undefined,
+        remarks: formData.remarks || undefined,
+        screenshotUrl,
+      });
+    } catch (error) {
+      console.error("Failed to save livestream:", error);
+      toast.error("保存に失敗しました");
+      setIsSubmitting(false);
+    }
   };
 
   if (isLoadingLiver) {
@@ -290,7 +341,7 @@ export default function LiverSelfRecord() {
             </CardContent>
           </Card>
 
-          {/* Screenshot URL */}
+          {/* Screenshot Upload */}
           <Card className="bg-gray-900 border-gray-800">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2 text-white">
@@ -299,16 +350,33 @@ export default function LiverSelfRecord() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <Input
-                type="url"
-                value={formData.screenshotUrl}
-                onChange={(e) => setFormData({ ...formData, screenshotUrl: e.target.value })}
-                placeholder="スクリーンショットのURLを入力..."
-                className="bg-gray-800 border-gray-700 text-white"
-              />
-              <p className="text-xs text-gray-500 mt-2">
-                画像をアップロードしてURLを貼り付けてください
-              </p>
+              {screenshotPreview ? (
+                <div className="relative border border-gray-700 rounded-lg overflow-hidden">
+                  <img 
+                    src={screenshotPreview} 
+                    alt="Screenshot preview"
+                    className="w-full h-auto max-h-64 object-contain"
+                  />
+                  <button
+                    type="button"
+                    onClick={removeScreenshot}
+                    className="absolute top-2 right-2 bg-red-600 rounded-full p-1 hover:bg-red-700"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-700 rounded-lg cursor-pointer hover:border-gray-500 transition-colors">
+                  <Upload className="w-8 h-8 text-gray-500 mb-2" />
+                  <span className="text-gray-500">画像をアップロード</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleScreenshotChange}
+                    className="hidden"
+                  />
+                </label>
+              )}
             </CardContent>
           </Card>
 
