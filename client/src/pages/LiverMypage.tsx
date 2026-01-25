@@ -15,9 +15,16 @@ import {
   LogOut, 
   ChevronRight,
   TrendingUp,
+  TrendingDown,
   Video,
   Home,
-  User
+  User,
+  BarChart3,
+  Eye,
+  ShoppingCart,
+  Target,
+  Award,
+  Flame
 } from "lucide-react";
 
 export default function LiverMypage() {
@@ -46,17 +53,78 @@ export default function LiverMypage() {
 
   // Calculate monthly stats
   const monthlyStats = useMemo(() => {
-    if (!livestreams) return { sales: 0, hours: 0, count: 0 };
+    if (!livestreams) return { sales: 0, gmv: 0, hours: 0, count: 0, avgSales: 0, viewerCount: 0, orderCount: 0 };
     
     const [year, month] = selectedMonth.split("-").map(Number);
-    type LivestreamRecord = { livestreamDate: string | Date; livestreamEndTime?: string | Date | null; salesAmount?: number | null };
+    type LivestreamRecord = { 
+      livestreamDate: string | Date; 
+      livestreamEndTime?: string | Date | null; 
+      salesAmount?: number | null;
+      gmv?: number | null;
+      duration?: number | null;
+      viewerCount?: number | null;
+      orderCount?: number | null;
+    };
     const filtered = livestreams.filter((ls: LivestreamRecord) => {
       const date = new Date(ls.livestreamDate);
       return date.getFullYear() === year && date.getMonth() + 1 === month;
     });
 
     const sales = filtered.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.salesAmount || 0), 0);
+    const gmv = filtered.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.gmv || 0), 0);
+    const viewerCount = filtered.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.viewerCount || 0), 0);
+    const orderCount = filtered.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.orderCount || 0), 0);
+    
+    // Calculate total hours from duration (in minutes) or from start/end times
     const hours = filtered.reduce((sum: number, ls: LivestreamRecord) => {
+      if (ls.duration) {
+        return sum + (ls.duration / 60);
+      }
+      if (ls.livestreamDate && ls.livestreamEndTime) {
+        const start = new Date(ls.livestreamDate).getTime();
+        const end = new Date(ls.livestreamEndTime).getTime();
+        return sum + (end - start) / (1000 * 60 * 60);
+      }
+      return sum;
+    }, 0);
+
+    const avgSales = filtered.length > 0 ? Math.round(sales / filtered.length) : 0;
+
+    return { 
+      sales, 
+      gmv,
+      hours: Math.round(hours * 10) / 10, 
+      count: filtered.length,
+      avgSales,
+      viewerCount,
+      orderCount
+    };
+  }, [livestreams, selectedMonth]);
+
+  // Calculate previous month stats for comparison
+  const previousMonthStats = useMemo(() => {
+    if (!livestreams) return { sales: 0, hours: 0, count: 0 };
+    
+    const [year, month] = selectedMonth.split("-").map(Number);
+    const prevMonth = month === 1 ? 12 : month - 1;
+    const prevYear = month === 1 ? year - 1 : year;
+    
+    type LivestreamRecord = { 
+      livestreamDate: string | Date; 
+      livestreamEndTime?: string | Date | null; 
+      salesAmount?: number | null;
+      duration?: number | null;
+    };
+    const filtered = livestreams.filter((ls: LivestreamRecord) => {
+      const date = new Date(ls.livestreamDate);
+      return date.getFullYear() === prevYear && date.getMonth() + 1 === prevMonth;
+    });
+
+    const sales = filtered.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.salesAmount || 0), 0);
+    const hours = filtered.reduce((sum: number, ls: LivestreamRecord) => {
+      if (ls.duration) {
+        return sum + (ls.duration / 60);
+      }
       if (ls.livestreamDate && ls.livestreamEndTime) {
         const start = new Date(ls.livestreamDate).getTime();
         const end = new Date(ls.livestreamEndTime).getTime();
@@ -67,6 +135,11 @@ export default function LiverMypage() {
 
     return { sales, hours: Math.round(hours * 10) / 10, count: filtered.length };
   }, [livestreams, selectedMonth]);
+
+  // Calculate growth percentage
+  const salesGrowth = previousMonthStats.sales > 0 
+    ? Math.round(((monthlyStats.sales - previousMonthStats.sales) / previousMonthStats.sales) * 100)
+    : monthlyStats.sales > 0 ? 100 : 0;
 
   // Filter livestreams by selected month
   const filteredLivestreams = useMemo(() => {
@@ -93,6 +166,37 @@ export default function LiverMypage() {
     }
     return options;
   }, []);
+
+  // Calculate all-time stats
+  const allTimeStats = useMemo(() => {
+    if (!livestreams) return { totalSales: 0, totalHours: 0, totalCount: 0 };
+    
+    type LivestreamRecord = { 
+      livestreamDate: string | Date; 
+      livestreamEndTime?: string | Date | null; 
+      salesAmount?: number | null;
+      duration?: number | null;
+    };
+    
+    const totalSales = livestreams.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.salesAmount || 0), 0);
+    const totalHours = livestreams.reduce((sum: number, ls: LivestreamRecord) => {
+      if (ls.duration) {
+        return sum + (ls.duration / 60);
+      }
+      if (ls.livestreamDate && ls.livestreamEndTime) {
+        const start = new Date(ls.livestreamDate).getTime();
+        const end = new Date(ls.livestreamEndTime).getTime();
+        return sum + (end - start) / (1000 * 60 * 60);
+      }
+      return sum;
+    }, 0);
+
+    return { 
+      totalSales, 
+      totalHours: Math.round(totalHours * 10) / 10, 
+      totalCount: livestreams.length 
+    };
+  }, [livestreams]);
 
   if (isLoadingLiver) {
     return (
@@ -177,52 +281,107 @@ export default function LiverMypage() {
           </div>
         </div>
 
-        {/* Stats Cards */}
+        {/* Main Stats Cards */}
         <div className="grid grid-cols-2 gap-4">
           <Card className="bg-gray-900 border-gray-800">
             <CardContent className="p-4 text-center">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <DollarSign className="h-5 w-5 text-yellow-500" />
+                {salesGrowth !== 0 && (
+                  <Badge className={salesGrowth > 0 ? "bg-green-600" : "bg-red-600"}>
+                    {salesGrowth > 0 ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
+                    {salesGrowth > 0 ? "+" : ""}{salesGrowth}%
+                  </Badge>
+                )}
+              </div>
               <p className="text-3xl font-bold text-white">
                 ¥{monthlyStats.sales.toLocaleString()}
               </p>
               <div className="mt-1 h-1 bg-yellow-500 rounded" />
-              <p className="mt-1 text-sm text-gray-400">売上</p>
+              <p className="mt-1 text-sm text-gray-400">月間売上</p>
             </CardContent>
           </Card>
           <Card className="bg-gray-900 border-gray-800">
             <CardContent className="p-4 text-center">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Clock className="h-5 w-5 text-yellow-500" />
+              </div>
               <p className="text-3xl font-bold text-white">
-                {monthlyStats.hours}
+                {monthlyStats.hours}h
               </p>
               <div className="mt-1 h-1 bg-yellow-500 rounded" />
-              <p className="mt-1 text-sm text-gray-400">累計配信時間</p>
+              <p className="mt-1 text-sm text-gray-400">配信時間</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Selected Month Stats */}
-        <div className="text-center text-gray-400 text-sm">
-          選択月実績（{monthOptions.find(o => o.value === selectedMonth)?.label}）
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <Card className="bg-gray-900 border-gray-800">
-            <CardContent className="p-4 text-center">
-              <p className="text-2xl font-bold text-white">
-                ¥{monthlyStats.sales.toLocaleString()}
-              </p>
-              <div className="mt-1 h-1 bg-yellow-500 rounded" />
-              <p className="mt-1 text-sm text-gray-400">売上</p>
+        {/* Detailed Stats */}
+        <div className="grid grid-cols-4 gap-3">
+          <Card className="bg-gray-900/50 border-gray-800">
+            <CardContent className="p-3 text-center">
+              <Video className="h-4 w-4 text-red-500 mx-auto mb-1" />
+              <p className="text-xl font-bold text-white">{monthlyStats.count}</p>
+              <p className="text-xs text-gray-400">配信回数</p>
             </CardContent>
           </Card>
-          <Card className="bg-gray-900 border-gray-800">
-            <CardContent className="p-4 text-center">
-              <p className="text-2xl font-bold text-white">
-                {monthlyStats.hours}
+          <Card className="bg-gray-900/50 border-gray-800">
+            <CardContent className="p-3 text-center">
+              <Target className="h-4 w-4 text-blue-500 mx-auto mb-1" />
+              <p className="text-xl font-bold text-white">
+                ¥{monthlyStats.avgSales.toLocaleString()}
               </p>
-              <div className="mt-1 h-1 bg-yellow-500 rounded" />
-              <p className="mt-1 text-sm text-gray-400">累計配信時間</p>
+              <p className="text-xs text-gray-400">平均売上</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-gray-900/50 border-gray-800">
+            <CardContent className="p-3 text-center">
+              <Eye className="h-4 w-4 text-green-500 mx-auto mb-1" />
+              <p className="text-xl font-bold text-white">
+                {monthlyStats.viewerCount.toLocaleString()}
+              </p>
+              <p className="text-xs text-gray-400">視聴者数</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-gray-900/50 border-gray-800">
+            <CardContent className="p-3 text-center">
+              <ShoppingCart className="h-4 w-4 text-purple-500 mx-auto mb-1" />
+              <p className="text-xl font-bold text-white">
+                {monthlyStats.orderCount.toLocaleString()}
+              </p>
+              <p className="text-xs text-gray-400">注文数</p>
             </CardContent>
           </Card>
         </div>
+
+        {/* All-time Stats */}
+        <Card className="bg-gradient-to-r from-gray-900 to-gray-800 border-gray-700">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-gray-400 flex items-center gap-2">
+              <Award className="h-4 w-4 text-yellow-500" />
+              累計実績
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-3 gap-4 pt-0">
+            <div className="text-center">
+              <p className="text-lg font-bold text-yellow-500">
+                ¥{allTimeStats.totalSales.toLocaleString()}
+              </p>
+              <p className="text-xs text-gray-400">総売上</p>
+            </div>
+            <div className="text-center">
+              <p className="text-lg font-bold text-yellow-500">
+                {allTimeStats.totalHours}h
+              </p>
+              <p className="text-xs text-gray-400">総配信時間</p>
+            </div>
+            <div className="text-center">
+              <p className="text-lg font-bold text-yellow-500">
+                {allTimeStats.totalCount}
+              </p>
+              <p className="text-xs text-gray-400">総配信回数</p>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Record Button */}
         <Button
@@ -261,66 +420,82 @@ export default function LiverMypage() {
           ) : filteredLivestreams.length === 0 ? (
             <Card className="bg-gray-900 border-gray-800">
               <CardContent className="p-8 text-center text-gray-400">
-                配信履歴がありません。
+                <Video className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>配信履歴がありません。</p>
+                <p className="text-sm mt-2">「配信内容の記録」から配信を記録しましょう！</p>
               </CardContent>
             </Card>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b-2 border-red-600">
-                    <th className="py-2 px-2 text-left text-sm text-gray-400">開始</th>
-                    <th className="py-2 px-2 text-left text-sm text-gray-400">終了</th>
-                    <th className="py-2 px-2 text-left text-sm text-gray-400">配信時間</th>
-                    <th className="py-2 px-2 text-left text-sm text-gray-400">売上合計</th>
-                    <th className="py-2 px-2"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredLivestreams.map((ls: { id: number; livestreamDate: string | Date; livestreamEndTime?: string | Date | null; salesAmount?: number | null }) => {
-                    const startDate = new Date(ls.livestreamDate);
-                    const endDate = ls.livestreamEndTime ? new Date(ls.livestreamEndTime) : null;
-                    const duration = endDate
-                      ? Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60) * 10) / 10
-                      : 0;
+            <div className="space-y-3">
+              {filteredLivestreams.map((ls: { 
+                id: number; 
+                livestreamDate: string | Date; 
+                livestreamEndTime?: string | Date | null; 
+                salesAmount?: number | null;
+                gmv?: number | null;
+                duration?: number | null;
+                viewerCount?: number | null;
+                result?: string | null;
+                streamerName?: string;
+              }) => {
+                const startDate = new Date(ls.livestreamDate);
+                const endDate = ls.livestreamEndTime ? new Date(ls.livestreamEndTime) : null;
+                const duration = ls.duration 
+                  ? Math.round(ls.duration / 60 * 10) / 10
+                  : endDate
+                    ? Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60) * 10) / 10
+                    : 0;
 
-                    return (
-                      <tr key={ls.id} className="border-b border-gray-800 hover:bg-gray-900/50">
-                        <td className="py-3 px-2 text-sm">
-                          <div>{startDate.toLocaleDateString("ja-JP", { month: "2-digit", day: "2-digit", weekday: "short" })}</div>
-                          <div className="text-gray-500">{startDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}</div>
-                        </td>
-                        <td className="py-3 px-2 text-sm">
-                          {endDate ? (
-                            <>
-                              <div>{endDate.toLocaleDateString("ja-JP", { month: "2-digit", day: "2-digit", weekday: "short" })}</div>
-                              <div className="text-gray-500">{endDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}</div>
-                            </>
-                          ) : (
-                            <span className="text-gray-500">-</span>
+                return (
+                  <Card 
+                    key={ls.id} 
+                    className="bg-gray-900 border-gray-800 hover:border-gray-700 transition-colors cursor-pointer"
+                    onClick={() => navigate(`/livestreams/${ls.id}`)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-lg bg-red-600/20 flex items-center justify-center">
+                            <Video className="h-6 w-6 text-red-500" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-white">
+                                {startDate.toLocaleDateString("ja-JP", { 
+                                  month: "numeric", 
+                                  day: "numeric", 
+                                  weekday: "short" 
+                                })}
+                              </p>
+                              {ls.result && (
+                                <Badge className={ls.result === "成功" ? "bg-green-600" : "bg-red-600"}>
+                                  {ls.result}
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-400">
+                              {startDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
+                              {endDate && ` - ${endDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}`}
+                              {duration > 0 && ` (${duration}h)`}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-yellow-500">
+                            ¥{(ls.salesAmount || ls.gmv || 0).toLocaleString()}
+                          </p>
+                          {ls.viewerCount && (
+                            <p className="text-xs text-gray-400">
+                              <Eye className="h-3 w-3 inline mr-1" />
+                              {ls.viewerCount.toLocaleString()}
+                            </p>
                           )}
-                        </td>
-                        <td className="py-3 px-2 text-sm">
-                          {duration > 0 ? `${duration}時間` : "-"}
-                        </td>
-                        <td className="py-3 px-2 text-sm">
-                          ¥{(ls.salesAmount || 0).toLocaleString()}
-                        </td>
-                        <td className="py-3 px-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => navigate(`/livestreams/${ls.id}`)}
-                            className="bg-yellow-500 text-black border-0 hover:bg-yellow-600"
-                          >
-                            詳細
-                          </Button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
 
