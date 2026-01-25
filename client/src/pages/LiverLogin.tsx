@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -6,13 +6,37 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar, ArrowLeft, Sparkles } from "lucide-react";
-import { setLiverToken } from "@/lib/liverAuth";
+import { setLiverToken, getLiverToken } from "@/lib/liverAuth";
 
 export default function LiverLogin() {
   const [, navigate] = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
+  // Check if already logged in
+  const meQuery = trpc.liver.me.useQuery(undefined, {
+    enabled: !!getLiverToken(),
+    retry: false,
+  });
+
+  useEffect(() => {
+    const token = getLiverToken();
+    if (token && meQuery.data) {
+      // Already logged in, redirect to mypage
+      navigate("/liver/mypage");
+    } else if (!token || meQuery.isError) {
+      setIsCheckingAuth(false);
+    }
+  }, [meQuery.data, meQuery.isError, navigate]);
+
+  useEffect(() => {
+    // If no token, stop checking immediately
+    if (!getLiverToken()) {
+      setIsCheckingAuth(false);
+    }
+  }, []);
 
   const loginMutation = trpc.liver.login.useMutation({
     onSuccess: (data) => {
@@ -33,6 +57,18 @@ export default function LiverLogin() {
     setError("");
     loginMutation.mutate({ email, password });
   };
+
+  // Show loading while checking auth
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-purple-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-pink-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-gray-500">認証確認中...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-purple-50 flex flex-col">
