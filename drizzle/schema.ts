@@ -276,6 +276,7 @@ export const brandLivestreams = mysqlTable("brand_livestreams", {
   resultReason: text("resultReason"), // 理由メモ
   screenshotUrl: text("screenshotUrl"), // 配信後スクリーンショットURL
   screenshotKey: varchar("screenshotKey", { length: 512 }), // S3キー
+  aiAdvice: text("aiAdvice"), // AIによるワンポイントアドバイス
   createdBy: int("createdBy").notNull(), // User ID who created the record
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

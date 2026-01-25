@@ -3904,6 +3904,7 @@ ${conversationText}
         resultReason: z.string().optional(),
         remarks: z.string().optional(),
         screenshotUrl: z.string().optional(),
+        aiAdvice: z.string().optional(), // AIアドバイスを保存
       }))
       .mutation(async ({ input, ctx }) => {
         // Get liver name for streamerName field
@@ -3922,6 +3923,7 @@ ${conversationText}
           resultReason: input.resultReason,
           remarks: input.remarks,
           screenshotUrl: input.screenshotUrl,
+          aiAdvice: input.aiAdvice, // AIアドバイスを保存
           streamerName,
           createdBy: ctx.user?.id || 0,
         });
@@ -3941,6 +3943,7 @@ ${conversationText}
         resultReason: z.string().optional().nullable(),
         remarks: z.string().optional().nullable(),
         screenshotUrl: z.string().optional().nullable(),
+        aiAdvice: z.string().optional().nullable(), // AIアドバイスを更新
       }))
       .mutation(async ({ input }) => {
         const { id, ...data } = input;
@@ -3957,6 +3960,7 @@ ${conversationText}
         if (data.resultReason !== undefined) updateData.resultReason = data.resultReason;
         if (data.remarks !== undefined) updateData.remarks = data.remarks;
         if (data.screenshotUrl !== undefined) updateData.screenshotUrl = data.screenshotUrl;
+        if (data.aiAdvice !== undefined) updateData.aiAdvice = data.aiAdvice;
         
         await updateBrandLivestream(id, updateData);
         return { success: true };

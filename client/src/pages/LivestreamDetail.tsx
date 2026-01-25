@@ -347,6 +347,19 @@ export default function LivestreamDetail() {
                 <p className="text-gray-500">-</p>
               )}
             </div>
+            
+            {/* AI Advice */}
+            {livestream.aiAdvice && (
+              <div className="space-y-2">
+                <span className="text-red-500 font-medium flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-yellow-500" />
+                  AIアドバイス
+                </span>
+                <div className="bg-gradient-to-r from-yellow-900/20 to-orange-900/20 border border-yellow-600/30 rounded-lg p-4">
+                  <p className="text-gray-200 whitespace-pre-wrap">{livestream.aiAdvice}</p>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
         

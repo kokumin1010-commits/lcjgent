@@ -378,6 +378,7 @@ export default function LiverSelfRecord() {
         remarks: formData.remarks || undefined,
         screenshotUrl: finalScreenshotUrl || undefined,
         scheduleId: formData.scheduleId ? parseInt(formData.scheduleId) : undefined,
+        aiAdvice: advice || undefined, // AIアドバイスを保存
       });
     } catch (error) {
       console.error("Failed to save livestream:", error);
