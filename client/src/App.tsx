@@ -35,6 +35,8 @@ import LiverList from "./pages/LiverList";
 import LiverDetail from "./pages/LiverDetail";
 import LivestreamDetail from "./pages/LivestreamDetail";
 import LiverRecord from "./pages/LiverRecord";
+import LiverMypage from "./pages/LiverMypage";
+import LiverSelfRecord from "./pages/LiverSelfRecord";
 
 function Router() {
   return (
@@ -182,19 +184,11 @@ function Router() {
           <LiverRecord />
         </DashboardLayout>
       </Route>
-      {/* Liver login pages redirect to main login */}
-      <Route path={"/liver/register"}>
-        {() => {
-          window.location.href = "/login";
-          return null;
-        }}
-      </Route>
-      <Route path={"/liver/login"}>
-        {() => {
-          window.location.href = "/login";
-          return null;
-        }}
-      </Route>
+      {/* Liver self-registration and login pages */}
+      <Route path={"/liver/register"} component={LiverRegister} />
+      <Route path={"/liver/login"} component={LiverLogin} />
+      <Route path={"/liver/mypage"} component={LiverMypage} />
+      <Route path={"/liver/record"} component={LiverSelfRecord} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

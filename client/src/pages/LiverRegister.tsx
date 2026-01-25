@@ -47,9 +47,9 @@ export default function LiverRegister() {
       setTimeout(() => {
         addBotMessage(`${name}さん、これからよろしくね！✨`);
         setTimeout(() => {
-          addBotMessage("スケジュールページに移動するね！");
+          addBotMessage("マイページに移動するね！");
           setTimeout(() => {
-            navigate("/s");
+            navigate("/liver/mypage");
           }, 1500);
         }, 1500);
       }, 1000);

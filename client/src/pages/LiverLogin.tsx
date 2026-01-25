@@ -14,8 +14,9 @@ export default function LiverLogin() {
   const [error, setError] = useState("");
 
   const loginMutation = trpc.liver.login.useMutation({
-    onSuccess: () => {
-      navigate("/s");
+    onSuccess: (data) => {
+      // Navigate to liver's own mypage
+      navigate(`/liver/mypage`);
     },
     onError: (err) => {
       setError(err.message);
