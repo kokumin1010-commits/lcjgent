@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Upload, X, Calendar, Clock, Sparkles, Loader2, Lightbulb } from "lucide-react";
+import { ArrowLeft, Upload, X, Sparkles, Loader2, Lightbulb, Camera, DollarSign, Users, Clock, ShoppingCart, MousePointer } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 
@@ -63,12 +63,11 @@ export default function LiverRecord() {
   const { data: brands } = trpc.brand.list.useQuery();
   
   // Note: Schedule selection feature will be added later
-  // For now, users can manually input the livestream details
   const schedules: { id: number; startTime: string; brandId?: number; brandName?: string; endTime?: string }[] = [];
   
   const createLivestreamMutation = trpc.liverManagement.createLivestream.useMutation({
     onSuccess: () => {
-      toast.success("配信記録を保存しました");
+      toast.success(language === "ja" ? "配信記録を保存しました" : "直播记录已保存");
       setLocation(`/livers/${liverId}`);
     },
     onError: (error) => {
@@ -84,6 +83,7 @@ export default function LiverRecord() {
   const translations = {
     ja: {
       title: "配信内容の記録",
+      subtitle: "TikTokダッシュボードのスクリーンショットをアップロードすると、AIが自動で解析します",
       selectBrand: "ブランドを選択",
       selectSchedule: "スケジュールから選択（任意）",
       noSchedule: "スケジュールなし（手動入力）",
@@ -102,31 +102,37 @@ export default function LiverRecord() {
       other: "その他",
       reason: "理由",
       memo: "メモ",
-      screenshot: "配信後スクリーンショット",
+      screenshot: "スクリーンショット",
       uploadImage: "画像をアップロード",
+      tapToUpload: "タップしてスクリーンショットをアップロード",
+      aiAnalysis: "AIが自動でデータを解析します",
       save: "保存",
       saving: "保存中...",
       cancel: "キャンセル",
       required: "必須",
-      analyzeScreenshot: "AI解析",
+      analyzeScreenshot: "AI解析を実行",
       analyzing: "解析中...",
       analysisComplete: "解析完了！データを自動入力しました",
       analysisError: "解析に失敗しました",
-      generateAdvice: "アドバイスを生成",
+      generateAdvice: "アドバイスを再生成",
       generatingAdvice: "生成中...",
       adviceTitle: "ワンポイントアドバイス",
       viewerCount: "視聴者数",
       peakViewerCount: "ピーク視聴者数",
       productClicks: "商品クリック数",
       orderCount: "注文数",
-      durationMinutes: "配信時間（分）",
+      durationMinutes: "配信時間",
       confidence: "解析信頼度",
       high: "高",
       medium: "中",
       low: "低",
+      analysisResult: "解析結果",
+      detailsForm: "詳細情報",
+      minutes: "分",
     },
     zh: {
       title: "记录直播内容",
+      subtitle: "上传TikTok仪表板截图，AI将自动分析",
       selectBrand: "选择品牌",
       selectSchedule: "从日程选择（可选）",
       noSchedule: "无日程（手动输入）",
@@ -145,28 +151,33 @@ export default function LiverRecord() {
       other: "其他",
       reason: "原因",
       memo: "备注",
-      screenshot: "直播后截图",
+      screenshot: "截图",
       uploadImage: "上传图片",
+      tapToUpload: "点击上传截图",
+      aiAnalysis: "AI将自动分析数据",
       save: "保存",
       saving: "保存中...",
       cancel: "取消",
       required: "必填",
-      analyzeScreenshot: "AI分析",
+      analyzeScreenshot: "执行AI分析",
       analyzing: "分析中...",
       analysisComplete: "分析完成！数据已自动填入",
       analysisError: "分析失败",
-      generateAdvice: "生成建议",
+      generateAdvice: "重新生成建议",
       generatingAdvice: "生成中...",
       adviceTitle: "一点建议",
       viewerCount: "观看人数",
       peakViewerCount: "峰值观看人数",
       productClicks: "商品点击数",
       orderCount: "订单数",
-      durationMinutes: "直播时长（分钟）",
+      durationMinutes: "直播时长",
       confidence: "分析可信度",
       high: "高",
       medium: "中",
       low: "低",
+      analysisResult: "分析结果",
+      detailsForm: "详细信息",
+      minutes: "分钟",
     },
   };
   
@@ -181,6 +192,11 @@ export default function LiverRecord() {
         setScreenshotPreview(reader.result as string);
       };
       reader.readAsDataURL(file);
+      
+      // Auto-analyze after upload
+      setTimeout(() => {
+        handleAnalyzeScreenshot(file);
+      }, 500);
     }
   };
   
@@ -192,8 +208,9 @@ export default function LiverRecord() {
     setAdvice(null);
   };
   
-  const handleAnalyzeScreenshot = async () => {
-    if (!screenshotFile) return;
+  const handleAnalyzeScreenshot = async (file?: File) => {
+    const fileToAnalyze = file || screenshotFile;
+    if (!fileToAnalyze) return;
     
     setIsAnalyzing(true);
     try {
@@ -205,13 +222,13 @@ export default function LiverRecord() {
           const base64 = result.split(",")[1];
           resolve(base64);
         };
-        reader.readAsDataURL(screenshotFile);
+        reader.readAsDataURL(fileToAnalyze);
       });
       const base64 = await base64Promise;
       
       const uploadResult = await uploadScreenshotMutation.mutateAsync({
         base64,
-        filename: screenshotFile.name,
+        filename: fileToAnalyze.name,
         liverId,
       });
       setScreenshotUrl(uploadResult.url);
@@ -308,12 +325,12 @@ export default function LiverRecord() {
     e.preventDefault();
     
     if (!brandId) {
-      toast.error("ブランドを選択してください");
+      toast.error(language === "ja" ? "ブランドを選択してください" : "请选择品牌");
       return;
     }
     
     if (!startDate || !startTime) {
-      toast.error("開始日時を入力してください");
+      toast.error(language === "ja" ? "開始日時を入力してください" : "请输入开始时间");
       return;
     }
     
@@ -381,158 +398,58 @@ export default function LiverRecord() {
       {/* Red top border */}
       <div className="h-1 bg-red-600" />
       
-      <div className="max-w-2xl mx-auto p-6 space-y-6">
-        {/* Back Button */}
-        <Link href={`/livers/${liverId}`}>
-          <button className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
-            <ArrowLeft className="w-4 h-4" />
-            戻る
-          </button>
-        </Link>
+      <div className="max-w-2xl mx-auto p-4 space-y-4">
+        {/* Header */}
+        <div className="flex items-center gap-3">
+          <Link href={`/livers/${liverId}`}>
+            <button className="p-2 rounded-full bg-gray-800 hover:bg-gray-700 transition-colors">
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          </Link>
+          <div>
+            <h1 className="text-xl font-bold">{tr.title}</h1>
+            <p className="text-sm text-gray-400">{liver?.name || ""}</p>
+          </div>
+        </div>
         
-        {/* Title */}
-        <h1 className="text-2xl font-bold">{tr.title}</h1>
-        <p className="text-gray-400">ライバー: {liver?.name || "不明"}</p>
-        
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Screenshot Upload with AI Analysis */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              {tr.screenshot}
-              <Sparkles className="w-4 h-4 text-yellow-500" />
-            </Label>
+        {/* Screenshot Upload Section - TOP */}
+        <Card className="bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700 overflow-hidden">
+          <CardContent className="p-0">
             {screenshotPreview ? (
-              <div className="space-y-4">
-                <div className="relative border border-gray-700 rounded-lg overflow-hidden">
-                  <img 
-                    src={screenshotPreview} 
-                    alt="Screenshot preview"
-                    className="w-full h-auto max-h-64 object-contain"
-                  />
-                  <button
-                    type="button"
-                    onClick={removeScreenshot}
-                    className="absolute top-2 right-2 bg-red-600 rounded-full p-1 hover:bg-red-700"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
+              <div className="relative">
+                {/* Screenshot Image */}
+                <img 
+                  src={screenshotPreview} 
+                  alt="Screenshot"
+                  className="w-full h-auto"
+                />
                 
-                {/* AI Analysis Button */}
-                <Button
+                {/* Remove Button */}
+                <button
                   type="button"
-                  onClick={handleAnalyzeScreenshot}
-                  disabled={isAnalyzing}
-                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                  onClick={removeScreenshot}
+                  className="absolute top-3 right-3 bg-red-600 rounded-full p-2 hover:bg-red-700 shadow-lg"
                 >
-                  {isAnalyzing ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      {tr.analyzing}
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4 mr-2" />
-                      {tr.analyzeScreenshot}
-                    </>
-                  )}
-                </Button>
+                  <X className="w-5 h-5" />
+                </button>
                 
-                {/* Analyzed Data Display */}
-                {analyzedData && (
-                  <Card className="bg-gray-900 border-gray-700">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm text-gray-400 flex items-center gap-2">
-                        解析結果
-                        <span className={`px-2 py-0.5 rounded text-xs ${
-                          analyzedData.confidence === 'high' ? 'bg-green-600' :
-                          analyzedData.confidence === 'medium' ? 'bg-yellow-600' :
-                          'bg-red-600'
-                        }`}>
-                          {tr.confidence}: {analyzedData.confidence === 'high' ? tr.high : 
-                            analyzedData.confidence === 'medium' ? tr.medium : tr.low}
-                        </span>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="grid grid-cols-2 gap-3 text-sm">
-                      {analyzedData.viewerCount !== null && analyzedData.viewerCount !== undefined && (
-                        <div>
-                          <span className="text-gray-400">{tr.viewerCount}:</span>
-                          <span className="ml-2 text-white">{analyzedData.viewerCount.toLocaleString()}</span>
-                        </div>
-                      )}
-                      {analyzedData.peakViewerCount !== null && analyzedData.peakViewerCount !== undefined && (
-                        <div>
-                          <span className="text-gray-400">{tr.peakViewerCount}:</span>
-                          <span className="ml-2 text-white">{analyzedData.peakViewerCount.toLocaleString()}</span>
-                        </div>
-                      )}
-                      {analyzedData.productClicks !== null && analyzedData.productClicks !== undefined && (
-                        <div>
-                          <span className="text-gray-400">{tr.productClicks}:</span>
-                          <span className="ml-2 text-white">{analyzedData.productClicks.toLocaleString()}</span>
-                        </div>
-                      )}
-                      {analyzedData.orderCount !== null && analyzedData.orderCount !== undefined && (
-                        <div>
-                          <span className="text-gray-400">{tr.orderCount}:</span>
-                          <span className="ml-2 text-white">{analyzedData.orderCount.toLocaleString()}</span>
-                        </div>
-                      )}
-                      {analyzedData.durationMinutes !== null && analyzedData.durationMinutes !== undefined && (
-                        <div>
-                          <span className="text-gray-400">{tr.durationMinutes}:</span>
-                          <span className="ml-2 text-white">{analyzedData.durationMinutes}</span>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
-                
-                {/* AI Advice Display */}
-                {advice && (
-                  <Card className="bg-gradient-to-r from-yellow-900/30 to-orange-900/30 border-yellow-600/50">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm text-yellow-400 flex items-center gap-2">
-                        <Lightbulb className="w-4 h-4" />
-                        {tr.adviceTitle}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-white text-sm whitespace-pre-wrap">{advice}</p>
-                    </CardContent>
-                  </Card>
-                )}
-                
-                {/* Regenerate Advice Button */}
-                {analyzedData && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => handleGenerateAdvice()}
-                    disabled={isGeneratingAdvice}
-                    className="w-full border-yellow-600 text-yellow-400 hover:bg-yellow-600/20"
-                  >
-                    {isGeneratingAdvice ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        {tr.generatingAdvice}
-                      </>
-                    ) : (
-                      <>
-                        <Lightbulb className="w-4 h-4 mr-2" />
-                        {tr.generateAdvice}
-                      </>
-                    )}
-                  </Button>
+                {/* Analyzing Overlay */}
+                {isAnalyzing && (
+                  <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center">
+                    <Loader2 className="w-12 h-12 animate-spin text-purple-500 mb-3" />
+                    <p className="text-white font-medium">{tr.analyzing}</p>
+                  </div>
                 )}
               </div>
             ) : (
-              <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-700 rounded-lg cursor-pointer hover:border-gray-500 transition-colors">
-                <Upload className="w-8 h-8 text-gray-500 mb-2" />
-                <span className="text-gray-500">{tr.uploadImage}</span>
-                <span className="text-xs text-gray-600 mt-1">AIが自動でデータを解析します</span>
+              <label className="flex flex-col items-center justify-center w-full h-48 cursor-pointer hover:bg-gray-800/50 transition-colors">
+                <div className="flex flex-col items-center">
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center mb-3">
+                    <Camera className="w-8 h-8 text-white" />
+                  </div>
+                  <span className="text-white font-medium">{tr.tapToUpload}</span>
+                  <span className="text-sm text-gray-400 mt-1">{tr.aiAnalysis}</span>
+                </div>
                 <input
                   type="file"
                   accept="image/*"
@@ -541,180 +458,353 @@ export default function LiverRecord() {
                 />
               </label>
             )}
-          </div>
-          
-          {/* Schedule Selection (if available) */}
-          {schedules && schedules.length > 0 && (
-            <div className="space-y-2">
-              <Label>{tr.selectSchedule}</Label>
-              <Select 
-                value={scheduleId?.toString() || "none"} 
-                onValueChange={handleScheduleSelect}
+          </CardContent>
+        </Card>
+        
+        {/* Analysis Results Section - Below Screenshot */}
+        {analyzedData && (
+          <Card className="bg-gray-900 border-gray-700">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center justify-between">
+                <span className="flex items-center gap-2 text-purple-400">
+                  <Sparkles className="w-4 h-4" />
+                  {tr.analysisResult}
+                </span>
+                <span className={`px-2 py-0.5 rounded text-xs ${
+                  analyzedData.confidence === 'high' ? 'bg-green-600' :
+                  analyzedData.confidence === 'medium' ? 'bg-yellow-600' :
+                  'bg-red-600'
+                }`}>
+                  {tr.confidence}: {analyzedData.confidence === 'high' ? tr.high : 
+                    analyzedData.confidence === 'medium' ? tr.medium : tr.low}
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Stats Grid */}
+              <div className="grid grid-cols-2 gap-3">
+                {/* Sales Amount */}
+                {analyzedData.salesAmount !== null && analyzedData.salesAmount !== undefined && (
+                  <div className="bg-gray-800 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                      <DollarSign className="w-3 h-3" />
+                      {tr.salesAmount}
+                    </div>
+                    <div className="text-xl font-bold text-green-400">
+                      ¥{analyzedData.salesAmount.toLocaleString()}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Viewer Count */}
+                {analyzedData.viewerCount !== null && analyzedData.viewerCount !== undefined && (
+                  <div className="bg-gray-800 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                      <Users className="w-3 h-3" />
+                      {tr.viewerCount}
+                    </div>
+                    <div className="text-xl font-bold text-blue-400">
+                      {analyzedData.viewerCount.toLocaleString()}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Peak Viewer Count */}
+                {analyzedData.peakViewerCount !== null && analyzedData.peakViewerCount !== undefined && (
+                  <div className="bg-gray-800 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                      <Users className="w-3 h-3" />
+                      {tr.peakViewerCount}
+                    </div>
+                    <div className="text-xl font-bold text-cyan-400">
+                      {analyzedData.peakViewerCount.toLocaleString()}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Duration */}
+                {analyzedData.durationMinutes !== null && analyzedData.durationMinutes !== undefined && (
+                  <div className="bg-gray-800 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                      <Clock className="w-3 h-3" />
+                      {tr.durationMinutes}
+                    </div>
+                    <div className="text-xl font-bold text-orange-400">
+                      {analyzedData.durationMinutes}{tr.minutes}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Product Clicks */}
+                {analyzedData.productClicks !== null && analyzedData.productClicks !== undefined && (
+                  <div className="bg-gray-800 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                      <MousePointer className="w-3 h-3" />
+                      {tr.productClicks}
+                    </div>
+                    <div className="text-xl font-bold text-yellow-400">
+                      {analyzedData.productClicks.toLocaleString()}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Order Count */}
+                {analyzedData.orderCount !== null && analyzedData.orderCount !== undefined && (
+                  <div className="bg-gray-800 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                      <ShoppingCart className="w-3 h-3" />
+                      {tr.orderCount}
+                    </div>
+                    <div className="text-xl font-bold text-pink-400">
+                      {analyzedData.orderCount.toLocaleString()}
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Re-analyze Button */}
+              <Button
+                type="button"
+                onClick={() => handleAnalyzeScreenshot()}
+                disabled={isAnalyzing}
+                variant="outline"
+                className="w-full border-purple-600 text-purple-400 hover:bg-purple-600/20"
               >
-                <SelectTrigger className="bg-gray-900 border-gray-700">
-                  <SelectValue placeholder={tr.selectSchedule} />
-                </SelectTrigger>
-                <SelectContent className="bg-gray-900 border-gray-700">
-                  <SelectItem value="none">{tr.noSchedule}</SelectItem>
-                  {schedules.map((schedule: { id: number; startTime: string; brandName?: string }) => (
-                    <SelectItem key={schedule.id} value={schedule.id.toString()}>
-                      {new Date(schedule.startTime).toLocaleDateString()} - {schedule.brandName || "ブランド未設定"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-          
-          {/* Brand Selection */}
-          <div className="space-y-2">
-            <Label>
-              {tr.selectBrand} <span className="text-red-500">*</span>
-            </Label>
-            <Select 
-              value={brandId?.toString() || ""} 
-              onValueChange={(v) => setBrandId(parseInt(v, 10))}
-            >
-              <SelectTrigger className="bg-gray-900 border-gray-700">
-                <SelectValue placeholder={tr.selectBrand} />
-              </SelectTrigger>
-              <SelectContent className="bg-gray-900 border-gray-700 max-h-60">
-                {brands?.map((brand) => (
-                  <SelectItem key={brand.id} value={brand.id.toString()}>
-                    {brand.name} {brand.nameJa && `(${brand.nameJa})`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          
-          {/* Start DateTime */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>
-                {tr.startDateTime} <span className="text-red-500">*</span>
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="bg-gray-900 border-gray-700"
-                />
-                <Input
-                  type="time"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  className="bg-gray-900 border-gray-700 w-32"
+                {isAnalyzing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    {tr.analyzing}
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    {tr.analyzeScreenshot}
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+        
+        {/* AI Advice Section */}
+        {advice && (
+          <Card className="bg-gradient-to-r from-yellow-900/30 to-orange-900/30 border-yellow-600/50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-yellow-400 flex items-center gap-2">
+                <Lightbulb className="w-4 h-4" />
+                {tr.adviceTitle}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-white text-sm whitespace-pre-wrap">{advice}</p>
+              
+              {/* Regenerate Advice Button */}
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => handleGenerateAdvice()}
+                disabled={isGeneratingAdvice}
+                className="mt-3 text-yellow-400 hover:bg-yellow-600/20 text-xs"
+              >
+                {isGeneratingAdvice ? (
+                  <>
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    {tr.generatingAdvice}
+                  </>
+                ) : (
+                  <>
+                    <Lightbulb className="w-3 h-3 mr-1" />
+                    {tr.generateAdvice}
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+        
+        {/* Details Form Section */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Card className="bg-gray-900 border-gray-700">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm text-gray-300">{tr.detailsForm}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Schedule Selection (if available) */}
+              {schedules && schedules.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-gray-400 text-sm">{tr.selectSchedule}</Label>
+                  <Select 
+                    value={scheduleId?.toString() || "none"} 
+                    onValueChange={handleScheduleSelect}
+                  >
+                    <SelectTrigger className="bg-gray-800 border-gray-600">
+                      <SelectValue placeholder={tr.selectSchedule} />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border-gray-300 text-black">
+                      <SelectItem value="none">{tr.noSchedule}</SelectItem>
+                      {schedules.map((schedule: { id: number; startTime: string; brandName?: string }) => (
+                        <SelectItem key={schedule.id} value={schedule.id.toString()}>
+                          {new Date(schedule.startTime).toLocaleDateString()} - {schedule.brandName || "ブランド未設定"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              
+              {/* Brand Selection */}
+              <div className="space-y-2">
+                <Label className="text-gray-400 text-sm">
+                  {tr.selectBrand} <span className="text-red-500">*</span>
+                </Label>
+                <Select 
+                  value={brandId?.toString() || ""} 
+                  onValueChange={(v) => setBrandId(parseInt(v, 10))}
+                >
+                  <SelectTrigger className="bg-gray-800 border-gray-600">
+                    <SelectValue placeholder={tr.selectBrand} />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-gray-300 text-black max-h-60">
+                    {brands?.map((brand) => (
+                      <SelectItem key={brand.id} value={brand.id.toString()}>
+                        {brand.name} {brand.nameJa && `(${brand.nameJa})`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Start DateTime */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label className="text-gray-400 text-sm">
+                    {tr.startDateTime} <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="bg-gray-800 border-gray-600"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-gray-400 text-sm">&nbsp;</Label>
+                  <Input
+                    type="time"
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                    className="bg-gray-800 border-gray-600"
+                  />
+                </div>
+              </div>
+              
+              {/* End DateTime */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label className="text-gray-400 text-sm">{tr.endDateTime}</Label>
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="bg-gray-800 border-gray-600"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-gray-400 text-sm">&nbsp;</Label>
+                  <Input
+                    type="time"
+                    value={endTime}
+                    onChange={(e) => setEndTime(e.target.value)}
+                    className="bg-gray-800 border-gray-600"
+                  />
+                </div>
+              </div>
+              
+              {/* Sales Amount */}
+              <div className="space-y-2">
+                <Label className="text-gray-400 text-sm">{tr.salesAmount}</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">¥</span>
+                  <Input
+                    type="number"
+                    value={salesAmount}
+                    onChange={(e) => setSalesAmount(e.target.value)}
+                    className="bg-gray-800 border-gray-600 pl-8"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+              
+              {/* Result */}
+              <div className="space-y-2">
+                <Label className="text-gray-400 text-sm">{tr.deliveryResult}</Label>
+                <Select 
+                  value={result || "none"} 
+                  onValueChange={(v) => setResult(v === "none" ? "" : v as "成功" | "失敗")}
+                >
+                  <SelectTrigger className="bg-gray-800 border-gray-600">
+                    <SelectValue placeholder={tr.notSet} />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-gray-300 text-black">
+                    <SelectItem value="none">{tr.notSet}</SelectItem>
+                    <SelectItem value="成功">{tr.success}</SelectItem>
+                    <SelectItem value="失敗">{tr.failure}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Impact Factor */}
+              <div className="space-y-2">
+                <Label className="text-gray-400 text-sm">{tr.impactFactor}</Label>
+                <Select 
+                  value={impactFactor || "none"} 
+                  onValueChange={(v) => setImpactFactor(v === "none" ? "" : v as "構成" | "商品" | "ライバー" | "広告" | "その他")}
+                >
+                  <SelectTrigger className="bg-gray-800 border-gray-600">
+                    <SelectValue placeholder={tr.notSet} />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-gray-300 text-black">
+                    <SelectItem value="none">{tr.notSet}</SelectItem>
+                    <SelectItem value="構成">{tr.composition}</SelectItem>
+                    <SelectItem value="商品">{tr.product}</SelectItem>
+                    <SelectItem value="ライバー">{tr.liver}</SelectItem>
+                    <SelectItem value="広告">{tr.ad}</SelectItem>
+                    <SelectItem value="その他">{tr.other}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Reason */}
+              <div className="space-y-2">
+                <Label className="text-gray-400 text-sm">{tr.reason}</Label>
+                <Textarea
+                  value={resultReason}
+                  onChange={(e) => setResultReason(e.target.value)}
+                  className="bg-gray-800 border-gray-600"
+                  rows={2}
                 />
               </div>
-            </div>
-            
-            {/* End DateTime */}
-            <div className="space-y-2">
-              <Label>{tr.endDateTime}</Label>
-              <div className="flex gap-2">
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="bg-gray-900 border-gray-700"
-                />
-                <Input
-                  type="time"
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                  className="bg-gray-900 border-gray-700 w-32"
+              
+              {/* Memo */}
+              <div className="space-y-2">
+                <Label className="text-gray-400 text-sm">{tr.memo}</Label>
+                <Textarea
+                  value={remarks}
+                  onChange={(e) => setRemarks(e.target.value)}
+                  className="bg-gray-800 border-gray-600"
+                  rows={2}
                 />
               </div>
-            </div>
-          </div>
-          
-          {/* Sales Amount */}
-          <div className="space-y-2">
-            <Label>{tr.salesAmount}</Label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">¥</span>
-              <Input
-                type="number"
-                value={salesAmount}
-                onChange={(e) => setSalesAmount(e.target.value)}
-                className="bg-gray-900 border-gray-700 pl-8"
-                placeholder="0"
-              />
-            </div>
-          </div>
-          
-          {/* Result */}
-          <div className="space-y-2">
-            <Label>{tr.deliveryResult}</Label>
-            <Select 
-              value={result || "none"} 
-              onValueChange={(v) => setResult(v === "none" ? "" : v as "成功" | "失敗")}
-            >
-              <SelectTrigger className="bg-gray-900 border-gray-700">
-                <SelectValue placeholder={tr.notSet} />
-              </SelectTrigger>
-              <SelectContent className="bg-gray-900 border-gray-700">
-                <SelectItem value="none">{tr.notSet}</SelectItem>
-                <SelectItem value="成功">{tr.success}</SelectItem>
-                <SelectItem value="失敗">{tr.failure}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          
-          {/* Impact Factor */}
-          <div className="space-y-2">
-            <Label>{tr.impactFactor}</Label>
-            <Select 
-              value={impactFactor || "none"} 
-              onValueChange={(v) => setImpactFactor(v === "none" ? "" : v as "構成" | "商品" | "ライバー" | "広告" | "その他")}
-            >
-              <SelectTrigger className="bg-gray-900 border-gray-700">
-                <SelectValue placeholder={tr.notSet} />
-              </SelectTrigger>
-              <SelectContent className="bg-gray-900 border-gray-700">
-                <SelectItem value="none">{tr.notSet}</SelectItem>
-                <SelectItem value="構成">{tr.composition}</SelectItem>
-                <SelectItem value="商品">{tr.product}</SelectItem>
-                <SelectItem value="ライバー">{tr.liver}</SelectItem>
-                <SelectItem value="広告">{tr.ad}</SelectItem>
-                <SelectItem value="その他">{tr.other}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          
-          {/* Reason */}
-          <div className="space-y-2">
-            <Label>{tr.reason}</Label>
-            <Textarea
-              value={resultReason}
-              onChange={(e) => setResultReason(e.target.value)}
-              className="bg-gray-900 border-gray-700"
-              rows={3}
-              placeholder="配信結果の理由を入力..."
-            />
-          </div>
-          
-          {/* Memo */}
-          <div className="space-y-2">
-            <Label>{tr.memo}</Label>
-            <Textarea
-              value={remarks}
-              onChange={(e) => setRemarks(e.target.value)}
-              className="bg-gray-900 border-gray-700"
-              rows={3}
-              placeholder="メモを入力..."
-            />
-          </div>
+            </CardContent>
+          </Card>
           
           {/* Action Buttons */}
-          <div className="flex justify-center gap-4 pt-4">
-            <Link href={`/livers/${liverId}`}>
+          <div className="flex gap-3 pb-6">
+            <Link href={`/livers/${liverId}`} className="flex-1">
               <Button
                 type="button"
                 variant="outline"
-                className="border-gray-600 text-gray-300 hover:bg-gray-800 px-8"
+                className="w-full border-gray-600 text-gray-300 hover:bg-gray-800"
               >
                 {tr.cancel}
               </Button>
@@ -722,7 +812,7 @@ export default function LiverRecord() {
             <Button
               type="submit"
               disabled={isSubmitting}
-              className="bg-red-600 hover:bg-red-700 px-8"
+              className="flex-1 bg-red-600 hover:bg-red-700"
             >
               {isSubmitting ? tr.saving : tr.save}
             </Button>

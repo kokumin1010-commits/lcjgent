@@ -7,9 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Upload, Video, Calendar, DollarSign, Clock, X, Link as LinkIcon } from "lucide-react";
+import { ArrowLeft, Video, Calendar, DollarSign, Clock, X, Link as LinkIcon, Camera, Sparkles, Loader2, Lightbulb, Users, MousePointer, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function LiverSelfRecord() {
   const [, navigate] = useLocation();
@@ -17,6 +17,7 @@ export default function LiverSelfRecord() {
   const searchParams = new URLSearchParams(searchString);
   const scheduleIdParam = searchParams.get("scheduleId");
   const dateParam = searchParams.get("date");
+  const { language } = useLanguage();
   
   // Get current liver info
   const { data: liverInfo, isLoading: isLoadingLiver } = trpc.liver.me.useQuery();
@@ -45,7 +46,20 @@ export default function LiverSelfRecord() {
   
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
+  const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isGeneratingAdvice, setIsGeneratingAdvice] = useState(false);
+  const [advice, setAdvice] = useState<string | null>(null);
+  const [analyzedData, setAnalyzedData] = useState<{
+    salesAmount?: number | null;
+    viewerCount?: number | null;
+    peakViewerCount?: number | null;
+    productClicks?: number | null;
+    orderCount?: number | null;
+    durationMinutes?: number | null;
+    confidence?: string;
+  } | null>(null);
 
   // Pre-fill form data from schedule
   useEffect(() => {
@@ -66,7 +80,7 @@ export default function LiverSelfRecord() {
 
   const createLivestreamMutation = trpc.liverManagement.createLivestream.useMutation({
     onSuccess: () => {
-      toast.success("配信記録を保存しました");
+      toast.success(language === "ja" ? "配信記録を保存しました" : "直播记录已保存");
       navigate("/liver/mypage");
     },
     onError: (error) => {
@@ -76,8 +90,121 @@ export default function LiverSelfRecord() {
   });
 
   const uploadScreenshotMutation = trpc.liverManagement.uploadScreenshot.useMutation();
+  const analyzeScreenshotMutation = trpc.liverManagement.analyzeScreenshot.useMutation();
+  const generateAdviceMutation = trpc.liverManagement.generateAdvice.useMutation();
 
-  const handleScreenshotChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const translations = {
+    ja: {
+      title: "配信内容の記録",
+      subtitle: "TikTokダッシュボードのスクリーンショットをアップロードすると、AIが自動で解析します",
+      tapToUpload: "タップしてスクリーンショットをアップロード",
+      aiAnalysis: "AIが自動でデータを解析します",
+      analyzing: "解析中...",
+      analysisComplete: "解析完了！データを自動入力しました",
+      analysisError: "解析に失敗しました",
+      analysisResult: "解析結果",
+      confidence: "解析信頼度",
+      high: "高",
+      medium: "中",
+      low: "低",
+      salesAmount: "売上金額",
+      viewerCount: "視聴者数",
+      peakViewerCount: "ピーク視聴者数",
+      productClicks: "商品クリック数",
+      orderCount: "注文数",
+      durationMinutes: "配信時間",
+      minutes: "分",
+      reanalyze: "再解析",
+      adviceTitle: "ワンポイントアドバイス",
+      regenerateAdvice: "アドバイスを再生成",
+      generatingAdvice: "生成中...",
+      detailsForm: "詳細情報",
+      selectBrand: "ブランドを選択",
+      livestreamDate: "配信日",
+      startTime: "開始時刻",
+      endTime: "終了時刻",
+      result: "結果",
+      selectResult: "結果を選択",
+      success: "成功",
+      failure: "失敗",
+      impactFactor: "影響要因",
+      selectFactor: "影響要因を選択",
+      composition: "構成",
+      product: "商品",
+      liver: "ライバー",
+      ad: "広告",
+      other: "その他",
+      reasonMemo: "理由・メモ",
+      reasonPlaceholder: "結果の理由や気づきを記入...",
+      otherMemo: "その他のメモ",
+      memoPlaceholder: "その他のメモ...",
+      save: "配信記録を保存",
+      saving: "保存中...",
+      loginRequired: "ログインが必要です",
+      goToLogin: "ログインページへ",
+      selectBrandError: "ブランドを選択してください",
+      enterDateTimeError: "配信日時を入力してください",
+      saveError: "保存に失敗しました",
+      scheduleLink: "スケジュールから記録",
+    },
+    zh: {
+      title: "记录直播内容",
+      subtitle: "上传TikTok仪表板截图，AI将自动分析",
+      tapToUpload: "点击上传截图",
+      aiAnalysis: "AI将自动分析数据",
+      analyzing: "分析中...",
+      analysisComplete: "分析完成！数据已自动填入",
+      analysisError: "分析失败",
+      analysisResult: "分析结果",
+      confidence: "分析可信度",
+      high: "高",
+      medium: "中",
+      low: "低",
+      salesAmount: "销售金额",
+      viewerCount: "观看人数",
+      peakViewerCount: "峰值观看人数",
+      productClicks: "商品点击数",
+      orderCount: "订单数",
+      durationMinutes: "直播时长",
+      minutes: "分钟",
+      reanalyze: "重新分析",
+      adviceTitle: "一点建议",
+      regenerateAdvice: "重新生成建议",
+      generatingAdvice: "生成中...",
+      detailsForm: "详细信息",
+      selectBrand: "选择品牌",
+      livestreamDate: "直播日期",
+      startTime: "开始时间",
+      endTime: "结束时间",
+      result: "结果",
+      selectResult: "选择结果",
+      success: "成功",
+      failure: "失败",
+      impactFactor: "影响因素",
+      selectFactor: "选择影响因素",
+      composition: "构成",
+      product: "商品",
+      liver: "主播",
+      ad: "广告",
+      other: "其他",
+      reasonMemo: "原因・备注",
+      reasonPlaceholder: "填写结果原因或发现...",
+      otherMemo: "其他备注",
+      memoPlaceholder: "其他备注...",
+      save: "保存直播记录",
+      saving: "保存中...",
+      loginRequired: "需要登录",
+      goToLogin: "前往登录页面",
+      selectBrandError: "请选择品牌",
+      enterDateTimeError: "请输入直播时间",
+      saveError: "保存失败",
+      scheduleLink: "从日程记录",
+    },
+  };
+
+  const tr = translations[language as keyof typeof translations] || translations.ja;
+
+  const handleScreenshotChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setScreenshotFile(file);
@@ -86,43 +213,127 @@ export default function LiverSelfRecord() {
         setScreenshotPreview(reader.result as string);
       };
       reader.readAsDataURL(file);
+      
+      // Auto-analyze after upload
+      setTimeout(() => {
+        handleAnalyzeScreenshot(file);
+      }, 500);
     }
   };
 
   const removeScreenshot = () => {
     setScreenshotFile(null);
     setScreenshotPreview(null);
+    setScreenshotUrl(null);
+    setAnalyzedData(null);
+    setAdvice(null);
+  };
+
+  const handleAnalyzeScreenshot = async (file?: File) => {
+    const fileToAnalyze = file || screenshotFile;
+    if (!fileToAnalyze || !liverInfo?.id) return;
+    
+    setIsAnalyzing(true);
+    try {
+      // First upload the screenshot
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve) => {
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          const base64 = result.split(",")[1];
+          resolve(base64);
+        };
+        reader.readAsDataURL(fileToAnalyze);
+      });
+      const base64 = await base64Promise;
+      
+      const uploadResult = await uploadScreenshotMutation.mutateAsync({
+        base64,
+        filename: fileToAnalyze.name,
+        liverId: liverInfo.id,
+      });
+      setScreenshotUrl(uploadResult.url);
+      
+      // Then analyze the screenshot
+      const analysisResult = await analyzeScreenshotMutation.mutateAsync({
+        imageUrl: uploadResult.url,
+      });
+      
+      setAnalyzedData(analysisResult);
+      
+      // Auto-fill form with analyzed data
+      if (analysisResult.salesAmount !== null && analysisResult.salesAmount !== undefined) {
+        setFormData(prev => ({
+          ...prev,
+          salesAmount: analysisResult.salesAmount!.toString(),
+        }));
+      }
+      
+      toast.success(tr.analysisComplete);
+      
+      // Auto-generate advice
+      handleGenerateAdvice(analysisResult);
+    } catch (error) {
+      console.error("Analysis failed:", error);
+      toast.error(tr.analysisError);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const handleGenerateAdvice = async (data?: typeof analyzedData) => {
+    const dataToUse = data || analyzedData;
+    if (!dataToUse) return;
+    
+    setIsGeneratingAdvice(true);
+    try {
+      const adviceResult = await generateAdviceMutation.mutateAsync({
+        salesAmount: dataToUse.salesAmount ?? undefined,
+        viewerCount: dataToUse.viewerCount ?? undefined,
+        peakViewerCount: dataToUse.peakViewerCount ?? undefined,
+        productClicks: dataToUse.productClicks ?? undefined,
+        orderCount: dataToUse.orderCount ?? undefined,
+        durationMinutes: dataToUse.durationMinutes ?? undefined,
+        result: formData.result || undefined,
+        impactFactor: formData.impactFactor || undefined,
+      });
+      
+      setAdvice(adviceResult.advice);
+    } catch (error) {
+      console.error("Failed to generate advice:", error);
+    } finally {
+      setIsGeneratingAdvice(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!liverInfo?.id) {
-      toast.error("ログインが必要です");
+      toast.error(tr.loginRequired);
       return;
     }
 
     if (!formData.brandId) {
-      toast.error("ブランドを選択してください");
+      toast.error(tr.selectBrandError);
       return;
     }
 
     if (!formData.livestreamDate || !formData.livestreamStartTime) {
-      toast.error("配信日時を入力してください");
+      toast.error(tr.enterDateTimeError);
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      // Upload screenshot if exists
-      let screenshotUrl: string | undefined;
-      if (screenshotFile) {
+      // Upload screenshot if exists and not already uploaded
+      let finalScreenshotUrl = screenshotUrl;
+      if (screenshotFile && !screenshotUrl) {
         const reader = new FileReader();
         const base64Promise = new Promise<string>((resolve) => {
           reader.onloadend = () => {
             const result = reader.result as string;
-            // Remove data:image/xxx;base64, prefix
             const base64 = result.split(",")[1];
             resolve(base64);
           };
@@ -130,13 +341,12 @@ export default function LiverSelfRecord() {
         });
         const base64 = await base64Promise;
 
-        // Upload via tRPC mutation
         const uploadResult = await uploadScreenshotMutation.mutateAsync({
           base64,
           filename: screenshotFile.name,
           liverId: liverInfo.id,
         });
-        screenshotUrl = uploadResult.url;
+        finalScreenshotUrl = uploadResult.url;
       }
 
       const livestreamDateTime = new Date(`${formData.livestreamDate}T${formData.livestreamStartTime}`);
@@ -154,12 +364,12 @@ export default function LiverSelfRecord() {
         impactFactor: formData.impactFactor as "構成" | "商品" | "ライバー" | "広告" | "その他" | undefined,
         resultReason: formData.resultReason || undefined,
         remarks: formData.remarks || undefined,
-        screenshotUrl,
+        screenshotUrl: finalScreenshotUrl || undefined,
         scheduleId: formData.scheduleId ? parseInt(formData.scheduleId) : undefined,
       });
     } catch (error) {
       console.error("Failed to save livestream:", error);
-      toast.error("保存に失敗しました");
+      toast.error(tr.saveError);
       setIsSubmitting(false);
     }
   };
@@ -175,12 +385,12 @@ export default function LiverSelfRecord() {
   if (!liverInfo) {
     return (
       <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4 p-4">
-        <p className="text-white text-center">ログインが必要です</p>
+        <p className="text-white text-center">{tr.loginRequired}</p>
         <Button
           onClick={() => navigate("/liver/login")}
           className="bg-red-600 hover:bg-red-700"
         >
-          ログインページへ
+          {tr.goToLogin}
         </Button>
       </div>
     );
@@ -199,77 +409,287 @@ export default function LiverSelfRecord() {
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <h1 className="text-xl font-bold text-yellow-500">配信内容の記録</h1>
+          <div>
+            <h1 className="text-xl font-bold text-yellow-500">{tr.title}</h1>
+            <p className="text-xs text-gray-400">{tr.subtitle}</p>
+          </div>
         </div>
       </header>
 
       {/* Red line separator */}
       <div className="h-1 bg-gradient-to-r from-red-600 via-red-500 to-red-600" />
 
-      <div className="container max-w-2xl mx-auto px-4 py-6">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Schedule Link Info */}
-          {scheduleInfo && (
-            <Card className="bg-yellow-500/10 border-yellow-500/30">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <LinkIcon className="h-5 w-5 text-yellow-500" />
-                  <div>
-                    <p className="text-sm text-yellow-500 font-medium">スケジュールから記録</p>
-                    <p className="text-white">{scheduleInfo.title}</p>
-                    <p className="text-sm text-gray-400">
-                      {new Date(scheduleInfo.startTime).toLocaleDateString("ja-JP", {
-                        month: "long",
-                        day: "numeric",
-                        weekday: "short",
-                        hour: "2-digit",
-                        minute: "2-digit"
-                      })}
-                    </p>
-                  </div>
+      <div className="container max-w-2xl mx-auto px-4 py-4 space-y-4">
+        {/* Schedule Link Info */}
+        {scheduleInfo && (
+          <Card className="bg-yellow-500/10 border-yellow-500/30">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <LinkIcon className="h-5 w-5 text-yellow-500" />
+                <div>
+                  <p className="text-sm text-yellow-500 font-medium">{tr.scheduleLink}</p>
+                  <p className="text-white">{scheduleInfo.title}</p>
+                  <p className="text-sm text-gray-400">
+                    {new Date(scheduleInfo.startTime).toLocaleDateString("ja-JP", {
+                      month: "long",
+                      day: "numeric",
+                      weekday: "short",
+                      hour: "2-digit",
+                      minute: "2-digit"
+                    })}
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Brand Selection */}
-          <Card className="bg-gray-900 border-gray-800">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2 text-white">
-                <Video className="h-5 w-5 text-red-500" />
-                配信ブランド
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Select
-                value={formData.brandId}
-                onValueChange={(value) => setFormData({ ...formData, brandId: value })}
-              >
-                <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
-                  <SelectValue placeholder="ブランドを選択" />
-                </SelectTrigger>
-                <SelectContent className="bg-gray-900 border-gray-700">
-                  {brands?.map((brand: { id: number; name: string }) => (
-                    <SelectItem key={brand.id} value={brand.id.toString()}>
-                      {brand.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              </div>
             </CardContent>
           </Card>
+        )}
 
-          {/* Date & Time */}
-          <Card className="bg-gray-900 border-gray-800">
+        {/* Screenshot Upload Section - TOP */}
+        <Card className="bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700 overflow-hidden">
+          <CardContent className="p-0">
+            {screenshotPreview ? (
+              <div className="relative">
+                {/* Screenshot Image */}
+                <img 
+                  src={screenshotPreview} 
+                  alt="Screenshot"
+                  className="w-full h-auto"
+                />
+                
+                {/* Remove Button */}
+                <button
+                  type="button"
+                  onClick={removeScreenshot}
+                  className="absolute top-3 right-3 bg-red-600 rounded-full p-2 hover:bg-red-700 shadow-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+                
+                {/* Analyzing Overlay */}
+                {isAnalyzing && (
+                  <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center">
+                    <Loader2 className="w-12 h-12 animate-spin text-purple-500 mb-3" />
+                    <p className="text-white font-medium">{tr.analyzing}</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center w-full h-48 cursor-pointer hover:bg-gray-800/50 transition-colors">
+                <div className="flex flex-col items-center">
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center mb-3">
+                    <Camera className="w-8 h-8 text-white" />
+                  </div>
+                  <span className="text-white font-medium">{tr.tapToUpload}</span>
+                  <span className="text-sm text-gray-400 mt-1">{tr.aiAnalysis}</span>
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleScreenshotChange}
+                  className="hidden"
+                />
+              </label>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Analysis Results Section - Below Screenshot */}
+        {analyzedData && (
+          <Card className="bg-gray-900 border-gray-700">
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2 text-white">
-                <Calendar className="h-5 w-5 text-red-500" />
-                配信日時
+              <CardTitle className="text-sm flex items-center justify-between">
+                <span className="flex items-center gap-2 text-purple-400">
+                  <Sparkles className="w-4 h-4" />
+                  {tr.analysisResult}
+                </span>
+                <span className={`px-2 py-0.5 rounded text-xs ${
+                  analyzedData.confidence === 'high' ? 'bg-green-600' :
+                  analyzedData.confidence === 'medium' ? 'bg-yellow-600' :
+                  'bg-red-600'
+                }`}>
+                  {tr.confidence}: {analyzedData.confidence === 'high' ? tr.high : 
+                    analyzedData.confidence === 'medium' ? tr.medium : tr.low}
+                </span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <Label className="text-gray-400">配信日</Label>
+              {/* Stats Grid */}
+              <div className="grid grid-cols-2 gap-3">
+                {/* Sales Amount */}
+                {analyzedData.salesAmount !== null && analyzedData.salesAmount !== undefined && (
+                  <div className="bg-gray-800 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                      <DollarSign className="w-3 h-3" />
+                      {tr.salesAmount}
+                    </div>
+                    <div className="text-xl font-bold text-green-400">
+                      ¥{analyzedData.salesAmount.toLocaleString()}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Viewer Count */}
+                {analyzedData.viewerCount !== null && analyzedData.viewerCount !== undefined && (
+                  <div className="bg-gray-800 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                      <Users className="w-3 h-3" />
+                      {tr.viewerCount}
+                    </div>
+                    <div className="text-xl font-bold text-blue-400">
+                      {analyzedData.viewerCount.toLocaleString()}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Peak Viewer Count */}
+                {analyzedData.peakViewerCount !== null && analyzedData.peakViewerCount !== undefined && (
+                  <div className="bg-gray-800 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                      <Users className="w-3 h-3" />
+                      {tr.peakViewerCount}
+                    </div>
+                    <div className="text-xl font-bold text-cyan-400">
+                      {analyzedData.peakViewerCount.toLocaleString()}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Duration */}
+                {analyzedData.durationMinutes !== null && analyzedData.durationMinutes !== undefined && (
+                  <div className="bg-gray-800 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                      <Clock className="w-3 h-3" />
+                      {tr.durationMinutes}
+                    </div>
+                    <div className="text-xl font-bold text-orange-400">
+                      {analyzedData.durationMinutes}{tr.minutes}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Product Clicks */}
+                {analyzedData.productClicks !== null && analyzedData.productClicks !== undefined && (
+                  <div className="bg-gray-800 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                      <MousePointer className="w-3 h-3" />
+                      {tr.productClicks}
+                    </div>
+                    <div className="text-xl font-bold text-yellow-400">
+                      {analyzedData.productClicks.toLocaleString()}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Order Count */}
+                {analyzedData.orderCount !== null && analyzedData.orderCount !== undefined && (
+                  <div className="bg-gray-800 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                      <ShoppingCart className="w-3 h-3" />
+                      {tr.orderCount}
+                    </div>
+                    <div className="text-xl font-bold text-pink-400">
+                      {analyzedData.orderCount.toLocaleString()}
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Re-analyze Button */}
+              <Button
+                type="button"
+                onClick={() => handleAnalyzeScreenshot()}
+                disabled={isAnalyzing}
+                variant="outline"
+                className="w-full border-purple-600 text-purple-400 hover:bg-purple-600/20"
+              >
+                {isAnalyzing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    {tr.analyzing}
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    {tr.reanalyze}
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* AI Advice Section */}
+        {advice && (
+          <Card className="bg-gradient-to-r from-yellow-900/30 to-orange-900/30 border-yellow-600/50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-yellow-400 flex items-center gap-2">
+                <Lightbulb className="w-4 h-4" />
+                {tr.adviceTitle}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-white text-sm whitespace-pre-wrap">{advice}</p>
+              
+              {/* Regenerate Advice Button */}
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => handleGenerateAdvice()}
+                disabled={isGeneratingAdvice}
+                className="mt-3 text-yellow-400 hover:bg-yellow-600/20 text-xs"
+              >
+                {isGeneratingAdvice ? (
+                  <>
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    {tr.generatingAdvice}
+                  </>
+                ) : (
+                  <>
+                    <Lightbulb className="w-3 h-3 mr-1" />
+                    {tr.regenerateAdvice}
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Details Form Section */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Card className="bg-gray-900 border-gray-700">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm text-gray-300">{tr.detailsForm}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Brand Selection */}
+              <div className="space-y-2">
+                <Label className="text-gray-400 text-sm flex items-center gap-2">
+                  <Video className="h-4 w-4 text-red-500" />
+                  {tr.selectBrand} <span className="text-red-500">*</span>
+                </Label>
+                <Select
+                  value={formData.brandId}
+                  onValueChange={(value) => setFormData({ ...formData, brandId: value })}
+                >
+                  <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
+                    <SelectValue placeholder={tr.selectBrand} />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-gray-300 text-black max-h-60">
+                    {brands?.map((brand: { id: number; name: string }) => (
+                      <SelectItem key={brand.id} value={brand.id.toString()}>
+                        {brand.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Date & Time */}
+              <div className="space-y-2">
+                <Label className="text-gray-400 text-sm flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-red-500" />
+                  {tr.livestreamDate} <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   type="date"
                   value={formData.livestreamDate}
@@ -277,9 +697,10 @@ export default function LiverSelfRecord() {
                   className="bg-gray-800 border-gray-700 text-white"
                 />
               </div>
+              
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-gray-400">開始時刻</Label>
+                <div className="space-y-2">
+                  <Label className="text-gray-400 text-sm">{tr.startTime}</Label>
                   <Input
                     type="time"
                     value={formData.livestreamStartTime}
@@ -287,8 +708,8 @@ export default function LiverSelfRecord() {
                     className="bg-gray-800 border-gray-700 text-white"
                   />
                 </div>
-                <div>
-                  <Label className="text-gray-400">終了時刻</Label>
+                <div className="space-y-2">
+                  <Label className="text-gray-400 text-sm">{tr.endTime}</Label>
                   <Input
                     type="time"
                     value={formData.livestreamEndTime}
@@ -297,138 +718,86 @@ export default function LiverSelfRecord() {
                   />
                 </div>
               </div>
-            </CardContent>
-          </Card>
 
-          {/* Sales Amount */}
-          <Card className="bg-gray-900 border-gray-800">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2 text-white">
-                <DollarSign className="h-5 w-5 text-yellow-500" />
-                売上金額
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">¥</span>
-                <Input
-                  type="number"
-                  value={formData.salesAmount}
-                  onChange={(e) => setFormData({ ...formData, salesAmount: e.target.value })}
-                  placeholder="0"
-                  className="bg-gray-800 border-gray-700 text-white pl-8"
-                />
+              {/* Sales Amount */}
+              <div className="space-y-2">
+                <Label className="text-gray-400 text-sm flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-yellow-500" />
+                  {tr.salesAmount}
+                </Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">¥</span>
+                  <Input
+                    type="number"
+                    value={formData.salesAmount}
+                    onChange={(e) => setFormData({ ...formData, salesAmount: e.target.value })}
+                    placeholder="0"
+                    className="bg-gray-800 border-gray-700 text-white pl-8"
+                  />
+                </div>
               </div>
-            </CardContent>
-          </Card>
 
-          {/* Result */}
-          <Card className="bg-gray-900 border-gray-800">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2 text-white">
-                <Clock className="h-5 w-5 text-red-500" />
-                配信結果
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label className="text-gray-400">結果</Label>
+              {/* Result */}
+              <div className="space-y-2">
+                <Label className="text-gray-400 text-sm flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-red-500" />
+                  {tr.result}
+                </Label>
                 <Select
                   value={formData.result}
                   onValueChange={(value) => setFormData({ ...formData, result: value })}
                 >
                   <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
-                    <SelectValue placeholder="結果を選択" />
+                    <SelectValue placeholder={tr.selectResult} />
                   </SelectTrigger>
-                  <SelectContent className="bg-gray-900 border-gray-700">
-                    <SelectItem value="成功">成功</SelectItem>
-                    <SelectItem value="失敗">失敗</SelectItem>
+                  <SelectContent className="bg-white border-gray-300 text-black">
+                    <SelectItem value="成功">{tr.success}</SelectItem>
+                    <SelectItem value="失敗">{tr.failure}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label className="text-gray-400">影響要因</Label>
+
+              {/* Impact Factor */}
+              <div className="space-y-2">
+                <Label className="text-gray-400 text-sm">{tr.impactFactor}</Label>
                 <Select
                   value={formData.impactFactor}
                   onValueChange={(value) => setFormData({ ...formData, impactFactor: value })}
                 >
                   <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
-                    <SelectValue placeholder="影響要因を選択" />
+                    <SelectValue placeholder={tr.selectFactor} />
                   </SelectTrigger>
-                  <SelectContent className="bg-gray-900 border-gray-700">
-                    <SelectItem value="構成">構成</SelectItem>
-                    <SelectItem value="商品">商品</SelectItem>
-                    <SelectItem value="ライバー">ライバー</SelectItem>
-                    <SelectItem value="広告">広告</SelectItem>
-                    <SelectItem value="その他">その他</SelectItem>
+                  <SelectContent className="bg-white border-gray-300 text-black">
+                    <SelectItem value="構成">{tr.composition}</SelectItem>
+                    <SelectItem value="商品">{tr.product}</SelectItem>
+                    <SelectItem value="ライバー">{tr.liver}</SelectItem>
+                    <SelectItem value="広告">{tr.ad}</SelectItem>
+                    <SelectItem value="その他">{tr.other}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label className="text-gray-400">理由・メモ</Label>
+
+              {/* Reason/Memo */}
+              <div className="space-y-2">
+                <Label className="text-gray-400 text-sm">{tr.reasonMemo}</Label>
                 <Textarea
                   value={formData.resultReason}
                   onChange={(e) => setFormData({ ...formData, resultReason: e.target.value })}
-                  placeholder="結果の理由や気づきを記入..."
-                  className="bg-gray-800 border-gray-700 text-white min-h-[100px]"
+                  placeholder={tr.reasonPlaceholder}
+                  className="bg-gray-800 border-gray-700 text-white min-h-[80px]"
                 />
               </div>
-            </CardContent>
-          </Card>
 
-          {/* Screenshot */}
-          <Card className="bg-gray-900 border-gray-800">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2 text-white">
-                <Upload className="h-5 w-5 text-red-500" />
-                スクリーンショット
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {screenshotPreview ? (
-                <div className="relative">
-                  <img 
-                    src={screenshotPreview} 
-                    alt="Screenshot preview" 
-                    className="w-full rounded-lg"
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="icon"
-                    className="absolute top-2 right-2"
-                    onClick={removeScreenshot}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              ) : (
-                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-700 rounded-lg cursor-pointer hover:border-gray-600 transition-colors">
-                  <Upload className="h-8 w-8 text-gray-500 mb-2" />
-                  <span className="text-sm text-gray-400">クリックして画像をアップロード</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleScreenshotChange}
-                    className="hidden"
-                  />
-                </label>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Remarks */}
-          <Card className="bg-gray-900 border-gray-800">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg text-white">備考</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Textarea
-                value={formData.remarks}
-                onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-                placeholder="その他のメモ..."
-                className="bg-gray-800 border-gray-700 text-white min-h-[80px]"
-              />
+              {/* Other Memo */}
+              <div className="space-y-2">
+                <Label className="text-gray-400 text-sm">{tr.otherMemo}</Label>
+                <Textarea
+                  value={formData.remarks}
+                  onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                  placeholder={tr.memoPlaceholder}
+                  className="bg-gray-800 border-gray-700 text-white min-h-[60px]"
+                />
+              </div>
             </CardContent>
           </Card>
 
@@ -436,16 +805,9 @@ export default function LiverSelfRecord() {
           <Button
             type="submit"
             disabled={isSubmitting}
-            className="w-full bg-red-600 hover:bg-red-700 text-white py-6 text-lg font-bold"
+            className="w-full bg-red-600 hover:bg-red-700 text-white py-6 text-lg"
           >
-            {isSubmitting ? (
-              <div className="flex items-center gap-2">
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                保存中...
-              </div>
-            ) : (
-              "配信記録を保存"
-            )}
+            {isSubmitting ? tr.saving : tr.save}
           </Button>
         </form>
       </div>
