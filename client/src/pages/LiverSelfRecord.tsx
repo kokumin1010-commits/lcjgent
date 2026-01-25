@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Video, Calendar, DollarSign, Clock, X, Link as LinkIcon, Camera, Sparkles, Loader2, Lightbulb, Users, MousePointer, ShoppingCart } from "lucide-react";
+import { ArrowLeft, Video, Calendar, DollarSign, Clock, X, Link as LinkIcon, Camera, Sparkles, Loader2, Lightbulb, Users, MousePointer, ShoppingCart, Edit2, Check } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 
@@ -51,6 +51,19 @@ export default function LiverSelfRecord() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGeneratingAdvice, setIsGeneratingAdvice] = useState(false);
   const [advice, setAdvice] = useState<string | null>(null);
+  
+  // Editable analyzed data state
+  const [isEditingAnalysis, setIsEditingAnalysis] = useState(false);
+  const [editedAnalyzedData, setEditedAnalyzedData] = useState<{
+    salesAmount: string;
+    viewerCount: string;
+    peakViewerCount: string;
+    productClicks: string;
+    orderCount: string;
+    durationMinutes: string;
+    confidence?: string;
+  } | null>(null);
+  
   const [analyzedData, setAnalyzedData] = useState<{
     salesAmount?: number | null;
     viewerCount?: number | null;
@@ -91,6 +104,21 @@ export default function LiverSelfRecord() {
       }));
     }
   }, [scheduleInfo]);
+  
+  // Initialize edited data when analyzedData changes
+  useEffect(() => {
+    if (analyzedData) {
+      setEditedAnalyzedData({
+        salesAmount: analyzedData.salesAmount?.toString() || "",
+        viewerCount: analyzedData.viewerCount?.toString() || "",
+        peakViewerCount: analyzedData.peakViewerCount?.toString() || "",
+        productClicks: analyzedData.productClicks?.toString() || "",
+        orderCount: analyzedData.orderCount?.toString() || "",
+        durationMinutes: analyzedData.durationMinutes?.toString() || "",
+        confidence: analyzedData.confidence,
+      });
+    }
+  }, [analyzedData]);
 
   const createLivestreamMutation = trpc.liverManagement.createLivestream.useMutation({
     onSuccess: () => {
@@ -160,6 +188,10 @@ export default function LiverSelfRecord() {
       enterDateTimeError: "配信日時を入力してください",
       saveError: "保存に失敗しました",
       scheduleLink: "スケジュールから記録",
+      editAnalysis: "編集",
+      saveEdit: "確定",
+      editHint: "解析結果を修正できます",
+      analysisUpdated: "解析結果を更新しました",
     },
     zh: {
       title: "记录直播内容",
@@ -213,6 +245,10 @@ export default function LiverSelfRecord() {
       enterDateTimeError: "请输入直播时间",
       saveError: "保存失败",
       scheduleLink: "从日程记录",
+      editAnalysis: "编辑",
+      saveEdit: "确定",
+      editHint: "可以修改分析结果",
+      analysisUpdated: "分析结果已更新",
     },
   };
 
@@ -240,7 +276,9 @@ export default function LiverSelfRecord() {
     setScreenshotPreview(null);
     setScreenshotUrl(null);
     setAnalyzedData(null);
+    setEditedAnalyzedData(null);
     setAdvice(null);
+    setIsEditingAnalysis(false);
   };
 
   const handleAnalyzeScreenshot = async (file?: File) => {
@@ -248,6 +286,7 @@ export default function LiverSelfRecord() {
     if (!fileToAnalyze || !liverInfo?.id) return;
     
     setIsAnalyzing(true);
+    setIsEditingAnalysis(false);
     try {
       // First upload the screenshot
       const reader = new FileReader();
@@ -345,6 +384,46 @@ export default function LiverSelfRecord() {
     } finally {
       setIsGeneratingAdvice(false);
     }
+  };
+  
+  // Handle saving edited analysis data
+  const handleSaveEditedAnalysis = () => {
+    if (!editedAnalyzedData) return;
+    
+    // Update analyzedData with edited values
+    const updatedData = {
+      ...analyzedData,
+      salesAmount: editedAnalyzedData.salesAmount ? parseInt(editedAnalyzedData.salesAmount, 10) : null,
+      viewerCount: editedAnalyzedData.viewerCount ? parseInt(editedAnalyzedData.viewerCount, 10) : null,
+      peakViewerCount: editedAnalyzedData.peakViewerCount ? parseInt(editedAnalyzedData.peakViewerCount, 10) : null,
+      productClicks: editedAnalyzedData.productClicks ? parseInt(editedAnalyzedData.productClicks, 10) : null,
+      orderCount: editedAnalyzedData.orderCount ? parseInt(editedAnalyzedData.orderCount, 10) : null,
+      durationMinutes: editedAnalyzedData.durationMinutes ? parseInt(editedAnalyzedData.durationMinutes, 10) : null,
+      confidence: editedAnalyzedData.confidence,
+    };
+    
+    setAnalyzedData(updatedData);
+    
+    // Update form fields
+    if (updatedData.salesAmount !== null) {
+      setFormData(prev => ({
+        ...prev,
+        salesAmount: updatedData.salesAmount!.toString(),
+      }));
+    }
+    
+    // Update end time based on duration if we have start time
+    if (updatedData.durationMinutes !== null && formData.livestreamDate && formData.livestreamStartTime) {
+      const start = new Date(`${formData.livestreamDate}T${formData.livestreamStartTime}`);
+      const end = new Date(start.getTime() + updatedData.durationMinutes * 60 * 1000);
+      setFormData(prev => ({
+        ...prev,
+        livestreamEndTime: end.toTimeString().slice(0, 5),
+      }));
+    }
+    
+    setIsEditingAnalysis(false);
+    toast.success(tr.analysisUpdated);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -544,100 +623,197 @@ export default function LiverSelfRecord() {
                   <Sparkles className="w-4 h-4" />
                   {tr.analysisResult}
                 </span>
-                <span className={`px-2 py-0.5 rounded text-xs ${
-                  analyzedData.confidence === 'high' ? 'bg-green-600' :
-                  analyzedData.confidence === 'medium' ? 'bg-yellow-600' :
-                  'bg-red-600'
-                }`}>
-                  {tr.confidence}: {analyzedData.confidence === 'high' ? tr.high : 
-                    analyzedData.confidence === 'medium' ? tr.medium : tr.low}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`px-2 py-0.5 rounded text-xs ${
+                    analyzedData.confidence === 'high' ? 'bg-green-600' :
+                    analyzedData.confidence === 'medium' ? 'bg-yellow-600' :
+                    'bg-red-600'
+                  }`}>
+                    {tr.confidence}: {analyzedData.confidence === 'high' ? tr.high : 
+                      analyzedData.confidence === 'medium' ? tr.medium : tr.low}
+                  </span>
+                  {/* Edit/Save Button */}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      if (isEditingAnalysis) {
+                        handleSaveEditedAnalysis();
+                      } else {
+                        setIsEditingAnalysis(true);
+                      }
+                    }}
+                    className={`h-7 px-2 ${isEditingAnalysis ? 'text-green-400 hover:bg-green-600/20' : 'text-gray-400 hover:bg-gray-700'}`}
+                  >
+                    {isEditingAnalysis ? (
+                      <>
+                        <Check className="w-3 h-3 mr-1" />
+                        {tr.saveEdit}
+                      </>
+                    ) : (
+                      <>
+                        <Edit2 className="w-3 h-3 mr-1" />
+                        {tr.editAnalysis}
+                      </>
+                    )}
+                  </Button>
+                </div>
               </CardTitle>
+              {isEditingAnalysis && (
+                <p className="text-xs text-gray-400 mt-1">{tr.editHint}</p>
+              )}
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Stats Grid */}
               <div className="grid grid-cols-2 gap-3">
                 {/* Sales Amount */}
-                {analyzedData.salesAmount !== null && analyzedData.salesAmount !== undefined && (
-                  <div className="bg-gray-800 rounded-lg p-3">
-                    <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
-                      <DollarSign className="w-3 h-3" />
-                      {tr.salesAmount}
-                    </div>
-                    <div className="text-xl font-bold text-green-400">
-                      ¥{analyzedData.salesAmount.toLocaleString()}
-                    </div>
+                <div className="bg-gray-800 rounded-lg p-3">
+                  <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                    <DollarSign className="w-3 h-3" />
+                    {tr.salesAmount}
                   </div>
-                )}
+                  {isEditingAnalysis ? (
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-green-400 text-sm">¥</span>
+                      <Input
+                        type="number"
+                        value={editedAnalyzedData?.salesAmount || ""}
+                        onChange={(e) => setEditedAnalyzedData(prev => prev ? {...prev, salesAmount: e.target.value} : null)}
+                        className="bg-gray-700 border-gray-600 text-green-400 font-bold pl-6 h-8"
+                        placeholder="0"
+                      />
+                    </div>
+                  ) : (
+                    <div className="text-xl font-bold text-green-400">
+                      {analyzedData.salesAmount !== null && analyzedData.salesAmount !== undefined 
+                        ? `¥${analyzedData.salesAmount.toLocaleString()}`
+                        : "-"}
+                    </div>
+                  )}
+                </div>
                 
                 {/* Viewer Count */}
-                {analyzedData.viewerCount !== null && analyzedData.viewerCount !== undefined && (
-                  <div className="bg-gray-800 rounded-lg p-3">
-                    <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
-                      <Users className="w-3 h-3" />
-                      {tr.viewerCount}
-                    </div>
-                    <div className="text-xl font-bold text-blue-400">
-                      {analyzedData.viewerCount.toLocaleString()}
-                    </div>
+                <div className="bg-gray-800 rounded-lg p-3">
+                  <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                    <Users className="w-3 h-3" />
+                    {tr.viewerCount}
                   </div>
-                )}
+                  {isEditingAnalysis ? (
+                    <Input
+                      type="number"
+                      value={editedAnalyzedData?.viewerCount || ""}
+                      onChange={(e) => setEditedAnalyzedData(prev => prev ? {...prev, viewerCount: e.target.value} : null)}
+                      className="bg-gray-700 border-gray-600 text-blue-400 font-bold h-8"
+                      placeholder="0"
+                    />
+                  ) : (
+                    <div className="text-xl font-bold text-blue-400">
+                      {analyzedData.viewerCount !== null && analyzedData.viewerCount !== undefined 
+                        ? analyzedData.viewerCount.toLocaleString()
+                        : "-"}
+                    </div>
+                  )}
+                </div>
                 
                 {/* Peak Viewer Count */}
-                {analyzedData.peakViewerCount !== null && analyzedData.peakViewerCount !== undefined && (
-                  <div className="bg-gray-800 rounded-lg p-3">
-                    <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
-                      <Users className="w-3 h-3" />
-                      {tr.peakViewerCount}
-                    </div>
-                    <div className="text-xl font-bold text-cyan-400">
-                      {analyzedData.peakViewerCount.toLocaleString()}
-                    </div>
+                <div className="bg-gray-800 rounded-lg p-3">
+                  <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                    <Users className="w-3 h-3" />
+                    {tr.peakViewerCount}
                   </div>
-                )}
+                  {isEditingAnalysis ? (
+                    <Input
+                      type="number"
+                      value={editedAnalyzedData?.peakViewerCount || ""}
+                      onChange={(e) => setEditedAnalyzedData(prev => prev ? {...prev, peakViewerCount: e.target.value} : null)}
+                      className="bg-gray-700 border-gray-600 text-cyan-400 font-bold h-8"
+                      placeholder="0"
+                    />
+                  ) : (
+                    <div className="text-xl font-bold text-cyan-400">
+                      {analyzedData.peakViewerCount !== null && analyzedData.peakViewerCount !== undefined 
+                        ? analyzedData.peakViewerCount.toLocaleString()
+                        : "-"}
+                    </div>
+                  )}
+                </div>
                 
                 {/* Duration */}
-                {analyzedData.durationMinutes !== null && analyzedData.durationMinutes !== undefined && (
-                  <div className="bg-gray-800 rounded-lg p-3">
-                    <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
-                      <Clock className="w-3 h-3" />
-                      {tr.durationMinutes}
-                    </div>
-                    <div className="text-xl font-bold text-orange-400">
-                      {analyzedData.durationMinutes}{tr.minutes}
-                    </div>
+                <div className="bg-gray-800 rounded-lg p-3">
+                  <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                    <Clock className="w-3 h-3" />
+                    {tr.durationMinutes}
                   </div>
-                )}
+                  {isEditingAnalysis ? (
+                    <div className="flex items-center gap-1">
+                      <Input
+                        type="number"
+                        value={editedAnalyzedData?.durationMinutes || ""}
+                        onChange={(e) => setEditedAnalyzedData(prev => prev ? {...prev, durationMinutes: e.target.value} : null)}
+                        className="bg-gray-700 border-gray-600 text-orange-400 font-bold h-8"
+                        placeholder="0"
+                      />
+                      <span className="text-orange-400 text-sm">{tr.minutes}</span>
+                    </div>
+                  ) : (
+                    <div className="text-xl font-bold text-orange-400">
+                      {analyzedData.durationMinutes !== null && analyzedData.durationMinutes !== undefined 
+                        ? `${analyzedData.durationMinutes}${tr.minutes}`
+                        : "-"}
+                    </div>
+                  )}
+                </div>
                 
                 {/* Product Clicks */}
-                {analyzedData.productClicks !== null && analyzedData.productClicks !== undefined && (
-                  <div className="bg-gray-800 rounded-lg p-3">
-                    <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
-                      <MousePointer className="w-3 h-3" />
-                      {tr.productClicks}
-                    </div>
-                    <div className="text-xl font-bold text-yellow-400">
-                      {analyzedData.productClicks.toLocaleString()}
-                    </div>
+                <div className="bg-gray-800 rounded-lg p-3">
+                  <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                    <MousePointer className="w-3 h-3" />
+                    {tr.productClicks}
                   </div>
-                )}
+                  {isEditingAnalysis ? (
+                    <Input
+                      type="number"
+                      value={editedAnalyzedData?.productClicks || ""}
+                      onChange={(e) => setEditedAnalyzedData(prev => prev ? {...prev, productClicks: e.target.value} : null)}
+                      className="bg-gray-700 border-gray-600 text-yellow-400 font-bold h-8"
+                      placeholder="0"
+                    />
+                  ) : (
+                    <div className="text-xl font-bold text-yellow-400">
+                      {analyzedData.productClicks !== null && analyzedData.productClicks !== undefined 
+                        ? analyzedData.productClicks.toLocaleString()
+                        : "-"}
+                    </div>
+                  )}
+                </div>
                 
                 {/* Order Count */}
-                {analyzedData.orderCount !== null && analyzedData.orderCount !== undefined && (
-                  <div className="bg-gray-800 rounded-lg p-3">
-                    <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
-                      <ShoppingCart className="w-3 h-3" />
-                      {tr.orderCount}
-                    </div>
-                    <div className="text-xl font-bold text-pink-400">
-                      {analyzedData.orderCount.toLocaleString()}
-                    </div>
+                <div className="bg-gray-800 rounded-lg p-3">
+                  <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+                    <ShoppingCart className="w-3 h-3" />
+                    {tr.orderCount}
                   </div>
-                )}
+                  {isEditingAnalysis ? (
+                    <Input
+                      type="number"
+                      value={editedAnalyzedData?.orderCount || ""}
+                      onChange={(e) => setEditedAnalyzedData(prev => prev ? {...prev, orderCount: e.target.value} : null)}
+                      className="bg-gray-700 border-gray-600 text-pink-400 font-bold h-8"
+                      placeholder="0"
+                    />
+                  ) : (
+                    <div className="text-xl font-bold text-pink-400">
+                      {analyzedData.orderCount !== null && analyzedData.orderCount !== undefined 
+                        ? analyzedData.orderCount.toLocaleString()
+                        : "-"}
+                    </div>
+                  )}
+                </div>
               </div>
               
               {/* Additional Metrics from rawData */}
-              {analyzedData.rawData && Object.keys(analyzedData.rawData).some(k => analyzedData.rawData?.[k as keyof typeof analyzedData.rawData] !== null) && (
+              {!isEditingAnalysis && analyzedData.rawData && Object.keys(analyzedData.rawData).some(k => analyzedData.rawData?.[k as keyof typeof analyzedData.rawData] !== null) && (
                 <div className="mt-4 pt-4 border-t border-gray-700">
                   <p className="text-xs text-gray-400 mb-3">{language === 'ja' ? '詳細指標' : '详细指标'}</p>
                   <div className="grid grid-cols-2 gap-2 text-sm">
@@ -694,25 +870,27 @@ export default function LiverSelfRecord() {
               )}
               
               {/* Re-analyze Button */}
-              <Button
-                type="button"
-                onClick={() => handleAnalyzeScreenshot()}
-                disabled={isAnalyzing}
-                variant="outline"
-                className="w-full border-purple-600 text-purple-400 hover:bg-purple-600/20"
-              >
-                {isAnalyzing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    {tr.analyzing}
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    {tr.reanalyze}
-                  </>
-                )}
-              </Button>
+              {!isEditingAnalysis && (
+                <Button
+                  type="button"
+                  onClick={() => handleAnalyzeScreenshot()}
+                  disabled={isAnalyzing}
+                  variant="outline"
+                  className="w-full border-purple-600 text-purple-400 hover:bg-purple-600/20"
+                >
+                  {isAnalyzing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      {tr.analyzing}
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      {tr.reanalyze}
+                    </>
+                  )}
+                </Button>
+              )}
             </CardContent>
           </Card>
         )}
@@ -843,13 +1021,14 @@ export default function LiverSelfRecord() {
                   {tr.result}
                 </Label>
                 <Select
-                  value={formData.result}
-                  onValueChange={(value) => setFormData({ ...formData, result: value })}
+                  value={formData.result || "none"}
+                  onValueChange={(value) => setFormData({ ...formData, result: value === "none" ? "" : value })}
                 >
                   <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
                     <SelectValue placeholder={tr.selectResult} />
                   </SelectTrigger>
                   <SelectContent className="bg-white border-gray-300 text-black">
+                    <SelectItem value="none">{tr.selectResult}</SelectItem>
                     <SelectItem value="成功">{tr.success}</SelectItem>
                     <SelectItem value="失敗">{tr.failure}</SelectItem>
                   </SelectContent>
@@ -860,13 +1039,14 @@ export default function LiverSelfRecord() {
               <div className="space-y-2">
                 <Label className="text-gray-400 text-sm">{tr.impactFactor}</Label>
                 <Select
-                  value={formData.impactFactor}
-                  onValueChange={(value) => setFormData({ ...formData, impactFactor: value })}
+                  value={formData.impactFactor || "none"}
+                  onValueChange={(value) => setFormData({ ...formData, impactFactor: value === "none" ? "" : value })}
                 >
                   <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
                     <SelectValue placeholder={tr.selectFactor} />
                   </SelectTrigger>
                   <SelectContent className="bg-white border-gray-300 text-black">
+                    <SelectItem value="none">{tr.selectFactor}</SelectItem>
                     <SelectItem value="構成">{tr.composition}</SelectItem>
                     <SelectItem value="商品">{tr.product}</SelectItem>
                     <SelectItem value="ライバー">{tr.liver}</SelectItem>
@@ -876,7 +1056,7 @@ export default function LiverSelfRecord() {
                 </Select>
               </div>
 
-              {/* Reason/Memo */}
+              {/* Reason Memo */}
               <div className="space-y-2">
                 <Label className="text-gray-400 text-sm">{tr.reasonMemo}</Label>
                 <Textarea
@@ -894,7 +1074,7 @@ export default function LiverSelfRecord() {
                   value={formData.remarks}
                   onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
                   placeholder={tr.memoPlaceholder}
-                  className="bg-gray-800 border-gray-700 text-white min-h-[60px]"
+                  className="bg-gray-800 border-gray-700 text-white min-h-[80px]"
                 />
               </div>
             </CardContent>
@@ -904,9 +1084,16 @@ export default function LiverSelfRecord() {
           <Button
             type="submit"
             disabled={isSubmitting}
-            className="w-full bg-red-600 hover:bg-red-700 text-white py-6 text-lg"
+            className="w-full bg-red-600 hover:bg-red-700 text-white py-6 text-lg font-bold"
           >
-            {isSubmitting ? tr.saving : tr.save}
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                {tr.saving}
+              </>
+            ) : (
+              tr.save
+            )}
           </Button>
         </form>
       </div>
