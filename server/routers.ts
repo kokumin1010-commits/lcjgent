@@ -1510,6 +1510,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
       .input(
         z.object({
           name: z.string().min(1),
+          nameJa: z.string().min(1),
           companyName: z.string().optional(),
           category: z.string().optional(),
           phoneNumber: z.string().optional(),
@@ -1567,6 +1568,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
         z.object({
           id: z.number(),
           name: z.string().optional(),
+          nameJa: z.string().optional(),
           companyName: z.string().optional(),
           category: z.string().optional(),
           phoneNumber: z.string().optional(),

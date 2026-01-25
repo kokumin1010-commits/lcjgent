@@ -157,6 +157,7 @@ export type InsertReport = typeof reports.$inferInsert;
 export const brands = mysqlTable("brands", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 255 }).notNull(), // ブランド名
+  nameJa: varchar("nameJa", { length: 255 }).notNull(), // 日本語読みブランド名（ライブ配信時に使用）
   companyName: varchar("companyName", { length: 255 }), // 会社名
   category: varchar("category", { length: 100 }), // カテゴリー (e.g., "サービス業")
   phoneNumber: varchar("phoneNumber", { length: 50 }), // 電話番号

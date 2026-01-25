@@ -25,6 +25,7 @@ describe("Contract-Livestream Link Functions", () => {
     // Create test brand
     const brand = await createBrand({
       name: "Test Brand for Contract Link",
+      nameJa: "テストブランド",
       category: "テスト",
       status: "進行中",
       createdBy: 1,

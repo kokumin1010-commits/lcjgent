@@ -295,6 +295,13 @@
       "when": 1769273084224,
       "tag": "0041_harsh_runaways",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "5",
+      "when": 1769319324111,
+      "tag": "0042_windy_stranger",
+      "breakpoints": true
     }
   ]
 }

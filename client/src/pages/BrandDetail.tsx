@@ -92,6 +92,7 @@ const translations = {
     // Basic info dialog
     basicInfo: "基本情報",
     brandName: "ブランド名",
+    brandNameJa: "日本語読み",
     companyName: "会社名",
     category: "カテゴリー",
     phoneNumber: "電話番号",
@@ -181,6 +182,7 @@ const translations = {
     // Basic info dialog
     basicInfo: "基本信息",
     brandName: "品牌名",
+    brandNameJa: "日语读音",
     companyName: "公司名",
     category: "类别",
     phoneNumber: "电话号码",
@@ -781,7 +783,10 @@ export default function BrandDetail() {
                     </SelectContent>
                   </Select>
                 </div>
-                <p className="text-gray-500 text-sm mt-0.5">{brand.companyName || brand.name}</p>
+                <p className="text-gray-500 text-sm mt-0.5">
+                  {brand.nameJa && <span className="text-red-400 mr-2">({brand.nameJa})</span>}
+                  {brand.companyName || brand.name}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -2213,6 +2218,10 @@ export default function BrandDetail() {
               <div>
                 <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">{t.brandName}</p>
                 <p className="text-white font-medium">{brand.name}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">{t.brandNameJa}</p>
+                <p className="text-white font-medium text-red-400">{brand.nameJa || "-"}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">{t.companyName}</p>

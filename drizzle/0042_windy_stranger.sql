@@ -1,0 +1,1 @@
+ALTER TABLE `brands` ADD `nameJa` varchar(255) NOT NULL;

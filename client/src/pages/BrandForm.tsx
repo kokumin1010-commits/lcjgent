@@ -23,6 +23,8 @@ const translations = {
     newTitle: "ブランド登録",
     editTitle: "ブランド編集",
     brandName: "ブランド名",
+    brandNameJa: "日本語読みブランド名",
+    brandNameJaHint: "ライブ配信時に使用する日本語の読み方を入力してください",
     companyName: "会社名",
     category: "カテゴリー",
     phoneNumber: "電話番号",
@@ -56,6 +58,8 @@ const translations = {
     newTitle: "品牌注册",
     editTitle: "品牌编辑",
     brandName: "品牌名",
+    brandNameJa: "日语读音品牌名",
+    brandNameJaHint: "请输入直播时使用的日语读音",
     companyName: "公司名",
     category: "类别",
     phoneNumber: "电话号码",
@@ -130,6 +134,7 @@ export default function BrandForm() {
 
   const [formData, setFormData] = useState({
     name: "",
+    nameJa: "",
     companyName: "",
     category: "service",
     phoneNumber: "",
@@ -163,6 +168,7 @@ export default function BrandForm() {
     if (brand) {
       setFormData({
         name: brand.name,
+        nameJa: brand.nameJa || "",
         companyName: brand.companyName || "",
         category: brand.category || "service",
         phoneNumber: brand.phoneNumber || "",
@@ -237,6 +243,7 @@ export default function BrandForm() {
     try {
       const data = {
         name: formData.name,
+        nameJa: formData.nameJa,
         companyName: formData.companyName || undefined,
         category: formData.category || undefined,
         phoneNumber: formData.phoneNumber || undefined,
@@ -298,6 +305,18 @@ export default function BrandForm() {
                   required
                 />
               </div>
+              <div className="space-y-2">
+                <Label>{t.brandNameJa} *</Label>
+                <Input
+                  value={formData.nameJa}
+                  onChange={(e) => handleInputChange("nameJa", e.target.value)}
+                  placeholder={t.brandNameJaHint}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>{t.companyName}</Label>
                 <Input
