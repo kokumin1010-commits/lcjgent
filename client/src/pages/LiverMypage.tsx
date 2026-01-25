@@ -26,7 +26,8 @@ import {
   Award,
   Flame,
   Settings,
-  Link2
+  Link2,
+  Edit
 } from "lucide-react";
 import { SiTiktok, SiInstagram, SiYoutube } from "react-icons/si";
 
@@ -36,11 +37,12 @@ export default function LiverMypage() {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   });
+  const [showAllLivestreams, setShowAllLivestreams] = useState(false);
 
   // Get current liver info
   const { data: liverInfo, isLoading: isLoadingLiver } = trpc.liver.me.useQuery();
   
-  // Get liver's livestream history
+  // Get liver's livestream history (全期間取得)
   const { data: livestreams, isLoading: isLoadingLivestreams } = trpc.liverManagement.getLivestreams.useQuery(
     { liverId: liverInfo?.id || 0 },
     { enabled: !!liverInfo?.id }
@@ -201,6 +203,11 @@ export default function LiverMypage() {
     };
   }, [livestreams]);
 
+  // 表示する配信履歴（最初は10件まで）
+  const displayedLivestreams = showAllLivestreams 
+    ? filteredLivestreams 
+    : filteredLivestreams.slice(0, 10);
+
   if (isLoadingLiver) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -309,139 +316,111 @@ export default function LiverMypage() {
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1 text-gray-300 hover:text-blue-400 transition-colors"
-                  title="Other"
+                  title="その他"
                 >
                   <Link2 className="w-5 h-5" />
                 </a>
               )}
             </div>
           )}
-          
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/liver/profile")}
-            className="mt-2 text-gray-300 hover:text-white"
-          >
-            <Settings className="h-4 w-4 mr-1" />
-            プロフィール編集
-          </Button>
-          
-          {/* Month Selector */}
-          <div className="mt-4">
-            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-              <SelectTrigger className="w-48 bg-yellow-500 text-black border-0 font-medium">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-white border-gray-300 text-black">
-                {monthOptions.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label} 実績
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+
+          <Link href="/liver/profile">
+            <Button variant="ghost" size="sm" className="mt-2 text-gray-300 hover:text-white">
+              <Settings className="h-4 w-4 mr-1" />
+              プロフィール編集
+            </Button>
+          </Link>
         </div>
 
-        {/* Main Stats Cards */}
+        {/* Month Selector */}
+        <div className="flex justify-center">
+          <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+            <SelectTrigger className="w-40 bg-yellow-500 border-yellow-600 text-black font-bold">
+              <SelectValue />
+              <span className="ml-1">実績</span>
+            </SelectTrigger>
+            <SelectContent className="bg-white border-gray-300 text-black">
+              {monthOptions.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Monthly Stats */}
         <div className="grid grid-cols-2 gap-4">
           <Card className="bg-slate-800 border-slate-700">
             <CardContent className="p-4 text-center">
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <DollarSign className="h-5 w-5 text-yellow-500" />
-                {salesGrowth !== 0 && (
-                  <Badge className={salesGrowth > 0 ? "bg-green-600" : "bg-red-600"}>
-                    {salesGrowth > 0 ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
-                    {salesGrowth > 0 ? "+" : ""}{salesGrowth}%
-                  </Badge>
-                )}
-              </div>
-              <p className="text-3xl font-bold text-white">
-                ¥{monthlyStats.sales.toLocaleString()}
-              </p>
-              <div className="mt-1 h-1 bg-yellow-500 rounded" />
-              <p className="mt-1 text-sm text-gray-300">月間売上</p>
+              <DollarSign className="h-5 w-5 mx-auto text-yellow-500 mb-2" />
+              <p className="text-2xl font-bold text-white">¥{monthlyStats.sales.toLocaleString()}</p>
+              <div className="h-1 bg-yellow-500 mt-2 rounded" />
+              <p className="text-sm text-gray-400 mt-2">月間売上</p>
             </CardContent>
           </Card>
           <Card className="bg-slate-800 border-slate-700">
             <CardContent className="p-4 text-center">
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <Clock className="h-5 w-5 text-yellow-500" />
-              </div>
-              <p className="text-3xl font-bold text-white">
-                {monthlyStats.hours}h
-              </p>
-              <div className="mt-1 h-1 bg-yellow-500 rounded" />
-              <p className="mt-1 text-sm text-gray-300">配信時間</p>
+              <Clock className="h-5 w-5 mx-auto text-yellow-500 mb-2" />
+              <p className="text-2xl font-bold text-white">{monthlyStats.hours}h</p>
+              <div className="h-1 bg-yellow-500 mt-2 rounded" />
+              <p className="text-sm text-gray-400 mt-2">配信時間</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Detailed Stats */}
+        {/* Additional Stats */}
         <div className="grid grid-cols-4 gap-3">
           <Card className="bg-slate-800 border-slate-700">
             <CardContent className="p-3 text-center">
-              <Video className="h-4 w-4 text-red-500 mx-auto mb-1" />
+              <Video className="h-4 w-4 mx-auto text-red-500 mb-1" />
               <p className="text-xl font-bold text-white">{monthlyStats.count}</p>
-              <p className="text-xs text-gray-300">配信回数</p>
+              <p className="text-xs text-gray-400">配信回数</p>
             </CardContent>
           </Card>
           <Card className="bg-slate-800 border-slate-700">
             <CardContent className="p-3 text-center">
-              <Target className="h-4 w-4 text-blue-500 mx-auto mb-1" />
-              <p className="text-xl font-bold text-white">
-                ¥{monthlyStats.avgSales.toLocaleString()}
-              </p>
-              <p className="text-xs text-gray-300">平均売上</p>
+              <Target className="h-4 w-4 mx-auto text-green-500 mb-1" />
+              <p className="text-xl font-bold text-white">¥{monthlyStats.avgSales.toLocaleString()}</p>
+              <p className="text-xs text-gray-400">平均売上</p>
             </CardContent>
           </Card>
           <Card className="bg-slate-800 border-slate-700">
             <CardContent className="p-3 text-center">
-              <Eye className="h-4 w-4 text-green-500 mx-auto mb-1" />
-              <p className="text-xl font-bold text-white">
-                {monthlyStats.viewerCount.toLocaleString()}
-              </p>
-              <p className="text-xs text-gray-300">視聴者数</p>
+              <Eye className="h-4 w-4 mx-auto text-blue-500 mb-1" />
+              <p className="text-xl font-bold text-white">{monthlyStats.viewerCount.toLocaleString()}</p>
+              <p className="text-xs text-gray-400">視聴者数</p>
             </CardContent>
           </Card>
           <Card className="bg-slate-800 border-slate-700">
             <CardContent className="p-3 text-center">
-              <ShoppingCart className="h-4 w-4 text-purple-500 mx-auto mb-1" />
-              <p className="text-xl font-bold text-white">
-                {monthlyStats.orderCount.toLocaleString()}
-              </p>
-              <p className="text-xs text-gray-300">注文数</p>
+              <ShoppingCart className="h-4 w-4 mx-auto text-purple-500 mb-1" />
+              <p className="text-xl font-bold text-white">{monthlyStats.orderCount.toLocaleString()}</p>
+              <p className="text-xs text-gray-400">注文数</p>
             </CardContent>
           </Card>
         </div>
 
         {/* All-time Stats */}
-        <Card className="bg-gradient-to-r from-slate-800 to-slate-700 border-slate-600">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-gray-300 flex items-center gap-2">
-              <Award className="h-4 w-4 text-yellow-500" />
-              累計実績
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-3 gap-4 pt-0">
-            <div className="text-center">
-              <p className="text-lg font-bold text-yellow-500">
-                ¥{allTimeStats.totalSales.toLocaleString()}
-              </p>
-              <p className="text-xs text-gray-300">総売上</p>
+        <Card className="bg-slate-800/50 border-slate-700">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Award className="h-5 w-5 text-yellow-500" />
+              <span className="font-bold text-white">累計実績</span>
             </div>
-            <div className="text-center">
-              <p className="text-lg font-bold text-yellow-500">
-                {allTimeStats.totalHours}h
-              </p>
-              <p className="text-xs text-gray-300">総配信時間</p>
-            </div>
-            <div className="text-center">
-              <p className="text-lg font-bold text-yellow-500">
-                {allTimeStats.totalCount}
-              </p>
-              <p className="text-xs text-gray-300">総配信回数</p>
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div>
+                <p className="text-xl font-bold text-yellow-500">¥{allTimeStats.totalSales.toLocaleString()}</p>
+                <p className="text-xs text-gray-400">総売上</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold text-yellow-500">{allTimeStats.totalHours}h</p>
+                <p className="text-xs text-gray-400">総配信時間</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold text-yellow-500">{allTimeStats.totalCount}</p>
+                <p className="text-xs text-gray-400">総配信回数</p>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -464,7 +443,7 @@ export default function LiverMypage() {
           </Button>
         </div>
 
-        {/* Livestream History */}
+        {/* Livestream History - Table Format */}
         <div>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-bold text-white flex items-center gap-2">
@@ -494,86 +473,115 @@ export default function LiverMypage() {
               <CardContent className="p-8 text-center text-gray-300">
                 <Video className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>配信履歴がありません。</p>
-                <p className="text-sm mt-2">「配信内容の記録」から配信を記録しましょう！</p>
+                <p className="text-sm mt-2">「配信記録」から配信を記録しましょう！</p>
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-3">
-              {filteredLivestreams.map((ls: { 
-                id: number; 
-                livestreamDate: string | Date; 
-                livestreamEndTime?: string | Date | null; 
-                salesAmount?: number | null;
-                gmv?: number | null;
-                duration?: number | null;
-                viewerCount?: number | null;
-                result?: string | null;
-                streamerName?: string;
-              }) => {
-                const startDate = new Date(ls.livestreamDate);
-                const endDate = ls.livestreamEndTime ? new Date(ls.livestreamEndTime) : null;
-                const duration = ls.duration 
-                  ? Math.round(ls.duration / 60 * 10) / 10
-                  : endDate
-                    ? Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60) * 10) / 10
-                    : 0;
+            <Card className="bg-slate-800 border-slate-700 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-slate-700 text-gray-400 text-sm">
+                      <th className="text-left py-3 px-4">開始</th>
+                      <th className="text-left py-3 px-4">終了</th>
+                      <th className="text-center py-3 px-4">配信時間</th>
+                      <th className="text-right py-3 px-4">売上合計</th>
+                      <th className="text-center py-3 px-4"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayedLivestreams.map((ls: { 
+                      id: number; 
+                      livestreamDate: string | Date; 
+                      livestreamEndTime?: string | Date | null; 
+                      salesAmount?: number | null;
+                      gmv?: number | null;
+                      duration?: number | null;
+                      viewerCount?: number | null;
+                      result?: string | null;
+                      streamerName?: string;
+                    }) => {
+                      const startDate = new Date(ls.livestreamDate);
+                      const endDate = ls.livestreamEndTime ? new Date(ls.livestreamEndTime) : null;
+                      const duration = ls.duration 
+                        ? Math.round(ls.duration / 60 * 10) / 10
+                        : endDate
+                          ? Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60) * 10) / 10
+                          : 0;
 
-                return (
-                  <Card 
-                    key={ls.id} 
-                    className="bg-slate-800 border-slate-700 hover:border-yellow-500 hover:bg-slate-700 transition-colors cursor-pointer"
-                    onClick={() => navigate(`/livestreams/${ls.id}`)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 rounded-lg bg-red-600/20 flex items-center justify-center">
-                            <Video className="h-6 w-6 text-red-500" />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium text-white">
-                                {startDate.toLocaleDateString("ja-JP", { 
-                                  month: "numeric", 
-                                  day: "numeric", 
-                                  weekday: "short" 
-                                })}
-                              </p>
-                              {ls.result && (
-                                <Badge className={ls.result === "成功" ? "bg-green-600" : "bg-red-600"}>
-                                  {ls.result}
-                                </Badge>
-                              )}
+                      return (
+                        <tr 
+                          key={ls.id} 
+                          className="border-b border-slate-700/50 hover:bg-slate-700/50 transition-colors"
+                        >
+                          <td className="py-3 px-4">
+                            <div className="text-white text-sm">
+                              {startDate.toLocaleDateString("ja-JP", { 
+                                year: "numeric",
+                                month: "2-digit", 
+                                day: "2-digit",
+                                weekday: "short" 
+                              })}
                             </div>
-                            <p className="text-sm text-gray-300">
+                            <div className="text-gray-400 text-xs">
                               {startDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
-                              {endDate && ` - ${endDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}`}
-                              {duration > 0 && ` (${duration}h)`}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-yellow-500">
-                            ¥{(ls.salesAmount || ls.gmv || 0).toLocaleString()}
-                          </p>
-                          {ls.viewerCount && (
-                            <p className="text-xs text-gray-300">
-                              <Eye className="h-3 w-3 inline mr-1" />
-                              {ls.viewerCount.toLocaleString()}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            {endDate ? (
+                              <>
+                                <div className="text-white text-sm">
+                                  {endDate.toLocaleDateString("ja-JP", { 
+                                    year: "numeric",
+                                    month: "2-digit", 
+                                    day: "2-digit",
+                                    weekday: "short" 
+                                  })}
+                                </div>
+                                <div className="text-gray-400 text-xs">
+                                  {endDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
+                                </div>
+                              </>
+                            ) : (
+                              <span className="text-gray-500">-</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span className="text-yellow-500 font-bold">
+                              {duration > 0 ? `${duration}時間` : "-"}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <span className="text-yellow-500 font-bold">
+                              ¥{(ls.salesAmount || ls.gmv || 0).toLocaleString()}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => navigate(`/livestreams/${ls.id}`)}
+                              className="border-yellow-500 text-yellow-500 hover:bg-yellow-500 hover:text-black text-xs px-3"
+                            >
+                              編集
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
           )}
 
-          {filteredLivestreams.length > 10 && (
+          {filteredLivestreams.length > 10 && !showAllLivestreams && (
             <div className="mt-4 text-center">
-              <Button variant="outline" className="border-slate-600 text-white bg-slate-700 hover:bg-slate-600">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowAllLivestreams(true)}
+                className="border-yellow-500 text-yellow-500 hover:bg-yellow-500 hover:text-black"
+              >
                 VIEW MORE
               </Button>
             </div>
