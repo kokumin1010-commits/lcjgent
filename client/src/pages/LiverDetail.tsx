@@ -12,7 +12,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Edit, Home, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, Edit, Home, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
+import { SiTiktok, SiInstagram, SiYoutube } from "react-icons/si";
+import { Link2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function LiverDetail() {
@@ -203,6 +205,56 @@ export default function LiverDetail() {
               <Edit className="w-4 h-4 text-gray-400 hover:text-white cursor-pointer" />
             </Link>
           </div>
+          
+          {/* SNS Links */}
+          {(liver.tiktokAccount || liver.instagramAccount || liver.youtubeAccount || liver.otherAccount) && (
+            <div className="flex items-center gap-4 mt-2">
+              {liver.tiktokAccount && (
+                <a 
+                  href={liver.tiktokAccount.startsWith('http') ? liver.tiktokAccount : `https://www.tiktok.com/${liver.tiktokAccount.replace('@', '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-gray-400 hover:text-white transition-colors"
+                  title="TikTok"
+                >
+                  <SiTiktok className="w-5 h-5" />
+                </a>
+              )}
+              {liver.instagramAccount && (
+                <a 
+                  href={liver.instagramAccount.startsWith('http') ? liver.instagramAccount : `https://www.instagram.com/${liver.instagramAccount.replace('@', '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-gray-400 hover:text-pink-400 transition-colors"
+                  title="Instagram"
+                >
+                  <SiInstagram className="w-5 h-5" />
+                </a>
+              )}
+              {liver.youtubeAccount && (
+                <a 
+                  href={liver.youtubeAccount.startsWith('http') ? liver.youtubeAccount : `https://www.youtube.com/${liver.youtubeAccount}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-gray-400 hover:text-red-500 transition-colors"
+                  title="YouTube"
+                >
+                  <SiYoutube className="w-5 h-5" />
+                </a>
+              )}
+              {liver.otherAccount && (
+                <a 
+                  href={liver.otherAccount.startsWith('http') ? liver.otherAccount : `https://${liver.otherAccount}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-gray-400 hover:text-blue-400 transition-colors"
+                  title="Other"
+                >
+                  <Link2 className="w-5 h-5" />
+                </a>
+              )}
+            </div>
+          )}
           
           {/* Previous Month Stats */}
           <div className="bg-yellow-500/20 text-yellow-500 px-4 py-2 rounded-full text-sm">

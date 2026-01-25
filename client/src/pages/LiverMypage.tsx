@@ -25,8 +25,10 @@ import {
   Target,
   Award,
   Flame,
-  Settings
+  Settings,
+  Link2
 } from "lucide-react";
+import { SiTiktok, SiInstagram, SiYoutube } from "react-icons/si";
 
 export default function LiverMypage() {
   const [, navigate] = useLocation();
@@ -264,6 +266,57 @@ export default function LiverMypage() {
             <Home className="h-4 w-4 text-red-500" />
           </div>
           <h2 className="mt-2 text-xl font-bold">{liverInfo.name}</h2>
+          
+          {/* SNS Links */}
+          {(liverInfo.tiktokAccount || liverInfo.instagramAccount || liverInfo.youtubeAccount || liverInfo.otherAccount) && (
+            <div className="flex items-center gap-4 mt-3">
+              {liverInfo.tiktokAccount && (
+                <a 
+                  href={liverInfo.tiktokAccount.startsWith('http') ? liverInfo.tiktokAccount : `https://www.tiktok.com/${liverInfo.tiktokAccount.replace('@', '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-gray-400 hover:text-white transition-colors"
+                  title="TikTok"
+                >
+                  <SiTiktok className="w-5 h-5" />
+                </a>
+              )}
+              {liverInfo.instagramAccount && (
+                <a 
+                  href={liverInfo.instagramAccount.startsWith('http') ? liverInfo.instagramAccount : `https://www.instagram.com/${liverInfo.instagramAccount.replace('@', '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-gray-400 hover:text-pink-400 transition-colors"
+                  title="Instagram"
+                >
+                  <SiInstagram className="w-5 h-5" />
+                </a>
+              )}
+              {liverInfo.youtubeAccount && (
+                <a 
+                  href={liverInfo.youtubeAccount.startsWith('http') ? liverInfo.youtubeAccount : `https://www.youtube.com/${liverInfo.youtubeAccount}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-gray-400 hover:text-red-500 transition-colors"
+                  title="YouTube"
+                >
+                  <SiYoutube className="w-5 h-5" />
+                </a>
+              )}
+              {liverInfo.otherAccount && (
+                <a 
+                  href={liverInfo.otherAccount.startsWith('http') ? liverInfo.otherAccount : `https://${liverInfo.otherAccount}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-gray-400 hover:text-blue-400 transition-colors"
+                  title="Other"
+                >
+                  <Link2 className="w-5 h-5" />
+                </a>
+              )}
+            </div>
+          )}
+          
           <Button
             variant="ghost"
             size="sm"
