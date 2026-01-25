@@ -167,21 +167,12 @@ function Router() {
       </Route>
       <Route path={"/s"} component={PublicSchedule} />
       <Route path={"/s/:name"} component={PublicLiverSchedule} />
-      <Route path={"/livers"}>
-        <DashboardLayout>
-          <LiverList />
-        </DashboardLayout>
-      </Route>
-      <Route path={"/livers/:id"}>
-        <DashboardLayout>
-          <LiverDetail />
-        </DashboardLayout>
-      </Route>
-      <Route path={"/livestreams/:id"}>
-        <DashboardLayout>
-          <LivestreamDetail />
-        </DashboardLayout>
-      </Route>
+      {/* Liver list - public access (ログイン不要) */}
+      <Route path={"/livers"} component={LiverList} />
+      {/* Liver detail - public access (ログイン不要) */}
+      <Route path={"/livers/:id"} component={LiverDetail} />
+      {/* Livestream detail - public access (ログイン不要) */}
+      <Route path={"/livestreams/:id"} component={LivestreamDetail} />
       <Route path={"/livers/livestream/:id/edit"}>
         <DashboardLayout>
           <LivestreamEdit />

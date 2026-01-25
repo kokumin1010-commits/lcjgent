@@ -3783,22 +3783,22 @@ ${conversationText}
 
   // Liver Management Router (ライバー管理画面用)
   liverManagement: router({
-    // Get all livers with stats for a given month
-    listWithStats: protectedProcedure
+    // Get all livers with stats for a given month (public - ログイン不要)
+    listWithStats: publicProcedure
       .input(z.object({ month: z.string() })) // format: "YYYY-MM"
       .query(async ({ input }) => {
         return await getLiversWithStats(input.month);
       }),
 
-    // Get liver rankings (sales and duration)
-    rankings: protectedProcedure
+    // Get liver rankings (sales and duration) (public - ログイン不要)
+    rankings: publicProcedure
       .input(z.object({ month: z.string() }))
       .query(async ({ input }) => {
         return await getLiverRankings(input.month);
       }),
 
-    // Get liver by ID with stats
-    getById: protectedProcedure
+    // Get liver by ID with stats (public - ログイン不要)
+    getById: publicProcedure
       .input(z.object({ id: z.number(), month: z.string().optional() }))
       .query(async ({ input }) => {
         const liver = await getLiverById(input.id);
@@ -3811,15 +3811,15 @@ ${conversationText}
         return { ...liver, stats };
       }),
 
-    // Get livestreams by liver ID
-    getLivestreams: protectedProcedure
+    // Get livestreams by liver ID (public - ログイン不要)
+    getLivestreams: publicProcedure
       .input(z.object({ liverId: z.number(), month: z.string().optional() }))
       .query(async ({ input }) => {
         return await getLivestreamsByLiverId(input.liverId, input.month);
       }),
 
-    // Get livestream detail by ID
-    getLivestreamDetail: protectedProcedure
+    // Get livestream detail by ID (public - ログイン不要)
+    getLivestreamDetail: publicProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
         const livestream = await getLivestreamById(input.id);
@@ -3885,8 +3885,8 @@ ${conversationText}
         return { success: true };
       }),
 
-    // Get all livers (for dropdown selection)
-    listAll: protectedProcedure.query(async () => {
+    // Get all livers (for dropdown selection) (public - ログイン不要)
+    listAll: publicProcedure.query(async () => {
       return await getAllLivers();
     }),
 
