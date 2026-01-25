@@ -58,6 +58,8 @@ export default function LiverSelfRecord() {
     productClicks?: number | null;
     orderCount?: number | null;
     durationMinutes?: number | null;
+    startDateTime?: string | null;
+    endDateTime?: string | null;
     confidence?: string;
     rawData?: {
       impressions?: number | null;
@@ -274,10 +276,37 @@ export default function LiverSelfRecord() {
       setAnalyzedData(analysisResult);
       
       // Auto-fill form with analyzed data
+      const updates: Partial<typeof formData> = {};
+      
+      // 売上金額
       if (analysisResult.salesAmount !== null && analysisResult.salesAmount !== undefined) {
+        updates.salesAmount = analysisResult.salesAmount.toString();
+      }
+      
+      // 配信日時（startDateTime: "YYYY-MM-DD HH:mm"形式）
+      if (analysisResult.startDateTime) {
+        const [datePart, timePart] = analysisResult.startDateTime.split(' ');
+        if (datePart) {
+          updates.livestreamDate = datePart;
+        }
+        if (timePart) {
+          updates.livestreamStartTime = timePart;
+        }
+      }
+      
+      // 終了時刻（endDateTime: "YYYY-MM-DD HH:mm"形式）
+      if (analysisResult.endDateTime) {
+        const [, timePart] = analysisResult.endDateTime.split(' ');
+        if (timePart) {
+          updates.livestreamEndTime = timePart;
+        }
+      }
+      
+      // フォームを更新
+      if (Object.keys(updates).length > 0) {
         setFormData(prev => ({
           ...prev,
-          salesAmount: analysisResult.salesAmount!.toString(),
+          ...updates,
         }));
       }
       

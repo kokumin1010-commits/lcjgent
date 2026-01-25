@@ -4006,29 +4006,53 @@ TikTok LIVEダッシュボードの典型的なレイアウト：
 - 左側: パフォーマンストレンドグラフ、トラフィックソース
 - 中央: インプレッション数、商品クリック数、LIVE CTR、注文数、注文率など
 - 右側: リプレイ動画、ユーザープロフィール
-- 上部ヘッダー: 配信時間（例: 8h10m6s）、日時範囲
+- 上部ヘッダー: 配信時間（例: 8h10m6s）、日時範囲（例: Dec 29 16:00:54 - Dec 30 00:11:00 UTC+09:00）
 
 以下の情報を抽出してください：
-1. GMV/売上金額（中央の大きな数字）
-2. 視聴者数（視聴者数/視聴数と表示）
-3. 商品クリック数
-4. 注文数/注文
-5. 配信時間（ヘッダーの時間表示から分に変換）
-6. インプレッション数
-7. LIVE CTR（%）
-8. 注文率/注文率（SKU注文数）（%）
-9. 1時間あたりのGMV
-10. コメント率（%）
-11. 広告費
-12. ROI
+1. GMV/売上金額（中央の大きな数字）- salesAmount
+2. 視聴者数（視聴者数/視聴数と表示）- viewerCount
+3. 商品クリック数 - productClicks
+4. 注文数/注文 - orderCount
+5. 配信時間（ヘッダーの時間表示から分に変換）- durationMinutes
+6. 配信開始日時（ヘッダーの日時範囲から）- startDateTime（YYYY-MM-DD HH:mm形式）
+7. 配信終了日時（ヘッダーの日時範囲から）- endDateTime（YYYY-MM-DD HH:mm形式）
+8. インプレッション数 - impressions
+9. LIVE CTR（%）- liveCtr
+10. 注文率/注文率（SKU注文数）（%）- orderRate
+11. 1時間あたりのGMV - gmvPerHour
+12. コメント率（%）- commentRate
+13. 広告費 - adCost
+14. ROI - roi
+15. 商品販売数 - productSales
 
 数値の読み取りルール：
 - "K"は1000倍（例: 45.57K = 45570）
 - "M"は1000000倍（例: 1.08M = 1080000）
 - カンマは無視（例: 8,814,883 = 8814883）
 - 時間表示（例: 8h10m6s）は分に変換（8*60+10=490分）
+- 日時は必ずYYYY-MM-DD HH:mm形式に変換（例: Dec 29 16:00:54 → 2026-12-29 16:00）
 
-必ずJSON形式で返してください。`;
+必ず以下のJSON形式で返してください：
+{
+  "salesAmount": 数値,
+  "viewerCount": 数値,
+  "productClicks": 数値,
+  "orderCount": 数値,
+  "durationMinutes": 数値,
+  "startDateTime": "YYYY-MM-DD HH:mm",
+  "endDateTime": "YYYY-MM-DD HH:mm",
+  "rawData": {
+    "impressions": 数値,
+    "liveCtr": 数値,
+    "orderRate": 数値,
+    "gmvPerHour": 数値,
+    "commentRate": 数値,
+    "adCost": 数値,
+    "roi": 数値,
+    "productSales": 数値
+  },
+  "confidence": "high" または "medium" または "low"
+}`;
 
         const response = await invokeLLM({
           messages: [
@@ -4077,8 +4101,8 @@ TikTok LIVEダッシュボードの典型的なレイアウト：
             productClicks: parsed.productClicks ?? null,
             orderCount: parsed.orderCount ?? null,
             durationMinutes: parsed.durationMinutes ?? null,
-            startTime: parsed.startTime ?? null,
-            endTime: parsed.endTime ?? null,
+            startDateTime: parsed.startDateTime ?? null,
+            endDateTime: parsed.endDateTime ?? null,
             rawData: parsed.rawData ?? {},
             confidence: parsed.confidence ?? "medium",
           };
