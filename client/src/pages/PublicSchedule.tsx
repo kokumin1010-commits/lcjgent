@@ -1,6 +1,7 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { getLiverToken, clearLiverToken } from "@/lib/liverAuth";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -92,7 +93,28 @@ export default function PublicSchedule() {
   const [bottomSheetOpen, setBottomSheetOpen] = useState(false);
 
   // Use auth from users table (same as management dashboard)
-  const { user, logout, loading: authLoading } = useAuth();
+  const { user: adminUser, logout: adminLogout, loading: authLoading } = useAuth();
+  
+  // Liver authentication
+  const liverToken = getLiverToken();
+  const { data: liverData, isLoading: liverLoading } = trpc.liver.me.useQuery(
+    undefined,
+    { enabled: !!liverToken }
+  );
+  
+  // Combined user (admin or liver)
+  const user = adminUser || (liverData ? { name: liverData.name, email: liverData.email, id: liverData.id, role: 'liver' as const } : null);
+  const isLiver = !adminUser && !!liverData;
+  
+  // Logout function that handles both admin and liver
+  const logout = () => {
+    if (isLiver) {
+      clearLiverToken();
+      window.location.reload();
+    } else {
+      adminLogout();
+    }
+  };
   
   // Add schedule modal state
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -658,8 +680,15 @@ export default function PublicSchedule() {
                 <div className="px-2 py-1.5">
                   <p className="font-medium text-sm">{user.name}</p>
                   <p className="text-xs text-gray-500">{user.email}</p>
+                  {isLiver && <p className="text-xs text-pink-500">ライバー</p>}
                 </div>
                 <DropdownMenuSeparator />
+                {isLiver && (
+                  <DropdownMenuItem onClick={() => navigate("/liver/mypage")}>
+                    <User className="h-4 w-4 mr-2" />
+                    マイページ
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={() => logout()}>
                   <LogOut className="h-4 w-4 mr-2" />
                   ログアウト
@@ -678,11 +707,16 @@ export default function PublicSchedule() {
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem onClick={() => navigate("/login")}>
                   <LogIn className="h-4 w-4 mr-2" />
-                  ログイン
+                  管理者ログイン
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate("/login")}>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate("/liver/login")}>
+                  <LogIn className="h-4 w-4 mr-2" />
+                  ライバーログイン
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/liver/register")}>
                   <UserPlus className="h-4 w-4 mr-2" />
-                  新規登録
+                  ライバー新規登録
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

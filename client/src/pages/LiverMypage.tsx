@@ -449,7 +449,7 @@ export default function LiverMypage() {
         {/* Action Buttons */}
         <div className="grid grid-cols-2 gap-4">
           <Button
-            onClick={() => navigate(`/liver/schedule`)}
+            onClick={() => navigate(`/s`)}
             className="bg-yellow-500 hover:bg-yellow-600 text-black py-6 text-lg font-bold"
           >
             <Calendar className="h-5 w-5 mr-2" />
