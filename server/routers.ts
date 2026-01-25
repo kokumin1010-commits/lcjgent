@@ -3987,6 +3987,146 @@ ${conversationText}
         const { url } = await storagePut(key, buffer, contentType);
         return { url, key };
       }),
+
+    // Analyze screenshot to extract livestream data
+    analyzeScreenshot: protectedProcedure
+      .input(z.object({
+        imageUrl: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        const systemPrompt = `あなたはTikTokライブ配信のダッシュボードスクリーンショットを解析するエキスパートです。
+画像から以下の情報を抽出してください：
+
+1. 売上金額（GMV/総売上）
+2. 配信時間（開始時刻、終了時刻、または配信時間の長さ）
+3. 視聴者数（ユニーク視聴者数、ピーク視聴者数など）
+4. 商品クリック数
+5. 注文数
+6. その他の重要な指標
+
+抽出できた情報のみをJSON形式で返してください。
+数値は数字のみ（カンマや単位なし）で返してください。
+抽出できなかった項目はnullとしてください。
+
+返答は以下のJSON形式で：
+{
+  "salesAmount": number | null,
+  "viewerCount": number | null,
+  "peakViewerCount": number | null,
+  "productClicks": number | null,
+  "orderCount": number | null,
+  "durationMinutes": number | null,
+  "startTime": string | null,
+  "endTime": string | null,
+  "rawData": { ... },
+  "confidence": "high" | "medium" | "low"
+}`;
+
+        const response = await invokeLLM({
+          messages: [
+            { role: "system", content: systemPrompt },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: input.imageUrl,
+                    detail: "high",
+                  },
+                },
+                {
+                  type: "text",
+                  text: "このTikTokライブ配信ダッシュボードのスクリーンショットから、配信データを抽出してください。",
+                },
+              ],
+            },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "livestream_data",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  salesAmount: { type: ["number", "null"], description: "売上金額" },
+                  viewerCount: { type: ["number", "null"], description: "視聴者数" },
+                  peakViewerCount: { type: ["number", "null"], description: "ピーク視聴者数" },
+                  productClicks: { type: ["number", "null"], description: "商品クリック数" },
+                  orderCount: { type: ["number", "null"], description: "注文数" },
+                  durationMinutes: { type: ["number", "null"], description: "配信時間（分）" },
+                  startTime: { type: ["string", "null"], description: "開始時刻" },
+                  endTime: { type: ["string", "null"], description: "終了時刻" },
+                  rawData: { type: "object", description: "その他の抽出データ", additionalProperties: true },
+                  confidence: { type: "string", enum: ["high", "medium", "low"], description: "解析の信頼度" },
+                },
+                required: ["salesAmount", "viewerCount", "peakViewerCount", "productClicks", "orderCount", "durationMinutes", "startTime", "endTime", "rawData", "confidence"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+
+        const content = response.choices[0]?.message?.content;
+        if (!content || typeof content !== "string") {
+          throw new Error("Failed to analyze screenshot");
+        }
+
+        try {
+          return JSON.parse(content);
+        } catch {
+          throw new Error("Failed to parse analysis result");
+        }
+      }),
+
+    // Generate advice based on livestream data
+    generateAdvice: protectedProcedure
+      .input(z.object({
+        salesAmount: z.number().optional(),
+        viewerCount: z.number().optional(),
+        peakViewerCount: z.number().optional(),
+        productClicks: z.number().optional(),
+        orderCount: z.number().optional(),
+        durationMinutes: z.number().optional(),
+        result: z.string().optional(),
+        impactFactor: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const dataDescription = Object.entries(input)
+          .filter(([, v]) => v !== undefined && v !== null)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join("\n");
+
+        const systemPrompt = `あなたはTikTokライブ配信の専門コンサルタントです。
+配信データを分析し、次回の配信に向けた具体的で実践的なワンポイントアドバイスを提供してください。
+
+アドバイスは以下の観点から1〜2つに絞って、簡潔に（100文字以内）で提供してください：
+- 視聴者エンゲージメントの改善
+- 商品紹介のタイミングや方法
+- 配信時間の最適化
+- コンバージョン率の向上
+- 視聴者とのコミュニケーション
+
+日本語で回答してください。`;
+
+        const response = await invokeLLM({
+          messages: [
+            { role: "system", content: systemPrompt },
+            {
+              role: "user",
+              content: `以下の配信データに基づいて、次回配信へのワンポイントアドバイスをください：\n\n${dataDescription}`,
+            },
+          ],
+        });
+
+        const content = response.choices[0]?.message?.content;
+        if (!content || typeof content !== "string") {
+          return { advice: "データを分析中です。もう一度お試しください。" };
+        }
+
+        return { advice: content.trim() };
+      }),
   }),
 });
 

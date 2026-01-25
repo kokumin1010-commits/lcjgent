@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Upload, X, Calendar, Clock } from "lucide-react";
+import { ArrowLeft, Upload, X, Calendar, Clock, Sparkles, Loader2, Lightbulb } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 
@@ -38,7 +38,20 @@ export default function LiverRecord() {
   const [remarks, setRemarks] = useState("");
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
+  const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isGeneratingAdvice, setIsGeneratingAdvice] = useState(false);
+  const [advice, setAdvice] = useState<string | null>(null);
+  const [analyzedData, setAnalyzedData] = useState<{
+    salesAmount?: number | null;
+    viewerCount?: number | null;
+    peakViewerCount?: number | null;
+    productClicks?: number | null;
+    orderCount?: number | null;
+    durationMinutes?: number | null;
+    confidence?: string;
+  } | null>(null);
   
   // Fetch liver info
   const { data: liver, isLoading: liverLoading } = trpc.liverManagement.getById.useQuery({
@@ -65,6 +78,8 @@ export default function LiverRecord() {
   });
   
   const uploadScreenshotMutation = trpc.liverManagement.uploadScreenshot.useMutation();
+  const analyzeScreenshotMutation = trpc.liverManagement.analyzeScreenshot.useMutation();
+  const generateAdviceMutation = trpc.liverManagement.generateAdvice.useMutation();
   
   const translations = {
     ja: {
@@ -93,6 +108,22 @@ export default function LiverRecord() {
       saving: "保存中...",
       cancel: "キャンセル",
       required: "必須",
+      analyzeScreenshot: "AI解析",
+      analyzing: "解析中...",
+      analysisComplete: "解析完了！データを自動入力しました",
+      analysisError: "解析に失敗しました",
+      generateAdvice: "アドバイスを生成",
+      generatingAdvice: "生成中...",
+      adviceTitle: "ワンポイントアドバイス",
+      viewerCount: "視聴者数",
+      peakViewerCount: "ピーク視聴者数",
+      productClicks: "商品クリック数",
+      orderCount: "注文数",
+      durationMinutes: "配信時間（分）",
+      confidence: "解析信頼度",
+      high: "高",
+      medium: "中",
+      low: "低",
     },
     zh: {
       title: "记录直播内容",
@@ -120,12 +151,28 @@ export default function LiverRecord() {
       saving: "保存中...",
       cancel: "取消",
       required: "必填",
+      analyzeScreenshot: "AI分析",
+      analyzing: "分析中...",
+      analysisComplete: "分析完成！数据已自动填入",
+      analysisError: "分析失败",
+      generateAdvice: "生成建议",
+      generatingAdvice: "生成中...",
+      adviceTitle: "一点建议",
+      viewerCount: "观看人数",
+      peakViewerCount: "峰值观看人数",
+      productClicks: "商品点击数",
+      orderCount: "订单数",
+      durationMinutes: "直播时长（分钟）",
+      confidence: "分析可信度",
+      high: "高",
+      medium: "中",
+      low: "低",
     },
   };
   
   const tr = translations[language as keyof typeof translations] || translations.ja;
   
-  const handleScreenshotChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleScreenshotChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setScreenshotFile(file);
@@ -140,6 +187,93 @@ export default function LiverRecord() {
   const removeScreenshot = () => {
     setScreenshotFile(null);
     setScreenshotPreview(null);
+    setScreenshotUrl(null);
+    setAnalyzedData(null);
+    setAdvice(null);
+  };
+  
+  const handleAnalyzeScreenshot = async () => {
+    if (!screenshotFile) return;
+    
+    setIsAnalyzing(true);
+    try {
+      // First upload the screenshot
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve) => {
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          const base64 = result.split(",")[1];
+          resolve(base64);
+        };
+        reader.readAsDataURL(screenshotFile);
+      });
+      const base64 = await base64Promise;
+      
+      const uploadResult = await uploadScreenshotMutation.mutateAsync({
+        base64,
+        filename: screenshotFile.name,
+        liverId,
+      });
+      setScreenshotUrl(uploadResult.url);
+      
+      // Then analyze the screenshot
+      const analysisResult = await analyzeScreenshotMutation.mutateAsync({
+        imageUrl: uploadResult.url,
+      });
+      
+      setAnalyzedData(analysisResult);
+      
+      // Auto-fill form with analyzed data
+      if (analysisResult.salesAmount !== null && analysisResult.salesAmount !== undefined) {
+        setSalesAmount(analysisResult.salesAmount.toString());
+      }
+      
+      // Set duration if available
+      if (analysisResult.durationMinutes !== null && analysisResult.durationMinutes !== undefined) {
+        // If we have start date/time, calculate end time
+        if (startDate && startTime) {
+          const start = new Date(`${startDate}T${startTime}`);
+          const end = new Date(start.getTime() + analysisResult.durationMinutes * 60 * 1000);
+          setEndDate(end.toISOString().slice(0, 10));
+          setEndTime(end.toTimeString().slice(0, 5));
+        }
+      }
+      
+      toast.success(tr.analysisComplete);
+      
+      // Auto-generate advice
+      handleGenerateAdvice(analysisResult);
+    } catch (error) {
+      console.error("Analysis failed:", error);
+      toast.error(tr.analysisError);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+  
+  const handleGenerateAdvice = async (data?: typeof analyzedData) => {
+    const dataToUse = data || analyzedData;
+    if (!dataToUse) return;
+    
+    setIsGeneratingAdvice(true);
+    try {
+      const adviceResult = await generateAdviceMutation.mutateAsync({
+        salesAmount: dataToUse.salesAmount ?? undefined,
+        viewerCount: dataToUse.viewerCount ?? undefined,
+        peakViewerCount: dataToUse.peakViewerCount ?? undefined,
+        productClicks: dataToUse.productClicks ?? undefined,
+        orderCount: dataToUse.orderCount ?? undefined,
+        durationMinutes: dataToUse.durationMinutes ?? undefined,
+        result: result || undefined,
+        impactFactor: impactFactor || undefined,
+      });
+      
+      setAdvice(adviceResult.advice);
+    } catch (error) {
+      console.error("Failed to generate advice:", error);
+    } finally {
+      setIsGeneratingAdvice(false);
+    }
   };
   
   const handleScheduleSelect = (scheduleIdStr: string) => {
@@ -186,15 +320,13 @@ export default function LiverRecord() {
     setIsSubmitting(true);
     
     try {
-      // Upload screenshot if exists
-      let screenshotUrl: string | undefined;
-      if (screenshotFile) {
-        // Convert to base64 and upload via tRPC
+      // Upload screenshot if exists and not already uploaded
+      let finalScreenshotUrl = screenshotUrl;
+      if (screenshotFile && !screenshotUrl) {
         const reader = new FileReader();
         const base64Promise = new Promise<string>((resolve) => {
           reader.onloadend = () => {
             const result = reader.result as string;
-            // Remove data:image/xxx;base64, prefix
             const base64 = result.split(",")[1];
             resolve(base64);
           };
@@ -202,13 +334,12 @@ export default function LiverRecord() {
         });
         const base64 = await base64Promise;
         
-        // Upload via tRPC mutation
         const uploadResult = await uploadScreenshotMutation.mutateAsync({
           base64,
           filename: screenshotFile.name,
           liverId,
         });
-        screenshotUrl = uploadResult.url;
+        finalScreenshotUrl = uploadResult.url;
       }
       
       // Create livestream record
@@ -226,7 +357,7 @@ export default function LiverRecord() {
         impactFactor: impactFactor || undefined,
         resultReason: resultReason || undefined,
         remarks: remarks || undefined,
-        screenshotUrl,
+        screenshotUrl: finalScreenshotUrl || undefined,
       });
     } catch (error) {
       console.error("Failed to save livestream record:", error);
@@ -265,6 +396,153 @@ export default function LiverRecord() {
         
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Screenshot Upload with AI Analysis */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              {tr.screenshot}
+              <Sparkles className="w-4 h-4 text-yellow-500" />
+            </Label>
+            {screenshotPreview ? (
+              <div className="space-y-4">
+                <div className="relative border border-gray-700 rounded-lg overflow-hidden">
+                  <img 
+                    src={screenshotPreview} 
+                    alt="Screenshot preview"
+                    className="w-full h-auto max-h-64 object-contain"
+                  />
+                  <button
+                    type="button"
+                    onClick={removeScreenshot}
+                    className="absolute top-2 right-2 bg-red-600 rounded-full p-1 hover:bg-red-700"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                
+                {/* AI Analysis Button */}
+                <Button
+                  type="button"
+                  onClick={handleAnalyzeScreenshot}
+                  disabled={isAnalyzing}
+                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                >
+                  {isAnalyzing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      {tr.analyzing}
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      {tr.analyzeScreenshot}
+                    </>
+                  )}
+                </Button>
+                
+                {/* Analyzed Data Display */}
+                {analyzedData && (
+                  <Card className="bg-gray-900 border-gray-700">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm text-gray-400 flex items-center gap-2">
+                        解析結果
+                        <span className={`px-2 py-0.5 rounded text-xs ${
+                          analyzedData.confidence === 'high' ? 'bg-green-600' :
+                          analyzedData.confidence === 'medium' ? 'bg-yellow-600' :
+                          'bg-red-600'
+                        }`}>
+                          {tr.confidence}: {analyzedData.confidence === 'high' ? tr.high : 
+                            analyzedData.confidence === 'medium' ? tr.medium : tr.low}
+                        </span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid grid-cols-2 gap-3 text-sm">
+                      {analyzedData.viewerCount !== null && analyzedData.viewerCount !== undefined && (
+                        <div>
+                          <span className="text-gray-400">{tr.viewerCount}:</span>
+                          <span className="ml-2 text-white">{analyzedData.viewerCount.toLocaleString()}</span>
+                        </div>
+                      )}
+                      {analyzedData.peakViewerCount !== null && analyzedData.peakViewerCount !== undefined && (
+                        <div>
+                          <span className="text-gray-400">{tr.peakViewerCount}:</span>
+                          <span className="ml-2 text-white">{analyzedData.peakViewerCount.toLocaleString()}</span>
+                        </div>
+                      )}
+                      {analyzedData.productClicks !== null && analyzedData.productClicks !== undefined && (
+                        <div>
+                          <span className="text-gray-400">{tr.productClicks}:</span>
+                          <span className="ml-2 text-white">{analyzedData.productClicks.toLocaleString()}</span>
+                        </div>
+                      )}
+                      {analyzedData.orderCount !== null && analyzedData.orderCount !== undefined && (
+                        <div>
+                          <span className="text-gray-400">{tr.orderCount}:</span>
+                          <span className="ml-2 text-white">{analyzedData.orderCount.toLocaleString()}</span>
+                        </div>
+                      )}
+                      {analyzedData.durationMinutes !== null && analyzedData.durationMinutes !== undefined && (
+                        <div>
+                          <span className="text-gray-400">{tr.durationMinutes}:</span>
+                          <span className="ml-2 text-white">{analyzedData.durationMinutes}</span>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+                
+                {/* AI Advice Display */}
+                {advice && (
+                  <Card className="bg-gradient-to-r from-yellow-900/30 to-orange-900/30 border-yellow-600/50">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm text-yellow-400 flex items-center gap-2">
+                        <Lightbulb className="w-4 h-4" />
+                        {tr.adviceTitle}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-white text-sm whitespace-pre-wrap">{advice}</p>
+                    </CardContent>
+                  </Card>
+                )}
+                
+                {/* Regenerate Advice Button */}
+                {analyzedData && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => handleGenerateAdvice()}
+                    disabled={isGeneratingAdvice}
+                    className="w-full border-yellow-600 text-yellow-400 hover:bg-yellow-600/20"
+                  >
+                    {isGeneratingAdvice ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        {tr.generatingAdvice}
+                      </>
+                    ) : (
+                      <>
+                        <Lightbulb className="w-4 h-4 mr-2" />
+                        {tr.generateAdvice}
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-700 rounded-lg cursor-pointer hover:border-gray-500 transition-colors">
+                <Upload className="w-8 h-8 text-gray-500 mb-2" />
+                <span className="text-gray-500">{tr.uploadImage}</span>
+                <span className="text-xs text-gray-600 mt-1">AIが自動でデータを解析します</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleScreenshotChange}
+                  className="hidden"
+                />
+              </label>
+            )}
+          </div>
+          
           {/* Schedule Selection (if available) */}
           {schedules && schedules.length > 0 && (
             <div className="space-y-2">
@@ -428,38 +706,6 @@ export default function LiverRecord() {
               rows={3}
               placeholder="メモを入力..."
             />
-          </div>
-          
-          {/* Screenshot */}
-          <div className="space-y-2">
-            <Label>{tr.screenshot}</Label>
-            {screenshotPreview ? (
-              <div className="relative border border-gray-700 rounded-lg overflow-hidden">
-                <img 
-                  src={screenshotPreview} 
-                  alt="Screenshot preview"
-                  className="w-full h-auto max-h-64 object-contain"
-                />
-                <button
-                  type="button"
-                  onClick={removeScreenshot}
-                  className="absolute top-2 right-2 bg-red-600 rounded-full p-1 hover:bg-red-700"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ) : (
-              <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-700 rounded-lg cursor-pointer hover:border-gray-500 transition-colors">
-                <Upload className="w-8 h-8 text-gray-500 mb-2" />
-                <span className="text-gray-500">{tr.uploadImage}</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleScreenshotChange}
-                  className="hidden"
-                />
-              </label>
-            )}
           </div>
           
           {/* Action Buttons */}
