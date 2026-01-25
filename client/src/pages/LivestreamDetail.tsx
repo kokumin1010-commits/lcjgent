@@ -13,7 +13,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, CheckCircle, XCircle, Sparkles, Package, User, Megaphone, HelpCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle, XCircle, Sparkles, Package, User, Megaphone, HelpCircle, Pencil, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 
@@ -33,6 +44,8 @@ export default function LivestreamDetail() {
     id: livestreamId,
   });
   
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
   const updateMutation = trpc.liverManagement.updateLivestreamResult.useMutation({
     onSuccess: () => {
       toast.success("配信結果を保存しました");
@@ -68,6 +81,10 @@ export default function LivestreamDetail() {
       save: "保存",
       cancel: "キャンセル",
       notSet: "未設定",
+      delete: "削除",
+      fullEdit: "全て編集",
+      deleteConfirmTitle: "配信履歴を削除",
+      deleteConfirmDesc: "この配信履歴を削除してもよろしいですか？この操作は取り消せません。",
     },
     zh: {
       deliveryPeriod: "直播时间",
@@ -92,6 +109,10 @@ export default function LivestreamDetail() {
       save: "保存",
       cancel: "取消",
       notSet: "未设置",
+      delete: "删除",
+      fullEdit: "全部编辑",
+      deleteConfirmTitle: "删除直播记录",
+      deleteConfirmDesc: "确定要删除这条直播记录吗？此操作无法撤销。",
     },
   };
   
@@ -137,6 +158,20 @@ export default function LivestreamDetail() {
       impactFactor,
       resultReason,
     });
+  };
+
+  const deleteMutation = trpc.liverManagement.deleteLivestream.useMutation({
+    onSuccess: () => {
+      toast.success("配信履歴を削除しました");
+      window.history.back();
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const handleDelete = () => {
+    deleteMutation.mutate({ id: livestreamId });
   };
 
   if (isLoading) {
@@ -335,13 +370,54 @@ export default function LivestreamDetail() {
               </Button>
             </>
           ) : (
-            <Button
-              variant="outline"
-              onClick={handleStartEdit}
-              className="border-gray-600 text-gray-300 hover:bg-gray-800 px-8"
-            >
-              {tr.edit}
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                onClick={handleStartEdit}
+                className="border-gray-600 text-gray-300 hover:bg-gray-800 px-6"
+              >
+                {tr.edit}
+              </Button>
+              <Link href={`/livers/livestream/${livestreamId}/edit`}>
+                <Button
+                  variant="outline"
+                  className="border-blue-600 text-blue-400 hover:bg-blue-900/30 px-6"
+                >
+                  <Pencil className="w-4 h-4 mr-2" />
+                  {tr.fullEdit}
+                </Button>
+              </Link>
+              <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="border-red-600 text-red-400 hover:bg-red-900/30 px-6"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    {tr.delete}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent className="bg-gray-900 border-gray-700">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="text-white">{tr.deleteConfirmTitle}</AlertDialogTitle>
+                    <AlertDialogDescription className="text-gray-400">
+                      {tr.deleteConfirmDesc}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel className="bg-gray-800 text-white border-gray-700 hover:bg-gray-700">
+                      {tr.cancel}
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDelete}
+                      className="bg-red-600 hover:bg-red-700"
+                    >
+                      {tr.delete}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </>
           )}
         </div>
         

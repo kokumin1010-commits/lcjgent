@@ -37,6 +37,7 @@ import LivestreamDetail from "./pages/LivestreamDetail";
 import LiverRecord from "./pages/LiverRecord";
 import LiverMypage from "./pages/LiverMypage";
 import LiverSelfRecord from "./pages/LiverSelfRecord";
+import LivestreamEdit from "./pages/LivestreamEdit";
 
 function Router() {
   return (
@@ -177,6 +178,11 @@ function Router() {
       <Route path={"/livestreams/:id"}>
         <DashboardLayout>
           <LivestreamDetail />
+        </DashboardLayout>
+      </Route>
+      <Route path={"/livers/livestream/:id/edit"}>
+        <DashboardLayout>
+          <LivestreamEdit />
         </DashboardLayout>
       </Route>
       <Route path={"/livers/:id/record"}>

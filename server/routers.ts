@@ -3927,6 +3927,48 @@ ${conversationText}
         });
         return { id };
       }),
+
+    // Update livestream (配信履歴の編集)
+    updateLivestream: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        brandId: z.number().optional(),
+        livestreamDate: z.string().optional(),
+        livestreamEndTime: z.string().optional().nullable(),
+        salesAmount: z.number().optional().nullable(),
+        result: z.enum(["成功", "失敗"]).optional().nullable(),
+        impactFactor: z.enum(["構成", "商品", "ライバー", "広告", "その他"]).optional().nullable(),
+        resultReason: z.string().optional().nullable(),
+        remarks: z.string().optional().nullable(),
+        screenshotUrl: z.string().optional().nullable(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        const updateData: Record<string, unknown> = {};
+        
+        if (data.brandId !== undefined) updateData.brandId = data.brandId;
+        if (data.livestreamDate !== undefined) updateData.livestreamDate = new Date(data.livestreamDate);
+        if (data.livestreamEndTime !== undefined) {
+          updateData.livestreamEndTime = data.livestreamEndTime ? new Date(data.livestreamEndTime) : null;
+        }
+        if (data.salesAmount !== undefined) updateData.salesAmount = data.salesAmount;
+        if (data.result !== undefined) updateData.result = data.result;
+        if (data.impactFactor !== undefined) updateData.impactFactor = data.impactFactor;
+        if (data.resultReason !== undefined) updateData.resultReason = data.resultReason;
+        if (data.remarks !== undefined) updateData.remarks = data.remarks;
+        if (data.screenshotUrl !== undefined) updateData.screenshotUrl = data.screenshotUrl;
+        
+        await updateBrandLivestream(id, updateData);
+        return { success: true };
+      }),
+
+    // Delete livestream (配信履歴の削除)
+    deleteLivestream: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteBrandLivestream(input.id);
+        return { success: true };
+      }),
   }),
 });
 
