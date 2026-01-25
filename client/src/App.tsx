@@ -39,6 +39,7 @@ import LiverMypage from "./pages/LiverMypage";
 import LiverSelfRecord from "./pages/LiverSelfRecord";
 import LivestreamEdit from "./pages/LivestreamEdit";
 import LiverSchedule from "./pages/LiverSchedule";
+import LiverProfile from "./pages/LiverProfile";
 
 function Router() {
   return (
@@ -195,6 +196,7 @@ function Router() {
       <Route path={"/liver/register"} component={LiverRegister} />
       <Route path={"/liver/login"} component={LiverLogin} />
       <Route path={"/liver/mypage"} component={LiverMypage} />
+      <Route path={"/liver/profile"} component={LiverProfile} />
       <Route path={"/liver/record"} component={LiverSelfRecord} />
       <Route path={"/liver/schedule"} component={LiverSchedule} />
       <Route path={"/404"} component={NotFound} />

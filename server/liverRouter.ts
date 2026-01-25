@@ -187,7 +187,12 @@ export const liverRouter = router({
       email: liver.email,
       color: liver.color,
       avatarUrl: liver.avatarUrl,
+      bio: liver.bio,
       role: liver.role,
+      tiktokAccount: liver.tiktokAccount,
+      instagramAccount: liver.instagramAccount,
+      youtubeAccount: liver.youtubeAccount,
+      otherAccount: liver.otherAccount,
     };
   }),
 
@@ -209,6 +214,10 @@ export const liverRouter = router({
         name: z.string().min(1).optional(),
         color: z.string().optional(),
         bio: z.string().optional(),
+        tiktokAccount: z.string().optional(),
+        instagramAccount: z.string().optional(),
+        youtubeAccount: z.string().optional(),
+        otherAccount: z.string().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {

@@ -776,6 +776,11 @@ export const livers = mysqlTable("livers", {
   bio: text("bio"), // 自己紹介
   // カラー設定（カレンダー表示用）
   color: varchar("color", { length: 20 }).default("#FF69B4"), // 表示色（ピンクがデフォルト）
+  // SNSアカウント
+  tiktokAccount: varchar("tiktokAccount", { length: 255 }), // TikTokアカウント
+  instagramAccount: varchar("instagramAccount", { length: 255 }), // Instagramアカウント
+  youtubeAccount: varchar("youtubeAccount", { length: 255 }), // YouTubeアカウント
+  otherAccount: varchar("otherAccount", { length: 255 }), // その他のSNSアカウント
   // ステータス
   isActive: boolean("isActive").default(true).notNull(), // アクティブかどうか
   role: mysqlEnum("role", ["liver", "admin"]).default("liver").notNull(), // 権限

@@ -167,7 +167,7 @@ export default function LiverList() {
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1">
-                        <p className="font-medium">{item.streamerName || "不明"}</p>
+                        <p className="font-medium text-white">{item.streamerName || "不明"}</p>
                         <div className="flex items-center gap-4 text-sm">
                           <div>
                             <span className="text-yellow-500 font-bold">
@@ -250,8 +250,8 @@ export default function LiverList() {
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{liver.name}</p>
-                        <p className="text-xs text-gray-500">
+                        <p className="font-medium truncate text-white">{liver.name}</p>
+                        <p className="text-xs text-gray-400">
                           {liver.livestreamCount > 0 ? `${liver.livestreamCount}回配信` : "配信なし"}
                         </p>
                       </div>
@@ -289,7 +289,7 @@ export default function LiverList() {
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1">
-                        <p className="font-medium">{item.streamerName || "不明"}</p>
+                        <p className="font-medium text-white">{item.streamerName || "不明"}</p>
                         <div className="flex items-center gap-4 text-sm">
                           <div>
                             <span className="text-yellow-500">

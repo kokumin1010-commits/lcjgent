@@ -24,7 +24,8 @@ import {
   ShoppingCart,
   Target,
   Award,
-  Flame
+  Flame,
+  Settings
 } from "lucide-react";
 
 export default function LiverMypage() {
@@ -263,6 +264,15 @@ export default function LiverMypage() {
             <Home className="h-4 w-4 text-red-500" />
           </div>
           <h2 className="mt-2 text-xl font-bold">{liverInfo.name}</h2>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate("/liver/profile")}
+            className="mt-2 text-gray-400 hover:text-white"
+          >
+            <Settings className="h-4 w-4 mr-1" />
+            プロフィール編集
+          </Button>
           
           {/* Month Selector */}
           <div className="mt-4">
