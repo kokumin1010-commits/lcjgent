@@ -244,7 +244,10 @@ export type InsertBrandActivity = typeof brandActivities.$inferInsert;
 export const brandLivestreams = mysqlTable("brand_livestreams", {
   id: int("id").autoincrement().primaryKey(),
   brandId: int("brandId").notNull(), // References brands.id
+  liverId: int("liverId"), // References livers.id - ライバーID（紐付け）
+  scheduleId: int("scheduleId"), // References schedules.id - スケジュールとの紐付け
   livestreamDate: timestamp("livestreamDate").notNull(), // 直播日期
+  livestreamEndTime: timestamp("livestreamEndTime"), // 配信終了時刻
   streamerName: varchar("streamerName", { length: 255 }).notNull(), // 直播达人
   salesAmount: bigint("salesAmount", { mode: "number" }), // 营业额（売上金額）
   duration: int("duration"), // 直播时长（分钟）
@@ -267,6 +270,12 @@ export const brandLivestreams = mysqlTable("brand_livestreams", {
   acos: varchar("acos", { length: 20 }), // ACOS（広告費売上比率）
   roas: varchar("roas", { length: 20 }), // ROAS（広告費用対効果）
   livestreamStartTime: varchar("livestreamStartTime", { length: 10 }), // ライブ開始時間 (e.g., "14:30", "20:00")
+  // 配信結果フィールド
+  result: mysqlEnum("result", ["成功", "失敗"]), // 配信結果
+  impactFactor: mysqlEnum("impactFactor", ["構成", "商品", "ライバー", "広告", "その他"]), // 影響要因
+  resultReason: text("resultReason"), // 理由メモ
+  screenshotUrl: text("screenshotUrl"), // 配信後スクリーンショットURL
+  screenshotKey: varchar("screenshotKey", { length: 512 }), // S3キー
   createdBy: int("createdBy").notNull(), // User ID who created the record
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

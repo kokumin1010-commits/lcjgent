@@ -179,6 +179,12 @@ import {
   deleteAllContractLivestreamLinks,
   checkContractLivestreamLinkExists,
   calculateContractRoas,
+  getLivestreamsByLiverId,
+  getLiverStatistics,
+  getLiverRankings,
+  getLivestreamById,
+  updateLivestreamResult,
+  getLiversWithStats,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -3774,6 +3780,154 @@ ${conversationText}
 
   // Liver (Streamer) Authentication Router
   liver: liverRouter,
+
+  // Liver Management Router (ライバー管理画面用)
+  liverManagement: router({
+    // Get all livers with stats for a given month
+    listWithStats: protectedProcedure
+      .input(z.object({ month: z.string() })) // format: "YYYY-MM"
+      .query(async ({ input }) => {
+        return await getLiversWithStats(input.month);
+      }),
+
+    // Get liver rankings (sales and duration)
+    rankings: protectedProcedure
+      .input(z.object({ month: z.string() }))
+      .query(async ({ input }) => {
+        return await getLiverRankings(input.month);
+      }),
+
+    // Get liver by ID with stats
+    getById: protectedProcedure
+      .input(z.object({ id: z.number(), month: z.string().optional() }))
+      .query(async ({ input }) => {
+        const liver = await getLiverById(input.id);
+        if (!liver) return null;
+        
+        const stats = input.month 
+          ? await getLiverStatistics(input.id, input.month)
+          : null;
+        
+        return { ...liver, stats };
+      }),
+
+    // Get livestreams by liver ID
+    getLivestreams: protectedProcedure
+      .input(z.object({ liverId: z.number(), month: z.string().optional() }))
+      .query(async ({ input }) => {
+        return await getLivestreamsByLiverId(input.liverId, input.month);
+      }),
+
+    // Get livestream detail by ID
+    getLivestreamDetail: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const livestream = await getLivestreamById(input.id);
+        if (!livestream) return null;
+        
+        // Get brand info
+        const brand = await getBrandById(livestream.brandId);
+        // Get liver info if liverId exists
+        const liver = livestream.liverId ? await getLiverById(livestream.liverId) : null;
+        
+        return { ...livestream, brand, liver };
+      }),
+
+    // Update livestream result (配信結果の記録)
+    updateLivestreamResult: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        result: z.enum(["成功", "失敗"]).optional(),
+        impactFactor: z.enum(["構成", "商品", "ライバー", "広告", "その他"]).optional(),
+        resultReason: z.string().optional(),
+        screenshotUrl: z.string().optional(),
+        screenshotKey: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        await updateLivestreamResult(id, data);
+        return { success: true };
+      }),
+
+    // Create liver (admin only)
+    create: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1),
+        email: z.string().email(),
+        password: z.string().min(6),
+        color: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const bcrypt = await import("bcrypt");
+        const hashedPassword = await bcrypt.hash(input.password, 10);
+        const id = await createLiver({
+          name: input.name,
+          email: input.email,
+          password: hashedPassword,
+          color: input.color || "#FF69B4",
+        });
+        return { id };
+      }),
+
+    // Update liver (admin only)
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        color: z.string().optional(),
+        isActive: z.boolean().optional(),
+        avatarUrl: z.string().optional(),
+        avatarKey: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        await updateLiver(id, data);
+        return { success: true };
+      }),
+
+    // Get all livers (for dropdown selection)
+    listAll: protectedProcedure.query(async () => {
+      return await getAllLivers();
+    }),
+
+    // Create livestream record (配信履歴の記録)
+    createLivestream: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+        liverId: z.number(),
+        scheduleId: z.number().optional(),
+        livestreamDate: z.string(),
+        livestreamEndTime: z.string().optional(),
+        salesAmount: z.number().optional(),
+        result: z.enum(["成功", "失敗"]).optional(),
+        impactFactor: z.enum(["構成", "商品", "ライバー", "広告", "その他"]).optional(),
+        resultReason: z.string().optional(),
+        remarks: z.string().optional(),
+        screenshotUrl: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        // Get liver name for streamerName field
+        const liver = await getLiverById(input.liverId);
+        const streamerName = liver?.name || "不明";
+        
+        const id = await createBrandLivestream({
+          brandId: input.brandId,
+          liverId: input.liverId,
+          scheduleId: input.scheduleId,
+          livestreamDate: new Date(input.livestreamDate),
+          livestreamEndTime: input.livestreamEndTime ? new Date(input.livestreamEndTime) : undefined,
+          salesAmount: input.salesAmount,
+          result: input.result,
+          impactFactor: input.impactFactor,
+          resultReason: input.resultReason,
+          remarks: input.remarks,
+          screenshotUrl: input.screenshotUrl,
+          streamerName,
+          createdBy: ctx.user?.id || 0,
+        });
+        return { id };
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

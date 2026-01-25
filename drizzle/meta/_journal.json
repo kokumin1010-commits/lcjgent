@@ -302,6 +302,13 @@
       "when": 1769319324111,
       "tag": "0042_windy_stranger",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "5",
+      "when": 1769326896197,
+      "tag": "0043_familiar_prodigy",
+      "breakpoints": true
     }
   ]
 }

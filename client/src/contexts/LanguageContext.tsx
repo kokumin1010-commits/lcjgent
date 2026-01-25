@@ -26,6 +26,7 @@ const jaTranslations: Record<string, string> = {
   "nav.lineFollowUps": "フォローアップ",
   "nav.pendingResponses": "要対応",
   "nav.calendar": "カレンダー",
+  "nav.livers": "ライバー管理",
   "nav.logout": "ログアウト",
   
   // Dashboard
@@ -305,6 +306,7 @@ const zhTranslations: Record<string, string> = {
   "nav.lineFollowUps": "跟进管理",
   "nav.pendingResponses": "待回复",
   "nav.calendar": "日历",
+  "nav.livers": "主播管理",
   "nav.logout": "退出登录",
   
   // Dashboard

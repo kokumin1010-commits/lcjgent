@@ -31,6 +31,10 @@ import PublicSchedule from "./pages/PublicSchedule";
 import PublicLiverSchedule from "./pages/PublicLiverSchedule";
 import LiverRegister from "./pages/LiverRegister";
 import LiverLogin from "./pages/LiverLogin";
+import LiverList from "./pages/LiverList";
+import LiverDetail from "./pages/LiverDetail";
+import LivestreamDetail from "./pages/LivestreamDetail";
+import LiverRecord from "./pages/LiverRecord";
 
 function Router() {
   return (
@@ -158,6 +162,26 @@ function Router() {
       </Route>
       <Route path={"/s"} component={PublicSchedule} />
       <Route path={"/s/:name"} component={PublicLiverSchedule} />
+      <Route path={"/livers"}>
+        <DashboardLayout>
+          <LiverList />
+        </DashboardLayout>
+      </Route>
+      <Route path={"/livers/:id"}>
+        <DashboardLayout>
+          <LiverDetail />
+        </DashboardLayout>
+      </Route>
+      <Route path={"/livestreams/:id"}>
+        <DashboardLayout>
+          <LivestreamDetail />
+        </DashboardLayout>
+      </Route>
+      <Route path={"/livers/:id/record"}>
+        <DashboardLayout>
+          <LiverRecord />
+        </DashboardLayout>
+      </Route>
       {/* Liver login pages redirect to main login */}
       <Route path={"/liver/register"}>
         {() => {

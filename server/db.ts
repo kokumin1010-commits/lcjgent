@@ -3362,3 +3362,185 @@ export async function calculateContractRoas(contractId: number, fixedFee: number
     livestreamCount: livestreams.length,
   };
 }
+
+
+// ============================================
+// Liver Livestream Functions (ライバー別配信履歴)
+// ============================================
+
+// Get livestreams by liver ID
+export async function getLivestreamsByLiverId(liverId: number, month?: string) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const conditions = [eq(brandLivestreams.liverId, liverId)];
+  
+  if (month) {
+    // month format: "YYYY-MM"
+    const [year, monthNum] = month.split('-').map(Number);
+    const startDate = new Date(year, monthNum - 1, 1);
+    const endDate = new Date(year, monthNum, 0, 23, 59, 59);
+    conditions.push(sql`${brandLivestreams.livestreamDate} >= ${startDate}`);
+    conditions.push(sql`${brandLivestreams.livestreamDate} <= ${endDate}`);
+  }
+  
+  return await db
+    .select()
+    .from(brandLivestreams)
+    .where(and(...conditions))
+    .orderBy(desc(brandLivestreams.livestreamDate));
+}
+
+// Get liver statistics (monthly sales, total hours)
+export async function getLiverStatistics(liverId: number, month?: string) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const conditions = [eq(brandLivestreams.liverId, liverId)];
+  
+  if (month) {
+    const [year, monthNum] = month.split('-').map(Number);
+    const startDate = new Date(year, monthNum - 1, 1);
+    const endDate = new Date(year, monthNum, 0, 23, 59, 59);
+    conditions.push(sql`${brandLivestreams.livestreamDate} >= ${startDate}`);
+    conditions.push(sql`${brandLivestreams.livestreamDate} <= ${endDate}`);
+  }
+  
+  const result = await db
+    .select({
+      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.gmv}), 0)`,
+      totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
+      livestreamCount: sql<number>`COUNT(*)`,
+    })
+    .from(brandLivestreams)
+    .where(and(...conditions));
+  
+  return result[0];
+}
+
+// Get liver rankings (sales ranking, duration ranking)
+export async function getLiverRankings(month: string) {
+  const db = await getDb();
+  if (!db) return { salesRanking: [], durationRanking: [] };
+  
+  const [year, monthNum] = month.split('-').map(Number);
+  const startDate = new Date(year, monthNum - 1, 1);
+  const endDate = new Date(year, monthNum, 0, 23, 59, 59);
+  
+  // Sales ranking
+  const salesRanking = await db
+    .select({
+      liverId: brandLivestreams.liverId,
+      streamerName: brandLivestreams.streamerName,
+      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.gmv}), 0)`,
+      totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
+    })
+    .from(brandLivestreams)
+    .where(
+      and(
+        sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
+        sql`${brandLivestreams.livestreamDate} <= ${endDate}`
+      )
+    )
+    .groupBy(brandLivestreams.liverId, brandLivestreams.streamerName)
+    .orderBy(sql`SUM(${brandLivestreams.gmv}) DESC`)
+    .limit(10);
+  
+  // Duration ranking
+  const durationRanking = await db
+    .select({
+      liverId: brandLivestreams.liverId,
+      streamerName: brandLivestreams.streamerName,
+      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.gmv}), 0)`,
+      totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
+    })
+    .from(brandLivestreams)
+    .where(
+      and(
+        sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
+        sql`${brandLivestreams.livestreamDate} <= ${endDate}`
+      )
+    )
+    .groupBy(brandLivestreams.liverId, brandLivestreams.streamerName)
+    .orderBy(sql`SUM(${brandLivestreams.duration}) DESC`)
+    .limit(10);
+  
+  return { salesRanking, durationRanking };
+}
+
+// Get livestream by ID with brand info
+export async function getLivestreamById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db
+    .select()
+    .from(brandLivestreams)
+    .where(eq(brandLivestreams.id, id))
+    .limit(1);
+  
+  return result.length > 0 ? result[0] : null;
+}
+
+// Update livestream result (配信結果の記録)
+export async function updateLivestreamResult(id: number, data: {
+  result?: "成功" | "失敗";
+  impactFactor?: "構成" | "商品" | "ライバー" | "広告" | "その他";
+  resultReason?: string;
+  screenshotUrl?: string;
+  screenshotKey?: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db
+    .update(brandLivestreams)
+    .set(data)
+    .where(eq(brandLivestreams.id, id));
+}
+
+// Get all livers with their statistics for a given month
+export async function getLiversWithStats(month: string) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const [year, monthNum] = month.split('-').map(Number);
+  const startDate = new Date(year, monthNum - 1, 1);
+  const endDate = new Date(year, monthNum, 0, 23, 59, 59);
+  
+  // Get all active livers
+  const allLivers = await db
+    .select()
+    .from(livers)
+    .where(eq(livers.isActive, true))
+    .orderBy(asc(livers.name));
+  
+  // Get stats for each liver
+  const liversWithStats = await Promise.all(
+    allLivers.map(async (liver) => {
+      const stats = await db
+        .select({
+          totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.gmv}), 0)`,
+          totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
+          livestreamCount: sql<number>`COUNT(*)`,
+        })
+        .from(brandLivestreams)
+        .where(
+          and(
+            eq(brandLivestreams.liverId, liver.id),
+            sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
+            sql`${brandLivestreams.livestreamDate} <= ${endDate}`
+          )
+        );
+      
+      return {
+        ...liver,
+        totalSales: stats[0]?.totalSales || 0,
+        totalDuration: stats[0]?.totalDuration || 0,
+        livestreamCount: stats[0]?.livestreamCount || 0,
+      };
+    })
+  );
+  
+  return liversWithStats;
+}
