@@ -1803,3 +1803,16 @@
 - [x] 解析結果セクションを下のフォームと統一感のあるデザインに変更
 - [x] AI分析結果を編集可能な入力フィールドとして表示
 - [x] スクショから読み取った値をフォームに自動反映
+
+
+## ライバー用ページを日本語に固定
+- [ ] LiverSelfRecord.tsx（/liver/record）を日本語に固定
+- [ ] LiverMyPage.tsx（/liver/mypage）を日本語に固定
+- [ ] LiverLogin.tsx（/liver/login）を日本語に固定
+- [ ] その他のライバー用ページを日本語に固定
+
+
+## ライバー用ページを日本語に固定 & 保存エラー修正
+- [x] LiverSelfRecord.tsxの保存エラー（impactFactorバリデーション）を修正
+- [x] LiverSelfRecord.tsxを日本語に固定
+- [x] その他のライバー用ページは既に日本語固定済み

@@ -9,7 +9,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Video, Calendar, DollarSign, Clock, X, Link as LinkIcon, Camera, Sparkles, Loader2, Lightbulb, Users, MousePointer, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
-import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function LiverSelfRecord() {
   const [, navigate] = useLocation();
@@ -17,7 +16,6 @@ export default function LiverSelfRecord() {
   const searchParams = new URLSearchParams(searchString);
   const scheduleIdParam = searchParams.get("scheduleId");
   const dateParam = searchParams.get("date");
-  const { language } = useLanguage();
   
   // Get current liver info
   const { data: liverInfo, isLoading: isLoadingLiver } = trpc.liver.me.useQuery();
@@ -101,7 +99,7 @@ export default function LiverSelfRecord() {
 
   const createLivestreamMutation = trpc.liverManagement.createLivestream.useMutation({
     onSuccess: () => {
-      toast.success(language === "ja" ? "配信記録を保存しました" : "直播记录已保存");
+      toast.success("配信記録を保存しました");
       navigate("/liver/mypage");
     },
     onError: (error) => {
@@ -114,118 +112,61 @@ export default function LiverSelfRecord() {
   const analyzeScreenshotMutation = trpc.liverManagement.analyzeScreenshot.useMutation();
   const generateAdviceMutation = trpc.liverManagement.generateAdvice.useMutation();
 
-  const translations = {
-    ja: {
-      title: "配信内容の記録",
-      subtitle: "TikTokダッシュボードのスクリーンショットをアップロードすると、AIが自動で解析します",
-      tapToUpload: "タップしてスクリーンショットをアップロード",
-      aiAnalysis: "AIが自動でデータを解析します",
-      analyzing: "解析中...",
-      analysisComplete: "解析完了！データを自動入力しました",
-      analysisError: "解析に失敗しました",
-      analysisResult: "AI解析結果",
-      confidence: "解析信頼度",
-      high: "高",
-      medium: "中",
-      low: "低",
-      salesAmount: "売上金額",
-      viewerCount: "視聴者数",
-      peakViewerCount: "ピーク視聴者数",
-      productClicks: "商品クリック数",
-      orderCount: "注文数",
-      durationMinutes: "配信時間",
-      minutes: "分",
-      reanalyze: "再解析",
-      adviceTitle: "ワンポイントアドバイス",
-      regenerateAdvice: "アドバイスを再生成",
-      generatingAdvice: "生成中...",
-      detailsForm: "詳細情報",
-      selectBrand: "ブランドを選択",
-      livestreamDate: "配信日",
-      startTime: "開始時刻",
-      endTime: "終了時刻",
-      result: "結果",
-      selectResult: "結果を選択",
-      success: "成功",
-      failure: "失敗",
-      impactFactor: "影響要因",
-      selectFactor: "影響要因を選択",
-      composition: "構成",
-      product: "商品",
-      liver: "ライバー",
-      ad: "広告",
-      other: "その他",
-      reasonMemo: "理由・メモ",
-      reasonPlaceholder: "結果の理由や気づきを記入...",
-      otherMemo: "その他のメモ",
-      memoPlaceholder: "その他のメモ...",
-      save: "配信記録を保存",
-      saving: "保存中...",
-      loginRequired: "ログインが必要です",
-      goToLogin: "ログインページへ",
-      selectBrandError: "ブランドを選択してください",
-      enterDateTimeError: "配信日時を入力してください",
-      saveError: "保存に失敗しました",
-      scheduleLink: "スケジュールから記録",
-      editableHint: "解析データは編集可能です",
-    },
-    zh: {
-      title: "记录直播内容",
-      subtitle: "上传TikTok仪表板截图，AI将自动分析",
-      tapToUpload: "点击上传截图",
-      aiAnalysis: "AI将自动分析数据",
-      analyzing: "分析中...",
-      analysisComplete: "分析完成！数据已自动填入",
-      analysisError: "分析失败",
-      analysisResult: "AI分析结果",
-      confidence: "分析可信度",
-      high: "高",
-      medium: "中",
-      low: "低",
-      salesAmount: "销售金额",
-      viewerCount: "观看人数",
-      peakViewerCount: "峰值观看人数",
-      productClicks: "商品点击数",
-      orderCount: "订单数",
-      durationMinutes: "直播时长",
-      minutes: "分钟",
-      reanalyze: "重新分析",
-      adviceTitle: "一点建议",
-      regenerateAdvice: "重新生成建议",
-      generatingAdvice: "生成中...",
-      detailsForm: "详细信息",
-      selectBrand: "选择品牌",
-      livestreamDate: "直播日期",
-      startTime: "开始时间",
-      endTime: "结束时间",
-      result: "结果",
-      selectResult: "选择结果",
-      success: "成功",
-      failure: "失败",
-      impactFactor: "影响因素",
-      selectFactor: "选择影响因素",
-      composition: "构成",
-      product: "商品",
-      liver: "主播",
-      ad: "广告",
-      other: "其他",
-      reasonMemo: "原因・备注",
-      reasonPlaceholder: "填写结果原因或发现...",
-      otherMemo: "其他备注",
-      memoPlaceholder: "其他备注...",
-      save: "保存直播记录",
-      saving: "保存中...",
-      loginRequired: "需要登录",
-      goToLogin: "前往登录页面",
-      selectBrandError: "请选择品牌",
-      enterDateTimeError: "请输入直播时间",
-      saveError: "保存失败",
-      scheduleLink: "从日程记录",
-      editableHint: "分析数据可编辑",
-    },
+  // 日本語固定
+  const tr = {
+    title: "配信内容の記録",
+    subtitle: "TikTokダッシュボードのスクリーンショットをアップロードすると、AIが自動で解析します",
+    tapToUpload: "タップしてスクリーンショットをアップロード",
+    aiAnalysis: "AIが自動でデータを解析します",
+    analyzing: "解析中...",
+    analysisComplete: "解析完了！データを自動入力しました",
+    analysisError: "解析に失敗しました",
+    analysisResult: "AI解析結果",
+    confidence: "解析信頼度",
+    high: "高",
+    medium: "中",
+    low: "低",
+    salesAmount: "売上金額",
+    viewerCount: "視聴者数",
+    peakViewerCount: "ピーク視聴者数",
+    productClicks: "商品クリック数",
+    orderCount: "注文数",
+    durationMinutes: "配信時間",
+    minutes: "分",
+    reanalyze: "再解析",
+    adviceTitle: "ワンポイントアドバイス",
+    regenerateAdvice: "アドバイスを再生成",
+    generatingAdvice: "生成中...",
+    detailsForm: "詳細情報",
+    selectBrand: "ブランドを選択",
+    livestreamDate: "配信日",
+    startTime: "開始時刻",
+    endTime: "終了時刻",
+    result: "結果",
+    selectResult: "結果を選択",
+    success: "成功",
+    failure: "失敗",
+    impactFactor: "影響要因",
+    selectFactor: "影響要因を選択",
+    composition: "構成",
+    product: "商品",
+    liver: "ライバー",
+    ad: "広告",
+    other: "その他",
+    reasonMemo: "理由・メモ",
+    reasonPlaceholder: "結果の理由や気づきを記入...",
+    otherMemo: "その他のメモ",
+    memoPlaceholder: "その他のメモ...",
+    save: "配信記録を保存",
+    saving: "保存中...",
+    loginRequired: "ログインが必要です",
+    goToLogin: "ログインページへ",
+    selectBrandError: "ブランドを選択してください",
+    enterDateTimeError: "配信日時を入力してください",
+    saveError: "保存に失敗しました",
+    scheduleLink: "スケジュールから記録",
+    editableHint: "解析データは編集可能です",
   };
-
-  const tr = translations[language as keyof typeof translations] || translations.ja;
 
   const handleScreenshotChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -251,7 +192,7 @@ export default function LiverSelfRecord() {
     setAnalyzedData(null);
     setAdvice(null);
     setAnalysisConfidence(null);
-    // Clear analyzed fields from form
+    // Clear analyzed fields
     setFormData(prev => ({
       ...prev,
       salesAmount: "",
@@ -441,19 +382,30 @@ export default function LiverSelfRecord() {
         ? new Date(`${formData.livestreamDate}T${formData.livestreamEndTime}`)
         : undefined;
 
+      // impactFactorが空の場合はundefinedを送信
+      const impactFactorValue = formData.impactFactor && 
+        ["構成", "商品", "ライバー", "広告", "その他"].includes(formData.impactFactor)
+        ? formData.impactFactor as "構成" | "商品" | "ライバー" | "広告" | "その他"
+        : undefined;
+
+      // resultが空の場合はundefinedを送信
+      const resultValue = formData.result && ["成功", "失敗"].includes(formData.result)
+        ? formData.result as "成功" | "失敗"
+        : undefined;
+
       createLivestreamMutation.mutate({
         brandId: parseInt(formData.brandId),
         liverId: liverInfo.id,
         livestreamDate: livestreamDateTime.toISOString(),
         livestreamEndTime: endDateTime?.toISOString(),
         salesAmount: formData.salesAmount ? parseInt(formData.salesAmount) : undefined,
-        result: formData.result as "成功" | "失敗" | undefined,
-        impactFactor: formData.impactFactor as "構成" | "商品" | "ライバー" | "広告" | "その他" | undefined,
+        result: resultValue,
+        impactFactor: impactFactorValue,
         resultReason: formData.resultReason || undefined,
         remarks: formData.remarks || undefined,
         screenshotUrl: finalScreenshotUrl || undefined,
         scheduleId: formData.scheduleId ? parseInt(formData.scheduleId) : undefined,
-        aiAdvice: advice || undefined, // AIアドバイスを保存
+        aiAdvice: advice || undefined,
       });
     } catch (error) {
       console.error("Failed to save livestream:", error);
@@ -518,13 +470,7 @@ export default function LiverSelfRecord() {
                   <p className="text-sm text-yellow-500 font-medium">{tr.scheduleLink}</p>
                   <p className="text-white">{scheduleInfo.title}</p>
                   <p className="text-sm text-gray-400">
-                    {new Date(scheduleInfo.startTime).toLocaleDateString("ja-JP", {
-                      month: "long",
-                      day: "numeric",
-                      weekday: "short",
-                      hour: "2-digit",
-                      minute: "2-digit"
-                    })}
+                    {new Date(scheduleInfo.startTime).toLocaleString("ja-JP")}
                   </p>
                 </div>
               </div>
@@ -532,94 +478,86 @@ export default function LiverSelfRecord() {
           </Card>
         )}
 
-        {/* Screenshot Upload Section - TOP */}
-        <Card className="bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700 overflow-hidden">
-          <CardContent className="p-0">
-            {screenshotPreview ? (
-              <div className="relative">
-                {/* Screenshot Image */}
-                <img 
-                  src={screenshotPreview} 
-                  alt="Screenshot"
-                  className="w-full h-auto"
-                />
-                
-                {/* Remove Button */}
-                <button
-                  type="button"
-                  onClick={removeScreenshot}
-                  className="absolute top-3 right-3 bg-red-600 rounded-full p-2 hover:bg-red-700 shadow-lg"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-                
-                {/* Analyzing Overlay */}
-                {isAnalyzing && (
-                  <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center">
-                    <Loader2 className="w-12 h-12 animate-spin text-purple-500 mb-3" />
-                    <p className="text-white font-medium">{tr.analyzing}</p>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <label className="flex flex-col items-center justify-center w-full h-48 cursor-pointer hover:bg-gray-800/50 transition-colors">
-                <div className="flex flex-col items-center">
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center mb-3">
-                    <Camera className="w-8 h-8 text-white" />
-                  </div>
-                  <span className="text-white font-medium">{tr.tapToUpload}</span>
-                  <span className="text-sm text-gray-400 mt-1">{tr.aiAnalysis}</span>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Screenshot Upload Section */}
+          <Card className="bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700 overflow-hidden">
+            <CardContent className="p-0">
+              {screenshotPreview ? (
+                <div className="relative">
+                  <img 
+                    src={screenshotPreview} 
+                    alt="Screenshot"
+                    className="w-full h-auto"
+                  />
+                  <button
+                    type="button"
+                    onClick={removeScreenshot}
+                    className="absolute top-3 right-3 bg-red-600 rounded-full p-2 hover:bg-red-700 shadow-lg"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                  {isAnalyzing && (
+                    <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center">
+                      <Loader2 className="w-12 h-12 animate-spin text-purple-500 mb-3" />
+                      <p className="text-white font-medium">{tr.analyzing}</p>
+                    </div>
+                  )}
                 </div>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleScreenshotChange}
-                  className="hidden"
-                />
-              </label>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* AI Advice Section */}
-        {advice && (
-          <Card className="bg-gradient-to-r from-yellow-900/30 to-orange-900/30 border-yellow-600/50">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-yellow-400 flex items-center gap-2">
-                <Lightbulb className="w-4 h-4" />
-                {tr.adviceTitle}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-white text-sm whitespace-pre-wrap">{advice}</p>
-              
-              {/* Regenerate Advice Button */}
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => handleGenerateAdvice()}
-                disabled={isGeneratingAdvice}
-                className="mt-3 text-yellow-400 hover:bg-yellow-600/20 text-xs"
-              >
-                {isGeneratingAdvice ? (
-                  <>
-                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                    {tr.generatingAdvice}
-                  </>
-                ) : (
-                  <>
-                    <Lightbulb className="w-3 h-3 mr-1" />
-                    {tr.regenerateAdvice}
-                  </>
-                )}
-              </Button>
+              ) : (
+                <label className="flex flex-col items-center justify-center w-full h-48 cursor-pointer hover:bg-gray-800/50 transition-colors">
+                  <div className="flex flex-col items-center">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center mb-3">
+                      <Camera className="w-8 h-8 text-white" />
+                    </div>
+                    <span className="text-white font-medium">{tr.tapToUpload}</span>
+                    <span className="text-sm text-gray-400 mt-1">{tr.aiAnalysis}</span>
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleScreenshotChange}
+                    className="hidden"
+                  />
+                </label>
+              )}
             </CardContent>
           </Card>
-        )}
 
-        {/* Details Form Section - Combined with Analysis Results */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* AI Analysis Results Section - Same design as form below */}
+          {/* AI Advice Section */}
+          {advice && (
+            <Card className="bg-gradient-to-r from-yellow-900/30 to-orange-900/30 border-yellow-600/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-yellow-400 flex items-center gap-2">
+                  <Lightbulb className="w-4 h-4" />
+                  {tr.adviceTitle}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-white text-sm whitespace-pre-wrap">{advice}</p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => handleGenerateAdvice()}
+                  disabled={isGeneratingAdvice}
+                  className="mt-3 text-yellow-400 hover:bg-yellow-600/20 text-xs"
+                >
+                  {isGeneratingAdvice ? (
+                    <>
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                      {tr.generatingAdvice}
+                    </>
+                  ) : (
+                    <>
+                      <Lightbulb className="w-3 h-3 mr-1" />
+                      {tr.regenerateAdvice}
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* AI Analysis Results Section */}
           {screenshotPreview && (
             <Card className="bg-gray-900 border-gray-700">
               <CardHeader className="pb-3">
