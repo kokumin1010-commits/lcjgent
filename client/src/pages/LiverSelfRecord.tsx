@@ -59,6 +59,18 @@ export default function LiverSelfRecord() {
     orderCount?: number | null;
     durationMinutes?: number | null;
     confidence?: string;
+    rawData?: {
+      impressions?: number | null;
+      productImpressions?: number | null;
+      liveCtr?: number | null;
+      orderRate?: number | null;
+      gmvPerHour?: number | null;
+      avgViewDuration?: number | null;
+      commentRate?: number | null;
+      adCost?: number | null;
+      roi?: number | null;
+      productSales?: number | null;
+    };
   } | null>(null);
 
   // Pre-fill form data from schedule
@@ -593,6 +605,63 @@ export default function LiverSelfRecord() {
                   </div>
                 )}
               </div>
+              
+              {/* Additional Metrics from rawData */}
+              {analyzedData.rawData && Object.keys(analyzedData.rawData).some(k => analyzedData.rawData?.[k as keyof typeof analyzedData.rawData] !== null) && (
+                <div className="mt-4 pt-4 border-t border-gray-700">
+                  <p className="text-xs text-gray-400 mb-3">{language === 'ja' ? '詳細指標' : '详细指标'}</p>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    {analyzedData.rawData.impressions !== null && analyzedData.rawData.impressions !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">{language === 'ja' ? 'インプレッション' : '印象数'}</span>
+                        <span className="text-white">{analyzedData.rawData.impressions.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {analyzedData.rawData.liveCtr !== null && analyzedData.rawData.liveCtr !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">LIVE CTR</span>
+                        <span className="text-white">{analyzedData.rawData.liveCtr}%</span>
+                      </div>
+                    )}
+                    {analyzedData.rawData.orderRate !== null && analyzedData.rawData.orderRate !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">{language === 'ja' ? '注文率' : '订单率'}</span>
+                        <span className="text-white">{analyzedData.rawData.orderRate}%</span>
+                      </div>
+                    )}
+                    {analyzedData.rawData.gmvPerHour !== null && analyzedData.rawData.gmvPerHour !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">{language === 'ja' ? '時給GMV' : '每小时GMV'}</span>
+                        <span className="text-white">¥{analyzedData.rawData.gmvPerHour.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {analyzedData.rawData.commentRate !== null && analyzedData.rawData.commentRate !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">{language === 'ja' ? 'コメント率' : '评论率'}</span>
+                        <span className="text-white">{analyzedData.rawData.commentRate}%</span>
+                      </div>
+                    )}
+                    {analyzedData.rawData.adCost !== null && analyzedData.rawData.adCost !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">{language === 'ja' ? '広告費' : '广告费'}</span>
+                        <span className="text-white">¥{analyzedData.rawData.adCost.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {analyzedData.rawData.roi !== null && analyzedData.rawData.roi !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">ROI</span>
+                        <span className="text-white">{analyzedData.rawData.roi}</span>
+                      </div>
+                    )}
+                    {analyzedData.rawData.productSales !== null && analyzedData.rawData.productSales !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">{language === 'ja' ? '商品販売数' : '商品销量'}</span>
+                        <span className="text-white">{analyzedData.rawData.productSales.toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
               
               {/* Re-analyze Button */}
               <Button

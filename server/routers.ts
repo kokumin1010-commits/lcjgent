@@ -3995,32 +3995,36 @@ ${conversationText}
       }))
       .mutation(async ({ input }) => {
         const systemPrompt = `あなたはTikTokライブ配信のダッシュボードスクリーンショットを解析するエキスパートです。
-画像から以下の情報を抽出してください：
 
-1. 売上金額（GMV/総売上）
-2. 配信時間（開始時刻、終了時刻、または配信時間の長さ）
-3. 視聴者数（ユニーク視聴者数、ピーク視聴者数など）
-4. 商品クリック数
-5. 注文数
-6. その他の重要な指標
+TikTok LIVEダッシュボードの典型的なレイアウト：
+- 中央上部: GMV（総売上金額）が大きく表示（例: 8,814,883）
+- その下: 商品販売数、視聴者数
+- 左側: パフォーマンストレンドグラフ、トラフィックソース
+- 中央: インプレッション数、商品クリック数、LIVE CTR、注文数、注文率など
+- 右側: リプレイ動画、ユーザープロフィール
+- 上部ヘッダー: 配信時間（例: 8h10m6s）、日時範囲
 
-抽出できた情報のみをJSON形式で返してください。
-数値は数字のみ（カンマや単位なし）で返してください。
-抽出できなかった項目はnullとしてください。
+以下の情報を抽出してください：
+1. GMV/売上金額（中央の大きな数字）
+2. 視聴者数（視聴者数/視聴数と表示）
+3. 商品クリック数
+4. 注文数/注文
+5. 配信時間（ヘッダーの時間表示から分に変換）
+6. インプレッション数
+7. LIVE CTR（%）
+8. 注文率/注文率（SKU注文数）（%）
+9. 1時間あたりのGMV
+10. コメント率（%）
+11. 広告費
+12. ROI
 
-返答は以下のJSON形式で：
-{
-  "salesAmount": number | null,
-  "viewerCount": number | null,
-  "peakViewerCount": number | null,
-  "productClicks": number | null,
-  "orderCount": number | null,
-  "durationMinutes": number | null,
-  "startTime": string | null,
-  "endTime": string | null,
-  "rawData": { ... },
-  "confidence": "high" | "medium" | "low"
-}`;
+数値の読み取りルール：
+- "K"は1000倍（例: 45.57K = 45570）
+- "M"は1000000倍（例: 1.08M = 1080000）
+- カンマは無視（例: 8,814,883 = 8814883）
+- 時間表示（例: 8h10m6s）は分に変換（8*60+10=490分）
+
+必ずJSON形式で返してください。`;
 
         const response = await invokeLLM({
           messages: [
@@ -4042,30 +4046,7 @@ ${conversationText}
               ],
             },
           ],
-          response_format: {
-            type: "json_schema",
-            json_schema: {
-              name: "livestream_data",
-              strict: true,
-              schema: {
-                type: "object",
-                properties: {
-                  salesAmount: { type: ["number", "null"], description: "売上金額" },
-                  viewerCount: { type: ["number", "null"], description: "視聴者数" },
-                  peakViewerCount: { type: ["number", "null"], description: "ピーク視聴者数" },
-                  productClicks: { type: ["number", "null"], description: "商品クリック数" },
-                  orderCount: { type: ["number", "null"], description: "注文数" },
-                  durationMinutes: { type: ["number", "null"], description: "配信時間（分）" },
-                  startTime: { type: ["string", "null"], description: "開始時刻" },
-                  endTime: { type: ["string", "null"], description: "終了時刻" },
-                  rawData: { type: "object", description: "その他の抽出データ", additionalProperties: true },
-                  confidence: { type: "string", enum: ["high", "medium", "low"], description: "解析の信頼度" },
-                },
-                required: ["salesAmount", "viewerCount", "peakViewerCount", "productClicks", "orderCount", "durationMinutes", "startTime", "endTime", "rawData", "confidence"],
-                additionalProperties: false,
-              },
-            },
-          },
+
         });
 
         const content = response.choices[0]?.message?.content;
@@ -4074,8 +4055,31 @@ ${conversationText}
         }
 
         try {
-          return JSON.parse(content);
-        } catch {
+          // Try to extract JSON from markdown code blocks if present
+          let jsonStr = content;
+          const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+          if (jsonMatch) {
+            jsonStr = jsonMatch[1].trim();
+          }
+          
+          // Parse the JSON
+          const parsed = JSON.parse(jsonStr);
+          
+          // Ensure required fields exist with defaults
+          return {
+            salesAmount: parsed.salesAmount ?? null,
+            viewerCount: parsed.viewerCount ?? null,
+            peakViewerCount: parsed.peakViewerCount ?? null,
+            productClicks: parsed.productClicks ?? null,
+            orderCount: parsed.orderCount ?? null,
+            durationMinutes: parsed.durationMinutes ?? null,
+            startTime: parsed.startTime ?? null,
+            endTime: parsed.endTime ?? null,
+            rawData: parsed.rawData ?? {},
+            confidence: parsed.confidence ?? "medium",
+          };
+        } catch (e) {
+          console.error("Failed to parse analysis result:", content, e);
           throw new Error("Failed to parse analysis result");
         }
       }),
