@@ -777,7 +777,7 @@ export default function BrandDetail() {
                           value={b.id.toString()}
                           className="text-white hover:bg-red-900/30 focus:bg-red-900/30"
                         >
-                          {b.name}
+                          {b.name}{b.nameJa && <span className="text-red-400 ml-1">({b.nameJa})</span>}
                         </SelectItem>
                       ))}
                     </SelectContent>

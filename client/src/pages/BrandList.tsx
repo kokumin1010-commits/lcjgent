@@ -254,6 +254,7 @@ export default function BrandList() {
                     <div className="flex-1">
                       <h3 className="text-lg font-bold text-white group-hover:text-red-400 transition-colors">
                         {brand.name}
+                        {brand.nameJa && <span className="text-sm font-normal text-red-400 ml-2">({brand.nameJa})</span>}
                       </h3>
                       <p className="text-sm text-gray-400">{brand.companyName || "-"}</p>
                     </div>
