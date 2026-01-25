@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Video, Calendar, DollarSign, Clock, X, Link as LinkIcon, Camera, Sparkles, Loader2, Lightbulb, Users, MousePointer, ShoppingCart, Edit2, Check } from "lucide-react";
+import { ArrowLeft, Video, Calendar, DollarSign, Clock, X, Link as LinkIcon, Camera, Sparkles, Loader2, Lightbulb, Users, MousePointer, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 
@@ -37,6 +37,11 @@ export default function LiverSelfRecord() {
     livestreamStartTime: "",
     livestreamEndTime: "",
     salesAmount: "",
+    viewerCount: "",
+    peakViewerCount: "",
+    productClicks: "",
+    orderCount: "",
+    durationMinutes: "",
     result: "",
     impactFactor: "",
     resultReason: "",
@@ -51,18 +56,7 @@ export default function LiverSelfRecord() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGeneratingAdvice, setIsGeneratingAdvice] = useState(false);
   const [advice, setAdvice] = useState<string | null>(null);
-  
-  // Editable analyzed data state
-  const [isEditingAnalysis, setIsEditingAnalysis] = useState(false);
-  const [editedAnalyzedData, setEditedAnalyzedData] = useState<{
-    salesAmount: string;
-    viewerCount: string;
-    peakViewerCount: string;
-    productClicks: string;
-    orderCount: string;
-    durationMinutes: string;
-    confidence?: string;
-  } | null>(null);
+  const [analysisConfidence, setAnalysisConfidence] = useState<string | null>(null);
   
   const [analyzedData, setAnalyzedData] = useState<{
     salesAmount?: number | null;
@@ -104,21 +98,6 @@ export default function LiverSelfRecord() {
       }));
     }
   }, [scheduleInfo]);
-  
-  // Initialize edited data when analyzedData changes
-  useEffect(() => {
-    if (analyzedData) {
-      setEditedAnalyzedData({
-        salesAmount: analyzedData.salesAmount?.toString() || "",
-        viewerCount: analyzedData.viewerCount?.toString() || "",
-        peakViewerCount: analyzedData.peakViewerCount?.toString() || "",
-        productClicks: analyzedData.productClicks?.toString() || "",
-        orderCount: analyzedData.orderCount?.toString() || "",
-        durationMinutes: analyzedData.durationMinutes?.toString() || "",
-        confidence: analyzedData.confidence,
-      });
-    }
-  }, [analyzedData]);
 
   const createLivestreamMutation = trpc.liverManagement.createLivestream.useMutation({
     onSuccess: () => {
@@ -144,7 +123,7 @@ export default function LiverSelfRecord() {
       analyzing: "解析中...",
       analysisComplete: "解析完了！データを自動入力しました",
       analysisError: "解析に失敗しました",
-      analysisResult: "解析結果",
+      analysisResult: "AI解析結果",
       confidence: "解析信頼度",
       high: "高",
       medium: "中",
@@ -188,10 +167,7 @@ export default function LiverSelfRecord() {
       enterDateTimeError: "配信日時を入力してください",
       saveError: "保存に失敗しました",
       scheduleLink: "スケジュールから記録",
-      editAnalysis: "編集",
-      saveEdit: "確定",
-      editHint: "解析結果を修正できます",
-      analysisUpdated: "解析結果を更新しました",
+      editableHint: "解析データは編集可能です",
     },
     zh: {
       title: "记录直播内容",
@@ -201,7 +177,7 @@ export default function LiverSelfRecord() {
       analyzing: "分析中...",
       analysisComplete: "分析完成！数据已自动填入",
       analysisError: "分析失败",
-      analysisResult: "分析结果",
+      analysisResult: "AI分析结果",
       confidence: "分析可信度",
       high: "高",
       medium: "中",
@@ -245,10 +221,7 @@ export default function LiverSelfRecord() {
       enterDateTimeError: "请输入直播时间",
       saveError: "保存失败",
       scheduleLink: "从日程记录",
-      editAnalysis: "编辑",
-      saveEdit: "确定",
-      editHint: "可以修改分析结果",
-      analysisUpdated: "分析结果已更新",
+      editableHint: "分析数据可编辑",
     },
   };
 
@@ -276,9 +249,18 @@ export default function LiverSelfRecord() {
     setScreenshotPreview(null);
     setScreenshotUrl(null);
     setAnalyzedData(null);
-    setEditedAnalyzedData(null);
     setAdvice(null);
-    setIsEditingAnalysis(false);
+    setAnalysisConfidence(null);
+    // Clear analyzed fields from form
+    setFormData(prev => ({
+      ...prev,
+      salesAmount: "",
+      viewerCount: "",
+      peakViewerCount: "",
+      productClicks: "",
+      orderCount: "",
+      durationMinutes: "",
+    }));
   };
 
   const handleAnalyzeScreenshot = async (file?: File) => {
@@ -286,7 +268,6 @@ export default function LiverSelfRecord() {
     if (!fileToAnalyze || !liverInfo?.id) return;
     
     setIsAnalyzing(true);
-    setIsEditingAnalysis(false);
     try {
       // First upload the screenshot
       const reader = new FileReader();
@@ -313,6 +294,7 @@ export default function LiverSelfRecord() {
       });
       
       setAnalyzedData(analysisResult);
+      setAnalysisConfidence(analysisResult.confidence || null);
       
       // Auto-fill form with analyzed data
       const updates: Partial<typeof formData> = {};
@@ -320,6 +302,31 @@ export default function LiverSelfRecord() {
       // 売上金額
       if (analysisResult.salesAmount !== null && analysisResult.salesAmount !== undefined) {
         updates.salesAmount = analysisResult.salesAmount.toString();
+      }
+      
+      // 視聴者数
+      if (analysisResult.viewerCount !== null && analysisResult.viewerCount !== undefined) {
+        updates.viewerCount = analysisResult.viewerCount.toString();
+      }
+      
+      // ピーク視聴者数
+      if (analysisResult.peakViewerCount !== null && analysisResult.peakViewerCount !== undefined) {
+        updates.peakViewerCount = analysisResult.peakViewerCount.toString();
+      }
+      
+      // 商品クリック数
+      if (analysisResult.productClicks !== null && analysisResult.productClicks !== undefined) {
+        updates.productClicks = analysisResult.productClicks.toString();
+      }
+      
+      // 注文数
+      if (analysisResult.orderCount !== null && analysisResult.orderCount !== undefined) {
+        updates.orderCount = analysisResult.orderCount.toString();
+      }
+      
+      // 配信時間
+      if (analysisResult.durationMinutes !== null && analysisResult.durationMinutes !== undefined) {
+        updates.durationMinutes = analysisResult.durationMinutes.toString();
       }
       
       // 配信日時（startDateTime: "YYYY-MM-DD HH:mm"形式）
@@ -384,46 +391,6 @@ export default function LiverSelfRecord() {
     } finally {
       setIsGeneratingAdvice(false);
     }
-  };
-  
-  // Handle saving edited analysis data
-  const handleSaveEditedAnalysis = () => {
-    if (!editedAnalyzedData) return;
-    
-    // Update analyzedData with edited values
-    const updatedData = {
-      ...analyzedData,
-      salesAmount: editedAnalyzedData.salesAmount ? parseInt(editedAnalyzedData.salesAmount, 10) : null,
-      viewerCount: editedAnalyzedData.viewerCount ? parseInt(editedAnalyzedData.viewerCount, 10) : null,
-      peakViewerCount: editedAnalyzedData.peakViewerCount ? parseInt(editedAnalyzedData.peakViewerCount, 10) : null,
-      productClicks: editedAnalyzedData.productClicks ? parseInt(editedAnalyzedData.productClicks, 10) : null,
-      orderCount: editedAnalyzedData.orderCount ? parseInt(editedAnalyzedData.orderCount, 10) : null,
-      durationMinutes: editedAnalyzedData.durationMinutes ? parseInt(editedAnalyzedData.durationMinutes, 10) : null,
-      confidence: editedAnalyzedData.confidence,
-    };
-    
-    setAnalyzedData(updatedData);
-    
-    // Update form fields
-    if (updatedData.salesAmount !== null) {
-      setFormData(prev => ({
-        ...prev,
-        salesAmount: updatedData.salesAmount!.toString(),
-      }));
-    }
-    
-    // Update end time based on duration if we have start time
-    if (updatedData.durationMinutes !== null && formData.livestreamDate && formData.livestreamStartTime) {
-      const start = new Date(`${formData.livestreamDate}T${formData.livestreamStartTime}`);
-      const end = new Date(start.getTime() + updatedData.durationMinutes * 60 * 1000);
-      setFormData(prev => ({
-        ...prev,
-        livestreamEndTime: end.toTimeString().slice(0, 5),
-      }));
-    }
-    
-    setIsEditingAnalysis(false);
-    toast.success(tr.analysisUpdated);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -614,287 +581,6 @@ export default function LiverSelfRecord() {
           </CardContent>
         </Card>
 
-        {/* Analysis Results Section - Below Screenshot */}
-        {analyzedData && (
-          <Card className="bg-gray-900 border-gray-700">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center justify-between">
-                <span className="flex items-center gap-2 text-purple-400">
-                  <Sparkles className="w-4 h-4" />
-                  {tr.analysisResult}
-                </span>
-                <div className="flex items-center gap-2">
-                  <span className={`px-2 py-0.5 rounded text-xs ${
-                    analyzedData.confidence === 'high' ? 'bg-green-600' :
-                    analyzedData.confidence === 'medium' ? 'bg-yellow-600' :
-                    'bg-red-600'
-                  }`}>
-                    {tr.confidence}: {analyzedData.confidence === 'high' ? tr.high : 
-                      analyzedData.confidence === 'medium' ? tr.medium : tr.low}
-                  </span>
-                  {/* Edit/Save Button */}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      if (isEditingAnalysis) {
-                        handleSaveEditedAnalysis();
-                      } else {
-                        setIsEditingAnalysis(true);
-                      }
-                    }}
-                    className={`h-7 px-2 ${isEditingAnalysis ? 'text-green-400 hover:bg-green-600/20' : 'text-gray-400 hover:bg-gray-700'}`}
-                  >
-                    {isEditingAnalysis ? (
-                      <>
-                        <Check className="w-3 h-3 mr-1" />
-                        {tr.saveEdit}
-                      </>
-                    ) : (
-                      <>
-                        <Edit2 className="w-3 h-3 mr-1" />
-                        {tr.editAnalysis}
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </CardTitle>
-              {isEditingAnalysis && (
-                <p className="text-xs text-gray-400 mt-1">{tr.editHint}</p>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Stats Grid */}
-              <div className="grid grid-cols-2 gap-3">
-                {/* Sales Amount */}
-                <div className="bg-gray-800 rounded-lg p-3">
-                  <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
-                    <DollarSign className="w-3 h-3" />
-                    {tr.salesAmount}
-                  </div>
-                  {isEditingAnalysis ? (
-                    <div className="relative">
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-green-400 text-sm">¥</span>
-                      <Input
-                        type="number"
-                        value={editedAnalyzedData?.salesAmount || ""}
-                        onChange={(e) => setEditedAnalyzedData(prev => prev ? {...prev, salesAmount: e.target.value} : null)}
-                        className="bg-gray-700 border-gray-600 text-green-400 font-bold pl-6 h-8"
-                        placeholder="0"
-                      />
-                    </div>
-                  ) : (
-                    <div className="text-xl font-bold text-green-400">
-                      {analyzedData.salesAmount !== null && analyzedData.salesAmount !== undefined 
-                        ? `¥${analyzedData.salesAmount.toLocaleString()}`
-                        : "-"}
-                    </div>
-                  )}
-                </div>
-                
-                {/* Viewer Count */}
-                <div className="bg-gray-800 rounded-lg p-3">
-                  <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
-                    <Users className="w-3 h-3" />
-                    {tr.viewerCount}
-                  </div>
-                  {isEditingAnalysis ? (
-                    <Input
-                      type="number"
-                      value={editedAnalyzedData?.viewerCount || ""}
-                      onChange={(e) => setEditedAnalyzedData(prev => prev ? {...prev, viewerCount: e.target.value} : null)}
-                      className="bg-gray-700 border-gray-600 text-blue-400 font-bold h-8"
-                      placeholder="0"
-                    />
-                  ) : (
-                    <div className="text-xl font-bold text-blue-400">
-                      {analyzedData.viewerCount !== null && analyzedData.viewerCount !== undefined 
-                        ? analyzedData.viewerCount.toLocaleString()
-                        : "-"}
-                    </div>
-                  )}
-                </div>
-                
-                {/* Peak Viewer Count */}
-                <div className="bg-gray-800 rounded-lg p-3">
-                  <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
-                    <Users className="w-3 h-3" />
-                    {tr.peakViewerCount}
-                  </div>
-                  {isEditingAnalysis ? (
-                    <Input
-                      type="number"
-                      value={editedAnalyzedData?.peakViewerCount || ""}
-                      onChange={(e) => setEditedAnalyzedData(prev => prev ? {...prev, peakViewerCount: e.target.value} : null)}
-                      className="bg-gray-700 border-gray-600 text-cyan-400 font-bold h-8"
-                      placeholder="0"
-                    />
-                  ) : (
-                    <div className="text-xl font-bold text-cyan-400">
-                      {analyzedData.peakViewerCount !== null && analyzedData.peakViewerCount !== undefined 
-                        ? analyzedData.peakViewerCount.toLocaleString()
-                        : "-"}
-                    </div>
-                  )}
-                </div>
-                
-                {/* Duration */}
-                <div className="bg-gray-800 rounded-lg p-3">
-                  <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
-                    <Clock className="w-3 h-3" />
-                    {tr.durationMinutes}
-                  </div>
-                  {isEditingAnalysis ? (
-                    <div className="flex items-center gap-1">
-                      <Input
-                        type="number"
-                        value={editedAnalyzedData?.durationMinutes || ""}
-                        onChange={(e) => setEditedAnalyzedData(prev => prev ? {...prev, durationMinutes: e.target.value} : null)}
-                        className="bg-gray-700 border-gray-600 text-orange-400 font-bold h-8"
-                        placeholder="0"
-                      />
-                      <span className="text-orange-400 text-sm">{tr.minutes}</span>
-                    </div>
-                  ) : (
-                    <div className="text-xl font-bold text-orange-400">
-                      {analyzedData.durationMinutes !== null && analyzedData.durationMinutes !== undefined 
-                        ? `${analyzedData.durationMinutes}${tr.minutes}`
-                        : "-"}
-                    </div>
-                  )}
-                </div>
-                
-                {/* Product Clicks */}
-                <div className="bg-gray-800 rounded-lg p-3">
-                  <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
-                    <MousePointer className="w-3 h-3" />
-                    {tr.productClicks}
-                  </div>
-                  {isEditingAnalysis ? (
-                    <Input
-                      type="number"
-                      value={editedAnalyzedData?.productClicks || ""}
-                      onChange={(e) => setEditedAnalyzedData(prev => prev ? {...prev, productClicks: e.target.value} : null)}
-                      className="bg-gray-700 border-gray-600 text-yellow-400 font-bold h-8"
-                      placeholder="0"
-                    />
-                  ) : (
-                    <div className="text-xl font-bold text-yellow-400">
-                      {analyzedData.productClicks !== null && analyzedData.productClicks !== undefined 
-                        ? analyzedData.productClicks.toLocaleString()
-                        : "-"}
-                    </div>
-                  )}
-                </div>
-                
-                {/* Order Count */}
-                <div className="bg-gray-800 rounded-lg p-3">
-                  <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
-                    <ShoppingCart className="w-3 h-3" />
-                    {tr.orderCount}
-                  </div>
-                  {isEditingAnalysis ? (
-                    <Input
-                      type="number"
-                      value={editedAnalyzedData?.orderCount || ""}
-                      onChange={(e) => setEditedAnalyzedData(prev => prev ? {...prev, orderCount: e.target.value} : null)}
-                      className="bg-gray-700 border-gray-600 text-pink-400 font-bold h-8"
-                      placeholder="0"
-                    />
-                  ) : (
-                    <div className="text-xl font-bold text-pink-400">
-                      {analyzedData.orderCount !== null && analyzedData.orderCount !== undefined 
-                        ? analyzedData.orderCount.toLocaleString()
-                        : "-"}
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              {/* Additional Metrics from rawData */}
-              {!isEditingAnalysis && analyzedData.rawData && Object.keys(analyzedData.rawData).some(k => analyzedData.rawData?.[k as keyof typeof analyzedData.rawData] !== null) && (
-                <div className="mt-4 pt-4 border-t border-gray-700">
-                  <p className="text-xs text-gray-400 mb-3">{language === 'ja' ? '詳細指標' : '详细指标'}</p>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    {analyzedData.rawData.impressions !== null && analyzedData.rawData.impressions !== undefined && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">{language === 'ja' ? 'インプレッション' : '印象数'}</span>
-                        <span className="text-white">{analyzedData.rawData.impressions.toLocaleString()}</span>
-                      </div>
-                    )}
-                    {analyzedData.rawData.liveCtr !== null && analyzedData.rawData.liveCtr !== undefined && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">LIVE CTR</span>
-                        <span className="text-white">{analyzedData.rawData.liveCtr}%</span>
-                      </div>
-                    )}
-                    {analyzedData.rawData.orderRate !== null && analyzedData.rawData.orderRate !== undefined && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">{language === 'ja' ? '注文率' : '订单率'}</span>
-                        <span className="text-white">{analyzedData.rawData.orderRate}%</span>
-                      </div>
-                    )}
-                    {analyzedData.rawData.gmvPerHour !== null && analyzedData.rawData.gmvPerHour !== undefined && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">{language === 'ja' ? '時給GMV' : '每小时GMV'}</span>
-                        <span className="text-white">¥{analyzedData.rawData.gmvPerHour.toLocaleString()}</span>
-                      </div>
-                    )}
-                    {analyzedData.rawData.commentRate !== null && analyzedData.rawData.commentRate !== undefined && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">{language === 'ja' ? 'コメント率' : '评论率'}</span>
-                        <span className="text-white">{analyzedData.rawData.commentRate}%</span>
-                      </div>
-                    )}
-                    {analyzedData.rawData.adCost !== null && analyzedData.rawData.adCost !== undefined && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">{language === 'ja' ? '広告費' : '广告费'}</span>
-                        <span className="text-white">¥{analyzedData.rawData.adCost.toLocaleString()}</span>
-                      </div>
-                    )}
-                    {analyzedData.rawData.roi !== null && analyzedData.rawData.roi !== undefined && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">ROI</span>
-                        <span className="text-white">{analyzedData.rawData.roi}</span>
-                      </div>
-                    )}
-                    {analyzedData.rawData.productSales !== null && analyzedData.rawData.productSales !== undefined && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">{language === 'ja' ? '商品販売数' : '商品销量'}</span>
-                        <span className="text-white">{analyzedData.rawData.productSales.toLocaleString()}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-              
-              {/* Re-analyze Button */}
-              {!isEditingAnalysis && (
-                <Button
-                  type="button"
-                  onClick={() => handleAnalyzeScreenshot()}
-                  disabled={isAnalyzing}
-                  variant="outline"
-                  className="w-full border-purple-600 text-purple-400 hover:bg-purple-600/20"
-                >
-                  {isAnalyzing ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      {tr.analyzing}
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4 mr-2" />
-                      {tr.reanalyze}
-                    </>
-                  )}
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
         {/* AI Advice Section */}
         {advice && (
           <Card className="bg-gradient-to-r from-yellow-900/30 to-orange-900/30 border-yellow-600/50">
@@ -931,8 +617,149 @@ export default function LiverSelfRecord() {
           </Card>
         )}
 
-        {/* Details Form Section */}
+        {/* Details Form Section - Combined with Analysis Results */}
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* AI Analysis Results Section - Same design as form below */}
+          {screenshotPreview && (
+            <Card className="bg-gray-900 border-gray-700">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm text-gray-300 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-purple-400" />
+                    {tr.analysisResult}
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    {analysisConfidence && (
+                      <span className={`px-2 py-0.5 rounded text-xs ${
+                        analysisConfidence === 'high' ? 'bg-green-600' :
+                        analysisConfidence === 'medium' ? 'bg-yellow-600' :
+                        'bg-red-600'
+                      }`}>
+                        {tr.confidence}: {analysisConfidence === 'high' ? tr.high : 
+                          analysisConfidence === 'medium' ? tr.medium : tr.low}
+                      </span>
+                    )}
+                    <Button
+                      type="button"
+                      onClick={() => handleAnalyzeScreenshot()}
+                      disabled={isAnalyzing}
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-purple-400 hover:bg-purple-600/20"
+                    >
+                      {isAnalyzing ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <>
+                          <Sparkles className="w-3 h-3 mr-1" />
+                          {tr.reanalyze}
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">{tr.editableHint}</p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Sales Amount */}
+                <div className="space-y-2">
+                  <Label className="text-gray-400 text-sm flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-green-500" />
+                    {tr.salesAmount}
+                  </Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">¥</span>
+                    <Input
+                      type="number"
+                      value={formData.salesAmount}
+                      onChange={(e) => setFormData({ ...formData, salesAmount: e.target.value })}
+                      placeholder="0"
+                      className="bg-gray-800 border-gray-700 text-white pl-8"
+                    />
+                  </div>
+                </div>
+
+                {/* Viewer Count & Peak Viewer Count */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-gray-400 text-sm flex items-center gap-2">
+                      <Users className="h-4 w-4 text-blue-500" />
+                      {tr.viewerCount}
+                    </Label>
+                    <Input
+                      type="number"
+                      value={formData.viewerCount}
+                      onChange={(e) => setFormData({ ...formData, viewerCount: e.target.value })}
+                      placeholder="0"
+                      className="bg-gray-800 border-gray-700 text-white"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-gray-400 text-sm flex items-center gap-2">
+                      <Users className="h-4 w-4 text-cyan-500" />
+                      {tr.peakViewerCount}
+                    </Label>
+                    <Input
+                      type="number"
+                      value={formData.peakViewerCount}
+                      onChange={(e) => setFormData({ ...formData, peakViewerCount: e.target.value })}
+                      placeholder="0"
+                      className="bg-gray-800 border-gray-700 text-white"
+                    />
+                  </div>
+                </div>
+
+                {/* Duration */}
+                <div className="space-y-2">
+                  <Label className="text-gray-400 text-sm flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-orange-500" />
+                    {tr.durationMinutes}
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      value={formData.durationMinutes}
+                      onChange={(e) => setFormData({ ...formData, durationMinutes: e.target.value })}
+                      placeholder="0"
+                      className="bg-gray-800 border-gray-700 text-white pr-12"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">{tr.minutes}</span>
+                  </div>
+                </div>
+
+                {/* Product Clicks & Order Count */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-gray-400 text-sm flex items-center gap-2">
+                      <MousePointer className="h-4 w-4 text-yellow-500" />
+                      {tr.productClicks}
+                    </Label>
+                    <Input
+                      type="number"
+                      value={formData.productClicks}
+                      onChange={(e) => setFormData({ ...formData, productClicks: e.target.value })}
+                      placeholder="0"
+                      className="bg-gray-800 border-gray-700 text-white"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-gray-400 text-sm flex items-center gap-2">
+                      <ShoppingCart className="h-4 w-4 text-pink-500" />
+                      {tr.orderCount}
+                    </Label>
+                    <Input
+                      type="number"
+                      value={formData.orderCount}
+                      onChange={(e) => setFormData({ ...formData, orderCount: e.target.value })}
+                      placeholder="0"
+                      className="bg-gray-800 border-gray-700 text-white"
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card className="bg-gray-900 border-gray-700">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm text-gray-300">{tr.detailsForm}</CardTitle>
@@ -992,24 +819,6 @@ export default function LiverSelfRecord() {
                     value={formData.livestreamEndTime}
                     onChange={(e) => setFormData({ ...formData, livestreamEndTime: e.target.value })}
                     className="bg-gray-800 border-gray-700 text-white"
-                  />
-                </div>
-              </div>
-
-              {/* Sales Amount */}
-              <div className="space-y-2">
-                <Label className="text-gray-400 text-sm flex items-center gap-2">
-                  <DollarSign className="h-4 w-4 text-yellow-500" />
-                  {tr.salesAmount}
-                </Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">¥</span>
-                  <Input
-                    type="number"
-                    value={formData.salesAmount}
-                    onChange={(e) => setFormData({ ...formData, salesAmount: e.target.value })}
-                    placeholder="0"
-                    className="bg-gray-800 border-gray-700 text-white pl-8"
                   />
                 </div>
               </div>
