@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useLocation } from "wouter";
+import { useState, useEffect } from "react";
+import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,11 +7,16 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Upload, Video, Calendar, DollarSign, Clock, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, Upload, Video, Calendar, DollarSign, Clock, X, Link as LinkIcon } from "lucide-react";
 import { toast } from "sonner";
 
 export default function LiverSelfRecord() {
   const [, navigate] = useLocation();
+  const searchString = useSearch();
+  const searchParams = new URLSearchParams(searchString);
+  const scheduleIdParam = searchParams.get("scheduleId");
+  const dateParam = searchParams.get("date");
   
   // Get current liver info
   const { data: liverInfo, isLoading: isLoadingLiver } = trpc.liver.me.useQuery();
@@ -19,9 +24,15 @@ export default function LiverSelfRecord() {
   // Get brands for selection
   const { data: brands } = trpc.brand.list.useQuery();
 
+  // Get schedule info if scheduleId is provided
+  const { data: scheduleInfo } = trpc.schedule.getById.useQuery(
+    { id: parseInt(scheduleIdParam || "0") },
+    { enabled: !!scheduleIdParam }
+  );
+
   const [formData, setFormData] = useState({
     brandId: "",
-    livestreamDate: "",
+    livestreamDate: dateParam || "",
     livestreamStartTime: "",
     livestreamEndTime: "",
     salesAmount: "",
@@ -29,11 +40,29 @@ export default function LiverSelfRecord() {
     impactFactor: "",
     resultReason: "",
     remarks: "",
+    scheduleId: scheduleIdParam || "",
   });
   
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Pre-fill form data from schedule
+  useEffect(() => {
+    if (scheduleInfo) {
+      const startTime = new Date(scheduleInfo.startTime);
+      const endTime = scheduleInfo.endTime ? new Date(scheduleInfo.endTime) : null;
+      
+      setFormData(prev => ({
+        ...prev,
+        livestreamDate: startTime.toISOString().split('T')[0],
+        livestreamStartTime: startTime.toTimeString().slice(0, 5),
+        livestreamEndTime: endTime ? endTime.toTimeString().slice(0, 5) : "",
+        brandId: scheduleInfo.brandId?.toString() || prev.brandId,
+        scheduleId: scheduleInfo.id.toString(),
+      }));
+    }
+  }, [scheduleInfo]);
 
   const createLivestreamMutation = trpc.liverManagement.createLivestream.useMutation({
     onSuccess: () => {
@@ -126,6 +155,7 @@ export default function LiverSelfRecord() {
         resultReason: formData.resultReason || undefined,
         remarks: formData.remarks || undefined,
         screenshotUrl,
+        scheduleId: formData.scheduleId ? parseInt(formData.scheduleId) : undefined,
       });
     } catch (error) {
       console.error("Failed to save livestream:", error);
@@ -178,6 +208,30 @@ export default function LiverSelfRecord() {
 
       <div className="container max-w-2xl mx-auto px-4 py-6">
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Schedule Link Info */}
+          {scheduleInfo && (
+            <Card className="bg-yellow-500/10 border-yellow-500/30">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <LinkIcon className="h-5 w-5 text-yellow-500" />
+                  <div>
+                    <p className="text-sm text-yellow-500 font-medium">スケジュールから記録</p>
+                    <p className="text-white">{scheduleInfo.title}</p>
+                    <p className="text-sm text-gray-400">
+                      {new Date(scheduleInfo.startTime).toLocaleDateString("ja-JP", {
+                        month: "long",
+                        day: "numeric",
+                        weekday: "short",
+                        hour: "2-digit",
+                        minute: "2-digit"
+                      })}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Brand Selection */}
           <Card className="bg-gray-900 border-gray-800">
             <CardHeader className="pb-3">
@@ -205,7 +259,7 @@ export default function LiverSelfRecord() {
             </CardContent>
           </Card>
 
-          {/* Date and Time */}
+          {/* Date & Time */}
           <Card className="bg-gray-900 border-gray-800">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2 text-white">
@@ -221,22 +275,20 @@ export default function LiverSelfRecord() {
                   value={formData.livestreamDate}
                   onChange={(e) => setFormData({ ...formData, livestreamDate: e.target.value })}
                   className="bg-gray-800 border-gray-700 text-white"
-                  required
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-gray-400">開始時間</Label>
+                  <Label className="text-gray-400">開始時刻</Label>
                   <Input
                     type="time"
                     value={formData.livestreamStartTime}
                     onChange={(e) => setFormData({ ...formData, livestreamStartTime: e.target.value })}
                     className="bg-gray-800 border-gray-700 text-white"
-                    required
                   />
                 </div>
                 <div>
-                  <Label className="text-gray-400">終了時間</Label>
+                  <Label className="text-gray-400">終了時刻</Label>
                   <Input
                     type="time"
                     value={formData.livestreamEndTime}
@@ -252,8 +304,8 @@ export default function LiverSelfRecord() {
           <Card className="bg-gray-900 border-gray-800">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2 text-white">
-                <DollarSign className="h-5 w-5 text-red-500" />
-                売上
+                <DollarSign className="h-5 w-5 text-yellow-500" />
+                売上金額
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -294,15 +346,14 @@ export default function LiverSelfRecord() {
                   </SelectContent>
                 </Select>
               </div>
-
               <div>
-                <Label className="text-gray-400">影響した要因</Label>
+                <Label className="text-gray-400">影響要因</Label>
                 <Select
                   value={formData.impactFactor}
                   onValueChange={(value) => setFormData({ ...formData, impactFactor: value })}
                 >
                   <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
-                    <SelectValue placeholder="要因を選択" />
+                    <SelectValue placeholder="影響要因を選択" />
                   </SelectTrigger>
                   <SelectContent className="bg-gray-900 border-gray-700">
                     <SelectItem value="構成">構成</SelectItem>
@@ -313,62 +364,48 @@ export default function LiverSelfRecord() {
                   </SelectContent>
                 </Select>
               </div>
-
               <div>
-                <Label className="text-gray-400">理由</Label>
+                <Label className="text-gray-400">理由・メモ</Label>
                 <Textarea
                   value={formData.resultReason}
                   onChange={(e) => setFormData({ ...formData, resultReason: e.target.value })}
-                  placeholder="配信結果の理由を入力..."
-                  className="bg-gray-800 border-gray-700 text-white min-h-[80px]"
+                  placeholder="結果の理由や気づきを記入..."
+                  className="bg-gray-800 border-gray-700 text-white min-h-[100px]"
                 />
               </div>
             </CardContent>
           </Card>
 
-          {/* Memo */}
-          <Card className="bg-gray-900 border-gray-800">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg text-white">メモ</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Textarea
-                value={formData.remarks}
-                onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-                placeholder="メモを入力..."
-                className="bg-gray-800 border-gray-700 text-white min-h-[80px]"
-              />
-            </CardContent>
-          </Card>
-
-          {/* Screenshot Upload */}
+          {/* Screenshot */}
           <Card className="bg-gray-900 border-gray-800">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2 text-white">
                 <Upload className="h-5 w-5 text-red-500" />
-                配信後スクリーンショット
+                スクリーンショット
               </CardTitle>
             </CardHeader>
             <CardContent>
               {screenshotPreview ? (
-                <div className="relative border border-gray-700 rounded-lg overflow-hidden">
+                <div className="relative">
                   <img 
                     src={screenshotPreview} 
-                    alt="Screenshot preview"
-                    className="w-full h-auto max-h-64 object-contain"
+                    alt="Screenshot preview" 
+                    className="w-full rounded-lg"
                   />
-                  <button
+                  <Button
                     type="button"
+                    variant="destructive"
+                    size="icon"
+                    className="absolute top-2 right-2"
                     onClick={removeScreenshot}
-                    className="absolute top-2 right-2 bg-red-600 rounded-full p-1 hover:bg-red-700"
                   >
-                    <X className="w-4 h-4" />
-                  </button>
+                    <X className="h-4 w-4" />
+                  </Button>
                 </div>
               ) : (
-                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-700 rounded-lg cursor-pointer hover:border-gray-500 transition-colors">
-                  <Upload className="w-8 h-8 text-gray-500 mb-2" />
-                  <span className="text-gray-500">画像をアップロード</span>
+                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-700 rounded-lg cursor-pointer hover:border-gray-600 transition-colors">
+                  <Upload className="h-8 w-8 text-gray-500 mb-2" />
+                  <span className="text-sm text-gray-400">クリックして画像をアップロード</span>
                   <input
                     type="file"
                     accept="image/*"
@@ -377,6 +414,21 @@ export default function LiverSelfRecord() {
                   />
                 </label>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Remarks */}
+          <Card className="bg-gray-900 border-gray-800">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg text-white">備考</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Textarea
+                value={formData.remarks}
+                onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                placeholder="その他のメモ..."
+                className="bg-gray-800 border-gray-700 text-white min-h-[80px]"
+              />
             </CardContent>
           </Card>
 
@@ -394,16 +446,6 @@ export default function LiverSelfRecord() {
             ) : (
               "配信記録を保存"
             )}
-          </Button>
-
-          {/* Back Button */}
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => navigate("/liver/mypage")}
-            className="w-full border-gray-700 text-gray-400 hover:text-white"
-          >
-            戻る
           </Button>
         </form>
       </div>

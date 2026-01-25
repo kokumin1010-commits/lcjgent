@@ -383,14 +383,23 @@ export default function LiverMypage() {
           </CardContent>
         </Card>
 
-        {/* Record Button */}
-        <Button
-          onClick={() => navigate(`/liver/record`)}
-          className="w-full bg-red-600 hover:bg-red-700 text-white py-6 text-lg font-bold"
-        >
-          <Plus className="h-5 w-5 mr-2" />
-          配信内容の記録
-        </Button>
+        {/* Action Buttons */}
+        <div className="grid grid-cols-2 gap-4">
+          <Button
+            onClick={() => navigate(`/liver/schedule`)}
+            className="bg-yellow-500 hover:bg-yellow-600 text-black py-6 text-lg font-bold"
+          >
+            <Calendar className="h-5 w-5 mr-2" />
+            スケジュール
+          </Button>
+          <Button
+            onClick={() => navigate(`/liver/record`)}
+            className="bg-red-600 hover:bg-red-700 text-white py-6 text-lg font-bold"
+          >
+            <Plus className="h-5 w-5 mr-2" />
+            配信記録
+          </Button>
+        </div>
 
         {/* Livestream History */}
         <div>
