@@ -3938,6 +3938,10 @@ ${conversationText}
         livestreamDate: z.string().optional(),
         livestreamEndTime: z.string().optional().nullable(),
         salesAmount: z.number().optional().nullable(),
+        viewerCount: z.number().optional().nullable(),
+        duration: z.number().optional().nullable(),
+        productClicks: z.number().optional().nullable(),
+        orderCount: z.number().optional().nullable(),
         result: z.enum(["成功", "失敗"]).optional().nullable(),
         impactFactor: z.enum(["構成", "商品", "ライバー", "広告", "その他"]).optional().nullable(),
         resultReason: z.string().optional().nullable(),
@@ -3955,6 +3959,10 @@ ${conversationText}
           updateData.livestreamEndTime = data.livestreamEndTime ? new Date(data.livestreamEndTime) : null;
         }
         if (data.salesAmount !== undefined) updateData.salesAmount = data.salesAmount;
+        if (data.viewerCount !== undefined) updateData.viewerCount = data.viewerCount;
+        if (data.duration !== undefined) updateData.duration = data.duration;
+        if (data.productClicks !== undefined) updateData.productClicks = data.productClicks;
+        if (data.orderCount !== undefined) updateData.orderCount = data.orderCount;
         if (data.result !== undefined) updateData.result = data.result;
         if (data.impactFactor !== undefined) updateData.impactFactor = data.impactFactor;
         if (data.resultReason !== undefined) updateData.resultReason = data.resultReason;
