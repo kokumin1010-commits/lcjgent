@@ -1,0 +1,13 @@
+{
+  "query": "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_NAME LIKE '%liver%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_NAME LIKE '%liver%';",
+  "rows": [
+    {
+      "TABLE_NAME": "livers"
+    }
+  ],
+  "messages": [],
+  "stdout": "TABLE_NAME\nlivers\n",
+  "stderr": "",
+  "execution_time_ms": 1522
+}

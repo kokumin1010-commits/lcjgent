@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar, ArrowLeft, Sparkles } from "lucide-react";
+import { setLiverToken } from "@/lib/liverAuth";
 
 export default function LiverLogin() {
   const [, navigate] = useLocation();
@@ -15,6 +16,10 @@ export default function LiverLogin() {
 
   const loginMutation = trpc.liver.login.useMutation({
     onSuccess: (data) => {
+      // Save token to localStorage
+      if (data.token) {
+        setLiverToken(data.token);
+      }
       // Navigate to liver's own mypage
       navigate(`/liver/mypage`);
     },

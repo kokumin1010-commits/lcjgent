@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { setLiverToken } from "@/lib/liverAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
@@ -44,7 +45,11 @@ export default function LiverRegister() {
   const utils = trpc.useUtils();
   
   const registerMutation = trpc.liver.register.useMutation({
-    onSuccess: async () => {
+    onSuccess: async (data) => {
+      // Save token to localStorage
+      if (data.token) {
+        setLiverToken(data.token);
+      }
       // キャッシュを無効化して新しいセッションを反映
       await utils.liver.me.invalidate();
       
@@ -54,7 +59,7 @@ export default function LiverRegister() {
         setTimeout(() => {
           addBotMessage("マイページに移動するね！");
           setTimeout(() => {
-            // ページをリロードしてCookieを確実に反映
+            // Navigate to mypage
             window.location.href = "/liver/mypage";
           }, 1500);
         }, 1500);

@@ -3,7 +3,6 @@ import { SignJWT, jwtVerify } from "jose";
 import { z } from "zod";
 import { publicProcedure, router } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { getSessionCookieOptions } from "./_core/cookies";
 import { ENV } from "./_core/env";
 import {
   createLiver,
@@ -20,6 +19,29 @@ import {
   deleteSchedule,
 } from "./db";
 
+// Helper function to get liver token from Authorization header or cookie
+function getLiverToken(ctx: { req: { headers: { authorization?: string }; cookies?: { liver_session?: string } } }): string | null {
+  // First try Authorization header (for localStorage-based auth)
+  const authHeader = ctx.req.headers.authorization;
+  if (authHeader?.startsWith("Bearer ")) {
+    return authHeader.slice(7);
+  }
+  // Fallback to cookie (for backward compatibility)
+  return ctx.req.cookies?.liver_session || null;
+}
+
+// Helper function to verify liver token and get liver info
+async function verifyLiverToken(token: string): Promise<{ liverId: number; type: string } | null> {
+  try {
+    const secret = new TextEncoder().encode(ENV.cookieSecret);
+    const { payload } = await jwtVerify(token, secret);
+    if (!payload || payload.type !== "liver") return null;
+    return { liverId: payload.liverId as number, type: payload.type as string };
+  } catch {
+    return null;
+  }
+}
+
 export const liverRouter = router({
   // Register a new liver account
   register: publicProcedure
@@ -31,7 +53,7 @@ export const liverRouter = router({
         color: z.string().optional(),
       })
     )
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input }) => {
       // Check if email already exists
       const exists = await checkLiverEmailExists(input.email);
       if (exists) {
@@ -61,23 +83,20 @@ export const liverRouter = router({
         });
       }
 
-      // Set session cookie (permanent login)
+      // Generate JWT token
       const secret = new TextEncoder().encode(ENV.cookieSecret);
       const token = await new SignJWT({ liverId: liver.id, type: "liver" })
         .setProtectedHeader({ alg: "HS256" })
         .setIssuedAt()
         .setExpirationTime("365d")
         .sign(secret);
-      ctx.res.cookie("liver_session", token, {
-        ...getSessionCookieOptions(ctx.req),
-        maxAge: 365 * 24 * 60 * 60 * 1000, // 1 year
-      });
 
       // Update last login
       await updateLiverLastLogin(liver.id);
 
       return {
         success: true,
+        token, // Return token in response body for localStorage storage
         liver: {
           id: liver.id,
           name: liver.name,
@@ -95,7 +114,7 @@ export const liverRouter = router({
         password: z.string(),
       })
     )
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input }) => {
       const liver = await getLiverByEmail(input.email);
       if (!liver) {
         throw new TRPCError({
@@ -121,23 +140,20 @@ export const liverRouter = router({
         });
       }
 
-      // Set session cookie (permanent login)
+      // Generate JWT token
       const secret = new TextEncoder().encode(ENV.cookieSecret);
       const token = await new SignJWT({ liverId: liver.id, type: "liver" })
         .setProtectedHeader({ alg: "HS256" })
         .setIssuedAt()
         .setExpirationTime("365d")
         .sign(secret);
-      ctx.res.cookie("liver_session", token, {
-        ...getSessionCookieOptions(ctx.req),
-        maxAge: 365 * 24 * 60 * 60 * 1000, // 1 year
-      });
 
       // Update last login
       await updateLiverLastLogin(liver.id);
 
       return {
         success: true,
+        token, // Return token in response body for localStorage storage
         liver: {
           id: liver.id,
           name: liver.name,
@@ -149,35 +165,30 @@ export const liverRouter = router({
     }),
 
   // Logout
-  logout: publicProcedure.mutation(async ({ ctx }) => {
-    ctx.res.clearCookie("liver_session");
+  logout: publicProcedure.mutation(async () => {
+    // Client will clear localStorage
     return { success: true };
   }),
 
   // Get current liver (check session)
   me: publicProcedure.query(async ({ ctx }) => {
-    const token = ctx.req.cookies?.liver_session;
+    const token = getLiverToken(ctx);
     if (!token) return null;
 
-    try {
-      const secret = new TextEncoder().encode(ENV.cookieSecret);
-      const { payload } = await jwtVerify(token, secret);
-      if (!payload || payload.type !== "liver") return null;
+    const payload = await verifyLiverToken(token);
+    if (!payload) return null;
 
-      const liver = await getLiverById(payload.liverId as number);
-      if (!liver || !liver.isActive) return null;
+    const liver = await getLiverById(payload.liverId);
+    if (!liver || !liver.isActive) return null;
 
-      return {
-        id: liver.id,
-        name: liver.name,
-        email: liver.email,
-        color: liver.color,
-        avatarUrl: liver.avatarUrl,
-        role: liver.role,
-      };
-    } catch {
-      return null;
-    }
+    return {
+      id: liver.id,
+      name: liver.name,
+      email: liver.email,
+      color: liver.color,
+      avatarUrl: liver.avatarUrl,
+      role: liver.role,
+    };
   }),
 
   // Get all active livers (for calendar display)
@@ -201,18 +212,17 @@ export const liverRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const token = ctx.req.cookies?.liver_session;
+      const token = getLiverToken(ctx);
       if (!token) {
         throw new TRPCError({ code: "UNAUTHORIZED" });
       }
 
-      const secret = new TextEncoder().encode(ENV.cookieSecret);
-      const { payload } = await jwtVerify(token, secret);
-      if (!payload || payload.type !== "liver") {
+      const payload = await verifyLiverToken(token);
+      if (!payload) {
         throw new TRPCError({ code: "UNAUTHORIZED" });
       }
 
-      await updateLiver(payload.liverId as number, input);
+      await updateLiver(payload.liverId, input);
       return { success: true };
     }),
 
@@ -230,18 +240,17 @@ export const liverRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const token = ctx.req.cookies?.liver_session;
+      const token = getLiverToken(ctx);
       if (!token) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
       }
 
-      const secret = new TextEncoder().encode(ENV.cookieSecret);
-      const { payload } = await jwtVerify(token, secret);
-      if (!payload || payload.type !== "liver") {
+      const payload = await verifyLiverToken(token);
+      if (!payload) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
       }
 
-      const liver = await getLiverById(payload.liverId as number);
+      const liver = await getLiverById(payload.liverId);
       if (!liver) {
         throw new TRPCError({ code: "NOT_FOUND", message: "ライバーが見つかりません" });
       }
@@ -275,14 +284,13 @@ export const liverRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const token = ctx.req.cookies?.liver_session;
+      const token = getLiverToken(ctx);
       if (!token) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
       }
 
-      const secret = new TextEncoder().encode(ENV.cookieSecret);
-      const { payload } = await jwtVerify(token, secret);
-      if (!payload || payload.type !== "liver") {
+      const payload = await verifyLiverToken(token);
+      if (!payload) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
       }
 
@@ -293,8 +301,8 @@ export const liverRouter = router({
       }
 
       // Check ownership (admin can edit any)
-      const liver = await getLiverById(payload.liverId as number);
-      if (schedule.liverId !== (payload.liverId as number) && liver?.role !== "admin") {
+      const liver = await getLiverById(payload.liverId);
+      if (schedule.liverId !== payload.liverId && liver?.role !== "admin") {
         throw new TRPCError({ code: "FORBIDDEN", message: "他のライバーのスケジュールは編集できません" });
       }
 
@@ -316,14 +324,13 @@ export const liverRouter = router({
   deleteSchedule: publicProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
-      const token = ctx.req.cookies?.liver_session;
+      const token = getLiverToken(ctx);
       if (!token) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
       }
 
-      const secret = new TextEncoder().encode(ENV.cookieSecret);
-      const { payload } = await jwtVerify(token, secret);
-      if (!payload || payload.type !== "liver") {
+      const payload = await verifyLiverToken(token);
+      if (!payload) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
       }
 
@@ -334,8 +341,8 @@ export const liverRouter = router({
       }
 
       // Check ownership (admin can delete any)
-      const liver = await getLiverById(payload.liverId as number);
-      if (schedule.liverId !== (payload.liverId as number) && liver?.role !== "admin") {
+      const liver = await getLiverById(payload.liverId);
+      if (schedule.liverId !== payload.liverId && liver?.role !== "admin") {
         throw new TRPCError({ code: "FORBIDDEN", message: "他のライバーのスケジュールは削除できません" });
       }
 
@@ -352,19 +359,14 @@ export const liverRouter = router({
       })
     )
     .query(async ({ input, ctx }) => {
-      const token = ctx.req.cookies?.liver_session;
+      const token = getLiverToken(ctx);
       if (!token) return [];
 
-      try {
-        const secret = new TextEncoder().encode(ENV.cookieSecret);
-        const { payload } = await jwtVerify(token, secret);
-        if (!payload || payload.type !== "liver") return [];
+      const payload = await verifyLiverToken(token);
+      if (!payload) return [];
 
-        const startDate = input.startDate ? new Date(input.startDate) : undefined;
-        const endDate = input.endDate ? new Date(input.endDate) : undefined;
-        return await getSchedulesByLiverId(payload.liverId as number, startDate, endDate);
-      } catch {
-        return [];
-      }
+      const startDate = input.startDate ? new Date(input.startDate) : undefined;
+      const endDate = input.endDate ? new Date(input.endDate) : undefined;
+      return await getSchedulesByLiverId(payload.liverId, startDate, endDate);
     }),
 });

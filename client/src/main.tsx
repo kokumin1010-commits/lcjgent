@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { getLiverToken } from "@/lib/liverAuth";
 import { UNAUTHED_ERR_MSG } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink, TRPCClientError } from "@trpc/client";
@@ -44,8 +45,18 @@ const trpcClient = trpc.createClient({
       url: "/api/trpc",
       transformer: superjson,
       fetch(input, init) {
+        // Get liver token from localStorage
+        const liverToken = getLiverToken();
+        
+        // Add Authorization header if liver token exists
+        const headers = new Headers(init?.headers);
+        if (liverToken) {
+          headers.set("Authorization", `Bearer ${liverToken}`);
+        }
+        
         return globalThis.fetch(input, {
           ...(init ?? {}),
+          headers,
           credentials: "include",
         });
       },

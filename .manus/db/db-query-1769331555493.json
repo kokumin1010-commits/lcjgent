@@ -1,0 +1,220 @@
+{
+  "query": "SELECT id, name, email FROM livers ORDER BY id DESC LIMIT 50;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, name, email FROM livers ORDER BY id DESC LIMIT 50;",
+  "rows": [
+    {
+      "id": "120009",
+      "name": "Test Liver",
+      "email": "test-liver-1769331260048@example.com"
+    },
+    {
+      "id": "120008",
+      "name": "Test Liver",
+      "email": "test-liver-1769331192799@example.com"
+    },
+    {
+      "id": "120007",
+      "name": "Test Liver",
+      "email": "test-liver-1769330562714@example.com"
+    },
+    {
+      "id": "120006",
+      "name": "Test Liver",
+      "email": "test-liver-1769329332787@example.com"
+    },
+    {
+      "id": "120005",
+      "name": "yae",
+      "email": "test@gmail.com"
+    },
+    {
+      "id": "120004",
+      "name": "Test Liver",
+      "email": "test-liver-1769328855572@example.com"
+    },
+    {
+      "id": "120003",
+      "name": "Test Liver",
+      "email": "test-liver-1769327809688@example.com"
+    },
+    {
+      "id": "120002",
+      "name": "Test Liver",
+      "email": "test-liver-1769327519804@example.com"
+    },
+    {
+      "id": "120001",
+      "name": "Test Liver",
+      "email": "test-liver-1769327463851@example.com"
+    },
+    {
+      "id": "90003",
+      "name": "Test Liver",
+      "email": "test-liver-1769320617734@example.com"
+    },
+    {
+      "id": "90002",
+      "name": "Test Liver",
+      "email": "test-liver-1769319783509@example.com"
+    },
+    {
+      "id": "90001",
+      "name": "Test Liver",
+      "email": "test-liver-1769319746823@example.com"
+    },
+    {
+      "id": "60001",
+      "name": "Test Liver",
+      "email": "test-liver-1769316187978@example.com"
+    },
+    {
+      "id": "30027",
+      "name": "Test Liver",
+      "email": "test-liver-1769277303725@example.com"
+    },
+    {
+      "id": "30026",
+      "name": "Test Liver",
+      "email": "test-liver-1769276212773@example.com"
+    },
+    {
+      "id": "30025",
+      "name": "Test Liver",
+      "email": "test-liver-1769275848458@example.com"
+    },
+    {
+      "id": "30024",
+      "name": "Test Liver",
+      "email": "test-liver-1769275415086@example.com"
+    },
+    {
+      "id": "30023",
+      "name": "Test Liver",
+      "email": "test-liver-1769274925349@example.com"
+    },
+    {
+      "id": "30022",
+      "name": "Test Liver",
+      "email": "test-liver-1769265008299@example.com"
+    },
+    {
+      "id": "30021",
+      "name": "Test Liver",
+      "email": "test-liver-1769264534994@example.com"
+    },
+    {
+      "id": "30020",
+      "name": "Test Liver",
+      "email": "test-liver-1769264291758@example.com"
+    },
+    {
+      "id": "30019",
+      "name": "Test Liver",
+      "email": "test-liver-1769263720704@example.com"
+    },
+    {
+      "id": "30018",
+      "name": "Test Liver",
+      "email": "test-liver-1769261279572@example.com"
+    },
+    {
+      "id": "30017",
+      "name": "Test Liver",
+      "email": "test-liver-1769260289778@example.com"
+    },
+    {
+      "id": "30016",
+      "name": "Test Liver",
+      "email": "test-liver-1769259960414@example.com"
+    },
+    {
+      "id": "30015",
+      "name": "Test Liver",
+      "email": "test-liver-1769259391797@example.com"
+    },
+    {
+      "id": "30014",
+      "name": "Test Liver",
+      "email": "test-liver-1769255195165@example.com"
+    },
+    {
+      "id": "30013",
+      "name": "Test Liver",
+      "email": "test-liver-1769253925879@example.com"
+    },
+    {
+      "id": "30012",
+      "name": "Test Liver",
+      "email": "test-liver-1769253443434@example.com"
+    },
+    {
+      "id": "30011",
+      "name": "Test Liver",
+      "email": "test-liver-1769252421401@example.com"
+    },
+    {
+      "id": "30010",
+      "name": "Test Liver",
+      "email": "test-liver-1769252045686@example.com"
+    },
+    {
+      "id": "30009",
+      "name": "Test Liver",
+      "email": "test-liver-1769245819223@example.com"
+    },
+    {
+      "id": "30008",
+      "name": "Test Liver",
+      "email": "test-liver-1769241661280@example.com"
+    },
+    {
+      "id": "30007",
+      "name": "Test Liver",
+      "email": "test-liver-1769239245197@example.com"
+    },
+    {
+      "id": "30006",
+      "name": "Test Liver",
+      "email": "test-liver-1769238762310@example.com"
+    },
+    {
+      "id": "30005",
+      "name": "Test Liver",
+      "email": "test-liver-1769237488735@example.com"
+    },
+    {
+      "id": "30004",
+      "name": "Test Liver",
+      "email": "test-liver-1769236829157@example.com"
+    },
+    {
+      "id": "30003",
+      "name": "Test Liver",
+      "email": "test-liver-1769233032436@example.com"
+    },
+    {
+      "id": "30002",
+      "name": "Test Liver",
+      "email": "test-liver-1769232519878@example.com"
+    },
+    {
+      "id": "30001",
+      "name": "Test Liver",
+      "email": "test-liver-1769231892926@example.com"
+    },
+    {
+      "id": "2",
+      "name": "Test Liver",
+      "email": "test-liver-1769189665012@example.com"
+    },
+    {
+      "id": "1",
+      "name": "Test Liver",
+      "email": "test-liver-1769189637766@example.com"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\n120009\tTest Liver\ttest-liver-1769331260048@example.com\n120008\tTest Liver\ttest-liver-1769331192799@example.com\n120007\tTest Liver\ttest-liver-1769330562714@example.com\n120006\tTest Liver\ttest-liver-1769329332787@example.com\n120005\tyae\ttest@gmail.com\n120004\tTest Liver\ttest-liver-1769328855572@example.com\n120003\tTest Liver\ttest-liver-1769327809688@example.com\n120002\tTest Liver\ttest-liver-1769327519804@example.com\n120001\tTest Liver\ttest-liver-1769327463851@example.com\n90003\tTest Liver\ttest-liver-1769320617734@example.com\n90002\tTest Liver\ttest-liver-1769319783509@example.com\n90001\tTest Liver\ttest-liver-1769319746823@example.com\n60001\tTest Liver\ttest-liver-1769316187978@example.com\n30027\tTest Liver\ttest-liver-1769277303725@example.com\n30026\tTest Liver\ttest-liver-1769276212773@example.com\n30025\tTest Liver\ttest-liver-1769275848458@example.com\n30024\tTest Liver\ttest-liver-1769275415086@example.com\n30023\tTest Liver\ttest-liver-1769274925349@example.com\n30022\tTest Liver\ttest-liver-1769265008299@example.com\n30021\tTest Liver\ttest-liver-1769264534994@example.com\n30020\tTest Liver\ttest-liver-1769264291758@example.com\n30019\tTest Liver\ttest-liver-1769263720704@example.com\n30018\tTest Liver\ttest-liver-1769261279572@example.com\n30017\tTest Liver\ttest-liver-1769260289778@example.com\n30016\tTest Liver\ttest-liver-1769259960414@example.com\n30015\tTest Liver\ttest-liver-1769259391797@example.com\n30014\tTest Liver\ttest-liver-1769255195165@example.com\n30013\tTest Liver\ttest-liver-1769253925879@example.com\n30012\tTest Liver\ttest-liver-1769253443434@example.com\n30011\tTest Liver\ttest-liver-1769252421401@example.com\n30010\tTest Liver\ttest-liver-1769252045686@example.com\n30009\tTest Liver\ttest-liver-1769245819223@example.com\n30008\tTest Liver\ttest-liver-1769241661280@example.com\n30007\tTest Liver\ttest-liver-1769239245197@example.com\n30006\tTest Liver\ttest-liver-1769238762310@example.com\n30005\tTest Liver\ttest-liver-1769237488735@example.com\n30004\tTest Liver\ttest-liver-1769236829157@example.com\n30003\tTest Liver\ttest-liver-1769233032436@example.com\n30002\tTest Liver\ttest-liver-1769232519878@example.com\n30001\tTest Liver\ttest-liver-1769231892926@example.com\n2\tTest Liver\ttest-liver-1769189665012@example.com\n1\tTest Liver\ttest-liver-1769189637766@example.com\n",
+  "stderr": "",
+  "execution_time_ms": 1532
+}
