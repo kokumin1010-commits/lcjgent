@@ -1,0 +1,45 @@
+{
+  "query": "SELECT * FROM line_follow_ups ORDER BY createdAt DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT * FROM line_follow_ups ORDER BY createdAt DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "60001",
+      "targetType": "user",
+      "lineUserId": "U4eeca6887f21c03c970e3cc420dadb30",
+      "lineGroupId": "NULL",
+      "triggerCondition": "scheduled",
+      "delayHours": "24",
+      "maxAttempts": "1",
+      "currentAttempts": "0",
+      "messageTemplate": "このグループでのミーティング日程の調整状況について、フォローアップを設定します。",
+      "status": "active",
+      "lastSentAt": "NULL",
+      "nextScheduledAt": "2026-01-23 03:25:15",
+      "brandId": "NULL",
+      "createdBy": "NULL",
+      "createdAt": "2026-01-22 03:25:15",
+      "updatedAt": "2026-01-22 03:25:15"
+    }
+  ],
+  "messages": [
+    "90002\tuser\tU4eeca6887f21c03c970e3cc420dadb30\tNULL\tscheduled\t24\t1\t0\t【リマインド】",
+    "ブランド登録の件、ご確認をお願いします。\tactive\tNULL\t2026-01-25 17:46:09\tNULL\tNULL\t2026-01-24 17:46:08\t2026-01-24 17:46:08",
+    "90001\tuser\tU4eeca6887f21c03c970e3cc420dadb30\tNULL\tscheduled\t170\t1\t0\t【リマインド】",
+    "京極様からの酒類販売業免許申請に必要な書類（賃貸契約書、通帳コピー）と質問事項への回答（事務所情報、役員履歴書等）の提出状況を確認してください。\tactive\tNULL\t2026-01-31 04:35:23\tNULL\tNULL\t2026-01-24 02:35:23\t2026-01-24 02:35:23",
+    "60003\tuser\tU4eeca6887f21c03c970e3cc420dadb30\tNULL\tscheduled\t48\t1\t0\t【リマインド】",
+    "26日納品の件（C4926K）について、進捗を確認してください。\tactive\tNULL\t2026-01-24 05:59:04\tNULL\tNULL\t2026-01-22 05:59:04\t2026-01-22 05:59:04",
+    "60002\tuser\tU4eeca6887f21c03c970e3cc420dadb30\tNULL\tscheduled\t12\t1\t0\t【リマインド】",
+    "京極様よりご依頼の「在庫登録と売上を管理画面に反映する」の進捗をご確認ください。\tactive\tNULL\t2026-01-22 17:50:06\tNULL\tNULL\t2026-01-22 05:50:06\t2026-01-22 05:50:06",
+    "30001\tuser\tU4eeca6887f21c03c970e3cc420dadb30\tNULL\tscheduled\t24\t1\t0\t【リマインド】",
+    "橋村ひとみ様への画像制作依頼（商品画像、Brand Story、SB広告）の進捗状況を確認してください。期限は本日中です。\tactive\tNULL\t2026-01-22 16:46:24\tNULL\tNULL\t2026-01-21 16:46:23\t2026-01-21 16:46:23",
+    "3\tuser\tU4eeca6887f21c03c970e3cc420dadb30\tNULL\tscheduled\t24\t1\t0\t【リマインド】",
+    "毎日やることをこのグループでメンションする設定を希望されています。具体的な時間（例：毎日9時）をユーザーに確認してください。\tactive\tNULL\t2026-01-22 09:15:03\tNULL\tNULL\t2026-01-21 09:15:02\t2026-01-21 09:15:02",
+    "2\tuser\tU4eeca6887f21c03c970e3cc420dadb30\tNULL\tscheduled\t18\t1\t0\t【リマインド】",
+    "ライブ配信するよ\tactive\tNULL\t2026-01-22 01:45:41\tNULL\tNULL\t2026-01-21 07:45:41\t2026-01-21 07:45:41",
+    "1\tuser\tU4eeca6887f21c03c970e3cc420dadb30\tNULL\tscheduled\t18\t1\t0\t【リマインド】",
+    "今日の確認をお願いします。\tactive\tNULL\t2026-01-21 22:35:17\tNULL\tNULL\t2026-01-21 04:35:16\t2026-01-21 04:35:16"
+  ],
+  "stdout": "id\ttargetType\tlineUserId\tlineGroupId\ttriggerCondition\tdelayHours\tmaxAttempts\tcurrentAttempts\tmessageTemplate\tstatus\tlastSentAt\tnextScheduledAt\tbrandId\tcreatedBy\tcreatedAt\tupdatedAt\n90002\tuser\tU4eeca6887f21c03c970e3cc420dadb30\tNULL\tscheduled\t24\t1\t0\t【リマインド】\nブランド登録の件、ご確認をお願いします。\tactive\tNULL\t2026-01-25 17:46:09\tNULL\tNULL\t2026-01-24 17:46:08\t2026-01-24 17:46:08\n90001\tuser\tU4eeca6887f21c03c970e3cc420dadb30\tNULL\tscheduled\t170\t1\t0\t【リマインド】\n京極様からの酒類販売業免許申請に必要な書類（賃貸契約書、通帳コピー）と質問事項への回答（事務所情報、役員履歴書等）の提出状況を確認してください。\tactive\tNULL\t2026-01-31 04:35:23\tNULL\tNULL\t2026-01-24 02:35:23\t2026-01-24 02:35:23\n60003\tuser\tU4eeca6887f21c03c970e3cc420dadb30\tNULL\tscheduled\t48\t1\t0\t【リマインド】\n26日納品の件（C4926K）について、進捗を確認してください。\tactive\tNULL\t2026-01-24 05:59:04\tNULL\tNULL\t2026-01-22 05:59:04\t2026-01-22 05:59:04\n60002\tuser\tU4eeca6887f21c03c970e3cc420dadb30\tNULL\tscheduled\t12\t1\t0\t【リマインド】\n京極様よりご依頼の「在庫登録と売上を管理画面に反映する」の進捗をご確認ください。\tactive\tNULL\t2026-01-22 17:50:06\tNULL\tNULL\t2026-01-22 05:50:06\t2026-01-22 05:50:06\n60001\tuser\tU4eeca6887f21c03c970e3cc420dadb30\tNULL\tscheduled\t24\t1\t0\tこのグループでのミーティング日程の調整状況について、フォローアップを設定します。\tactive\tNULL\t2026-01-23 03:25:15\tNULL\tNULL\t2026-01-22 03:25:15\t2026-01-22 03:25:15\n30001\tuser\tU4eeca6887f21c03c970e3cc420dadb30\tNULL\tscheduled\t24\t1\t0\t【リマインド】\n橋村ひとみ様への画像制作依頼（商品画像、Brand Story、SB広告）の進捗状況を確認してください。期限は本日中です。\tactive\tNULL\t2026-01-22 16:46:24\tNULL\tNULL\t2026-01-21 16:46:23\t2026-01-21 16:46:23\n3\tuser\tU4eeca6887f21c03c970e3cc420dadb30\tNULL\tscheduled\t24\t1\t0\t【リマインド】\n毎日やることをこのグループでメンションする設定を希望されています。具体的な時間（例：毎日9時）をユーザーに確認してください。\tactive\tNULL\t2026-01-22 09:15:03\tNULL\tNULL\t2026-01-21 09:15:02\t2026-01-21 09:15:02\n2\tuser\tU4eeca6887f21c03c970e3cc420dadb30\tNULL\tscheduled\t18\t1\t0\t【リマインド】\nライブ配信するよ\tactive\tNULL\t2026-01-22 01:45:41\tNULL\tNULL\t2026-01-21 07:45:41\t2026-01-21 07:45:41\n1\tuser\tU4eeca6887f21c03c970e3cc420dadb30\tNULL\tscheduled\t18\t1\t0\t【リマインド】\n今日の確認をお願いします。\tactive\tNULL\t2026-01-21 22:35:17\tNULL\tNULL\t2026-01-21 04:35:16\t2026-01-21 04:35:16\n",
+  "stderr": "",
+  "execution_time_ms": 1623
+}

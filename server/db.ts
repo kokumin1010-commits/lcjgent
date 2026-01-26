@@ -2302,10 +2302,32 @@ export async function getGroupsNeedingFollowUp() {
       )
     );
   
+  // Get all active LINE follow-ups (reminders) for groups
+  const activeFollowUps = await db
+    .select()
+    .from(lineFollowUps)
+    .where(
+      and(
+        eq(lineFollowUps.status, "active"),
+        isNotNull(lineFollowUps.lineGroupId)
+      )
+    );
+  
+  // Create a set of group IDs that have active reminders
+  const groupsWithActiveReminders = new Set(
+    activeFollowUps.map(f => f.lineGroupId).filter(Boolean)
+  );
+  
   const now = new Date();
   const groupsNeedingFollowUp = [];
   
   for (const group of groups) {
+    // Skip if this group has an active reminder set
+    if (groupsWithActiveReminders.has(group.lineGroupId)) {
+      console.log(`[Group Follow-Up] Skipping group ${group.groupName || group.lineGroupId}: has active reminder`);
+      continue;
+    }
+    
     const inactiveDays = group.autoFollowUpDays || 2;
     const lastActivity = group.lastMessageAt || group.createdAt;
     const lastFollowUp = group.lastAutoFollowUpAt;

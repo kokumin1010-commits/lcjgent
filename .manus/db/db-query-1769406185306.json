@@ -1,0 +1,42 @@
+{
+  "query": "SELECT * FROM line_groups WHERE groupName LIKE '%京極%' OR groupName LIKE '%酒%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT * FROM line_groups WHERE groupName LIKE '%京極%' OR groupName LIKE '%酒%';",
+  "rows": [
+    {
+      "id": "25",
+      "lineGroupId": "C5cd4b0cd06a2eee6a21490f79432bae8",
+      "groupName": "KGアカウント運営京極琉動画撮影",
+      "pictureUrl": "https://sprofile.line-scdn.net/0h9w4rTeqwZlgZC3jj2i0YJ2lbZTI6bT9cM2gvOiwMOzp3b3RbNWguPC8CbGkjayEMPWsqPnsKOD0VGBE-B12abB47O2klMiMKPWguuA",
+      "brandId": "NULL",
+      "isActive": "1",
+      "notificationsEnabled": "1",
+      "lastMessageAt": "2026-01-26 05:03:02",
+      "createdAt": "2026-01-21 07:50:11",
+      "updatedAt": "2026-01-26 05:03:02",
+      "autoFollowUpEnabled": "1",
+      "autoFollowUpDays": "2",
+      "autoFollowUpMessage": "NULL",
+      "lastAutoFollowUpAt": "2026-01-25 00:10:48"
+    },
+    {
+      "id": "120001",
+      "lineGroupId": "C252390641cd8862c4a42585cb95a5438",
+      "groupName": "京極さん 酒通販免許",
+      "pictureUrl": "https://sprofile.line-scdn.net/0hTeth2fYVC0pZERWaryN1NSlBCCB6d1JOc35HLDlEUH5gcRgfJXBNeG8QVS4zI0UbJndEe21CVS9VAnwsR0f3fl4hVntlKE4YfXJDqg",
+      "brandId": "NULL",
+      "isActive": "1",
+      "notificationsEnabled": "1",
+      "lastMessageAt": "2026-01-26 05:39:53",
+      "createdAt": "2026-01-24 02:34:24",
+      "updatedAt": "2026-01-26 05:39:52",
+      "autoFollowUpEnabled": "1",
+      "autoFollowUpDays": "2",
+      "autoFollowUpMessage": "NULL",
+      "lastAutoFollowUpAt": "2026-01-26 02:56:39"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tlineGroupId\tgroupName\tpictureUrl\tbrandId\tisActive\tnotificationsEnabled\tlastMessageAt\tcreatedAt\tupdatedAt\tautoFollowUpEnabled\tautoFollowUpDays\tautoFollowUpMessage\tlastAutoFollowUpAt\n25\tC5cd4b0cd06a2eee6a21490f79432bae8\tKGアカウント運営京極琉動画撮影\thttps://sprofile.line-scdn.net/0h9w4rTeqwZlgZC3jj2i0YJ2lbZTI6bT9cM2gvOiwMOzp3b3RbNWguPC8CbGkjayEMPWsqPnsKOD0VGBE-B12abB47O2klMiMKPWguuA\tNULL\t1\t1\t2026-01-26 05:03:02\t2026-01-21 07:50:11\t2026-01-26 05:03:02\t1\t2\tNULL\t2026-01-25 00:10:48\n120001\tC252390641cd8862c4a42585cb95a5438\t京極さん 酒通販免許\thttps://sprofile.line-scdn.net/0hTeth2fYVC0pZERWaryN1NSlBCCB6d1JOc35HLDlEUH5gcRgfJXBNeG8QVS4zI0UbJndEe21CVS9VAnwsR0f3fl4hVntlKE4YfXJDqg\tNULL\t1\t1\t2026-01-26 05:39:53\t2026-01-24 02:34:24\t2026-01-26 05:39:52\t1\t2\tNULL\t2026-01-26 02:56:39\n",
+  "stderr": "",
+  "execution_time_ms": 1574
+}
