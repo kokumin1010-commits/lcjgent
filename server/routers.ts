@@ -1734,13 +1734,21 @@ ${JSON.stringify(teamSummary, null, 2)}`;
         })
       )
       .mutation(async ({ input }) => {
-        const { id, createdAt, ...updateData } = input;
-        // createdAtが指定されている場合は変換して追加
-        const finalUpdateData = createdAt 
-          ? { ...updateData, createdAt: new Date(createdAt) }
-          : updateData;
-        await updateBrandProduct(id, finalUpdateData);
-        return { success: true };
+        try {
+          console.log("[brandProduct.update] Input received:", JSON.stringify(input, null, 2));
+          const { id, createdAt, ...updateData } = input;
+          // createdAtが指定されている場合は変換して追加
+          const finalUpdateData = createdAt 
+            ? { ...updateData, createdAt: new Date(createdAt) }
+            : updateData;
+          console.log("[brandProduct.update] Final update data:", JSON.stringify(finalUpdateData, null, 2));
+          await updateBrandProduct(id, finalUpdateData);
+          console.log("[brandProduct.update] Success for id:", id);
+          return { success: true };
+        } catch (error) {
+          console.error("[brandProduct.update] Error:", error);
+          throw error;
+        }
       }),
 
     delete: protectedProcedure
@@ -2531,17 +2539,25 @@ Return ONLY valid JSON, no markdown or explanation.`,
         })
       )
       .mutation(async ({ input }) => {
-        const { id, startDate, endDate, ...rest } = input;
-        const data: any = { ...rest };
-        // 日付を適切に変換
-        if (startDate) {
-          data.startDate = startDate instanceof Date ? startDate : new Date(startDate);
+        try {
+          console.log("[brandContract.update] Input received:", JSON.stringify(input, null, 2));
+          const { id, startDate, endDate, ...rest } = input;
+          const data: any = { ...rest };
+          // 日付を適切に変換
+          if (startDate) {
+            data.startDate = startDate instanceof Date ? startDate : new Date(startDate);
+          }
+          if (endDate) {
+            data.endDate = endDate instanceof Date ? endDate : new Date(endDate);
+          }
+          console.log("[brandContract.update] Final data:", JSON.stringify(data, null, 2));
+          await updateBrandContract(id, data);
+          console.log("[brandContract.update] Success for id:", id);
+          return { success: true };
+        } catch (error) {
+          console.error("[brandContract.update] Error:", error);
+          throw error;
         }
-        if (endDate) {
-          data.endDate = endDate instanceof Date ? endDate : new Date(endDate);
-        }
-        await updateBrandContract(id, data);
-        return { success: true };
       }),
 
     // Delete a contract
@@ -2629,20 +2645,27 @@ Return ONLY valid JSON, no markdown or explanation.`,
         })
       )
       .mutation(async ({ ctx, input }) => {
-        // First, delete all existing links
-        await deleteAllContractLivestreamLinks(input.contractId);
+        try {
+          console.log("[bulkLinkLivestreams] Input:", JSON.stringify(input, null, 2));
+          // First, delete all existing links
+          await deleteAllContractLivestreamLinks(input.contractId);
 
-        // Then create new links
-        const results = [];
-        for (const livestreamId of input.livestreamIds) {
-          const link = await createContractLivestreamLink({
-            contractId: input.contractId,
-            livestreamId,
-            createdBy: ctx.user.id,
-          });
-          results.push(link);
+          // Then create new links
+          const results = [];
+          for (const livestreamId of input.livestreamIds) {
+            const link = await createContractLivestreamLink({
+              contractId: input.contractId,
+              livestreamId,
+              createdBy: ctx.user.id,
+            });
+            results.push(link);
+          }
+          console.log("[bulkLinkLivestreams] Success, created", results.length, "links");
+          return results;
+        } catch (error) {
+          console.error("[bulkLinkLivestreams] Error:", error);
+          throw error;
         }
-        return results;
       }),
   }),
 

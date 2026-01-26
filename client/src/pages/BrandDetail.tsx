@@ -1623,6 +1623,22 @@ export default function BrandDetail() {
             <Button
               onClick={() => {
                 if (editingProduct) {
+                  // createdAtを文字列に変換（Dateオブジェクトの場合はISO文字列に）
+                  let createdAtValue: string | undefined = undefined;
+                  if (editingProduct.createdAt) {
+                    if (typeof editingProduct.createdAt === 'string') {
+                      createdAtValue = editingProduct.createdAt;
+                    } else if (editingProduct.createdAt instanceof Date) {
+                      createdAtValue = editingProduct.createdAt.toISOString();
+                    } else {
+                      createdAtValue = new Date(editingProduct.createdAt).toISOString();
+                    }
+                  }
+                  console.log("Updating product with data:", {
+                    id: editingProduct.id,
+                    commissionRate: editingProduct.commissionRate,
+                    createdAt: createdAtValue,
+                  });
                   updateProductMutation.mutate({
                     id: editingProduct.id,
                     productName: editingProduct.productName || undefined,
@@ -1640,7 +1656,7 @@ export default function BrandDetail() {
                     shippingInfo: editingProduct.shippingInfo || undefined,
                     targetAudience: editingProduct.targetAudience || undefined,
                     usageMethod: editingProduct.usageMethod || undefined,
-                    createdAt: editingProduct.createdAt || undefined,
+                    createdAt: createdAtValue,
                   });
                 }
               }}
