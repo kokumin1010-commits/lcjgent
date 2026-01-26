@@ -529,7 +529,8 @@ export default function BrandDetail() {
       setEditingProduct(null);
       toast.success("商品を更新しました");
     },
-    onError: () => {
+    onError: (error) => {
+      console.error("商品更新エラー:", error);
       toast.error("エラーが発生しました");
     },
   });
@@ -553,7 +554,8 @@ export default function BrandDetail() {
       setEditingContract(null);
       toast.success("契約を更新しました");
     },
-    onError: () => {
+    onError: (error) => {
+      console.error("契約更新エラー:", error);
       toast.error("エラーが発生しました");
     },
   });

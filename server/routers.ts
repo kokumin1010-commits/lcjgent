@@ -2524,14 +2524,22 @@ Return ONLY valid JSON, no markdown or explanation.`,
           contractType: z.enum(["月額契約", "年間契約", "単発契約", "広告案件", "その他"]).optional(),
           fixedFee: z.number().optional(),
           commissionRate: z.string().optional(),
-          startDate: z.date().optional(),
-          endDate: z.date().optional(),
+          startDate: z.union([z.date(), z.string()]).optional(),
+          endDate: z.union([z.date(), z.string()]).optional(),
           status: z.enum(["契約中", "完了", "保留", "終了"]).optional(),
           memo: z.string().optional(),
         })
       )
       .mutation(async ({ input }) => {
-        const { id, ...data } = input;
+        const { id, startDate, endDate, ...rest } = input;
+        const data: any = { ...rest };
+        // 日付を適切に変換
+        if (startDate) {
+          data.startDate = startDate instanceof Date ? startDate : new Date(startDate);
+        }
+        if (endDate) {
+          data.endDate = endDate instanceof Date ? endDate : new Date(endDate);
+        }
         await updateBrandContract(id, data);
         return { success: true };
       }),
