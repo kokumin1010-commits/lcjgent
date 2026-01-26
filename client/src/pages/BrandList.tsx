@@ -39,7 +39,10 @@ const translations = {
     totalProducts: "総商品数",
     totalLivestreams: "総直播数",
     back: "戻る",
-
+    sortBy: "並び替え",
+    sortByName: "名前順",
+    sortByGmv: "売上順",
+    sortByAdBudget: "広告費順",
   },
   zh: {
     title: "品牌司令塔",
@@ -65,7 +68,10 @@ const translations = {
     totalProducts: "总商品数",
     totalLivestreams: "总直播数",
     back: "返回",
-
+    sortBy: "排序",
+    sortByName: "名称排序",
+    sortByGmv: "销售额排序",
+    sortByAdBudget: "广告费排序",
   },
 };
 
@@ -85,11 +91,28 @@ export default function BrandList() {
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
+  const [sortBy, setSortBy] = useState<string>("gmv"); // デフォルトは売上順
 
-  const { data: brands, isLoading } = trpc.brand.list.useQuery({
+  const { data: brandsData, isLoading } = trpc.brand.list.useQuery({
     status: statusFilter || undefined,
     search: appliedSearch || undefined,
   });
+
+  // ソートされたブランドリスト
+  const brands = brandsData ? [...brandsData].sort((a, b) => {
+    if (sortBy === "gmv") {
+      const gmvA = (a as any).totalGmv || 0;
+      const gmvB = (b as any).totalGmv || 0;
+      return gmvB - gmvA; // 降順
+    } else if (sortBy === "adBudget") {
+      const adA = (a as any).totalAdBudget || 0;
+      const adB = (b as any).totalAdBudget || 0;
+      return adB - adA; // 降順
+    } else {
+      // 名前順（昇順）
+      return (a.name || "").localeCompare(b.name || "", "ja");
+    }
+  }) : [];
 
   const handleSearch = () => {
     setAppliedSearch(searchTerm);
@@ -190,6 +213,20 @@ export default function BrandList() {
         {/* Filters */}
         <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 mb-8">
           <div className="flex flex-wrap gap-4 items-end">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300">{t.sortBy}</label>
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-[180px] bg-gray-700/50 border-gray-600 text-white">
+                  <SelectValue placeholder={t.sortByGmv} />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-800 border-gray-700">
+                  <SelectItem value="gmv">{t.sortByGmv}</SelectItem>
+                  <SelectItem value="adBudget">{t.sortByAdBudget}</SelectItem>
+                  <SelectItem value="name">{t.sortByName}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-300">{t.status}</label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
