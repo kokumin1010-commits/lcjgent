@@ -657,7 +657,29 @@ export default function BrandDetail() {
 
   // Get active contract commission rate
   const activeContract = contracts.find(c => c.status === "契約中");
-  const commissionRateValue = activeContract?.commissionRate || brand?.commissionRate || "-";
+  
+  // 商品の成果報酬を集計（数字のみの値を抽出）
+  const calculateAverageCommissionRate = () => {
+    const validProducts = products.filter(p => {
+      if (!p.commissionRate) return false;
+      const numericValue = parseFloat(p.commissionRate.replace(/[^0-9.]/g, ''));
+      return !isNaN(numericValue) && numericValue > 0;
+    });
+    
+    if (validProducts.length === 0) return null;
+    
+    const totalRate = validProducts.reduce((sum, p) => {
+      const numericValue = parseFloat(p.commissionRate!.replace(/[^0-9.]/g, ''));
+      return sum + numericValue;
+    }, 0);
+    
+    return totalRate / validProducts.length;
+  };
+  
+  const avgCommissionRate = calculateAverageCommissionRate();
+  const commissionRateValue = avgCommissionRate !== null 
+    ? `${avgCommissionRate.toFixed(1)}%` 
+    : (activeContract?.commissionRate || brand?.commissionRate || "-");
 
   const handleAddMemo = () => {
     if (!newMemo.trim()) return;
@@ -1059,7 +1081,7 @@ export default function BrandDetail() {
                     {contract.commissionRate && (
                       <div className="flex items-center gap-2">
                         <span>{t.commissionRate}:</span>
-                        <span className="text-purple-400 font-mono">{contract.commissionRate}</span>
+                        <span className="text-purple-400 font-mono">{contract.commissionRate.replace(/[^0-9.]/g, '')}%</span>
                       </div>
                     )}
                   </div>
@@ -1315,7 +1337,7 @@ export default function BrandDetail() {
                           -
                         </td>
                         <td className="py-3 px-2 text-right text-purple-400 text-lg" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                          {product.commissionRate || "-"}
+                          {product.commissionRate ? `${product.commissionRate.replace(/[^0-9.]/g, '')}%` : "-"}
                         </td>
                         <td className="py-3 px-2 text-right">
                           <div className="flex items-center justify-end gap-2">
@@ -1528,12 +1550,24 @@ export default function BrandDetail() {
               {/* 成果報酬 */}
               <div>
                 <Label className="text-gray-400">成果報酬</Label>
-                <Input
-                  value={editingProduct.commissionRate || ""}
-                  onChange={(e) => setEditingProduct({ ...editingProduct, commissionRate: e.target.value })}
-                  placeholder="例: 15%"
-                  className="bg-black/60 border-red-900/50 text-white mt-1"
-                />
+                <div className="relative">
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={(editingProduct.commissionRate || "").replace(/[^0-9.]/g, '')}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === '' || (!isNaN(parseFloat(value)) && parseFloat(value) >= 0 && parseFloat(value) <= 100)) {
+                        setEditingProduct({ ...editingProduct, commissionRate: value });
+                      }
+                    }}
+                    placeholder="例: 15"
+                    className="bg-black/60 border-red-900/50 text-white mt-1 pr-8"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 mt-0.5">%</span>
+                </div>
               </div>
               {/* キャッチコピー・広告語 */}
               <div>
@@ -1822,7 +1856,8 @@ export default function BrandDetail() {
                     <div className="bg-black/60 border border-red-900/50 rounded-md px-3 py-2 mt-1 text-cyan-400 font-medium">
                       {(() => {
                         const selectedProduct = editingLivestream.productId ? products.find(p => p.id === editingLivestream.productId) : null;
-                        return selectedProduct?.commissionRate || '-';
+                        const rate = selectedProduct?.commissionRate;
+                        return rate ? `${rate.replace(/[^0-9.]/g, '')}%` : '-';
                       })()}
                     </div>
                   </div>
@@ -2548,12 +2583,24 @@ export default function BrandDetail() {
             </div>
             <div>
               <Label className="text-gray-400">{t.commissionRate}</Label>
-              <Input
-                value={newProduct.commissionRate}
-                onChange={(e) => setNewProduct({ ...newProduct, commissionRate: e.target.value })}
-                placeholder={language === 'ja' ? '例: 15%' : '例: 15%'}
-                className="bg-black/60 border-red-900/50 text-white mt-1"
-              />
+              <div className="relative">
+                <Input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  value={newProduct.commissionRate.replace(/[^0-9.]/g, '')}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === '' || (!isNaN(parseFloat(value)) && parseFloat(value) >= 0 && parseFloat(value) <= 100)) {
+                      setNewProduct({ ...newProduct, commissionRate: value });
+                    }
+                  }}
+                  placeholder={language === 'ja' ? '例: 15' : '例: 15'}
+                  className="bg-black/60 border-red-900/50 text-white mt-1 pr-8"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 mt-0.5">%</span>
+              </div>
             </div>
             <div>
               <Label className="text-gray-400">{language === 'ja' ? '備考' : '备注'}</Label>
@@ -2744,7 +2791,8 @@ export default function BrandDetail() {
                   <div className="bg-black/60 border border-red-900/50 rounded-md px-3 py-2 mt-1 text-cyan-400 font-medium">
                     {(() => {
                       const selectedProduct = newLivestream.productId ? products.find(p => p.id === newLivestream.productId) : null;
-                      return selectedProduct?.commissionRate || '-';
+                      const rate = selectedProduct?.commissionRate;
+                      return rate ? `${rate.replace(/[^0-9.]/g, '')}%` : '-';
                     })()}
                   </div>
                 </div>
@@ -3333,12 +3381,24 @@ export default function BrandDetail() {
                       </div>
                       <div>
                         <Label className="text-gray-400">{t.commissionRate}</Label>
-                        <Input
-                          value={extractedProductData.commissionRate || ''}
-                          onChange={(e) => setExtractedProductData({ ...extractedProductData, commissionRate: e.target.value })}
-                          placeholder="例: 15%"
-                          className="bg-black/60 border-purple-500/50 text-white mt-1"
-                        />
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.1"
+                            value={(extractedProductData.commissionRate || '').replace(/[^0-9.]/g, '')}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              if (value === '' || (!isNaN(parseFloat(value)) && parseFloat(value) >= 0 && parseFloat(value) <= 100)) {
+                                setExtractedProductData({ ...extractedProductData, commissionRate: value });
+                              }
+                            }}
+                            placeholder="例: 15"
+                            className="bg-black/60 border-purple-500/50 text-white mt-1 pr-8"
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 mt-0.5">%</span>
+                        </div>
                       </div>
                     </div>
                     
@@ -3540,7 +3600,7 @@ export default function BrandDetail() {
                     <div className="bg-gradient-to-br from-cyan-950/60 to-cyan-900/30 rounded-2xl p-6 border-2 border-cyan-500/50 hover:border-cyan-400 hover:shadow-[0_0_30px_rgba(34,211,238,0.3)] transition-all duration-300 group">
                       <Label className="text-cyan-300 text-lg font-medium">{language === 'ja' ? '成果報酬' : '成果报酬'}</Label>
                       <p className="text-cyan-300 font-black text-4xl mt-3 group-hover:scale-105 transition-transform" style={{ textShadow: '0 0 20px rgba(34,211,238,0.6)' }}>
-                        {selectedProductForDetail.commissionRate || '-'}
+                        {selectedProductForDetail.commissionRate ? `${selectedProductForDetail.commissionRate.replace(/[^0-9.]/g, '')}%` : '-'}
                       </p>
                     </div>
                   </div>
