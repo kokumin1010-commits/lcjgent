@@ -1884,7 +1884,7 @@ export default function BrandDetail() {
             <div className="space-y-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-gray-400">サービス種類</Label>
+                  <Label className="text-gray-400">{language === 'ja' ? '契約タイプ' : '合同类型'}</Label>
                   <Select
                     value={editingContract.serviceType || ""}
                     onValueChange={(value) => setEditingContract({ ...editingContract, serviceType: value })}
@@ -1892,17 +1892,16 @@ export default function BrandDetail() {
                     <SelectTrigger className="bg-black/60 border-red-900/50 text-white mt-1">
                       <SelectValue placeholder="選択" />
                     </SelectTrigger>
-                    <SelectContent className="bg-black/95 border-red-900/50">
-                      <SelectItem value="TSP">TSP</SelectItem>
-                      <SelectItem value="ライブコマース">ライブコマース</SelectItem>
-                      <SelectItem value="広告運用代行">広告運用代行</SelectItem>
-                      <SelectItem value="SNS運用代行">SNS運用代行</SelectItem>
-                      <SelectItem value="その他">その他</SelectItem>
+                    <SelectContent className="bg-gray-900 border-red-900/50">
+                      <SelectItem value="単発ライブ契約" className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">{language === 'zh' ? '单次直播合同' : '単発ライブ契約'}</SelectItem>
+                      <SelectItem value="期間契約" className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">{language === 'zh' ? '期限合同（月付/年付）' : '期間契約（月額 or 年額）'}</SelectItem>
+                      <SelectItem value="運用代行型（TSP）" className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">{language === 'zh' ? '运营代理型（TSP）' : '運用代行型（TSP）'}</SelectItem>
+                      <SelectItem value="パッケージ／複合契約" className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">{language === 'zh' ? '套餐/复合合同' : 'パッケージ／複合契約'}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-gray-400">ステータス</Label>
+                  <Label className="text-gray-400">{t.status}</Label>
                   <Select
                     value={editingContract.status || ""}
                     onValueChange={(value) => setEditingContract({ ...editingContract, status: value })}
@@ -1910,38 +1909,28 @@ export default function BrandDetail() {
                     <SelectTrigger className="bg-black/60 border-red-900/50 text-white mt-1">
                       <SelectValue placeholder="選択" />
                     </SelectTrigger>
-                    <SelectContent className="bg-black/95 border-red-900/50">
-                      <SelectItem value="契約中">契約中</SelectItem>
-                      <SelectItem value="完了">完了</SelectItem>
-                      <SelectItem value="保留">保留</SelectItem>
-                      <SelectItem value="終了">終了</SelectItem>
+                    <SelectContent className="bg-gray-900 border-red-900/50">
+                      <SelectItem value="契約中" className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">{language === 'zh' ? '合同中' : '契約中'}</SelectItem>
+                      <SelectItem value="完了" className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">{language === 'zh' ? '已完成' : '完了'}</SelectItem>
+                      <SelectItem value="保留" className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">{language === 'zh' ? '暂停' : '保留'}</SelectItem>
+                      <SelectItem value="終了" className="text-white hover:bg-red-900/30 focus:bg-red-900/30 focus:text-white">{language === 'zh' ? '结束' : '終了'}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-gray-400">固定費</Label>
-                  <Input
-                    type="number"
-                    value={editingContract.fixedFee || ""}
-                    onChange={(e) => setEditingContract({ ...editingContract, fixedFee: parseInt(e.target.value) || 0 })}
-                    className="bg-black/60 border-red-900/50 text-white mt-1"
-                  />
-                </div>
-                <div>
-                  <Label className="text-gray-400">成果報酬</Label>
-                  <Input
-                    value={editingContract.commissionRate || ""}
-                    onChange={(e) => setEditingContract({ ...editingContract, commissionRate: e.target.value })}
-                    placeholder="例: 15-20%"
-                    className="bg-black/60 border-red-900/50 text-white mt-1"
-                  />
-                </div>
+              <div>
+                <Label className="text-gray-400">{t.fixedFee}</Label>
+                <Input
+                  type="number"
+                  value={editingContract.fixedFee || ""}
+                  onChange={(e) => setEditingContract({ ...editingContract, fixedFee: parseInt(e.target.value) || 0 })}
+                  placeholder="例: 1000000"
+                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-gray-400">開始日</Label>
+                  <Label className="text-gray-400">{t.startDate}</Label>
                   <Input
                     type="date"
                     value={editingContract.startDate ? new Date(editingContract.startDate).toISOString().split('T')[0] : ""}
@@ -1950,7 +1939,7 @@ export default function BrandDetail() {
                   />
                 </div>
                 <div>
-                  <Label className="text-gray-400">終了日</Label>
+                  <Label className="text-gray-400">{t.endDate}</Label>
                   <Input
                     type="date"
                     value={editingContract.endDate ? new Date(editingContract.endDate).toISOString().split('T')[0] : ""}
@@ -1960,7 +1949,7 @@ export default function BrandDetail() {
                 </div>
               </div>
               <div>
-                <Label className="text-gray-400">メモ</Label>
+                <Label className="text-gray-400">{t.memo}</Label>
                 <Textarea
                   value={editingContract.memo || ""}
                   onChange={(e) => setEditingContract({ ...editingContract, memo: e.target.value })}

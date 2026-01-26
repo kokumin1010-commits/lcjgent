@@ -1,0 +1,22 @@
+{
+  "query": "SELECT bl.id, bl.brandId, bl.liverId, bl.livestreamDate, bl.livestreamEndTime, bl.salesAmount, bl.duration, bl.viewerCount, bl.orderCount, bl.createdAt FROM brand_livestreams bl JOIN livers l ON bl.liverId = l.id WHERE l.name LIKE '%Ryu%' OR l.name LIKE '%kyogoku%' ORDER BY bl.livestreamDate DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT bl.id, bl.brandId, bl.liverId, bl.livestreamDate, bl.livestreamEndTime, bl.salesAmount, bl.duration, bl.viewerCount, bl.orderCount, bl.createdAt FROM brand_livestreams bl JOIN livers l ON bl.liverId = l.id WHERE l.name LIKE '%Ryu%' OR l.name LIKE '%kyogoku%' ORDER BY bl.livestreamDate DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "120027",
+      "brandId": "1",
+      "liverId": "120005",
+      "livestreamDate": "2026-12-29 07:00:00",
+      "livestreamEndTime": "2026-12-28 15:11:00",
+      "salesAmount": "8814883",
+      "duration": "NULL",
+      "viewerCount": "NULL",
+      "orderCount": "NULL",
+      "createdAt": "2026-01-25 18:30:31"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tbrandId\tliverId\tlivestreamDate\tlivestreamEndTime\tsalesAmount\tduration\tviewerCount\torderCount\tcreatedAt\n120027\t1\t120005\t2026-12-29 07:00:00\t2026-12-28 15:11:00\t8814883\tNULL\tNULL\tNULL\t2026-01-25 18:30:31\n",
+  "stderr": "",
+  "execution_time_ms": 1577
+}

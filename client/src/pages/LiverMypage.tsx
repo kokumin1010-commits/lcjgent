@@ -159,18 +159,45 @@ export default function LiverMypage() {
       .sort((a: { livestreamDate: string | Date }, b: { livestreamDate: string | Date }) => new Date(b.livestreamDate).getTime() - new Date(a.livestreamDate).getTime());
   }, [livestreams, selectedMonth]);
 
-  // Generate month options
+  // Generate month options based on livestream data
   const monthOptions = useMemo(() => {
-    const options = [];
+    const options: { value: string; label: string }[] = [];
     const now = new Date();
+    
+    // 配信履歴から月を取得
+    const monthsWithData = new Set<string>();
+    if (livestreams) {
+      livestreams.forEach((ls: { livestreamDate: string | Date }) => {
+        const date = new Date(ls.livestreamDate);
+        const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+        monthsWithData.add(value);
+      });
+    }
+    
+    // 過去12ヶ月を生成
     for (let i = 0; i < 12; i++) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
       const label = `${date.getFullYear()}年${date.getMonth() + 1}月`;
       options.push({ value, label });
     }
+    
+    // 配信履歴にある月も追加（過去12ヶ月にない場合）
+    monthsWithData.forEach(monthValue => {
+      if (!options.find(o => o.value === monthValue)) {
+        const [year, month] = monthValue.split("-").map(Number);
+        options.push({ 
+          value: monthValue, 
+          label: `${year}年${month}月` 
+        });
+      }
+    });
+    
+    // 日付順にソート（新しい順）
+    options.sort((a, b) => b.value.localeCompare(a.value));
+    
     return options;
-  }, []);
+  }, [livestreams]);
 
   // Calculate all-time stats
   const allTimeStats = useMemo(() => {
