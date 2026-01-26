@@ -303,8 +303,10 @@ function ContractRoasDisplay({ contractId, fixedFee, onLinkClick, onViewDetails 
   const totalGmv = linkedLivestreams.reduce((sum, ls) => sum + (ls.gmv || 0), 0);
   const totalImpressions = linkedLivestreams.reduce((sum, ls) => sum + (ls.impressions || 0), 0);
   const adValue = totalImpressions * 15; // CPM ¥15,000
-  // 広告換算ROAS = GMV ÷ 広告換算費用
-  const roas = adValue > 0 ? totalGmv / adValue : 0;
+  // 総投資額 = 広告換算費用 + 固定費（坑位費）
+  const totalInvestment = adValue + fixedFee;
+  // ROAS = GMV ÷ 総投資額（広告換算費用 + 固定費）
+  const roas = totalInvestment > 0 ? totalGmv / totalInvestment : 0;
   const vsIndustry = roas / INDUSTRY_AVG_ROAS;
 
   return (
@@ -339,7 +341,7 @@ function ContractRoasDisplay({ contractId, fixedFee, onLinkClick, onViewDetails 
         {/* 右側: ROAS */}
         <div className="text-right border-l border-amber-500/20 pl-2">
           <div className="flex items-center gap-1">
-            <span className="text-[10px] text-gray-400">📊 広告換算ROAS</span>
+            <span className="text-[10px] text-gray-400">📊 広告効果ROAS</span>
             <span className="text-xl font-black bg-gradient-to-r from-amber-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">
               {roas.toFixed(2)}倍
             </span>
@@ -348,7 +350,7 @@ function ContractRoasDisplay({ contractId, fixedFee, onLinkClick, onViewDetails 
             → 業界平均の {vsIndustry.toFixed(1)}倍（{vsIndustry > 1 ? '显著高于基准' : '基准以下'}）
           </div>
           <div className="text-[7px] text-gray-600">
-            ※ CPM ¥15,000 × 実際曝光量　業界平均：{INDUSTRY_AVG_ROAS}倍
+            ※ GMV÷(広告換算{formatCurrency(adValue)}+固定費{formatCurrency(fixedFee)})
           </div>
         </div>
       </div>
@@ -2073,14 +2075,14 @@ export default function BrandDetail() {
                     <div className="flex items-end justify-end pt-1 border-t border-amber-500/20">
                       <div className="text-right">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-400">📊 広告換算ROAS</span>
+                          <span className="text-xs text-gray-400">📊 広告効果ROAS</span>
                           <span className="text-xl font-black bg-gradient-to-r from-amber-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">
                             {(() => {
                               const totalGmv = editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.gmv || 0), 0);
                               const totalImpressions = editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.impressions || 0), 0);
                               const adValue = totalImpressions * 15;
-                              // 広告換算ROAS = GMV ÷ 広告換算費用
-                              const roas = adValue > 0 ? totalGmv / adValue : 0;
+                              const totalInvestment = adValue + (editingContract.fixedFee || 0);
+                              const roas = totalInvestment > 0 ? totalGmv / totalInvestment : 0;
                               return roas.toFixed(2) + '倍';
                             })()}
                           </span>
@@ -2090,14 +2092,18 @@ export default function BrandDetail() {
                             const totalGmv = editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.gmv || 0), 0);
                             const totalImpressions = editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.impressions || 0), 0);
                             const adValue = totalImpressions * 15;
-                            // 広告換算ROAS = GMV ÷ 広告換算費用
-                            const roas = adValue > 0 ? totalGmv / adValue : 0;
+                            const totalInvestment = adValue + (editingContract.fixedFee || 0);
+                            const roas = totalInvestment > 0 ? totalGmv / totalInvestment : 0;
                             const vsIndustry = roas / INDUSTRY_AVG_ROAS;
                             return `→ 業界平均の ${vsIndustry.toFixed(1)}倍（${vsIndustry > 1 ? '显著高于基准' : '基准以下'}）`;
                           })()}
                         </div>
                         <div className="text-[8px] text-gray-600 mt-0.5">
-                          ※ CPM ¥15,000 × 実際曝光量　業界平均：{INDUSTRY_AVG_ROAS}倍
+                          {(() => {
+                            const totalImpressions = editingContract.linkedLivestreams.reduce((sum: number, ls: any) => sum + (ls.impressions || 0), 0);
+                            const adValue = totalImpressions * 15;
+                            return `※ GMV÷(広告換算${formatCurrency(adValue)}+固定費${formatCurrency(editingContract.fixedFee || 0)})`;
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -2118,14 +2124,26 @@ export default function BrandDetail() {
               onClick={async () => {
                 if (editingContract) {
                   // 契約情報を更新
+                  // 日付をISO文字列に変換して送信
+                  const startDateStr = editingContract.startDate 
+                    ? (editingContract.startDate instanceof Date 
+                        ? editingContract.startDate.toISOString() 
+                        : new Date(editingContract.startDate).toISOString())
+                    : undefined;
+                  const endDateStr = editingContract.endDate 
+                    ? (editingContract.endDate instanceof Date 
+                        ? editingContract.endDate.toISOString() 
+                        : new Date(editingContract.endDate).toISOString())
+                    : undefined;
+                  
                   updateContractMutation.mutate({
                     id: editingContract.id,
                     serviceType: editingContract.serviceType,
                     status: editingContract.status,
                     fixedFee: editingContract.fixedFee,
                     commissionRate: editingContract.commissionRate,
-                    startDate: editingContract.startDate,
-                    endDate: editingContract.endDate,
+                    startDate: startDateStr,
+                    endDate: endDateStr,
                     memo: editingContract.memo,
                   });
                   
@@ -3645,7 +3663,9 @@ export default function BrandDetail() {
                 const totalGmv = linkedLivestreamDetailData.reduce((sum, ls) => sum + (ls.gmv || 0), 0);
                 const totalImpressions = linkedLivestreamDetailData.reduce((sum, ls) => sum + (ls.impressions || 0), 0);
                 const adValue = totalImpressions * 15;
-                const roas = adValue > 0 ? totalGmv / adValue : 0;
+                const fixedFee = linkedLivestreamContractInfo.fixedFee || 0;
+                const totalInvestment = adValue + fixedFee;
+                const roas = totalInvestment > 0 ? totalGmv / totalInvestment : 0;
                 const vsIndustry = roas / INDUSTRY_AVG_ROAS;
                 return (
                   <div className="grid grid-cols-5 gap-3 bg-black/60 rounded-lg p-3 border border-pink-500/30">
@@ -3662,11 +3682,12 @@ export default function BrandDetail() {
                       <div className="text-lg font-black text-pink-400 font-mono">{totalImpressions.toLocaleString()}</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-[10px] text-gray-500">広告換算</div>
-                      <div className="text-lg font-black text-purple-400 font-mono">{formatCurrency(adValue)}</div>
+                      <div className="text-[10px] text-gray-500">総投資</div>
+                      <div className="text-lg font-black text-purple-400 font-mono">{formatCurrency(totalInvestment)}</div>
+                      <div className="text-[8px] text-gray-500">広告{formatCurrency(adValue)}+固定{formatCurrency(fixedFee)}</div>
                     </div>
                     <div className="text-center border-l border-pink-500/30">
-                      <div className="text-[10px] text-gray-500">広告換算ROAS</div>
+                      <div className="text-[10px] text-gray-500">広告効果ROAS</div>
                       <div className="text-xl font-black bg-gradient-to-r from-amber-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">{roas.toFixed(2)}倍</div>
                       <div className="text-[9px] text-emerald-400">業界平均の{vsIndustry.toFixed(1)}倍</div>
                     </div>
