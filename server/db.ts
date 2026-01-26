@@ -831,9 +831,10 @@ export async function getAllBrands(filters?: { status?: string; search?: string 
   
   const brandsResult = await query.orderBy(desc(brands.updatedAt));
   
-  // Get GMV totals for each brand from livestreams
-  const brandsWithGmv = await Promise.all(
+  // Get GMV totals and contract totals for each brand
+  const brandsWithStats = await Promise.all(
     brandsResult.map(async (brand) => {
+      // Get GMV from livestreams
       const livestreams = await db
         .select({ gmv: brandLivestreams.gmv })
         .from(brandLivestreams)
@@ -841,14 +842,23 @@ export async function getAllBrands(filters?: { status?: string; search?: string 
       
       const totalGmv = livestreams.reduce((sum, ls) => sum + (ls.gmv || 0), 0);
       
+      // Get total contract amount (fixedFee) from contracts
+      const contracts = await db
+        .select({ fixedFee: brandContracts.fixedFee })
+        .from(brandContracts)
+        .where(eq(brandContracts.brandId, brand.id));
+      
+      const totalAdBudget = contracts.reduce((sum, c) => sum + (c.fixedFee || 0), 0);
+      
       return {
         ...brand,
         totalGmv,
+        totalAdBudget,
       };
     })
   );
   
-  return brandsWithGmv;
+  return brandsWithStats;
 }
 
 // Get brand by ID

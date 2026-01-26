@@ -265,9 +265,9 @@ export default function BrandList() {
                   
                   <div className="grid grid-cols-2 gap-4 mb-4">
                     <div className="bg-gray-700/30 rounded-lg p-3">
-                      <div className="text-xs text-gray-400 mb-1">{t.commissionRate}</div>
-                      <div className="text-lg font-semibold text-cyan-400">
-                        {brand.commissionRate || "-"}
+                      <div className="text-xs text-gray-400 mb-1">{language === 'ja' ? '広告費' : '广告费'}</div>
+                      <div className="text-lg font-semibold text-yellow-400">
+                        {(brand as any).totalAdBudget ? `¥${((brand as any).totalAdBudget).toLocaleString()}` : "-"}
                       </div>
                     </div>
                     <div className="bg-gray-700/30 rounded-lg p-3">
