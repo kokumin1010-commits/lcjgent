@@ -3354,6 +3354,8 @@ export async function checkContractLivestreamLinkExists(contractId: number, live
 
 // Calculate contract ROAS (GMV + Ad Value) / Fixed Fee
 // CPM = ¥15,000 (15円/インプレッション)
+// ROAS計算式: (広告換算費用 + GMV) ÷ 固定費
+// 広告換算費用は「もし広告を出していたら発生していたコスト」なので、節約できた価値としてGMVに加算
 export async function calculateContractRoas(contractId: number, fixedFee: number) {
   const db = await getDb();
   if (!db) return null;
@@ -3382,8 +3384,9 @@ export async function calculateContractRoas(contractId: number, fixedFee: number
   // Total value = GMV + Ad Value
   const totalValue = totalGmv + adValue;
   
-  // 広告換算ROAS = GMV ÷ 広告換算費用
-  const roas = adValue > 0 ? totalGmv / adValue : 0;
+  // ROAS = (GMV + 広告換算費用) ÷ 固定費
+  // 固定費が0の場合は0を返す
+  const roas = fixedFee > 0 ? totalValue / fixedFee : 0;
   
   return {
     totalGmv,
