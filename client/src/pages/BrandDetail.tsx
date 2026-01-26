@@ -556,9 +556,12 @@ export default function BrandDetail() {
       setEditingContract(null);
       toast.success("契約を更新しました");
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error("契約更新エラー:", error);
-      toast.error("エラーが発生しました");
+      console.error("エラー詳細:", JSON.stringify(error, null, 2));
+      console.error("エラーメッセージ:", error?.message);
+      console.error("エラーデータ:", error?.data);
+      toast.error("エラーが発生しました: " + (error?.message || "不明なエラー"));
     },
   });
 
@@ -2139,39 +2142,65 @@ export default function BrandDetail() {
             <Button
               onClick={async () => {
                 if (editingContract) {
-                  // 契約情報を更新
-                  // 日付をISO文字列に変換して送信
-                  const startDateStr = editingContract.startDate 
-                    ? (editingContract.startDate instanceof Date 
-                        ? editingContract.startDate.toISOString() 
-                        : new Date(editingContract.startDate).toISOString())
-                    : undefined;
-                  const endDateStr = editingContract.endDate 
-                    ? (editingContract.endDate instanceof Date 
-                        ? editingContract.endDate.toISOString() 
-                        : new Date(editingContract.endDate).toISOString())
-                    : undefined;
-                  
-                  updateContractMutation.mutate({
-                    id: editingContract.id,
-                    serviceType: editingContract.serviceType,
-                    status: editingContract.status,
-                    fixedFee: editingContract.fixedFee,
-                    commissionRate: editingContract.commissionRate,
-                    startDate: startDateStr,
-                    endDate: endDateStr,
-                    memo: editingContract.memo,
-                  });
-                  
-                  // ライブ紐付けを更新
-                  const linkedIds = (editingContract.linkedLivestreams || []).map((ls: any) => ls.id);
                   try {
+                    // 契約情報を更新
+                    // 日付をISO文字列に変換して送信（無効な日付はundefinedに）
+                    let startDateStr: string | undefined = undefined;
+                    let endDateStr: string | undefined = undefined;
+                    
+                    if (editingContract.startDate) {
+                      try {
+                        const startDate = editingContract.startDate instanceof Date 
+                          ? editingContract.startDate 
+                          : new Date(editingContract.startDate);
+                        if (!isNaN(startDate.getTime())) {
+                          startDateStr = startDate.toISOString();
+                        }
+                      } catch (e) {
+                        console.warn('開始日の変換に失敗:', e);
+                      }
+                    }
+                    
+                    if (editingContract.endDate) {
+                      try {
+                        const endDate = editingContract.endDate instanceof Date 
+                          ? editingContract.endDate 
+                          : new Date(editingContract.endDate);
+                        if (!isNaN(endDate.getTime())) {
+                          endDateStr = endDate.toISOString();
+                        }
+                      } catch (e) {
+                        console.warn('終了日の変換に失敗:', e);
+                      }
+                    }
+                    
+                    const contractData = {
+                      id: editingContract.id,
+                      serviceType: editingContract.serviceType,
+                      status: editingContract.status,
+                      fixedFee: editingContract.fixedFee ? Number(editingContract.fixedFee) : undefined,
+                      commissionRate: editingContract.commissionRate || undefined,
+                      startDate: startDateStr,
+                      endDate: endDateStr,
+                      memo: editingContract.memo || undefined,
+                    };
+                    console.log("契約更新データ:", JSON.stringify(contractData, null, 2));
+                    
+                    // 契約更新を実行
+                    await updateContractMutation.mutateAsync(contractData);
+                    
+                    // ライブ紐付けを更新
+                    const linkedIds = (editingContract.linkedLivestreams || []).map((ls: any) => ls.id);
+                    console.log("ライブ紐付けデータ:", { contractId: editingContract.id, livestreamIds: linkedIds });
+                    
                     await bulkLinkLivestreamsMutation.mutateAsync({
                       contractId: editingContract.id,
                       livestreamIds: linkedIds,
                     });
-                  } catch (error) {
-                    console.error('ライブ紐付けの保存に失敗:', error);
+                  } catch (error: any) {
+                    console.error('契約保存エラー:', error);
+                    console.error('エラー詳細:', JSON.stringify(error, null, 2));
+                    // エラーはonErrorで処理されるので、ここでは追加のトーストは不要
                   }
                 }
               }}
