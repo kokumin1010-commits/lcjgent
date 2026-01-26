@@ -356,7 +356,11 @@ function EditLogSection({ brandId, language, noEditLogsText }: { brandId: number
                     {entityTypeLabels[language]?.[log.entityType] || log.entityType}
                   </span>
                 </div>
-                <p className="text-white text-sm">{log.changeDescription}</p>
+                <div className="text-white text-sm">
+                  {log.changeDescription.split('\n').map((line: string, i: number) => (
+                    <p key={i} className={i === 0 ? '' : 'text-gray-400 text-xs ml-2 mt-0.5'}>{line}</p>
+                  ))}
+                </div>
                 <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
                   <span className="flex items-center gap-1">
                     <User className="h-3 w-3" />

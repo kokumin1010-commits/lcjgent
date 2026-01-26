@@ -1777,17 +1777,47 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           await updateBrandProduct(id, finalUpdateData);
           console.log("[brandProduct.update] Success for id:", id);
           
-          // Record edit log
+          // Record edit log with detailed changes
           if (existingProduct) {
+            // Build detailed change description
+            const changes: string[] = [];
+            if (updateData.productName && updateData.productName !== existingProduct.productName) {
+              changes.push(`商品名: ${existingProduct.productName} → ${updateData.productName}`);
+            }
+            if (updateData.listPrice !== undefined && updateData.listPrice !== existingProduct.listPrice) {
+              changes.push(`定価: ¥${existingProduct.listPrice?.toLocaleString() || 0} → ¥${updateData.listPrice.toLocaleString()}`);
+            }
+            if (updateData.specialPrice !== undefined && updateData.specialPrice !== existingProduct.specialPrice) {
+              changes.push(`特別価格: ¥${existingProduct.specialPrice?.toLocaleString() || 0} → ¥${updateData.specialPrice.toLocaleString()}`);
+            }
+            if (updateData.commissionRate !== undefined && updateData.commissionRate !== existingProduct.commissionRate) {
+              changes.push(`成果報酬: ${existingProduct.commissionRate || '-'}% → ${updateData.commissionRate}%`);
+            }
+            if (updateData.discountRate !== undefined && updateData.discountRate !== existingProduct.discountRate) {
+              changes.push(`仕切率: ${existingProduct.discountRate || '-'} → ${updateData.discountRate}`);
+            }
+            if (updateData.purchasePrice !== undefined && updateData.purchasePrice !== existingProduct.purchasePrice) {
+              changes.push(`仕入金額: ¥${existingProduct.purchasePrice?.toLocaleString() || 0} → ¥${updateData.purchasePrice.toLocaleString()}`);
+            }
+            if (updateData.remarks !== undefined && updateData.remarks !== existingProduct.remarks) {
+              changes.push(`備考を更新`);
+            }
+            
+            const changeDescription = changes.length > 0 
+              ? `商品を編集：${existingProduct.productName}\n${changes.join('\n')}`
+              : `商品を編集：${existingProduct.productName}`;
+            
             await logBrandEdit(
               existingProduct.brandId,
               "update",
               "product",
               id,
               existingProduct.productName,
-              `商品を編集：${existingProduct.productName}`,
+              changeDescription,
               ctx.user.id,
-              ctx.user.name || ctx.user.email
+              ctx.user.name || ctx.user.email,
+              JSON.stringify(existingProduct),
+              JSON.stringify({ ...existingProduct, ...finalUpdateData })
             );
           }
           
@@ -2138,20 +2168,57 @@ ${JSON.stringify(teamSummary, null, 2)}`;
         }
         await updateBrandLivestream(id, updateData);
         
-        // Record edit log
+        // Record edit log with detailed changes
         if (existingLivestream) {
           const dateStr = existingLivestream.livestreamDate 
             ? new Date(existingLivestream.livestreamDate).toLocaleDateString('ja-JP')
             : '不明';
+          
+          // Build detailed change description
+          const changes: string[] = [];
+          if (rest.streamerName && rest.streamerName !== existingLivestream.streamerName) {
+            changes.push(`アカウント: ${existingLivestream.streamerName} → ${rest.streamerName}`);
+          }
+          if (rest.gmv !== undefined && rest.gmv !== existingLivestream.gmv) {
+            changes.push(`GMV: ¥${existingLivestream.gmv?.toLocaleString() || 0} → ¥${rest.gmv.toLocaleString()}`);
+          }
+          if (rest.impressions !== undefined && rest.impressions !== existingLivestream.impressions) {
+            changes.push(`曝光: ${existingLivestream.impressions?.toLocaleString() || 0} → ${rest.impressions.toLocaleString()}`);
+          }
+          if (rest.salesCount !== undefined && rest.salesCount !== existingLivestream.salesCount) {
+            changes.push(`販売件数: ${existingLivestream.salesCount?.toLocaleString() || 0} → ${rest.salesCount.toLocaleString()}`);
+          }
+          if (rest.productClicks !== undefined && rest.productClicks !== existingLivestream.productClicks) {
+            changes.push(`商品クリック: ${existingLivestream.productClicks?.toLocaleString() || 0} → ${rest.productClicks.toLocaleString()}`);
+          }
+          if (rest.cartAddCount !== undefined && rest.cartAddCount !== existingLivestream.cartAddCount) {
+            changes.push(`カート追加: ${existingLivestream.cartAddCount?.toLocaleString() || 0} → ${rest.cartAddCount.toLocaleString()}`);
+          }
+          if (rest.duration !== undefined && rest.duration !== existingLivestream.duration) {
+            changes.push(`時間: ${existingLivestream.duration || 0}分 → ${rest.duration}分`);
+          }
+          if (rest.platform && rest.platform !== existingLivestream.platform) {
+            changes.push(`プラットフォーム: ${existingLivestream.platform || '-'} → ${rest.platform}`);
+          }
+          if (rest.productCommission !== undefined && rest.productCommission !== existingLivestream.productCommission) {
+            changes.push(`手数料: ${existingLivestream.productCommission || '-'}% → ${rest.productCommission}%`);
+          }
+          
+          const changeDescription = changes.length > 0 
+            ? `ライブ配信を編集：${dateStr} ${existingLivestream.streamerName}\n${changes.join('\n')}`
+            : `ライブ配信を編集：${dateStr} ${existingLivestream.streamerName}`;
+          
           await logBrandEdit(
             existingLivestream.brandId,
             "update",
             "livestream",
             id,
             `${dateStr} ${existingLivestream.streamerName}`,
-            `ライブ配信を編集：${dateStr} ${existingLivestream.streamerName}`,
+            changeDescription,
             ctx.user.id,
-            ctx.user.name || ctx.user.email
+            ctx.user.name || ctx.user.email,
+            JSON.stringify(existingLivestream),
+            JSON.stringify({ ...existingLivestream, ...updateData })
           );
         }
         
@@ -2694,18 +2761,57 @@ Return ONLY valid JSON, no markdown or explanation.`,
           await updateBrandContract(id, data);
           console.log("[brandContract.update] Success for id:", id);
           
-          // Record edit log
+          // Record edit log with detailed changes
           if (existingContract) {
             const feeStr = existingContract.fixedFee ? `¥${existingContract.fixedFee.toLocaleString()}` : '未設定';
+            
+            // Build detailed change description
+            const changes: string[] = [];
+            if (rest.serviceType && rest.serviceType !== existingContract.serviceType) {
+              changes.push(`契約タイプ: ${existingContract.serviceType} → ${rest.serviceType}`);
+            }
+            if (rest.fixedFee !== undefined && rest.fixedFee !== existingContract.fixedFee) {
+              changes.push(`固定費: ¥${existingContract.fixedFee?.toLocaleString() || 0} → ¥${rest.fixedFee.toLocaleString()}`);
+            }
+            if (rest.commissionRate !== undefined && rest.commissionRate !== existingContract.commissionRate) {
+              changes.push(`成果報酬: ${existingContract.commissionRate || '-'}% → ${rest.commissionRate}%`);
+            }
+            if (rest.status && rest.status !== existingContract.status) {
+              changes.push(`ステータス: ${existingContract.status} → ${rest.status}`);
+            }
+            if (data.startDate && existingContract.startDate) {
+              const oldDate = new Date(existingContract.startDate).toLocaleDateString('ja-JP');
+              const newDate = new Date(data.startDate).toLocaleDateString('ja-JP');
+              if (oldDate !== newDate) {
+                changes.push(`開始日: ${oldDate} → ${newDate}`);
+              }
+            }
+            if (data.endDate && existingContract.endDate) {
+              const oldDate = new Date(existingContract.endDate).toLocaleDateString('ja-JP');
+              const newDate = new Date(data.endDate).toLocaleDateString('ja-JP');
+              if (oldDate !== newDate) {
+                changes.push(`終了日: ${oldDate} → ${newDate}`);
+              }
+            }
+            if (rest.memo !== undefined && rest.memo !== existingContract.memo) {
+              changes.push(`メモを更新`);
+            }
+            
+            const changeDescription = changes.length > 0 
+              ? `契約を編集：${existingContract.serviceType} ${feeStr}\n${changes.join('\n')}`
+              : `契約を編集：${existingContract.serviceType} ${feeStr}`;
+            
             await logBrandEdit(
               existingContract.brandId,
               "update",
               "contract",
               id,
               `${existingContract.serviceType} ${feeStr}`,
-              `契約を編集：${existingContract.serviceType} ${feeStr}`,
+              changeDescription,
               ctx.user.id,
-              ctx.user.name || ctx.user.email
+              ctx.user.name || ctx.user.email,
+              JSON.stringify(existingContract),
+              JSON.stringify({ ...existingContract, ...data })
             );
           }
           
