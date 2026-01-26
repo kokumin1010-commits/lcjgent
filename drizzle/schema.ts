@@ -853,3 +853,30 @@ export const contractLivestreamLinks = mysqlTable("contract_livestream_links", {
 
 export type ContractLivestreamLink = typeof contractLivestreamLinks.$inferSelect;
 export type InsertContractLivestreamLink = typeof contractLivestreamLinks.$inferInsert;
+
+
+/**
+ * Brand Edit Logs table for tracking all changes to brand data
+ * ブランドの編集ログテーブル - 誰が何をしたかを自動記録
+ */
+export const brandEditLogs = mysqlTable("brand_edit_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(), // References brands.id
+  // 操作情報
+  actionType: mysqlEnum("actionType", ["create", "update", "delete"]).notNull(), // 操作タイプ
+  entityType: mysqlEnum("entityType", ["brand", "product", "livestream", "contract", "memo"]).notNull(), // 対象エンティティ
+  entityId: int("entityId"), // 対象のID（削除の場合はnull可）
+  entityName: varchar("entityName", { length: 255 }), // 対象の名前（表示用）
+  // 変更内容
+  changeDescription: text("changeDescription").notNull(), // 変更内容の説明
+  previousValue: text("previousValue"), // 変更前の値（JSON形式）
+  newValue: text("newValue"), // 変更後の値（JSON形式）
+  // 操作者情報
+  userId: int("userId").notNull(), // 操作したユーザーID
+  userName: varchar("userName", { length: 255 }).notNull(), // 操作したユーザー名
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type BrandEditLog = typeof brandEditLogs.$inferSelect;
+export type InsertBrandEditLog = typeof brandEditLogs.$inferInsert;

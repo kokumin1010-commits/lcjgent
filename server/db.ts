@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -898,7 +898,7 @@ export async function createBrandProduct(productData: InsertBrandProduct) {
   if (!db) throw new Error("Database not available");
   
   const result = await db.insert(brandProducts).values(productData);
-  return result;
+  return { id: Number(result[0].insertId), ...productData };
 }
 
 // Get products by brand ID
@@ -907,6 +907,15 @@ export async function getProductsByBrandId(brandId: number) {
   if (!db) return [];
   
   return await db.select().from(brandProducts).where(eq(brandProducts.brandId, brandId)).orderBy(desc(brandProducts.createdAt));
+}
+
+// Get product by ID
+export async function getBrandProductById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select().from(brandProducts).where(eq(brandProducts.id, id)).limit(1);
+  return result.length > 0 ? result[0] : null;
 }
 
 // Update product
@@ -3578,4 +3587,59 @@ export async function getLiversWithStats(month: string) {
   );
   
   return liversWithStats;
+}
+
+
+
+// ============================================
+// Brand Edit Log Functions (編集ログ)
+// ============================================
+
+// Create a new edit log entry
+export async function createBrandEditLog(data: InsertBrandEditLog) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(brandEditLogs).values(data);
+  return { id: Number(result[0].insertId), ...data };
+}
+
+// Get edit logs for a brand
+export async function getBrandEditLogs(brandId: number, limit: number = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(brandEditLogs)
+    .where(eq(brandEditLogs.brandId, brandId))
+    .orderBy(desc(brandEditLogs.createdAt))
+    .limit(limit);
+}
+
+// Helper function to create edit log with common fields
+export async function logBrandEdit(
+  brandId: number,
+  actionType: "create" | "update" | "delete",
+  entityType: "brand" | "product" | "livestream" | "contract" | "memo",
+  entityId: number | null,
+  entityName: string | null,
+  changeDescription: string,
+  userId: number,
+  userName: string,
+  previousValue?: string,
+  newValue?: string
+) {
+  return await createBrandEditLog({
+    brandId,
+    actionType,
+    entityType,
+    entityId,
+    entityName,
+    changeDescription,
+    previousValue,
+    newValue,
+    userId,
+    userName,
+  });
 }

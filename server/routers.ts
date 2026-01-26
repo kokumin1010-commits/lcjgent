@@ -55,6 +55,7 @@ import {
   deleteBrand,
   createBrandProduct,
   getProductsByBrandId,
+  getBrandProductById,
   updateBrandProduct,
   deleteBrandProduct,
   createBrandActivity,
@@ -185,6 +186,9 @@ import {
   getLivestreamById,
   updateLivestreamResult,
   getLiversWithStats,
+  createBrandEditLog,
+  getBrandEditLogs,
+  logBrandEdit,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -1662,6 +1666,16 @@ ${JSON.stringify(teamSummary, null, 2)}`;
         await setBrandLcjStaff(input.brandId, input.reportStaffIds);
         return { success: true };
       }),
+
+    // Get edit logs for a brand
+    getEditLogs: protectedProcedure
+      .input(z.object({ 
+        brandId: z.number(),
+        limit: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        return await getBrandEditLogs(input.brandId, input.limit || 50);
+      }),
   }),
 
   // Brand Products Router
@@ -1695,8 +1709,22 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           usageMethod: z.string().optional(),
         })
       )
-      .mutation(async ({ input }) => {
-        return await createBrandProduct(input);
+      .mutation(async ({ ctx, input }) => {
+        const product = await createBrandProduct(input);
+        
+        // Record edit log
+        await logBrandEdit(
+          input.brandId,
+          "create",
+          "product",
+          product.id,
+          input.productName,
+          `商品を追加：${input.productName}`,
+          ctx.user.id,
+          ctx.user.name || ctx.user.email
+        );
+        
+        return product;
       }),
 
     listByBrand: protectedProcedure
@@ -1733,10 +1761,14 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           createdAt: z.string().optional(), // 登録日の編集用
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
         try {
           console.log("[brandProduct.update] Input received:", JSON.stringify(input, null, 2));
           const { id, createdAt, ...updateData } = input;
+          
+          // Get existing product for logging
+          const existingProduct = await getBrandProductById(id);
+          
           // createdAtが指定されている場合は変換して追加
           const finalUpdateData = createdAt 
             ? { ...updateData, createdAt: new Date(createdAt) }
@@ -1744,6 +1776,21 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           console.log("[brandProduct.update] Final update data:", JSON.stringify(finalUpdateData, null, 2));
           await updateBrandProduct(id, finalUpdateData);
           console.log("[brandProduct.update] Success for id:", id);
+          
+          // Record edit log
+          if (existingProduct) {
+            await logBrandEdit(
+              existingProduct.brandId,
+              "update",
+              "product",
+              id,
+              existingProduct.productName,
+              `商品を編集：${existingProduct.productName}`,
+              ctx.user.id,
+              ctx.user.name || ctx.user.email
+            );
+          }
+          
           return { success: true };
         } catch (error) {
           console.error("[brandProduct.update] Error:", error);
@@ -1753,8 +1800,26 @@ ${JSON.stringify(teamSummary, null, 2)}`;
 
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
+        // Get existing product for logging
+        const existingProduct = await getBrandProductById(input.id);
+        
         await deleteBrandProduct(input.id);
+        
+        // Record edit log
+        if (existingProduct) {
+          await logBrandEdit(
+            existingProduct.brandId,
+            "delete",
+            "product",
+            input.id,
+            existingProduct.productName,
+            `商品を削除：${existingProduct.productName}`,
+            ctx.user.id,
+            ctx.user.name || ctx.user.email
+          );
+        }
+        
         return { success: true };
       }),
 
@@ -1997,11 +2062,26 @@ ${JSON.stringify(teamSummary, null, 2)}`;
         })
       )
       .mutation(async ({ ctx, input }) => {
-        return await createBrandLivestream({
+        const livestream = await createBrandLivestream({
           ...input,
           livestreamDate: new Date(input.livestreamDate),
           createdBy: ctx.user.id,
         });
+        
+        // Record edit log
+        const dateStr = new Date(input.livestreamDate).toLocaleDateString('ja-JP');
+        await logBrandEdit(
+          input.brandId,
+          "create",
+          "livestream",
+          livestream.id,
+          `${dateStr} ${input.streamerName}`,
+          `ライブ配信を追加：${dateStr} ${input.streamerName}`,
+          ctx.user.id,
+          ctx.user.name || ctx.user.email
+        );
+        
+        return livestream;
       }),
 
     listByBrand: protectedProcedure
@@ -2046,22 +2126,65 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           livestreamStartTime: z.string().optional(), // ライブ開始時間 (e.g., "14:30")
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
         const { id, livestreamDate, ...rest } = input;
+        
+        // Get existing livestream for logging
+        const existingLivestream = await getLivestreamById(id);
+        
         const updateData: any = { ...rest };
         if (livestreamDate) {
           updateData.livestreamDate = new Date(livestreamDate);
         }
         await updateBrandLivestream(id, updateData);
+        
+        // Record edit log
+        if (existingLivestream) {
+          const dateStr = existingLivestream.livestreamDate 
+            ? new Date(existingLivestream.livestreamDate).toLocaleDateString('ja-JP')
+            : '不明';
+          await logBrandEdit(
+            existingLivestream.brandId,
+            "update",
+            "livestream",
+            id,
+            `${dateStr} ${existingLivestream.streamerName}`,
+            `ライブ配信を編集：${dateStr} ${existingLivestream.streamerName}`,
+            ctx.user.id,
+            ctx.user.name || ctx.user.email
+          );
+        }
+        
         return { success: true };
       }),
 
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
+        // Get existing livestream for logging
+        const existingLivestream = await getLivestreamById(input.id);
+        
         // 商品別GMVも削除
         await deleteLivestreamProductsByLivestreamId(input.id);
         await deleteBrandLivestream(input.id);
+        
+        // Record edit log
+        if (existingLivestream) {
+          const dateStr = existingLivestream.livestreamDate 
+            ? new Date(existingLivestream.livestreamDate).toLocaleDateString('ja-JP')
+            : '不明';
+          await logBrandEdit(
+            existingLivestream.brandId,
+            "delete",
+            "livestream",
+            input.id,
+            `${dateStr} ${existingLivestream.streamerName}`,
+            `ライブ配信を削除：${dateStr} ${existingLivestream.streamerName}`,
+            ctx.user.id,
+            ctx.user.name || ctx.user.email
+          );
+        }
+        
         return { success: true };
       }),
 
@@ -2505,6 +2628,19 @@ Return ONLY valid JSON, no markdown or explanation.`,
             fixedFee: input.fixedFee,
           },
         });
+        
+        // Record edit log
+        const feeStr = input.fixedFee ? `¥${input.fixedFee.toLocaleString()}` : '未設定';
+        await logBrandEdit(
+          input.brandId,
+          "create",
+          "contract",
+          contract.id,
+          `${input.serviceType} ${feeStr}`,
+          `契約を追加：${input.serviceType} ${feeStr}`,
+          ctx.user.id,
+          ctx.user.name || ctx.user.email
+        );
 
         return { ...contract, contractId: contract.id };
       }),
@@ -2538,10 +2674,14 @@ Return ONLY valid JSON, no markdown or explanation.`,
           memo: z.string().optional(),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
         try {
           console.log("[brandContract.update] Input received:", JSON.stringify(input, null, 2));
           const { id, startDate, endDate, ...rest } = input;
+          
+          // Get existing contract for logging
+          const existingContract = await getContractById(id);
+          
           const data: any = { ...rest };
           // 日付を適切に変換
           if (startDate) {
@@ -2553,6 +2693,22 @@ Return ONLY valid JSON, no markdown or explanation.`,
           console.log("[brandContract.update] Final data:", JSON.stringify(data, null, 2));
           await updateBrandContract(id, data);
           console.log("[brandContract.update] Success for id:", id);
+          
+          // Record edit log
+          if (existingContract) {
+            const feeStr = existingContract.fixedFee ? `¥${existingContract.fixedFee.toLocaleString()}` : '未設定';
+            await logBrandEdit(
+              existingContract.brandId,
+              "update",
+              "contract",
+              id,
+              `${existingContract.serviceType} ${feeStr}`,
+              `契約を編集：${existingContract.serviceType} ${feeStr}`,
+              ctx.user.id,
+              ctx.user.name || ctx.user.email
+            );
+          }
+          
           return { success: true };
         } catch (error) {
           console.error("[brandContract.update] Error:", error);
@@ -2563,8 +2719,27 @@ Return ONLY valid JSON, no markdown or explanation.`,
     // Delete a contract
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
+        // Get existing contract for logging
+        const existingContract = await getContractById(input.id);
+        
         await deleteBrandContract(input.id);
+        
+        // Record edit log
+        if (existingContract) {
+          const feeStr = existingContract.fixedFee ? `¥${existingContract.fixedFee.toLocaleString()}` : '未設定';
+          await logBrandEdit(
+            existingContract.brandId,
+            "delete",
+            "contract",
+            input.id,
+            `${existingContract.serviceType} ${feeStr}`,
+            `契約を削除：${existingContract.serviceType} ${feeStr}`,
+            ctx.user.id,
+            ctx.user.name || ctx.user.email
+          );
+        }
+        
         return { success: true };
       }),
 

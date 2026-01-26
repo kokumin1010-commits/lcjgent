@@ -37,7 +37,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn, Info } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn, Info, History } from "lucide-react";
 import { toast } from "sonner";
 
 const translations = {
@@ -130,6 +130,8 @@ const translations = {
     times: "回",
     cases: "件",
     add: "追加",
+    editLog: "編集ログ",
+    noEditLogs: "編集履歴はありません",
   },
   zh: {
     title: "品牌详情",
@@ -220,6 +222,8 @@ const translations = {
     times: "回",
     cases: "件",
     add: "添加",
+    editLog: "编辑日志",
+    noEditLogs: "没有编辑历史",
   },
 };
 
@@ -271,6 +275,105 @@ const formatDate = (date: Date | string | null | undefined) => {
   const d = new Date(date);
   return d.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" });
 };
+
+// 編集ログセクションコンポーネント
+function EditLogSection({ brandId, language, noEditLogsText }: { brandId: number; language: string; noEditLogsText: string }) {
+  const { data: editLogs = [] } = trpc.brand.getEditLogs.useQuery(
+    { brandId, limit: 50 },
+    { enabled: brandId > 0 }
+  );
+
+  const actionTypeLabels: Record<string, Record<string, string>> = {
+    ja: {
+      create: "追加",
+      update: "編集",
+      delete: "削除",
+    },
+    zh: {
+      create: "添加",
+      update: "编辑",
+      delete: "删除",
+    },
+  };
+
+  const entityTypeLabels: Record<string, Record<string, string>> = {
+    ja: {
+      product: "商品",
+      livestream: "ライブ配信",
+      contract: "契約",
+    },
+    zh: {
+      product: "商品",
+      livestream: "直播",
+      contract: "合同",
+    },
+  };
+
+  const getActionColor = (actionType: string) => {
+    switch (actionType) {
+      case "create": return "text-green-400 bg-green-500/20";
+      case "update": return "text-amber-400 bg-amber-500/20";
+      case "delete": return "text-red-400 bg-red-500/20";
+      default: return "text-gray-400 bg-gray-500/20";
+    }
+  };
+
+  const getEntityIcon = (entityType: string) => {
+    switch (entityType) {
+      case "product": return <Package className="h-3 w-3" />;
+      case "livestream": return <Video className="h-3 w-3" />;
+      case "contract": return <FileText className="h-3 w-3" />;
+      default: return <FileText className="h-3 w-3" />;
+    }
+  };
+
+  if (editLogs.length === 0) {
+    return <p className="text-gray-500 text-center py-8">{noEditLogsText}</p>;
+  }
+
+  return (
+    <div className="space-y-3 max-h-[400px] overflow-y-auto">
+      {editLogs.map((log: any, index: number) => (
+        <div key={log.id} className="relative pl-6 pb-2">
+          {/* Timeline line */}
+          {index < editLogs.length - 1 && (
+            <div className="absolute left-[9px] top-6 bottom-0 w-0.5 bg-purple-900/30" />
+          )}
+          {/* Timeline dot */}
+          <div className="absolute left-0 top-1 w-[18px] h-[18px] rounded-full bg-purple-900/50 border-2 border-purple-500/50 flex items-center justify-center">
+            <div className="w-2 h-2 rounded-full bg-purple-400" />
+          </div>
+          {/* Content */}
+          <div className="bg-black/50 rounded-lg border border-purple-900/20 p-3 hover:border-purple-500/30 transition-colors">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${getActionColor(log.actionType)}`}>
+                    {actionTypeLabels[language]?.[log.actionType] || log.actionType}
+                  </span>
+                  <span className="flex items-center gap-1 text-xs text-gray-400">
+                    {getEntityIcon(log.entityType)}
+                    {entityTypeLabels[language]?.[log.entityType] || log.entityType}
+                  </span>
+                </div>
+                <p className="text-white text-sm">{log.changeDescription}</p>
+                <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                  <span className="flex items-center gap-1">
+                    <User className="h-3 w-3" />
+                    {log.userName || '不明'}
+                  </span>
+                  <span>
+                    {new Date(log.createdAt).toLocaleString("ja-JP")}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // 契約ROAS表示コンポーネント
 const INDUSTRY_AVG_ROAS = 0.8; // 業界平均ROAS
@@ -1458,6 +1561,18 @@ export default function BrandDetail() {
               ))
             )}
           </div>
+        </div>
+
+        {/* Edit Log Section */}
+        <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,0,0,0.1)]">
+          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-3">
+            <div className="w-1 h-6 bg-gradient-to-b from-purple-400 to-purple-600 rounded-full" />
+            <History className="h-5 w-5 text-purple-400" />
+            {t.editLog}
+          </h2>
+
+          {/* Edit logs timeline */}
+          <EditLogSection brandId={brand.id} language={language} noEditLogsText={t.noEditLogs} />
         </div>
       </div>
 
