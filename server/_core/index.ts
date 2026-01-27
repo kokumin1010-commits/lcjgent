@@ -314,10 +314,13 @@ async function startServer() {
       
       const result = await storagePut(fileKey, file.buffer, file.mimetype);
       
+      // Decode filename from latin1 to UTF-8 (multer encodes as latin1)
+      const decodedFileName = Buffer.from(file.originalname, 'latin1').toString('utf-8');
+      
       res.json({
         url: result.url,
         key: fileKey,
-        fileName: file.originalname,
+        fileName: decodedFileName,
         fileSize: file.size,
         mimeType: file.mimetype,
       });
