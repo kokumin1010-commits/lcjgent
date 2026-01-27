@@ -1775,7 +1775,16 @@ export default function BrandDetail() {
                     </tr>
                   ) : (
                     products.map((product) => (
-                      <tr key={product.id} className="border-b border-red-900/20 hover:bg-red-900/10 transition-colors group">
+                      <tr 
+                        key={product.id} 
+                        className="border-b border-red-900/20 hover:bg-red-900/10 transition-colors group cursor-pointer"
+                        onClick={(e) => {
+                          // アクションボタンのクリックは除外
+                          if ((e.target as HTMLElement).closest('button')) return;
+                          setSelectedProductForDetail(product);
+                          setProductDetailDialogOpen(true);
+                        }}
+                      >
                         <td className="py-3 px-2">
                           <div className="flex items-center gap-3">
                             {/* 登録日表示 */}
@@ -1797,7 +1806,13 @@ export default function BrandDetail() {
                                 }}
                               />
                             ) : (
-                              <div className="w-12 h-12 bg-red-900/20 rounded-lg border border-red-900/30 flex items-center justify-center">
+                              <div 
+                                className="w-12 h-12 bg-red-900/20 rounded-lg border border-red-900/30 flex items-center justify-center cursor-pointer hover:border-pink-400 hover:bg-gray-700 transition-all"
+                                onClick={() => {
+                                  setSelectedProductForDetail(product);
+                                  setProductDetailDialogOpen(true);
+                                }}
+                              >
                                 <Package className="w-6 h-6 text-gray-600" />
                               </div>
                             )}

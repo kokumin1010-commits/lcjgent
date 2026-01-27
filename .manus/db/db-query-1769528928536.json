@@ -1,0 +1,170 @@
+{
+  "query": "SELECT \n  bl.id as livestream_id,\n  bl.brandId,\n  bl.productId,\n  bl.gmv,\n  bl.salesAmount,\n  bp.productName\nFROM brand_livestreams bl\nLEFT JOIN brand_products bp ON bl.productId = bp.id\nWHERE bl.productId IS NOT NULL\nLIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT \n  bl.id as livestream_id,\n  bl.brandId,\n  bl.productId,\n  bl.gmv,\n  bl.salesAmount,\n  bp.productName\nFROM brand_livestreams bl\nLEFT JOIN brand_products bp ON bl.productId = bp.id\nWHERE bl.productId IS NOT NULL\nLIMIT 20;",
+  "rows": [
+    {
+      "livestream_id": "3",
+      "brandId": "120001",
+      "productId": "22",
+      "gmv": "846696",
+      "salesAmount": "NULL",
+      "productName": "リコアセラム DDS RD カプセル（京極琉LIVEコラボセット、15粒プレゼント、ホワイトポーチプレゼント付き）"
+    },
+    {
+      "livestream_id": "4",
+      "brandId": "120001",
+      "productId": "23",
+      "gmv": "531049",
+      "salesAmount": "NULL",
+      "productName": "【ビジュードゥメール】ブリリアントピールゲル・トリートメントリペアクリア美容液・ポーチプレゼント（京極琉LIVEコラボセット）"
+    },
+    {
+      "livestream_id": "240014",
+      "brandId": "150001",
+      "productId": "30009",
+      "gmv": "74450",
+      "salesAmount": "NULL",
+      "productName": "【京極琉(KG)限定】|Canban参半| マウスウォッシュ"
+    },
+    {
+      "livestream_id": "150001",
+      "brandId": "90009",
+      "productId": "30012",
+      "gmv": "516760",
+      "salesAmount": "NULL",
+      "productName": "スパトリートメント NMNシートマスク 美容液 21ml 含浸マスク×4枚入"
+    },
+    {
+      "livestream_id": "150002",
+      "brandId": "90009",
+      "productId": "30015",
+      "gmv": "616754",
+      "salesAmount": "NULL",
+      "productName": "スパトリートメント eX リアルC-セーラム"
+    },
+    {
+      "livestream_id": "180001",
+      "brandId": "30001",
+      "productId": "30024",
+      "gmv": "1737271",
+      "salesAmount": "NULL",
+      "productName": "5ml フリーズドライ + 5ml エッセンス美容液"
+    },
+    {
+      "livestream_id": "150003",
+      "brandId": "30001",
+      "productId": "30028",
+      "gmv": "1878862",
+      "salesAmount": "NULL",
+      "productName": "RENOVATIO NMN24000"
+    },
+    {
+      "livestream_id": "150004",
+      "brandId": "30001",
+      "productId": "30033",
+      "gmv": "1159431",
+      "salesAmount": "NULL",
+      "productName": "RENOVATIO バイオジェニクス ローション"
+    },
+    {
+      "livestream_id": "240013",
+      "brandId": "90003",
+      "productId": "30047",
+      "gmv": "240621",
+      "salesAmount": "NULL",
+      "productName": "Mooekiss モーキス 2in1エッセンスリップティント (1本) クッションファンデ (1個)"
+    },
+    {
+      "livestream_id": "150021",
+      "brandId": "90005",
+      "productId": "30051",
+      "gmv": "461871",
+      "salesAmount": "NULL",
+      "productName": "F&W Collagen Luxe+ ミックスベリー風味 コラーゲン 12,800mg"
+    },
+    {
+      "livestream_id": "150026",
+      "brandId": "90006",
+      "productId": "30052",
+      "gmv": "164438",
+      "salesAmount": "NULL",
+      "productName": "Pink Moments ペット用フリーズドライ 60g"
+    },
+    {
+      "livestream_id": "150027",
+      "brandId": "90005",
+      "productId": "30053",
+      "gmv": "776502",
+      "salesAmount": "NULL",
+      "productName": "F&W Café Black ダイエットサポート (F&W Coffee ブラック ダイエットサポート成分コーヒー)"
+    },
+    {
+      "livestream_id": "240012",
+      "brandId": "90004",
+      "productId": "90010",
+      "gmv": "630834",
+      "salesAmount": "NULL",
+      "productName": "【OEING】 2ピースの女性用下着、大きな胸の下着、小さくてたるみ防止、薄くて通気性のある、ベストスタイルのフルカップアンチコンペックスブラ、負担を軽減し、よりリラックスした気分にさせます#518"
+    },
+    {
+      "livestream_id": "210001",
+      "brandId": "90008",
+      "productId": "90016",
+      "gmv": "106836",
+      "salesAmount": "NULL",
+      "productName": "【2026年限定福袋】funnyelves福袋"
+    },
+    {
+      "livestream_id": "210006",
+      "brandId": "90008",
+      "productId": "90022",
+      "gmv": "96699",
+      "salesAmount": "NULL",
+      "productName": "FUNNY ELVES 方里 ルースパウダー8g+クレンジングジェル"
+    },
+    {
+      "livestream_id": "210007",
+      "brandId": "90008",
+      "productId": "90024",
+      "gmv": "49167",
+      "salesAmount": "NULL",
+      "productName": "クッションファンデ+ネビュラプレストパウダー FUNNY ELVES 方里"
+    },
+    {
+      "livestream_id": "210008",
+      "brandId": "90001",
+      "productId": "90030",
+      "gmv": "745156",
+      "salesAmount": "NULL",
+      "productName": "MISTINE 1回分の日焼け止め"
+    },
+    {
+      "livestream_id": "240009",
+      "brandId": "90001",
+      "productId": "120002",
+      "gmv": "122568",
+      "salesAmount": "NULL",
+      "productName": "MISTINE 落ちないタイミルクティーリップグロス"
+    },
+    {
+      "livestream_id": "240010",
+      "brandId": "90001",
+      "productId": "120003",
+      "gmv": "61131",
+      "salesAmount": "NULL",
+      "productName": "MISTINE リキッドチーク"
+    },
+    {
+      "livestream_id": "240011",
+      "brandId": "90001",
+      "productId": "120004",
+      "gmv": "57906",
+      "salesAmount": "NULL",
+      "productName": "MISTINE リキッドチーク2本セット"
+    }
+  ],
+  "messages": [],
+  "stdout": "livestream_id\tbrandId\tproductId\tgmv\tsalesAmount\tproductName\n3\t120001\t22\t846696\tNULL\tリコアセラム DDS RD カプセル（京極琉LIVEコラボセット、15粒プレゼント、ホワイトポーチプレゼント付き）\n4\t120001\t23\t531049\tNULL\t【ビジュードゥメール】ブリリアントピールゲル・トリートメントリペアクリア美容液・ポーチプレゼント（京極琉LIVEコラボセット）\n240014\t150001\t30009\t74450\tNULL\t【京極琉(KG)限定】|Canban参半| マウスウォッシュ\n150001\t90009\t30012\t516760\tNULL\tスパトリートメント NMNシートマスク 美容液 21ml 含浸マスク×4枚入\n150002\t90009\t30015\t616754\tNULL\tスパトリートメント eX リアルC-セーラム\n180001\t30001\t30024\t1737271\tNULL\t5ml フリーズドライ + 5ml エッセンス美容液\n150003\t30001\t30028\t1878862\tNULL\tRENOVATIO NMN24000\n150004\t30001\t30033\t1159431\tNULL\tRENOVATIO バイオジェニクス ローション\n240013\t90003\t30047\t240621\tNULL\tMooekiss モーキス 2in1エッセンスリップティント (1本) クッションファンデ (1個)\n150021\t90005\t30051\t461871\tNULL\tF&W Collagen Luxe+ ミックスベリー風味 コラーゲン 12,800mg\n150026\t90006\t30052\t164438\tNULL\tPink Moments ペット用フリーズドライ 60g\n150027\t90005\t30053\t776502\tNULL\tF&W Café Black ダイエットサポート (F&W Coffee ブラック ダイエットサポート成分コーヒー)\n240012\t90004\t90010\t630834\tNULL\t【OEING】 2ピースの女性用下着、大きな胸の下着、小さくてたるみ防止、薄くて通気性のある、ベストスタイルのフルカップアンチコンペックスブラ、負担を軽減し、よりリラックスした気分にさせます#518\n210001\t90008\t90016\t106836\tNULL\t【2026年限定福袋】funnyelves福袋\n210006\t90008\t90022\t96699\tNULL\tFUNNY ELVES 方里 ルースパウダー8g+クレンジングジェル\n210007\t90008\t90024\t49167\tNULL\tクッションファンデ+ネビュラプレストパウダー FUNNY ELVES 方里\n210008\t90001\t90030\t745156\tNULL\tMISTINE 1回分の日焼け止め\n240009\t90001\t120002\t122568\tNULL\tMISTINE 落ちないタイミルクティーリップグロス\n240010\t90001\t120003\t61131\tNULL\tMISTINE リキッドチーク\n240011\t90001\t120004\t57906\tNULL\tMISTINE リキッドチーク2本セット\n",
+  "stderr": "",
+  "execution_time_ms": 1571
+}

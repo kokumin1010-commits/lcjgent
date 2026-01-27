@@ -1,0 +1,70 @@
+{
+  "query": "SELECT \n  brandId,\n  COUNT(*) as livestream_count,\n  SUM(CASE WHEN productId IS NOT NULL THEN 1 ELSE 0 END) as with_product_count,\n  SUM(gmv) as total_gmv\nFROM brand_livestreams\nGROUP BY brandId\nORDER BY total_gmv DESC\nLIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT \n  brandId,\n  COUNT(*) as livestream_count,\n  SUM(CASE WHEN productId IS NOT NULL THEN 1 ELSE 0 END) as with_product_count,\n  SUM(gmv) as total_gmv\nFROM brand_livestreams\nGROUP BY brandId\nORDER BY total_gmv DESC\nLIMIT 10;",
+  "rows": [
+    {
+      "brandId": "30001",
+      "livestream_count": "7",
+      "with_product_count": "7",
+      "total_gmv": "7958084"
+    },
+    {
+      "brandId": "120001",
+      "livestream_count": "6",
+      "with_product_count": "6",
+      "total_gmv": "2658526"
+    },
+    {
+      "brandId": "90005",
+      "livestream_count": "2",
+      "with_product_count": "2",
+      "total_gmv": "1238373"
+    },
+    {
+      "brandId": "90009",
+      "livestream_count": "2",
+      "with_product_count": "2",
+      "total_gmv": "1133514"
+    },
+    {
+      "brandId": "90001",
+      "livestream_count": "4",
+      "with_product_count": "4",
+      "total_gmv": "986761"
+    },
+    {
+      "brandId": "90004",
+      "livestream_count": "1",
+      "with_product_count": "1",
+      "total_gmv": "630834"
+    },
+    {
+      "brandId": "150001",
+      "livestream_count": "3",
+      "with_product_count": "3",
+      "total_gmv": "364595"
+    },
+    {
+      "brandId": "120003",
+      "livestream_count": "1",
+      "with_product_count": "1",
+      "total_gmv": "353972"
+    },
+    {
+      "brandId": "180001",
+      "livestream_count": "1",
+      "with_product_count": "1",
+      "total_gmv": "353972"
+    },
+    {
+      "brandId": "90008",
+      "livestream_count": "3",
+      "with_product_count": "3",
+      "total_gmv": "252702"
+    }
+  ],
+  "messages": [],
+  "stdout": "brandId\tlivestream_count\twith_product_count\ttotal_gmv\n30001\t7\t7\t7958084\n120001\t6\t6\t2658526\n90005\t2\t2\t1238373\n90009\t2\t2\t1133514\n90001\t4\t4\t986761\n90004\t1\t1\t630834\n150001\t3\t3\t364595\n120003\t1\t1\t353972\n180001\t1\t1\t353972\n90008\t3\t3\t252702\n",
+  "stderr": "",
+  "execution_time_ms": 1527
+}

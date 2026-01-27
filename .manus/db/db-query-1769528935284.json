@@ -1,0 +1,38 @@
+{
+  "query": "SELECT \n  bp.id as product_id,\n  bp.productName,\n  bp.brandId,\n  COALESCE(SUM(bl.gmv), 0) as total_gmv,\n  COUNT(bl.id) as livestream_count\nFROM brand_products bp\nLEFT JOIN brand_livestreams bl ON bp.id = bl.productId\nWHERE bp.brandId = 180005\nGROUP BY bp.id, bp.productName, bp.brandId\nORDER BY total_gmv DESC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT \n  bp.id as product_id,\n  bp.productName,\n  bp.brandId,\n  COALESCE(SUM(bl.gmv), 0) as total_gmv,\n  COUNT(bl.id) as livestream_count\nFROM brand_products bp\nLEFT JOIN brand_livestreams bl ON bp.id = bl.productId\nWHERE bp.brandId = 180005\nGROUP BY bp.id, bp.productName, bp.brandId\nORDER BY total_gmv DESC;",
+  "rows": [
+    {
+      "product_id": "30055",
+      "productName": "水拭き掃除機 K30 Mix",
+      "brandId": "180005",
+      "total_gmv": "0",
+      "livestream_count": "0"
+    },
+    {
+      "product_id": "30056",
+      "productName": "水拭き掃除機 K30SE",
+      "brandId": "180005",
+      "total_gmv": "0",
+      "livestream_count": "0"
+    },
+    {
+      "product_id": "30057",
+      "productName": "水拭き掃除機 K10Pro",
+      "brandId": "180005",
+      "total_gmv": "0",
+      "livestream_count": "0"
+    },
+    {
+      "product_id": "30058",
+      "productName": "コードレス掃除機 S1 Detect",
+      "brandId": "180005",
+      "total_gmv": "0",
+      "livestream_count": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "product_id\tproductName\tbrandId\ttotal_gmv\tlivestream_count\n30055\t水拭き掃除機 K30 Mix\t180005\t0\t0\n30056\t水拭き掃除機 K30SE\t180005\t0\t0\n30057\t水拭き掃除機 K10Pro\t180005\t0\t0\n30058\tコードレス掃除機 S1 Detect\t180005\t0\t0\n",
+  "stderr": "",
+  "execution_time_ms": 1527
+}
