@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -3753,4 +3753,78 @@ export async function reorderProductImages(productId: number, imageIds: number[]
   }
   
   return { success: true };
+}
+
+
+// ========================================
+// Brand Files Functions
+// ブランドファイル管理関数
+// ========================================
+
+/**
+ * Get all files for a brand
+ */
+export async function getBrandFiles(brandId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db
+    .select()
+    .from(brandFiles)
+    .where(eq(brandFiles.brandId, brandId))
+    .orderBy(desc(brandFiles.createdAt));
+  
+  return result;
+}
+
+/**
+ * Create a new brand file record
+ */
+export async function createBrandFile(data: InsertBrandFile) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(brandFiles).values(data);
+  return { id: result[0].insertId };
+}
+
+/**
+ * Delete a brand file record
+ */
+export async function deleteBrandFile(fileId: number, brandId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // First get the file to return the key for S3 deletion
+  const file = await db
+    .select()
+    .from(brandFiles)
+    .where(and(eq(brandFiles.id, fileId), eq(brandFiles.brandId, brandId)))
+    .limit(1);
+  
+  if (file.length === 0) {
+    throw new Error("File not found");
+  }
+  
+  await db
+    .delete(brandFiles)
+    .where(and(eq(brandFiles.id, fileId), eq(brandFiles.brandId, brandId)));
+  
+  return { fileKey: file[0].fileKey, fileName: file[0].fileName };
+}
+
+/**
+ * Get a single brand file by ID
+ */
+export async function getBrandFileById(fileId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db
+    .select()
+    .from(brandFiles)
+    .where(eq(brandFiles.id, fileId))
+    .limit(1);
+  
+  return result.length > 0 ? result[0] : null;
 }

@@ -194,6 +194,10 @@ import {
   addProductImage,
   deleteProductImage,
   reorderProductImages,
+  getBrandFiles,
+  createBrandFile,
+  deleteBrandFile,
+  getBrandFileById,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -4526,6 +4530,78 @@ TikTok LIVEダッシュボードの典型的なレイアウト：
         }
 
         return { advice: content.trim() };
+      }),
+  }),
+
+  // Brand Files Router
+  brandFiles: router({
+    // Get all files for a brand
+    list: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        const files = await getBrandFiles(input.brandId);
+        return files;
+      }),
+
+    // Create a new file record
+    create: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+        fileName: z.string(),
+        fileUrl: z.string(),
+        fileKey: z.string(),
+        fileSize: z.number().optional(),
+        mimeType: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const result = await createBrandFile({
+          brandId: input.brandId,
+          fileName: input.fileName,
+          fileUrl: input.fileUrl,
+          fileKey: input.fileKey,
+          fileSize: input.fileSize,
+          mimeType: input.mimeType,
+          uploadedBy: ctx.user.id,
+          uploadedByName: ctx.user.name || ctx.user.email,
+        });
+
+        // Log the edit
+        await logBrandEdit(
+          input.brandId,
+          "create",
+          "memo", // Using memo as closest type for files
+          result.id,
+          input.fileName,
+          `ファイル「${input.fileName}」をアップロードしました`,
+          ctx.user.id,
+          ctx.user.name || ctx.user.email
+        );
+
+        return result;
+      }),
+
+    // Delete a file
+    delete: protectedProcedure
+      .input(z.object({
+        fileId: z.number(),
+        brandId: z.number(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const result = await deleteBrandFile(input.fileId, input.brandId);
+
+        // Log the edit
+        await logBrandEdit(
+          input.brandId,
+          "delete",
+          "memo", // Using memo as closest type for files
+          input.fileId,
+          result.fileName,
+          `ファイル「${result.fileName}」を削除しました`,
+          ctx.user.id,
+          ctx.user.name || ctx.user.email
+        );
+
+        return result;
       }),
   }),
 });

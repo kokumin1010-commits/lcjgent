@@ -37,7 +37,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn, Info, History, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn, Info, History, ChevronLeft, ChevronRight, Download, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 
 const translations = {
@@ -132,6 +132,12 @@ const translations = {
     add: "追加",
     editLog: "編集ログ",
     noEditLogs: "編集履歴はありません",
+    // Brand Files
+    brandFiles: "ブランドファイル",
+    uploadFile: "ファイルをアップロード",
+    noFiles: "ファイルはありません",
+    deleteFile: "削除",
+    uploading: "アップロード中...",
   },
   zh: {
     title: "品牌详情",
@@ -224,6 +230,12 @@ const translations = {
     add: "添加",
     editLog: "编辑日志",
     noEditLogs: "没有编辑历史",
+    // Brand Files
+    brandFiles: "品牌文件",
+    uploadFile: "上传文件",
+    noFiles: "没有文件",
+    deleteFile: "删除",
+    uploading: "上传中...",
   },
 };
 
@@ -379,6 +391,147 @@ function EditLogSection({ brandId, language, noEditLogsText }: { brandId: number
   );
 }
 
+// ブランドファイルセクションコンポーネント
+function BrandFilesSection({ brandId, t }: { brandId: number; t: any }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  
+  const { data: files = [], refetch } = trpc.brandFiles.list.useQuery(
+    { brandId },
+    { enabled: brandId > 0 }
+  );
+  
+  const createFileMutation = trpc.brandFiles.create.useMutation({
+    onSuccess: () => {
+      refetch();
+    },
+  });
+  
+  const deleteFileMutation = trpc.brandFiles.delete.useMutation({
+    onSuccess: () => {
+      refetch();
+    },
+  });
+  
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("brandId", brandId.toString());
+      
+      const response = await fetch("/api/brand-file-upload", {
+        method: "POST",
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        throw new Error("Upload failed");
+      }
+      
+      const result = await response.json();
+      
+      await createFileMutation.mutateAsync({
+        brandId,
+        fileName: result.fileName,
+        fileUrl: result.url,
+        fileKey: result.key,
+        fileSize: result.fileSize,
+        mimeType: result.mimeType,
+      });
+    } catch (error) {
+      console.error("File upload error:", error);
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+  
+  const getFileIcon = (mimeType: string | null) => {
+    if (!mimeType) return <FileText className="h-4 w-4" />;
+    if (mimeType.includes("pdf")) return <FileText className="h-4 w-4 text-red-400" />;
+    if (mimeType.includes("image")) return <Image className="h-4 w-4 text-blue-400" />;
+    if (mimeType.includes("spreadsheet") || mimeType.includes("excel")) return <FileText className="h-4 w-4 text-green-400" />;
+    if (mimeType.includes("zip") || mimeType.includes("compressed")) return <FolderOpen className="h-4 w-4 text-amber-400" />;
+    return <FileText className="h-4 w-4" />;
+  };
+  
+  const formatFileSize = (bytes: number | null) => {
+    if (!bytes) return "-";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+  
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          onChange={handleFileUpload}
+        />
+        <Button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isUploading}
+          className="bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-600 hover:to-cyan-700 text-white"
+          size="sm"
+        >
+          {isUploading ? (
+            <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t.uploading}</>
+          ) : (
+            <><Plus className="h-4 w-4 mr-2" />{t.uploadFile}</>
+          )}
+        </Button>
+      </div>
+      
+      {files.length === 0 ? (
+        <p className="text-gray-500 text-center py-8">{t.noFiles}</p>
+      ) : (
+        <div className="space-y-2">
+          {files.map((file: any) => (
+            <div
+              key={file.id}
+              className="flex items-center justify-between bg-black/50 rounded-lg border border-red-900/20 p-3 hover:border-red-500/30 transition-colors group"
+            >
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                {getFileIcon(file.mimeType)}
+                <div className="flex-1 min-w-0">
+                  <a
+                    href={file.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-white hover:text-cyan-400 transition-colors truncate block"
+                  >
+                    {file.fileName}
+                  </a>
+                  <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                    <span>{formatFileSize(file.fileSize)}</span>
+                    <span>{new Date(file.createdAt).toLocaleDateString("ja-JP")}</span>
+                    <span>{file.uploadedByName}</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => deleteFileMutation.mutate({ fileId: file.id, brandId })}
+                className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all p-2"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // 契約ROAS表示コンポーネント
 const INDUSTRY_AVG_ROAS = 0.8; // 業界平均ROAS
 
@@ -509,6 +662,7 @@ export default function BrandDetail() {
   const [productDetailDialogOpen, setProductDetailDialogOpen] = useState(false);
   const [selectedProductForDetail, setSelectedProductForDetail] = useState<any>(null);
   const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
+  const [expandedImageIndex, setExpandedImageIndex] = useState<number>(0);
   // 商品画像ギャラリー用state
   const [productImages, setProductImages] = useState<any[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -1753,6 +1907,16 @@ export default function BrandDetail() {
               ))
             )}
           </div>
+        </div>
+
+        {/* Brand Files Section */}
+        <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,0,0,0.1)]">
+          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-3">
+            <div className="w-1 h-6 bg-gradient-to-b from-cyan-400 to-cyan-600 rounded-full" />
+            <FolderOpen className="h-5 w-5 text-cyan-400" />
+            {t.brandFiles}
+          </h2>
+          <BrandFilesSection brandId={brand.id} t={t} />
         </div>
 
         {/* Edit Log Section */}
@@ -3872,7 +4036,10 @@ export default function BrandDetail() {
                         {/* Main Image */}
                         <div 
                           className="group cursor-pointer relative"
-                          onClick={() => setExpandedImageUrl(productImages[currentImageIndex]?.imageUrl)}
+                          onClick={() => {
+                            setExpandedImageIndex(currentImageIndex);
+                            setExpandedImageUrl(productImages[currentImageIndex]?.imageUrl);
+                          }}
                         >
                           <div className="absolute inset-0 bg-gradient-to-br from-pink-500/20 to-purple-500/20 rounded-2xl blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                           <img 
@@ -4125,7 +4292,23 @@ export default function BrandDetail() {
               <div 
                 className="absolute inset-0 z-50 bg-black/95 flex items-center justify-center animate-in fade-in duration-200"
                 onClick={() => setExpandedImageUrl(null)}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setExpandedImageUrl(null);
+                  } else if (e.key === 'ArrowLeft' && productImages.length > 1) {
+                    const newIndex = expandedImageIndex > 0 ? expandedImageIndex - 1 : productImages.length - 1;
+                    setExpandedImageIndex(newIndex);
+                    setExpandedImageUrl(productImages[newIndex]?.imageUrl || null);
+                  } else if (e.key === 'ArrowRight' && productImages.length > 1) {
+                    const newIndex = expandedImageIndex < productImages.length - 1 ? expandedImageIndex + 1 : 0;
+                    setExpandedImageIndex(newIndex);
+                    setExpandedImageUrl(productImages[newIndex]?.imageUrl || null);
+                  }
+                }}
+                ref={(el) => el?.focus()}
               >
+                {/* Close button */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -4135,12 +4318,51 @@ export default function BrandDetail() {
                 >
                   <X className="w-8 h-8" />
                 </button>
+                
+                {/* Left arrow button */}
+                {productImages.length > 1 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const newIndex = expandedImageIndex > 0 ? expandedImageIndex - 1 : productImages.length - 1;
+                      setExpandedImageIndex(newIndex);
+                      setExpandedImageUrl(productImages[newIndex]?.imageUrl || null);
+                    }}
+                    className="absolute left-6 top-1/2 -translate-y-1/2 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all duration-200 hover:scale-110 z-10"
+                  >
+                    <ChevronLeft className="w-8 h-8" />
+                  </button>
+                )}
+                
+                {/* Image */}
                 <img 
                   src={expandedImageUrl} 
                   alt="拡大画像"
-                  className="max-w-[95%] max-h-[95%] object-contain rounded-lg shadow-2xl"
+                  className="max-w-[85%] max-h-[85%] object-contain rounded-lg shadow-2xl"
                   onClick={(e) => e.stopPropagation()}
                 />
+                
+                {/* Right arrow button */}
+                {productImages.length > 1 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const newIndex = expandedImageIndex < productImages.length - 1 ? expandedImageIndex + 1 : 0;
+                      setExpandedImageIndex(newIndex);
+                      setExpandedImageUrl(productImages[newIndex]?.imageUrl || null);
+                    }}
+                    className="absolute right-6 top-1/2 -translate-y-1/2 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all duration-200 hover:scale-110 z-10"
+                  >
+                    <ChevronRight className="w-8 h-8" />
+                  </button>
+                )}
+                
+                {/* Image indicator */}
+                {productImages.length > 1 && (
+                  <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/70 text-white px-4 py-2 rounded-full text-sm z-10">
+                    {expandedImageIndex + 1} / {productImages.length}
+                  </div>
+                )}
               </div>
             )}
           </div>

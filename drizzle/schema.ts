@@ -898,3 +898,24 @@ export const brandProductImages = mysqlTable("brand_product_images", {
 
 export type BrandProductImage = typeof brandProductImages.$inferSelect;
 export type InsertBrandProductImage = typeof brandProductImages.$inferInsert;
+
+
+/**
+ * Brand Files table for managing files per brand
+ * ブランドファイルテーブル - ブランドごとにファイル（契約書、価格表、素材など）を管理
+ */
+export const brandFiles = mysqlTable("brand_files", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(), // References brands.id
+  fileName: varchar("fileName", { length: 255 }).notNull(), // ファイル名
+  fileUrl: text("fileUrl").notNull(), // S3 URL
+  fileKey: varchar("fileKey", { length: 512 }).notNull(), // S3 key
+  fileSize: bigint("fileSize", { mode: "number" }), // ファイルサイズ（バイト）
+  mimeType: varchar("mimeType", { length: 128 }), // MIMEタイプ
+  uploadedBy: int("uploadedBy").notNull(), // User ID who uploaded the file
+  uploadedByName: varchar("uploadedByName", { length: 255 }).notNull(), // アップロードしたユーザー名
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type BrandFile = typeof brandFiles.$inferSelect;
+export type InsertBrandFile = typeof brandFiles.$inferInsert;

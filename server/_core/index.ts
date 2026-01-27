@@ -294,6 +294,39 @@ async function startServer() {
     }
   });
 
+  // Brand file upload endpoint
+  app.post("/api/brand-file-upload", upload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+      
+      const file = req.file as Express.Multer.File;
+      const brandId = req.body.brandId;
+      
+      if (!brandId) {
+        return res.status(400).json({ error: "Brand ID is required" });
+      }
+      
+      // Generate unique file key
+      const fileExtension = file.originalname.split(".").pop() || "bin";
+      const fileKey = `brand-files/${brandId}/${nanoid()}.${fileExtension}`;
+      
+      const result = await storagePut(fileKey, file.buffer, file.mimetype);
+      
+      res.json({
+        url: result.url,
+        key: fileKey,
+        fileName: file.originalname,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+      });
+    } catch (error) {
+      console.error("[Brand File Upload] Error:", error);
+      res.status(500).json({ error: "Failed to upload file" });
+    }
+  });
+
   // Image proxy endpoint for PDF generation (to avoid CORS issues)
   app.get("/api/image-proxy", async (req, res) => {
     try {

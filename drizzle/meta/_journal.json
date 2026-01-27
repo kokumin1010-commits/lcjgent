@@ -337,6 +337,13 @@
       "when": 1769489535478,
       "tag": "0047_open_forge",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "5",
+      "when": 1769498676206,
+      "tag": "0048_wild_yellow_claw",
+      "breakpoints": true
     }
   ]
 }
