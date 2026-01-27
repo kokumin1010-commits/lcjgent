@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -3827,4 +3827,101 @@ export async function getBrandFileById(fileId: number) {
     .limit(1);
   
   return result.length > 0 ? result[0] : null;
+}
+
+
+// ==================== Product Links Functions ====================
+
+/**
+ * Get all links for a product
+ */
+export async function getProductLinks(productId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return await db
+    .select()
+    .from(productLinks)
+    .where(eq(productLinks.productId, productId))
+    .orderBy(asc(productLinks.sortOrder), asc(productLinks.id));
+}
+
+/**
+ * Add a link to a product
+ */
+export async function addProductLink(data: {
+  productId: number;
+  title: string;
+  url: string;
+  createdBy: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Get the max sortOrder for this product
+  const maxOrder = await db
+    .select({ maxOrder: sql<number>`COALESCE(MAX(${productLinks.sortOrder}), -1)` })
+    .from(productLinks)
+    .where(eq(productLinks.productId, data.productId));
+  
+  const sortOrder = (maxOrder[0]?.maxOrder ?? -1) + 1;
+  
+  const result = await db.insert(productLinks).values({
+    productId: data.productId,
+    title: data.title,
+    url: data.url,
+    sortOrder,
+    createdBy: data.createdBy,
+  });
+  
+  return { id: result[0].insertId, sortOrder };
+}
+
+/**
+ * Update a product link
+ */
+export async function updateProductLink(linkId: number, data: {
+  title?: string;
+  url?: string;
+  sortOrder?: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db
+    .update(productLinks)
+    .set(data)
+    .where(eq(productLinks.id, linkId));
+  
+  return { success: true };
+}
+
+/**
+ * Delete a product link
+ */
+export async function deleteProductLink(linkId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db
+    .delete(productLinks)
+    .where(eq(productLinks.id, linkId));
+  
+  return { success: true };
+}
+
+/**
+ * Get links for multiple products at once
+ */
+export async function getProductLinksForProducts(productIds: number[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  if (productIds.length === 0) return [];
+  
+  return await db
+    .select()
+    .from(productLinks)
+    .where(inArray(productLinks.productId, productIds))
+    .orderBy(asc(productLinks.sortOrder), asc(productLinks.id));
 }

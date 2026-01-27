@@ -919,3 +919,23 @@ export const brandFiles = mysqlTable("brand_files", {
 
 export type BrandFile = typeof brandFiles.$inferSelect;
 export type InsertBrandFile = typeof brandFiles.$inferInsert;
+
+
+
+/**
+ * Product Links table for managing multiple links per product
+ * 商品リンクテーブル - 商品ごとに複数のリンク（TikTokショップ、楽天、公式サイトなど）を管理
+ */
+export const productLinks = mysqlTable("product_links", {
+  id: int("id").autoincrement().primaryKey(),
+  productId: int("productId").notNull(), // References brandProducts.id
+  title: varchar("title", { length: 255 }).notNull(), // リンクのタイトル（例：TikTokショップ、楽天、公式サイト）
+  url: text("url").notNull(), // リンクURL
+  sortOrder: int("sortOrder").default(0).notNull(), // 表示順序
+  createdBy: int("createdBy").notNull(), // User ID who added the link
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ProductLink = typeof productLinks.$inferSelect;
+export type InsertProductLink = typeof productLinks.$inferInsert;

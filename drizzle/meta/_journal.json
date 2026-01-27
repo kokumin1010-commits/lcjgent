@@ -344,6 +344,13 @@
       "when": 1769498676206,
       "tag": "0048_wild_yellow_claw",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "5",
+      "when": 1769500386198,
+      "tag": "0049_organic_kat_farrell",
+      "breakpoints": true
     }
   ]
 }

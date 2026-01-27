@@ -198,6 +198,11 @@ import {
   createBrandFile,
   deleteBrandFile,
   getBrandFileById,
+  getProductLinks,
+  addProductLink,
+  updateProductLink,
+  deleteProductLink,
+  getProductLinksForProducts,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -4600,6 +4605,98 @@ TikTok LIVEダッシュボードの典型的なレイアウト：
           ctx.user.id,
           ctx.user.name || ctx.user.email
         );
+
+        return result;
+      }),
+  }),
+
+  // Product Links Router
+  productLinks: router({
+    // Get all links for a product
+    list: protectedProcedure
+      .input(z.object({ productId: z.number() }))
+      .query(async ({ input }) => {
+        const links = await getProductLinks(input.productId);
+        return links;
+      }),
+
+    // Get links for multiple products
+    listForProducts: protectedProcedure
+      .input(z.object({ productIds: z.array(z.number()) }))
+      .query(async ({ input }) => {
+        const links = await getProductLinksForProducts(input.productIds);
+        return links;
+      }),
+
+    // Add a new link to a product
+    add: protectedProcedure
+      .input(z.object({
+        productId: z.number(),
+        title: z.string().min(1, "タイトルを入力してください"),
+        url: z.string().url("有効なURLを入力してください"),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const result = await addProductLink({
+          productId: input.productId,
+          title: input.title,
+          url: input.url,
+          createdBy: ctx.user.id,
+        });
+
+        // Get the product to find the brand for logging
+        const product = await getBrandProductById(input.productId);
+        if (product) {
+          await logBrandEdit(
+            product.brandId,
+            "create",
+            "product",
+            input.productId,
+            product.productName || "商品",
+            `リンク「${input.title}」を追加しました`,
+            ctx.user.id,
+            ctx.user.name || ctx.user.email
+          );
+        }
+
+        return result;
+      }),
+
+    // Update a link
+    update: protectedProcedure
+      .input(z.object({
+        linkId: z.number(),
+        title: z.string().min(1, "タイトルを入力してください").optional(),
+        url: z.string().url("有効なURLを入力してください").optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { linkId, ...data } = input;
+        const result = await updateProductLink(linkId, data);
+        return result;
+      }),
+
+    // Delete a link
+    delete: protectedProcedure
+      .input(z.object({
+        linkId: z.number(),
+        productId: z.number(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const result = await deleteProductLink(input.linkId);
+
+        // Get the product to find the brand for logging
+        const product = await getBrandProductById(input.productId);
+        if (product) {
+          await logBrandEdit(
+            product.brandId,
+            "delete",
+            "product",
+            input.productId,
+            product.productName || "商品",
+            `リンクを削除しました`,
+            ctx.user.id,
+            ctx.user.name || ctx.user.email
+          );
+        }
 
         return result;
       }),

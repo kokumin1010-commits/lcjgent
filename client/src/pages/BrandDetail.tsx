@@ -37,7 +37,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn, Info, History, ChevronLeft, ChevronRight, Download, FolderOpen } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn, Info, History, ChevronLeft, ChevronRight, Download, FolderOpen, Link, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
 const translations = {
@@ -668,6 +668,10 @@ export default function BrandDetail() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isAddingImage, setIsAddingImage] = useState(false);
   const productImageInputRef = useRef<HTMLInputElement>(null);
+  // 商品リンク管理用state
+  const [newLinkTitle, setNewLinkTitle] = useState('');
+  const [newLinkUrl, setNewLinkUrl] = useState('');
+  const [isAddingLink, setIsAddingLink] = useState(false);
   // 紐付けライブ詳細ダイアログ
   const [linkedLivestreamDetailDialogOpen, setLinkedLivestreamDetailDialogOpen] = useState(false);
   const [linkedLivestreamDetailData, setLinkedLivestreamDetailData] = useState<any[]>([]);
@@ -886,6 +890,37 @@ export default function BrandDetail() {
     { productId: selectedProductForDetail?.id || 0 },
     { enabled: !!selectedProductForDetail?.id }
   );
+
+  // 商品リンクを取得
+  const { data: productLinksData = [], refetch: refetchProductLinks } = trpc.productLinks.list.useQuery(
+    { productId: selectedProductForDetail?.id || 0 },
+    { enabled: !!selectedProductForDetail?.id }
+  );
+
+  // 商品リンク追加ミューテーション
+  const addProductLinkMutation = trpc.productLinks.add.useMutation({
+    onSuccess: () => {
+      refetchProductLinks();
+      setNewLinkTitle('');
+      setNewLinkUrl('');
+      setIsAddingLink(false);
+      toast.success(language === 'ja' ? 'リンクを追加しました' : '链接已添加');
+    },
+    onError: (error) => {
+      toast.error(language === 'ja' ? 'リンクの追加に失敗しました' : '添加链接失败');
+    },
+  });
+
+  // 商品リンク削除ミューテーション
+  const deleteProductLinkMutation = trpc.productLinks.delete.useMutation({
+    onSuccess: () => {
+      refetchProductLinks();
+      toast.success(language === 'ja' ? 'リンクを削除しました' : '链接已删除');
+    },
+    onError: () => {
+      toast.error(language === 'ja' ? 'リンクの削除に失敗しました' : '删除链接失败');
+    },
+  });
 
   // 商品画像を読み込む
   const loadProductImages = async (productId: number) => {
@@ -4283,6 +4318,122 @@ export default function BrandDetail() {
                       <p className="text-gray-200 mt-4 whitespace-pre-wrap text-xl leading-relaxed">{selectedProductForDetail.remarks}</p>
                     </div>
                   )}
+
+                  {/* Product Links Section */}
+                  <div className="space-y-4 pt-4">
+                    <h3 className="text-2xl font-bold bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-400 bg-clip-text text-transparent border-b-2 border-blue-500/30 pb-3 flex items-center gap-3">
+                      <div className="p-2 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg">
+                        <Link className="h-6 w-6 text-white" />
+                      </div>
+                      {language === 'ja' ? '商品リンク' : '商品链接'}
+                    </h3>
+                    
+                    {/* Existing Links */}
+                    {productLinksData.length > 0 && (
+                      <div className="space-y-3">
+                        {productLinksData.map((link: any) => (
+                          <div 
+                            key={link.id} 
+                            className="flex items-center gap-3 bg-gray-900/60 rounded-xl p-4 border border-gray-600/40 hover:border-blue-500/40 transition-all duration-300 group"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-blue-300 font-semibold text-lg">{link.title}</span>
+                              </div>
+                              <a 
+                                href={link.url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-gray-400 text-sm hover:text-blue-400 truncate block mt-1 transition-colors"
+                              >
+                                {link.url}
+                              </a>
+                            </div>
+                            <a
+                              href={link.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-2 bg-blue-500/20 hover:bg-blue-500/40 rounded-lg text-blue-300 hover:text-white transition-all duration-200"
+                            >
+                              <ExternalLink className="w-5 h-5" />
+                            </a>
+                            <button
+                              onClick={() => deleteProductLinkMutation.mutate({ linkId: link.id, productId: selectedProductForDetail.id })}
+                              className="p-2 bg-red-500/20 hover:bg-red-500/40 rounded-lg text-red-300 hover:text-white transition-all duration-200 opacity-0 group-hover:opacity-100"
+                            >
+                              <Trash2 className="w-5 h-5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Add New Link Form */}
+                    {isAddingLink ? (
+                      <div className="bg-gray-900/60 rounded-xl p-5 border border-blue-500/40 space-y-4">
+                        <div>
+                          <Label className="text-gray-300 text-sm">{language === 'ja' ? 'タイトル' : '标题'}</Label>
+                          <Input
+                            value={newLinkTitle}
+                            onChange={(e) => setNewLinkTitle(e.target.value)}
+                            placeholder={language === 'ja' ? '例: TikTok Shop, 楽天, 公式サイト' : '例: TikTok Shop, 乐天, 官网'}
+                            className="mt-2 bg-gray-800/50 border-gray-600 text-white"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-gray-300 text-sm">URL</Label>
+                          <Input
+                            value={newLinkUrl}
+                            onChange={(e) => setNewLinkUrl(e.target.value)}
+                            placeholder="https://..."
+                            className="mt-2 bg-gray-800/50 border-gray-600 text-white"
+                          />
+                        </div>
+                        <div className="flex gap-3">
+                          <Button
+                            onClick={() => {
+                              if (newLinkTitle && newLinkUrl) {
+                                addProductLinkMutation.mutate({
+                                  productId: selectedProductForDetail.id,
+                                  title: newLinkTitle,
+                                  url: newLinkUrl,
+                                });
+                              }
+                            }}
+                            disabled={!newLinkTitle || !newLinkUrl || addProductLinkMutation.isPending}
+                            className="bg-blue-500 hover:bg-blue-600 text-white"
+                          >
+                            {addProductLinkMutation.isPending ? (
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                              <Plus className="w-4 h-4 mr-2" />
+                            )}
+                            {language === 'ja' ? '追加' : '添加'}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setIsAddingLink(false);
+                              setNewLinkTitle('');
+                              setNewLinkUrl('');
+                            }}
+                            className="border-gray-600 text-gray-300 hover:bg-gray-800"
+                          >
+                            {language === 'ja' ? 'キャンセル' : '取消'}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsAddingLink(true)}
+                        className="w-full border-dashed border-2 border-blue-500/40 text-blue-300 hover:bg-blue-500/10 hover:border-blue-500/60 py-4"
+                      >
+                        <Plus className="w-5 h-5 mr-2" />
+                        {language === 'ja' ? 'リンクを追加' : '添加链接'}
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
