@@ -1,0 +1,130 @@
+{
+  "query": "SELECT id, brandId, productName, proposalImageUrl FROM brand_products LIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, brandId, productName, proposalImageUrl FROM brand_products LIMIT 20;",
+  "rows": [
+    {
+      "id": "22",
+      "brandId": "120001",
+      "productName": "リコアセラム DDS RD カプセル（京極琉LIVEコラボセット、15粒プレゼント、ホワイトポーチプレゼント付き）",
+      "proposalImageUrl": "NULL"
+    },
+    {
+      "id": "23",
+      "brandId": "120001",
+      "productName": "【ビジュードゥメール】ブリリアントピールゲル・トリートメントリペアクリア美容液・ポーチプレゼント（京極琉LIVEコラボセット）",
+      "proposalImageUrl": "NULL"
+    },
+    {
+      "id": "30001",
+      "brandId": "120001",
+      "productName": "【ビジュードゥメール】・クリームパックマスク×20枚セット",
+      "proposalImageUrl": "NULL"
+    },
+    {
+      "id": "30002",
+      "brandId": "120001",
+      "productName": "リカリアル 30秒美肌オールインワンケアシート 3個セット (京極琉LIVEコラボセット)",
+      "proposalImageUrl": "NULL"
+    },
+    {
+      "id": "30003",
+      "brandId": "120001",
+      "productName": "Rika Real 1秒グラデーションアイシャドウ・マルチハイライター・リップオイルエッセンス・ブラックポーチプレゼント 京極琉LIVEコラボセット",
+      "proposalImageUrl": "NULL"
+    },
+    {
+      "id": "30004",
+      "brandId": "120001",
+      "productName": "【ビジュードゥメール】ブリリアントピールゲル・トリートメントリペアクリア美容液・ポーチプレゼント 京極琉LIVEコラボセット",
+      "proposalImageUrl": "NULL"
+    },
+    {
+      "id": "30008",
+      "brandId": "180001",
+      "productName": "ホエイプロテイン (WPC) 抹茶味",
+      "proposalImageUrl": "NULL"
+    },
+    {
+      "id": "30009",
+      "brandId": "150001",
+      "productName": "【京極琉(KG)限定】|Canban参半| マウスウォッシュ",
+      "proposalImageUrl": "NULL"
+    },
+    {
+      "id": "30010",
+      "brandId": "150001",
+      "productName": "【京極琉(KG)限定】Canban参半 美白・黄ばみ除去セット。ファミリーセット",
+      "proposalImageUrl": "NULL"
+    },
+    {
+      "id": "30011",
+      "brandId": "150001",
+      "productName": "京極琉(KG)限定|Canban参半 美白・黄ばみ除去セット",
+      "proposalImageUrl": "NULL"
+    },
+    {
+      "id": "30012",
+      "brandId": "90009",
+      "productName": "スパトリートメント NMNシートマスク 美容液 21ml 含浸マスク×4枚入",
+      "proposalImageUrl": "NULL"
+    },
+    {
+      "id": "30013",
+      "brandId": "90009",
+      "productName": "スパトリートメント NMNストレッチiシート 内容量60枚入り（110ml）",
+      "proposalImageUrl": "NULL"
+    },
+    {
+      "id": "30014",
+      "brandId": "90009",
+      "productName": "スパトリートメント NMNストレッチiシート パウチサンプル バラ (GWP)",
+      "proposalImageUrl": "NULL"
+    },
+    {
+      "id": "30015",
+      "brandId": "90009",
+      "productName": "スパトリートメント eX リアルC-セーラム",
+      "proposalImageUrl": "NULL"
+    },
+    {
+      "id": "30024",
+      "brandId": "30001",
+      "productName": "5ml フリーズドライ + 5ml エッセンス美容液",
+      "proposalImageUrl": "NULL"
+    },
+    {
+      "id": "30025",
+      "brandId": "30001",
+      "productName": "RENOVATIO バイオジェニクス ローション",
+      "proposalImageUrl": "NULL"
+    },
+    {
+      "id": "30028",
+      "brandId": "30001",
+      "productName": "RENOVATIO NMN24000",
+      "proposalImageUrl": "NULL"
+    },
+    {
+      "id": "30030",
+      "brandId": "180006",
+      "productName": "iCell コアドロップセラム(美容液)",
+      "proposalImageUrl": "NULL"
+    },
+    {
+      "id": "30031",
+      "brandId": "90009",
+      "productName": "スパトリートメント eX リアルC-セーラム",
+      "proposalImageUrl": "NULL"
+    },
+    {
+      "id": "30032",
+      "brandId": "30001",
+      "productName": "5ml フリーズドライ + 5ml エッセンス 美容液",
+      "proposalImageUrl": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tbrandId\tproductName\tproposalImageUrl\n22\t120001\tリコアセラム DDS RD カプセル（京極琉LIVEコラボセット、15粒プレゼント、ホワイトポーチプレゼント付き）\tNULL\n23\t120001\t【ビジュードゥメール】ブリリアントピールゲル・トリートメントリペアクリア美容液・ポーチプレゼント（京極琉LIVEコラボセット）\tNULL\n30001\t120001\t【ビジュードゥメール】・クリームパックマスク×20枚セット\tNULL\n30002\t120001\tリカリアル 30秒美肌オールインワンケアシート 3個セット (京極琉LIVEコラボセット)\tNULL\n30003\t120001\tRika Real 1秒グラデーションアイシャドウ・マルチハイライター・リップオイルエッセンス・ブラックポーチプレゼント 京極琉LIVEコラボセット\tNULL\n30004\t120001\t【ビジュードゥメール】ブリリアントピールゲル・トリートメントリペアクリア美容液・ポーチプレゼント 京極琉LIVEコラボセット\tNULL\n30008\t180001\tホエイプロテイン (WPC) 抹茶味\tNULL\n30009\t150001\t【京極琉(KG)限定】|Canban参半| マウスウォッシュ\tNULL\n30010\t150001\t【京極琉(KG)限定】Canban参半 美白・黄ばみ除去セット。ファミリーセット\tNULL\n30011\t150001\t京極琉(KG)限定|Canban参半 美白・黄ばみ除去セット\tNULL\n30012\t90009\tスパトリートメント NMNシートマスク 美容液 21ml 含浸マスク×4枚入\tNULL\n30013\t90009\tスパトリートメント NMNストレッチiシート 内容量60枚入り（110ml）\tNULL\n30014\t90009\tスパトリートメント NMNストレッチiシート パウチサンプル バラ (GWP)\tNULL\n30015\t90009\tスパトリートメント eX リアルC-セーラム\tNULL\n30024\t30001\t5ml フリーズドライ + 5ml エッセンス美容液\tNULL\n30025\t30001\tRENOVATIO バイオジェニクス ローション\tNULL\n30028\t30001\tRENOVATIO NMN24000\tNULL\n30030\t180006\tiCell コアドロップセラム(美容液)\tNULL\n30031\t90009\tスパトリートメント eX リアルC-セーラム\tNULL\n30032\t30001\t5ml フリーズドライ + 5ml エッセンス 美容液\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1505
+}

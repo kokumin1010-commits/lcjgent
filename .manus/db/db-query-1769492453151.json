@@ -1,0 +1,9 @@
+{
+  "query": "SELECT id, productName, proposalImageUrl, imageUrls FROM brand_products WHERE brandId = 1 LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, productName, proposalImageUrl, imageUrls FROM brand_products WHERE brandId = 1 LIMIT 10;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1523
+}

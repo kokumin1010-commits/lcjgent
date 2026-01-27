@@ -740,19 +740,26 @@ export default function BrandDetail() {
 
   // 商品画像データが更新されたらstateを更新
   React.useEffect(() => {
-    // 既存の提案書画像を含めて画像リストを作成
+    // 既存の商品画像を含めて画像リストを作成
     const existingImages: any[] = [];
-    if (selectedProductForDetail?.proposalImageUrl) {
-      existingImages.push({
-        id: 0,
-        imageUrl: selectedProductForDetail.proposalImageUrl,
-        isProposalImage: true,
+    
+    // imageUrlsから画像を取得（proposalImageUrlの代わりに）
+    const productImageUrls = selectedProductForDetail?.imageUrls || [];
+    if (productImageUrls.length > 0) {
+      productImageUrls.forEach((url: string, index: number) => {
+        existingImages.push({
+          id: -index - 1, // 負のIDで既存画像を識別
+          imageUrl: url,
+          isProposalImage: index === 0, // 最初の画像をメイン画像として扱う
+        });
       });
     }
+    
+    // 追加でアップロードされた画像
     const additionalImages = productImagesData || [];
     setProductImages([...existingImages, ...additionalImages]);
     setCurrentImageIndex(0);
-  }, [productImagesData, selectedProductForDetail?.proposalImageUrl, selectedProductForDetail?.id]);
+  }, [productImagesData, selectedProductForDetail?.imageUrls, selectedProductForDetail?.id]);
 
   // キーボードで画像を切り替え
   React.useEffect(() => {

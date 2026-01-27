@@ -1,0 +1,40 @@
+{
+  "query": "SELECT id, productName, imageUrls, proposalImageUrl FROM brand_products WHERE brandId = 120001 LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, productName, imageUrls, proposalImageUrl FROM brand_products WHERE brandId = 120001 LIMIT 5;",
+  "rows": [
+    {
+      "id": "22",
+      "productName": "リコアセラム DDS RD カプセル（京極琉LIVEコラボセット、15粒プレゼント、ホワイトポーチプレゼント付き）",
+      "imageUrls": "[\"https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/brands/77/product/27T8AH_JHVzplzEP6AavC.png\"]",
+      "proposalImageUrl": "NULL"
+    },
+    {
+      "id": "23",
+      "productName": "【ビジュードゥメール】ブリリアントピールゲル・トリートメントリペアクリア美容液・ポーチプレゼント（京極琉LIVEコラボセット）",
+      "imageUrls": "[\"https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/brands/77/product/XTusruILLY6K15ZAUiw-S.png\"]",
+      "proposalImageUrl": "NULL"
+    },
+    {
+      "id": "30001",
+      "productName": "【ビジュードゥメール】・クリームパックマスク×20枚セット",
+      "imageUrls": "[\"https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/brands/240001/product/NAbk4ppwhfrEGE52G7ec2.png\"]",
+      "proposalImageUrl": "NULL"
+    },
+    {
+      "id": "30002",
+      "productName": "リカリアル 30秒美肌オールインワンケアシート 3個セット (京極琉LIVEコラボセット)",
+      "imageUrls": "[\"https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/brands/240001/product/M3VkzdiNShnkLebmCDEEt.png\"]",
+      "proposalImageUrl": "NULL"
+    },
+    {
+      "id": "30003",
+      "productName": "Rika Real 1秒グラデーションアイシャドウ・マルチハイライター・リップオイルエッセンス・ブラックポーチプレゼント 京極琉LIVEコラボセット",
+      "imageUrls": "[\"https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/brands/240001/product/a_YkYRmCy_gLJi4LPLb1a.png\"]",
+      "proposalImageUrl": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tproductName\timageUrls\tproposalImageUrl\n22\tリコアセラム DDS RD カプセル（京極琉LIVEコラボセット、15粒プレゼント、ホワイトポーチプレゼント付き）\t[\"https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/brands/77/product/27T8AH_JHVzplzEP6AavC.png\"]\tNULL\n23\t【ビジュードゥメール】ブリリアントピールゲル・トリートメントリペアクリア美容液・ポーチプレゼント（京極琉LIVEコラボセット）\t[\"https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/brands/77/product/XTusruILLY6K15ZAUiw-S.png\"]\tNULL\n30001\t【ビジュードゥメール】・クリームパックマスク×20枚セット\t[\"https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/brands/240001/product/NAbk4ppwhfrEGE52G7ec2.png\"]\tNULL\n30002\tリカリアル 30秒美肌オールインワンケアシート 3個セット (京極琉LIVEコラボセット)\t[\"https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/brands/240001/product/M3VkzdiNShnkLebmCDEEt.png\"]\tNULL\n30003\tRika Real 1秒グラデーションアイシャドウ・マルチハイライター・リップオイルエッセンス・ブラックポーチプレゼント 京極琉LIVEコラボセット\t[\"https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/brands/240001/product/a_YkYRmCy_gLJi4LPLb1a.png\"]\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1559
+}
