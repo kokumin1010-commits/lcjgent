@@ -942,8 +942,8 @@ export default function BrandDetail() {
   // Get active contract commission rate
   const activeContract = contracts.find(c => c.status === "契約中");
   
-  // 商品の成果報酬を集計（数字のみの値を抽出）
-  const calculateAverageCommissionRate = () => {
+  // 商品の成果報酬を集計（範囲表記）
+  const calculateCommissionRateRange = () => {
     const validProducts = products.filter(p => {
       if (!p.commissionRate) return false;
       const numericValue = parseFloat(p.commissionRate.replace(/[^0-9.]/g, ''));
@@ -952,17 +952,21 @@ export default function BrandDetail() {
     
     if (validProducts.length === 0) return null;
     
-    const totalRate = validProducts.reduce((sum, p) => {
-      const numericValue = parseFloat(p.commissionRate!.replace(/[^0-9.]/g, ''));
-      return sum + numericValue;
-    }, 0);
+    const rates = validProducts.map(p => {
+      return parseFloat(p.commissionRate!.replace(/[^0-9.]/g, ''));
+    });
     
-    return totalRate / validProducts.length;
+    const minRate = Math.min(...rates);
+    const maxRate = Math.max(...rates);
+    
+    return { min: minRate, max: maxRate };
   };
   
-  const avgCommissionRate = calculateAverageCommissionRate();
-  const commissionRateValue = avgCommissionRate !== null 
-    ? `${avgCommissionRate.toFixed(1)}%` 
+  const commissionRateRange = calculateCommissionRateRange();
+  const commissionRateValue = commissionRateRange !== null 
+    ? (commissionRateRange.min === commissionRateRange.max 
+        ? `${Math.round(commissionRateRange.min)}%` 
+        : `${Math.round(commissionRateRange.min)}-${Math.round(commissionRateRange.max)}%`)
     : (activeContract?.commissionRate || brand?.commissionRate || "-");
 
   const handleAddMemo = () => {
