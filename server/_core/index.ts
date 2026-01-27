@@ -294,6 +294,35 @@ async function startServer() {
     }
   });
 
+  // Image proxy endpoint for PDF generation (to avoid CORS issues)
+  app.get("/api/image-proxy", async (req, res) => {
+    try {
+      const imageUrl = req.query.url as string;
+      if (!imageUrl) {
+        return res.status(400).json({ error: "URL parameter is required" });
+      }
+      
+      // Fetch the image from the original URL
+      const response = await fetch(imageUrl);
+      if (!response.ok) {
+        return res.status(response.status).json({ error: "Failed to fetch image" });
+      }
+      
+      const contentType = response.headers.get("content-type") || "image/jpeg";
+      const buffer = await response.arrayBuffer();
+      
+      // Set CORS headers
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      
+      res.send(Buffer.from(buffer));
+    } catch (error) {
+      console.error("[Image Proxy] Error:", error);
+      res.status(500).json({ error: "Failed to proxy image" });
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",

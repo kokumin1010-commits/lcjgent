@@ -839,9 +839,10 @@ export default function BrandDetail() {
         const img = productImages[i];
         const imageUrl = img.imageUrl;
 
-        // 画像を読み込んでPDFに追加
+        // 画像を読み込んでPDFに追加（プロキシAPI経由でCORS回避）
         try {
-          const response = await fetch(imageUrl);
+          const proxyUrl = `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+          const response = await fetch(proxyUrl);
           const blob = await response.blob();
           const base64 = await new Promise<string>((resolve) => {
             const reader = new FileReader();
