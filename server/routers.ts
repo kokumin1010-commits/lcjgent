@@ -189,6 +189,10 @@ import {
   createBrandEditLog,
   getBrandEditLogs,
   logBrandEdit,
+  getProductImages,
+  addProductImage,
+  deleteProductImage,
+  reorderProductImages,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -1986,6 +1990,49 @@ ${JSON.stringify(teamSummary, null, 2)}`;
             message: `AI解析に失敗しました: ${e.message || "不明なエラー"}`,
           });
         }
+      }),
+
+    // Product Images APIs
+    getImages: protectedProcedure
+      .input(z.object({ productId: z.number() }))
+      .query(async ({ input }) => {
+        return await getProductImages(input.productId);
+      }),
+
+    addImage: protectedProcedure
+      .input(
+        z.object({
+          productId: z.number(),
+          imageUrl: z.string(),
+          imageKey: z.string(),
+          sortOrder: z.number().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        return await addProductImage({
+          productId: input.productId,
+          imageUrl: input.imageUrl,
+          imageKey: input.imageKey,
+          sortOrder: input.sortOrder,
+          createdBy: ctx.user.id,
+        });
+      }),
+
+    deleteImage: protectedProcedure
+      .input(z.object({ imageId: z.number() }))
+      .mutation(async ({ input }) => {
+        return await deleteProductImage(input.imageId);
+      }),
+
+    reorderImages: protectedProcedure
+      .input(
+        z.object({
+          productId: z.number(),
+          imageIds: z.array(z.number()),
+        })
+      )
+      .mutation(async ({ input }) => {
+        return await reorderProductImages(input.productId, input.imageIds);
       }),
   }),
 

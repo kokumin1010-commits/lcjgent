@@ -880,3 +880,21 @@ export const brandEditLogs = mysqlTable("brand_edit_logs", {
 
 export type BrandEditLog = typeof brandEditLogs.$inferSelect;
 export type InsertBrandEditLog = typeof brandEditLogs.$inferInsert;
+
+
+/**
+ * Brand Product Images table for managing multiple images per product
+ * 商品画像テーブル - 商品ごとに複数の画像を管理
+ */
+export const brandProductImages = mysqlTable("brand_product_images", {
+  id: int("id").autoincrement().primaryKey(),
+  productId: int("productId").notNull(), // References brandProducts.id
+  imageUrl: text("imageUrl").notNull(), // S3 URL
+  imageKey: varchar("imageKey", { length: 512 }).notNull(), // S3 key
+  sortOrder: int("sortOrder").default(0).notNull(), // 表示順序
+  createdBy: int("createdBy").notNull(), // User ID who uploaded the image
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type BrandProductImage = typeof brandProductImages.$inferSelect;
+export type InsertBrandProductImage = typeof brandProductImages.$inferInsert;

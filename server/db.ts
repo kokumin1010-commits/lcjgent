@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -3642,4 +3642,83 @@ export async function logBrandEdit(
     userId,
     userName,
   });
+}
+
+
+// ============================================
+// Brand Product Images Functions (商品画像)
+// ============================================
+
+// Get all images for a product
+export async function getProductImages(productId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(brandProductImages)
+    .where(eq(brandProductImages.productId, productId))
+    .orderBy(asc(brandProductImages.sortOrder));
+}
+
+// Add a new image to a product
+export async function addProductImage(data: InsertBrandProductImage) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Get the max sort order for this product
+  const existing = await db
+    .select({ maxOrder: sql<number>`COALESCE(MAX(${brandProductImages.sortOrder}), -1)` })
+    .from(brandProductImages)
+    .where(eq(brandProductImages.productId, data.productId));
+  
+  const nextOrder = (existing[0]?.maxOrder ?? -1) + 1;
+  
+  const result = await db.insert(brandProductImages).values({
+    ...data,
+    sortOrder: data.sortOrder ?? nextOrder,
+  });
+  
+  return { id: Number(result[0].insertId), ...data, sortOrder: nextOrder };
+}
+
+// Delete an image
+export async function deleteProductImage(imageId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.delete(brandProductImages).where(eq(brandProductImages.id, imageId));
+  return { success: true };
+}
+
+// Update image sort order
+export async function updateProductImageOrder(imageId: number, sortOrder: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db
+    .update(brandProductImages)
+    .set({ sortOrder })
+    .where(eq(brandProductImages.id, imageId));
+  
+  return { success: true };
+}
+
+// Reorder all images for a product
+export async function reorderProductImages(productId: number, imageIds: number[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Update each image's sort order based on its position in the array
+  for (let i = 0; i < imageIds.length; i++) {
+    await db
+      .update(brandProductImages)
+      .set({ sortOrder: i })
+      .where(and(
+        eq(brandProductImages.id, imageIds[i]),
+        eq(brandProductImages.productId, productId)
+      ));
+  }
+  
+  return { success: true };
 }

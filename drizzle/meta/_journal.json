@@ -330,6 +330,13 @@
       "when": 1769443243274,
       "tag": "0046_pale_centennial",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "5",
+      "when": 1769489535478,
+      "tag": "0047_open_forge",
+      "breakpoints": true
     }
   ]
 }

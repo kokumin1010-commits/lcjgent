@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -37,7 +37,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn, Info, History } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn, Info, History, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { toast } from "sonner";
 
 const translations = {
@@ -509,6 +509,11 @@ export default function BrandDetail() {
   const [productDetailDialogOpen, setProductDetailDialogOpen] = useState(false);
   const [selectedProductForDetail, setSelectedProductForDetail] = useState<any>(null);
   const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
+  // 商品画像ギャラリー用state
+  const [productImages, setProductImages] = useState<any[]>([]);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [isAddingImage, setIsAddingImage] = useState(false);
+  const productImageInputRef = useRef<HTMLInputElement>(null);
   // 紐付けライブ詳細ダイアログ
   const [linkedLivestreamDetailDialogOpen, setLinkedLivestreamDetailDialogOpen] = useState(false);
   const [linkedLivestreamDetailData, setLinkedLivestreamDetailData] = useState<any[]>([]);
@@ -590,6 +595,31 @@ export default function BrandDetail() {
     },
     onError: () => {
       toast.error("エラーが発生しました");
+    },
+  });
+
+  // Product Image mutations
+  const addProductImageMutation = trpc.brandProduct.addImage.useMutation({
+    onSuccess: () => {
+      if (selectedProductForDetail) {
+        loadProductImages(selectedProductForDetail.id);
+      }
+      toast.success(language === 'ja' ? '画像を追加しました' : '图片已添加');
+    },
+    onError: () => {
+      toast.error(language === 'ja' ? 'エラーが発生しました' : '发生错误');
+    },
+  });
+
+  const deleteProductImageMutation = trpc.brandProduct.deleteImage.useMutation({
+    onSuccess: () => {
+      if (selectedProductForDetail) {
+        loadProductImages(selectedProductForDetail.id);
+      }
+      toast.success(language === 'ja' ? '画像を削除しました' : '图片已删除');
+    },
+    onError: () => {
+      toast.error(language === 'ja' ? 'エラーが発生しました' : '发生错误');
     },
   });
 
@@ -696,6 +726,153 @@ export default function BrandDetail() {
 
   // 画像アップロードミューテーション
   const uploadImageMutation = trpc.brand.uploadImage.useMutation();
+
+  // 商品画像を読み込む関数
+  const { data: productImagesData, refetch: refetchProductImages } = trpc.brandProduct.getImages.useQuery(
+    { productId: selectedProductForDetail?.id || 0 },
+    { enabled: !!selectedProductForDetail?.id }
+  );
+
+  // 商品画像を読み込む
+  const loadProductImages = async (productId: number) => {
+    refetchProductImages();
+  };
+
+  // 商品画像データが更新されたらstateを更新
+  React.useEffect(() => {
+    if (productImagesData) {
+      // 既存の提案書画像を含めて画像リストを作成
+      const existingImages: any[] = [];
+      if (selectedProductForDetail?.proposalImageUrl) {
+        existingImages.push({
+          id: 0,
+          imageUrl: selectedProductForDetail.proposalImageUrl,
+          isProposalImage: true,
+        });
+      }
+      setProductImages([...existingImages, ...productImagesData]);
+      setCurrentImageIndex(0);
+    }
+  }, [productImagesData, selectedProductForDetail?.proposalImageUrl]);
+
+  // キーボードで画像を切り替え
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!productDetailDialogOpen || productImages.length <= 1) return;
+      
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setCurrentImageIndex((prev) => (prev > 0 ? prev - 1 : productImages.length - 1));
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        setCurrentImageIndex((prev) => (prev < productImages.length - 1 ? prev + 1 : 0));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [productDetailDialogOpen, productImages.length]);
+
+  // 商品画像をアップロード
+  const handleProductImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedProductForDetail) return;
+
+    setIsAddingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      // ファイルをアップロード
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64 = (reader.result as string).split(',')[1];
+        const result = await uploadImageMutation.mutateAsync({
+          base64: base64,
+          filename: file.name,
+          type: 'product' as const,
+        });
+
+        // 画像をデータベースに保存
+        await addProductImageMutation.mutateAsync({
+          productId: selectedProductForDetail.id,
+          imageUrl: result.url,
+          imageKey: result.key,
+        });
+
+        setIsAddingImage(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Image upload error:', error);
+      toast.error(language === 'ja' ? '画像のアップロードに失敗しました' : '图片上传失败');
+      setIsAddingImage(false);
+    }
+  };
+
+  // PDFダウンロード
+  const handleDownloadPdf = async () => {
+    if (productImages.length === 0 || !selectedProductForDetail) {
+      toast.error(language === 'ja' ? 'ダウンロードする画像がありません' : '没有可下载的图片');
+      return;
+    }
+
+    toast.info(language === 'ja' ? 'PDFを生成中...' : '正在生成PDF...');
+
+    try {
+      // jspdfを動的にインポート
+      const { jsPDF } = await import('jspdf');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 10;
+
+      for (let i = 0; i < productImages.length; i++) {
+        if (i > 0) pdf.addPage();
+
+        const img = productImages[i];
+        const imageUrl = img.imageUrl;
+
+        // 画像を読み込んでPDFに追加
+        try {
+          const response = await fetch(imageUrl);
+          const blob = await response.blob();
+          const base64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(blob);
+          });
+
+          // 画像のアスペクト比を維持してページに収まるように計算
+          const imgProps = pdf.getImageProperties(base64);
+          const maxWidth = pageWidth - margin * 2;
+          const maxHeight = pageHeight - margin * 2;
+          let imgWidth = imgProps.width;
+          let imgHeight = imgProps.height;
+
+          const ratio = Math.min(maxWidth / imgWidth, maxHeight / imgHeight);
+          imgWidth *= ratio;
+          imgHeight *= ratio;
+
+          const x = (pageWidth - imgWidth) / 2;
+          const y = (pageHeight - imgHeight) / 2;
+
+          pdf.addImage(base64, 'JPEG', x, y, imgWidth, imgHeight);
+        } catch (imgError) {
+          console.error('Error loading image:', imgError);
+          pdf.text(`Image ${i + 1} could not be loaded`, margin, margin + 10);
+        }
+      }
+
+      // ダウンロード
+      const fileName = `${selectedProductForDetail.productName || 'product'}_images.pdf`;
+      pdf.save(fileName);
+      toast.success(language === 'ja' ? 'PDFをダウンロードしました' : 'PDF已下载');
+    } catch (error) {
+      console.error('PDF generation error:', error);
+      toast.error(language === 'ja' ? 'PDFの生成に失敗しました' : 'PDF生成失败');
+    }
+  };
 
   // AI分析ミューテーション
   const aiExtractMutation = trpc.brandProduct.extractFromImage.useMutation({
@@ -3655,42 +3832,145 @@ export default function BrandDetail() {
             {/* Content - Side by Side Layout */}
             {selectedProductForDetail && (
               <div className="flex flex-1 overflow-hidden relative">
-                {/* Left Side - Image with Glow Effect */}
-                <div className="w-[48%] bg-gradient-to-br from-gray-900/90 via-black to-gray-900/90 p-10 flex items-center justify-center border-r border-pink-500/20 relative">
+                {/* Left Side - Image Gallery with Glow Effect */}
+                <div className="w-[48%] bg-gradient-to-br from-gray-900/90 via-black to-gray-900/90 p-6 flex flex-col border-r border-pink-500/20 relative">
                   <div className="absolute inset-0 bg-gradient-to-br from-pink-500/5 via-transparent to-purple-500/5" />
-                  {(() => {
-                    const imageUrl = selectedProductForDetail.imageUrls 
-                      ? (Array.isArray(selectedProductForDetail.imageUrls) 
-                          ? selectedProductForDetail.imageUrls[0] 
-                          : (typeof selectedProductForDetail.imageUrls === 'string' 
-                              ? JSON.parse(selectedProductForDetail.imageUrls)[0] 
-                              : null)) 
-                      : null;
-                    if (imageUrl) {
-                      return (
+                  
+                  {/* Main Image Display */}
+                  <div className="flex-1 flex items-center justify-center relative">
+                    {productImages.length > 0 ? (
+                      <div className="relative w-full h-full flex items-center justify-center">
+                        {/* Navigation Arrows */}
+                        {productImages.length > 1 && (
+                          <>
+                            <button
+                              onClick={() => setCurrentImageIndex((prev) => (prev > 0 ? prev - 1 : productImages.length - 1))}
+                              className="absolute left-2 z-20 p-2 bg-black/60 hover:bg-black/80 rounded-full text-white transition-all"
+                            >
+                              <ChevronLeft className="w-6 h-6" />
+                            </button>
+                            <button
+                              onClick={() => setCurrentImageIndex((prev) => (prev < productImages.length - 1 ? prev + 1 : 0))}
+                              className="absolute right-2 z-20 p-2 bg-black/60 hover:bg-black/80 rounded-full text-white transition-all"
+                            >
+                              <ChevronRight className="w-6 h-6" />
+                            </button>
+                          </>
+                        )}
+                        
+                        {/* Main Image */}
                         <div 
-                          className="block w-full h-full flex items-center justify-center relative group cursor-pointer"
-                          onClick={() => setExpandedImageUrl(imageUrl)}
+                          className="group cursor-pointer relative"
+                          onClick={() => setExpandedImageUrl(productImages[currentImageIndex]?.imageUrl)}
                         >
                           <div className="absolute inset-0 bg-gradient-to-br from-pink-500/20 to-purple-500/20 rounded-2xl blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                           <img 
-                            src={imageUrl} 
+                            src={productImages[currentImageIndex]?.imageUrl} 
                             alt={selectedProductForDetail.productName || ''}
-                            className="max-w-full max-h-full object-contain rounded-2xl border-4 border-pink-500/40 cursor-pointer hover:scale-[1.03] transition-all duration-500 shadow-[0_0_40px_rgba(236,72,153,0.3)] hover:shadow-[0_0_60px_rgba(236,72,153,0.5)] relative z-10"
+                            className="max-w-full max-h-[50vh] object-contain rounded-2xl border-4 border-pink-500/40 cursor-pointer hover:scale-[1.02] transition-all duration-500 shadow-[0_0_40px_rgba(236,72,153,0.3)] hover:shadow-[0_0_60px_rgba(236,72,153,0.5)] relative z-10"
                           />
                           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/70 text-white px-4 py-2 rounded-full text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center gap-2">
                             <ZoomIn className="w-4 h-4" />
                             {language === 'ja' ? 'クリックで拡大' : '点击放大'}
                           </div>
                         </div>
-                      );
-                    }
-                    return (
-                      <div className="w-96 h-96 bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl border-4 border-pink-500/30 flex items-center justify-center shadow-[0_0_30px_rgba(236,72,153,0.2)]">
-                        <Package className="w-40 h-40 text-gray-600" />
+                        
+                        {/* Page Indicator */}
+                        {productImages.length > 1 && (
+                          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/70 text-white px-3 py-1 rounded-full text-sm z-20">
+                            {currentImageIndex + 1} / {productImages.length}
+                          </div>
+                        )}
                       </div>
-                    );
-                  })()}
+                    ) : (
+                      <div className="w-64 h-64 bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl border-4 border-pink-500/30 flex items-center justify-center shadow-[0_0_30px_rgba(236,72,153,0.2)]">
+                        <Package className="w-24 h-24 text-gray-600" />
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Thumbnail Strip + Actions */}
+                  <div className="relative z-10 mt-4 space-y-3">
+                    {/* Thumbnails */}
+                    {productImages.length > 0 && (
+                      <div className="flex gap-2 overflow-x-auto pb-2">
+                        {productImages.map((img, idx) => (
+                          <button
+                            key={img.id || idx}
+                            onClick={() => setCurrentImageIndex(idx)}
+                            className={`relative flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${
+                              idx === currentImageIndex 
+                                ? 'border-pink-500 shadow-[0_0_10px_rgba(236,72,153,0.5)]' 
+                                : 'border-gray-600 hover:border-gray-400'
+                            }`}
+                          >
+                            <img 
+                              src={img.imageUrl} 
+                              alt="" 
+                              className="w-full h-full object-cover"
+                            />
+                            {/* Delete button for non-proposal images */}
+                            {!img.isProposalImage && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteProductImageMutation.mutate({ imageId: img.id });
+                                }}
+                                className="absolute top-0 right-0 p-0.5 bg-red-500/80 hover:bg-red-500 rounded-bl text-white"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* Action Buttons */}
+                    <div className="flex gap-2">
+                      {/* Add Image Button */}
+                      <input
+                        type="file"
+                        ref={productImageInputRef}
+                        onChange={handleProductImageUpload}
+                        accept="image/*"
+                        className="hidden"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => productImageInputRef.current?.click()}
+                        disabled={isAddingImage}
+                        className="flex-1 border-pink-500/50 text-pink-300 hover:bg-pink-500/20"
+                      >
+                        {isAddingImage ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Plus className="w-4 h-4 mr-2" />
+                        )}
+                        {language === 'ja' ? '画像を追加' : '添加图片'}
+                      </Button>
+                      
+                      {/* PDF Download Button */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleDownloadPdf}
+                        disabled={productImages.length === 0}
+                        className="flex-1 border-cyan-500/50 text-cyan-300 hover:bg-cyan-500/20"
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        {language === 'ja' ? 'PDFダウンロード' : '下载PDF'}
+                      </Button>
+                    </div>
+                    
+                    {/* Keyboard hint */}
+                    {productImages.length > 1 && (
+                      <p className="text-xs text-gray-500 text-center">
+                        {language === 'ja' ? '← → キーで画像を切り替え' : '使用 ← → 键切换图片'}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 
                 {/* Right Side - Info with Enhanced Styling */}
