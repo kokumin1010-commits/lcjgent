@@ -697,6 +697,13 @@ export default function BrandDetail() {
   const { data: monthlyGmvSummary = [] } = trpc.brandLivestream.monthlyGmvSummary.useQuery({ brandId });
   const { data: lcjStaff = [] } = trpc.brand.getLcjStaff.useQuery({ brandId }, { enabled: brandId > 0 });
 
+  // 商品リンクを一括取得（商品パフォーマンステーブル用）
+  const productIds = products.map((p) => p.id);
+  const { data: allProductLinks = [] } = trpc.productLinks.listForProducts.useQuery(
+    { productIds },
+    { enabled: productIds.length > 0 }
+  );
+
   // Mutations
   const createMemoMutation = trpc.brandMemo.create.useMutation({
     onSuccess: () => {
@@ -1818,13 +1825,39 @@ export default function BrandDetail() {
                             )}
                           </div>
                         </td>
-                        <td className="py-3 px-2 max-w-[150px]">
-                          <span 
-                            className="text-white font-medium block truncate cursor-help" 
-                            title={product.productName}
-                          >
-                            {product.productName}
-                          </span>
+                        <td className="py-3 px-2 max-w-[200px]">
+                          <div className="flex flex-col gap-1">
+                            <span 
+                              className="text-white font-medium block truncate cursor-help" 
+                              title={product.productName}
+                            >
+                              {product.productName}
+                            </span>
+                            {/* 商品リンクを表示 */}
+                            {(() => {
+                              const links = allProductLinks.filter((link: any) => link.productId === product.id);
+                              if (links.length === 0) return null;
+                              return (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {links.map((link: any) => (
+                                    <a
+                                      key={link.id}
+                                      href={link.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-cyan-900/40 hover:bg-cyan-800/60 text-cyan-300 hover:text-cyan-100 rounded-full border border-cyan-700/50 transition-all"
+                                      title={link.url}
+                                    >
+                                      <Link className="w-3 h-3" />
+                                      <span className="truncate max-w-[80px]">{link.title}</span>
+                                      <ExternalLink className="w-3 h-3 opacity-60" />
+                                    </a>
+                                  ))}
+                                </div>
+                              );
+                            })()}
+                          </div>
                         </td>
                         <td className="py-3 px-2 text-right text-gray-400 text-lg" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                           {formatCurrency(product.listPrice)}
