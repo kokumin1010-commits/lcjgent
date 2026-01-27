@@ -909,6 +909,38 @@ export async function getProductsByBrandId(brandId: number) {
   return await db.select().from(brandProducts).where(eq(brandProducts.brandId, brandId)).orderBy(desc(brandProducts.createdAt));
 }
 
+// Get products by brand ID with GMV from linked livestreams
+export async function getProductsByBrandIdWithGmv(brandId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // Get all products for the brand
+  const products = await db.select().from(brandProducts).where(eq(brandProducts.brandId, brandId)).orderBy(desc(brandProducts.createdAt));
+  
+  // Get all livestreams for the brand that have a productId
+  const livestreams = await db.select().from(brandLivestreams).where(
+    and(
+      eq(brandLivestreams.brandId, brandId),
+      isNotNull(brandLivestreams.productId)
+    )
+  );
+  
+  // Calculate GMV for each product
+  const productGmvMap = new Map<number, number>();
+  for (const ls of livestreams) {
+    if (ls.productId && ls.gmv) {
+      const currentGmv = productGmvMap.get(ls.productId) || 0;
+      productGmvMap.set(ls.productId, currentGmv + Number(ls.gmv));
+    }
+  }
+  
+  // Add GMV to each product
+  return products.map(product => ({
+    ...product,
+    totalGmv: productGmvMap.get(product.id) || 0,
+  }));
+}
+
 // Get product by ID
 export async function getBrandProductById(id: number) {
   const db = await getDb();

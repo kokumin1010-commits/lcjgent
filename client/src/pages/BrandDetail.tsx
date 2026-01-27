@@ -1629,7 +1629,7 @@ export default function BrandDetail() {
                           {formatCurrency(product.specialPrice)}
                         </td>
                         <td className="py-3 px-2 text-right text-cyan-400 text-lg font-bold" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                          -
+                          {(product as any).totalGmv ? formatCurrency((product as any).totalGmv) : '-'}
                         </td>
                         <td className="py-3 px-2 text-right text-purple-400 text-lg" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                           {product.commissionRate ? `${product.commissionRate.replace(/[^0-9.]/g, '')}%` : "-"}

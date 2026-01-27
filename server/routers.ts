@@ -55,6 +55,7 @@ import {
   deleteBrand,
   createBrandProduct,
   getProductsByBrandId,
+  getProductsByBrandIdWithGmv,
   getBrandProductById,
   updateBrandProduct,
   deleteBrandProduct,
@@ -1734,7 +1735,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
     listByBrand: protectedProcedure
       .input(z.object({ brandId: z.number() }))
       .query(async ({ input }) => {
-        return await getProductsByBrandId(input.brandId);
+        return await getProductsByBrandIdWithGmv(input.brandId);
       }),
 
     update: protectedProcedure
