@@ -105,6 +105,7 @@ import {
   updateBrandContract,
   deleteBrandContract,
   getActiveContractsCount,
+  getAllContracts,
   createReportAiAdvice,
   getAiAdviceByReportId,
   getAiAdviceById,
@@ -2917,6 +2918,11 @@ Return ONLY valid JSON, no markdown or explanation.`,
         
         return { success: true };
       }),
+
+    // Get all contracts (for statistics)
+    listAll: protectedProcedure.query(async () => {
+      return await getAllContracts();
+    }),
 
     // Get active contracts count
     activeCount: protectedProcedure

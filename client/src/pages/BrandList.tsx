@@ -157,6 +157,9 @@ export default function BrandList() {
   // 全商品データを取得（LCJ報酬計算用）
   const { data: allProductsData } = trpc.brandProduct.listAll.useQuery();
 
+  // 全契約データを取得（広告費計算用）
+  const { data: allContractsData } = trpc.brandContract.listAll.useQuery();
+
   // 期間に基づいてフィルタリングされたデータを計算
   const filteredStats = useMemo(() => {
     if (!brandsData || !allLivestreamsData) {
@@ -196,8 +199,27 @@ export default function BrandList() {
     // GMV合計
     const totalGmv = filteredLivestreams.reduce((sum: number, ls: any) => sum + (ls.gmv || 0), 0);
 
-    // 広告費合計（各ライブストリームのadCostを合計）
-    const totalAdBudget = filteredLivestreams.reduce((sum: number, ls: any) => sum + (ls.adCost || 0), 0);
+    // 広告費合計（契約のfixedFeeから取得 - ブランドカードと同じロジック）
+    // 期間フィルターがある場合は、その期間内の契約のみを集計
+    let totalAdBudget = 0;
+    if (allContractsData) {
+      const filteredContracts = allContractsData.filter((contract: any) => {
+        if (!startDate || !endDate) return true;
+        // 契約の開始日が期間内にあるか、または期間内に有効な契約
+        const contractStart = contract.startDate ? new Date(contract.startDate) : null;
+        const contractEnd = contract.endDate ? new Date(contract.endDate) : null;
+        
+        // 契約期間が選択期間と重なっているかチェック
+        if (contractStart && contractEnd) {
+          return contractStart <= endDate && contractEnd >= startDate;
+        } else if (contractStart) {
+          return contractStart <= endDate;
+        }
+        // 日付がない場合は全期間に含める
+        return true;
+      });
+      totalAdBudget = filteredContracts.reduce((sum: number, c: any) => sum + (c.fixedFee || 0), 0);
+    }
 
     // ROAS計算（広告費が0の場合は0を返す）
     const roas = totalAdBudget > 0 ? totalGmv / totalAdBudget : 0;
@@ -220,7 +242,7 @@ export default function BrandList() {
     }
 
     return { totalAdBudget, totalGmv, roas, lcjReward };
-  }, [brandsData, allLivestreamsData, allProductsData, periodFilter]);
+  }, [brandsData, allLivestreamsData, allProductsData, allContractsData, periodFilter]);
 
   // ソートされたブランドリスト
   const brands = brandsData ? [...brandsData].sort((a, b) => {

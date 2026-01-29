@@ -1644,6 +1644,14 @@ export async function deleteBrandContract(id: number) {
   await db.delete(brandContracts).where(eq(brandContracts.id, id));
 }
 
+// Get all contracts (for statistics)
+export async function getAllContracts() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db.select().from(brandContracts).orderBy(desc(brandContracts.createdAt));
+}
+
 // Get active contracts count by brand ID
 export async function getActiveContractsCount(brandId: number) {
   const db = await getDb();
