@@ -3,10 +3,9 @@ import { useLocation, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { clearLiverToken } from "@/lib/liverAuth";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { 
   Calendar, 
   Clock, 
@@ -14,20 +13,12 @@ import {
   Plus, 
   LogOut, 
   ChevronRight,
-  TrendingUp,
-  TrendingDown,
   Video,
-  Home,
-  User,
-  BarChart3,
   Eye,
   ShoppingCart,
-  Target,
-  Award,
-  Flame,
   Settings,
   Link2,
-  Edit
+  Users
 } from "lucide-react";
 import { SiTiktok, SiInstagram, SiYoutube } from "react-icons/si";
 
@@ -50,7 +41,6 @@ export default function LiverMypage() {
 
   const logoutMutation = trpc.liver.logout.useMutation({
     onSuccess: () => {
-      // Clear token from localStorage
       clearLiverToken();
       navigate("/liver/login");
     },
@@ -80,7 +70,6 @@ export default function LiverMypage() {
     const viewerCount = filtered.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.viewerCount || 0), 0);
     const orderCount = filtered.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.orderCount || 0), 0);
     
-    // Calculate total hours from duration (in minutes) or from start/end times
     const hours = filtered.reduce((sum: number, ls: LivestreamRecord) => {
       if (ls.duration) {
         return sum + (ls.duration / 60);
@@ -106,46 +95,6 @@ export default function LiverMypage() {
     };
   }, [livestreams, selectedMonth]);
 
-  // Calculate previous month stats for comparison
-  const previousMonthStats = useMemo(() => {
-    if (!livestreams) return { sales: 0, hours: 0, count: 0 };
-    
-    const [year, month] = selectedMonth.split("-").map(Number);
-    const prevMonth = month === 1 ? 12 : month - 1;
-    const prevYear = month === 1 ? year - 1 : year;
-    
-    type LivestreamRecord = { 
-      livestreamDate: string | Date; 
-      livestreamEndTime?: string | Date | null; 
-      salesAmount?: number | null;
-      duration?: number | null;
-    };
-    const filtered = livestreams.filter((ls: LivestreamRecord) => {
-      const date = new Date(ls.livestreamDate);
-      return date.getFullYear() === prevYear && date.getMonth() + 1 === prevMonth;
-    });
-
-    const sales = filtered.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.salesAmount || 0), 0);
-    const hours = filtered.reduce((sum: number, ls: LivestreamRecord) => {
-      if (ls.duration) {
-        return sum + (ls.duration / 60);
-      }
-      if (ls.livestreamDate && ls.livestreamEndTime) {
-        const start = new Date(ls.livestreamDate).getTime();
-        const end = new Date(ls.livestreamEndTime).getTime();
-        return sum + (end - start) / (1000 * 60 * 60);
-      }
-      return sum;
-    }, 0);
-
-    return { sales, hours: Math.round(hours * 10) / 10, count: filtered.length };
-  }, [livestreams, selectedMonth]);
-
-  // Calculate growth percentage
-  const salesGrowth = previousMonthStats.sales > 0 
-    ? Math.round(((monthlyStats.sales - previousMonthStats.sales) / previousMonthStats.sales) * 100)
-    : monthlyStats.sales > 0 ? 100 : 0;
-
   // Filter livestreams by selected month
   const filteredLivestreams = useMemo(() => {
     if (!livestreams) return [];
@@ -159,12 +108,11 @@ export default function LiverMypage() {
       .sort((a: { livestreamDate: string | Date }, b: { livestreamDate: string | Date }) => new Date(b.livestreamDate).getTime() - new Date(a.livestreamDate).getTime());
   }, [livestreams, selectedMonth]);
 
-  // Generate month options based on livestream data
+  // Generate month options
   const monthOptions = useMemo(() => {
     const options: { value: string; label: string }[] = [];
     const now = new Date();
     
-    // 配信履歴から月を取得
     const monthsWithData = new Set<string>();
     if (livestreams) {
       livestreams.forEach((ls: { livestreamDate: string | Date }) => {
@@ -174,7 +122,6 @@ export default function LiverMypage() {
       });
     }
     
-    // 過去12ヶ月を生成
     for (let i = 0; i < 12; i++) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
@@ -182,20 +129,14 @@ export default function LiverMypage() {
       options.push({ value, label });
     }
     
-    // 配信履歴にある月も追加（過去12ヶ月にない場合）
     monthsWithData.forEach(monthValue => {
       if (!options.find(o => o.value === monthValue)) {
         const [year, month] = monthValue.split("-").map(Number);
-        options.push({ 
-          value: monthValue, 
-          label: `${year}年${month}月` 
-        });
+        options.push({ value: monthValue, label: `${year}年${month}月` });
       }
     });
     
-    // 日付順にソート（新しい順）
     options.sort((a, b) => b.value.localeCompare(a.value));
-    
     return options;
   }, [livestreams]);
 
@@ -230,7 +171,6 @@ export default function LiverMypage() {
     };
   }, [livestreams]);
 
-  // 表示する配信履歴（最初は10件まで）
   const displayedLivestreams = showAllLivestreams 
     ? filteredLivestreams 
     : filteredLivestreams.slice(0, 10);
@@ -238,7 +178,7 @@ export default function LiverMypage() {
   if (isLoadingLiver) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -247,10 +187,7 @@ export default function LiverMypage() {
     return (
       <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4 p-4">
         <p className="text-white text-center">ログインが必要です</p>
-        <Button
-          onClick={() => navigate("/liver/login")}
-          className="bg-red-600 hover:bg-red-700"
-        >
+        <Button onClick={() => navigate("/liver/login")} className="bg-red-600 hover:bg-red-700">
           ログインページへ
         </Button>
       </div>
@@ -258,363 +195,288 @@ export default function LiverMypage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black text-white">
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-black border-b-2 border-red-600 px-4 py-3">
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold text-yellow-500">マイページ</h1>
-          <div className="flex items-center gap-2">
+      <header className="sticky top-0 z-10 bg-gray-900/95 backdrop-blur border-b border-gray-800 px-4 py-3">
+        <div className="flex items-center justify-between max-w-lg mx-auto">
+          <h1 className="text-lg font-bold text-white">マイページ</h1>
+          <div className="flex items-center gap-1">
             <Link href="/livers">
-              <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white">
-                ライバーリスト
+              <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white text-xs px-2">
+                <Users className="h-4 w-4 mr-1" />
+                一覧
               </Button>
             </Link>
             <Button
               variant="ghost"
               size="icon"
               onClick={() => logoutMutation.mutate()}
-              className="text-gray-300 hover:text-white"
+              className="text-gray-400 hover:text-red-400 h-8 w-8"
             >
-              <LogOut className="h-5 w-5" />
+              <LogOut className="h-4 w-4" />
             </Button>
           </div>
         </div>
       </header>
 
-      {/* Red line separator */}
-      <div className="h-1 bg-gradient-to-r from-red-600 via-red-500 to-red-600" />
-
-      <div className="container max-w-4xl mx-auto px-4 py-6 space-y-6">
-        {/* Profile Section */}
-        <div className="flex flex-col items-center text-center">
-          <Avatar className="w-24 h-24 border-4 border-red-600">
-            <AvatarImage src={liverInfo.avatarUrl || undefined} />
-            <AvatarFallback 
-              className="text-2xl font-bold text-white"
-              style={{ backgroundColor: liverInfo.color || "#FF69B4" }}
-            >
-              {liverInfo.name?.charAt(0) || "?"}
-            </AvatarFallback>
-          </Avatar>
-          <div className="mt-4 flex items-center gap-2">
-            <Home className="h-4 w-4 text-red-500" />
-          </div>
-          <h2 className="mt-2 text-xl font-bold">{liverInfo.name}</h2>
-          
-          {/* SNS Links */}
-          {(liverInfo.tiktokAccount || liverInfo.instagramAccount || liverInfo.youtubeAccount || liverInfo.otherAccount) && (
-            <div className="flex items-center gap-4 mt-3">
-              {liverInfo.tiktokAccount && (
-                <a 
-                  href={liverInfo.tiktokAccount.startsWith('http') ? liverInfo.tiktokAccount : `https://www.tiktok.com/${liverInfo.tiktokAccount.replace('@', '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-gray-300 hover:text-white transition-colors"
-                  title="TikTok"
+      <div className="max-w-lg mx-auto px-4 py-4 space-y-4">
+        {/* Profile Card */}
+        <Card className="bg-gray-800/50 border-gray-700">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-4">
+              <Avatar className="h-16 w-16 ring-2 ring-red-500/50">
+                <AvatarImage src={liverInfo.avatarUrl || undefined} />
+                <AvatarFallback 
+                  className="text-xl font-bold text-white"
+                  style={{ backgroundColor: liverInfo.color || "#EF4444" }}
                 >
-                  <SiTiktok className="w-5 h-5" />
-                </a>
-              )}
-              {liverInfo.instagramAccount && (
-                <a 
-                  href={liverInfo.instagramAccount.startsWith('http') ? liverInfo.instagramAccount : `https://www.instagram.com/${liverInfo.instagramAccount.replace('@', '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-gray-300 hover:text-pink-400 transition-colors"
-                  title="Instagram"
-                >
-                  <SiInstagram className="w-5 h-5" />
-                </a>
-              )}
-              {liverInfo.youtubeAccount && (
-                <a 
-                  href={liverInfo.youtubeAccount.startsWith('http') ? liverInfo.youtubeAccount : `https://www.youtube.com/${liverInfo.youtubeAccount}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-gray-300 hover:text-red-500 transition-colors"
-                  title="YouTube"
-                >
-                  <SiYoutube className="w-5 h-5" />
-                </a>
-              )}
-              {liverInfo.otherAccount && (
-                <a 
-                  href={liverInfo.otherAccount.startsWith('http') ? liverInfo.otherAccount : `https://${liverInfo.otherAccount}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-gray-300 hover:text-blue-400 transition-colors"
-                  title="その他"
-                >
-                  <Link2 className="w-5 h-5" />
-                </a>
-              )}
+                  {liverInfo.name?.charAt(0) || "?"}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-lg font-bold truncate">{liverInfo.name}</h2>
+                {/* SNS Links */}
+                <div className="flex items-center gap-3 mt-2">
+                  {liverInfo.tiktokAccount && (
+                    <a 
+                      href={liverInfo.tiktokAccount.startsWith('http') ? liverInfo.tiktokAccount : `https://www.tiktok.com/${liverInfo.tiktokAccount.replace('@', '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-gray-400 hover:text-white transition-colors"
+                    >
+                      <SiTiktok className="w-4 h-4" />
+                    </a>
+                  )}
+                  {liverInfo.instagramAccount && (
+                    <a 
+                      href={liverInfo.instagramAccount.startsWith('http') ? liverInfo.instagramAccount : `https://www.instagram.com/${liverInfo.instagramAccount.replace('@', '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-gray-400 hover:text-pink-400 transition-colors"
+                    >
+                      <SiInstagram className="w-4 h-4" />
+                    </a>
+                  )}
+                  {liverInfo.youtubeAccount && (
+                    <a 
+                      href={liverInfo.youtubeAccount.startsWith('http') ? liverInfo.youtubeAccount : `https://www.youtube.com/${liverInfo.youtubeAccount}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-gray-400 hover:text-red-500 transition-colors"
+                    >
+                      <SiYoutube className="w-4 h-4" />
+                    </a>
+                  )}
+                  {liverInfo.otherAccount && (
+                    <a 
+                      href={liverInfo.otherAccount.startsWith('http') ? liverInfo.otherAccount : `https://${liverInfo.otherAccount}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-gray-400 hover:text-blue-400 transition-colors"
+                    >
+                      <Link2 className="w-4 h-4" />
+                    </a>
+                  )}
+                </div>
+              </div>
+              <Link href="/liver/profile">
+                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-white h-8 w-8">
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </Link>
             </div>
-          )}
+          </CardContent>
+        </Card>
 
-          <Link href="/liver/profile">
-            <Button variant="ghost" size="sm" className="mt-2 text-gray-300 hover:text-white">
-              <Settings className="h-4 w-4 mr-1" />
-              プロフィール編集
-            </Button>
-          </Link>
-        </div>
-
-        {/* Month Selector */}
-        <div className="flex justify-center">
+        {/* Month Selector & Action Buttons */}
+        <div className="flex items-center gap-2">
           <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-            <SelectTrigger className="w-40 bg-yellow-500 border-yellow-600 text-black font-bold">
+            <SelectTrigger className="flex-1 bg-gray-800 border-gray-700 text-white h-10">
               <SelectValue />
-              <span className="ml-1">実績</span>
             </SelectTrigger>
-            <SelectContent className="bg-white border-gray-300 text-black">
+            <SelectContent className="bg-gray-800 border-gray-700 text-white">
               {monthOptions.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
+                <SelectItem key={opt.value} value={opt.value} className="hover:bg-gray-700">
                   {opt.label}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+          <Button
+            onClick={() => navigate(`/s`)}
+            size="sm"
+            className="bg-gray-700 hover:bg-gray-600 text-white h-10 px-3"
+          >
+            <Calendar className="h-4 w-4" />
+          </Button>
+          <Button
+            onClick={() => navigate(`/liver/record`)}
+            size="sm"
+            className="bg-red-600 hover:bg-red-700 text-white h-10 px-3"
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
         </div>
 
-        {/* Monthly Stats - タイトなデザイン */}
+        {/* Monthly Stats Grid */}
         <div className="grid grid-cols-2 gap-3">
-          <Card className="bg-slate-800 border-slate-700">
-            <CardContent className="p-3 text-center">
-              <DollarSign className="h-4 w-4 mx-auto text-yellow-500 mb-1" />
-              <p className="text-xl font-bold text-white">¥{monthlyStats.sales.toLocaleString()}</p>
-              <div className="h-0.5 bg-yellow-500 mt-1.5 rounded" />
-              <p className="text-xs text-gray-400 mt-1">月間売上</p>
+          <Card className="bg-gradient-to-br from-red-600/20 to-red-800/20 border-red-500/30">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2 text-red-400 mb-1">
+                <DollarSign className="h-4 w-4" />
+                <span className="text-xs">月間売上</span>
+              </div>
+              <p className="text-2xl font-bold text-white">¥{monthlyStats.sales.toLocaleString()}</p>
             </CardContent>
           </Card>
-          <Card className="bg-slate-800 border-slate-700">
-            <CardContent className="p-3 text-center">
-              <Clock className="h-4 w-4 mx-auto text-yellow-500 mb-1" />
-              <p className="text-xl font-bold text-white">{monthlyStats.hours}h</p>
-              <div className="h-0.5 bg-yellow-500 mt-1.5 rounded" />
-              <p className="text-xs text-gray-400 mt-1">配信時間</p>
+          <Card className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border-blue-500/30">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2 text-blue-400 mb-1">
+                <Clock className="h-4 w-4" />
+                <span className="text-xs">配信時間</span>
+              </div>
+              <p className="text-2xl font-bold text-white">{monthlyStats.hours}h</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Additional Stats - タイトなデザイン */}
+        {/* Additional Stats */}
         <div className="grid grid-cols-4 gap-2">
-          <Card className="bg-slate-800 border-slate-700">
+          <Card className="bg-gray-800/50 border-gray-700">
             <CardContent className="p-2 text-center">
-              <Video className="h-3 w-3 mx-auto text-red-500 mb-0.5" />
+              <Video className="h-3 w-3 mx-auto text-gray-400 mb-1" />
               <p className="text-lg font-bold text-white">{monthlyStats.count}</p>
-              <p className="text-[10px] text-gray-400">配信回数</p>
+              <p className="text-[10px] text-gray-500">配信数</p>
             </CardContent>
           </Card>
-          <Card className="bg-slate-800 border-slate-700">
+          <Card className="bg-gray-800/50 border-gray-700">
             <CardContent className="p-2 text-center">
-              <Target className="h-3 w-3 mx-auto text-green-500 mb-0.5" />
-              <p className="text-lg font-bold text-white">¥{monthlyStats.avgSales.toLocaleString()}</p>
-              <p className="text-[10px] text-gray-400">平均売上</p>
+              <DollarSign className="h-3 w-3 mx-auto text-gray-400 mb-1" />
+              <p className="text-lg font-bold text-white">¥{Math.round(monthlyStats.avgSales / 1000)}k</p>
+              <p className="text-[10px] text-gray-500">平均</p>
             </CardContent>
           </Card>
-          <Card className="bg-slate-800 border-slate-700">
+          <Card className="bg-gray-800/50 border-gray-700">
             <CardContent className="p-2 text-center">
-              <Eye className="h-3 w-3 mx-auto text-blue-500 mb-0.5" />
+              <Eye className="h-3 w-3 mx-auto text-gray-400 mb-1" />
               <p className="text-lg font-bold text-white">{monthlyStats.viewerCount.toLocaleString()}</p>
-              <p className="text-[10px] text-gray-400">視聴者数</p>
+              <p className="text-[10px] text-gray-500">視聴者</p>
             </CardContent>
           </Card>
-          <Card className="bg-slate-800 border-slate-700">
+          <Card className="bg-gray-800/50 border-gray-700">
             <CardContent className="p-2 text-center">
-              <ShoppingCart className="h-3 w-3 mx-auto text-purple-500 mb-0.5" />
+              <ShoppingCart className="h-3 w-3 mx-auto text-gray-400 mb-1" />
               <p className="text-lg font-bold text-white">{monthlyStats.orderCount.toLocaleString()}</p>
-              <p className="text-[10px] text-gray-400">注文数</p>
+              <p className="text-[10px] text-gray-500">注文</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* All-time Stats - タイトなデザイン */}
-        <Card className="bg-slate-800/50 border-slate-700">
+        {/* All-time Stats */}
+        <Card className="bg-gray-800/30 border-gray-700">
           <CardContent className="p-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Award className="h-4 w-4 text-yellow-500" />
-              <span className="font-bold text-white text-sm">累計実績</span>
-            </div>
-            <div className="grid grid-cols-3 gap-3 text-center">
+            <p className="text-xs text-gray-500 mb-2">累計実績</p>
+            <div className="grid grid-cols-3 gap-2 text-center">
               <div>
-                <p className="text-lg font-bold text-yellow-500">¥{allTimeStats.totalSales.toLocaleString()}</p>
-                <p className="text-[10px] text-gray-400">総売上</p>
+                <p className="text-sm font-bold text-red-400">¥{allTimeStats.totalSales.toLocaleString()}</p>
+                <p className="text-[10px] text-gray-500">総売上</p>
               </div>
               <div>
-                <p className="text-lg font-bold text-yellow-500">{allTimeStats.totalHours}h</p>
-                <p className="text-[10px] text-gray-400">総配信時間</p>
+                <p className="text-sm font-bold text-blue-400">{allTimeStats.totalHours}h</p>
+                <p className="text-[10px] text-gray-500">総時間</p>
               </div>
               <div>
-                <p className="text-lg font-bold text-yellow-500">{allTimeStats.totalCount}</p>
-                <p className="text-[10px] text-gray-400">総配信回数</p>
+                <p className="text-sm font-bold text-green-400">{allTimeStats.totalCount}</p>
+                <p className="text-[10px] text-gray-500">総配信</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Action Buttons - タイトなデザイン */}
-        <div className="grid grid-cols-2 gap-3">
-          <Button
-            onClick={() => navigate(`/s`)}
-            className="bg-yellow-500 hover:bg-yellow-600 text-black py-3 text-sm font-bold"
-          >
-            <Calendar className="h-4 w-4 mr-1.5" />
-            スケジュール
-          </Button>
-          <Button
-            onClick={() => navigate(`/liver/record`)}
-            className="bg-red-600 hover:bg-red-700 text-white py-3 text-sm font-bold"
-          >
-            <Plus className="h-4 w-4 mr-1.5" />
-            配信記録
-          </Button>
-        </div>
-
-        {/* Livestream History - Table Format */}
+        {/* Livestream History */}
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              <Video className="h-5 w-5 text-red-500" />
-              配信履歴
-            </h3>
-            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-              <SelectTrigger className="w-32 bg-slate-700 border-slate-600 text-white text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-white border-gray-300 text-black">
-                {monthOptions.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <h3 className="text-sm font-bold text-gray-400 mb-2 flex items-center gap-2">
+            <Video className="h-4 w-4" />
+            配信履歴
+          </h3>
 
           {isLoadingLivestreams ? (
             <div className="flex justify-center py-8">
-              <div className="w-6 h-6 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" />
+              <div className="w-6 h-6 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : filteredLivestreams.length === 0 ? (
-            <Card className="bg-slate-800 border-slate-700">
-              <CardContent className="p-8 text-center text-gray-300">
-                <Video className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>配信履歴がありません。</p>
-                <p className="text-sm mt-2">「配信記録」から配信を記録しましょう！</p>
+            <Card className="bg-gray-800/50 border-gray-700">
+              <CardContent className="p-6 text-center text-gray-400">
+                <Video className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">配信履歴がありません</p>
               </CardContent>
             </Card>
           ) : (
-            <Card className="bg-slate-800 border-slate-700 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-slate-700 text-gray-400 text-[10px]">
-                      <th className="text-left py-2 px-3">開始</th>
-                      <th className="text-left py-2 px-3">終了</th>
-                      <th className="text-center py-2 px-3">時間</th>
-                      <th className="text-right py-2 px-3">売上</th>
-                      <th className="text-center py-2 px-3 w-8"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {displayedLivestreams.map((ls: { 
-                      id: number; 
-                      livestreamDate: string | Date; 
-                      livestreamEndTime?: string | Date | null; 
-                      salesAmount?: number | null;
-                      gmv?: number | null;
-                      duration?: number | null;
-                      viewerCount?: number | null;
-                      result?: string | null;
-                      streamerName?: string;
-                    }) => {
-                      const startDate = new Date(ls.livestreamDate);
-                      const endDate = ls.livestreamEndTime ? new Date(ls.livestreamEndTime) : null;
-                      const duration = ls.duration 
-                        ? Math.round(ls.duration / 60 * 10) / 10
-                        : endDate
-                          ? Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60) * 10) / 10
-                          : 0;
+            <div className="space-y-2">
+              {displayedLivestreams.map((ls: { 
+                id: number; 
+                livestreamDate: string | Date; 
+                livestreamEndTime?: string | Date | null; 
+                salesAmount?: number | null;
+                gmv?: number | null;
+                duration?: number | null;
+              }) => {
+                const startDate = new Date(ls.livestreamDate);
+                const endDate = ls.livestreamEndTime ? new Date(ls.livestreamEndTime) : null;
+                const duration = ls.duration 
+                  ? Math.round(ls.duration / 60 * 10) / 10
+                  : endDate
+                    ? Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60) * 10) / 10
+                    : 0;
 
-                      return (
-                        <tr 
-                          key={ls.id} 
-                          className="border-b border-slate-700/50 hover:bg-slate-700/50 transition-colors cursor-pointer active:bg-slate-600/50"
-                          onClick={() => navigate(`/livestreams/${ls.id}`)}
-                        >
-                          <td className="py-2 px-3">
-                            <div className="text-white text-xs">
-                              {startDate.toLocaleDateString("ja-JP", { 
-                                month: "2-digit", 
-                                day: "2-digit",
-                                weekday: "short" 
-                              })}
-                            </div>
-                            <div className="text-gray-400 text-[10px]">
-                              {startDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
-                            </div>
-                          </td>
-                          <td className="py-2 px-3">
-                            {endDate ? (
-                              <>
-                                <div className="text-white text-xs">
-                                  {endDate.toLocaleDateString("ja-JP", { 
-                                    month: "2-digit", 
-                                    day: "2-digit",
-                                    weekday: "short" 
-                                  })}
-                                </div>
-                                <div className="text-gray-400 text-[10px]">
-                                  {endDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
-                                </div>
-                              </>
-                            ) : (
-                              <span className="text-gray-500 text-xs">-</span>
-                            )}
-                          </td>
-                          <td className="py-2 px-3 text-center">
-                            <span className="text-yellow-500 font-bold text-xs">
-                              {duration > 0 ? `${duration}h` : "-"}
-                            </span>
-                          </td>
-                          <td className="py-2 px-3 text-right">
-                            <span className="text-yellow-500 font-bold text-xs">
-                              ¥{(ls.salesAmount || ls.gmv || 0).toLocaleString()}
-                            </span>
-                          </td>
-                          <td className="py-2 px-3 text-center">
-                            <ChevronRight className="h-4 w-4 text-gray-400" />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
+                return (
+                  <Card 
+                    key={ls.id} 
+                    className="bg-gray-800/50 border-gray-700 hover:bg-gray-700/50 transition-colors cursor-pointer active:scale-[0.99]"
+                    onClick={() => navigate(`/livestreams/${ls.id}`)}
+                  >
+                    <CardContent className="p-3 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="text-center bg-gray-700/50 rounded px-2 py-1">
+                          <p className="text-xs font-bold text-white">
+                            {startDate.getMonth() + 1}/{startDate.getDate()}
+                          </p>
+                          <p className="text-[10px] text-gray-400">
+                            {startDate.toLocaleDateString("ja-JP", { weekday: "short" })}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-400">
+                            {startDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
+                            {endDate && ` - ${endDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}`}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {duration > 0 ? `${duration}h` : "-"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-bold text-red-400">
+                          ¥{(ls.salesAmount || ls.gmv || 0).toLocaleString()}
+                        </p>
+                        <ChevronRight className="h-4 w-4 text-gray-500" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
           )}
 
           {filteredLivestreams.length > 10 && !showAllLivestreams && (
-            <div className="mt-4 text-center">
-              <Button 
-                variant="outline" 
-                onClick={() => setShowAllLivestreams(true)}
-                className="border-yellow-500 text-yellow-500 hover:bg-yellow-500 hover:text-black"
-              >
-                VIEW MORE
-              </Button>
-            </div>
+            <Button 
+              variant="ghost"
+              onClick={() => setShowAllLivestreams(true)}
+              className="w-full mt-2 text-gray-400 hover:text-white text-xs"
+            >
+              もっと見る ({filteredLivestreams.length - 10}件)
+            </Button>
           )}
-        </div>
-
-        {/* Bottom Navigation - タイトなデザイン */}
-        <div className="mt-6">
-          <Button
-            onClick={() => navigate("/livers")}
-            className="w-full bg-red-600 hover:bg-red-700 text-white py-3 text-sm"
-          >
-            ライバーリスト
-          </Button>
         </div>
       </div>
     </div>
