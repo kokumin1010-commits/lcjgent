@@ -48,6 +48,14 @@ export default function LiverRecord() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGeneratingAdvice, setIsGeneratingAdvice] = useState(false);
   const [advice, setAdvice] = useState<string | null>(null);
+  const [structuredAdvice, setStructuredAdvice] = useState<{
+    summary?: string;
+    goodPoints?: string[];
+    improvements?: string[];
+    nextActions?: { action: string; reason: string; timing: string }[];
+    targetForNextTime?: string;
+  } | null>(null);
+  const [calculatedMetrics, setCalculatedMetrics] = useState<Record<string, string | number> | null>(null);
   const [analysisConfidence, setAnalysisConfidence] = useState<string | null>(null);
   
   // Fetch liver info
@@ -318,9 +326,16 @@ export default function LiverRecord() {
         durationMinutes: dataToUse.durationMinutes ?? undefined,
         result: result || undefined,
         impactFactor: impactFactor || undefined,
+        liverId: liverId || undefined,
       });
       
       setAdvice(adviceResult.advice);
+      if (adviceResult.structured) {
+        setStructuredAdvice(adviceResult.structured);
+      }
+      if (adviceResult.metrics) {
+        setCalculatedMetrics(adviceResult.metrics);
+      }
     } catch (error) {
       console.error("Failed to generate advice:", error);
     } finally {
@@ -498,7 +513,7 @@ export default function LiverRecord() {
         </Card>
         
         {/* AI Advice Section */}
-        {advice && (
+        {(advice || structuredAdvice) && (
           <Card className="bg-gradient-to-r from-yellow-900/30 to-orange-900/30 border-yellow-600/50">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm text-yellow-400 flex items-center gap-2">
@@ -506,8 +521,79 @@ export default function LiverRecord() {
                 {tr.adviceTitle}
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <p className="text-white text-sm whitespace-pre-wrap">{advice}</p>
+            <CardContent className="space-y-4">
+              {/* 総評 */}
+              {structuredAdvice?.summary && (
+                <div className="bg-yellow-900/20 rounded-lg p-3">
+                  <p className="text-white text-sm font-medium">{structuredAdvice.summary}</p>
+                </div>
+              )}
+              
+              {/* 計算指標 */}
+              {calculatedMetrics && Object.keys(calculatedMetrics).length > 0 && (
+                <div className="grid grid-cols-2 gap-2">
+                  {Object.entries(calculatedMetrics).map(([key, value]) => (
+                    <div key={key} className="bg-gray-800/50 rounded p-2">
+                      <p className="text-gray-400 text-xs">{key}</p>
+                      <p className="text-white text-sm font-medium">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* 良かった点 */}
+              {structuredAdvice?.goodPoints && structuredAdvice.goodPoints.length > 0 && (
+                <div>
+                  <p className="text-green-400 text-xs font-medium mb-2">✓ 良かった点</p>
+                  <ul className="space-y-1">
+                    {structuredAdvice.goodPoints.map((point, i) => (
+                      <li key={i} className="text-white text-sm pl-3 border-l-2 border-green-500">{point}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              
+              {/* 改善ポイント */}
+              {structuredAdvice?.improvements && structuredAdvice.improvements.length > 0 && (
+                <div>
+                  <p className="text-orange-400 text-xs font-medium mb-2">▲ 改善ポイント</p>
+                  <ul className="space-y-1">
+                    {structuredAdvice.improvements.map((point, i) => (
+                      <li key={i} className="text-white text-sm pl-3 border-l-2 border-orange-500">{point}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              
+              {/* 次回のアクションプラン */}
+              {structuredAdvice?.nextActions && structuredAdvice.nextActions.length > 0 && (
+                <div>
+                  <p className="text-blue-400 text-xs font-medium mb-2">▶ 次回のアクション</p>
+                  <div className="space-y-2">
+                    {structuredAdvice.nextActions.map((action, i) => (
+                      <div key={i} className="bg-blue-900/20 rounded-lg p-3">
+                        <p className="text-white text-sm font-medium">{action.action}</p>
+                        <p className="text-gray-400 text-xs mt-1">理由: {action.reason}</p>
+                        <p className="text-blue-300 text-xs mt-1">⏰ {action.timing}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* 次回の目標 */}
+              {structuredAdvice?.targetForNextTime && (
+                <div className="bg-purple-900/30 rounded-lg p-3 border border-purple-500/30">
+                  <p className="text-purple-300 text-xs font-medium">🎯 次回の目標</p>
+                  <p className="text-white text-sm mt-1">{structuredAdvice.targetForNextTime}</p>
+                </div>
+              )}
+              
+              {/* フォールバック: 構造化データがない場合は従来のテキスト表示 */}
+              {!structuredAdvice && advice && (
+                <p className="text-white text-sm whitespace-pre-wrap">{advice}</p>
+              )}
+              
               {/* Regenerate Advice Button */}
               <Button
                 type="button"

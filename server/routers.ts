@@ -4518,41 +4518,152 @@ TikTok LIVEダッシュボードの典型的なレイアウト：
         durationMinutes: z.number().optional(),
         result: z.string().optional(),
         impactFactor: z.string().optional(),
+        liverId: z.number().optional(),
       }))
       .mutation(async ({ input }) => {
-        const dataDescription = Object.entries(input)
-          .filter(([, v]) => v !== undefined && v !== null)
-          .map(([k, v]) => `${k}: ${v}`)
+        // 基本指標の計算
+        const metrics: Record<string, string | number> = {};
+        
+        if (input.salesAmount) metrics["売上金額"] = `¥${input.salesAmount.toLocaleString()}`;
+        if (input.viewerCount) metrics["視聴者数"] = input.viewerCount.toLocaleString();
+        if (input.peakViewerCount) metrics["ピーク視聴者数"] = input.peakViewerCount.toLocaleString();
+        if (input.productClicks) metrics["商品クリック数"] = input.productClicks.toLocaleString();
+        if (input.orderCount) metrics["注文数"] = input.orderCount.toLocaleString();
+        if (input.durationMinutes) metrics["配信時間"] = `${input.durationMinutes}分`;
+        
+        // 計算指標
+        if (input.productClicks && input.orderCount && input.productClicks > 0) {
+          const cvr = (input.orderCount / input.productClicks * 100).toFixed(2);
+          metrics["コンバージョン率(CVR)"] = `${cvr}%`;
+        }
+        
+        if (input.salesAmount && input.orderCount && input.orderCount > 0) {
+          const avgOrderValue = Math.round(input.salesAmount / input.orderCount);
+          metrics["客単価"] = `¥${avgOrderValue.toLocaleString()}`;
+        }
+        
+        if (input.salesAmount && input.durationMinutes && input.durationMinutes > 0) {
+          const salesPerHour = Math.round(input.salesAmount / (input.durationMinutes / 60));
+          metrics["時間効率(売上/時)"] = `¥${salesPerHour.toLocaleString()}`;
+        }
+        
+        if (input.productClicks && input.viewerCount && input.viewerCount > 0) {
+          const engagementRate = (input.productClicks / input.viewerCount * 100).toFixed(2);
+          metrics["エンゲージメント率"] = `${engagementRate}%`;
+        }
+        
+        // 過去データの取得（ライバーIDがある場合）
+        let historicalContext = "";
+        if (input.liverId) {
+          try {
+            const pastLivestreams = await getLivestreamsByLiverId(input.liverId);
+            if (pastLivestreams.length > 1) {
+              const recentStreams = pastLivestreams.slice(0, 10);
+              const avgSales = Math.round(recentStreams.reduce((sum, ls) => sum + (ls.gmv || 0), 0) / recentStreams.length);
+              const avgDuration = Math.round(recentStreams.reduce((sum, ls) => sum + (ls.duration || 0), 0) / recentStreams.length);
+              const totalStreams = pastLivestreams.length;
+              
+              historicalContext = `
+
+【過去の配信実績】
+- 総配信回数: ${totalStreams}回
+- 直近10回の平均売上: ¥${avgSales.toLocaleString()}
+- 直近10回の平均配信時間: ${avgDuration}分`;
+              
+              // 今回との比較
+              if (input.salesAmount) {
+                const salesDiff = input.salesAmount - avgSales;
+                const salesDiffPercent = avgSales > 0 ? Math.round((salesDiff / avgSales) * 100) : 0;
+                historicalContext += `\n- 今回の売上は平均比: ${salesDiffPercent >= 0 ? '+' : ''}${salesDiffPercent}%`;
+              }
+            }
+          } catch (e) {
+            console.error("Failed to get historical data:", e);
+          }
+        }
+        
+        const metricsDescription = Object.entries(metrics)
+          .map(([k, v]) => `- ${k}: ${v}`)
           .join("\n");
 
-        const systemPrompt = `あなたはTikTokライブ配信の専門コンサルタントです。
-配信データを分析し、次回の配信に向けた具体的で実践的なワンポイントアドバイスを提供してください。
+        const systemPrompt = `あなたはTikTokライブ配信の専門コーチです。
+ライバーが次回の配信で実践できる具体的なアドバイスを提供してください。
 
-アドバイスは以下の観点から1〜2つに絞って、簡潔に（100文字以内）で提供してください：
-- 視聴者エンゲージメントの改善
-- 商品紹介のタイミングや方法
-- 配信時間の最適化
-- コンバージョン率の向上
-- 視聴者とのコミュニケーション
+【回答フォーマット】
+以下のJSON形式で回答してください：
+{
+  "summary": "今回の配信の総評（1文）",
+  "goodPoints": ["良かった点（数値根拠あり）"],
+  "improvements": ["改善ポイント（具体的に）"],
+  "nextActions": [
+    {
+      "action": "次回やるべきこと",
+      "reason": "なぜそれが効果的か",
+      "timing": "いつやるか（例：配信開始30分以内）"
+    }
+  ],
+  "targetForNextTime": "次回の具体的な目標（例：売上¥XXX万、CVR X%）"
+}
 
-日本語で回答してください。`;
+【アドバイスの観点】
+- コンバージョン率(CVR)の改善: クリックから購入への導線
+- 客単価の向上: セット販売、アップセル
+- 時間効率: 売れる時間帯の集中
+- エンゲージメント: コメント返し、質問回答
+- 商品紹介: 価格とメリットの伝え方
+
+必ずJSONのみを出力してください。説明文は不要です。`;
 
         const response = await invokeLLM({
           messages: [
             { role: "system", content: systemPrompt },
             {
               role: "user",
-              content: `以下の配信データに基づいて、次回配信へのワンポイントアドバイスをください：\n\n${dataDescription}`,
+              content: `以下の配信データを分析して、次回の配信に向けたアドバイスをください。
+
+【今回の配信データ】
+${metricsDescription}${historicalContext}`,
             },
           ],
         });
 
         const content = response.choices[0]?.message?.content;
         if (!content || typeof content !== "string") {
-          return { advice: "データを分析中です。もう一度お試しください。" };
+          return { 
+            advice: "データを分析中です。もう一度お試しください。",
+            structured: null,
+            metrics
+          };
         }
 
-        return { advice: content.trim() };
+        // JSONをパース
+        try {
+          let jsonStr = content;
+          const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+          if (jsonMatch) {
+            jsonStr = jsonMatch[1].trim();
+          }
+          
+          const structured = JSON.parse(jsonStr);
+          
+          // 従来のワンポイントアドバイスも生成（後方互換性）
+          const simpleAdvice = structured.improvements?.[0] 
+            ? `${structured.improvements[0]}。具体的なアドバイス：「${structured.nextActions?.[0]?.action || '次回の配信で試してみましょう'}」`
+            : content.trim();
+          
+          return { 
+            advice: simpleAdvice,
+            structured,
+            metrics
+          };
+        } catch (e) {
+          // JSONパース失敗時は従来のテキストを返す
+          return { 
+            advice: content.trim(),
+            structured: null,
+            metrics
+          };
+        }
       }),
   }),
 
