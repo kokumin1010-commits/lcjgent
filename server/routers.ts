@@ -203,6 +203,8 @@ import {
   updateProductLink,
   deleteProductLink,
   getProductLinksForProducts,
+  getAllLivestreams,
+  getAllProducts,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -1747,6 +1749,11 @@ ${JSON.stringify(teamSummary, null, 2)}`;
         return await getProductsByBrandIdWithGmv(input.brandId);
       }),
 
+    listAll: protectedProcedure
+      .query(async () => {
+        return await getAllProducts();
+      }),
+
     update: protectedProcedure
       .input(
         z.object({
@@ -2175,6 +2182,11 @@ ${JSON.stringify(teamSummary, null, 2)}`;
       .input(z.object({ brandId: z.number() }))
       .query(async ({ input }) => {
         return await getLivestreamsByBrandId(input.brandId);
+      }),
+
+    listAll: protectedProcedure
+      .query(async () => {
+        return await getAllLivestreams();
       }),
 
     stats: protectedProcedure

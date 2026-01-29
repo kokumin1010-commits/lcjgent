@@ -901,6 +901,14 @@ export async function createBrandProduct(productData: InsertBrandProduct) {
   return { id: Number(result[0].insertId), ...productData };
 }
 
+// Get all products (for statistics)
+export async function getAllProducts() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db.select().from(brandProducts).orderBy(desc(brandProducts.createdAt));
+}
+
 // Get products by brand ID
 export async function getProductsByBrandId(brandId: number) {
   const db = await getDb();
@@ -1076,6 +1084,14 @@ export async function deleteBrandLivestream(id: number) {
   if (!db) throw new Error("Database not available");
   
   await db.delete(brandLivestreams).where(eq(brandLivestreams.id, id));
+}
+
+// Get all livestreams (for statistics)
+export async function getAllLivestreams() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db.select().from(brandLivestreams).orderBy(desc(brandLivestreams.livestreamDate));
 }
 
 // Get livestream statistics for a brand

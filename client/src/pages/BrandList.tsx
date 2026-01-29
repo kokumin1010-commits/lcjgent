@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Building2, X, ArrowLeft, Package, Video, FileText, TrendingUp } from "lucide-react";
+import { Plus, Search, Building2, X, ArrowLeft, DollarSign, TrendingUp, Percent, Gem, Calendar, ChevronDown } from "lucide-react";
 
 const translations = {
   ja: {
@@ -36,13 +36,23 @@ const translations = {
     ended: "終了",
     totalBrands: "総ブランド数",
     contractedBrands: "契約中",
-    totalProducts: "総商品数",
-    totalLivestreams: "総直播数",
     back: "戻る",
     sortBy: "並び替え",
     sortByName: "名前順",
     sortByGmv: "売上順",
     sortByAdBudget: "広告費順",
+    // 期間フィルター
+    period: "期間",
+    allTime: "全期間",
+    thisMonth: "今月",
+    lastMonth: "先月",
+    custom: "カスタム",
+    // 統計カード
+    totalAdBudget: "広告費合計",
+    totalGmv: "GMV合計",
+    roas: "ROAS",
+    lcjReward: "LCJ報酬合計",
+    selectedPeriod: "選択期間",
   },
   zh: {
     title: "品牌司令塔",
@@ -65,13 +75,23 @@ const translations = {
     ended: "结束",
     totalBrands: "总品牌数",
     contractedBrands: "签约中",
-    totalProducts: "总商品数",
-    totalLivestreams: "总直播数",
     back: "返回",
     sortBy: "排序",
     sortByName: "名称排序",
     sortByGmv: "销售额排序",
     sortByAdBudget: "广告费排序",
+    // 期間フィルター
+    period: "期间",
+    allTime: "全期间",
+    thisMonth: "本月",
+    lastMonth: "上月",
+    custom: "自定义",
+    // 統計カード
+    totalAdBudget: "广告费合计",
+    totalGmv: "GMV合计",
+    roas: "ROAS",
+    lcjReward: "LCJ报酬合计",
+    selectedPeriod: "选择期间",
   },
 };
 
@@ -83,6 +103,35 @@ const statusColors: Record<string, string> = {
   "終了": "bg-red-500/20 text-red-400 border-red-500/30",
 };
 
+// 期間の選択肢を生成
+function generatePeriodOptions() {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  
+  const options: { value: string; label: string; year: number; month: number }[] = [];
+  
+  // 過去24ヶ月分を生成
+  for (let i = 0; i < 24; i++) {
+    let year = currentYear;
+    let month = currentMonth - i;
+    
+    while (month <= 0) {
+      month += 12;
+      year -= 1;
+    }
+    
+    options.push({
+      value: `${year}-${month.toString().padStart(2, '0')}`,
+      label: `${year}年${month}月`,
+      year,
+      month,
+    });
+  }
+  
+  return options;
+}
+
 export default function BrandList() {
   const { language } = useLanguage();
   const t = translations[language];
@@ -91,25 +140,93 @@ export default function BrandList() {
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
-  const [sortBy, setSortBy] = useState<string>("gmv"); // デフォルトは売上順
+  const [sortBy, setSortBy] = useState<string>("gmv");
+  const [periodFilter, setPeriodFilter] = useState<string>("all"); // "all", "thisMonth", "lastMonth", "YYYY-MM"
+  const [showCustomPeriod, setShowCustomPeriod] = useState(false);
+
+  const periodOptions = useMemo(() => generatePeriodOptions(), []);
 
   const { data: brandsData, isLoading } = trpc.brand.list.useQuery({
     status: statusFilter || undefined,
     search: appliedSearch || undefined,
   });
 
+  // 全ライブストリームデータを取得（期間フィルター用）
+  const { data: allLivestreamsData } = trpc.brandLivestream.listAll.useQuery();
+
+  // 全商品データを取得（LCJ報酬計算用）
+  const { data: allProductsData } = trpc.brandProduct.listAll.useQuery();
+
+  // 期間に基づいてフィルタリングされたデータを計算
+  const filteredStats = useMemo(() => {
+    if (!brandsData || !allLivestreamsData) {
+      return { totalAdBudget: 0, totalGmv: 0, roas: 0, lcjReward: 0 };
+    }
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    
+    let startDate: Date | null = null;
+    let endDate: Date | null = null;
+
+    if (periodFilter === "thisMonth") {
+      startDate = new Date(currentYear, currentMonth - 1, 1);
+      endDate = new Date(currentYear, currentMonth, 0, 23, 59, 59);
+    } else if (periodFilter === "lastMonth") {
+      const lastMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+      const lastMonthYear = currentMonth === 1 ? currentYear - 1 : currentYear;
+      startDate = new Date(lastMonthYear, lastMonth - 1, 1);
+      endDate = new Date(lastMonthYear, lastMonth, 0, 23, 59, 59);
+    } else if (periodFilter !== "all" && periodFilter.includes("-")) {
+      const [year, month] = periodFilter.split("-").map(Number);
+      startDate = new Date(year, month - 1, 1);
+      endDate = new Date(year, month, 0, 23, 59, 59);
+    }
+
+    // フィルタリングされたライブストリーム
+    const filteredLivestreams = allLivestreamsData.filter((ls: any) => {
+      if (!startDate || !endDate) return true;
+      const lsDate = new Date(ls.startTime);
+      return lsDate >= startDate && lsDate <= endDate;
+    });
+
+    // GMV合計
+    const totalGmv = filteredLivestreams.reduce((sum: number, ls: any) => sum + (ls.gmv || 0), 0);
+
+    // 広告費合計（契約のfixedFeeから計算 - 期間に関係なく全期間の契約額）
+    const totalAdBudget = brandsData.reduce((sum, brand) => sum + ((brand as any).totalAdBudget || 0), 0);
+
+    // ROAS計算
+    const roas = totalAdBudget > 0 ? totalGmv / totalAdBudget : 0;
+
+    // LCJ報酬計算（商品ごとのGMV × 成果報酬率）
+    let lcjReward = 0;
+    if (allProductsData) {
+      // 各ライブストリームの商品ごとのGMVを計算
+      filteredLivestreams.forEach((ls: any) => {
+        const product = allProductsData.find((p: any) => p.id === ls.productId);
+        if (product && product.commissionRate) {
+          const rate = parseFloat(product.commissionRate.replace('%', '')) / 100;
+          lcjReward += (ls.gmv || 0) * rate;
+        }
+      });
+    }
+
+    return { totalAdBudget, totalGmv, roas, lcjReward };
+  }, [brandsData, allLivestreamsData, allProductsData, periodFilter]);
+
   // ソートされたブランドリスト
   const brands = brandsData ? [...brandsData].sort((a, b) => {
     if (sortBy === "gmv") {
       const gmvA = (a as any).totalGmv || 0;
       const gmvB = (b as any).totalGmv || 0;
-      return gmvB - gmvA; // 降順
+      return gmvB - gmvA;
     } else if (sortBy === "adBudget") {
       const adA = (a as any).totalAdBudget || 0;
       const adB = (b as any).totalAdBudget || 0;
-      return adB - adA; // 降順
+      return adB - adA;
     } else {
-      // 名前順（昇順）
       return (a.name || "").localeCompare(b.name || "", "ja");
     }
   }) : [];
@@ -122,6 +239,7 @@ export default function BrandList() {
     setStatusFilter("");
     setSearchTerm("");
     setAppliedSearch("");
+    setPeriodFilter("all");
   };
 
   const getStatusLabel = (status: string) => {
@@ -133,6 +251,14 @@ export default function BrandList() {
       "終了": { ja: "終了", zh: "结束" },
     };
     return statusMap[status]?.[language] || status;
+  };
+
+  const getPeriodLabel = () => {
+    if (periodFilter === "all") return t.allTime;
+    if (periodFilter === "thisMonth") return t.thisMonth;
+    if (periodFilter === "lastMonth") return t.lastMonth;
+    const option = periodOptions.find(o => o.value === periodFilter);
+    return option?.label || periodFilter;
   };
 
   // 統計情報を計算
@@ -178,35 +304,121 @@ export default function BrandList() {
           </Link>
         </div>
 
-        {/* KPI Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-gradient-to-br from-red-600/20 to-orange-600/20 border border-red-500/30 rounded-xl p-6">
+        {/* Period Filter */}
+        <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4 mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <Calendar className="h-4 w-4 text-gray-400" />
+            <span className="text-sm font-medium text-gray-300">{t.period}</span>
+            <span className="text-sm text-red-400 ml-2">{t.selectedPeriod}: {getPeriodLabel()}</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant={periodFilter === "all" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setPeriodFilter("all")}
+              className={periodFilter === "all" ? "bg-red-600 hover:bg-red-700" : "border-gray-600 text-gray-300 hover:bg-gray-700"}
+            >
+              {t.allTime}
+            </Button>
+            <Button
+              variant={periodFilter === "thisMonth" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setPeriodFilter("thisMonth")}
+              className={periodFilter === "thisMonth" ? "bg-red-600 hover:bg-red-700" : "border-gray-600 text-gray-300 hover:bg-gray-700"}
+            >
+              {t.thisMonth}
+            </Button>
+            <Button
+              variant={periodFilter === "lastMonth" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setPeriodFilter("lastMonth")}
+              className={periodFilter === "lastMonth" ? "bg-red-600 hover:bg-red-700" : "border-gray-600 text-gray-300 hover:bg-gray-700"}
+            >
+              {t.lastMonth}
+            </Button>
+            <div className="relative">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCustomPeriod(!showCustomPeriod)}
+                className="border-gray-600 text-gray-300 hover:bg-gray-700"
+              >
+                {t.custom}
+                <ChevronDown className="h-4 w-4 ml-1" />
+              </Button>
+              {showCustomPeriod && (
+                <div className="absolute top-full left-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 max-h-64 overflow-y-auto">
+                  {periodOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => {
+                        setPeriodFilter(option.value);
+                        setShowCustomPeriod(false);
+                      }}
+                      className={`block w-full text-left px-4 py-2 text-sm hover:bg-gray-700 ${
+                        periodFilter === option.value ? "bg-red-600/20 text-red-400" : "text-gray-300"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* KPI Cards - 6 cards */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+          <div className="bg-gradient-to-br from-red-600/20 to-orange-600/20 border border-red-500/30 rounded-xl p-4">
             <div className="flex items-center gap-2 text-red-400 mb-2">
               <Building2 className="h-4 w-4" />
-              <span className="text-sm">{t.totalBrands}</span>
+              <span className="text-xs">{t.totalBrands}</span>
             </div>
-            <div className="text-3xl font-bold text-white">{totalBrands}</div>
+            <div className="text-2xl font-bold text-white">{totalBrands}</div>
           </div>
-          <div className="bg-gradient-to-br from-green-600/20 to-emerald-600/20 border border-green-500/30 rounded-xl p-6">
+          <div className="bg-gradient-to-br from-green-600/20 to-emerald-600/20 border border-green-500/30 rounded-xl p-4">
             <div className="flex items-center gap-2 text-green-400 mb-2">
-              <FileText className="h-4 w-4" />
-              <span className="text-sm">{t.contractedBrands}</span>
+              <Building2 className="h-4 w-4" />
+              <span className="text-xs">{t.contractedBrands}</span>
             </div>
-            <div className="text-3xl font-bold text-white">{contractedBrands}</div>
+            <div className="text-2xl font-bold text-white">{contractedBrands}</div>
           </div>
-          <div className="bg-gradient-to-br from-blue-600/20 to-cyan-600/20 border border-blue-500/30 rounded-xl p-6">
-            <div className="flex items-center gap-2 text-blue-400 mb-2">
-              <Package className="h-4 w-4" />
-              <span className="text-sm">{t.totalProducts}</span>
+          <div className="bg-gradient-to-br from-yellow-600/20 to-amber-600/20 border border-yellow-500/30 rounded-xl p-4">
+            <div className="flex items-center gap-2 text-yellow-400 mb-2">
+              <DollarSign className="h-4 w-4" />
+              <span className="text-xs">{t.totalAdBudget}</span>
             </div>
-            <div className="text-3xl font-bold text-white">-</div>
+            <div className="text-xl font-bold text-white">
+              ¥{Math.round(filteredStats.totalAdBudget).toLocaleString()}
+            </div>
           </div>
-          <div className="bg-gradient-to-br from-purple-600/20 to-pink-600/20 border border-purple-500/30 rounded-xl p-6">
+          <div className="bg-gradient-to-br from-cyan-600/20 to-blue-600/20 border border-cyan-500/30 rounded-xl p-4">
+            <div className="flex items-center gap-2 text-cyan-400 mb-2">
+              <TrendingUp className="h-4 w-4" />
+              <span className="text-xs">{t.totalGmv}</span>
+            </div>
+            <div className="text-xl font-bold text-white">
+              ¥{Math.round(filteredStats.totalGmv).toLocaleString()}
+            </div>
+          </div>
+          <div className="bg-gradient-to-br from-gray-600/20 to-slate-600/20 border border-gray-500/30 rounded-xl p-4">
+            <div className="flex items-center gap-2 text-gray-400 mb-2">
+              <Percent className="h-4 w-4" />
+              <span className="text-xs">{t.roas}</span>
+            </div>
+            <div className="text-2xl font-bold text-white">
+              {filteredStats.roas.toFixed(2)}
+            </div>
+          </div>
+          <div className="bg-gradient-to-br from-purple-600/20 to-violet-600/20 border border-purple-500/30 rounded-xl p-4">
             <div className="flex items-center gap-2 text-purple-400 mb-2">
-              <Video className="h-4 w-4" />
-              <span className="text-sm">{t.totalLivestreams}</span>
+              <Gem className="h-4 w-4" />
+              <span className="text-xs">{t.lcjReward}</span>
             </div>
-            <div className="text-3xl font-bold text-white">-</div>
+            <div className="text-xl font-bold text-white">
+              ¥{Math.round(filteredStats.lcjReward).toLocaleString()}
+            </div>
           </div>
         </div>
 
@@ -261,7 +473,7 @@ export default function BrandList() {
               </div>
             </div>
 
-            {(statusFilter || appliedSearch) && (
+            {(statusFilter || appliedSearch || periodFilter !== "all") && (
               <Button variant="outline" onClick={handleClearFilter} className="border-gray-600 text-gray-300 hover:bg-gray-700">
                 <X className="h-4 w-4 mr-2" />
                 {t.clearFilter}
