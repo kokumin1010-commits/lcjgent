@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Building2, X, ArrowLeft, DollarSign, TrendingUp, Percent, Gem, Calendar, ChevronDown } from "lucide-react";
+import { Plus, Search, Building2, X, ArrowLeft, DollarSign, TrendingUp, Gem, Calendar, ChevronDown } from "lucide-react";
 
 const translations = {
   ja: {
@@ -50,7 +50,6 @@ const translations = {
     // 統計カード
     totalAdBudget: "広告費合計",
     totalGmv: "GMV合計",
-    roas: "ROAS",
     lcjReward: "LCJ報酬合計",
     selectedPeriod: "選択期間",
   },
@@ -89,7 +88,6 @@ const translations = {
     // 統計カード
     totalAdBudget: "广告费合计",
     totalGmv: "GMV合计",
-    roas: "ROAS",
     lcjReward: "LCJ报酬合计",
     selectedPeriod: "选择期间",
   },
@@ -163,7 +161,7 @@ export default function BrandList() {
   // 期間に基づいてフィルタリングされたデータを計算
   const filteredStats = useMemo(() => {
     if (!brandsData || !allLivestreamsData) {
-      return { totalAdBudget: 0, totalGmv: 0, roas: 0, lcjReward: 0 };
+      return { totalAdBudget: 0, totalGmv: 0, lcjReward: 0 };
     }
 
     const now = new Date();
@@ -221,9 +219,6 @@ export default function BrandList() {
       totalAdBudget = filteredContracts.reduce((sum: number, c: any) => sum + (c.fixedFee || 0), 0);
     }
 
-    // ROAS計算（広告費が0の場合は0を返す）
-    const roas = totalAdBudget > 0 ? totalGmv / totalAdBudget : 0;
-
     // LCJ報酬計算（商品ごとのGMV × 成果報酬率）
     let lcjReward = 0;
     if (allProductsData) {
@@ -241,7 +236,7 @@ export default function BrandList() {
       });
     }
 
-    return { totalAdBudget, totalGmv, roas, lcjReward };
+    return { totalAdBudget, totalGmv, lcjReward };
   }, [brandsData, allLivestreamsData, allProductsData, allContractsData, periodFilter]);
 
   // ソートされたブランドリスト
@@ -430,15 +425,7 @@ export default function BrandList() {
               ¥{Math.round(filteredStats.totalGmv).toLocaleString()}
             </div>
           </div>
-          <div className="bg-gradient-to-br from-gray-600/20 to-slate-600/20 border border-gray-500/30 rounded-xl p-4">
-            <div className="flex items-center gap-2 text-gray-400 mb-2">
-              <Percent className="h-4 w-4" />
-              <span className="text-xs">{t.roas}</span>
-            </div>
-            <div className="text-2xl font-bold text-white">
-              {filteredStats.roas.toFixed(2)}
-            </div>
-          </div>
+
           <div className="bg-gradient-to-br from-purple-600/20 to-violet-600/20 border border-purple-500/30 rounded-xl p-4">
             <div className="flex items-center gap-2 text-purple-400 mb-2">
               <Gem className="h-4 w-4" />
