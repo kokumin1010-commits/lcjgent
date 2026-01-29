@@ -237,6 +237,11 @@ export default function LiverSelfRecord() {
       setAnalyzedData(analysisResult);
       setAnalysisConfidence(analysisResult.confidence || null);
       
+      // Debug: Log the analysis result
+      console.log("AI Analysis Result:", JSON.stringify(analysisResult, null, 2));
+      console.log("startDateTime:", analysisResult.startDateTime);
+      console.log("endDateTime:", analysisResult.endDateTime);
+      
       // Auto-fill form with analyzed data
       const updates: Partial<typeof formData> = {};
       

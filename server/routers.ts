@@ -4454,14 +4454,14 @@ TikTok LIVEダッシュボードの典型的なレイアウト：
 - 右側: リプレイ動画、ユーザープロフィール
 - 上部ヘッダー: 配信時間（例: 8h10m6s）、日時範囲（例: Dec 29 16:00:54 - Dec 30 00:11:00 UTC+09:00）
 
-以下の情報を抽出してください：
+【重要】以下の情報を抽出してください：
 1. GMV/売上金額（中央の大きな数字）- salesAmount
 2. 視聴者数（視聴者数/視聴数と表示）- viewerCount
 3. 商品クリック数 - productClicks
 4. 注文数/注文 - orderCount
 5. 配信時間（ヘッダーの時間表示から分に変換）- durationMinutes
-6. 配信開始日時（ヘッダーの日時範囲から）- startDateTime（YYYY-MM-DD HH:mm形式）
-7. 配信終了日時（ヘッダーの日時範囲から）- endDateTime（YYYY-MM-DD HH:mm形式）
+6. 【必須】配信開始日時（ヘッダーの日時範囲から）- startDateTime（YYYY-MM-DD HH:mm形式）
+7. 【必須】配信終了日時（ヘッダーの日時範囲から）- endDateTime（YYYY-MM-DD HH:mm形式）
 8. インプレッション数 - impressions
 9. LIVE CTR（%）- liveCtr
 10. 注文率/注文率（SKU注文数）（%）- orderRate
@@ -4476,7 +4476,15 @@ TikTok LIVEダッシュボードの典型的なレイアウト：
 - "M"は1000000倍（例: 1.08M = 1080000）
 - カンマは無視（例: 8,814,883 = 8814883）
 - 時間表示（例: 8h10m6s）は分に変換（8*60+10=490分）
-- 日時は必ずYYYY-MM-DD HH:mm形式に変換（例: Dec 29 16:00:54 → 2026-12-29 16:00）
+
+【日時抽出ルール - 最重要】
+- 画面上部のヘッダーに日時範囲が表示されています（例: "Dec 29 16:00:54 - Dec 30 00:11:00 UTC+09:00"）
+- 日時形式の例:
+  - "Dec 29 16:00:54" → "2025-12-29 16:00"
+  - "Jan 30 10:30:00" → "2025-01-30 10:30"
+  - "2025/01/30 10:30" → "2025-01-30 10:30"
+- 年が表示されていない場合は2025年と仮定してください
+- startDateTimeとendDateTimeは必ず抽出してください。見つからない場合でもnullではなく、画面から推測できる情報を使ってください
 
 必ず以下のJSON形式で返してください：
 {
@@ -4498,7 +4506,9 @@ TikTok LIVEダッシュボードの典型的なレイアウト：
     "productSales": 数値
   },
   "confidence": "high" または "medium" または "low"
-}`;
+}
+
+【注意】startDateTimeとendDateTimeは絶対にnullにしないでください。画面に日時情報がある場合は必ず抽出してください。`;
 
         const response = await invokeLLM({
           messages: [
@@ -4538,6 +4548,11 @@ TikTok LIVEダッシュボードの典型的なレイアウト：
           
           // Parse the JSON
           const parsed = JSON.parse(jsonStr);
+          
+          // Debug log
+          console.log("[analyzeScreenshot] Parsed result:", JSON.stringify(parsed, null, 2));
+          console.log("[analyzeScreenshot] startDateTime:", parsed.startDateTime);
+          console.log("[analyzeScreenshot] endDateTime:", parsed.endDateTime);
           
           // Ensure required fields exist with defaults
           return {
