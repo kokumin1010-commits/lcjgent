@@ -138,6 +138,9 @@ const translations = {
     noFiles: "ファイルはありません",
     deleteFile: "削除",
     uploading: "アップロード中...",
+    lcjReward: "LCJ報酬",
+    lcjRewardAllTime: "LCJ報酬（全期間）",
+    lcjRewardByProduct: "商品別内訳",
   },
   zh: {
     title: "品牌详情",
@@ -236,6 +239,9 @@ const translations = {
     noFiles: "没有文件",
     deleteFile: "删除",
     uploading: "上传中...",
+    lcjReward: "LCJ报酬",
+    lcjRewardAllTime: "LCJ报酬（全期间）",
+    lcjRewardByProduct: "商品别明细",
   },
 };
 
@@ -1375,6 +1381,76 @@ export default function BrandDetail() {
               </p>
             </div>
           </div>
+
+          {/* LCJ報酬カード - GMV×商品別成果報酬率の合計 */}
+          {(() => {
+            // 商品ごとのGMVと成果報酬率からLCJ報酬を計算
+            const productRewards = products.map(product => {
+              const productGmv = (product as any).totalGmv || 0;
+              const commissionRateStr = product.commissionRate || '';
+              const commissionRate = parseFloat(commissionRateStr.replace(/[^0-9.]/g, '')) || 0;
+              const reward = productGmv * (commissionRate / 100);
+              return {
+                productName: product.productName,
+                gmv: productGmv,
+                commissionRate,
+                reward
+              };
+            }).filter(p => p.reward > 0);
+            
+            const totalLcjReward = productRewards.reduce((sum, p) => sum + p.reward, 0);
+            
+            // LCJ報酬が0の場合は表示しない
+            if (totalLcjReward <= 0) return null;
+            
+            return (
+              <div className="relative overflow-hidden rounded-xl p-6 mt-4 group transition-all duration-500 hover:scale-[1.01]" style={{
+                background: 'linear-gradient(135deg, rgba(0,0,0,0.9) 0%, rgba(0,50,30,0.8) 50%, rgba(0,0,0,0.9) 100%)',
+                border: '2px solid rgba(0, 255, 150, 0.6)',
+                boxShadow: '0 0 40px rgba(0, 255, 150, 0.3), inset 0 0 40px rgba(0, 255, 150, 0.1)',
+              }}>
+                <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/30 rounded-full blur-3xl animate-pulse" />
+                <div className="absolute bottom-0 left-0 w-40 h-40 bg-emerald-600/20 rounded-full blur-2xl" />
+                <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-transparent to-emerald-500/5" />
+                <div className="relative text-center">
+                  <div className="flex items-center justify-center gap-3 mb-4">
+                    <span className="text-4xl">💎</span>
+                    <span className="text-emerald-300 text-lg font-bold uppercase tracking-widest">{t.lcjRewardAllTime}</span>
+                  </div>
+                  <p 
+                    className="text-6xl md:text-8xl font-black tracking-tight"
+                    style={{ 
+                      fontFamily: 'JetBrains Mono, monospace',
+                      color: '#00ff96',
+                      textShadow: '0 0 20px rgba(0, 255, 150, 1), 0 0 40px rgba(0, 255, 150, 0.8), 0 0 60px rgba(0, 255, 150, 0.6), 0 0 80px rgba(0, 255, 150, 0.4)',
+                    }}
+                  >
+                    {formatCurrency(totalLcjReward)}
+                  </p>
+                  {/* 商品別内訳 */}
+                  {productRewards.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-emerald-500/20">
+                      <div className="text-xs text-emerald-300/70 mb-2">{t.lcjRewardByProduct}</div>
+                      <div className="flex flex-wrap justify-center gap-3 text-sm">
+                        {productRewards.slice(0, 5).map((p, idx) => (
+                          <div key={idx} className="flex items-center gap-1 bg-black/40 rounded-lg px-3 py-1.5">
+                            <span className="text-gray-400 truncate max-w-[100px]" title={p.productName}>{p.productName}</span>
+                            <span className="text-emerald-400 font-mono font-bold">{formatCurrency(p.reward)}</span>
+                            <span className="text-gray-500 text-xs">({p.commissionRate}%)</span>
+                          </div>
+                        ))}
+                        {productRewards.length > 5 && (
+                          <div className="text-gray-500 text-xs self-center">
+                            +{productRewards.length - 5}{language === 'ja' ? '商品' : '个商品'}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
           
           {/* 品牌投入（ブランド投入）- 契約がある場合のみ表示 */}
           {contracts.length > 0 && (
