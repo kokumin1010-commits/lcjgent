@@ -2266,6 +2266,113 @@ export async function getAllLineUsers() {
     .orderBy(desc(lineUsers.lastMessageAt));
 }
 
+// Get LINE users linked to livers with liver details
+export async function getLineUsersWithLiverDetails() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const result = await db
+    .select({
+      id: lineUsers.id,
+      lineUserId: lineUsers.lineUserId,
+      displayName: lineUsers.displayName,
+      pictureUrl: lineUsers.pictureUrl,
+      userType: lineUsers.userType,
+      isBlocked: lineUsers.isBlocked,
+      brandId: lineUsers.brandId,
+      liverId: lineUsers.liverId,
+      lastMessageAt: lineUsers.lastMessageAt,
+      createdAt: lineUsers.createdAt,
+      // Liver details
+      liverName: livers.name,
+      liverEmail: livers.email,
+      liverAvatarUrl: livers.avatarUrl,
+      liverTiktokAccount: livers.tiktokAccount,
+      liverInstagramAccount: livers.instagramAccount,
+      liverIsActive: livers.isActive,
+    })
+    .from(lineUsers)
+    .innerJoin(livers, eq(lineUsers.liverId, livers.id))
+    .orderBy(desc(lineUsers.lastMessageAt));
+  
+  return result;
+}
+
+// Get liver interaction summary (messages, livestreams, etc.)
+export async function getLiverInteractionSummary(liverId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  // Get liver info
+  const liver = await db
+    .select()
+    .from(livers)
+    .where(eq(livers.id, liverId))
+    .limit(1);
+  
+  if (liver.length === 0) return null;
+  
+  // Get LINE user linked to this liver
+  const lineUser = await db
+    .select()
+    .from(lineUsers)
+    .where(eq(lineUsers.liverId, liverId))
+    .limit(1);
+  
+  // Get message count
+  let messageCount = 0;
+  if (lineUser.length > 0) {
+    const messages = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(lineMessages)
+      .where(eq(lineMessages.lineUserId, lineUser[0].lineUserId));
+    messageCount = messages[0]?.count || 0;
+  }
+  
+  // Get recent messages
+  let recentMessages: any[] = [];
+  if (lineUser.length > 0) {
+    recentMessages = await db
+      .select()
+      .from(lineMessages)
+      .where(eq(lineMessages.lineUserId, lineUser[0].lineUserId))
+      .orderBy(desc(lineMessages.createdAt))
+      .limit(20);
+  }
+  
+  // Get livestream count
+  const livestreams = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(brandLivestreams)
+    .where(eq(brandLivestreams.liverId, liverId));
+  const livestreamCount = livestreams[0]?.count || 0;
+  
+  // Get recent livestreams with AI advice
+  const recentLivestreams = await db
+    .select({
+      id: brandLivestreams.id,
+      livestreamDate: brandLivestreams.livestreamDate,
+      salesAmount: brandLivestreams.salesAmount,
+      gmv: brandLivestreams.gmv,
+      aiAdvice: brandLivestreams.aiAdvice,
+      aiStructuredAdvice: brandLivestreams.aiStructuredAdvice,
+      result: brandLivestreams.result,
+    })
+    .from(brandLivestreams)
+    .where(eq(brandLivestreams.liverId, liverId))
+    .orderBy(desc(brandLivestreams.livestreamDate))
+    .limit(5);
+  
+  return {
+    liver: liver[0],
+    lineUser: lineUser[0] || null,
+    messageCount,
+    recentMessages,
+    livestreamCount,
+    recentLivestreams,
+  };
+}
+
 // Create or update LINE group
 export async function createOrUpdateLineGroup(data: {
   lineGroupId: string;

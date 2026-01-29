@@ -138,6 +138,8 @@ import {
   getRecentReportsByStaffId,
   getAllLineUsers,
   getAllLineGroups,
+  getLineUsersWithLiverDetails,
+  getLiverInteractionSummary,
   getLineMessages,
   saveLineMessage,
   createLineFollowUp,
@@ -3664,6 +3666,18 @@ ${conversationText}
     listUsers: protectedProcedure.query(async () => {
       return await getAllLineUsers();
     }),
+
+    // Get LINE users linked to livers with liver details
+    listLiverLinkedUsers: protectedProcedure.query(async () => {
+      return await getLineUsersWithLiverDetails();
+    }),
+
+    // Get liver interaction summary
+    getLiverInteraction: protectedProcedure
+      .input(z.object({ liverId: z.number() }))
+      .query(async ({ input }) => {
+        return await getLiverInteractionSummary(input.liverId);
+      }),
 
     listGroups: protectedProcedure.query(async () => {
       return await getAllLineGroups();

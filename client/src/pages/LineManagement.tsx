@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { MessageSquare, Users, Send, History, RefreshCw, Search, User, Building2, Calendar, Clock, Link2, LogOut, AlertTriangle, Settings, Bell, BellOff } from "lucide-react";
+import { MessageSquare, Users, Send, History, RefreshCw, Search, User, Building2, Calendar, Clock, Link2, LogOut, AlertTriangle, Settings, Bell, BellOff, Radio, TrendingUp, Sparkles, ChevronRight, ExternalLink } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
@@ -51,6 +51,8 @@ export default function LineManagement() {
   const [showGroupDetailDialog, setShowGroupDetailDialog] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<any>(null);
   const [groupMessageText, setGroupMessageText] = useState("");
+  const [showLiverInteractionDialog, setShowLiverInteractionDialog] = useState(false);
+  const [selectedLiverId, setSelectedLiverId] = useState<number | null>(null);
 
   // Fetch LINE users
   const { data: lineUsers, isLoading: loadingUsers, refetch: refetchUsers } = trpc.line.listUsers.useQuery();
@@ -66,6 +68,15 @@ export default function LineManagement() {
 
   // Fetch brands for linking
   const { data: brands } = trpc.brand.list.useQuery();
+
+  // Fetch liver-linked LINE users
+  const { data: liverLinkedUsers, isLoading: loadingLiverLinked, refetch: refetchLiverLinked } = trpc.line.listLiverLinkedUsers.useQuery();
+
+  // Fetch liver interaction summary
+  const { data: liverInteraction, isLoading: loadingLiverInteraction } = trpc.line.getLiverInteraction.useQuery(
+    { liverId: selectedLiverId! },
+    { enabled: !!selectedLiverId }
+  );
 
   // Fetch messages for selected group
   const { data: groupMessages, isLoading: loadingGroupMessages, refetch: refetchGroupMessages } = trpc.line.listMessages.useQuery(
@@ -282,6 +293,15 @@ export default function LineManagement() {
             <User className="h-4 w-4" />
             {language === "ja" ? "ユーザー" : "用户"}
           </TabsTrigger>
+          <TabsTrigger value="livers" className="flex items-center gap-2">
+            <Radio className="h-4 w-4" />
+            {language === "ja" ? "ライバー連携" : "主播关联"}
+            {liverLinkedUsers && liverLinkedUsers.length > 0 && (
+              <Badge variant="secondary" className="ml-1 text-xs">
+                {liverLinkedUsers.length}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="groups" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
             {language === "ja" ? "グループ" : "群组"}
@@ -391,6 +411,120 @@ export default function LineManagement() {
                       <Button 
                         size="sm"
                         onClick={() => {
+                          setSelectedUser(user.lineUserId);
+                          setShowMessageDialog(true);
+                        }}
+                      >
+                        <Send className="h-3 w-3 mr-1" />
+                        {language === "ja" ? "送信" : "发送"}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Livers Tab */}
+        <TabsContent value="livers" className="space-y-4">
+          {loadingLiverLinked ? (
+            <div className="text-center py-8 text-muted-foreground">
+              {language === "ja" ? "読み込み中..." : "加载中..."}
+            </div>
+          ) : liverLinkedUsers?.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                {language === "ja" 
+                  ? "ライバーと連携されたLINEユーザーがいません。ライバーがLINE連携を完了すると表示されます。" 
+                  : "还没有与主播关联的LINE用户。主播完成LINE关联后会显示在这里。"}
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {liverLinkedUsers?.map((user) => (
+                <Card 
+                  key={user.id} 
+                  className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-primary"
+                  onClick={() => {
+                    setSelectedLiverId(user.liverId);
+                    setShowLiverInteractionDialog(true);
+                  }}
+                >
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        {user.liverAvatarUrl ? (
+                          <img 
+                            src={user.liverAvatarUrl} 
+                            alt={user.liverName || "Liver"} 
+                            className="w-12 h-12 rounded-full ring-2 ring-primary/20"
+                          />
+                        ) : user.pictureUrl ? (
+                          <img 
+                            src={user.pictureUrl} 
+                            alt={user.liverName || "User"} 
+                            className="w-12 h-12 rounded-full ring-2 ring-primary/20"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center ring-2 ring-primary/20">
+                            <Radio className="h-6 w-6 text-primary" />
+                          </div>
+                        )}
+                        <div>
+                          <CardTitle className="text-base flex items-center gap-2">
+                            {user.liverName}
+                            <Badge variant="default" className="text-xs">
+                              <Radio className="h-3 w-3 mr-1" />
+                              {language === "ja" ? "ライバー" : "主播"}
+                            </Badge>
+                          </CardTitle>
+                          <CardDescription className="text-xs">
+                            {user.liverEmail}
+                          </CardDescription>
+                        </div>
+                      </div>
+                      <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-xs text-muted-foreground space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-3 w-3" />
+                        {language === "ja" ? "LINE登録: " : "LINE注册: "}
+                        {format(new Date(user.createdAt), "yyyy/MM/dd")}
+                      </div>
+                      {user.lastMessageAt && (
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-3 w-3" />
+                          {language === "ja" ? "最終メッセージ: " : "最后消息: "}
+                          {format(new Date(user.lastMessageAt), "yyyy/MM/dd HH:mm")}
+                        </div>
+                      )}
+                      {user.liverTiktokAccount && (
+                        <div className="flex items-center gap-2">
+                          <ExternalLink className="h-3 w-3" />
+                          TikTok: @{user.liverTiktokAccount}
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-3 flex gap-2 flex-wrap">
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedUser(user.lineUserId);
+                          setActiveTab("messages");
+                        }}
+                      >
+                        <History className="h-3 w-3 mr-1" />
+                        {language === "ja" ? "履歴" : "记录"}
+                      </Button>
+                      <Button 
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setSelectedUser(user.lineUserId);
                           setShowMessageDialog(true);
                         }}
@@ -993,6 +1127,204 @@ export default function LineManagement() {
               <LogOut className="h-4 w-4 mr-2" />
               {language === "ja" ? "グループ退会" : "退出群组"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Liver Interaction Dialog */}
+      <Dialog open={showLiverInteractionDialog} onOpenChange={(open) => {
+        setShowLiverInteractionDialog(open);
+        if (!open) setSelectedLiverId(null);
+      }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              {liverInteraction?.liver?.avatarUrl ? (
+                <img 
+                  src={liverInteraction.liver.avatarUrl} 
+                  alt={liverInteraction.liver.name || "Liver"} 
+                  className="w-12 h-12 rounded-full ring-2 ring-primary/20"
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center ring-2 ring-primary/20">
+                  <Radio className="h-6 w-6 text-primary" />
+                </div>
+              )}
+              <div>
+                <div className="flex items-center gap-2">
+                  {liverInteraction?.liver?.name || (language === "ja" ? "読み込み中..." : "加载中...")}
+                  <Badge variant="default" className="text-xs">
+                    <Radio className="h-3 w-3 mr-1" />
+                    {language === "ja" ? "ライバー" : "主播"}
+                  </Badge>
+                </div>
+                <div className="text-sm font-normal text-muted-foreground">
+                  {liverInteraction?.liver?.email}
+                </div>
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+
+          {loadingLiverInteraction ? (
+            <div className="flex items-center justify-center py-12">
+              <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : liverInteraction ? (
+            <div className="flex-1 overflow-y-auto space-y-6 py-4">
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-4">
+                <Card>
+                  <CardContent className="pt-4 text-center">
+                    <MessageSquare className="h-6 w-6 mx-auto mb-2 text-primary" />
+                    <div className="text-2xl font-bold">{liverInteraction.messageCount}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {language === "ja" ? "メッセージ数" : "消息数"}
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4 text-center">
+                    <TrendingUp className="h-6 w-6 mx-auto mb-2 text-green-500" />
+                    <div className="text-2xl font-bold">{liverInteraction.livestreamCount}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {language === "ja" ? "配信回数" : "直播次数"}
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4 text-center">
+                    <Sparkles className="h-6 w-6 mx-auto mb-2 text-yellow-500" />
+                    <div className="text-2xl font-bold">
+                      {liverInteraction.recentLivestreams?.filter((l: any) => l.aiStructuredAdvice || l.aiAdvice).length || 0}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {language === "ja" ? "AIアドバイス" : "AI建议"}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Recent Messages */}
+              <div>
+                <h4 className="font-semibold mb-3 flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  {language === "ja" ? "最近のメッセージ" : "最近消息"}
+                </h4>
+                {liverInteraction.recentMessages?.length > 0 ? (
+                  <div className="border rounded-lg p-4 bg-muted/30 max-h-[200px] overflow-y-auto space-y-2">
+                    {liverInteraction.recentMessages.slice(0, 10).map((msg: any) => (
+                      <div 
+                        key={msg.id} 
+                        className={`flex ${msg.direction === 'outgoing' ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div className={`max-w-[70%] rounded-lg px-3 py-2 text-sm ${
+                          msg.direction === 'outgoing' 
+                            ? 'bg-primary text-primary-foreground' 
+                            : 'bg-background border'
+                        }`}>
+                          <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+                          <div className={`text-xs mt-1 ${
+                            msg.direction === 'outgoing' ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                          }`}>
+                            {format(new Date(msg.createdAt), "MM/dd HH:mm")}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <Card>
+                    <CardContent className="py-4 text-center text-muted-foreground text-sm">
+                      {language === "ja" ? "メッセージがありません" : "没有消息"}
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+
+              {/* Recent Livestreams with AI Advice */}
+              <div>
+                <h4 className="font-semibold mb-3 flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4" />
+                  {language === "ja" ? "最近の配信記録" : "最近直播记录"}
+                </h4>
+                {liverInteraction.recentLivestreams?.length > 0 ? (
+                  <div className="space-y-3">
+                    {liverInteraction.recentLivestreams.map((livestream: any) => {
+                      const advice = livestream.aiStructuredAdvice 
+                        ? (typeof livestream.aiStructuredAdvice === 'string' 
+                            ? JSON.parse(livestream.aiStructuredAdvice) 
+                            : livestream.aiStructuredAdvice)
+                        : null;
+                      return (
+                        <Card key={livestream.id}>
+                          <CardContent className="py-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4 text-muted-foreground" />
+                                <span className="font-medium">
+                                  {livestream.livestreamDate 
+                                    ? format(new Date(livestream.livestreamDate), "yyyy/MM/dd")
+                                    : "-"}
+                                </span>
+                                {(advice || livestream.aiAdvice) && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    <Sparkles className="h-3 w-3 mr-1" />
+                                    AI
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="text-sm">
+                                {livestream.salesAmount || livestream.gmv ? (
+                                  <span className="font-bold text-green-600">
+                                    ¥{(livestream.salesAmount || livestream.gmv || 0).toLocaleString()}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </div>
+                            </div>
+                            {advice?.summary && (
+                              <div className="text-sm text-muted-foreground bg-muted/50 rounded p-2 mt-2">
+                                <div className="font-medium text-foreground mb-1">
+                                  {language === "ja" ? "AI総評" : "AI总评"}
+                                </div>
+                                {advice.summary}
+                              </div>
+                            )}
+                            {!advice?.summary && livestream.aiAdvice && (
+                              <div className="text-sm text-muted-foreground bg-muted/50 rounded p-2 mt-2 line-clamp-2">
+                                {livestream.aiAdvice}
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <Card>
+                    <CardContent className="py-4 text-center text-muted-foreground text-sm">
+                      {language === "ja" ? "配信記録がありません" : "没有直播记录"}
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            </div>
+          ) : null}
+
+          <DialogFooter className="mt-4">
+            {liverInteraction?.lineUser && (
+              <Button
+                onClick={() => {
+                  setSelectedUser(liverInteraction.lineUser.lineUserId);
+                  setShowLiverInteractionDialog(false);
+                  setShowMessageDialog(true);
+                }}
+              >
+                <Send className="h-4 w-4 mr-2" />
+                {language === "ja" ? "メッセージを送信" : "发送消息"}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
