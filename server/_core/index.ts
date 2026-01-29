@@ -181,6 +181,29 @@ async function startServer() {
             pictureUrl: profile?.pictureUrl,
             statusMessage: profile?.statusMessage,
           });
+          
+          // Check if this LINE user is already linked to a liver account
+          const { findLiverByLineUserId } = await import("../lineWebhook");
+          const { sendLinePushMessage } = await import("./../_core/lineMessaging");
+          const existingLiver = await findLiverByLineUserId(event.source.userId);
+          
+          if (existingLiver) {
+            // Already linked - welcome back
+            await sendLinePushMessage(event.source.userId, [
+              {
+                type: "text",
+                text: `${existingLiver.name}さん、おかえりなさい！🎉\n\nLINE連携は完了しています。配信後にAIコーチングが届きます。`,
+              },
+            ]);
+          } else {
+            // Not linked - send instructions
+            await sendLinePushMessage(event.source.userId, [
+              {
+                type: "text",
+                text: `LCJ AIコーチングへようこそ！🎊\n\n配信後にAIからのアドバイスをLINEで受け取れます。\n\n【連携方法】\n1. LCJライバーアプリにログイン\n2. プロフィール編集 → LINE連携\n3. 表示される6桁のコードをこちらに送信\n\n連携コードを入力してください👇`,
+              },
+            ]);
+          }
         }
         break;
       case "unfollow":
@@ -206,6 +229,56 @@ async function startServer() {
     line: typeof lineModule,
     db: typeof lineDb
   ) {
+    // Check for liver link code (6-digit number from individual user)
+    if (event.source.type === "user" && event.message?.type === "text") {
+      const text = event.message.text?.trim() || "";
+      
+      // Check if it's a 6-digit link code
+      if (/^\d{6}$/.test(text)) {
+        const { findLiverByLineUserId, findLiverByLinkCode, linkLineUserToLiver } = await import("../lineWebhook");
+        const { sendLinePushMessage } = await import("./../_core/lineMessaging");
+        const lineUserId = event.source.userId;
+        
+        if (!lineUserId) return;
+        
+        // Check if already linked
+        const existingLiver = await findLiverByLineUserId(lineUserId);
+        if (existingLiver) {
+          await sendLinePushMessage(lineUserId, [
+            {
+              type: "text",
+              text: `${existingLiver.name}さん、既にLINE連携済みです！✅\n\n配信後にAIコーチングが届きます。`,
+            },
+          ]);
+          return;
+        }
+        
+        // Try to find liver by link code
+        const liverData = await findLiverByLinkCode(text);
+        
+        if (!liverData) {
+          await sendLinePushMessage(lineUserId, [
+            {
+              type: "text",
+              text: `連携コードが見つからないか、有効期限が切れています。\n\nLCJライバーアプリで新しいコードを発行してください。`,
+            },
+          ]);
+          return;
+        }
+        
+        // Link the accounts
+        await linkLineUserToLiver(liverData.id, lineUserId);
+        
+        await sendLinePushMessage(lineUserId, [
+          {
+            type: "text",
+            text: `🎉 ${liverData.name}さん、LINE連携が完了しました！\n\nこれから配信後にAIコーチングがLINEに届きます。\n\n頑張ってください！💪`,
+          },
+        ]);
+        return;
+      }
+    }
+    
     // Use combined message processor that handles text, video, and other message types
     const { processLineMessageAll } = await import("../lineAgent");
     await processLineMessageAll(event);

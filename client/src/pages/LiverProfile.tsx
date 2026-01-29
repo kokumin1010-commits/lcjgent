@@ -40,6 +40,123 @@ const colorOptions = [
   { value: "#FF8C00", label: "オレンジ" },
 ];
 
+// LINE連携セクションコンポーネント
+function LineLinkSection({ lineUserId }: { lineUserId?: string | null }) {
+  const [linkCode, setLinkCode] = useState<string | null>(null);
+  const [expiresAt, setExpiresAt] = useState<Date | null>(null);
+  const [timeLeft, setTimeLeft] = useState<number>(0);
+  const utils = trpc.useUtils();
+
+  const generateCodeMutation = trpc.liver.generateLineLinkCode.useMutation({
+    onSuccess: (data) => {
+      setLinkCode(data.linkCode);
+      setExpiresAt(new Date(Date.now() + data.expiresIn * 1000));
+      setTimeLeft(data.expiresIn);
+    },
+    onError: (error) => {
+      toast.error(error.message || "コードの発行に失敗しました");
+    },
+  });
+
+  const unlinkMutation = trpc.liver.unlinkLine.useMutation({
+    onSuccess: () => {
+      toast.success("LINE連携を解除しました");
+      utils.liver.me.invalidate();
+    },
+    onError: (error) => {
+      toast.error(error.message || "解除に失敗しました");
+    },
+  });
+
+  // Countdown timer
+  useEffect(() => {
+    if (!expiresAt) return;
+    
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000));
+      setTimeLeft(remaining);
+      if (remaining === 0) {
+        setLinkCode(null);
+        setExpiresAt(null);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [expiresAt]);
+
+  if (lineUserId) {
+    return (
+      <div className="p-4 bg-green-900/30 border border-green-700 rounded-lg">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-green-400">
+              <MessageCircle className="h-4 w-4" />
+              <span className="font-medium">LINE連携済み</span>
+            </div>
+            <p className="mt-1 text-sm text-gray-400">
+              配信後にAIコーチングがLINEに届きます
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => unlinkMutation.mutate()}
+            disabled={unlinkMutation.isPending}
+            className="text-red-400 border-red-400 hover:bg-red-900/30"
+          >
+            解除
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 bg-gray-800 border border-gray-700 rounded-lg space-y-4">
+      <div className="flex items-center gap-2 text-yellow-500">
+        <MessageCircle className="h-4 w-4" />
+        <span className="font-medium">LINE未連携</span>
+      </div>
+      
+      <div className="text-sm text-gray-400 space-y-2">
+        <p>【連携方法】</p>
+        <ol className="list-decimal list-inside space-y-1">
+          <li>LCJ公式LINEを友だち追加</li>
+          <li>下の「連携コードを発行」をタップ</li>
+          <li>表示される6桁のコードをLINEに送信</li>
+        </ol>
+      </div>
+
+      {linkCode ? (
+        <div className="p-4 bg-yellow-900/30 border border-yellow-600 rounded-lg text-center">
+          <p className="text-sm text-yellow-400 mb-2">連携コード（{Math.floor(timeLeft / 60)}分{timeLeft % 60}秒有効）</p>
+          <p className="text-4xl font-bold text-white tracking-widest">{linkCode}</p>
+          <p className="mt-2 text-xs text-gray-400">このコードをLCJ公式LINEに送信してください</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          <a
+            href="https://lin.ee/xxxxxxx"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
+          >
+            <MessageCircle className="h-4 w-4" />
+            LCJ公式LINEを友だち追加
+          </a>
+          <Button
+            onClick={() => generateCodeMutation.mutate()}
+            disabled={generateCodeMutation.isPending}
+            className="bg-yellow-600 hover:bg-yellow-700"
+          >
+            {generateCodeMutation.isPending ? "発行中..." : "連携コードを発行"}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function LiverProfile() {
   const [, navigate] = useLocation();
   const utils = trpc.useUtils();
@@ -250,36 +367,7 @@ export default function LiverProfile() {
                 />
               </div>
               
-              {liverInfo.lineUserId ? (
-                <div className="p-4 bg-green-900/30 border border-green-700 rounded-lg">
-                  <div className="flex items-center gap-2 text-green-400">
-                    <MessageCircle className="h-4 w-4" />
-                    <span className="font-medium">LINE連携済み</span>
-                  </div>
-                  <p className="mt-1 text-sm text-gray-400">
-                    配信後にAIコーチングがLINEに届きます
-                  </p>
-                </div>
-              ) : (
-                <div className="p-4 bg-gray-800 border border-gray-700 rounded-lg">
-                  <div className="flex items-center gap-2 text-yellow-500">
-                    <MessageCircle className="h-4 w-4" />
-                    <span className="font-medium">LINE未連携</span>
-                  </div>
-                  <p className="mt-2 text-sm text-gray-400">
-                    LINEでAIコーチングを受け取るには、LCJ公式LINEを友だち追加してください。
-                  </p>
-                  <a
-                    href="https://lin.ee/YOUR_LINE_ID"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
-                  >
-                    <MessageCircle className="h-4 w-4" />
-                    LINEを友だち追加
-                  </a>
-                </div>
-              )}
+              <LineLinkSection lineUserId={liverInfo.lineUserId} />
             </CardContent>
           </Card>
           

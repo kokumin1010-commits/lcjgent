@@ -381,4 +381,46 @@ export const liverRouter = router({
       const endDate = input.endDate ? new Date(input.endDate) : undefined;
       return await getSchedulesByLiverId(payload.liverId, startDate, endDate);
     }),
+
+  // Generate LINE link code
+  generateLineLinkCode: publicProcedure
+    .mutation(async ({ ctx }) => {
+      const token = getLiverToken(ctx);
+      if (!token) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+
+      const payload = await verifyLiverToken(token);
+      if (!payload) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+
+      const { generateLinkCode, saveLinkCodeForLiver } = await import("./lineWebhook");
+      const linkCode = generateLinkCode();
+      await saveLinkCodeForLiver(payload.liverId, linkCode);
+
+      return { linkCode, expiresIn: 600 }; // 10 minutes
+    }),
+
+  // Unlink LINE account
+  unlinkLine: publicProcedure
+    .mutation(async ({ ctx }) => {
+      const token = getLiverToken(ctx);
+      if (!token) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+
+      const payload = await verifyLiverToken(token);
+      if (!payload) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+
+      await updateLiver(payload.liverId, {
+        lineUserId: null,
+        lineLinkCode: null,
+        lineLinkCodeExpiresAt: null,
+      });
+
+      return { success: true };
+    }),
 });
