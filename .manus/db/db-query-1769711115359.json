@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE brand_livestreams ADD COLUMN aiStructuredAdvice JSON;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute ALTER TABLE brand_livestreams ADD COLUMN aiStructuredAdvice JSON;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 2156
+}

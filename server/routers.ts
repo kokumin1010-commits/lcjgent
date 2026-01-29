@@ -4312,6 +4312,20 @@ ${conversationText}
         const liver = await getLiverById(input.liverId);
         const streamerName = liver?.name || "不明";
         
+        // 構造化アドバイスを永続保存用に変換
+        const aiStructuredAdvice = input.structuredAdvice ? {
+          summary: input.structuredAdvice.summary || '',
+          goodPoints: input.structuredAdvice.goodPoints || [],
+          improvements: input.structuredAdvice.improvements || [],
+          actionPlans: (input.structuredAdvice.nextActions || []).map(a => ({
+            action: a.action,
+            reason: a.reason,
+            timing: a.timing,
+          })),
+          nextGoal: input.structuredAdvice.targetForNextTime || '',
+          calculatedMetrics: input.calculatedMetrics || {},
+        } : undefined;
+        
         const id = await createBrandLivestream({
           brandId: input.brandId,
           liverId: input.liverId,
@@ -4325,6 +4339,7 @@ ${conversationText}
           remarks: input.remarks,
           screenshotUrl: input.screenshotUrl,
           aiAdvice: input.aiAdvice, // AIアドバイスを保存
+          aiStructuredAdvice, // 構造化アドバイスを永続保存
           streamerName,
           createdBy: ctx.user?.id || 0,
         });

@@ -365,6 +365,13 @@
       "when": 1769710384654,
       "tag": "0051_faulty_moonstone",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "5",
+      "when": 1769711256313,
+      "tag": "0052_worried_junta",
+      "breakpoints": true
     }
   ]
 }

@@ -624,8 +624,90 @@ export default function LivestreamDetail() {
                   )}
                 </div>
                 
-                {/* AI Advice */}
-                {livestream.aiAdvice && (
+                {/* AI Structured Advice */}
+                {livestream.aiStructuredAdvice && (
+                  <div className="space-y-4">
+                    <span className="text-red-500 font-medium flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-yellow-500" />
+                      AIコーチング
+                    </span>
+                    <div className="bg-gradient-to-r from-yellow-900/20 to-orange-900/20 border border-yellow-600/30 rounded-lg p-4 space-y-4">
+                      {/* Summary */}
+                      {livestream.aiStructuredAdvice.summary && (
+                        <div>
+                          <h4 className="text-yellow-500 font-medium mb-2">総評</h4>
+                          <p className="text-gray-200">{livestream.aiStructuredAdvice.summary}</p>
+                        </div>
+                      )}
+                      
+                      {/* Good Points */}
+                      {livestream.aiStructuredAdvice.goodPoints && livestream.aiStructuredAdvice.goodPoints.length > 0 && (
+                        <div>
+                          <h4 className="text-green-400 font-medium mb-2">良かった点</h4>
+                          <ul className="list-disc list-inside space-y-1">
+                            {livestream.aiStructuredAdvice.goodPoints.map((point: string, i: number) => (
+                              <li key={i} className="text-gray-300">{point}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      
+                      {/* Improvements */}
+                      {livestream.aiStructuredAdvice.improvements && livestream.aiStructuredAdvice.improvements.length > 0 && (
+                        <div>
+                          <h4 className="text-orange-400 font-medium mb-2">改善ポイント</h4>
+                          <ul className="list-disc list-inside space-y-1">
+                            {livestream.aiStructuredAdvice.improvements.map((point: string, i: number) => (
+                              <li key={i} className="text-gray-300">{point}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      
+                      {/* Action Plans */}
+                      {livestream.aiStructuredAdvice.actionPlans && livestream.aiStructuredAdvice.actionPlans.length > 0 && (
+                        <div>
+                          <h4 className="text-blue-400 font-medium mb-2">次回アクションプラン</h4>
+                          <div className="space-y-2">
+                            {livestream.aiStructuredAdvice.actionPlans.map((plan: { action: string; reason: string; timing: string }, i: number) => (
+                              <div key={i} className="bg-gray-800/50 rounded p-3">
+                                <p className="text-white font-medium">{plan.action}</p>
+                                <p className="text-gray-400 text-sm mt-1">理由: {plan.reason}</p>
+                                <p className="text-gray-500 text-xs mt-1">タイミング: {plan.timing}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Next Goal */}
+                      {livestream.aiStructuredAdvice.nextGoal && (
+                        <div>
+                          <h4 className="text-purple-400 font-medium mb-2">次回の目標</h4>
+                          <p className="text-gray-200 bg-purple-900/20 rounded p-2">{livestream.aiStructuredAdvice.nextGoal}</p>
+                        </div>
+                      )}
+                      
+                      {/* Calculated Metrics */}
+                      {livestream.aiStructuredAdvice.calculatedMetrics && Object.keys(livestream.aiStructuredAdvice.calculatedMetrics).length > 0 && (
+                        <div>
+                          <h4 className="text-cyan-400 font-medium mb-2">分析指標</h4>
+                          <div className="grid grid-cols-2 gap-2">
+                            {Object.entries(livestream.aiStructuredAdvice.calculatedMetrics).map(([key, value]) => (
+                              <div key={key} className="bg-gray-800/50 rounded p-2">
+                                <p className="text-gray-400 text-xs">{key}</p>
+                                <p className="text-white font-medium">{String(value)}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Legacy AI Advice (for old records) */}
+                {!livestream.aiStructuredAdvice && livestream.aiAdvice && (
                   <div className="space-y-2">
                     <span className="text-red-500 font-medium flex items-center gap-2">
                       <Sparkles className="w-4 h-4 text-yellow-500" />

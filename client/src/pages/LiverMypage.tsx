@@ -18,7 +18,8 @@ import {
   ShoppingCart,
   Settings,
   Link2,
-  Users
+  Users,
+  Sparkles
 } from "lucide-react";
 import { SiTiktok, SiInstagram, SiYoutube } from "react-icons/si";
 
@@ -420,6 +421,15 @@ export default function LiverMypage() {
                 salesAmount?: number | null;
                 gmv?: number | null;
                 duration?: number | null;
+                aiStructuredAdvice?: {
+                  summary?: string;
+                  goodPoints?: string[];
+                  improvements?: string[];
+                  actionPlans?: { action: string; reason: string; timing: string }[];
+                  nextGoal?: string;
+                  calculatedMetrics?: Record<string, string | number>;
+                } | null;
+                aiAdvice?: string | null;
               }) => {
                 const startDate = new Date(ls.livestreamDate);
                 const endDate = ls.livestreamEndTime ? new Date(ls.livestreamEndTime) : null;
@@ -428,6 +438,7 @@ export default function LiverMypage() {
                   : endDate
                     ? Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60) * 10) / 10
                     : 0;
+                const hasAiAdvice = ls.aiStructuredAdvice || ls.aiAdvice;
 
                 return (
                   <Card 
@@ -446,10 +457,15 @@ export default function LiverMypage() {
                           </p>
                         </div>
                         <div>
-                          <p className="text-xs text-gray-400">
-                            {startDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
-                            {endDate && ` - ${endDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}`}
-                          </p>
+                          <div className="flex items-center gap-1">
+                            <p className="text-xs text-gray-400">
+                              {startDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
+                              {endDate && ` - ${endDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}`}
+                            </p>
+                            {hasAiAdvice && (
+                              <Sparkles className="h-3 w-3 text-yellow-500" />
+                            )}
+                          </div>
                           <p className="text-xs text-gray-500">
                             {duration > 0 ? `${duration}h` : "-"}
                           </p>

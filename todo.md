@@ -2166,3 +2166,19 @@
 
 ## LCJ公式LINEリンクの更新
 - [x] LiverProfile.tsxのLINE友だち追加リンクを正しいURLに更新（https://lin.ee/dlaoCfw）
+
+
+## AIアドバイスの永続保存機能
+- [ ] livestreamsテーブルにアドバイス保存用フィールドを追加
+- [ ] 配信記録保存時にアドバイスも保存するロジックを実装
+- [ ] 過去の配信のアドバイスを表示するUIを実装
+- [ ] 配信詳細ページでアドバイスを確認できるようにする
+
+
+## AIアドバイス永続保存機能
+- [x] brandLivestreamsテーブルにaiStructuredAdviceカラム（JSON型）を追加
+- [x] createLivestream APIで構造化アドバイスをDBに保存するロジックを実装
+- [x] 配信詳細ページ（LivestreamDetail.tsx）に構造化AIアドバイス表示UIを追加
+  - 総評、良かった点、改善ポイント、次回アクションプラン、目標、分析指標を表示
+- [x] ライバーマイページの配信履歴カードにAIアドバイスバッジ（Sparklesアイコン）を追加
+- [x] 旧形式のaiAdvice（テキスト）との後方互換性を維持

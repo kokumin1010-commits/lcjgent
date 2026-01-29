@@ -277,6 +277,14 @@ export const brandLivestreams = mysqlTable("brand_livestreams", {
   screenshotUrl: text("screenshotUrl"), // 配信後スクリーンショットURL
   screenshotKey: varchar("screenshotKey", { length: 512 }), // S3キー
   aiAdvice: text("aiAdvice"), // AIによるワンポイントアドバイス
+  aiStructuredAdvice: json("aiStructuredAdvice").$type<{
+    summary: string;
+    goodPoints: string[];
+    improvements: string[];
+    actionPlans: { action: string; reason: string; timing: string }[];
+    nextGoal: string;
+    calculatedMetrics: Record<string, string | number>;
+  }>(), // AI構造化アドバイス（永続保存用）
   createdBy: int("createdBy").notNull(), // User ID who created the record
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
