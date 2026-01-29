@@ -2162,3 +2162,7 @@
 - [x] ライバーとLINE User IDの紐付けロジックを実装
 - [x] ライバー向けLINE連携フローを作成（連携コード発行）
 - [x] プロフィール編集ページにLINE連携ボタンを追加
+
+
+## LCJ公式LINEリンクの更新
+- [x] LiverProfile.tsxのLINE友だち追加リンクを正しいURLに更新（https://lin.ee/dlaoCfw）
