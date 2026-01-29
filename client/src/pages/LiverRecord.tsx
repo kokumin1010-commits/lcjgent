@@ -426,6 +426,9 @@ export default function LiverRecord() {
         screenshotUrl: finalScreenshotUrl || undefined,
         scheduleId: scheduleId || undefined,
         aiAdvice: advice || undefined,
+        // LINE通知用の構造化データ
+        structuredAdvice: structuredAdvice || undefined,
+        calculatedMetrics: calculatedMetrics || undefined,
       });
     } catch (error) {
       console.error("Failed to save livestream record:", error);

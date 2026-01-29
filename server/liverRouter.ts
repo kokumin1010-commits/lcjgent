@@ -193,6 +193,8 @@ export const liverRouter = router({
       instagramAccount: liver.instagramAccount,
       youtubeAccount: liver.youtubeAccount,
       otherAccount: liver.otherAccount,
+      lineUserId: liver.lineUserId,
+      lineNotificationEnabled: liver.lineNotificationEnabled,
     };
   }),
 
@@ -218,6 +220,7 @@ export const liverRouter = router({
         instagramAccount: z.string().optional(),
         youtubeAccount: z.string().optional(),
         otherAccount: z.string().optional(),
+        lineNotificationEnabled: z.boolean().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {

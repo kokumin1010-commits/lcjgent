@@ -787,6 +787,9 @@ export const livers = mysqlTable("livers", {
   role: mysqlEnum("role", ["liver", "admin"]).default("liver").notNull(), // 権限
   // セッション
   lastLoginAt: timestamp("lastLoginAt"), // 最終ログイン日時
+  // LINE連携
+  lineUserId: varchar("lineUserId", { length: 255 }), // LINE User ID（個別通知用）
+  lineNotificationEnabled: boolean("lineNotificationEnabled").default(true), // LINE通知有効/無効
   // タイムスタンプ
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

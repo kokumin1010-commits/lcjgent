@@ -15,8 +15,12 @@ import {
   Palette,
   Instagram,
   Youtube,
-  Link as LinkIcon
+  Link as LinkIcon,
+  MessageCircle,
+  Bell,
+  BellOff
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 
 // TikTok icon component
 const TikTokIcon = ({ className }: { className?: string }) => (
@@ -49,6 +53,7 @@ export default function LiverProfile() {
   const [instagramAccount, setInstagramAccount] = useState("");
   const [youtubeAccount, setYoutubeAccount] = useState("");
   const [otherAccount, setOtherAccount] = useState("");
+  const [lineNotificationEnabled, setLineNotificationEnabled] = useState(true);
   
   // Initialize form with current data
   useEffect(() => {
@@ -60,6 +65,7 @@ export default function LiverProfile() {
       setInstagramAccount(liverInfo.instagramAccount || "");
       setYoutubeAccount(liverInfo.youtubeAccount || "");
       setOtherAccount(liverInfo.otherAccount || "");
+      setLineNotificationEnabled(liverInfo.lineNotificationEnabled !== false);
     }
   }, [liverInfo]);
   
@@ -83,6 +89,7 @@ export default function LiverProfile() {
       instagramAccount: instagramAccount || undefined,
       youtubeAccount: youtubeAccount || undefined,
       otherAccount: otherAccount || undefined,
+      lineNotificationEnabled,
     });
   };
   
@@ -210,6 +217,69 @@ export default function LiverProfile() {
                   </button>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+          
+          {/* LINE Notification Settings */}
+          <Card className="bg-gray-900 border-gray-800">
+            <CardHeader>
+              <CardTitle className="text-lg text-white flex items-center gap-2">
+                <MessageCircle className="h-5 w-5 text-green-500" />
+                LINE通知設定
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-gray-800 rounded-lg">
+                <div className="flex items-center gap-3">
+                  {lineNotificationEnabled ? (
+                    <Bell className="h-5 w-5 text-green-500" />
+                  ) : (
+                    <BellOff className="h-5 w-5 text-gray-500" />
+                  )}
+                  <div>
+                    <p className="text-white font-medium">AIコーチング通知</p>
+                    <p className="text-sm text-gray-400">
+                      配信記録保存時にAIアドバイスをLINEで受け取る
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  checked={lineNotificationEnabled}
+                  onCheckedChange={setLineNotificationEnabled}
+                  className="data-[state=checked]:bg-green-500"
+                />
+              </div>
+              
+              {liverInfo.lineUserId ? (
+                <div className="p-4 bg-green-900/30 border border-green-700 rounded-lg">
+                  <div className="flex items-center gap-2 text-green-400">
+                    <MessageCircle className="h-4 w-4" />
+                    <span className="font-medium">LINE連携済み</span>
+                  </div>
+                  <p className="mt-1 text-sm text-gray-400">
+                    配信後にAIコーチングがLINEに届きます
+                  </p>
+                </div>
+              ) : (
+                <div className="p-4 bg-gray-800 border border-gray-700 rounded-lg">
+                  <div className="flex items-center gap-2 text-yellow-500">
+                    <MessageCircle className="h-4 w-4" />
+                    <span className="font-medium">LINE未連携</span>
+                  </div>
+                  <p className="mt-2 text-sm text-gray-400">
+                    LINEでAIコーチングを受け取るには、LCJ公式LINEを友だち追加してください。
+                  </p>
+                  <a
+                    href="https://lin.ee/YOUR_LINE_ID"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    LINEを友だち追加
+                  </a>
+                </div>
+              )}
             </CardContent>
           </Card>
           

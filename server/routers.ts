@@ -6,6 +6,7 @@ import { z } from "zod";
 import { nanoid } from "nanoid";
 import { storagePut } from "./storage";
 import { invokeLLM } from "./_core/llm";
+import { sendCoachingToLiver } from "./_core/lineMessaging";
 import {
   createStaff,
   getAllStaff,
@@ -4292,9 +4293,22 @@ ${conversationText}
         remarks: z.string().optional(),
         screenshotUrl: z.string().optional(),
         aiAdvice: z.string().optional(), // AIアドバイスを保存
+        // LINE通知用の構造化アドバイス
+        structuredAdvice: z.object({
+          summary: z.string().optional(),
+          goodPoints: z.array(z.string()).optional(),
+          improvements: z.array(z.string()).optional(),
+          nextActions: z.array(z.object({
+            action: z.string(),
+            reason: z.string(),
+            timing: z.string(),
+          })).optional(),
+          targetForNextTime: z.string().optional(),
+        }).optional(),
+        calculatedMetrics: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        // Get liver name for streamerName field
+        // Get liver info for streamerName and LINE notification
         const liver = await getLiverById(input.liverId);
         const streamerName = liver?.name || "不明";
         
@@ -4314,7 +4328,29 @@ ${conversationText}
           streamerName,
           createdBy: ctx.user?.id || 0,
         });
-        return { id };
+        
+        // Send LINE notification if liver has LINE connected and notifications enabled
+        let lineNotificationSent = false;
+        if (liver?.lineUserId && liver?.lineNotificationEnabled !== false) {
+          try {
+            const result = await sendCoachingToLiver(
+              liver.lineUserId,
+              liver.name,
+              input.salesAmount || 0,
+              input.structuredAdvice || null,
+              input.calculatedMetrics as Record<string, string | number> | null | undefined,
+              input.aiAdvice
+            );
+            lineNotificationSent = result.success;
+            if (!result.success) {
+              console.error("[LINE Coaching] Failed to send:", result.error);
+            }
+          } catch (error) {
+            console.error("[LINE Coaching] Exception:", error);
+          }
+        }
+        
+        return { id, lineNotificationSent };
       }),
 
     // Update livestream (配信履歴の編集)
