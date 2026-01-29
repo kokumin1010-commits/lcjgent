@@ -184,20 +184,22 @@ export default function BrandList() {
       endDate = new Date(year, month, 0, 23, 59, 59);
     }
 
-    // フィルタリングされたライブストリーム
+    // フィルタリングされたライブストリーム（livestreamDateを使用）
     const filteredLivestreams = allLivestreamsData.filter((ls: any) => {
       if (!startDate || !endDate) return true;
-      const lsDate = new Date(ls.startTime);
+      // livestreamDateフィールドを使用
+      const lsDate = ls.livestreamDate ? new Date(ls.livestreamDate) : null;
+      if (!lsDate) return false;
       return lsDate >= startDate && lsDate <= endDate;
     });
 
     // GMV合計
     const totalGmv = filteredLivestreams.reduce((sum: number, ls: any) => sum + (ls.gmv || 0), 0);
 
-    // 広告費合計（契約のfixedFeeから計算 - 期間に関係なく全期間の契約額）
-    const totalAdBudget = brandsData.reduce((sum, brand) => sum + ((brand as any).totalAdBudget || 0), 0);
+    // 広告費合計（各ライブストリームのadCostを合計）
+    const totalAdBudget = filteredLivestreams.reduce((sum: number, ls: any) => sum + (ls.adCost || 0), 0);
 
-    // ROAS計算
+    // ROAS計算（広告費が0の場合は0を返す）
     const roas = totalAdBudget > 0 ? totalGmv / totalAdBudget : 0;
 
     // LCJ報酬計算（商品ごとのGMV × 成果報酬率）
@@ -207,8 +209,12 @@ export default function BrandList() {
       filteredLivestreams.forEach((ls: any) => {
         const product = allProductsData.find((p: any) => p.id === ls.productId);
         if (product && product.commissionRate) {
-          const rate = parseFloat(product.commissionRate.replace('%', '')) / 100;
-          lcjReward += (ls.gmv || 0) * rate;
+          // commissionRateが文字列の場合の処理（例: "20%" → 0.2）
+          const rateStr = String(product.commissionRate).replace('%', '').trim();
+          const rate = parseFloat(rateStr);
+          if (!isNaN(rate)) {
+            lcjReward += (ls.gmv || 0) * (rate / 100);
+          }
         }
       });
     }
