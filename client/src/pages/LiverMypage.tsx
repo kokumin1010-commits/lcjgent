@@ -376,96 +376,96 @@ export default function LiverMypage() {
           </Select>
         </div>
 
-        {/* Monthly Stats */}
-        <div className="grid grid-cols-2 gap-4">
+        {/* Monthly Stats - タイトなデザイン */}
+        <div className="grid grid-cols-2 gap-3">
           <Card className="bg-slate-800 border-slate-700">
-            <CardContent className="p-4 text-center">
-              <DollarSign className="h-5 w-5 mx-auto text-yellow-500 mb-2" />
-              <p className="text-2xl font-bold text-white">¥{monthlyStats.sales.toLocaleString()}</p>
-              <div className="h-1 bg-yellow-500 mt-2 rounded" />
-              <p className="text-sm text-gray-400 mt-2">月間売上</p>
+            <CardContent className="p-3 text-center">
+              <DollarSign className="h-4 w-4 mx-auto text-yellow-500 mb-1" />
+              <p className="text-xl font-bold text-white">¥{monthlyStats.sales.toLocaleString()}</p>
+              <div className="h-0.5 bg-yellow-500 mt-1.5 rounded" />
+              <p className="text-xs text-gray-400 mt-1">月間売上</p>
             </CardContent>
           </Card>
           <Card className="bg-slate-800 border-slate-700">
-            <CardContent className="p-4 text-center">
-              <Clock className="h-5 w-5 mx-auto text-yellow-500 mb-2" />
-              <p className="text-2xl font-bold text-white">{monthlyStats.hours}h</p>
-              <div className="h-1 bg-yellow-500 mt-2 rounded" />
-              <p className="text-sm text-gray-400 mt-2">配信時間</p>
+            <CardContent className="p-3 text-center">
+              <Clock className="h-4 w-4 mx-auto text-yellow-500 mb-1" />
+              <p className="text-xl font-bold text-white">{monthlyStats.hours}h</p>
+              <div className="h-0.5 bg-yellow-500 mt-1.5 rounded" />
+              <p className="text-xs text-gray-400 mt-1">配信時間</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Additional Stats */}
-        <div className="grid grid-cols-4 gap-3">
+        {/* Additional Stats - タイトなデザイン */}
+        <div className="grid grid-cols-4 gap-2">
           <Card className="bg-slate-800 border-slate-700">
-            <CardContent className="p-3 text-center">
-              <Video className="h-4 w-4 mx-auto text-red-500 mb-1" />
-              <p className="text-xl font-bold text-white">{monthlyStats.count}</p>
-              <p className="text-xs text-gray-400">配信回数</p>
+            <CardContent className="p-2 text-center">
+              <Video className="h-3 w-3 mx-auto text-red-500 mb-0.5" />
+              <p className="text-lg font-bold text-white">{monthlyStats.count}</p>
+              <p className="text-[10px] text-gray-400">配信回数</p>
             </CardContent>
           </Card>
           <Card className="bg-slate-800 border-slate-700">
-            <CardContent className="p-3 text-center">
-              <Target className="h-4 w-4 mx-auto text-green-500 mb-1" />
-              <p className="text-xl font-bold text-white">¥{monthlyStats.avgSales.toLocaleString()}</p>
-              <p className="text-xs text-gray-400">平均売上</p>
+            <CardContent className="p-2 text-center">
+              <Target className="h-3 w-3 mx-auto text-green-500 mb-0.5" />
+              <p className="text-lg font-bold text-white">¥{monthlyStats.avgSales.toLocaleString()}</p>
+              <p className="text-[10px] text-gray-400">平均売上</p>
             </CardContent>
           </Card>
           <Card className="bg-slate-800 border-slate-700">
-            <CardContent className="p-3 text-center">
-              <Eye className="h-4 w-4 mx-auto text-blue-500 mb-1" />
-              <p className="text-xl font-bold text-white">{monthlyStats.viewerCount.toLocaleString()}</p>
-              <p className="text-xs text-gray-400">視聴者数</p>
+            <CardContent className="p-2 text-center">
+              <Eye className="h-3 w-3 mx-auto text-blue-500 mb-0.5" />
+              <p className="text-lg font-bold text-white">{monthlyStats.viewerCount.toLocaleString()}</p>
+              <p className="text-[10px] text-gray-400">視聴者数</p>
             </CardContent>
           </Card>
           <Card className="bg-slate-800 border-slate-700">
-            <CardContent className="p-3 text-center">
-              <ShoppingCart className="h-4 w-4 mx-auto text-purple-500 mb-1" />
-              <p className="text-xl font-bold text-white">{monthlyStats.orderCount.toLocaleString()}</p>
-              <p className="text-xs text-gray-400">注文数</p>
+            <CardContent className="p-2 text-center">
+              <ShoppingCart className="h-3 w-3 mx-auto text-purple-500 mb-0.5" />
+              <p className="text-lg font-bold text-white">{monthlyStats.orderCount.toLocaleString()}</p>
+              <p className="text-[10px] text-gray-400">注文数</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* All-time Stats */}
+        {/* All-time Stats - タイトなデザイン */}
         <Card className="bg-slate-800/50 border-slate-700">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Award className="h-5 w-5 text-yellow-500" />
-              <span className="font-bold text-white">累計実績</span>
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Award className="h-4 w-4 text-yellow-500" />
+              <span className="font-bold text-white text-sm">累計実績</span>
             </div>
-            <div className="grid grid-cols-3 gap-4 text-center">
+            <div className="grid grid-cols-3 gap-3 text-center">
               <div>
-                <p className="text-xl font-bold text-yellow-500">¥{allTimeStats.totalSales.toLocaleString()}</p>
-                <p className="text-xs text-gray-400">総売上</p>
+                <p className="text-lg font-bold text-yellow-500">¥{allTimeStats.totalSales.toLocaleString()}</p>
+                <p className="text-[10px] text-gray-400">総売上</p>
               </div>
               <div>
-                <p className="text-xl font-bold text-yellow-500">{allTimeStats.totalHours}h</p>
-                <p className="text-xs text-gray-400">総配信時間</p>
+                <p className="text-lg font-bold text-yellow-500">{allTimeStats.totalHours}h</p>
+                <p className="text-[10px] text-gray-400">総配信時間</p>
               </div>
               <div>
-                <p className="text-xl font-bold text-yellow-500">{allTimeStats.totalCount}</p>
-                <p className="text-xs text-gray-400">総配信回数</p>
+                <p className="text-lg font-bold text-yellow-500">{allTimeStats.totalCount}</p>
+                <p className="text-[10px] text-gray-400">総配信回数</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Action Buttons */}
-        <div className="grid grid-cols-2 gap-4">
+        {/* Action Buttons - タイトなデザイン */}
+        <div className="grid grid-cols-2 gap-3">
           <Button
             onClick={() => navigate(`/s`)}
-            className="bg-yellow-500 hover:bg-yellow-600 text-black py-6 text-lg font-bold"
+            className="bg-yellow-500 hover:bg-yellow-600 text-black py-3 text-sm font-bold"
           >
-            <Calendar className="h-5 w-5 mr-2" />
+            <Calendar className="h-4 w-4 mr-1.5" />
             スケジュール
           </Button>
           <Button
             onClick={() => navigate(`/liver/record`)}
-            className="bg-red-600 hover:bg-red-700 text-white py-6 text-lg font-bold"
+            className="bg-red-600 hover:bg-red-700 text-white py-3 text-sm font-bold"
           >
-            <Plus className="h-5 w-5 mr-2" />
+            <Plus className="h-4 w-4 mr-1.5" />
             配信記録
           </Button>
         </div>
@@ -508,12 +508,12 @@ export default function LiverMypage() {
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b border-slate-700 text-gray-400 text-sm">
-                      <th className="text-left py-3 px-4">開始</th>
-                      <th className="text-left py-3 px-4">終了</th>
-                      <th className="text-center py-3 px-4">配信時間</th>
-                      <th className="text-right py-3 px-4">売上合計</th>
-                      <th className="text-center py-3 px-4"></th>
+                    <tr className="border-b border-slate-700 text-gray-400 text-[10px]">
+                      <th className="text-left py-2 px-3">開始</th>
+                      <th className="text-left py-2 px-3">終了</th>
+                      <th className="text-center py-2 px-3">時間</th>
+                      <th className="text-right py-2 px-3">売上</th>
+                      <th className="text-center py-2 px-3 w-8"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -539,59 +539,51 @@ export default function LiverMypage() {
                       return (
                         <tr 
                           key={ls.id} 
-                          className="border-b border-slate-700/50 hover:bg-slate-700/50 transition-colors"
+                          className="border-b border-slate-700/50 hover:bg-slate-700/50 transition-colors cursor-pointer active:bg-slate-600/50"
+                          onClick={() => navigate(`/livestreams/${ls.id}`)}
                         >
-                          <td className="py-3 px-4">
-                            <div className="text-white text-sm">
+                          <td className="py-2 px-3">
+                            <div className="text-white text-xs">
                               {startDate.toLocaleDateString("ja-JP", { 
-                                year: "numeric",
                                 month: "2-digit", 
                                 day: "2-digit",
                                 weekday: "short" 
                               })}
                             </div>
-                            <div className="text-gray-400 text-xs">
+                            <div className="text-gray-400 text-[10px]">
                               {startDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
                             </div>
                           </td>
-                          <td className="py-3 px-4">
+                          <td className="py-2 px-3">
                             {endDate ? (
                               <>
-                                <div className="text-white text-sm">
+                                <div className="text-white text-xs">
                                   {endDate.toLocaleDateString("ja-JP", { 
-                                    year: "numeric",
                                     month: "2-digit", 
                                     day: "2-digit",
                                     weekday: "short" 
                                   })}
                                 </div>
-                                <div className="text-gray-400 text-xs">
+                                <div className="text-gray-400 text-[10px]">
                                   {endDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
                                 </div>
                               </>
                             ) : (
-                              <span className="text-gray-500">-</span>
+                              <span className="text-gray-500 text-xs">-</span>
                             )}
                           </td>
-                          <td className="py-3 px-4 text-center">
-                            <span className="text-yellow-500 font-bold">
-                              {duration > 0 ? `${duration}時間` : "-"}
+                          <td className="py-2 px-3 text-center">
+                            <span className="text-yellow-500 font-bold text-xs">
+                              {duration > 0 ? `${duration}h` : "-"}
                             </span>
                           </td>
-                          <td className="py-3 px-4 text-right">
-                            <span className="text-yellow-500 font-bold">
+                          <td className="py-2 px-3 text-right">
+                            <span className="text-yellow-500 font-bold text-xs">
                               ¥{(ls.salesAmount || ls.gmv || 0).toLocaleString()}
                             </span>
                           </td>
-                          <td className="py-3 px-4 text-center">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => navigate(`/livestreams/${ls.id}`)}
-                              className="border-yellow-500 text-yellow-500 hover:bg-yellow-500 hover:text-black text-xs px-3"
-                            >
-                              編集
-                            </Button>
+                          <td className="py-2 px-3 text-center">
+                            <ChevronRight className="h-4 w-4 text-gray-400" />
                           </td>
                         </tr>
                       );
@@ -615,11 +607,11 @@ export default function LiverMypage() {
           )}
         </div>
 
-        {/* Bottom Navigation */}
-        <div className="mt-8">
+        {/* Bottom Navigation - タイトなデザイン */}
+        <div className="mt-6">
           <Button
             onClick={() => navigate("/livers")}
-            className="w-full bg-red-600 hover:bg-red-700 text-white py-4"
+            className="w-full bg-red-600 hover:bg-red-700 text-white py-3 text-sm"
           >
             ライバーリスト
           </Button>
