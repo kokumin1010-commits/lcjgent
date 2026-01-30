@@ -37,7 +37,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn, Info, History, ChevronLeft, ChevronRight, Download, FolderOpen, Link, ExternalLink, TrendingUp, CheckCircle } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn, Info, History, ChevronLeft, ChevronRight, Download, FolderOpen, Link, ExternalLink, TrendingUp, CheckCircle, FileDown } from "lucide-react";
 import { toast } from "sonner";
 
 const translations = {
@@ -798,25 +798,110 @@ export default function BrandDetail() {
     });
   };
 
-  // PDF export function
+  // PDF generation mutation
+  const generatePdfMutation = trpc.brand.generateAdProposalPdf.useMutation({
+    onSuccess: async (data) => {
+      try {
+        // Create a new window with the HTML content
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          printWindow.document.write(data.html);
+          printWindow.document.close();
+          
+          // Wait for fonts to load then trigger print
+          setTimeout(() => {
+            printWindow.print();
+          }, 1000);
+          
+          toast.success(language === 'ja' ? 'PDFを生成しました。印刷ダイアログからPDFとして保存してください。' : '已生成PDF。请从打印对话框保存为PDF。');
+        } else {
+          toast.error(language === 'ja' ? 'ポップアップがブロックされました' : '弹出窗口被阻止');
+        }
+      } catch (error) {
+        toast.error(language === 'ja' ? 'PDF生成に失敗しました' : 'PDF生成失败');
+      }
+    },
+    onError: () => {
+      toast.error(language === 'ja' ? 'PDF生成に失敗しました' : 'PDF生成失败');
+    },
+  });
+
+  // Handle PDF download for current proposal
+  const handleDownloadPdf = () => {
+    if (!adProposalData || !brand) return;
+    
+    generatePdfMutation.mutate({
+      brandId,
+      brandName: brand.name,
+      brandNameJa: brand.nameJa || undefined,
+      language: language as 'ja' | 'zh',
+      proposalContent: adProposalData.proposal,
+      metrics: {
+        totalGmv: adProposalData.metrics?.totalGmv || 0,
+        totalImpressions: adProposalData.metrics?.totalImpressions || 0,
+        adValue: adProposalData.metrics?.adValue || 0,
+        totalValue: adProposalData.metrics?.totalValue || 0,
+        totalAdCost: adProposalData.metrics?.totalAdCost || 0,
+        avgRoas: adProposalData.metrics?.avgRoas || 0,
+        totalLivestreams: adProposalData.metrics?.totalLivestreams || 0,
+        avgSalesPerLive: adProposalData.metrics?.avgSalesPerLive || 0,
+        avgDuration: adProposalData.metrics?.avgDuration || 0,
+        topProducts: adProposalData.metrics?.topProducts || [],
+        activeContractsCount: adProposalData.metrics?.activeContractsCount || 0,
+        productsCount: adProposalData.metrics?.productsCount || 0,
+      },
+      generatedAt: adProposalData.generatedAt || new Date().toISOString(),
+    });
+  };
+
+  // Handle PDF download for history proposal
+  const handleDownloadHistoryPdf = (proposal: any) => {
+    if (!brand) return;
+    
+    generatePdfMutation.mutate({
+      brandId,
+      brandName: brand.name,
+      brandNameJa: brand.nameJa || undefined,
+      language: language as 'ja' | 'zh',
+      proposalContent: proposal.proposalContent,
+      metrics: {
+        totalGmv: proposal.totalGmv || 0,
+        totalImpressions: proposal.totalImpressions || 0,
+        adValue: proposal.adValue || 0,
+        totalValue: proposal.totalValue || 0,
+        totalAdCost: proposal.totalAdCost || 0,
+        avgRoas: Number(proposal.avgRoas) || 0,
+        totalLivestreams: proposal.totalLivestreams || 0,
+        avgSalesPerLive: proposal.avgSalesPerLive || 0,
+        avgDuration: proposal.avgDuration || 0,
+        topProducts: proposal.topProducts || [],
+        activeContractsCount: proposal.activeContractsCount || 0,
+        productsCount: proposal.productsCount || 0,
+      },
+      generatedAt: proposal.createdAt || new Date().toISOString(),
+    });
+  };
+
+  // Markdown export function (legacy)
   const handleExportPdf = async (proposal: any) => {
     try {
+      const isJa = language === 'ja';
       const content = `
-# TikTok広告提案: ${brand?.name || ''}
+# ${isJa ? 'TikTok広告提案' : 'TikTok广告提案'}: ${brand?.name || ''}
 
-## 生成日時
-${new Date(proposal.createdAt).toLocaleString('ja-JP')}
+## ${isJa ? '生成日時' : '生成时间'}
+${new Date(proposal.createdAt).toLocaleString(isJa ? 'ja-JP' : 'zh-CN')}
 
-## メトリクスサマリー
-- 総GMV: ¥${(proposal.totalGmv || 0).toLocaleString()}
-- 総インプレッション: ${(proposal.totalImpressions || 0).toLocaleString()}
-- 広告換算費用: ¥${(proposal.adValue || 0).toLocaleString()}
-- 総価値: ¥${(proposal.totalValue || 0).toLocaleString()}
-- 契約金額: ¥${(proposal.totalAdCost || 0).toLocaleString()}
-- 広告効果ROAS: ${Number(proposal.avgRoas || 0).toFixed(2)}倍
-- 配信回数: ${proposal.totalLivestreams || 0}回
+## ${isJa ? 'メトリクスサマリー' : '指标摘要'}
+- ${isJa ? '総GMV' : '总GMV'}: ¥${(proposal.totalGmv || 0).toLocaleString()}
+- ${isJa ? '総インプレッション' : '总印象数'}: ${(proposal.totalImpressions || 0).toLocaleString()}
+- ${isJa ? '広告換算費用' : '广告换算费用'}: ¥${(proposal.adValue || 0).toLocaleString()}
+- ${isJa ? '総価値' : '总价值'}: ¥${(proposal.totalValue || 0).toLocaleString()}
+- ${isJa ? '契約金額' : '合同金额'}: ¥${(proposal.totalAdCost || 0).toLocaleString()}
+- ${isJa ? '広告効果ROAS' : '广告效果ROAS'}: ${Number(proposal.avgRoas || 0).toFixed(2)}${isJa ? '倍' : '倍'}
+- ${isJa ? '配信回数' : '直播次数'}: ${proposal.totalLivestreams || 0}${isJa ? '回' : '次'}
 
-## AI広告提案
+## ${isJa ? 'AI広告提案' : 'AI广告提案'}
 ${proposal.proposalContent}
       `.trim();
       
@@ -829,9 +914,9 @@ ${proposal.proposalContent}
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      toast.success("提案をダウンロードしました");
+      toast.success(isJa ? "提案をダウンロードしました" : "已下载提案");
     } catch (error) {
-      toast.error("エクスポートに失敗しました");
+      toast.error(language === 'ja' ? "エクスポートに失敗しました" : "导出失败");
     }
   };
 
@@ -1142,8 +1227,8 @@ ${proposal.proposalContent}
     }
   };
 
-  // PDFダウンロード
-  const handleDownloadPdf = async () => {
+  // 商品画像PDFダウンロード
+  const handleDownloadProductImagesPdf = async () => {
     if (productImages.length === 0 || !selectedProductForDetail) {
       toast.error(language === 'ja' ? 'ダウンロードする画像がありません' : '没有可下载的图片');
       return;
@@ -4459,7 +4544,7 @@ ${proposal.proposalContent}
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={handleDownloadPdf}
+                        onClick={handleDownloadProductImagesPdf}
                         disabled={productImages.length === 0}
                         className="flex-1 border-cyan-500/50 text-cyan-300 hover:bg-cyan-500/20"
                       >
@@ -5171,6 +5256,18 @@ ${proposal.proposalContent}
               {adProposalData && (
                 <>
                   <Button
+                    onClick={handleDownloadPdf}
+                    disabled={generatePdfMutation.isPending}
+                    className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white"
+                  >
+                    {generatePdfMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <FileDown className="h-4 w-4 mr-2" />
+                    )}
+                    {language === 'ja' ? 'PDF' : 'PDF'}
+                  </Button>
+                  <Button
                     onClick={handleSaveProposal}
                     disabled={saveAdProposalMutation.isPending}
                     className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white"
@@ -5244,11 +5341,25 @@ ${proposal.proposalContent}
                   <Button
                     variant="outline"
                     size="sm"
+                    onClick={() => handleDownloadHistoryPdf(selectedHistoryProposal)}
+                    disabled={generatePdfMutation.isPending}
+                    className="border-cyan-500/50 bg-cyan-950/50 text-cyan-300 hover:bg-cyan-900/40"
+                  >
+                    {generatePdfMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <FileDown className="h-4 w-4 mr-2" />
+                    )}
+                    PDF
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => handleExportPdf(selectedHistoryProposal)}
                     className="border-green-500/50 bg-green-950/50 text-green-300 hover:bg-green-900/40"
                   >
                     <Download className="h-4 w-4 mr-2" />
-                    {language === 'ja' ? 'ダウンロード' : '下载'}
+                    {language === 'ja' ? 'MD' : 'MD'}
                   </Button>
                   <Button
                     variant="outline"

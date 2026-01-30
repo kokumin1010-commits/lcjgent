@@ -2100,6 +2100,293 @@ ${topProducts.map((p, i) => `${i + 1}. ${p.name}: ¥${p.gmv.toLocaleString()}`).
         return { success: true };
       }),
 
+    // Generate PDF for ad proposal
+    generateAdProposalPdf: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+        brandName: z.string(),
+        brandNameJa: z.string().optional(),
+        language: z.enum(['ja', 'zh']).default('ja'),
+        proposalContent: z.string(),
+        metrics: z.object({
+          totalGmv: z.number(),
+          totalImpressions: z.number(),
+          adValue: z.number(),
+          totalValue: z.number(),
+          totalAdCost: z.number(),
+          avgRoas: z.number(),
+          totalLivestreams: z.number(),
+          avgSalesPerLive: z.number(),
+          avgDuration: z.number(),
+          topProducts: z.array(z.object({ name: z.string(), gmv: z.number() })),
+          activeContractsCount: z.number(),
+          productsCount: z.number(),
+        }),
+        generatedAt: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        const isJa = input.language === 'ja';
+        
+        // Generate HTML content for PDF
+        const htmlContent = `
+<!DOCTYPE html>
+<html lang="${input.language}">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap');
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: ${isJa ? "'Noto Sans JP'" : "'Noto Sans SC'"}, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #e0e0e0;
+      padding: 40px;
+      min-height: 100vh;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: rgba(30, 30, 50, 0.9);
+      border-radius: 16px;
+      padding: 40px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid rgba(139, 92, 246, 0.3);
+    }
+    
+    .header h1 {
+      font-size: 28px;
+      background: linear-gradient(90deg, #8b5cf6, #ec4899);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 8px;
+    }
+    
+    .header .brand-name {
+      font-size: 20px;
+      color: #a78bfa;
+    }
+    
+    .header .date {
+      font-size: 12px;
+      color: #9ca3af;
+      margin-top: 8px;
+    }
+    
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 30px;
+    }
+    
+    .metric-card {
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .metric-card.cyan { border-color: rgba(34, 211, 238, 0.3); }
+    .metric-card.pink { border-color: rgba(236, 72, 153, 0.3); }
+    .metric-card.amber { border-color: rgba(251, 191, 36, 0.3); }
+    .metric-card.purple { border-color: rgba(168, 85, 247, 0.3); }
+    .metric-card.green { border-color: rgba(34, 197, 94, 0.3); }
+    .metric-card.indigo { border-color: rgba(99, 102, 241, 0.3); }
+    .metric-card.rose { border-color: rgba(244, 63, 94, 0.3); }
+    
+    .metric-label {
+      font-size: 11px;
+      color: #9ca3af;
+      margin-bottom: 4px;
+    }
+    
+    .metric-value {
+      font-size: 18px;
+      font-weight: 700;
+    }
+    
+    .metric-value.cyan { color: #22d3ee; }
+    .metric-value.pink { color: #ec4899; }
+    .metric-value.amber { color: #fbbf24; }
+    .metric-value.purple { color: #a855f7; }
+    .metric-value.green { color: #22c55e; }
+    .metric-value.indigo { color: #6366f1; }
+    .metric-value.rose { color: #f43f5e; }
+    
+    .metric-sub {
+      font-size: 9px;
+      color: #6b7280;
+    }
+    
+    .section {
+      margin-bottom: 30px;
+    }
+    
+    .section-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #a78bfa;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .section-title::before {
+      content: '';
+      width: 4px;
+      height: 20px;
+      background: linear-gradient(180deg, #8b5cf6, #ec4899);
+      border-radius: 2px;
+    }
+    
+    .top-products {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    
+    .product-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    
+    .product-item:last-child {
+      border-bottom: none;
+    }
+    
+    .product-rank {
+      color: #a855f7;
+      font-weight: 700;
+      margin-right: 8px;
+    }
+    
+    .product-name {
+      color: #d1d5db;
+    }
+    
+    .product-gmv {
+      color: #22d3ee;
+      font-family: monospace;
+    }
+    
+    .proposal-content {
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(236, 72, 153, 0.05));
+      border-radius: 12px;
+      padding: 24px;
+      border: 1px solid rgba(139, 92, 246, 0.2);
+      white-space: pre-wrap;
+      line-height: 1.8;
+      font-size: 14px;
+    }
+    
+    .footer {
+      text-align: center;
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      font-size: 11px;
+      color: #6b7280;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>${isJa ? 'TikTok広告提案' : 'TikTok广告提案'}</h1>
+      <div class="brand-name">${input.brandName}${input.brandNameJa ? ` (${input.brandNameJa})` : ''}</div>
+      <div class="date">${isJa ? '生成日時' : '生成时间'}: ${new Date(input.generatedAt).toLocaleString(isJa ? 'ja-JP' : 'zh-CN')}</div>
+    </div>
+    
+    <div class="metrics-grid">
+      <div class="metric-card cyan">
+        <div class="metric-label">${isJa ? '総GMV' : '总GMV'}</div>
+        <div class="metric-value cyan">¥${input.metrics.totalGmv.toLocaleString()}</div>
+      </div>
+      <div class="metric-card pink">
+        <div class="metric-label">${isJa ? '広告換算費用' : '广告换算费用'}</div>
+        <div class="metric-value pink">¥${input.metrics.adValue.toLocaleString()}</div>
+        <div class="metric-sub">CPM ¥15,000</div>
+      </div>
+      <div class="metric-card amber">
+        <div class="metric-label">${isJa ? '広告効果ROAS' : '广告效果ROAS'}</div>
+        <div class="metric-value amber">${input.metrics.avgRoas.toFixed(2)}${isJa ? '倍' : '倍'}</div>
+        <div class="metric-sub">${isJa ? '総価値÷契約金額' : '总价值÷合同金额'}</div>
+      </div>
+      <div class="metric-card purple">
+        <div class="metric-label">${isJa ? '配信回数' : '直播次数'}</div>
+        <div class="metric-value purple">${input.metrics.totalLivestreams}${isJa ? '回' : '次'}</div>
+      </div>
+    </div>
+    
+    <div class="metrics-grid" style="grid-template-columns: repeat(3, 1fr);">
+      <div class="metric-card green">
+        <div class="metric-label">${isJa ? '総インプレッション' : '总印象数'}</div>
+        <div class="metric-value green">${input.metrics.totalImpressions.toLocaleString()}</div>
+      </div>
+      <div class="metric-card indigo">
+        <div class="metric-label">${isJa ? '総価値' : '总价值'}</div>
+        <div class="metric-value indigo">¥${input.metrics.totalValue.toLocaleString()}</div>
+        <div class="metric-sub">${isJa ? 'GMV+広告換算' : 'GMV+广告换算'}</div>
+      </div>
+      <div class="metric-card rose">
+        <div class="metric-label">${isJa ? '契約金額' : '合同金额'}</div>
+        <div class="metric-value rose">¥${input.metrics.totalAdCost.toLocaleString()}</div>
+      </div>
+    </div>
+    
+    ${input.metrics.topProducts && input.metrics.topProducts.length > 0 ? `
+    <div class="section">
+      <div class="section-title">${isJa ? '売れ筋商品TOP5' : '热销商品TOP5'}</div>
+      <div class="top-products">
+        ${input.metrics.topProducts.map((p, i) => `
+          <div class="product-item">
+            <span><span class="product-rank">#${i + 1}</span><span class="product-name">${p.name}</span></span>
+            <span class="product-gmv">¥${p.gmv.toLocaleString()}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+    ` : ''}
+    
+    <div class="section">
+      <div class="section-title">${isJa ? 'AI広告提案' : 'AI广告提案'}</div>
+      <div class="proposal-content">${input.proposalContent}</div>
+    </div>
+    
+    <div class="footer">
+      ${isJa ? 'この提案はAIによって生成されました。実際の広告戦略は専門家にご相談ください。' : '此提案由AI生成。实际广告策略请咨询专家。'}
+    </div>
+  </div>
+</body>
+</html>
+        `;
+        
+        // Use built-in PDF generation or return HTML for client-side conversion
+        // For now, return the HTML content that can be converted to PDF on the client
+        return {
+          html: htmlContent,
+          filename: `${isJa ? '広告提案' : '广告提案'}_${input.brandName}_${new Date().toISOString().split('T')[0]}.pdf`,
+        };
+      }),
+
     // Upload image for brand
     uploadImage: protectedProcedure
       .input(
