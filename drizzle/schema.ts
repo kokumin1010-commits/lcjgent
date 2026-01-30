@@ -978,3 +978,23 @@ export const productLinks = mysqlTable("product_links", {
 
 export type ProductLink = typeof productLinks.$inferSelect;
 export type InsertProductLink = typeof productLinks.$inferInsert;
+
+
+
+/**
+ * CSV Import History table for tracking product CSV imports
+ * 商品CSVインポート履歴テーブル - インポートしたCSVの履歴を管理
+ */
+export const csvImportHistory = mysqlTable("csv_import_history", {
+  id: int("id").autoincrement().primaryKey(),
+  livestreamId: int("livestreamId").notNull(), // References brandLivestreams.id
+  fileName: varchar("fileName", { length: 255 }).notNull(), // インポートしたファイル名
+  productCount: int("productCount").notNull(), // インポートした商品数
+  totalGmv: bigint("totalGmv", { mode: "number" }), // インポートした商品の合計GMV
+  importedBy: int("importedBy").notNull(), // User ID who imported the CSV
+  importedByName: varchar("importedByName", { length: 255 }).notNull(), // インポートしたユーザー名
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type CsvImportHistory = typeof csvImportHistory.$inferSelect;
+export type InsertCsvImportHistory = typeof csvImportHistory.$inferInsert;

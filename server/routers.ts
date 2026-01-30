@@ -214,6 +214,9 @@ import {
   createLivestreamFromCsv,
   getCsvImportedLivestreams,
   importLivestreamProductsFromCsv,
+  createCsvImportHistory,
+  getCsvImportHistoryByLivestream,
+  deleteCsvImportHistory,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -2403,6 +2406,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
       .input(
         z.object({
           livestreamId: z.number(),
+          fileName: z.string().optional(),
           products: z.array(
             z.object({
               productName: z.string(),
@@ -2419,12 +2423,40 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           ),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
         const count = await importLivestreamProductsFromCsv(
           input.livestreamId,
           input.products
         );
+        
+        // Calculate total GMV
+        const totalGmv = input.products.reduce((sum, p) => sum + (p.directGmv || 0), 0);
+        
+        // Create import history record
+        await createCsvImportHistory({
+          livestreamId: input.livestreamId,
+          fileName: input.fileName || 'unknown.xlsx',
+          productCount: count,
+          totalGmv,
+          importedBy: ctx.user.id,
+          importedByName: ctx.user.name || ctx.user.email,
+        });
+        
         return { success: true, importedCount: count };
+      }),
+    
+    // Get CSV import history for a livestream
+    getImportHistory: protectedProcedure
+      .input(z.object({ livestreamId: z.number() }))
+      .query(async ({ input }) => {
+        return await getCsvImportHistoryByLivestream(input.livestreamId);
+      }),
+    
+    // Delete CSV import history and associated products
+    deleteImportHistory: protectedProcedure
+      .input(z.object({ historyId: z.number() }))
+      .mutation(async ({ input }) => {
+        return await deleteCsvImportHistory(input.historyId);
       }),
   }),
 

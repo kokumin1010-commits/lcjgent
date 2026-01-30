@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -4203,4 +4203,121 @@ export async function getCsvImportedLivestreams(brandId: number) {
       )
     )
     .orderBy(desc(brandLivestreams.livestreamDate));
+}
+
+
+// ========================================
+// CSV Import History Management
+// ========================================
+
+/**
+ * Create a CSV import history record
+ */
+export async function createCsvImportHistory(data: {
+  livestreamId: number;
+  fileName: string;
+  productCount: number;
+  totalGmv?: number | null;
+  importedBy: number;
+  importedByName: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(csvImportHistory).values({
+    livestreamId: data.livestreamId,
+    fileName: data.fileName,
+    productCount: data.productCount,
+    totalGmv: data.totalGmv ?? null,
+    importedBy: data.importedBy,
+    importedByName: data.importedByName,
+  });
+  
+  return result;
+}
+
+/**
+ * Get CSV import history for a livestream
+ */
+export async function getCsvImportHistoryByLivestream(livestreamId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(csvImportHistory)
+    .where(eq(csvImportHistory.livestreamId, livestreamId))
+    .orderBy(desc(csvImportHistory.createdAt));
+}
+
+/**
+ * Delete a CSV import history record and associated products
+ */
+export async function deleteCsvImportHistory(historyId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Get the history record first to find the livestreamId
+  const history = await db
+    .select()
+    .from(csvImportHistory)
+    .where(eq(csvImportHistory.id, historyId))
+    .limit(1);
+  
+  if (history.length === 0) {
+    throw new Error("Import history not found");
+  }
+  
+  const livestreamId = history[0].livestreamId;
+  
+  // Delete all products for this livestream
+  await db
+    .delete(livestreamProducts)
+    .where(eq(livestreamProducts.livestreamId, livestreamId));
+  
+  // Delete the history record
+  await db
+    .delete(csvImportHistory)
+    .where(eq(csvImportHistory.id, historyId));
+  
+  // Update the livestream to mark product CSV as not imported
+  await db
+    .update(brandLivestreams)
+    .set({ productCsvImported: "no" })
+    .where(eq(brandLivestreams.id, livestreamId));
+  
+  return { deleted: true, livestreamId };
+}
+
+/**
+ * Get all CSV import history for a brand
+ */
+export async function getCsvImportHistoryByBrand(brandId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // Get all livestreams for the brand
+  const livestreamList = await db
+    .select()
+    .from(brandLivestreams)
+    .where(eq(brandLivestreams.brandId, brandId));
+  
+  const livestreamIds = livestreamList.map(ls => ls.id);
+  if (livestreamIds.length === 0) return [];
+  
+  // Get all import history for these livestreams
+  const history = await db
+    .select()
+    .from(csvImportHistory)
+    .where(inArray(csvImportHistory.livestreamId, livestreamIds))
+    .orderBy(desc(csvImportHistory.createdAt));
+  
+  // Combine with livestream info
+  return history.map(h => {
+    const livestream = livestreamList.find(ls => ls.id === h.livestreamId);
+    return {
+      ...h,
+      livestreamDate: livestream?.livestreamDate,
+    };
+  });
 }

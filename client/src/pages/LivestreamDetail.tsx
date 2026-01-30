@@ -128,9 +128,29 @@ export default function LivestreamDetail() {
       setShowProductCsvImport(false);
       refetch();
       refetchProducts();
+      refetchImportHistory();
     },
     onError: (error) => {
       toast.error(`インポートエラー: ${error.message}`);
+    },
+  });
+  
+  // CSVインポート履歴取得
+  const { data: importHistory, refetch: refetchImportHistory } = trpc.brandLivestream.getImportHistory.useQuery(
+    { livestreamId },
+    { enabled: !!livestreamId }
+  );
+  
+  // CSVインポート履歴削除mutation
+  const deleteImportHistoryMutation = trpc.brandLivestream.deleteImportHistory.useMutation({
+    onSuccess: () => {
+      toast.success('CSVインポート履歴と商品データを削除しました');
+      refetch();
+      refetchProducts();
+      refetchImportHistory();
+    },
+    onError: (error) => {
+      toast.error(`削除エラー: ${error.message}`);
     },
   });
 
@@ -276,6 +296,7 @@ export default function LivestreamDetail() {
         
         await importProductCsvMutation.mutateAsync({
           livestreamId,
+          fileName: file.name,
           products,
         });
       } else {
@@ -290,6 +311,7 @@ export default function LivestreamDetail() {
         
         await importProductCsvMutation.mutateAsync({
           livestreamId,
+          fileName: file.name,
           products,
         });
       }
@@ -801,6 +823,49 @@ export default function LivestreamDetail() {
                       <AlertTriangle className="w-10 h-10 text-orange-400 mx-auto mb-3" />
                       <p className="text-gray-300 text-sm font-medium">商品別データが未登録です</p>
                       <p className="text-gray-500 text-xs mt-1">TikTokの商品別CSVをインポートしてください</p>
+                    </div>
+                  )}
+                  
+                  {/* インポート履歴 */}
+                  {importHistory && importHistory.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-orange-600/30">
+                      <h4 className="text-xs font-medium text-gray-400 mb-2">インポート履歴</h4>
+                      <div className="space-y-2">
+                        {importHistory.map((history) => (
+                          <div key={history.id} className="flex items-center justify-between bg-gray-900/50 rounded p-2 text-xs">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-gray-300 truncate">{history.fileName}</p>
+                              <p className="text-gray-500">
+                                {new Date(history.createdAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })} ・ {history.productCount}商品 ・ ¥{(history.totalGmv || 0).toLocaleString()}
+                              </p>
+                            </div>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-300 hover:bg-red-900/20 h-7 px-2">
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>インポート履歴を削除</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    このインポート履歴と関連する商品データをすべて削除します。この操作は取り消せません。
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => deleteImportHistoryMutation.mutate({ historyId: history.id })}
+                                    className="bg-red-600 hover:bg-red-700"
+                                  >
+                                    削除する
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
