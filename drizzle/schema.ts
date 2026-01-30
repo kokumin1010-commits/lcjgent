@@ -1066,3 +1066,54 @@ export const adProposalHistory = mysqlTable("ad_proposal_history", {
 
 export type AdProposalHistory = typeof adProposalHistory.$inferSelect;
 export type InsertAdProposalHistory = typeof adProposalHistory.$inferInsert;
+
+
+/**
+ * Ad Alert History table for storing generated ad investment alert reports
+ */
+export const adAlertHistory = mysqlTable("ad_alert_history", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(), // References brands.id
+  version: int("version").default(1).notNull(), // Version number for the same brand
+  
+  // Alert content
+  aiAnalysis: text("aiAnalysis").notNull(), // AI-generated analysis text (Markdown)
+  
+  // Current metrics snapshot
+  totalGmv: bigint("totalGmv", { mode: "number" }).default(0),
+  totalImpressions: bigint("totalImpressions", { mode: "number" }).default(0),
+  avgConversionRate: decimal("avgConversionRate", { precision: 10, scale: 4 }).default("0"),
+  totalLivestreams: int("totalLivestreams").default(0),
+  avgGmvPerLive: bigint("avgGmvPerLive", { mode: "number" }).default(0),
+  performanceScore: int("performanceScore").default(0),
+  
+  // Opportunity cost
+  missedImpressions: bigint("missedImpressions", { mode: "number" }).default(0),
+  missedGmv: bigint("missedGmv", { mode: "number" }).default(0),
+  
+  // Scenarios (JSON)
+  scenarios: json("scenarios").$type<{
+    small: { budget: number; projectedGmv: number; roas: number; allocation?: { liveBudget: number; clipBudget: number } };
+    medium: { budget: number; projectedGmv: number; roas: number; allocation?: { liveBudget: number; clipBudget: number } };
+    large: { budget: number; projectedGmv: number; roas: number; allocation?: { liveBudget: number; clipBudget: number } };
+  }>(),
+  
+  // Allocation recommendation
+  allocationLiveRatio: decimal("allocationLiveRatio", { precision: 5, scale: 2 }).default("0.5"),
+  allocationClipRatio: decimal("allocationClipRatio", { precision: 5, scale: 2 }).default("0.5"),
+  allocationReason: text("allocationReason"),
+  
+  // Urgency
+  urgencyLevel: mysqlEnum("urgencyLevel", ["high", "medium", "low"]).default("medium").notNull(),
+  
+  // User info
+  createdBy: int("createdBy").notNull(),
+  createdByName: varchar("createdByName", { length: 255 }).notNull(),
+  
+  // Timestamps
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AdAlertHistory = typeof adAlertHistory.$inferSelect;
+export type InsertAdAlertHistory = typeof adAlertHistory.$inferInsert;

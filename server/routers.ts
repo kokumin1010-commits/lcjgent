@@ -230,8 +230,8 @@ import {
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
-import { lineUsers, brands, lineGroups, schedules } from "../drizzle/schema";
-import { eq, and, not, isNotNull } from "drizzle-orm";
+import { lineUsers, brands, lineGroups, schedules, adAlertHistory } from "../drizzle/schema";
+import { eq, and, not, isNotNull, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { authRouter } from "./auth";
 import { liverRouter } from "./liverRouter";
@@ -2503,24 +2503,60 @@ ${topProducts.map((p, i) => `${i + 1}. ${p.name}: ¥${p.gmv.toLocaleString()}`).
           };
         };
 
-        // Scenario 1: Small ad budget (¥100,000)
-        const smallBudget = 100000;
+        // Dynamic scenario budgets based on brand scale
+        // Calculate appropriate budget tiers based on GMV and contract amount
+        const brandScale = Math.max(totalGmv, contractAmount);
+        let smallBudget: number;
+        let mediumBudget: number;
+        let largeBudget: number;
+        
+        if (brandScale >= 50000000) {
+          // Large brand (GMV ≥50M): ¥500K / ¥1M / ¥2M
+          smallBudget = 500000;
+          mediumBudget = 1000000;
+          largeBudget = 2000000;
+        } else if (brandScale >= 20000000) {
+          // Medium-large brand (GMV ≥20M): ¥300K / ¥600K / ¥1M
+          smallBudget = 300000;
+          mediumBudget = 600000;
+          largeBudget = 1000000;
+        } else if (brandScale >= 10000000) {
+          // Medium brand (GMV ≥10M): ¥200K / ¥400K / ¥700K
+          smallBudget = 200000;
+          mediumBudget = 400000;
+          largeBudget = 700000;
+        } else if (brandScale >= 5000000) {
+          // Small-medium brand (GMV ≥5M): ¥100K / ¥250K / ¥450K
+          smallBudget = 100000;
+          mediumBudget = 250000;
+          largeBudget = 450000;
+        } else if (brandScale >= 1000000) {
+          // Small brand (GMV ≥1M): ¥50K / ¥150K / ¥300K
+          smallBudget = 50000;
+          mediumBudget = 150000;
+          largeBudget = 300000;
+        } else {
+          // Starter brand (GMV <1M): ¥30K / ¥80K / ¥150K
+          smallBudget = 30000;
+          mediumBudget = 80000;
+          largeBudget = 150000;
+        }
+
+        // Scenario 1: Small ad budget
         const smallAllocation = calculateAllocation(smallBudget);
         const smallAdImpressions = smallAllocation.totalImpressions;
         const smallProjectedGmv = smallAllocation.totalProjectedGmv;
         const smallTotalProjectedGmv = totalGmv + smallProjectedGmv;
         const smallRoas = smallBudget > 0 ? smallProjectedGmv / smallBudget : 0;
 
-        // Scenario 2: Medium ad budget (¥300,000)
-        const mediumBudget = 300000;
+        // Scenario 2: Medium ad budget (recommended)
         const mediumAllocation = calculateAllocation(mediumBudget);
         const mediumAdImpressions = mediumAllocation.totalImpressions;
         const mediumProjectedGmv = mediumAllocation.totalProjectedGmv;
         const mediumTotalProjectedGmv = totalGmv + mediumProjectedGmv;
         const mediumRoas = mediumBudget > 0 ? mediumProjectedGmv / mediumBudget : 0;
 
-        // Scenario 3: Large ad budget (¥500,000)
-        const largeBudget = 500000;
+        // Scenario 3: Large ad budget
         const largeAllocation = calculateAllocation(largeBudget);
         const largeAdImpressions = largeAllocation.totalImpressions;
         const largeProjectedGmv = largeAllocation.totalProjectedGmv;
@@ -3043,6 +3079,131 @@ ${topProducts.map((p, i) => `${i + 1}. ${p.name}: ¥${p.gmv.toLocaleString()}`).
 </html>`;
 
         return { html };
+      }),
+
+    // Save Ad Alert to history
+    saveAdAlert: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+        aiAnalysis: z.string(),
+        currentMetrics: z.object({
+          totalGmv: z.number(),
+          totalImpressions: z.number(),
+          avgConversionRate: z.number(),
+          totalLivestreams: z.number(),
+          avgGmvPerLive: z.number(),
+          performanceScore: z.number(),
+        }),
+        opportunityCost: z.object({
+          missedImpressions: z.number(),
+          missedGmv: z.number(),
+        }),
+        scenarios: z.object({
+          small: z.object({ budget: z.number(), projectedGmv: z.number(), roas: z.number() }),
+          medium: z.object({ budget: z.number(), projectedGmv: z.number(), roas: z.number() }),
+          large: z.object({ budget: z.number(), projectedGmv: z.number(), roas: z.number() }),
+        }),
+        allocationRecommendation: z.object({
+          liveRatio: z.number(),
+          clipRatio: z.number(),
+          reason: z.string(),
+        }).optional(),
+        urgency: z.object({
+          level: z.enum(['high', 'medium', 'low']),
+        }),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error('Database not available');
+        // Get the latest version number for this brand
+        const existingAlerts = await db
+          .select({ version: adAlertHistory.version })
+          .from(adAlertHistory)
+          .where(eq(adAlertHistory.brandId, input.brandId))
+          .orderBy(desc(adAlertHistory.version))
+          .limit(1);
+        
+        const nextVersion = existingAlerts.length > 0 ? existingAlerts[0].version + 1 : 1;
+        
+        const [result] = await db.insert(adAlertHistory).values({
+          brandId: input.brandId,
+          version: nextVersion,
+          aiAnalysis: input.aiAnalysis,
+          totalGmv: input.currentMetrics.totalGmv,
+          totalImpressions: input.currentMetrics.totalImpressions,
+          avgConversionRate: String(input.currentMetrics.avgConversionRate),
+          totalLivestreams: input.currentMetrics.totalLivestreams,
+          avgGmvPerLive: input.currentMetrics.avgGmvPerLive,
+          performanceScore: input.currentMetrics.performanceScore,
+          missedImpressions: input.opportunityCost.missedImpressions,
+          missedGmv: input.opportunityCost.missedGmv,
+          scenarios: input.scenarios,
+          allocationLiveRatio: input.allocationRecommendation ? String(input.allocationRecommendation.liveRatio) : "0.5",
+          allocationClipRatio: input.allocationRecommendation ? String(input.allocationRecommendation.clipRatio) : "0.5",
+          allocationReason: input.allocationRecommendation?.reason || null,
+          urgencyLevel: input.urgency.level,
+          createdBy: ctx.user.id,
+          createdByName: ctx.user.name || ctx.user.email,
+        });
+        
+        return { id: result.insertId, version: nextVersion };
+      }),
+
+    // Get Ad Alert history for a brand
+    getAdAlertHistory: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error('Database not available');
+        const alerts = await db
+          .select()
+          .from(adAlertHistory)
+          .where(eq(adAlertHistory.brandId, input.brandId))
+          .orderBy(desc(adAlertHistory.version));
+        
+        return alerts.map((alert: typeof adAlertHistory.$inferSelect) => ({
+          id: alert.id,
+          version: alert.version,
+          aiAnalysis: alert.aiAnalysis,
+          currentMetrics: {
+            totalGmv: alert.totalGmv || 0,
+            totalImpressions: alert.totalImpressions || 0,
+            avgConversionRate: parseFloat(alert.avgConversionRate || "0"),
+            totalLivestreams: alert.totalLivestreams || 0,
+            avgGmvPerLive: alert.avgGmvPerLive || 0,
+            performanceScore: alert.performanceScore || 0,
+          },
+          opportunityCost: {
+            missedImpressions: alert.missedImpressions || 0,
+            missedGmv: alert.missedGmv || 0,
+          },
+          scenarios: alert.scenarios as {
+            small: { budget: number; projectedGmv: number; roas: number };
+            medium: { budget: number; projectedGmv: number; roas: number };
+            large: { budget: number; projectedGmv: number; roas: number };
+          },
+          allocationRecommendation: alert.allocationReason ? {
+            liveRatio: parseFloat(alert.allocationLiveRatio || "0.5"),
+            clipRatio: parseFloat(alert.allocationClipRatio || "0.5"),
+            reason: alert.allocationReason,
+          } : undefined,
+          urgency: {
+            level: alert.urgencyLevel,
+          },
+          createdBy: alert.createdBy,
+          createdByName: alert.createdByName,
+          createdAt: alert.createdAt,
+        }));
+      }),
+
+    // Delete Ad Alert from history
+    deleteAdAlert: protectedProcedure
+      .input(z.object({ alertId: z.number() }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error('Database not available');
+        await db.delete(adAlertHistory).where(eq(adAlertHistory.id, input.alertId));
+        return { success: true };
       }),
 
     // Upload image for brand

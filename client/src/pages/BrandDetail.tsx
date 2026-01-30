@@ -37,7 +37,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn, Info, History, ChevronLeft, ChevronRight, Download, FolderOpen, Link, ExternalLink, TrendingUp, CheckCircle, FileDown } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn, Info, History, ChevronLeft, ChevronRight, Download, FolderOpen, Link, ExternalLink, TrendingUp, CheckCircle, FileDown, Save } from "lucide-react";
 import { toast } from "sonner";
 
 const translations = {
@@ -694,6 +694,8 @@ export default function BrandDetail() {
   const [adAlertDialogOpen, setAdAlertDialogOpen] = useState(false);
   const [isGeneratingAlert, setIsGeneratingAlert] = useState(false);
   const [adAlertData, setAdAlertData] = useState<any>(null);
+  const [adAlertHistoryDialogOpen, setAdAlertHistoryDialogOpen] = useState(false);
+  const [selectedHistoryAlert, setSelectedHistoryAlert] = useState<any>(null);
 
   // AI Image Add states
   const [aiImageAddDialogOpen, setAiImageAddDialogOpen] = useState(false);
@@ -849,6 +851,68 @@ export default function BrandDetail() {
         level: adAlertData.urgency.level,
       },
       aiAnalysis: adAlertData.aiAnalysis,
+    });
+  };
+
+  // Ad Alert History query
+  const { data: adAlertHistory, refetch: refetchAdAlertHistory } = trpc.brand.getAdAlertHistory.useQuery(
+    { brandId },
+    { enabled: !!brandId }
+  );
+
+  // Save ad alert mutation
+  const saveAdAlertMutation = trpc.brand.saveAdAlert.useMutation({
+    onSuccess: (data) => {
+      toast.success(language === 'ja' ? `アラートを保存しました (v${data.version})` : `已保存警报 (v${data.version})`);
+      refetchAdAlertHistory();
+    },
+    onError: () => {
+      toast.error(language === 'ja' ? "保存に失敗しました" : "保存失败");
+    },
+  });
+
+  // Delete ad alert mutation
+  const deleteAdAlertMutation = trpc.brand.deleteAdAlert.useMutation({
+    onSuccess: () => {
+      toast.success(language === 'ja' ? "アラートを削除しました" : "已删除警报");
+      refetchAdAlertHistory();
+      setSelectedHistoryAlert(null);
+    },
+    onError: () => {
+      toast.error(language === 'ja' ? "削除に失敗しました" : "删除失败");
+    },
+  });
+
+  const handleSaveAdAlert = () => {
+    if (!adAlertData) return;
+    saveAdAlertMutation.mutate({
+      brandId,
+      aiAnalysis: adAlertData.aiAnalysis,
+      currentMetrics: {
+        totalGmv: adAlertData.currentMetrics.totalGmv,
+        totalImpressions: adAlertData.currentMetrics.totalImpressions,
+        avgConversionRate: adAlertData.currentMetrics.avgConversionRate,
+        totalLivestreams: adAlertData.currentMetrics.totalLivestreams,
+        avgGmvPerLive: adAlertData.currentMetrics.avgGmvPerLive,
+        performanceScore: adAlertData.currentMetrics.performanceScore,
+      },
+      opportunityCost: {
+        missedImpressions: adAlertData.opportunityCost.missedImpressions,
+        missedGmv: adAlertData.opportunityCost.missedGmv,
+      },
+      scenarios: {
+        small: { budget: adAlertData.scenarios.small.budget, projectedGmv: adAlertData.scenarios.small.projectedGmv, roas: adAlertData.scenarios.small.roas },
+        medium: { budget: adAlertData.scenarios.medium.budget, projectedGmv: adAlertData.scenarios.medium.projectedGmv, roas: adAlertData.scenarios.medium.roas },
+        large: { budget: adAlertData.scenarios.large.budget, projectedGmv: adAlertData.scenarios.large.projectedGmv, roas: adAlertData.scenarios.large.roas },
+      },
+      allocationRecommendation: adAlertData.allocationRecommendation ? {
+        liveRatio: adAlertData.allocationRecommendation.liveRatio,
+        clipRatio: adAlertData.allocationRecommendation.clipRatio,
+        reason: adAlertData.allocationRecommendation.reason,
+      } : undefined,
+      urgency: {
+        level: adAlertData.urgency.level,
+      },
     });
   };
 
@@ -5813,8 +5877,26 @@ ${proposal.proposalContent}
               >
                 {t.close}
               </Button>
+              {adAlertHistory && adAlertHistory.length > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={() => setAdAlertHistoryDialogOpen(true)}
+                  className="border-purple-500/50 bg-purple-950/50 text-gray-200 hover:bg-purple-900/40 hover:text-white"
+                >
+                  <History className="h-4 w-4 mr-2" />
+                  {language === 'ja' ? `履歴 (${adAlertHistory.length})` : `历史 (${adAlertHistory.length})`}
+                </Button>
+              )}
               {adAlertData && (
                 <>
+                  <Button
+                    onClick={handleSaveAdAlert}
+                    disabled={saveAdAlertMutation.isPending}
+                    className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white"
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    {saveAdAlertMutation.isPending ? (language === 'ja' ? '保存中...' : '保存中...') : (language === 'ja' ? '保存' : '保存')}
+                  </Button>
                   <Button
                     onClick={handleDownloadAdAlertPdf}
                     disabled={generateAdAlertPdfMutation.isPending}
@@ -5835,6 +5917,143 @@ ${proposal.proposalContent}
                     {language === 'ja' ? '再生成' : '重新生成'}
                   </Button>
                 </>
+              )}
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Ad Alert History Dialog */}
+      <Dialog open={adAlertHistoryDialogOpen} onOpenChange={setAdAlertHistoryDialogOpen}>
+        <DialogContent className="bg-black/95 border-purple-900/50 text-white max-w-4xl backdrop-blur-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-3">
+              <div className="w-1 h-6 bg-gradient-to-b from-purple-400 to-pink-600 rounded-full" />
+              <History className="h-5 w-5 text-purple-400" />
+              {language === 'ja' ? '広告アラート履歴' : '广告警报历史'}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {adAlertHistory && adAlertHistory.length > 0 ? (
+              <div className="space-y-3">
+                {adAlertHistory.map((alert: any) => (
+                  <div
+                    key={alert.id}
+                    className={`p-4 rounded-lg border cursor-pointer transition-all ${
+                      selectedHistoryAlert?.id === alert.id
+                        ? 'border-purple-500 bg-purple-950/50'
+                        : 'border-gray-700 bg-gray-900/50 hover:border-purple-500/50'
+                    }`}
+                    onClick={() => setSelectedHistoryAlert(alert)}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-purple-400 font-semibold">v{alert.version}</span>
+                        <span className={`px-2 py-0.5 rounded text-xs ${
+                          alert.urgency.level === 'high' ? 'bg-red-500/20 text-red-400' :
+                          alert.urgency.level === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                          'bg-green-500/20 text-green-400'
+                        }`}>
+                          {alert.urgency.level === 'high' ? (language === 'ja' ? '緊急度:高' : '紧急度:高') :
+                           alert.urgency.level === 'medium' ? (language === 'ja' ? '緊急度:中' : '紧急度:中') :
+                           (language === 'ja' ? '緊急度:低' : '紧急度:低')}
+                        </span>
+                      </div>
+                      <span className="text-xs text-gray-500">
+                        {new Date(alert.createdAt).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'zh-CN')}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <div>
+                        <span className="text-gray-500">{language === 'ja' ? '総GMV' : '总GMV'}: </span>
+                        <span className="text-cyan-400">¥{alert.currentMetrics.totalGmv.toLocaleString()}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">{language === 'ja' ? '機会損失' : '机会损失'}: </span>
+                        <span className="text-red-400">¥{Math.round(alert.opportunityCost.missedGmv).toLocaleString()}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">{language === 'ja' ? 'スコア' : '分数'}: </span>
+                        <span className="text-green-400">{alert.currentMetrics.performanceScore}/100</span>
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-2">
+                      {language === 'ja' ? '作成者' : '创建者'}: {alert.createdByName}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                {language === 'ja' ? '履歴がありません' : '没有历史记录'}
+              </div>
+            )}
+
+            {selectedHistoryAlert && (
+              <div className="mt-4 p-4 rounded-lg border border-purple-500/50 bg-purple-950/30">
+                <h4 className="text-lg font-semibold text-purple-400 mb-3">
+                  {language === 'ja' ? `v${selectedHistoryAlert.version} 詳細` : `v${selectedHistoryAlert.version} 详情`}
+                </h4>
+                
+                {/* Scenarios */}
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  <div className="p-3 rounded bg-gray-900/50 border border-gray-700">
+                    <div className="text-xs text-gray-500 mb-1">{language === 'ja' ? '小規模' : '小规模'}</div>
+                    <div className="text-lg font-bold text-white">¥{selectedHistoryAlert.scenarios.small.budget.toLocaleString()}</div>
+                    <div className="text-xs text-green-400">+¥{Math.round(selectedHistoryAlert.scenarios.small.projectedGmv).toLocaleString()}</div>
+                    <div className="text-xs text-cyan-400">ROAS: {selectedHistoryAlert.scenarios.small.roas.toFixed(2)}{language === 'ja' ? '倍' : '倍'}</div>
+                  </div>
+                  <div className="p-3 rounded bg-gray-900/50 border border-green-500/50">
+                    <div className="text-xs text-green-400 mb-1">{language === 'ja' ? '中規模（おすすめ）' : '中规模（推荐）'}</div>
+                    <div className="text-lg font-bold text-white">¥{selectedHistoryAlert.scenarios.medium.budget.toLocaleString()}</div>
+                    <div className="text-xs text-green-400">+¥{Math.round(selectedHistoryAlert.scenarios.medium.projectedGmv).toLocaleString()}</div>
+                    <div className="text-xs text-cyan-400">ROAS: {selectedHistoryAlert.scenarios.medium.roas.toFixed(2)}{language === 'ja' ? '倍' : '倍'}</div>
+                  </div>
+                  <div className="p-3 rounded bg-gray-900/50 border border-gray-700">
+                    <div className="text-xs text-gray-500 mb-1">{language === 'ja' ? '大規模' : '大规模'}</div>
+                    <div className="text-lg font-bold text-white">¥{selectedHistoryAlert.scenarios.large.budget.toLocaleString()}</div>
+                    <div className="text-xs text-green-400">+¥{Math.round(selectedHistoryAlert.scenarios.large.projectedGmv).toLocaleString()}</div>
+                    <div className="text-xs text-cyan-400">ROAS: {selectedHistoryAlert.scenarios.large.roas.toFixed(2)}{language === 'ja' ? '倍' : '倍'}</div>
+                  </div>
+                </div>
+
+                {/* AI Analysis */}
+                <div className="p-3 rounded bg-gray-900/50 border border-gray-700">
+                  <div className="text-xs text-gray-500 mb-2">{language === 'ja' ? 'AI分析レポート' : 'AI分析报告'}</div>
+                  <div className="text-sm text-gray-300 whitespace-pre-wrap max-h-48 overflow-y-auto">
+                    {selectedHistoryAlert.aiAnalysis}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex-wrap gap-2">
+            <div className="flex gap-2 w-full sm:w-auto sm:ml-auto">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setAdAlertHistoryDialogOpen(false);
+                  setSelectedHistoryAlert(null);
+                }}
+                className="border-purple-500/50 bg-purple-950/50 text-gray-200 hover:bg-purple-900/40 hover:text-white"
+              >
+                {t.close}
+              </Button>
+              {selectedHistoryAlert && (
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    if (confirm(language === 'ja' ? 'このアラートを削除しますか？' : '确定要删除此警报吗？')) {
+                      deleteAdAlertMutation.mutate({ alertId: selectedHistoryAlert.id });
+                    }
+                  }}
+                  disabled={deleteAdAlertMutation.isPending}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  {language === 'ja' ? '削除' : '删除'}
+                </Button>
               )}
             </div>
           </DialogFooter>
