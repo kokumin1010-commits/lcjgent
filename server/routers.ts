@@ -1663,7 +1663,11 @@ ${JSON.stringify(teamSummary, null, 2)}`;
         const products = await getProductsByBrandId(input.brandId);
 
         // Calculate key metrics
-        const totalGmv = livestreams.reduce((sum, ls) => sum + (ls.salesAmount || 0), 0);
+        // salesAmountがnullの場合はgmvを使用、両方nullの場合はproductGmvTotalを使用
+        const totalGmv = livestreams.reduce((sum, ls) => {
+          const gmvValue = ls.salesAmount || ls.gmv || ls.productGmvTotal || 0;
+          return sum + gmvValue;
+        }, 0);
         const totalAdCost = livestreams.reduce((sum, ls) => sum + (ls.adCost || 0), 0);
         const avgRoas = totalAdCost > 0 ? totalGmv / totalAdCost : 0;
         const totalLivestreams = livestreams.length;

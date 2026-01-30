@@ -1,0 +1,418 @@
+{
+  "query": "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'brand_livestreams' AND COLUMN_NAME LIKE '%brand%' OR COLUMN_NAME LIKE '%sales%' OR COLUMN_NAME LIKE '%ad%' OR COLUMN_NAME LIKE '%gmv%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'brand_livestreams' AND COLUMN_NAME LIKE '%brand%' OR COLUMN_NAME LIKE '%sales%' OR COLUMN_NAME LIKE '%ad%' OR COLUMN_NAME LIKE '%gmv%';",
+  "rows": [
+    {
+      "COLUMN_NAME": "adCost"
+    },
+    {
+      "COLUMN_NAME": "adSales"
+    },
+    {
+      "COLUMN_NAME": "headings"
+    },
+    {
+      "COLUMN_NAME": "adCost"
+    },
+    {
+      "COLUMN_NAME": "adSales"
+    },
+    {
+      "COLUMN_NAME": "salesRatio"
+    },
+    {
+      "COLUMN_NAME": "sales"
+    },
+    {
+      "COLUMN_NAME": "salesPerOrder"
+    },
+    {
+      "COLUMN_NAME": "address1"
+    },
+    {
+      "COLUMN_NAME": "address2"
+    },
+    {
+      "COLUMN_NAME": "address1"
+    },
+    {
+      "COLUMN_NAME": "address2"
+    },
+    {
+      "COLUMN_NAME": "uploadType"
+    },
+    {
+      "COLUMN_NAME": "uploadedBy"
+    },
+    {
+      "COLUMN_NAME": "sales"
+    },
+    {
+      "COLUMN_NAME": "address"
+    },
+    {
+      "COLUMN_NAME": "sales12hTotal"
+    },
+    {
+      "COLUMN_NAME": "sales720hTotal"
+    },
+    {
+      "COLUMN_NAME": "sales12hNew"
+    },
+    {
+      "COLUMN_NAME": "sales720hNew"
+    },
+    {
+      "COLUMN_NAME": "sales12hExisting"
+    },
+    {
+      "COLUMN_NAME": "sales720hExisting"
+    },
+    {
+      "COLUMN_NAME": "sales12hTotal"
+    },
+    {
+      "COLUMN_NAME": "sales720hTotal"
+    },
+    {
+      "COLUMN_NAME": "sales12hNew"
+    },
+    {
+      "COLUMN_NAME": "sales720hNew"
+    },
+    {
+      "COLUMN_NAME": "sales12hExisting"
+    },
+    {
+      "COLUMN_NAME": "sales720hExisting"
+    },
+    {
+      "COLUMN_NAME": "sales"
+    },
+    {
+      "COLUMN_NAME": "sales"
+    },
+    {
+      "COLUMN_NAME": "uploadType"
+    },
+    {
+      "COLUMN_NAME": "uploadedBy"
+    },
+    {
+      "COLUMN_NAME": "gmv"
+    },
+    {
+      "COLUMN_NAME": "adName"
+    },
+    {
+      "COLUMN_NAME": "adType"
+    },
+    {
+      "COLUMN_NAME": "adSpend"
+    },
+    {
+      "COLUMN_NAME": "adSales"
+    },
+    {
+      "COLUMN_NAME": "addToCart"
+    },
+    {
+      "COLUMN_NAME": "adCount"
+    },
+    {
+      "COLUMN_NAME": "adType"
+    },
+    {
+      "COLUMN_NAME": "adSpend"
+    },
+    {
+      "COLUMN_NAME": "adSales"
+    },
+    {
+      "COLUMN_NAME": "salesTotal"
+    },
+    {
+      "COLUMN_NAME": "salesNew"
+    },
+    {
+      "COLUMN_NAME": "salesExisting"
+    },
+    {
+      "COLUMN_NAME": "adGroupName"
+    },
+    {
+      "COLUMN_NAME": "advertisedSku"
+    },
+    {
+      "COLUMN_NAME": "advertisedAsin"
+    },
+    {
+      "COLUMN_NAME": "sales7d"
+    },
+    {
+      "COLUMN_NAME": "advertisedSkuSales7d"
+    },
+    {
+      "COLUMN_NAME": "advertisedSkuUnits7d"
+    },
+    {
+      "COLUMN_NAME": "sales14d"
+    },
+    {
+      "COLUMN_NAME": "adGroupName"
+    },
+    {
+      "COLUMN_NAME": "advertisedSku"
+    },
+    {
+      "COLUMN_NAME": "advertisedAsin"
+    },
+    {
+      "COLUMN_NAME": "sales14d"
+    },
+    {
+      "COLUMN_NAME": "salesClick14d"
+    },
+    {
+      "COLUMN_NAME": "adType"
+    },
+    {
+      "COLUMN_NAME": "sales"
+    },
+    {
+      "COLUMN_NAME": "advertisedSkuSales"
+    },
+    {
+      "COLUMN_NAME": "adGroupName"
+    },
+    {
+      "COLUMN_NAME": "advertisedSku"
+    },
+    {
+      "COLUMN_NAME": "advertisedAsin"
+    },
+    {
+      "COLUMN_NAME": "sales7d"
+    },
+    {
+      "COLUMN_NAME": "advertisedSkuSales7d"
+    },
+    {
+      "COLUMN_NAME": "advertisedSkuUnits7d"
+    },
+    {
+      "COLUMN_NAME": "sales14d"
+    },
+    {
+      "COLUMN_NAME": "sales14d"
+    },
+    {
+      "COLUMN_NAME": "salesClick14d"
+    },
+    {
+      "COLUMN_NAME": "adGroupName"
+    },
+    {
+      "COLUMN_NAME": "advertisedSku"
+    },
+    {
+      "COLUMN_NAME": "advertisedAsin"
+    },
+    {
+      "COLUMN_NAME": "sales"
+    },
+    {
+      "COLUMN_NAME": "advertisedSkuSales"
+    },
+    {
+      "COLUMN_NAME": "adviceCount"
+    },
+    {
+      "COLUMN_NAME": "sales"
+    },
+    {
+      "COLUMN_NAME": "ad_cost"
+    },
+    {
+      "COLUMN_NAME": "ad_sales"
+    },
+    {
+      "COLUMN_NAME": "adGroupName"
+    },
+    {
+      "COLUMN_NAME": "sales7d"
+    },
+    {
+      "COLUMN_NAME": "advertisedSkuUnits7d"
+    },
+    {
+      "COLUMN_NAME": "advertisedSkuSales7d"
+    },
+    {
+      "COLUMN_NAME": "adType"
+    },
+    {
+      "COLUMN_NAME": "adCostAtSetting"
+    },
+    {
+      "COLUMN_NAME": "salesAtSetting"
+    },
+    {
+      "COLUMN_NAME": "adCostAfter1Week"
+    },
+    {
+      "COLUMN_NAME": "salesAfter1Week"
+    },
+    {
+      "COLUMN_NAME": "adCostAfter1Month"
+    },
+    {
+      "COLUMN_NAME": "salesAfter1Month"
+    },
+    {
+      "COLUMN_NAME": "adsCommandTaskId"
+    },
+    {
+      "COLUMN_NAME": "adType"
+    },
+    {
+      "COLUMN_NAME": "adCostAtSetting"
+    },
+    {
+      "COLUMN_NAME": "salesAtSetting"
+    },
+    {
+      "COLUMN_NAME": "adCostAfter1Week"
+    },
+    {
+      "COLUMN_NAME": "salesAfter1Week"
+    },
+    {
+      "COLUMN_NAME": "adCostAfter1Month"
+    },
+    {
+      "COLUMN_NAME": "salesAfter1Month"
+    },
+    {
+      "COLUMN_NAME": "adsCommandTaskId"
+    },
+    {
+      "COLUMN_NAME": "address"
+    },
+    {
+      "COLUMN_NAME": "adminNotes"
+    },
+    {
+      "COLUMN_NAME": "salesCount"
+    },
+    {
+      "COLUMN_NAME": "address"
+    },
+    {
+      "COLUMN_NAME": "adminNotes"
+    },
+    {
+      "COLUMN_NAME": "metadata"
+    },
+    {
+      "COLUMN_NAME": "isRead"
+    },
+    {
+      "COLUMN_NAME": "deadline"
+    },
+    {
+      "COLUMN_NAME": "adBudget"
+    },
+    {
+      "COLUMN_NAME": "salesTarget"
+    },
+    {
+      "COLUMN_NAME": "nameReading"
+    },
+    {
+      "COLUMN_NAME": "address"
+    },
+    {
+      "COLUMN_NAME": "metadata"
+    },
+    {
+      "COLUMN_NAME": "adviceId"
+    },
+    {
+      "COLUMN_NAME": "adviceText"
+    },
+    {
+      "COLUMN_NAME": "badCount"
+    },
+    {
+      "COLUMN_NAME": "adviceText"
+    },
+    {
+      "COLUMN_NAME": "adviceType"
+    },
+    {
+      "COLUMN_NAME": "badFeedbackCount"
+    },
+    {
+      "COLUMN_NAME": "metadata"
+    },
+    {
+      "COLUMN_NAME": "badFeedbackCount"
+    },
+    {
+      "COLUMN_NAME": "isRead"
+    },
+    {
+      "COLUMN_NAME": "uploadedBy"
+    },
+    {
+      "COLUMN_NAME": "uploadedByName"
+    },
+    {
+      "COLUMN_NAME": "gmv"
+    },
+    {
+      "COLUMN_NAME": "brandId"
+    },
+    {
+      "COLUMN_NAME": "salesAmount"
+    },
+    {
+      "COLUMN_NAME": "salesCount"
+    },
+    {
+      "COLUMN_NAME": "gmv"
+    },
+    {
+      "COLUMN_NAME": "adCost"
+    },
+    {
+      "COLUMN_NAME": "gmvPer1kShows"
+    },
+    {
+      "COLUMN_NAME": "gmvPer1kViews"
+    },
+    {
+      "COLUMN_NAME": "workload_impact"
+    },
+    {
+      "COLUMN_NAME": "Reload_priv"
+    },
+    {
+      "COLUMN_NAME": "oldReadLease"
+    },
+    {
+      "COLUMN_NAME": "current_job_owner_addr"
+    },
+    {
+      "COLUMN_NAME": "owner_addr"
+    },
+    {
+      "COLUMN_NAME": "metadata"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\nadCost\nadSales\nheadings\nadCost\nadSales\nsalesRatio\nsales\nsalesPerOrder\naddress1\naddress2\naddress1\naddress2\nuploadType\nuploadedBy\nsales\naddress\nsales12hTotal\nsales720hTotal\nsales12hNew\nsales720hNew\nsales12hExisting\nsales720hExisting\nsales12hTotal\nsales720hTotal\nsales12hNew\nsales720hNew\nsales12hExisting\nsales720hExisting\nsales\nsales\nuploadType\nuploadedBy\ngmv\nadName\nadType\nadSpend\nadSales\naddToCart\nadCount\nadType\nadSpend\nadSales\nsalesTotal\nsalesNew\nsalesExisting\nadGroupName\nadvertisedSku\nadvertisedAsin\nsales7d\nadvertisedSkuSales7d\nadvertisedSkuUnits7d\nsales14d\nadGroupName\nadvertisedSku\nadvertisedAsin\nsales14d\nsalesClick14d\nadType\nsales\nadvertisedSkuSales\nadGroupName\nadvertisedSku\nadvertisedAsin\nsales7d\nadvertisedSkuSales7d\nadvertisedSkuUnits7d\nsales14d\nsales14d\nsalesClick14d\nadGroupName\nadvertisedSku\nadvertisedAsin\nsales\nadvertisedSkuSales\nadviceCount\nsales\nad_cost\nad_sales\nadGroupName\nsales7d\nadvertisedSkuUnits7d\nadvertisedSkuSales7d\nadType\nadCostAtSetting\nsalesAtSetting\nadCostAfter1Week\nsalesAfter1Week\nadCostAfter1Month\nsalesAfter1Month\nadsCommandTaskId\nadType\nadCostAtSetting\nsalesAtSetting\nadCostAfter1Week\nsalesAfter1Week\nadCostAfter1Month\nsalesAfter1Month\nadsCommandTaskId\naddress\nadminNotes\nsalesCount\naddress\nadminNotes\nmetadata\nisRead\ndeadline\nadBudget\nsalesTarget\nnameReading\naddress\nmetadata\nadviceId\nadviceText\nbadCount\nadviceText\nadviceType\nbadFeedbackCount\nmetadata\nbadFeedbackCount\nisRead\nuploadedBy\nuploadedByName\ngmv\nbrandId\nsalesAmount\nsalesCount\ngmv\nadCost\ngmvPer1kShows\ngmvPer1kViews\nworkload_impact\nReload_priv\noldReadLease\ncurrent_job_owner_addr\nowner_addr\nmetadata\n",
+  "stderr": "",
+  "execution_time_ms": 1549
+}
