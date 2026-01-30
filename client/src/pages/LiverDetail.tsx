@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Edit, Home, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
+import { ArrowLeft, Edit, Home, ChevronDown, ChevronUp, ExternalLink, AlertTriangle } from "lucide-react";
 import { SiTiktok, SiInstagram, SiYoutube } from "react-icons/si";
 import { Link2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -358,7 +358,14 @@ export default function LiverDetail() {
                   livestreamsToShow.map((stream) => (
                     <tr key={stream.id} className="border-b border-gray-800 hover:bg-gray-900/50">
                       <td className="py-3 px-2 whitespace-pre-line text-xs">
-                        {formatDate(stream.livestreamDate)}
+                        <div className="flex items-center gap-1">
+                          {formatDate(stream.livestreamDate)}
+                          {stream.productCsvImported !== 'yes' && (
+                            <span title="商品別CSV未インポート">
+                              <AlertTriangle className="w-3 h-3 text-orange-400" />
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="text-center py-3 px-2">-</td>
                       <td className="py-3 px-2 whitespace-pre-line text-xs">

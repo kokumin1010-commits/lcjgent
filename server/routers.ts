@@ -213,6 +213,7 @@ import {
   updateLivestreamFromCsv,
   createLivestreamFromCsv,
   getCsvImportedLivestreams,
+  importLivestreamProductsFromCsv,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -2395,6 +2396,35 @@ ${JSON.stringify(teamSummary, null, 2)}`;
       .input(z.object({ brandId: z.number() }))
       .query(async ({ input }) => {
         return await getMonthlyGmvSummary(input.brandId);
+      }),
+
+    // 商品別CSVインポート（TikTok Creator-Live-Recap-Product-List形式）
+    importProductCsv: protectedProcedure
+      .input(
+        z.object({
+          livestreamId: z.number(),
+          products: z.array(
+            z.object({
+              productName: z.string(),
+              grossRevenue: z.number().optional().nullable(),
+              directGmv: z.number().optional().nullable(),
+              itemsSold: z.number().optional().nullable(),
+              customers: z.number().optional().nullable(),
+              orders: z.number().optional().nullable(),
+              ctr: z.string().optional().nullable(),
+              ctor: z.string().optional().nullable(),
+              productImpressions: z.number().optional().nullable(),
+              productClicks: z.number().optional().nullable(),
+            })
+          ),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const count = await importLivestreamProductsFromCsv(
+          input.livestreamId,
+          input.products
+        );
+        return { success: true, importedCount: count };
       }),
   }),
 

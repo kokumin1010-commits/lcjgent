@@ -24,6 +24,7 @@ import {
   FileSpreadsheet,
   CheckCircle,
   AlertCircle,
+  AlertTriangle,
   X
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -587,6 +588,7 @@ export default function LiverMypage() {
                 likes?: number | null;
                 comments?: number | null;
                 brandName?: string | null;
+                productCsvImported?: string | null;
                 aiStructuredAdvice?: {
                   summary?: string;
                   goodPoints?: string[];
@@ -645,6 +647,11 @@ export default function LiverMypage() {
                               </p>
                               {hasAiAdvice && (
                                 <Sparkles className="h-3 w-3 text-yellow-500" />
+                              )}
+                              {ls.productCsvImported !== 'yes' && (
+                                <span title="商品別CSV未インポート">
+                                  <AlertTriangle className="h-3 w-3 text-orange-400" />
+                                </span>
                               )}
                             </div>
                             <div className="flex items-center gap-2 mt-0.5">

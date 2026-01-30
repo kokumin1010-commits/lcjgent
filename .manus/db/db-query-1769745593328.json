@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE livestream_products \nADD COLUMN IF NOT EXISTS grossRevenue BIGINT,\nADD COLUMN IF NOT EXISTS directGmv BIGINT,\nADD COLUMN IF NOT EXISTS itemsSold INT,\nADD COLUMN IF NOT EXISTS customers INT,\nADD COLUMN IF NOT EXISTS `orders` INT,\nADD COLUMN IF NOT EXISTS ctr VARCHAR(20),\nADD COLUMN IF NOT EXISTS ctor VARCHAR(20),\nADD COLUMN IF NOT EXISTS productImpressions INT;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute ALTER TABLE livestream_products \nADD COLUMN IF NOT EXISTS grossRevenue BIGINT,\nADD COLUMN IF NOT EXISTS directGmv BIGINT,\nADD COLUMN IF NOT EXISTS itemsSold INT,\nADD COLUMN IF NOT EXISTS customers INT,\nADD COLUMN IF NOT EXISTS `orders` INT,\nADD COLUMN IF NOT EXISTS ctr VARCHAR(20),\nADD COLUMN IF NOT EXISTS ctor VARCHAR(20),\nADD COLUMN IF NOT EXISTS productImpressions INT;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 4554
+}

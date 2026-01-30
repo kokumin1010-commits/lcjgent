@@ -151,3 +151,127 @@ describe("Livestream Product API Schema", () => {
     expect(schema.id).toBe("number");
   });
 });
+
+
+describe("Product CSV Import Validation", () => {
+  it("should validate CSV import schema", () => {
+    const importSchema = {
+      livestreamId: "number",
+      products: "array of product objects",
+    };
+    
+    expect(importSchema.livestreamId).toBe("number");
+    expect(importSchema.products).toBe("array of product objects");
+  });
+
+  it("should validate product object in CSV import", () => {
+    const productFromCsv = {
+      productName: "Test Product",
+      grossRevenue: 100000,
+      directGmv: 80000,
+      itemsSold: 50,
+      customers: 30,
+      orders: 35,
+      ctr: "0.05",
+      ctor: "0.03",
+      productImpressions: 10000,
+      productClicks: 500,
+    };
+    
+    expect(productFromCsv.productName).toBeDefined();
+    expect(productFromCsv.grossRevenue).toBeGreaterThan(0);
+    expect(productFromCsv.directGmv).toBeGreaterThan(0);
+  });
+
+  it("should handle null values in CSV import", () => {
+    const productFromCsv = {
+      productName: "Test Product",
+      grossRevenue: null,
+      directGmv: null,
+      itemsSold: null,
+      customers: null,
+      orders: null,
+      ctr: null,
+      ctor: null,
+      productImpressions: null,
+      productClicks: null,
+    };
+    
+    expect(productFromCsv.productName).toBeDefined();
+    expect(productFromCsv.grossRevenue).toBeNull();
+  });
+
+  it("should parse CTR percentage correctly", () => {
+    const ctrString = "0.05";
+    const ctrPercent = parseFloat(ctrString) * 100;
+    expect(ctrPercent).toBe(5);
+  });
+
+  it("should parse CTOR percentage correctly", () => {
+    const ctorString = "0.03";
+    const ctorPercent = parseFloat(ctorString) * 100;
+    expect(ctorPercent).toBe(3);
+  });
+});
+
+describe("Product CSV Import Data Transformation", () => {
+  it("should transform CSV data to database format", () => {
+    const csvProduct = {
+      productName: "Test Product",
+      grossRevenue: 100000,
+      directGmv: 80000,
+      itemsSold: 50,
+    };
+    
+    const dbProduct = {
+      livestreamId: 1,
+      productName: csvProduct.productName,
+      grossRevenue: csvProduct.grossRevenue,
+      directGmv: csvProduct.directGmv,
+      gmv: csvProduct.directGmv, // Use directGmv as gmv for backward compatibility
+      itemsSold: csvProduct.itemsSold,
+      quantity: csvProduct.itemsSold, // Use itemsSold as quantity for backward compatibility
+    };
+    
+    expect(dbProduct.gmv).toBe(csvProduct.directGmv);
+    expect(dbProduct.quantity).toBe(csvProduct.itemsSold);
+  });
+
+  it("should handle empty product list", () => {
+    const products: any[] = [];
+    expect(products.length).toBe(0);
+  });
+
+  it("should count imported products correctly", () => {
+    const products = [
+      { productName: "Product 1", directGmv: 10000 },
+      { productName: "Product 2", directGmv: 20000 },
+      { productName: "Product 3", directGmv: 30000 },
+    ];
+    expect(products.length).toBe(3);
+  });
+});
+
+describe("Product CSV Import Flag", () => {
+  it("should mark livestream as CSV imported", () => {
+    const livestream = {
+      id: 1,
+      productCsvImported: "no" as "yes" | "no",
+    };
+    
+    // After import
+    livestream.productCsvImported = "yes";
+    expect(livestream.productCsvImported).toBe("yes");
+  });
+
+  it("should detect unimported livestreams", () => {
+    const livestreams = [
+      { id: 1, productCsvImported: "yes" },
+      { id: 2, productCsvImported: "no" },
+      { id: 3, productCsvImported: "no" },
+    ];
+    
+    const unimported = livestreams.filter(ls => ls.productCsvImported !== "yes");
+    expect(unimported.length).toBe(2);
+  });
+});

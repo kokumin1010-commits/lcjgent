@@ -279,7 +279,8 @@ export const brandLivestreams = mysqlTable("brand_livestreams", {
   gmvPer1kViews: varchar("gmvPer1kViews", { length: 50 }), // GMV/1K views
   customerCount: int("customerCount"), // 顧客数
   itemsSold: int("itemsSold"), // 販売アイテム数
-  csvImported: mysqlEnum("csvImported", ["yes", "no"]).default("no"), // CSVインポートフラグ
+  csvImported: mysqlEnum("csvImported", ["yes", "no"]).default("no"), // 配信パフォーマンスCSVインポートフラグ
+  productCsvImported: mysqlEnum("productCsvImported", ["yes", "no"]).default("no"), // 商品別CSVインポートフラグ
   cpc: bigint("cpc", { mode: "number" }), // CPC（クリック単価）
   acos: varchar("acos", { length: 20 }), // ACOS（広告費売上比率）
   roas: varchar("roas", { length: 20 }), // ROAS（広告費用対効果）
@@ -826,17 +827,28 @@ export type InsertLiver = typeof livers.$inferInsert;
 /**
  * 直播商品別GMVテーブル - ライブ配信ごとの商品別売上を記録
  * 1つの直播に複数の商品を紐付けて、それぞれのGMVを記録できる
+ * TikTok Creator-Live-Recap-Product-List CSVフォーマット対応
  */
 export const livestreamProducts = mysqlTable("livestream_products", {
   id: int("id").autoincrement().primaryKey(),
   livestreamId: int("livestreamId").notNull(), // References brandLivestreams.id
-  productName: varchar("productName", { length: 255 }).notNull(), // 商品名
-  gmv: bigint("gmv", { mode: "number" }), // GMV（売上金額）
-  quantity: int("quantity"), // 販売数量
+  productName: varchar("productName", { length: 500 }).notNull(), // 商品名 (Product)
+  // 売上データ
+  grossRevenue: bigint("grossRevenue", { mode: "number" }), // 総売上 (Gross revenue)
+  directGmv: bigint("directGmv", { mode: "number" }), // 直接GMV (Direct GMV)
+  gmv: bigint("gmv", { mode: "number" }), // GMV（後方互換用）
+  // 販売データ
+  itemsSold: int("itemsSold"), // 販売数 (Items sold)
+  customers: int("customers"), // 購入者数 (Customers)
+  orders: int("orders"), // 注文数 (Orders)
+  quantity: int("quantity"), // 販売数量（後方互換用）
   unitPrice: bigint("unitPrice", { mode: "number" }), // 単価
-  // 追加メトリクス
-  productClicks: int("productClicks"), // 商品クリック数
-  impressions: int("impressions"), // 商品インプレッション数
+  // クリック・インプレッションデータ
+  ctr: varchar("ctr", { length: 20 }), // CTR（クリック率）
+  ctor: varchar("ctor", { length: 20 }), // CTOR (SKU orders)
+  productImpressions: int("productImpressions"), // 商品インプレッション数 (Product impressions)
+  productClicks: int("productClicks"), // 商品クリック数 (Product clicks)
+  impressions: int("impressions"), // 後方互換用
   cartAddCount: int("cartAddCount"), // カート追加回数
   conversionRate: varchar("conversionRate", { length: 20 }), // コンバージョン率
   // タイムスタンプ

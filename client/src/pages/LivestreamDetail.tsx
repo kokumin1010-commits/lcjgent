@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, CheckCircle, XCircle, Sparkles, Package, User, Megaphone, HelpCircle, Pencil, Trash2, Save, Upload, X, Calendar, Clock, DollarSign, Eye, ShoppingCart, MousePointer, Heart, MessageCircle, Share2, UserPlus, Timer, Users, TrendingUp } from "lucide-react";
+import { ArrowLeft, CheckCircle, XCircle, Sparkles, Package, User, Megaphone, HelpCircle, Pencil, Trash2, Save, Upload, X, Calendar, Clock, DollarSign, Eye, ShoppingCart, MousePointer, Heart, MessageCircle, Share2, UserPlus, Timer, Users, TrendingUp, FileSpreadsheet, AlertTriangle } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,6 +56,10 @@ export default function LivestreamDetail() {
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  
+  // 商品CSVインポート用state
+  const [showProductCsvImport, setShowProductCsvImport] = useState(false);
+  const [isImportingProductCsv, setIsImportingProductCsv] = useState(false);
 
   const { data: livestream, isLoading, refetch } = trpc.liverManagement.getLivestreamDetail.useQuery({
     id: livestreamId,
@@ -110,6 +114,25 @@ export default function LivestreamDetail() {
   });
   
   const uploadScreenshotMutation = trpc.liverManagement.uploadScreenshot.useMutation();
+  
+  // 商品一覧取得
+  const { data: products, refetch: refetchProducts } = trpc.brandLivestream.listProducts.useQuery(
+    { livestreamId },
+    { enabled: !!livestreamId }
+  );
+  
+  // 商品CSVインポートmutation
+  const importProductCsvMutation = trpc.brandLivestream.importProductCsv.useMutation({
+    onSuccess: (result) => {
+      toast.success(`${result.importedCount}件の商品をインポートしました`);
+      setShowProductCsvImport(false);
+      refetch();
+      refetchProducts();
+    },
+    onError: (error) => {
+      toast.error(`インポートエラー: ${error.message}`);
+    },
+  });
 
   const deleteMutation = trpc.liverManagement.deleteLivestream.useMutation({
     onSuccess: () => {
@@ -144,6 +167,136 @@ export default function LivestreamDetail() {
       case "ライバー": return <User className="w-4 h-4" />;
       case "広告": return <Megaphone className="w-4 h-4" />;
       default: return <HelpCircle className="w-4 h-4" />;
+    }
+  };
+
+  // CSVパース関数（TikTok Creator-Live-Recap-Product-List形式）
+  const parseProductCsv = (text: string) => {
+    const lines = text.split('\n').filter(line => line.trim());
+    const products: Array<{
+      productName: string;
+      grossRevenue: number | null;
+      directGmv: number | null;
+      itemsSold: number | null;
+      customers: number | null;
+      orders: number | null;
+      ctr: string | null;
+      ctor: string | null;
+      productImpressions: number | null;
+      productClicks: number | null;
+    }> = [];
+    
+    // ヘッダー行をスキップ（最初の3行はヘッダー）
+    let dataStartIndex = 0;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].includes('Product') && lines[i].includes('Gross revenue')) {
+        dataStartIndex = i + 1;
+        break;
+      }
+    }
+    
+    for (let i = dataStartIndex; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line.trim()) continue;
+      
+      // CSVパース（カンマ区切り、引用符対応）
+      const values: string[] = [];
+      let current = '';
+      let inQuotes = false;
+      
+      for (const char of line) {
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          values.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      values.push(current.trim());
+      
+      if (values.length < 10) continue;
+      
+      const parseYen = (val: string): number | null => {
+        if (!val || val === '0円' || val === '-') return null;
+        const num = parseInt(val.replace(/[,円\s]/g, ''), 10);
+        return isNaN(num) ? null : num;
+      };
+      
+      const parseNum = (val: string): number | null => {
+        if (!val || val === '-') return null;
+        const num = parseFloat(val.replace(/,/g, ''));
+        return isNaN(num) ? null : num;
+      };
+      
+      const productName = values[0];
+      if (!productName || productName === 'Product') continue;
+      
+      products.push({
+        productName,
+        grossRevenue: parseYen(values[1]),
+        directGmv: parseYen(values[2]),
+        itemsSold: parseNum(values[3]) as number | null,
+        customers: parseNum(values[4]) as number | null,
+        orders: parseNum(values[5]) as number | null,
+        ctr: values[6] || null,
+        ctor: values[7] || null,
+        productImpressions: parseNum(values[8]) as number | null,
+        productClicks: parseNum(values[9]) as number | null,
+      });
+    }
+    
+    return products;
+  };
+  
+  const handleProductCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setIsImportingProductCsv(true);
+    
+    try {
+      // Excelファイルの場合はSheetJSを使用
+      if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+        const XLSX = await import('xlsx');
+        const arrayBuffer = await file.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const csvText = XLSX.utils.sheet_to_csv(worksheet);
+        const products = parseProductCsv(csvText);
+        
+        if (products.length === 0) {
+          toast.error('商品データが見つかりませんでした');
+          return;
+        }
+        
+        await importProductCsvMutation.mutateAsync({
+          livestreamId,
+          products,
+        });
+      } else {
+        // CSVファイルの場合
+        const text = await file.text();
+        const products = parseProductCsv(text);
+        
+        if (products.length === 0) {
+          toast.error('商品データが見つかりませんでした');
+          return;
+        }
+        
+        await importProductCsvMutation.mutateAsync({
+          livestreamId,
+          products,
+        });
+      }
+    } catch (error) {
+      console.error('CSV import error:', error);
+      toast.error('CSVのインポートに失敗しました');
+    } finally {
+      setIsImportingProductCsv(false);
+      e.target.value = '';
     }
   };
 
@@ -733,6 +886,67 @@ export default function LivestreamDetail() {
                     </div>
                   </div>
                 )}
+
+                {/* 商品別売上セクション */}
+                <div className="bg-gradient-to-r from-orange-900/20 to-amber-900/20 border border-orange-600/30 rounded-lg p-4">
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-sm font-medium text-orange-400 flex items-center gap-2">
+                      <FileSpreadsheet className="w-4 h-4" />
+                      商品別売上
+                    </h3>
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        accept=".csv,.xlsx,.xls"
+                        onChange={handleProductCsvUpload}
+                        className="hidden"
+                        disabled={isImportingProductCsv}
+                      />
+                      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded text-xs font-medium transition-colors ${
+                        isImportingProductCsv 
+                          ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                          : 'bg-orange-600 hover:bg-orange-700 text-white cursor-pointer'
+                      }`}>
+                        <Upload className="w-3 h-3" />
+                        {isImportingProductCsv ? 'インポート中...' : 'CSVインポート'}
+                      </span>
+                    </label>
+                  </div>
+                  
+                  {products && products.length > 0 ? (
+                    <div className="space-y-2 max-h-80 overflow-y-auto">
+                      {products.map((product, index) => (
+                        <div key={product.id || index} className="bg-gray-900/50 rounded p-3">
+                          <div className="flex justify-between items-start">
+                            <p className="text-white font-medium text-sm flex-1 pr-2 line-clamp-2">
+                              {product.productName}
+                            </p>
+                            <p className="text-yellow-500 font-bold whitespace-nowrap">
+                              ¥{(product.directGmv || product.gmv || 0).toLocaleString()}
+                            </p>
+                          </div>
+                          <div className="flex gap-4 mt-2 text-xs text-gray-400">
+                            {product.itemsSold !== null && product.itemsSold !== undefined && (
+                              <span>販売: {product.itemsSold}個</span>
+                            )}
+                            {product.customers !== null && product.customers !== undefined && (
+                              <span>購入者: {product.customers}人</span>
+                            )}
+                            {product.ctr && (
+                              <span>CTR: {(parseFloat(product.ctr) * 100).toFixed(2)}%</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6">
+                      <AlertTriangle className="w-8 h-8 text-orange-400 mx-auto mb-2" />
+                      <p className="text-gray-400 text-sm">商品別データが未登録です</p>
+                      <p className="text-gray-500 text-xs mt-1">TikTokの商品別CSVをインポートしてください</p>
+                    </div>
+                  )}
+                </div>
                 
                 {/* Delivered Brand */}
                 <div className="flex justify-between items-center">

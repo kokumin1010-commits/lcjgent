@@ -3314,6 +3314,62 @@ export async function deleteLivestreamProductsByLivestreamId(livestreamId: numbe
     .where(eq(livestreamProducts.livestreamId, livestreamId));
 }
 
+// Bulk import products from CSV for a livestream
+// This will delete existing products and insert new ones
+export async function importLivestreamProductsFromCsv(
+  livestreamId: number,
+  products: Array<{
+    productName: string;
+    grossRevenue?: number | null;
+    directGmv?: number | null;
+    itemsSold?: number | null;
+    customers?: number | null;
+    orders?: number | null;
+    ctr?: string | null;
+    ctor?: string | null;
+    productImpressions?: number | null;
+    productClicks?: number | null;
+  }>
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Delete existing products for this livestream
+  await db
+    .delete(livestreamProducts)
+    .where(eq(livestreamProducts.livestreamId, livestreamId));
+  
+  // Insert new products
+  if (products.length > 0) {
+    const insertData = products.map(p => ({
+      livestreamId,
+      productName: p.productName,
+      grossRevenue: p.grossRevenue ?? null,
+      directGmv: p.directGmv ?? null,
+      gmv: p.directGmv ?? null, // Use directGmv as gmv for backward compatibility
+      itemsSold: p.itemsSold ?? null,
+      quantity: p.itemsSold ?? null, // Use itemsSold as quantity for backward compatibility
+      customers: p.customers ?? null,
+      orders: p.orders ?? null,
+      ctr: p.ctr ?? null,
+      ctor: p.ctor ?? null,
+      productImpressions: p.productImpressions ?? null,
+      impressions: p.productImpressions ?? null, // Backward compatibility
+      productClicks: p.productClicks ?? null,
+    }));
+    
+    await db.insert(livestreamProducts).values(insertData);
+  }
+  
+  // Update the livestream to mark product CSV as imported
+  await db
+    .update(brandLivestreams)
+    .set({ productCsvImported: "yes" })
+    .where(eq(brandLivestreams.id, livestreamId));
+  
+  return products.length;
+}
+
 // Get all livestream products for a brand with livestream date info
 export async function getAllLivestreamProductsForBrand(brandId: number) {
   const db = await getDb();
