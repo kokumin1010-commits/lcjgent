@@ -129,15 +129,26 @@ export default function LiverMypage() {
         avgViewDuration = Number(avgViewDurationRaw) || 0;
       }
       
+      // Helper to parse currency values (e.g., "465,605円" -> 465605)
+      const parseCurrency = (value: unknown): number => {
+        if (typeof value === 'number') return value;
+        if (typeof value === 'string') {
+          // Remove 円, ￥, $, commas, and whitespace
+          const cleaned = value.replace(/[円￥$,\s]/g, '');
+          return Number(cleaned) || 0;
+        }
+        return 0;
+      };
+      
       return {
         livestream: String(row[0] || ''),
         startTime: String(row[1] || ''),
         duration: durationSeconds,
-        grossRevenue: Number(row[3]) || 0,
-        directGmv: Number(row[4]) || 0,
+        grossRevenue: parseCurrency(row[3]),
+        directGmv: parseCurrency(row[4]),
         itemsSold: Number(row[5]) || 0,
         customers: Number(row[6]) || 0,
-        avgPrice: Number(row[7]) || 0,
+        avgPrice: parseCurrency(row[7]),
         ordersPaidFor: Number(row[8]) || 0,
         gmvPer1kShows: String(row[9] || '0'),
         gmvPer1kViews: String(row[10] || '0'),
