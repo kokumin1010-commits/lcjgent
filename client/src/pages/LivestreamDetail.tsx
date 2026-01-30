@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, CheckCircle, XCircle, Sparkles, Package, User, Megaphone, HelpCircle, Pencil, Trash2, Save, Upload, X, Calendar, Clock, DollarSign, Eye, ShoppingCart, MousePointer } from "lucide-react";
+import { ArrowLeft, CheckCircle, XCircle, Sparkles, Package, User, Megaphone, HelpCircle, Pencil, Trash2, Save, Upload, X, Calendar, Clock, DollarSign, Eye, ShoppingCart, MousePointer, Heart, MessageCircle, Share2, UserPlus, Timer, Users, TrendingUp } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -601,6 +601,132 @@ export default function LivestreamDetail() {
                     )}
                   </div>
                 </div>
+
+                {/* Engagement Metrics - CSVインポートデータ */}
+                {(livestream.likes || livestream.comments || livestream.shares || livestream.newFollowers || livestream.avgViewDuration) && (
+                  <div className="bg-gradient-to-r from-pink-900/20 to-purple-900/20 border border-pink-600/30 rounded-lg p-4">
+                    <h3 className="text-sm font-medium text-pink-400 mb-3 flex items-center gap-2">
+                      <Heart className="w-4 h-4" />
+                      エンゲージメント
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Likes */}
+                      {livestream.likes !== null && livestream.likes !== undefined && (
+                        <div className="bg-gray-900/50 rounded p-3">
+                          <p className="text-gray-400 text-xs flex items-center gap-1">
+                            <Heart className="w-3 h-3 text-pink-400" />
+                            いいね
+                          </p>
+                          <p className="text-white font-bold text-lg">
+                            {livestream.likes.toLocaleString()}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {/* Comments */}
+                      {livestream.comments !== null && livestream.comments !== undefined && (
+                        <div className="bg-gray-900/50 rounded p-3">
+                          <p className="text-gray-400 text-xs flex items-center gap-1">
+                            <MessageCircle className="w-3 h-3 text-blue-400" />
+                            コメント
+                          </p>
+                          <p className="text-white font-bold text-lg">
+                            {livestream.comments.toLocaleString()}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {/* Shares */}
+                      {livestream.shares !== null && livestream.shares !== undefined && (
+                        <div className="bg-gray-900/50 rounded p-3">
+                          <p className="text-gray-400 text-xs flex items-center gap-1">
+                            <Share2 className="w-3 h-3 text-green-400" />
+                            シェア
+                          </p>
+                          <p className="text-white font-bold text-lg">
+                            {livestream.shares.toLocaleString()}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {/* New Followers */}
+                      {livestream.newFollowers !== null && livestream.newFollowers !== undefined && (
+                        <div className="bg-gray-900/50 rounded p-3">
+                          <p className="text-gray-400 text-xs flex items-center gap-1">
+                            <UserPlus className="w-3 h-3 text-yellow-400" />
+                            新規フォロワー
+                          </p>
+                          <p className="text-white font-bold text-lg">
+                            {livestream.newFollowers.toLocaleString()}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {/* Average View Duration */}
+                      {livestream.avgViewDuration !== null && livestream.avgViewDuration !== undefined && (
+                        <div className="bg-gray-900/50 rounded p-3">
+                          <p className="text-gray-400 text-xs flex items-center gap-1">
+                            <Timer className="w-3 h-3 text-cyan-400" />
+                            平均視聴時間
+                          </p>
+                          <p className="text-white font-bold text-lg">
+                            {Math.floor(livestream.avgViewDuration / 60)}分{livestream.avgViewDuration % 60}秒
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Sales Details - CSVインポートデータ */}
+                {(livestream.itemsSold || livestream.customerCount || livestream.avgPrice) && (
+                  <div className="bg-gradient-to-r from-green-900/20 to-emerald-900/20 border border-green-600/30 rounded-lg p-4">
+                    <h3 className="text-sm font-medium text-green-400 mb-3 flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4" />
+                      販売詳細
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Items Sold */}
+                      {livestream.itemsSold !== null && livestream.itemsSold !== undefined && (
+                        <div className="bg-gray-900/50 rounded p-3">
+                          <p className="text-gray-400 text-xs flex items-center gap-1">
+                            <Package className="w-3 h-3 text-orange-400" />
+                            販売数
+                          </p>
+                          <p className="text-white font-bold text-lg">
+                            {livestream.itemsSold.toLocaleString()}個
+                          </p>
+                        </div>
+                      )}
+                      
+                      {/* Customers */}
+                      {livestream.customerCount !== null && livestream.customerCount !== undefined && (
+                        <div className="bg-gray-900/50 rounded p-3">
+                          <p className="text-gray-400 text-xs flex items-center gap-1">
+                            <Users className="w-3 h-3 text-blue-400" />
+                            購入者数
+                          </p>
+                          <p className="text-white font-bold text-lg">
+                            {livestream.customerCount.toLocaleString()}人
+                          </p>
+                        </div>
+                      )}
+                      
+                      {/* Average Price */}
+                      {livestream.avgPrice !== null && livestream.avgPrice !== undefined && (
+                        <div className="bg-gray-900/50 rounded p-3 col-span-2">
+                          <p className="text-gray-400 text-xs flex items-center gap-1">
+                            <DollarSign className="w-3 h-3 text-yellow-400" />
+                            平均単価
+                          </p>
+                          <p className="text-white font-bold text-lg">
+                            ¥{livestream.avgPrice.toLocaleString()}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
                 
                 {/* Delivered Brand */}
                 <div className="flex justify-between items-center">
