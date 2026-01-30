@@ -398,12 +398,41 @@ export default function LiverSelfRecord() {
         ? formData.result as "成功" | "失敗"
         : undefined;
 
+      // AI解析データを取得（フォーム入力またはanalyzedDataから）
+      const viewerCount = formData.viewerCount 
+        ? parseInt(formData.viewerCount) 
+        : (analyzedData?.viewerCount ?? undefined);
+      const duration = formData.durationMinutes 
+        ? parseInt(formData.durationMinutes) 
+        : (analyzedData?.durationMinutes ?? undefined);
+      const productClicks = formData.productClicks 
+        ? parseInt(formData.productClicks) 
+        : (analyzedData?.productClicks ?? undefined);
+      const orderCount = formData.orderCount 
+        ? parseInt(formData.orderCount) 
+        : (analyzedData?.orderCount ?? undefined);
+      
+      // CVRを計算（注文数 / クリック数 * 100）
+      let cvr: string | undefined;
+      if (productClicks && orderCount && productClicks > 0) {
+        cvr = ((orderCount / productClicks) * 100).toFixed(2) + '%';
+      }
+
       createLivestreamMutation.mutate({
         brandId: parseInt(formData.brandId),
         liverId: liverInfo.id,
         livestreamDate: livestreamDateTime.toISOString(),
         livestreamEndTime: endDateTime?.toISOString(),
         salesAmount: formData.salesAmount ? parseInt(formData.salesAmount) : undefined,
+        // AI解析データを送信
+        viewerCount,
+        duration,
+        productClicks,
+        orderCount,
+        impressions: analyzedData?.rawData?.impressions ?? undefined,
+        gmv: formData.salesAmount ? parseInt(formData.salesAmount) : undefined,
+        cvr,
+        // 配信結果フィールド
         result: resultValue,
         impactFactor: impactFactorValue,
         resultReason: formData.resultReason || undefined,

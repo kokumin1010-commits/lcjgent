@@ -4301,6 +4301,17 @@ ${conversationText}
         livestreamDate: z.string(),
         livestreamEndTime: z.string().optional(),
         salesAmount: z.number().optional(),
+        // AI解析データフィールド
+        viewerCount: z.number().optional(),
+        peakViewerCount: z.number().optional(),
+        duration: z.number().optional(),
+        productClicks: z.number().optional(),
+        orderCount: z.number().optional(),
+        impressions: z.number().optional(),
+        gmv: z.number().optional(),
+        cvr: z.string().optional(),
+        ctr: z.string().optional(),
+        // 配信結果フィールド
         result: z.enum(["成功", "失敗"]).optional(),
         impactFactor: z.enum(["構成", "商品", "ライバー", "広告", "その他"]).optional(),
         resultReason: z.string().optional(),
@@ -4347,6 +4358,16 @@ ${conversationText}
           livestreamDate: new Date(input.livestreamDate),
           livestreamEndTime: input.livestreamEndTime ? new Date(input.livestreamEndTime) : undefined,
           salesAmount: input.salesAmount,
+          // AI解析データを保存
+          viewerCount: input.viewerCount,
+          duration: input.duration,
+          productClicks: input.productClicks,
+          orderCount: input.orderCount,
+          impressions: input.impressions,
+          gmv: input.gmv || input.salesAmount, // GMVがない場合はsalesAmountを使用
+          cvr: input.cvr,
+          ctr: input.ctr,
+          // 配信結果フィールド
           result: input.result,
           impactFactor: input.impactFactor,
           resultReason: input.resultReason,

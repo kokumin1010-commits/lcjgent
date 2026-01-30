@@ -523,35 +523,84 @@ export default function LivestreamDetail() {
                   </span>
                 </div>
 
-                {/* Duration */}
-                {livestream.duration && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-red-500 font-medium">配信時間</span>
-                    <span>{Math.round(livestream.duration / 60 * 10) / 10}時間</span>
-                  </div>
-                )}
-
-                {/* Viewer Count */}
-                {livestream.viewerCount && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-red-500 font-medium">視聴者数</span>
-                    <span>{livestream.viewerCount?.toLocaleString() || "-"}</span>
-                  </div>
-                )}
-
-                {/* Product Clicks & Orders */}
-                {(livestream.productClicks || livestream.orderCount) && (
+                {/* Performance Metrics Grid */}
+                <div className="bg-gray-800/50 rounded-lg p-4">
+                  <h3 className="text-sm font-medium text-gray-400 mb-3 flex items-center gap-2">
+                    <Eye className="w-4 h-4" />
+                    配信パフォーマンス
+                  </h3>
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-red-500 font-medium">商品クリック数</span>
-                      <span>{livestream.productClicks?.toLocaleString() || "-"}</span>
+                    {/* Duration */}
+                    <div className="bg-gray-900/50 rounded p-3">
+                      <p className="text-gray-400 text-xs">配信時間</p>
+                      <p className="text-white font-bold text-lg">
+                        {livestream.duration 
+                          ? `${Math.floor(livestream.duration / 60)}時間${livestream.duration % 60}分`
+                          : "-"}
+                      </p>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-red-500 font-medium">注文数</span>
-                      <span>{livestream.orderCount?.toLocaleString() || "-"}</span>
+                    
+                    {/* Viewer Count */}
+                    <div className="bg-gray-900/50 rounded p-3">
+                      <p className="text-gray-400 text-xs">視聴者数</p>
+                      <p className="text-white font-bold text-lg">
+                        {livestream.viewerCount?.toLocaleString() || "-"}
+                      </p>
                     </div>
+                    
+                    {/* Product Clicks */}
+                    <div className="bg-gray-900/50 rounded p-3">
+                      <p className="text-gray-400 text-xs flex items-center gap-1">
+                        <MousePointer className="w-3 h-3" />
+                        商品クリック数
+                      </p>
+                      <p className="text-white font-bold text-lg">
+                        {livestream.productClicks?.toLocaleString() || "-"}
+                      </p>
+                    </div>
+                    
+                    {/* Order Count */}
+                    <div className="bg-gray-900/50 rounded p-3">
+                      <p className="text-gray-400 text-xs flex items-center gap-1">
+                        <ShoppingCart className="w-3 h-3" />
+                        注文数
+                      </p>
+                      <p className="text-white font-bold text-lg">
+                        {livestream.orderCount?.toLocaleString() || "-"}
+                      </p>
+                    </div>
+                    
+                    {/* Impressions */}
+                    {livestream.impressions && (
+                      <div className="bg-gray-900/50 rounded p-3">
+                        <p className="text-gray-400 text-xs">インプレッション</p>
+                        <p className="text-white font-bold text-lg">
+                          {livestream.impressions?.toLocaleString()}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* CVR */}
+                    {livestream.cvr && (
+                      <div className="bg-gray-900/50 rounded p-3">
+                        <p className="text-gray-400 text-xs">CVR（コンバージョン率）</p>
+                        <p className="text-white font-bold text-lg">
+                          {livestream.cvr}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* CTR */}
+                    {livestream.ctr && (
+                      <div className="bg-gray-900/50 rounded p-3">
+                        <p className="text-gray-400 text-xs">CTR（クリック率）</p>
+                        <p className="text-white font-bold text-lg">
+                          {livestream.ctr}
+                        </p>
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
                 
                 {/* Delivered Brand */}
                 <div className="flex justify-between items-center">
