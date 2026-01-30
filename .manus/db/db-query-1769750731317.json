@@ -1,0 +1,20 @@
+{
+  "query": "SELECT id, livestreamDate, livestreamEndTime, streamerName, salesAmount, duration, viewerCount, likes FROM brand_livestreams WHERE livestreamDate >= '2025-08-31' AND livestreamDate < '2025-09-01' ORDER BY livestreamDate;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, livestreamDate, livestreamEndTime, streamerName, salesAmount, duration, viewerCount, likes FROM brand_livestreams WHERE livestreamDate >= '2025-08-31' AND livestreamDate < '2025-09-01' ORDER BY livestreamDate;",
+  "rows": [
+    {
+      "id": "450128",
+      "livestreamDate": "2025-08-31 06:00:00",
+      "livestreamEndTime": "2025-08-31 11:41:08",
+      "streamerName": "KYOGOKU",
+      "salesAmount": "465605",
+      "duration": "341",
+      "viewerCount": "8386",
+      "likes": "234160"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tlivestreamDate\tlivestreamEndTime\tstreamerName\tsalesAmount\tduration\tviewerCount\tlikes\n450128\t2025-08-31 06:00:00\t2025-08-31 11:41:08\tKYOGOKU\t465605\t341\t8386\t234160\n",
+  "stderr": "",
+  "execution_time_ms": 1530
+}

@@ -1,0 +1,43 @@
+{
+  "query": "SELECT id, livestreamDate, livestreamEndTime, streamerName, salesAmount, duration, viewerCount, likes, csvImported FROM brand_livestreams WHERE livestreamDate >= '2025-08-30' AND livestreamDate < '2025-09-01' ORDER BY livestreamDate;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, livestreamDate, livestreamEndTime, streamerName, salesAmount, duration, viewerCount, likes, csvImported FROM brand_livestreams WHERE livestreamDate >= '2025-08-30' AND livestreamDate < '2025-09-01' ORDER BY livestreamDate;",
+  "rows": [
+    {
+      "id": "450130",
+      "livestreamDate": "2025-08-30 06:01:00",
+      "livestreamEndTime": "2025-08-30 08:00:49",
+      "streamerName": "KYOGOKU",
+      "salesAmount": "182107",
+      "duration": "120",
+      "viewerCount": "4201",
+      "likes": "18604",
+      "csvImported": "yes"
+    },
+    {
+      "id": "450129",
+      "livestreamDate": "2025-08-30 20:00:00",
+      "livestreamEndTime": "2025-08-30 23:30:48",
+      "streamerName": "KYOGOKU",
+      "salesAmount": "120199",
+      "duration": "211",
+      "viewerCount": "4955",
+      "likes": "136718",
+      "csvImported": "yes"
+    },
+    {
+      "id": "450128",
+      "livestreamDate": "2025-08-31 06:00:00",
+      "livestreamEndTime": "2025-08-31 11:41:08",
+      "streamerName": "KYOGOKU",
+      "salesAmount": "465605",
+      "duration": "341",
+      "viewerCount": "8386",
+      "likes": "234160",
+      "csvImported": "yes"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tlivestreamDate\tlivestreamEndTime\tstreamerName\tsalesAmount\tduration\tviewerCount\tlikes\tcsvImported\n450130\t2025-08-30 06:01:00\t2025-08-30 08:00:49\tKYOGOKU\t182107\t120\t4201\t18604\tyes\n450129\t2025-08-30 20:00:00\t2025-08-30 23:30:48\tKYOGOKU\t120199\t211\t4955\t136718\tyes\n450128\t2025-08-31 06:00:00\t2025-08-31 11:41:08\tKYOGOKU\t465605\t341\t8386\t234160\tyes\n",
+  "stderr": "",
+  "execution_time_ms": 1515
+}

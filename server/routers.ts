@@ -5048,8 +5048,13 @@ ${metricsDescription}${historicalContext}`,
 
         for (const row of input.csvData) {
           try {
-            // Parse start time and calculate end time
-            const startDate = new Date(row.startTime);
+            // Parse start time as JST and convert to UTC
+            // CSV dates from TikTok are in JST (Japan Standard Time, UTC+9)
+            const jstDateStr = row.startTime;
+            // Append JST timezone if not present
+            const startDateJST = new Date(jstDateStr + ' GMT+0900');
+            // Convert to UTC for storage
+            const startDate = new Date(startDateJST.getTime());
             const endDate = new Date(startDate.getTime() + row.duration * 1000);
             const durationMinutes = Math.round(row.duration / 60);
 
