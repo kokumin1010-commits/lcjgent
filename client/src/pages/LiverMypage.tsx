@@ -695,8 +695,12 @@ export default function LiverMypage() {
                                 <Sparkles className="h-3 w-3 text-yellow-500" />
                               )}
                               {ls.productCsvImported !== 'yes' && (
-                                <span title="商品別CSV未インポート">
-                                  <AlertTriangle className="h-3 w-3 text-orange-400" />
+                                <span 
+                                  title="商品別CSV未インポート" 
+                                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-orange-500/20 border border-orange-500/50 rounded text-[10px] text-orange-400 font-medium"
+                                >
+                                  <AlertTriangle className="h-2.5 w-2.5" />
+                                  商品未登録
                                 </span>
                               )}
                             </div>
