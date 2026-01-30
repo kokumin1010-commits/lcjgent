@@ -6987,6 +6987,382 @@ ${metricsDescription}${historicalContext}`,
         return await deleteLivestreamCsvImportHistory(input.historyId);
       }),
   }),
+
+  // LCJ Point System
+  point: router({
+    // --- User-facing endpoints ---
+    
+    // Get current user's point balance
+    getBalance: protectedProcedure.query(async ({ ctx }) => {
+      const { getOrCreatePointBalance } = await import("./db");
+      const balance = await getOrCreatePointBalance(ctx.user.id);
+      return balance;
+    }),
+    
+    // Get current user's point transaction history
+    getTransactions: protectedProcedure
+      .input(z.object({
+        limit: z.number().min(1).max(100).default(50),
+        offset: z.number().min(0).default(0),
+      }).optional())
+      .query(async ({ ctx, input }) => {
+        const { getPointTransactions } = await import("./db");
+        const transactions = await getPointTransactions(ctx.user.id, input);
+        return transactions;
+      }),
+    
+    // Get current user's receipt submissions
+    getMyReceipts: protectedProcedure.query(async ({ ctx }) => {
+      const { getReceiptsByUser } = await import("./db");
+      const receipts = await getReceiptsByUser(ctx.user.id);
+      return receipts;
+    }),
+    
+    // Submit a new receipt
+    submitReceipt: protectedProcedure
+      .input(z.object({
+        imageBase64: z.string(),
+        mimeType: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const crypto = await import("crypto");
+        const { 
+          checkDuplicateReceiptByHash,
+          getRecentReceiptsCount,
+          createReceipt,
+          updateReceiptOcr,
+          checkDuplicateReceiptByDetails,
+          updateReceiptFraudFlags,
+          createFraudDetectionLog,
+          updateReceiptStatus,
+        } = await import("./db");
+        
+        // Generate image hash
+        const imageHash = crypto.createHash("sha256").update(input.imageBase64).digest("hex");
+        
+        // Check for duplicate image
+        const duplicateByHash = await checkDuplicateReceiptByHash(imageHash);
+        if (duplicateByHash) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "このレシート画像は既に登録されています",
+          });
+        }
+        
+        // Check submission frequency (max 10 per 24 hours)
+        const recentCount = await getRecentReceiptsCount(ctx.user.id, 24);
+        if (recentCount >= 10) {
+          throw new TRPCError({
+            code: "TOO_MANY_REQUESTS",
+            message: "24時間以内の申請上限（10件）に達しています",
+          });
+        }
+        
+        // Upload image to S3
+        const fileKey = `receipts/${ctx.user.id}/${Date.now()}-${nanoid(8)}.${input.mimeType.split("/")[1] || "jpg"}`;
+        const buffer = Buffer.from(input.imageBase64, "base64");
+        const { url: imageUrl } = await storagePut(fileKey, buffer, input.mimeType);
+        
+        // Create receipt record
+        const receiptId = await createReceipt({
+          userId: ctx.user.id,
+          imageUrl,
+          imageKey: fileKey,
+          imageHash,
+          status: "pending",
+        });
+        
+        // Run OCR analysis
+        try {
+          const ocrResult = await invokeLLM({
+            messages: [
+              {
+                role: "system",
+                content: `あなたはレシート画像を解析するAIです。以下の情報を抽出してJSON形式で返してください：
+- storeName: 店舗名
+- purchaseDate: 購入日時（YYYY-MM-DD HH:mm形式）
+- totalAmount: 合計金額（数値のみ、通貨記号なし）
+- currency: 通貨コード（JPY, CNY, USD等）
+
+抽出できない項目はnullを返してください。`,
+              },
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "image_url",
+                    image_url: {
+                      url: `data:${input.mimeType};base64,${input.imageBase64}`,
+                    },
+                  },
+                  {
+                    type: "text",
+                    text: "このレシート画像から情報を抽出してください。",
+                  },
+                ],
+              },
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "receipt_ocr",
+                strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    storeName: { type: ["string", "null"] },
+                    purchaseDate: { type: ["string", "null"] },
+                    totalAmount: { type: ["number", "null"] },
+                    currency: { type: ["string", "null"] },
+                    rawText: { type: ["string", "null"] },
+                    confidence: { type: ["number", "null"] },
+                  },
+                  required: ["storeName", "purchaseDate", "totalAmount", "currency", "rawText", "confidence"],
+                  additionalProperties: false,
+                },
+              },
+            },
+          });
+          
+          const messageContent = ocrResult.choices[0].message.content;
+          const ocrData = JSON.parse(typeof messageContent === 'string' ? messageContent : "{}");
+          
+          // Calculate points (2% return)
+          const pointsCalculated = ocrData.totalAmount ? Math.floor(ocrData.totalAmount * 0.02) : undefined;
+          
+          // Update receipt with OCR data
+          await updateReceiptOcr(receiptId, {
+            storeName: ocrData.storeName,
+            purchaseDate: ocrData.purchaseDate ? new Date(ocrData.purchaseDate) : undefined,
+            totalAmount: ocrData.totalAmount,
+            currency: ocrData.currency || "JPY",
+            ocrRawText: ocrData.rawText,
+            ocrConfidence: ocrData.confidence?.toString(),
+            pointsCalculated,
+            imageHash,
+          });
+          
+          // Run fraud detection
+          const fraudFlags: string[] = [];
+          let fraudScore = 0;
+          
+          // Check for expired receipt (older than 7 days)
+          if (ocrData.purchaseDate) {
+            const purchaseDate = new Date(ocrData.purchaseDate);
+            const daysSincePurchase = (Date.now() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24);
+            if (daysSincePurchase > 7) {
+              fraudFlags.push("expired_receipt");
+              fraudScore += 50;
+              await createFraudDetectionLog({
+                receiptId,
+                userId: ctx.user.id,
+                checkType: "expired_receipt",
+                detected: true,
+                severity: "high",
+                details: `購入日から${Math.floor(daysSincePurchase)}日経過（7日以内のみ有効）`,
+              });
+            }
+          }
+          
+          // Check for duplicate receipt by details
+          if (ocrData.storeName && ocrData.purchaseDate && ocrData.totalAmount) {
+            const duplicateByDetails = await checkDuplicateReceiptByDetails(
+              ctx.user.id,
+              ocrData.storeName,
+              new Date(ocrData.purchaseDate),
+              ocrData.totalAmount,
+              receiptId
+            );
+            if (duplicateByDetails) {
+              fraudFlags.push("duplicate_receipt");
+              fraudScore += 40;
+              await createFraudDetectionLog({
+                receiptId,
+                userId: ctx.user.id,
+                checkType: "duplicate_receipt",
+                detected: true,
+                severity: "medium",
+                details: `同じ店舗・日付・金額のレシートが既に存在します`,
+                relatedReceiptId: duplicateByDetails.id,
+              });
+            }
+          }
+          
+          // Check for unusually high amount (over 100,000 JPY)
+          if (ocrData.totalAmount && ocrData.totalAmount > 100000) {
+            fraudFlags.push("high_amount");
+            fraudScore += 20;
+            await createFraudDetectionLog({
+              receiptId,
+              userId: ctx.user.id,
+              checkType: "high_amount",
+              detected: true,
+              severity: "low",
+              details: `高額購入: ¥${ocrData.totalAmount.toLocaleString()}`,
+            });
+          }
+          
+          // Update fraud flags
+          if (fraudFlags.length > 0) {
+            await updateReceiptFraudFlags(receiptId, fraudFlags, fraudScore);
+            
+            // Auto-hold if fraud score is high
+            if (fraudScore >= 50) {
+              await updateReceiptStatus(receiptId, "on_hold", 0, "自動保留: 不正検知スコアが高いため");
+            }
+          }
+          
+        } catch (error) {
+          console.error("OCR analysis failed:", error);
+        }
+        
+        return { success: true, receiptId };
+      }),
+    
+    // --- Admin endpoints ---
+    
+    // Get all receipts (admin only)
+    adminGetReceipts: protectedProcedure
+      .input(z.object({
+        status: z.enum(["pending", "approved", "rejected", "on_hold"]).optional(),
+        limit: z.number().min(1).max(100).default(50),
+        offset: z.number().min(0).default(0),
+      }).optional())
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        const { getAllReceipts } = await import("./db");
+        const receipts = await getAllReceipts(input);
+        return receipts;
+      }),
+    
+    // Get receipt details (admin only)
+    adminGetReceipt: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        const { getReceiptById, getFraudLogsForReceipt } = await import("./db");
+        const receipt = await getReceiptById(input.id);
+        if (!receipt) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "レシートが見つかりません" });
+        }
+        const fraudLogs = await getFraudLogsForReceipt(input.id);
+        return { receipt, fraudLogs };
+      }),
+    
+    // Get pending receipts count (admin only)
+    adminGetPendingCount: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+      }
+      const { getPendingReceiptsCount } = await import("./db");
+      return await getPendingReceiptsCount();
+    }),
+    
+    // Update receipt OCR data (admin only)
+    adminUpdateReceiptOcr: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        storeName: z.string().optional(),
+        purchaseDate: z.string().optional(),
+        totalAmount: z.number().optional(),
+        currency: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        const { updateReceiptOcr } = await import("./db");
+        const { id, ...data } = input;
+        let pointsCalculated: number | undefined;
+        if (data.totalAmount !== undefined) {
+          pointsCalculated = Math.floor(data.totalAmount * 0.02);
+        }
+        await updateReceiptOcr(id, {
+          ...data,
+          purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : undefined,
+          pointsCalculated,
+        });
+        return { success: true };
+      }),
+    
+    // Approve receipt (admin only)
+    adminApproveReceipt: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        pointsOverride: z.number().optional(),
+        note: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        const { getReceiptById, updateReceiptStatus, awardPointsForReceipt } = await import("./db");
+        const receipt = await getReceiptById(input.id);
+        if (!receipt) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "レシートが見つかりません" });
+        }
+        if (receipt.status === "approved") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "既に承認済みです" });
+        }
+        const pointsToAward = input.pointsOverride ?? receipt.pointsCalculated ?? 0;
+        await updateReceiptStatus(input.id, "approved", ctx.user.id, input.note);
+        if (pointsToAward > 0) {
+          await awardPointsForReceipt(input.id, pointsToAward);
+        }
+        return { success: true, pointsAwarded: pointsToAward };
+      }),
+    
+    // Reject receipt (admin only)
+    adminRejectReceipt: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        note: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        const { getReceiptById, updateReceiptStatus } = await import("./db");
+        const receipt = await getReceiptById(input.id);
+        if (!receipt) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "レシートが見つかりません" });
+        }
+        await updateReceiptStatus(input.id, "rejected", ctx.user.id, input.note);
+        return { success: true };
+      }),
+    
+    // Hold receipt (admin only)
+    adminHoldReceipt: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        note: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        const { getReceiptById, updateReceiptStatus } = await import("./db");
+        const receipt = await getReceiptById(input.id);
+        if (!receipt) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "レシートが見つかりません" });
+        }
+        await updateReceiptStatus(input.id, "on_hold", ctx.user.id, input.note);
+        return { success: true };
+      }),
+    
+    // Get receipt statistics (admin only)
+    adminGetStatistics: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+      }
+      const { getReceiptStatistics } = await import("./db");
+      return await getReceiptStatistics();
+    }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

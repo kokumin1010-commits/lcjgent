@@ -40,6 +40,8 @@ import LiverSelfRecord from "./pages/LiverSelfRecord";
 import LivestreamEdit from "./pages/LivestreamEdit";
 import LiverSchedule from "./pages/LiverSchedule";
 import LiverProfile from "./pages/LiverProfile";
+import MyPoints from "./pages/MyPoints";
+import ReceiptManagement from "./pages/ReceiptManagement";
 
 function Router() {
   return (
@@ -190,6 +192,17 @@ function Router() {
       <Route path={"/liver/profile"} component={LiverProfile} />
       <Route path={"/liver/record"} component={LiverSelfRecord} />
       <Route path={"/liver/schedule"} component={LiverSchedule} />
+      {/* Point System */}
+      <Route path={"/points"}>
+        <DashboardLayout>
+          <MyPoints />
+        </DashboardLayout>
+      </Route>
+      <Route path={"/receipts"}>
+        <DashboardLayout>
+          <ReceiptManagement />
+        </DashboardLayout>
+      </Route>
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

@@ -1206,3 +1206,142 @@ export const brandAdPerformanceStats = mysqlTable("brand_ad_performance_stats", 
 
 export type BrandAdPerformanceStats = typeof brandAdPerformanceStats.$inferSelect;
 export type InsertBrandAdPerformanceStats = typeof brandAdPerformanceStats.$inferInsert;
+
+
+// ============================================
+// LCJ Point System Tables
+// ============================================
+
+/**
+ * Point balances table for tracking user point balances
+ * Each user has one balance record
+ */
+export const pointBalances = mysqlTable("point_balances", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(), // References users.id
+  
+  // Balance info
+  balance: bigint("balance", { mode: "number" }).default(0).notNull(), // Current available points
+  totalEarned: bigint("totalEarned", { mode: "number" }).default(0).notNull(), // Lifetime earned points
+  totalUsed: bigint("totalUsed", { mode: "number" }).default(0).notNull(), // Lifetime used points
+  
+  // Timestamps
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type PointBalance = typeof pointBalances.$inferSelect;
+export type InsertPointBalance = typeof pointBalances.$inferInsert;
+
+/**
+ * Point transactions table for tracking all point movements
+ * Includes earning (from receipts) and spending (in shop)
+ */
+export const pointTransactions = mysqlTable("point_transactions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(), // References users.id
+  
+  // Transaction type
+  type: mysqlEnum("type", ["earn", "use", "expire", "refund", "adjustment"]).notNull(),
+  
+  // Amount (positive for earn, negative for use)
+  amount: bigint("amount", { mode: "number" }).notNull(),
+  balanceAfter: bigint("balanceAfter", { mode: "number" }).notNull(), // Balance after this transaction
+  
+  // Reference to source (receipt for earn, order for use)
+  referenceType: mysqlEnum("referenceType", ["receipt", "order", "manual", "system"]).notNull(),
+  referenceId: int("referenceId"), // ID of the related receipt or order
+  
+  // Description
+  description: text("description"),
+  
+  // Timestamps
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PointTransaction = typeof pointTransactions.$inferSelect;
+export type InsertPointTransaction = typeof pointTransactions.$inferInsert;
+
+/**
+ * Receipts table for tracking receipt submissions
+ * Users submit receipts to earn points
+ */
+export const receipts = mysqlTable("receipts", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(), // References users.id
+  
+  // Receipt image
+  imageUrl: text("imageUrl").notNull(), // S3 URL
+  imageKey: varchar("imageKey", { length: 512 }).notNull(), // S3 key
+  imageHash: varchar("imageHash", { length: 64 }), // SHA-256 hash for duplicate detection
+  
+  // OCR extracted data
+  storeName: varchar("storeName", { length: 255 }), // Store/shop name
+  purchaseDate: timestamp("purchaseDate"), // Date of purchase
+  totalAmount: bigint("totalAmount", { mode: "number" }), // Total purchase amount
+  currency: varchar("currency", { length: 10 }).default("JPY"), // Currency code
+  
+  // Raw OCR result
+  ocrRawText: text("ocrRawText"), // Full OCR text
+  ocrConfidence: decimal("ocrConfidence", { precision: 5, scale: 2 }), // OCR confidence score (0-100)
+  
+  // Point calculation
+  pointsCalculated: bigint("pointsCalculated", { mode: "number" }), // Points to be awarded (2% of amount)
+  pointsAwarded: bigint("pointsAwarded", { mode: "number" }), // Actually awarded points (after approval)
+  
+  // Status
+  status: mysqlEnum("status", ["pending", "approved", "rejected", "on_hold"]).default("pending").notNull(),
+  
+  // Review info
+  reviewedBy: int("reviewedBy"), // Admin user who reviewed
+  reviewedAt: timestamp("reviewedAt"),
+  reviewNote: text("reviewNote"), // Note from reviewer
+  
+  // Fraud detection
+  fraudFlags: json("fraudFlags").$type<string[]>(), // Array of fraud flag codes
+  fraudScore: decimal("fraudScore", { precision: 5, scale: 2 }).default("0"), // Risk score (0-100)
+  
+  // Timestamps
+  submittedAt: timestamp("submittedAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Receipt = typeof receipts.$inferSelect;
+export type InsertReceipt = typeof receipts.$inferInsert;
+
+/**
+ * Fraud detection logs table for tracking suspicious activities
+ * Records all fraud checks and their results
+ */
+export const fraudDetectionLogs = mysqlTable("fraud_detection_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // Reference
+  receiptId: int("receiptId").notNull(), // References receipts.id
+  userId: int("userId").notNull(), // References users.id
+  
+  // Detection info
+  checkType: mysqlEnum("checkType", [
+    "duplicate_image",      // Same image submitted before
+    "duplicate_receipt",    // Same store/date/amount combination
+    "expired_receipt",      // Receipt older than 7 days
+    "high_frequency",       // Too many submissions in short time
+    "high_amount",          // Unusually high amount
+    "suspicious_pattern",   // Other suspicious patterns
+  ]).notNull(),
+  
+  // Result
+  detected: boolean("detected").default(false).notNull(), // Was fraud detected?
+  severity: mysqlEnum("severity", ["low", "medium", "high"]).default("low").notNull(),
+  
+  // Details
+  details: text("details"), // Detailed explanation
+  relatedReceiptId: int("relatedReceiptId"), // ID of related receipt (for duplicates)
+  
+  // Timestamps
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type FraudDetectionLog = typeof fraudDetectionLogs.$inferSelect;
+export type InsertFraudDetectionLog = typeof fraudDetectionLogs.$inferInsert;
