@@ -736,11 +736,11 @@ export default function BrandDetail() {
     onSuccess: (data) => {
       setAdProposalData(data);
       setIsGeneratingProposal(false);
-      toast.success("広告提案を生成しました");
+      toast.success(language === 'ja' ? "広告提案を生成しました" : "已生成广告提案");
     },
     onError: (error) => {
       setIsGeneratingProposal(false);
-      toast.error("提案の生成に失敗しました");
+      toast.error(language === 'ja' ? "提案の生成に失敗しました" : "提案生成失败");
       console.error("Ad proposal generation error:", error);
     },
   });
@@ -755,11 +755,11 @@ export default function BrandDetail() {
   // Save ad proposal mutation
   const saveAdProposalMutation = trpc.brand.saveAdProposal.useMutation({
     onSuccess: (data) => {
-      toast.success(`提案を保存しました (v${data.version})`);
+      toast.success(language === 'ja' ? `提案を保存しました (v${data.version})` : `已保存提案 (v${data.version})`);
       refetchProposalHistory();
     },
     onError: (error) => {
-      toast.error("提案の保存に失敗しました");
+      toast.error(language === 'ja' ? "提案の保存に失敗しました" : "保存提案失败");
       console.error("Save proposal error:", error);
     },
   });
@@ -767,12 +767,12 @@ export default function BrandDetail() {
   // Delete ad proposal mutation
   const deleteAdProposalMutation = trpc.brand.deleteAdProposal.useMutation({
     onSuccess: () => {
-      toast.success("提案を削除しました");
+      toast.success(language === 'ja' ? "提案を削除しました" : "已删除提案");
       refetchProposalHistory();
       setSelectedHistoryProposal(null);
     },
     onError: () => {
-      toast.error("削除に失敗しました");
+      toast.error(language === 'ja' ? "削除に失敗しました" : "删除失败");
     },
   });
 
@@ -4984,12 +4984,12 @@ ${proposal.proposalContent}
                 </div>
                 <div className="bg-gradient-to-br from-amber-950/50 to-amber-900/30 rounded-lg p-3 border border-amber-500/30">
                   <p className="text-xs text-gray-400">{language === 'ja' ? '広告効果ROAS' : '广告效果ROAS'}</p>
-                  <p className="text-lg font-bold text-amber-400">{(adProposalData.metrics?.avgRoas || 0).toFixed(2)}倍</p>
-                  <p className="text-[9px] text-gray-500">総価値÷契約金額</p>
+                  <p className="text-lg font-bold text-amber-400">{(adProposalData.metrics?.avgRoas || 0).toFixed(2)}{language === 'ja' ? '倍' : '倍'}</p>
+                  <p className="text-[9px] text-gray-500">{language === 'ja' ? '総価値÷契約金額' : '总价值÷合同金额'}</p>
                 </div>
                 <div className="bg-gradient-to-br from-purple-950/50 to-purple-900/30 rounded-lg p-3 border border-purple-500/30">
                   <p className="text-xs text-gray-400">{language === 'ja' ? '配信回数' : '直播次数'}</p>
-                  <p className="text-lg font-bold text-purple-400">{adProposalData.metrics?.totalLivestreams || 0}回</p>
+                  <p className="text-lg font-bold text-purple-400">{adProposalData.metrics?.totalLivestreams || 0}{language === 'ja' ? '回' : '次'}</p>
                 </div>
               </div>
               {/* Additional Metrics Row */}
@@ -5001,7 +5001,7 @@ ${proposal.proposalContent}
                 <div className="bg-gradient-to-br from-indigo-950/50 to-indigo-900/30 rounded-lg p-3 border border-indigo-500/30">
                   <p className="text-xs text-gray-400">{language === 'ja' ? '総価値' : '总价值'}</p>
                   <p className="text-lg font-bold text-indigo-400">¥{(adProposalData.metrics?.totalValue || 0).toLocaleString()}</p>
-                  <p className="text-[9px] text-gray-500">GMV+広告換算</p>
+                  <p className="text-[9px] text-gray-500">{language === 'ja' ? 'GMV+広告換算' : 'GMV+广告换算'}</p>
                 </div>
                 <div className="bg-gradient-to-br from-rose-950/50 to-rose-900/30 rounded-lg p-3 border border-rose-500/30">
                   <p className="text-xs text-gray-400">{language === 'ja' ? '契約金額' : '合同金额'}</p>
