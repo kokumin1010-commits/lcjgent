@@ -103,8 +103,18 @@ export default function LiverMypage() {
     const worksheet = workbook.Sheets[sheetName];
     const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as unknown[][];
     
-    // Skip header row
-    const dataRows = jsonData.slice(1);
+    // Find the actual header row (contains "Start time")
+    let headerRowIndex = -1;
+    for (let i = 0; i < jsonData.length; i++) {
+      const row = jsonData[i];
+      if (Array.isArray(row) && row.some(cell => String(cell).includes('Start time'))) {
+        headerRowIndex = i;
+        break;
+      }
+    }
+    
+    // Skip rows before and including header
+    const dataRows = headerRowIndex >= 0 ? jsonData.slice(headerRowIndex + 1) : jsonData.slice(1);
     
     return dataRows.map((row: unknown[]) => {
       // Parse duration string (e.g., "64714" seconds)
