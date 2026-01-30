@@ -682,6 +682,127 @@ export default function LivestreamDetail() {
                   </span>
                 </div>
 
+                {/* 商品別売上セクション（カード形式+プログレスバー+ランキング） */}
+                <div className="bg-gradient-to-r from-orange-900/20 to-amber-900/20 border border-orange-600/30 rounded-lg p-4">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-sm font-medium text-orange-400 flex items-center gap-2">
+                      <FileSpreadsheet className="w-4 h-4" />
+                      商品別売上
+                    </h3>
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        accept=".csv,.xlsx,.xls"
+                        onChange={handleProductCsvUpload}
+                        className="hidden"
+                        disabled={isImportingProductCsv}
+                      />
+                      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded text-xs font-medium transition-colors ${
+                        isImportingProductCsv 
+                          ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                          : 'bg-orange-600 hover:bg-orange-700 text-white cursor-pointer'
+                      }`}>
+                        <Upload className="w-3 h-3" />
+                        {isImportingProductCsv ? 'インポート中...' : 'CSVインポート'}
+                      </span>
+                    </label>
+                  </div>
+                  
+                  {products && products.length > 0 ? (() => {
+                    const totalSales = products.reduce((sum, p) => sum + (p.directGmv || p.gmv || 0), 0);
+                    const sortedProducts = [...products].sort((a, b) => (b.directGmv || b.gmv || 0) - (a.directGmv || a.gmv || 0));
+                    const getRankBadge = (rank: number) => {
+                      if (rank === 1) return <span className="text-lg">🥇</span>;
+                      if (rank === 2) return <span className="text-lg">🥈</span>;
+                      if (rank === 3) return <span className="text-lg">🥉</span>;
+                      return <span className="w-6 h-6 flex items-center justify-center bg-gray-700 rounded-full text-xs text-gray-300">{rank}</span>;
+                    };
+                    
+                    return (
+                      <div className="space-y-3 max-h-96 overflow-y-auto">
+                        {sortedProducts.map((product, index) => {
+                          const sales = product.directGmv || product.gmv || 0;
+                          const percentage = totalSales > 0 ? (sales / totalSales) * 100 : 0;
+                          const rank = index + 1;
+                          
+                          return (
+                            <div key={product.id || index} className="bg-gray-900/70 rounded-lg p-4 border border-gray-700/50">
+                              {/* ランキングと商品名 */}
+                              <div className="flex items-start gap-3 mb-3">
+                                <div className="flex-shrink-0 mt-0.5">
+                                  {getRankBadge(rank)}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-white font-medium text-sm leading-tight line-clamp-2">
+                                    {product.productName}
+                                  </p>
+                                </div>
+                              </div>
+                              
+                              {/* 売上金額と構成比 */}
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-xl font-bold text-yellow-400">
+                                  ¥{sales.toLocaleString()}
+                                </span>
+                                <span className="text-sm text-gray-400">
+                                  売上構成比 {percentage.toFixed(1)}%
+                                </span>
+                              </div>
+                              
+                              {/* プログレスバー */}
+                              <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden mb-3">
+                                <div 
+                                  className={`h-full rounded-full transition-all duration-500 ${
+                                    rank === 1 ? 'bg-gradient-to-r from-yellow-400 to-amber-500' :
+                                    rank === 2 ? 'bg-gradient-to-r from-gray-300 to-gray-400' :
+                                    rank === 3 ? 'bg-gradient-to-r from-orange-400 to-orange-500' :
+                                    'bg-gradient-to-r from-blue-400 to-blue-500'
+                                  }`}
+                                  style={{ width: `${Math.max(percentage, 2)}%` }}
+                                />
+                              </div>
+                              
+                              {/* 詳細指標 */}
+                              <div className="flex flex-wrap gap-3 text-xs">
+                                {product.itemsSold !== null && product.itemsSold !== undefined && (
+                                  <span className="flex items-center gap-1 text-gray-300">
+                                    <ShoppingCart className="w-3 h-3 text-gray-500" />
+                                    販売: {product.itemsSold}個
+                                  </span>
+                                )}
+                                {product.customers !== null && product.customers !== undefined && (
+                                  <span className="flex items-center gap-1 text-gray-300">
+                                    <Users className="w-3 h-3 text-gray-500" />
+                                    購入者: {product.customers}人
+                                  </span>
+                                )}
+                                {product.ctr && (
+                                  <span className="flex items-center gap-1 text-gray-300">
+                                    <MousePointer className="w-3 h-3 text-gray-500" />
+                                    CTR: {(parseFloat(product.ctr) * 100).toFixed(2)}%
+                                  </span>
+                                )}
+                                {product.ctor && (
+                                  <span className="flex items-center gap-1 text-gray-300">
+                                    <TrendingUp className="w-3 h-3 text-gray-500" />
+                                    CTOR: {(parseFloat(product.ctor) * 100).toFixed(2)}%
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })() : (
+                    <div className="text-center py-8">
+                      <AlertTriangle className="w-10 h-10 text-orange-400 mx-auto mb-3" />
+                      <p className="text-gray-300 text-sm font-medium">商品別データが未登録です</p>
+                      <p className="text-gray-500 text-xs mt-1">TikTokの商品別CSVをインポートしてください</p>
+                    </div>
+                  )}
+                </div>
+
                 {/* Performance Metrics Grid */}
                 <div className="bg-gray-800/50 rounded-lg p-4">
                   <h3 className="text-sm font-medium text-gray-200 mb-3 flex items-center gap-2">
@@ -887,67 +1008,6 @@ export default function LivestreamDetail() {
                   </div>
                 )}
 
-                {/* 商品別売上セクション */}
-                <div className="bg-gradient-to-r from-orange-900/20 to-amber-900/20 border border-orange-600/30 rounded-lg p-4">
-                  <div className="flex justify-between items-center mb-3">
-                    <h3 className="text-sm font-medium text-orange-400 flex items-center gap-2">
-                      <FileSpreadsheet className="w-4 h-4" />
-                      商品別売上
-                    </h3>
-                    <label className="cursor-pointer">
-                      <input
-                        type="file"
-                        accept=".csv,.xlsx,.xls"
-                        onChange={handleProductCsvUpload}
-                        className="hidden"
-                        disabled={isImportingProductCsv}
-                      />
-                      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded text-xs font-medium transition-colors ${
-                        isImportingProductCsv 
-                          ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                          : 'bg-orange-600 hover:bg-orange-700 text-white cursor-pointer'
-                      }`}>
-                        <Upload className="w-3 h-3" />
-                        {isImportingProductCsv ? 'インポート中...' : 'CSVインポート'}
-                      </span>
-                    </label>
-                  </div>
-                  
-                  {products && products.length > 0 ? (
-                    <div className="space-y-2 max-h-80 overflow-y-auto">
-                      {products.map((product, index) => (
-                        <div key={product.id || index} className="bg-gray-900/50 rounded p-3">
-                          <div className="flex justify-between items-start">
-                            <p className="text-white font-medium text-sm flex-1 pr-2 line-clamp-2">
-                              {product.productName}
-                            </p>
-                            <p className="text-yellow-500 font-bold whitespace-nowrap">
-                              ¥{(product.directGmv || product.gmv || 0).toLocaleString()}
-                            </p>
-                          </div>
-                          <div className="flex gap-4 mt-2 text-xs text-gray-400">
-                            {product.itemsSold !== null && product.itemsSold !== undefined && (
-                              <span>販売: {product.itemsSold}個</span>
-                            )}
-                            {product.customers !== null && product.customers !== undefined && (
-                              <span>購入者: {product.customers}人</span>
-                            )}
-                            {product.ctr && (
-                              <span>CTR: {(parseFloat(product.ctr) * 100).toFixed(2)}%</span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-6">
-                      <AlertTriangle className="w-8 h-8 text-orange-400 mx-auto mb-2" />
-                      <p className="text-gray-400 text-sm">商品別データが未登録です</p>
-                      <p className="text-gray-500 text-xs mt-1">TikTokの商品別CSVをインポートしてください</p>
-                    </div>
-                  )}
-                </div>
-                
                 {/* Delivered Brand */}
                 <div className="flex justify-between items-center">
                   <span className="text-red-500 font-medium">配信したブランド</span>
