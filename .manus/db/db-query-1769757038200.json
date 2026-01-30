@@ -1,0 +1,45 @@
+{
+  "query": "SELECT id, brandId, liverId, livestreamDate, salesAmount FROM brand_livestreams ORDER BY id DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, brandId, liverId, livestreamDate, salesAmount FROM brand_livestreams ORDER BY id DESC LIMIT 5;",
+  "rows": [
+    {
+      "id": "450449",
+      "brandId": "1",
+      "liverId": "120005",
+      "livestreamDate": "2025-08-02 21:00:00",
+      "salesAmount": "458336"
+    },
+    {
+      "id": "450448",
+      "brandId": "1",
+      "liverId": "120005",
+      "livestreamDate": "2025-08-03 11:00:00",
+      "salesAmount": "212722"
+    },
+    {
+      "id": "450447",
+      "brandId": "1",
+      "liverId": "120005",
+      "livestreamDate": "2025-08-03 20:59:00",
+      "salesAmount": "150345"
+    },
+    {
+      "id": "450446",
+      "brandId": "1",
+      "liverId": "120005",
+      "livestreamDate": "2025-08-04 11:00:00",
+      "salesAmount": "177478"
+    },
+    {
+      "id": "450445",
+      "brandId": "1",
+      "liverId": "120005",
+      "livestreamDate": "2025-08-04 21:00:00",
+      "salesAmount": "265791"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tbrandId\tliverId\tlivestreamDate\tsalesAmount\n450449\t1\t120005\t2025-08-02 21:00:00\t458336\n450448\t1\t120005\t2025-08-03 11:00:00\t212722\n450447\t1\t120005\t2025-08-03 20:59:00\t150345\n450446\t1\t120005\t2025-08-04 11:00:00\t177478\n450445\t1\t120005\t2025-08-04 21:00:00\t265791\n",
+  "stderr": "",
+  "execution_time_ms": 1525
+}

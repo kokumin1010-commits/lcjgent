@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 
 export default function LivestreamDetail() {
   const params = useParams<{ id: string }>();
@@ -742,8 +743,96 @@ export default function LivestreamDetail() {
                       return <span className="w-6 h-6 flex items-center justify-center bg-gray-700 rounded-full text-xs text-gray-300">{rank}</span>;
                     };
                     
+                    // 円グラフ用のデータと色
+                    const CHART_COLORS = [
+                      '#f97316', // orange-500
+                      '#eab308', // yellow-500
+                      '#22c55e', // green-500
+                      '#3b82f6', // blue-500
+                      '#a855f7', // purple-500
+                      '#ec4899', // pink-500
+                      '#14b8a6', // teal-500
+                      '#f43f5e', // rose-500
+                      '#6366f1', // indigo-500
+                      '#84cc16', // lime-500
+                    ];
+                    
+                    const pieChartData = sortedProducts.slice(0, 10).map((product, index) => ({
+                      name: product.productName.length > 15 
+                        ? product.productName.substring(0, 15) + '...' 
+                        : product.productName,
+                      fullName: product.productName,
+                      value: product.directGmv || product.gmv || 0,
+                      percentage: totalSales > 0 ? ((product.directGmv || product.gmv || 0) / totalSales * 100).toFixed(1) : '0',
+                      color: CHART_COLORS[index % CHART_COLORS.length],
+                    }));
+                    
+                    // その他（Top10以外）
+                    if (sortedProducts.length > 10) {
+                      const othersTotal = sortedProducts.slice(10).reduce((sum, p) => sum + (p.directGmv || p.gmv || 0), 0);
+                      pieChartData.push({
+                        name: 'その他',
+                        fullName: `その他 (${sortedProducts.length - 10}商品)`,
+                        value: othersTotal,
+                        percentage: totalSales > 0 ? (othersTotal / totalSales * 100).toFixed(1) : '0',
+                        color: '#6b7280', // gray-500
+                      });
+                    }
+                    
                     return (
-                      <div className="space-y-3 max-h-96 overflow-y-auto">
+                      <div className="space-y-4">
+                        {/* 円グラフ */}
+                        <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-700/30">
+                          <h4 className="text-xs text-gray-400 mb-3 text-center">売上構成比 Sales Composition</h4>
+                          <div className="h-64">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                <Pie
+                                  data={pieChartData}
+                                  cx="50%"
+                                  cy="50%"
+                                  innerRadius={50}
+                                  outerRadius={80}
+                                  paddingAngle={2}
+                                  dataKey="value"
+                                  label={({ name, percentage }) => `${percentage}%`}
+                                  labelLine={false}
+                                >
+                                  {pieChartData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.color} stroke="#1f2937" strokeWidth={2} />
+                                  ))}
+                                </Pie>
+                                <Tooltip
+                                  content={({ active, payload }) => {
+                                    if (active && payload && payload.length) {
+                                      const data = payload[0].payload;
+                                      return (
+                                        <div className="bg-gray-800 border border-gray-600 rounded-lg p-3 shadow-lg">
+                                          <p className="text-white text-sm font-medium mb-1">{data.fullName}</p>
+                                          <p className="text-yellow-400 font-bold">¥{data.value.toLocaleString()}</p>
+                                          <p className="text-gray-400 text-xs">構成比: {data.percentage}%</p>
+                                        </div>
+                                      );
+                                    }
+                                    return null;
+                                  }}
+                                />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </div>
+                          {/* 凡例 */}
+                          <div className="flex flex-wrap justify-center gap-2 mt-3">
+                            {pieChartData.slice(0, 5).map((item, index) => (
+                              <div key={index} className="flex items-center gap-1.5 text-xs">
+                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
+                                <span className="text-gray-300 max-w-[80px] truncate">{item.name}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        {/* 商品リスト */}
+                        <div className="space-y-3 max-h-96 overflow-y-auto">
                         {sortedProducts.map((product, index) => {
                           const sales = product.directGmv || product.gmv || 0;
                           const percentage = totalSales > 0 ? (sales / totalSales) * 100 : 0;
@@ -829,6 +918,7 @@ export default function LivestreamDetail() {
                             </div>
                           );
                         })}
+                        </div>
                       </div>
                     );
                   })() : (

@@ -1,0 +1,35 @@
+{
+  "query": "SELECT l.id, l.salesAmount, COUNT(p.id) as product_count FROM brand_livestreams l LEFT JOIN livestream_products p ON l.id = p.livestreamId GROUP BY l.id HAVING product_count > 0 ORDER BY l.id DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT l.id, l.salesAmount, COUNT(p.id) as product_count FROM brand_livestreams l LEFT JOIN livestream_products p ON l.id = p.livestreamId GROUP BY l.id HAVING product_count > 0 ORDER BY l.id DESC LIMIT 5;",
+  "rows": [
+    {
+      "id": "450446",
+      "salesAmount": "177478",
+      "product_count": "46"
+    },
+    {
+      "id": "450402",
+      "salesAmount": "22088",
+      "product_count": "25"
+    },
+    {
+      "id": "450397",
+      "salesAmount": "465605",
+      "product_count": "66"
+    },
+    {
+      "id": "4",
+      "salesAmount": "NULL",
+      "product_count": "1"
+    },
+    {
+      "id": "3",
+      "salesAmount": "NULL",
+      "product_count": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tsalesAmount\tproduct_count\n450446\t177478\t46\n450402\t22088\t25\n450397\t465605\t66\n4\tNULL\t1\n3\tNULL\t1\n",
+  "stderr": "",
+  "execution_time_ms": 1561
+}
