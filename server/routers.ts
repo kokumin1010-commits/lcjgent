@@ -2434,24 +2434,96 @@ ${topProducts.map((p, i) => `${i + 1}. ${p.name}: ¥${p.gmv.toLocaleString()}`).
         const organicReachMultiplier = 2.5; // Paid ads typically get 2.5x more reach
         const paidConversionBoost = 1.3; // Paid traffic converts 30% better due to targeting
 
+        // Ad Type Allocation Logic
+        // Live Shopping Ads: Higher conversion during live, immediate sales boost
+        // Clip Ads (Spark Ads): Long-term reach, brand awareness, post-live engagement
+        const liveAdCpm = 18000; // Live ads are slightly more expensive but higher conversion
+        const clipAdCpm = 12000; // Clip ads are cheaper but lower immediate conversion
+        const liveAdConversionBoost = 1.8; // Live ads convert 80% better (urgency + real-time)
+        const clipAdConversionBoost = 1.1; // Clip ads convert 10% better than organic
+        const clipAdReachMultiplier = 1.5; // Clip ads reach more people over time
+
+        // Determine optimal allocation based on brand characteristics
+        // High GMV per live = good live performance = favor live ads
+        // High impressions = good content = favor clip ads for reach
+        const livePerformanceScore = avgGmvPerLive > 300000 ? 0.7 : avgGmvPerLive > 100000 ? 0.5 : 0.3;
+        const contentPerformanceScore = avgImpressionsPerLive > 50000 ? 0.7 : avgImpressionsPerLive > 20000 ? 0.5 : 0.3;
+        
+        // Calculate recommended allocation (live:clip ratio)
+        // If live performance is strong, allocate more to live ads
+        // If content performance is strong, allocate more to clip ads
+        let recommendedLiveRatio = 0.5; // Default 50:50
+        let allocationReason = '';
+        const isJaLang = input.language === 'ja';
+        
+        if (livePerformanceScore >= 0.7 && contentPerformanceScore < 0.5) {
+          recommendedLiveRatio = 0.7; // 70% live, 30% clip
+          allocationReason = isJaLang 
+            ? 'ライブ配信の売上が高いため、ライブ広告重視が効果的です'
+            : '直播销售高，建议重点投入直播广告';
+        } else if (contentPerformanceScore >= 0.7 && livePerformanceScore < 0.5) {
+          recommendedLiveRatio = 0.3; // 30% live, 70% clip
+          allocationReason = isJaLang
+            ? 'コンテンツのリーチが良いため、切り抜き広告で長期リーチを獲得しましょう'
+            : '内容触达率高，建议用切片广告获取长期触达';
+        } else if (livePerformanceScore >= 0.5 && contentPerformanceScore >= 0.5) {
+          recommendedLiveRatio = 0.5; // Balanced 50:50
+          allocationReason = isJaLang
+            ? 'ライブとコンテンツ両方が好調のため、バランス配分が最適です'
+            : '直播和内容都表现良好，建议平衡分配';
+        } else {
+          recommendedLiveRatio = 0.4; // Slightly favor clips for brand building
+          allocationReason = isJaLang
+            ? 'まずは切り抜き広告で認知度を上げ、ライブへの流入を増やしましょう'
+            : '先用切片广告提高知名度，增加直播流量';
+        }
+
+        // Helper function to calculate allocation for each scenario
+        const calculateAllocation = (totalBudget: number) => {
+          const liveBudget = Math.round(totalBudget * recommendedLiveRatio);
+          const clipBudget = totalBudget - liveBudget;
+          
+          const liveImpressions = (liveBudget / liveAdCpm) * 1000;
+          const clipImpressions = (clipBudget / clipAdCpm) * 1000 * clipAdReachMultiplier;
+          
+          const liveGmv = liveImpressions * (avgConversionRate / 100) * liveAdConversionBoost;
+          const clipGmv = clipImpressions * (avgConversionRate / 100) * clipAdConversionBoost;
+          
+          return {
+            liveBudget,
+            clipBudget,
+            liveRatio: recommendedLiveRatio,
+            clipRatio: 1 - recommendedLiveRatio,
+            liveImpressions,
+            clipImpressions,
+            liveProjectedGmv: liveGmv,
+            clipProjectedGmv: clipGmv,
+            totalImpressions: liveImpressions + clipImpressions,
+            totalProjectedGmv: liveGmv + clipGmv,
+          };
+        };
+
         // Scenario 1: Small ad budget (¥100,000)
         const smallBudget = 100000;
-        const smallAdImpressions = (smallBudget / adCpm) * 1000;
-        const smallProjectedGmv = smallAdImpressions * (avgConversionRate / 100) * paidConversionBoost;
+        const smallAllocation = calculateAllocation(smallBudget);
+        const smallAdImpressions = smallAllocation.totalImpressions;
+        const smallProjectedGmv = smallAllocation.totalProjectedGmv;
         const smallTotalProjectedGmv = totalGmv + smallProjectedGmv;
         const smallRoas = smallBudget > 0 ? smallProjectedGmv / smallBudget : 0;
 
         // Scenario 2: Medium ad budget (¥300,000)
         const mediumBudget = 300000;
-        const mediumAdImpressions = (mediumBudget / adCpm) * 1000;
-        const mediumProjectedGmv = mediumAdImpressions * (avgConversionRate / 100) * paidConversionBoost;
+        const mediumAllocation = calculateAllocation(mediumBudget);
+        const mediumAdImpressions = mediumAllocation.totalImpressions;
+        const mediumProjectedGmv = mediumAllocation.totalProjectedGmv;
         const mediumTotalProjectedGmv = totalGmv + mediumProjectedGmv;
         const mediumRoas = mediumBudget > 0 ? mediumProjectedGmv / mediumBudget : 0;
 
         // Scenario 3: Large ad budget (¥500,000)
         const largeBudget = 500000;
-        const largeAdImpressions = (largeBudget / adCpm) * 1000;
-        const largeProjectedGmv = largeAdImpressions * (avgConversionRate / 100) * paidConversionBoost;
+        const largeAllocation = calculateAllocation(largeBudget);
+        const largeAdImpressions = largeAllocation.totalImpressions;
+        const largeProjectedGmv = largeAllocation.totalProjectedGmv;
         const largeTotalProjectedGmv = totalGmv + largeProjectedGmv;
         const largeRoas = largeBudget > 0 ? largeProjectedGmv / largeBudget : 0;
 
@@ -2517,20 +2589,30 @@ ${topProducts.map((p, i) => `${i + 1}. ${p.name}: ¥${p.gmv.toLocaleString()}`).
 
 ## 広告費投入シナリオ
 
+### おすすめ配分: ライブ広告 ${Math.round(recommendedLiveRatio * 100)}% : 切り抜き広告 ${Math.round((1 - recommendedLiveRatio) * 100)}%
+理由: ${allocationReason}
+
 ### シナリオ1: 小規模投入（¥${smallBudget.toLocaleString()}）
-- 追加インプレッション: ${Math.round(smallAdImpressions).toLocaleString()}回
-- 予測追加GMV: ¥${Math.round(smallProjectedGmv).toLocaleString()}
+- ライブ広告: ¥${smallAllocation.liveBudget.toLocaleString()} → +${Math.round(smallAllocation.liveImpressions).toLocaleString()}インプレッション → 予測GMV ¥${Math.round(smallAllocation.liveProjectedGmv).toLocaleString()}
+- 切り抜き広告: ¥${smallAllocation.clipBudget.toLocaleString()} → +${Math.round(smallAllocation.clipImpressions).toLocaleString()}インプレッション → 予測GMV ¥${Math.round(smallAllocation.clipProjectedGmv).toLocaleString()}
+- 合計予測追加GMV: ¥${Math.round(smallProjectedGmv).toLocaleString()}
 - 予測ROAS: ${smallRoas.toFixed(2)}倍
 
-### シナリオ2: 中規模投入（¥${mediumBudget.toLocaleString()}）
-- 追加インプレッション: ${Math.round(mediumAdImpressions).toLocaleString()}回
-- 予測追加GMV: ¥${Math.round(mediumProjectedGmv).toLocaleString()}
+### シナリオ2: 中規模投入（¥${mediumBudget.toLocaleString()}）〜おすすめ〜
+- ライブ広告: ¥${mediumAllocation.liveBudget.toLocaleString()} → +${Math.round(mediumAllocation.liveImpressions).toLocaleString()}インプレッション → 予測GMV ¥${Math.round(mediumAllocation.liveProjectedGmv).toLocaleString()}
+- 切り抜き広告: ¥${mediumAllocation.clipBudget.toLocaleString()} → +${Math.round(mediumAllocation.clipImpressions).toLocaleString()}インプレッション → 予測GMV ¥${Math.round(mediumAllocation.clipProjectedGmv).toLocaleString()}
+- 合計予測追加GMV: ¥${Math.round(mediumProjectedGmv).toLocaleString()}
 - 予測ROAS: ${mediumRoas.toFixed(2)}倍
 
 ### シナリオ3: 大規模投入（¥${largeBudget.toLocaleString()}）
-- 追加インプレッション: ${Math.round(largeAdImpressions).toLocaleString()}回
-- 予測追加GMV: ¥${Math.round(largeProjectedGmv).toLocaleString()}
+- ライブ広告: ¥${largeAllocation.liveBudget.toLocaleString()} → +${Math.round(largeAllocation.liveImpressions).toLocaleString()}インプレッション → 予測GMV ¥${Math.round(largeAllocation.liveProjectedGmv).toLocaleString()}
+- 切り抜き広告: ¥${largeAllocation.clipBudget.toLocaleString()} → +${Math.round(largeAllocation.clipImpressions).toLocaleString()}インプレッション → 予測GMV ¥${Math.round(largeAllocation.clipProjectedGmv).toLocaleString()}
+- 合計予測追加GMV: ¥${Math.round(largeProjectedGmv).toLocaleString()}
 - 予測ROAS: ${largeRoas.toFixed(2)}倍
+
+## 広告タイプの説明
+- ライブ広告（Live Shopping Ads）: ライブ配信中に視聴者を増やし、即時購入を促進。コンバージョン率が高い。
+- 切り抜き広告（Spark Ads）: ライブのハイライトを切り抜いて配信後も継続的にリーチ。認知度向上に効果的。
 
 ## レポート作成指示
 1. まず現在のライブ成績がいかに優れているかを強調してください
@@ -2565,20 +2647,30 @@ ${topProducts.map((p, i) => `${i + 1}. ${p.name}: ¥${p.gmv.toLocaleString()}`).
 
 ## 广告费投入方案
 
+### 推荐分配: 直播广告 ${Math.round(recommendedLiveRatio * 100)}% : 切片广告 ${Math.round((1 - recommendedLiveRatio) * 100)}%
+理由: ${allocationReason}
+
 ### 方案一: 小规模投入（¥${smallBudget.toLocaleString()}）
-- 增加印象数: ${Math.round(smallAdImpressions).toLocaleString()}次
-- 预测增加GMV: ¥${Math.round(smallProjectedGmv).toLocaleString()}
+- 直播广告: ¥${smallAllocation.liveBudget.toLocaleString()} → +${Math.round(smallAllocation.liveImpressions).toLocaleString()}印象数 → 预测GMV ¥${Math.round(smallAllocation.liveProjectedGmv).toLocaleString()}
+- 切片广告: ¥${smallAllocation.clipBudget.toLocaleString()} → +${Math.round(smallAllocation.clipImpressions).toLocaleString()}印象数 → 预测GMV ¥${Math.round(smallAllocation.clipProjectedGmv).toLocaleString()}
+- 合计预测增加GMV: ¥${Math.round(smallProjectedGmv).toLocaleString()}
 - 预测ROAS: ${smallRoas.toFixed(2)}倍
 
-### 方案二: 中规模投入（¥${mediumBudget.toLocaleString()}）
-- 增加印象数: ${Math.round(mediumAdImpressions).toLocaleString()}次
-- 预测增加GMV: ¥${Math.round(mediumProjectedGmv).toLocaleString()}
+### 方案二: 中规模投入（¥${mediumBudget.toLocaleString()}）〜推荐〜
+- 直播广告: ¥${mediumAllocation.liveBudget.toLocaleString()} → +${Math.round(mediumAllocation.liveImpressions).toLocaleString()}印象数 → 预测GMV ¥${Math.round(mediumAllocation.liveProjectedGmv).toLocaleString()}
+- 切片广告: ¥${mediumAllocation.clipBudget.toLocaleString()} → +${Math.round(mediumAllocation.clipImpressions).toLocaleString()}印象数 → 预测GMV ¥${Math.round(mediumAllocation.clipProjectedGmv).toLocaleString()}
+- 合计预测增加GMV: ¥${Math.round(mediumProjectedGmv).toLocaleString()}
 - 预测ROAS: ${mediumRoas.toFixed(2)}倍
 
 ### 方案三: 大规模投入（¥${largeBudget.toLocaleString()}）
-- 增加印象数: ${Math.round(largeAdImpressions).toLocaleString()}次
-- 预测增加GMV: ¥${Math.round(largeProjectedGmv).toLocaleString()}
+- 直播广告: ¥${largeAllocation.liveBudget.toLocaleString()} → +${Math.round(largeAllocation.liveImpressions).toLocaleString()}印象数 → 预测GMV ¥${Math.round(largeAllocation.liveProjectedGmv).toLocaleString()}
+- 切片广告: ¥${largeAllocation.clipBudget.toLocaleString()} → +${Math.round(largeAllocation.clipImpressions).toLocaleString()}印象数 → 预测GMV ¥${Math.round(largeAllocation.clipProjectedGmv).toLocaleString()}
+- 合计预测增加GMV: ¥${Math.round(largeProjectedGmv).toLocaleString()}
 - 预测ROAS: ${largeRoas.toFixed(2)}倍
+
+## 广告类型说明
+- 直播广告（Live Shopping Ads）: 直播期间增加观众，促进即时购买。转化率高。
+- 切片广告（Spark Ads）: 将直播精彩片段切出，直播后继续触达。提高知名度效果好。
 
 ## 报告制作指示
 1. 首先强调当前直播成绩有多优秀
@@ -2633,6 +2725,7 @@ ${topProducts.map((p, i) => `${i + 1}. ${p.name}: ¥${p.gmv.toLocaleString()}`).
               projectedGmv: smallProjectedGmv,
               totalProjectedGmv: smallTotalProjectedGmv,
               roas: smallRoas,
+              allocation: smallAllocation,
             },
             medium: {
               budget: mediumBudget,
@@ -2640,6 +2733,7 @@ ${topProducts.map((p, i) => `${i + 1}. ${p.name}: ¥${p.gmv.toLocaleString()}`).
               projectedGmv: mediumProjectedGmv,
               totalProjectedGmv: mediumTotalProjectedGmv,
               roas: mediumRoas,
+              allocation: mediumAllocation,
             },
             large: {
               budget: largeBudget,
@@ -2647,7 +2741,14 @@ ${topProducts.map((p, i) => `${i + 1}. ${p.name}: ¥${p.gmv.toLocaleString()}`).
               projectedGmv: largeProjectedGmv,
               totalProjectedGmv: largeTotalProjectedGmv,
               roas: largeRoas,
+              allocation: largeAllocation,
             },
+          },
+          // Allocation recommendation
+          allocationRecommendation: {
+            liveRatio: recommendedLiveRatio,
+            clipRatio: 1 - recommendedLiveRatio,
+            reason: allocationReason,
           },
           // Urgency
           urgency: {

@@ -5596,6 +5596,31 @@ ${proposal.proposalContent}
                 </div>
               </div>
 
+              {/* Allocation Recommendation */}
+              {adAlertData.allocationRecommendation && (
+                <div className="bg-gradient-to-br from-purple-950/30 to-indigo-950/30 rounded-lg p-4 border border-purple-500/30">
+                  <h4 className="text-sm font-bold text-purple-300 mb-3 flex items-center gap-2">
+                    <span className="text-lg">🎯</span>
+                    {language === 'ja' ? 'おすすめ広告配分' : '推荐广告分配'}
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4 mb-3">
+                    <div className="text-center bg-black/30 rounded-lg p-3">
+                      <p className="text-xs text-gray-400 mb-1">📺 {language === 'ja' ? 'ライブ広告' : '直播广告'}</p>
+                      <p className="text-2xl font-bold text-cyan-400">{Math.round((adAlertData.allocationRecommendation.liveRatio || 0) * 100)}%</p>
+                      <p className="text-xs text-gray-500 mt-1">{language === 'ja' ? '配信中に視聴者を増やし即時購入を促進' : '直播期间增加观众促进即时购买'}</p>
+                    </div>
+                    <div className="text-center bg-black/30 rounded-lg p-3">
+                      <p className="text-xs text-gray-400 mb-1">🎬 {language === 'ja' ? '切り抜き広告' : '切片广告'}</p>
+                      <p className="text-2xl font-bold text-pink-400">{Math.round((adAlertData.allocationRecommendation.clipRatio || 0) * 100)}%</p>
+                      <p className="text-xs text-gray-500 mt-1">{language === 'ja' ? '配信後も継続的にリーチし認知度向上' : '直播后继续触达提高知名度'}</p>
+                    </div>
+                  </div>
+                  <div className="bg-black/20 rounded-lg p-3">
+                    <p className="text-sm text-purple-200">💡 {adAlertData.allocationRecommendation.reason}</p>
+                  </div>
+                </div>
+              )}
+
               {/* Ad Investment Scenarios */}
               <div className="bg-gradient-to-br from-green-950/30 to-emerald-950/30 rounded-lg p-4 border border-green-500/30">
                 <h4 className="text-sm font-bold text-green-300 mb-3 flex items-center gap-2">
@@ -5609,11 +5634,15 @@ ${proposal.proposalContent}
                       <Badge className="bg-gray-600 text-white">{language === 'ja' ? '小規模' : '小规模'}</Badge>
                       <p className="text-xl font-bold text-white mt-2">¥{(adAlertData.scenarios.small.budget || 0).toLocaleString()}</p>
                     </div>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">{language === 'ja' ? '追加インプレッション' : '增加印象数'}</span>
-                        <span className="text-cyan-400">+{Math.round(adAlertData.scenarios.small.additionalImpressions || 0).toLocaleString()}</span>
+                    {adAlertData.scenarios.small.allocation && (
+                      <div className="bg-black/20 rounded p-2 mb-2">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-cyan-300">📺 ¥{(adAlertData.scenarios.small.allocation.liveBudget || 0).toLocaleString()}</span>
+                          <span className="text-pink-300">🎬 ¥{(adAlertData.scenarios.small.allocation.clipBudget || 0).toLocaleString()}</span>
+                        </div>
                       </div>
+                    )}
+                    <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span className="text-gray-400">{language === 'ja' ? '予測追加GMV' : '预测增加GMV'}</span>
                         <span className="text-green-400">+¥{Math.round(adAlertData.scenarios.small.projectedGmv || 0).toLocaleString()}</span>
@@ -5634,11 +5663,15 @@ ${proposal.proposalContent}
                       <Badge className="bg-green-600 text-white">{language === 'ja' ? '中規模' : '中规模'}</Badge>
                       <p className="text-xl font-bold text-white mt-2">¥{(adAlertData.scenarios.medium.budget || 0).toLocaleString()}</p>
                     </div>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">{language === 'ja' ? '追加インプレッション' : '增加印象数'}</span>
-                        <span className="text-cyan-400">+{Math.round(adAlertData.scenarios.medium.additionalImpressions || 0).toLocaleString()}</span>
+                    {adAlertData.scenarios.medium.allocation && (
+                      <div className="bg-black/20 rounded p-2 mb-2">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-cyan-300">📺 ¥{(adAlertData.scenarios.medium.allocation.liveBudget || 0).toLocaleString()}</span>
+                          <span className="text-pink-300">🎬 ¥{(adAlertData.scenarios.medium.allocation.clipBudget || 0).toLocaleString()}</span>
+                        </div>
                       </div>
+                    )}
+                    <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span className="text-gray-400">{language === 'ja' ? '予測追加GMV' : '预测增加GMV'}</span>
                         <span className="text-green-400">+¥{Math.round(adAlertData.scenarios.medium.projectedGmv || 0).toLocaleString()}</span>
@@ -5656,11 +5689,15 @@ ${proposal.proposalContent}
                       <Badge className="bg-purple-600 text-white">{language === 'ja' ? '大規模' : '大规模'}</Badge>
                       <p className="text-xl font-bold text-white mt-2">¥{(adAlertData.scenarios.large.budget || 0).toLocaleString()}</p>
                     </div>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">{language === 'ja' ? '追加インプレッション' : '增加印象数'}</span>
-                        <span className="text-cyan-400">+{Math.round(adAlertData.scenarios.large.additionalImpressions || 0).toLocaleString()}</span>
+                    {adAlertData.scenarios.large.allocation && (
+                      <div className="bg-black/20 rounded p-2 mb-2">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-cyan-300">📺 ¥{(adAlertData.scenarios.large.allocation.liveBudget || 0).toLocaleString()}</span>
+                          <span className="text-pink-300">🎬 ¥{(adAlertData.scenarios.large.allocation.clipBudget || 0).toLocaleString()}</span>
+                        </div>
                       </div>
+                    )}
+                    <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span className="text-gray-400">{language === 'ja' ? '予測追加GMV' : '预测增加GMV'}</span>
                         <span className="text-green-400">+¥{Math.round(adAlertData.scenarios.large.projectedGmv || 0).toLocaleString()}</span>
