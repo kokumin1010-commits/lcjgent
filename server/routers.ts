@@ -220,6 +220,12 @@ import {
   createLivestreamCsvImportHistory,
   getLivestreamCsvImportHistoryByLiver,
   deleteLivestreamCsvImportHistory,
+  createAdProposalHistory,
+  getAdProposalsByBrandId,
+  getAdProposalById,
+  getLatestProposalVersion,
+  updateAdProposalStatus,
+  deleteAdProposal,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -1794,6 +1800,89 @@ ${topProducts.map((p, i) => `${i + 1}. ${p.name}: ¥${p.gmv.toLocaleString()}`).
           },
           generatedAt: new Date().toISOString(),
         };
+      }),
+
+    // Save ad proposal to history
+    saveAdProposal: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+        proposalContent: z.string(),
+        metrics: z.object({
+          totalGmv: z.number(),
+          totalImpressions: z.number(),
+          adValue: z.number(),
+          totalValue: z.number(),
+          totalAdCost: z.number(),
+          avgRoas: z.number(),
+          totalLivestreams: z.number(),
+          avgSalesPerLive: z.number(),
+          avgDuration: z.number(),
+          topProducts: z.array(z.object({ name: z.string(), gmv: z.number() })),
+          activeContractsCount: z.number(),
+          productsCount: z.number(),
+        }),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        // Get the latest version number
+        const latestVersion = await getLatestProposalVersion(input.brandId);
+        const newVersion = latestVersion + 1;
+
+        // Save to database
+        await createAdProposalHistory({
+          brandId: input.brandId,
+          version: newVersion,
+          proposalContent: input.proposalContent,
+          totalGmv: input.metrics.totalGmv,
+          totalImpressions: input.metrics.totalImpressions,
+          adValue: input.metrics.adValue,
+          totalValue: input.metrics.totalValue,
+          totalAdCost: input.metrics.totalAdCost,
+          avgRoas: String(input.metrics.avgRoas),
+          totalLivestreams: input.metrics.totalLivestreams,
+          avgSalesPerLive: input.metrics.avgSalesPerLive,
+          avgDuration: input.metrics.avgDuration,
+          productsCount: input.metrics.productsCount,
+          activeContractsCount: input.metrics.activeContractsCount,
+          topProducts: input.metrics.topProducts,
+          status: 'draft',
+          createdBy: ctx.user.id,
+          createdByName: ctx.user.name || ctx.user.email,
+        });
+
+        return { success: true, version: newVersion };
+      }),
+
+    // Get ad proposal history for a brand
+    getAdProposalHistory: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        return await getAdProposalsByBrandId(input.brandId);
+      }),
+
+    // Get a specific ad proposal by ID
+    getAdProposalById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return await getAdProposalById(input.id);
+      }),
+
+    // Update ad proposal status
+    updateAdProposalStatus: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(['draft', 'submitted', 'approved', 'rejected']),
+      }))
+      .mutation(async ({ input }) => {
+        await updateAdProposalStatus(input.id, input.status);
+        return { success: true };
+      }),
+
+    // Delete ad proposal
+    deleteAdProposal: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteAdProposal(input.id);
+        return { success: true };
       }),
 
     // Upload image for brand

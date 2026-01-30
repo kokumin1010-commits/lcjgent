@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -4431,4 +4431,103 @@ export async function getAllLivestreamCsvImportHistory() {
     .select()
     .from(livestreamCsvImportHistory)
     .orderBy(desc(livestreamCsvImportHistory.createdAt));
+}
+
+
+// ============================================
+// Ad Proposal History Functions
+// ============================================
+
+/**
+ * Create a new ad proposal history record
+ */
+export async function createAdProposalHistory(data: InsertAdProposalHistory) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(adProposalHistory).values(data);
+  return result;
+}
+
+/**
+ * Get all ad proposals for a brand
+ */
+export async function getAdProposalsByBrandId(brandId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(adProposalHistory)
+    .where(eq(adProposalHistory.brandId, brandId))
+    .orderBy(desc(adProposalHistory.createdAt));
+}
+
+/**
+ * Get a specific ad proposal by ID
+ */
+export async function getAdProposalById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  
+  const result = await db
+    .select()
+    .from(adProposalHistory)
+    .where(eq(adProposalHistory.id, id))
+    .limit(1);
+  
+  return result.length > 0 ? result[0] : undefined;
+}
+
+/**
+ * Get the latest version number for a brand's proposals
+ */
+export async function getLatestProposalVersion(brandId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+  
+  const result = await db
+    .select({ maxVersion: sql<number>`MAX(${adProposalHistory.version})` })
+    .from(adProposalHistory)
+    .where(eq(adProposalHistory.brandId, brandId));
+  
+  return result[0]?.maxVersion || 0;
+}
+
+/**
+ * Update ad proposal status
+ */
+export async function updateAdProposalStatus(id: number, status: 'draft' | 'submitted' | 'approved' | 'rejected') {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return await db
+    .update(adProposalHistory)
+    .set({ status })
+    .where(eq(adProposalHistory.id, id));
+}
+
+/**
+ * Delete an ad proposal
+ */
+export async function deleteAdProposal(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return await db
+    .delete(adProposalHistory)
+    .where(eq(adProposalHistory.id, id));
+}
+
+/**
+ * Get all ad proposals (for admin view)
+ */
+export async function getAllAdProposals() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(adProposalHistory)
+    .orderBy(desc(adProposalHistory.createdAt));
 }

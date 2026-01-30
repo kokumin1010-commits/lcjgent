@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, bigint, json, boolean } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, bigint, json, boolean, decimal } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -1022,3 +1022,46 @@ export const livestreamCsvImportHistory = mysqlTable("livestream_csv_import_hist
 
 export type LivestreamCsvImportHistory = typeof livestreamCsvImportHistory.$inferSelect;
 export type InsertLivestreamCsvImportHistory = typeof livestreamCsvImportHistory.$inferInsert;
+
+
+/**
+ * Ad Proposal History table for storing generated TikTok ad proposals
+ */
+export const adProposalHistory = mysqlTable("ad_proposal_history", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(), // References brands.id
+  version: int("version").default(1).notNull(), // Version number for the same brand
+  
+  // Proposal content
+  proposalContent: text("proposalContent").notNull(), // AI-generated proposal text (Markdown)
+  
+  // Metrics snapshot at the time of generation
+  totalGmv: bigint("totalGmv", { mode: "number" }).default(0), // 総GMV
+  totalImpressions: bigint("totalImpressions", { mode: "number" }).default(0), // 総インプレッション
+  adValue: bigint("adValue", { mode: "number" }).default(0), // 広告換算費用
+  totalValue: bigint("totalValue", { mode: "number" }).default(0), // 総価値
+  totalAdCost: bigint("totalAdCost", { mode: "number" }).default(0), // 契約金額
+  avgRoas: decimal("avgRoas", { precision: 10, scale: 2 }).default("0"), // 平均ROAS
+  totalLivestreams: int("totalLivestreams").default(0), // 配信回数
+  avgSalesPerLive: bigint("avgSalesPerLive", { mode: "number" }).default(0), // 平均売上/配信
+  avgDuration: int("avgDuration").default(0), // 平均配信時間（分）
+  productsCount: int("productsCount").default(0), // 商品数
+  activeContractsCount: int("activeContractsCount").default(0), // アクティブ契約数
+  
+  // Top products (JSON array)
+  topProducts: json("topProducts").$type<{ name: string; gmv: number }[]>(),
+  
+  // Status
+  status: mysqlEnum("status", ["draft", "submitted", "approved", "rejected"]).default("draft").notNull(),
+  
+  // User info
+  createdBy: int("createdBy").notNull(), // User ID who generated the proposal
+  createdByName: varchar("createdByName", { length: 255 }).notNull(), // 生成したユーザー名
+  
+  // Timestamps
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AdProposalHistory = typeof adProposalHistory.$inferSelect;
+export type InsertAdProposalHistory = typeof adProposalHistory.$inferInsert;

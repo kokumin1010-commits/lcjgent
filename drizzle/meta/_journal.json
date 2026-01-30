@@ -400,6 +400,13 @@
       "when": 1769749374993,
       "tag": "0056_brief_nekra",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "5",
+      "when": 1769761968937,
+      "tag": "0057_natural_vulcan",
+      "breakpoints": true
     }
   ]
 }

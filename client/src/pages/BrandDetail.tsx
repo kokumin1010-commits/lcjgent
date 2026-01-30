@@ -687,6 +687,8 @@ export default function BrandDetail() {
   const [adProposalDialogOpen, setAdProposalDialogOpen] = useState(false);
   const [isGeneratingProposal, setIsGeneratingProposal] = useState(false);
   const [adProposalData, setAdProposalData] = useState<any>(null);
+  const [proposalHistoryOpen, setProposalHistoryOpen] = useState(false);
+  const [selectedHistoryProposal, setSelectedHistoryProposal] = useState<any>(null);
 
   // AI Image Add states
   const [aiImageAddDialogOpen, setAiImageAddDialogOpen] = useState(false);
@@ -707,6 +709,7 @@ export default function BrandDetail() {
   const { data: memos = [], refetch: refetchMemos } = trpc.brandMemo.listByBrand.useQuery({ brandId });
   const { data: monthlyGmvSummary = [] } = trpc.brandLivestream.monthlyGmvSummary.useQuery({ brandId });
   const { data: lcjStaff = [] } = trpc.brand.getLcjStaff.useQuery({ brandId }, { enabled: brandId > 0 });
+  const { data: proposalHistory = [], refetch: refetchProposalHistory } = trpc.brand.getAdProposalHistory.useQuery({ brandId }, { enabled: brandId > 0 });
 
   // 同じ日の配信は1回としてカウント（ユニークな日付の数）
   const uniqueLivestreamDays = useMemo(() => {
@@ -747,6 +750,89 @@ export default function BrandDetail() {
     setIsGeneratingProposal(true);
     setAdProposalData(null);
     generateAdProposalMutation.mutate({ brandId });
+  };
+
+  // Save ad proposal mutation
+  const saveAdProposalMutation = trpc.brand.saveAdProposal.useMutation({
+    onSuccess: (data) => {
+      toast.success(`提案を保存しました (v${data.version})`);
+      refetchProposalHistory();
+    },
+    onError: (error) => {
+      toast.error("提案の保存に失敗しました");
+      console.error("Save proposal error:", error);
+    },
+  });
+
+  // Delete ad proposal mutation
+  const deleteAdProposalMutation = trpc.brand.deleteAdProposal.useMutation({
+    onSuccess: () => {
+      toast.success("提案を削除しました");
+      refetchProposalHistory();
+      setSelectedHistoryProposal(null);
+    },
+    onError: () => {
+      toast.error("削除に失敗しました");
+    },
+  });
+
+  const handleSaveProposal = () => {
+    if (!adProposalData) return;
+    saveAdProposalMutation.mutate({
+      brandId,
+      proposalContent: adProposalData.proposal,
+      metrics: {
+        totalGmv: adProposalData.metrics?.totalGmv || 0,
+        totalImpressions: adProposalData.metrics?.totalImpressions || 0,
+        adValue: adProposalData.metrics?.adValue || 0,
+        totalValue: adProposalData.metrics?.totalValue || 0,
+        totalAdCost: adProposalData.metrics?.totalAdCost || 0,
+        avgRoas: adProposalData.metrics?.avgRoas || 0,
+        totalLivestreams: adProposalData.metrics?.totalLivestreams || 0,
+        avgSalesPerLive: adProposalData.metrics?.avgSalesPerLive || 0,
+        avgDuration: adProposalData.metrics?.avgDuration || 0,
+        topProducts: adProposalData.metrics?.topProducts || [],
+        activeContractsCount: adProposalData.metrics?.activeContractsCount || 0,
+        productsCount: adProposalData.metrics?.productsCount || 0,
+      },
+    });
+  };
+
+  // PDF export function
+  const handleExportPdf = async (proposal: any) => {
+    try {
+      const content = `
+# TikTok広告提案: ${brand?.name || ''}
+
+## 生成日時
+${new Date(proposal.createdAt).toLocaleString('ja-JP')}
+
+## メトリクスサマリー
+- 総GMV: ¥${(proposal.totalGmv || 0).toLocaleString()}
+- 総インプレッション: ${(proposal.totalImpressions || 0).toLocaleString()}
+- 広告換算費用: ¥${(proposal.adValue || 0).toLocaleString()}
+- 総価値: ¥${(proposal.totalValue || 0).toLocaleString()}
+- 契約金額: ¥${(proposal.totalAdCost || 0).toLocaleString()}
+- 広告効果ROAS: ${Number(proposal.avgRoas || 0).toFixed(2)}倍
+- 配信回数: ${proposal.totalLivestreams || 0}回
+
+## AI広告提案
+${proposal.proposalContent}
+      `.trim();
+      
+      const blob = new Blob([content], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ad-proposal-${brand?.name || 'brand'}-v${proposal.version}-${new Date().toISOString().split('T')[0]}.md`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("提案をダウンロードしました");
+    } catch (error) {
+      toast.error("エクスポートに失敗しました");
+    }
   };
 
   const createMemoMutation = trpc.brandMemo.create.useMutation({
@@ -4933,27 +5019,208 @@ export default function BrandDetail() {
             </div>
           )}
 
+          <DialogFooter className="flex-wrap gap-2">
+            <div className="flex gap-2 w-full sm:w-auto">
+              <Button
+                variant="outline"
+                onClick={() => setProposalHistoryOpen(true)}
+                className="border-blue-500/50 bg-blue-950/50 text-gray-200 hover:bg-blue-900/40 hover:text-white"
+              >
+                <History className="h-4 w-4 mr-2" />
+                {language === 'ja' ? '履歴' : '历史'}
+                {proposalHistory.length > 0 && (
+                  <Badge className="ml-2 bg-blue-600 text-white text-xs">{proposalHistory.length}</Badge>
+                )}
+              </Button>
+            </div>
+            <div className="flex gap-2 w-full sm:w-auto sm:ml-auto">
+              <Button
+                variant="outline"
+                onClick={() => setAdProposalDialogOpen(false)}
+                className="border-purple-500/50 bg-purple-950/50 text-gray-200 hover:bg-purple-900/40 hover:text-white"
+              >
+                {t.close}
+              </Button>
+              {adProposalData && (
+                <>
+                  <Button
+                    onClick={handleSaveProposal}
+                    disabled={saveAdProposalMutation.isPending}
+                    className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white"
+                  >
+                    {saveAdProposalMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4 mr-2" />
+                    )}
+                    {language === 'ja' ? '保存' : '保存'}
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setIsGeneratingProposal(true);
+                      setAdProposalData(null);
+                      generateAdProposalMutation.mutate({ brandId });
+                    }}
+                    className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white"
+                  >
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    {language === 'ja' ? '再生成' : '重新生成'}
+                  </Button>
+                </>
+              )}
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Proposal History Dialog */}
+      <Dialog open={proposalHistoryOpen} onOpenChange={setProposalHistoryOpen}>
+        <DialogContent className="bg-black/95 border-blue-900/50 text-white max-w-5xl backdrop-blur-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-3">
+              <div className="w-1 h-6 bg-gradient-to-b from-blue-400 to-cyan-600 rounded-full" />
+              <History className="h-5 w-5 text-blue-400" />
+              {language === 'ja' ? '広告提案履歴' : '广告提案历史'}
+            </DialogTitle>
+          </DialogHeader>
+          
+          {proposalHistory.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 space-y-4">
+              <History className="h-12 w-12 text-gray-600" />
+              <p className="text-gray-400">{language === 'ja' ? '保存された提案はありません' : '没有保存的提案'}</p>
+              <p className="text-gray-500 text-sm">{language === 'ja' ? '提案を生成して保存してください' : '请生成并保存提案'}</p>
+            </div>
+          ) : selectedHistoryProposal ? (
+            <div className="space-y-6 py-4">
+              {/* Back button */}
+              <Button
+                variant="ghost"
+                onClick={() => setSelectedHistoryProposal(null)}
+                className="text-gray-400 hover:text-white"
+              >
+                <ChevronLeft className="h-4 w-4 mr-2" />
+                {language === 'ja' ? '一覧に戻る' : '返回列表'}
+              </Button>
+              
+              {/* Version header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Badge className="bg-blue-600 text-white">v{selectedHistoryProposal.version}</Badge>
+                  <span className="text-gray-400 text-sm">
+                    {new Date(selectedHistoryProposal.createdAt).toLocaleString('ja-JP')}
+                  </span>
+                  <span className="text-gray-500 text-xs">
+                    by {selectedHistoryProposal.createdByName}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleExportPdf(selectedHistoryProposal)}
+                    className="border-green-500/50 bg-green-950/50 text-green-300 hover:bg-green-900/40"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    {language === 'ja' ? 'ダウンロード' : '下载'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (confirm(language === 'ja' ? 'この提案を削除しますか？' : '确定要删除这个提案吗？')) {
+                        deleteAdProposalMutation.mutate({ id: selectedHistoryProposal.id });
+                      }
+                    }}
+                    className="border-red-500/50 bg-red-950/50 text-red-300 hover:bg-red-900/40"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    {language === 'ja' ? '削除' : '删除'}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Metrics Summary */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="bg-gradient-to-br from-cyan-950/50 to-cyan-900/30 rounded-lg p-3 border border-cyan-500/30">
+                  <p className="text-xs text-gray-400">{language === 'ja' ? '総GMV' : '总GMV'}</p>
+                  <p className="text-lg font-bold text-cyan-400">¥{(selectedHistoryProposal.totalGmv || 0).toLocaleString()}</p>
+                </div>
+                <div className="bg-gradient-to-br from-pink-950/50 to-pink-900/30 rounded-lg p-3 border border-pink-500/30">
+                  <p className="text-xs text-gray-400">{language === 'ja' ? '広告換算費用' : '广告换算费用'}</p>
+                  <p className="text-lg font-bold text-pink-400">¥{(selectedHistoryProposal.adValue || 0).toLocaleString()}</p>
+                </div>
+                <div className="bg-gradient-to-br from-amber-950/50 to-amber-900/30 rounded-lg p-3 border border-amber-500/30">
+                  <p className="text-xs text-gray-400">{language === 'ja' ? '広告効果ROAS' : '广告效果ROAS'}</p>
+                  <p className="text-lg font-bold text-amber-400">{Number(selectedHistoryProposal.avgRoas || 0).toFixed(2)}倍</p>
+                </div>
+                <div className="bg-gradient-to-br from-purple-950/50 to-purple-900/30 rounded-lg p-3 border border-purple-500/30">
+                  <p className="text-xs text-gray-400">{language === 'ja' ? '配信回数' : '直播次数'}</p>
+                  <p className="text-lg font-bold text-purple-400">{selectedHistoryProposal.totalLivestreams || 0}回</p>
+                </div>
+              </div>
+
+              {/* AI Proposal Content */}
+              <div className="bg-gradient-to-br from-purple-950/30 to-pink-950/20 rounded-lg p-4 border border-purple-500/30">
+                <h4 className="text-sm font-bold text-purple-300 mb-3 flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-purple-400" />
+                  {language === 'ja' ? 'AI広告提案' : 'AI广告提案'}
+                </h4>
+                <div className="prose prose-invert prose-sm max-w-none">
+                  <div className="text-gray-300 whitespace-pre-wrap leading-relaxed text-sm">
+                    {selectedHistoryProposal.proposalContent}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4 py-4">
+              {/* History list */}
+              {proposalHistory.map((proposal: any) => (
+                <div
+                  key={proposal.id}
+                  onClick={() => setSelectedHistoryProposal(proposal)}
+                  className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 rounded-lg p-4 border border-gray-700/50 hover:border-blue-500/50 cursor-pointer transition-all"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Badge className="bg-blue-600 text-white">v{proposal.version}</Badge>
+                      <div>
+                        <p className="text-gray-300 text-sm">
+                          {new Date(proposal.createdAt).toLocaleString('ja-JP')}
+                        </p>
+                        <p className="text-gray-500 text-xs">
+                          by {proposal.createdByName}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4 text-sm">
+                      <div className="text-right">
+                        <p className="text-cyan-400 font-mono">¥{(proposal.totalGmv || 0).toLocaleString()}</p>
+                        <p className="text-gray-500 text-xs">GMV</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-amber-400 font-mono">{Number(proposal.avgRoas || 0).toFixed(2)}倍</p>
+                        <p className="text-gray-500 text-xs">ROAS</p>
+                      </div>
+                      <ChevronRight className="h-5 w-5 text-gray-500" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setAdProposalDialogOpen(false)}
-              className="border-purple-500/50 bg-purple-950/50 text-gray-200 hover:bg-purple-900/40 hover:text-white"
+              onClick={() => {
+                setProposalHistoryOpen(false);
+                setSelectedHistoryProposal(null);
+              }}
+              className="border-blue-500/50 bg-blue-950/50 text-gray-200 hover:bg-blue-900/40 hover:text-white"
             >
               {t.close}
             </Button>
-            {adProposalData && (
-              <Button
-                onClick={() => {
-                  setIsGeneratingProposal(true);
-                  setAdProposalData(null);
-                  generateAdProposalMutation.mutate({ brandId });
-                }}
-                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white"
-              >
-                <Sparkles className="h-4 w-4 mr-2" />
-                {language === 'ja' ? '再生成' : '重新生成'}
-              </Button>
-            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
