@@ -778,6 +778,80 @@ export default function BrandDetail() {
     generateAdAlertMutation.mutate({ brandId, language: language as 'ja' | 'zh' });
   };
 
+  // Ad Alert PDF mutation
+  const generateAdAlertPdfMutation = trpc.brand.generateAdAlertPdf.useMutation({
+    onSuccess: (data) => {
+      const newWindow = window.open('', '_blank');
+      if (newWindow) {
+        newWindow.document.write(data.html);
+        newWindow.document.close();
+      }
+      toast.success(language === 'ja' ? "PDFを生成しました" : "已生成PDF");
+    },
+    onError: () => {
+      toast.error(language === 'ja' ? "PDFの生成に失敗しました" : "PDF生成失败");
+    },
+  });
+
+  const handleDownloadAdAlertPdf = () => {
+    if (!adAlertData || !brand) return;
+    generateAdAlertPdfMutation.mutate({
+      brandName: brand.name,
+      brandNameJa: brand.nameJa || undefined,
+      language: language as 'ja' | 'zh',
+      currentMetrics: {
+        totalGmv: adAlertData.currentMetrics.totalGmv,
+        totalImpressions: adAlertData.currentMetrics.totalImpressions,
+        avgConversionRate: adAlertData.currentMetrics.avgConversionRate,
+        totalLivestreams: adAlertData.currentMetrics.totalLivestreams,
+        avgGmvPerLive: adAlertData.currentMetrics.avgGmvPerLive,
+        performanceScore: adAlertData.currentMetrics.performanceScore,
+      },
+      opportunityCost: {
+        missedImpressions: adAlertData.opportunityCost.missedImpressions,
+        missedGmv: adAlertData.opportunityCost.missedGmv,
+      },
+      scenarios: {
+        small: {
+          budget: adAlertData.scenarios.small.budget,
+          projectedGmv: adAlertData.scenarios.small.projectedGmv,
+          roas: adAlertData.scenarios.small.roas,
+          allocation: adAlertData.scenarios.small.allocation ? {
+            liveBudget: adAlertData.scenarios.small.allocation.liveBudget,
+            clipBudget: adAlertData.scenarios.small.allocation.clipBudget,
+          } : undefined,
+        },
+        medium: {
+          budget: adAlertData.scenarios.medium.budget,
+          projectedGmv: adAlertData.scenarios.medium.projectedGmv,
+          roas: adAlertData.scenarios.medium.roas,
+          allocation: adAlertData.scenarios.medium.allocation ? {
+            liveBudget: adAlertData.scenarios.medium.allocation.liveBudget,
+            clipBudget: adAlertData.scenarios.medium.allocation.clipBudget,
+          } : undefined,
+        },
+        large: {
+          budget: adAlertData.scenarios.large.budget,
+          projectedGmv: adAlertData.scenarios.large.projectedGmv,
+          roas: adAlertData.scenarios.large.roas,
+          allocation: adAlertData.scenarios.large.allocation ? {
+            liveBudget: adAlertData.scenarios.large.allocation.liveBudget,
+            clipBudget: adAlertData.scenarios.large.allocation.clipBudget,
+          } : undefined,
+        },
+      },
+      allocationRecommendation: adAlertData.allocationRecommendation ? {
+        liveRatio: adAlertData.allocationRecommendation.liveRatio,
+        clipRatio: adAlertData.allocationRecommendation.clipRatio,
+        reason: adAlertData.allocationRecommendation.reason,
+      } : undefined,
+      urgency: {
+        level: adAlertData.urgency.level,
+      },
+      aiAnalysis: adAlertData.aiAnalysis,
+    });
+  };
+
   // Save ad proposal mutation
   const saveAdProposalMutation = trpc.brand.saveAdProposal.useMutation({
     onSuccess: (data) => {
@@ -5740,17 +5814,27 @@ ${proposal.proposalContent}
                 {t.close}
               </Button>
               {adAlertData && (
-                <Button
-                  onClick={() => {
-                    setIsGeneratingAlert(true);
-                    setAdAlertData(null);
-                    generateAdAlertMutation.mutate({ brandId, language: language as 'ja' | 'zh' });
-                  }}
-                  className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white"
-                >
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  {language === 'ja' ? '再生成' : '重新生成'}
-                </Button>
+                <>
+                  <Button
+                    onClick={handleDownloadAdAlertPdf}
+                    disabled={generateAdAlertPdfMutation.isPending}
+                    className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white"
+                  >
+                    <FileDown className="h-4 w-4 mr-2" />
+                    {generateAdAlertPdfMutation.isPending ? (language === 'ja' ? '生成中...' : '生成中...') : 'PDF'}
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setIsGeneratingAlert(true);
+                      setAdAlertData(null);
+                      generateAdAlertMutation.mutate({ brandId, language: language as 'ja' | 'zh' });
+                    }}
+                    className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white"
+                  >
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    {language === 'ja' ? '再生成' : '重新生成'}
+                  </Button>
+                </>
               )}
             </div>
           </DialogFooter>

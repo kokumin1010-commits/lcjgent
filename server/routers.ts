@@ -2761,6 +2761,290 @@ ${topProducts.map((p, i) => `${i + 1}. ${p.name}: ¥${p.gmv.toLocaleString()}`).
         };
       }),
 
+    // Generate Ad Alert PDF
+    generateAdAlertPdf: protectedProcedure
+      .input(z.object({
+        brandName: z.string(),
+        brandNameJa: z.string().optional(),
+        language: z.enum(['ja', 'zh']),
+        currentMetrics: z.object({
+          totalGmv: z.number(),
+          totalImpressions: z.number(),
+          avgConversionRate: z.number(),
+          totalLivestreams: z.number(),
+          avgGmvPerLive: z.number(),
+          performanceScore: z.number(),
+        }),
+        opportunityCost: z.object({
+          missedImpressions: z.number(),
+          missedGmv: z.number(),
+        }),
+        scenarios: z.object({
+          small: z.object({
+            budget: z.number(),
+            projectedGmv: z.number(),
+            roas: z.number(),
+            allocation: z.object({
+              liveBudget: z.number(),
+              clipBudget: z.number(),
+            }).optional(),
+          }),
+          medium: z.object({
+            budget: z.number(),
+            projectedGmv: z.number(),
+            roas: z.number(),
+            allocation: z.object({
+              liveBudget: z.number(),
+              clipBudget: z.number(),
+            }).optional(),
+          }),
+          large: z.object({
+            budget: z.number(),
+            projectedGmv: z.number(),
+            roas: z.number(),
+            allocation: z.object({
+              liveBudget: z.number(),
+              clipBudget: z.number(),
+            }).optional(),
+          }),
+        }),
+        allocationRecommendation: z.object({
+          liveRatio: z.number(),
+          clipRatio: z.number(),
+          reason: z.string(),
+        }).optional(),
+        urgency: z.object({
+          level: z.string(),
+        }),
+        aiAnalysis: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        const isJa = input.language === 'ja';
+        const t = {
+          title: isJa ? 'TikTok広告投入提案書' : 'TikTok广告投入提案书',
+          subtitle: isJa ? '広告費投入による売上最大化のご提案' : '通过广告投入实现销售最大化的提案',
+          currentPerformance: isJa ? '現在のライブ成績' : '当前直播成绩',
+          totalGmv: isJa ? '総GMV' : '总GMV',
+          totalImpressions: isJa ? '総インプレッション' : '总印象数',
+          conversionRate: isJa ? '平均転換率' : '平均转化率',
+          livestreamCount: isJa ? '配信回数' : '直播次数',
+          avgGmvPerLive: isJa ? '平均GMV/配信' : '平均GMV/直播',
+          performanceScore: isJa ? 'パフォーマンススコア' : '表现分数',
+          opportunityCost: isJa ? '機会損失（広告をかけないと損する金額）' : '机会成本（不投广告会亏损的金额）',
+          missedImpressions: isJa ? '逃している推定インプレッション' : '错失的估计印象数',
+          missedGmv: isJa ? '機会損失額（推定GMV）' : '机会成本（估计GMV）',
+          adScenarios: isJa ? '広告費投入シナリオ' : '广告费投入方案',
+          small: isJa ? '小規模' : '小规模',
+          medium: isJa ? '中規模（おすすめ）' : '中规模（推荐）',
+          large: isJa ? '大規模' : '大规模',
+          budget: isJa ? '予算' : '预算',
+          projectedGmv: isJa ? '予測追加GMV' : '预测增加GMV',
+          roas: 'ROAS',
+          liveAd: isJa ? 'ライブ広告' : '直播广告',
+          clipAd: isJa ? '切り抜き広告' : '切片广告',
+          allocationRecommendation: isJa ? 'おすすめ広告配分' : '推荐广告分配',
+          urgency: isJa ? '緊急度' : '紧迫度',
+          high: isJa ? '高' : '高',
+          mediumLevel: isJa ? '中' : '中',
+          low: isJa ? '低' : '低',
+          aiAnalysis: isJa ? 'AI分析レポート' : 'AI分析报告',
+          times: isJa ? '倍' : '倍',
+          count: isJa ? '回' : '次',
+          generatedAt: isJa ? '作成日' : '生成日期',
+        };
+
+        const urgencyColor = input.urgency.level === 'high' ? '#ef4444' : input.urgency.level === 'medium' ? '#f59e0b' : '#22c55e';
+        const urgencyText = input.urgency.level === 'high' ? t.high : input.urgency.level === 'medium' ? t.mediumLevel : t.low;
+
+        const html = `
+<!DOCTYPE html>
+<html lang="${input.language}">
+<head>
+  <meta charset="UTF-8">
+  <title>${t.title} - ${input.brandName}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Noto Sans JP', 'Noto Sans SC', sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); color: #fff; min-height: 100vh; padding: 40px; }
+    .container { max-width: 900px; margin: 0 auto; }
+    .header { text-align: center; margin-bottom: 40px; padding: 30px; background: rgba(0,0,0,0.3); border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); }
+    .header h1 { font-size: 28px; margin-bottom: 8px; background: linear-gradient(90deg, #f59e0b, #ef4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .header .brand-name { font-size: 36px; font-weight: 700; margin-bottom: 8px; }
+    .header .subtitle { color: #9ca3af; font-size: 16px; }
+    .urgency-badge { display: inline-block; padding: 8px 24px; border-radius: 20px; font-weight: 700; font-size: 14px; margin-top: 16px; background: ${urgencyColor}; }
+    .section { background: rgba(0,0,0,0.2); border-radius: 12px; padding: 24px; margin-bottom: 24px; border: 1px solid rgba(255,255,255,0.1); }
+    .section-title { font-size: 18px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .metrics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .metric-card { background: rgba(0,0,0,0.3); border-radius: 8px; padding: 16px; text-align: center; }
+    .metric-label { font-size: 12px; color: #9ca3af; margin-bottom: 4px; }
+    .metric-value { font-size: 24px; font-weight: 700; }
+    .metric-value.green { color: #22c55e; }
+    .metric-value.cyan { color: #06b6d4; }
+    .metric-value.amber { color: #f59e0b; }
+    .metric-value.red { color: #ef4444; }
+    .metric-value.purple { color: #a855f7; }
+    .opportunity-cost { background: linear-gradient(135deg, rgba(239,68,68,0.2), rgba(249,115,22,0.2)); border: 1px solid rgba(239,68,68,0.3); }
+    .opportunity-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .scenarios-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .scenario-card { background: rgba(0,0,0,0.3); border-radius: 12px; padding: 20px; text-align: center; }
+    .scenario-card.recommended { background: linear-gradient(135deg, rgba(34,197,94,0.2), rgba(16,185,129,0.2)); border: 2px solid rgba(34,197,94,0.5); }
+    .scenario-label { font-size: 14px; font-weight: 600; margin-bottom: 8px; padding: 4px 12px; border-radius: 12px; display: inline-block; }
+    .scenario-label.small { background: #4b5563; }
+    .scenario-label.medium { background: #22c55e; }
+    .scenario-label.large { background: #a855f7; }
+    .scenario-budget { font-size: 28px; font-weight: 700; margin: 12px 0; }
+    .scenario-detail { font-size: 13px; color: #d1d5db; margin: 8px 0; }
+    .scenario-roas { font-size: 20px; font-weight: 700; color: #f59e0b; }
+    .allocation-box { background: rgba(0,0,0,0.2); border-radius: 8px; padding: 12px; margin-top: 12px; }
+    .allocation-row { display: flex; justify-content: space-between; font-size: 12px; }
+    .allocation-live { color: #06b6d4; }
+    .allocation-clip { color: #ec4899; }
+    .allocation-section { background: linear-gradient(135deg, rgba(168,85,247,0.2), rgba(99,102,241,0.2)); border: 1px solid rgba(168,85,247,0.3); }
+    .allocation-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 16px; }
+    .allocation-card { background: rgba(0,0,0,0.3); border-radius: 8px; padding: 16px; text-align: center; }
+    .allocation-percent { font-size: 36px; font-weight: 700; }
+    .allocation-percent.live { color: #06b6d4; }
+    .allocation-percent.clip { color: #ec4899; }
+    .allocation-reason { background: rgba(0,0,0,0.2); border-radius: 8px; padding: 12px; font-size: 14px; color: #c4b5fd; }
+    .ai-analysis { background: linear-gradient(135deg, rgba(245,158,11,0.2), rgba(249,115,22,0.2)); border: 1px solid rgba(245,158,11,0.3); }
+    .ai-content { font-size: 14px; line-height: 1.8; color: #e5e7eb; white-space: pre-wrap; }
+    .footer { text-align: center; margin-top: 40px; padding: 20px; color: #6b7280; font-size: 12px; }
+    @media print { body { background: #1a1a2e; -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>${t.title}</h1>
+      <div class="brand-name">${input.brandName}${input.brandNameJa ? ` (${input.brandNameJa})` : ''}</div>
+      <div class="subtitle">${t.subtitle}</div>
+      <div class="urgency-badge">${t.urgency}: ${urgencyText}</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">📊 ${t.currentPerformance}</div>
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-label">${t.totalGmv}</div>
+          <div class="metric-value green">¥${Math.round(input.currentMetrics.totalGmv).toLocaleString()}</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">${t.totalImpressions}</div>
+          <div class="metric-value cyan">${Math.round(input.currentMetrics.totalImpressions).toLocaleString()}</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">${t.conversionRate}</div>
+          <div class="metric-value amber">${input.currentMetrics.avgConversionRate.toFixed(3)}%</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">${t.livestreamCount}</div>
+          <div class="metric-value purple">${input.currentMetrics.totalLivestreams}${t.count}</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">${t.avgGmvPerLive}</div>
+          <div class="metric-value green">¥${Math.round(input.currentMetrics.avgGmvPerLive).toLocaleString()}</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">${t.performanceScore}</div>
+          <div class="metric-value amber">${input.currentMetrics.performanceScore}/100</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section opportunity-cost">
+      <div class="section-title">💸 ${t.opportunityCost}</div>
+      <div class="opportunity-grid">
+        <div class="metric-card">
+          <div class="metric-label">${t.missedImpressions}</div>
+          <div class="metric-value red">${Math.round(input.opportunityCost.missedImpressions).toLocaleString()}</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">${t.missedGmv}</div>
+          <div class="metric-value red">¥${Math.round(input.opportunityCost.missedGmv).toLocaleString()}</div>
+        </div>
+      </div>
+    </div>
+
+    ${input.allocationRecommendation ? `
+    <div class="section allocation-section">
+      <div class="section-title">🎯 ${t.allocationRecommendation}</div>
+      <div class="allocation-grid">
+        <div class="allocation-card">
+          <div class="metric-label">📺 ${t.liveAd}</div>
+          <div class="allocation-percent live">${Math.round(input.allocationRecommendation.liveRatio * 100)}%</div>
+        </div>
+        <div class="allocation-card">
+          <div class="metric-label">🎬 ${t.clipAd}</div>
+          <div class="allocation-percent clip">${Math.round(input.allocationRecommendation.clipRatio * 100)}%</div>
+        </div>
+      </div>
+      <div class="allocation-reason">💡 ${input.allocationRecommendation.reason}</div>
+    </div>
+    ` : ''}
+
+    <div class="section">
+      <div class="section-title">📈 ${t.adScenarios}</div>
+      <div class="scenarios-grid">
+        <div class="scenario-card">
+          <span class="scenario-label small">${t.small}</span>
+          <div class="scenario-budget">¥${input.scenarios.small.budget.toLocaleString()}</div>
+          ${input.scenarios.small.allocation ? `
+          <div class="allocation-box">
+            <div class="allocation-row">
+              <span class="allocation-live">📺 ¥${input.scenarios.small.allocation.liveBudget.toLocaleString()}</span>
+              <span class="allocation-clip">🎬 ¥${input.scenarios.small.allocation.clipBudget.toLocaleString()}</span>
+            </div>
+          </div>
+          ` : ''}
+          <div class="scenario-detail">${t.projectedGmv}: <span style="color:#22c55e">+¥${Math.round(input.scenarios.small.projectedGmv).toLocaleString()}</span></div>
+          <div class="scenario-roas">${t.roas}: ${input.scenarios.small.roas.toFixed(2)}${t.times}</div>
+        </div>
+        <div class="scenario-card recommended">
+          <span class="scenario-label medium">${t.medium}</span>
+          <div class="scenario-budget">¥${input.scenarios.medium.budget.toLocaleString()}</div>
+          ${input.scenarios.medium.allocation ? `
+          <div class="allocation-box">
+            <div class="allocation-row">
+              <span class="allocation-live">📺 ¥${input.scenarios.medium.allocation.liveBudget.toLocaleString()}</span>
+              <span class="allocation-clip">🎬 ¥${input.scenarios.medium.allocation.clipBudget.toLocaleString()}</span>
+            </div>
+          </div>
+          ` : ''}
+          <div class="scenario-detail">${t.projectedGmv}: <span style="color:#22c55e">+¥${Math.round(input.scenarios.medium.projectedGmv).toLocaleString()}</span></div>
+          <div class="scenario-roas">${t.roas}: ${input.scenarios.medium.roas.toFixed(2)}${t.times}</div>
+        </div>
+        <div class="scenario-card">
+          <span class="scenario-label large">${t.large}</span>
+          <div class="scenario-budget">¥${input.scenarios.large.budget.toLocaleString()}</div>
+          ${input.scenarios.large.allocation ? `
+          <div class="allocation-box">
+            <div class="allocation-row">
+              <span class="allocation-live">📺 ¥${input.scenarios.large.allocation.liveBudget.toLocaleString()}</span>
+              <span class="allocation-clip">🎬 ¥${input.scenarios.large.allocation.clipBudget.toLocaleString()}</span>
+            </div>
+          </div>
+          ` : ''}
+          <div class="scenario-detail">${t.projectedGmv}: <span style="color:#22c55e">+¥${Math.round(input.scenarios.large.projectedGmv).toLocaleString()}</span></div>
+          <div class="scenario-roas">${t.roas}: ${input.scenarios.large.roas.toFixed(2)}${t.times}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section ai-analysis">
+      <div class="section-title">✨ ${t.aiAnalysis}</div>
+      <div class="ai-content">${input.aiAnalysis}</div>
+    </div>
+
+    <div class="footer">
+      ${t.generatedAt}: ${new Date().toLocaleDateString(input.language === 'ja' ? 'ja-JP' : 'zh-CN')}
+    </div>
+  </div>
+</body>
+</html>`;
+
+        return { html };
+      }),
+
     // Upload image for brand
     uploadImage: protectedProcedure
       .input(
