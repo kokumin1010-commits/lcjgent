@@ -1643,6 +1643,133 @@ ${JSON.stringify(teamSummary, null, 2)}`;
       return await getBrandStatistics();
     }),
 
+    // Generate AI advertising proposal for a brand
+    generateAdProposal: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .mutation(async ({ input }) => {
+        // Get brand data
+        const brand = await getBrandById(input.brandId);
+        if (!brand) {
+          throw new Error("Brand not found");
+        }
+
+        // Get contracts for the brand
+        const contracts = await getContractsByBrandId(input.brandId);
+        
+        // Get livestreams for the brand
+        const livestreams = await getLivestreamsByBrandId(input.brandId);
+        
+        // Get products for the brand
+        const products = await getProductsByBrandId(input.brandId);
+
+        // Calculate key metrics
+        const totalGmv = livestreams.reduce((sum, ls) => sum + (ls.salesAmount || 0), 0);
+        const totalAdCost = livestreams.reduce((sum, ls) => sum + (ls.adCost || 0), 0);
+        const avgRoas = totalAdCost > 0 ? totalGmv / totalAdCost : 0;
+        const totalLivestreams = livestreams.length;
+        const avgSalesPerLive = totalLivestreams > 0 ? totalGmv / totalLivestreams : 0;
+        
+        // Get top products by GMV from all livestreams
+        const productGmvMap = new Map<string, number>();
+        for (const ls of livestreams) {
+          // Get products for this livestream
+          const lsProducts = await getLivestreamProductsByLivestreamId(ls.id);
+          for (const p of lsProducts) {
+            const current = productGmvMap.get(p.productName) || 0;
+            productGmvMap.set(p.productName, current + (p.directGmv || p.gmv || 0));
+          }
+        }
+        const topProducts = Array.from(productGmvMap.entries())
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([name, gmv]) => ({ name, gmv }));
+
+        // Calculate average duration and best performing time slots
+        const avgDuration = totalLivestreams > 0 
+          ? livestreams.reduce((sum, ls) => sum + (ls.duration || 0), 0) / totalLivestreams 
+          : 0;
+
+        // Get contract info
+        const activeContracts = contracts.filter(c => c.status === '契約中');
+        const totalContractValue = activeContracts.reduce((sum, c) => sum + (c.fixedFee || 0), 0);
+
+        // Build prompt for AI
+        const prompt = `あなたはTikTokライブコマースの広告戦略コンサルタントです。以下のブランドデータを分析し、具体的な広告提案を作成してください。
+
+## ブランド情報
+- ブランド名: ${brand.name} (${brand.nameJa || ''})
+- カテゴリー: ${brand.category || '未設定'}
+- ステータス: ${brand.status || '未設定'}
+
+## 実績データ
+- 総GMV: ¥${totalGmv.toLocaleString()}
+- 総広告費: ¥${totalAdCost.toLocaleString()}
+- 平均ROAS: ${avgRoas.toFixed(2)}倍
+- 配信回数: ${totalLivestreams}回
+- 平均売上/配信: ¥${Math.round(avgSalesPerLive).toLocaleString()}
+- 平均配信時間: ${Math.round(avgDuration)}分
+
+## 売れ筋商品TOP5
+${topProducts.map((p, i) => `${i + 1}. ${p.name}: ¥${p.gmv.toLocaleString()}`).join('\n')}
+
+## 契約情報
+- アクティブ契約数: ${activeContracts.length}件
+- 契約総額: ¥${totalContractValue.toLocaleString()}
+
+## 商品数
+- 登録商品数: ${products.length}点
+
+---
+
+上記のデータを分析し、以下の形式で広告提案を作成してください：
+
+1. **現状分析** (約200字)
+   - ROASの評価（業界平均との比較）
+   - 強みと課題
+
+2. **推奨広告戦略** (約300字)
+   - 推奨広告予算（具体的な金額）
+   - 推奨配信頻度
+   - ターゲット層の提案
+   - 推奨商品選定
+
+3. **アクションプラン** (約200字)
+   - 短期（1ヶ月）の具体的なアクション
+   - 中期（3ヶ月）の目標
+   - 期待されるROAS改善率
+
+日本語で回答してください。具体的な数字を含めてください。`;
+
+        // Call LLM
+        const response = await invokeLLM({
+          messages: [
+            { role: "system", content: "あなたはTikTokライブコマースの広告戦略コンサルタントです。データに基づいた具体的で実行可能な広告提案を作成してください。" },
+            { role: "user", content: prompt },
+          ],
+        });
+
+        const proposalContent = response.choices[0]?.message?.content || "提案を生成できませんでした";
+
+        return {
+          brandId: input.brandId,
+          brandName: brand.name,
+          proposal: proposalContent,
+          metrics: {
+            totalGmv,
+            totalAdCost,
+            avgRoas,
+            totalLivestreams,
+            avgSalesPerLive,
+            avgDuration,
+            topProducts,
+            activeContractsCount: activeContracts.length,
+            totalContractValue,
+            productsCount: products.length,
+          },
+          generatedAt: new Date().toISOString(),
+        };
+      }),
+
     // Upload image for brand
     uploadImage: protectedProcedure
       .input(

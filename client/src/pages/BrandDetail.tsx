@@ -683,6 +683,11 @@ export default function BrandDetail() {
   const [linkedLivestreamDetailData, setLinkedLivestreamDetailData] = useState<any[]>([]);
   const [linkedLivestreamContractInfo, setLinkedLivestreamContractInfo] = useState<any>(null);
   
+  // AI Ad Proposal states
+  const [adProposalDialogOpen, setAdProposalDialogOpen] = useState(false);
+  const [isGeneratingProposal, setIsGeneratingProposal] = useState(false);
+  const [adProposalData, setAdProposalData] = useState<any>(null);
+
   // AI Image Add states
   const [aiImageAddDialogOpen, setAiImageAddDialogOpen] = useState(false);
   const [aiImageFile, setAiImageFile] = useState<File | null>(null);
@@ -711,6 +716,27 @@ export default function BrandDetail() {
   );
 
   // Mutations
+  // Ad Proposal mutation
+  const generateAdProposalMutation = trpc.brand.generateAdProposal.useMutation({
+    onSuccess: (data) => {
+      setAdProposalData(data);
+      setIsGeneratingProposal(false);
+      toast.success("広告提案を生成しました");
+    },
+    onError: (error) => {
+      setIsGeneratingProposal(false);
+      toast.error("提案の生成に失敗しました");
+      console.error("Ad proposal generation error:", error);
+    },
+  });
+
+  const handleGenerateAdProposal = () => {
+    setAdProposalDialogOpen(true);
+    setIsGeneratingProposal(true);
+    setAdProposalData(null);
+    generateAdProposalMutation.mutate({ brandId });
+  };
+
   const createMemoMutation = trpc.brandMemo.create.useMutation({
     onSuccess: () => {
       setNewMemo("");
@@ -1338,6 +1364,13 @@ export default function BrandDetail() {
               >
                 <Edit2 className="h-4 w-4 mr-2" />
                 {t.edit}
+              </Button>
+              <Button
+                onClick={handleGenerateAdProposal}
+                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-lg shadow-purple-500/30"
+              >
+                <Sparkles className="h-4 w-4 mr-2" />
+                {language === 'ja' ? '広告提案' : '广告提案'}
               </Button>
               {/* Language Toggle */}
               <Button
@@ -4778,6 +4811,119 @@ export default function BrandDetail() {
             >
               {language === 'ja' ? '紐付けを編集' : '编辑关联'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI Ad Proposal Dialog */}
+      <Dialog open={adProposalDialogOpen} onOpenChange={setAdProposalDialogOpen}>
+        <DialogContent className="bg-black/95 border-purple-900/50 text-white max-w-4xl backdrop-blur-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-3">
+              <div className="w-1 h-6 bg-gradient-to-b from-purple-400 to-pink-600 rounded-full" />
+              <Sparkles className="h-5 w-5 text-purple-400" />
+              {language === 'ja' ? 'TikTok広告提案' : 'TikTok广告提案'}
+            </DialogTitle>
+          </DialogHeader>
+          
+          {isGeneratingProposal ? (
+            <div className="flex flex-col items-center justify-center py-16 space-y-4">
+              <div className="relative">
+                <div className="w-16 h-16 border-4 border-purple-500/30 rounded-full animate-spin border-t-purple-500" />
+                <Sparkles className="absolute inset-0 m-auto h-6 w-6 text-purple-400 animate-pulse" />
+              </div>
+              <p className="text-gray-400 text-sm">{language === 'ja' ? 'AIがデータを分析中...' : 'AI正在分析数据...'}</p>
+              <p className="text-gray-500 text-xs">{language === 'ja' ? '広告戦略を生成しています' : '正在生成广告策略'}</p>
+            </div>
+          ) : adProposalData ? (
+            <div className="space-y-6 py-4">
+              {/* Metrics Summary */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="bg-gradient-to-br from-cyan-950/50 to-cyan-900/30 rounded-lg p-3 border border-cyan-500/30">
+                  <p className="text-xs text-gray-400">{language === 'ja' ? '総GMV' : '总GMV'}</p>
+                  <p className="text-lg font-bold text-cyan-400">¥{(adProposalData.metrics?.totalGmv || 0).toLocaleString()}</p>
+                </div>
+                <div className="bg-gradient-to-br from-pink-950/50 to-pink-900/30 rounded-lg p-3 border border-pink-500/30">
+                  <p className="text-xs text-gray-400">{language === 'ja' ? '総広告費' : '总广告费'}</p>
+                  <p className="text-lg font-bold text-pink-400">¥{(adProposalData.metrics?.totalAdCost || 0).toLocaleString()}</p>
+                </div>
+                <div className="bg-gradient-to-br from-amber-950/50 to-amber-900/30 rounded-lg p-3 border border-amber-500/30">
+                  <p className="text-xs text-gray-400">{language === 'ja' ? '平均ROAS' : '平均ROAS'}</p>
+                  <p className="text-lg font-bold text-amber-400">{(adProposalData.metrics?.avgRoas || 0).toFixed(2)}倍</p>
+                </div>
+                <div className="bg-gradient-to-br from-purple-950/50 to-purple-900/30 rounded-lg p-3 border border-purple-500/30">
+                  <p className="text-xs text-gray-400">{language === 'ja' ? '配信回数' : '直播次数'}</p>
+                  <p className="text-lg font-bold text-purple-400">{adProposalData.metrics?.totalLivestreams || 0}回</p>
+                </div>
+              </div>
+
+              {/* Top Products */}
+              {adProposalData.metrics?.topProducts && adProposalData.metrics.topProducts.length > 0 && (
+                <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 rounded-lg p-4 border border-gray-700/50">
+                  <h4 className="text-sm font-bold text-gray-300 mb-3 flex items-center gap-2">
+                    <Package className="h-4 w-4 text-cyan-400" />
+                    {language === 'ja' ? '売れ筋商品TOP5' : '热销商品TOP5'}
+                  </h4>
+                  <div className="space-y-2">
+                    {adProposalData.metrics.topProducts.map((product: any, index: number) => (
+                      <div key={index} className="flex items-center justify-between text-sm">
+                        <span className="text-gray-400">
+                          <span className="text-purple-400 font-bold mr-2">#{index + 1}</span>
+                          {product.name}
+                        </span>
+                        <span className="text-cyan-400 font-mono">¥{product.gmv.toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* AI Proposal Content */}
+              <div className="bg-gradient-to-br from-purple-950/30 to-pink-950/20 rounded-lg p-4 border border-purple-500/30">
+                <h4 className="text-sm font-bold text-purple-300 mb-3 flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-purple-400" />
+                  {language === 'ja' ? 'AI広告提案' : 'AI广告提案'}
+                </h4>
+                <div className="prose prose-invert prose-sm max-w-none">
+                  <div className="text-gray-300 whitespace-pre-wrap leading-relaxed text-sm">
+                    {typeof adProposalData.proposal === 'string' ? adProposalData.proposal : JSON.stringify(adProposalData.proposal)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Generation Info */}
+              <div className="text-xs text-gray-500 text-right">
+                {language === 'ja' ? '生成日時: ' : '生成时间: '}
+                {adProposalData.generatedAt ? new Date(adProposalData.generatedAt).toLocaleString('ja-JP') : '-'}
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-16 space-y-4">
+              <p className="text-gray-400">{language === 'ja' ? '提案データがありません' : '没有提案数据'}</p>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setAdProposalDialogOpen(false)}
+              className="border-purple-500/50 bg-purple-950/50 text-gray-200 hover:bg-purple-900/40 hover:text-white"
+            >
+              {t.close}
+            </Button>
+            {adProposalData && (
+              <Button
+                onClick={() => {
+                  setIsGeneratingProposal(true);
+                  setAdProposalData(null);
+                  generateAdProposalMutation.mutate({ brandId });
+                }}
+                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white"
+              >
+                <Sparkles className="h-4 w-4 mr-2" />
+                {language === 'ja' ? '再生成' : '重新生成'}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
