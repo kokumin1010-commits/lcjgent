@@ -791,25 +791,38 @@ export default function LivestreamDetail() {
                                 {product.itemsSold !== null && product.itemsSold !== undefined && (
                                   <span className="flex items-center gap-1 text-gray-300">
                                     <ShoppingCart className="w-3 h-3 text-gray-500" />
-                                    販売: {product.itemsSold}個
+                                    販売 Sales: {product.itemsSold}個
                                   </span>
                                 )}
                                 {product.customers !== null && product.customers !== undefined && (
                                   <span className="flex items-center gap-1 text-gray-300">
                                     <Users className="w-3 h-3 text-gray-500" />
-                                    購入者: {product.customers}人
+                                    購入者 Buyers: {product.customers}人
                                   </span>
                                 )}
-                                {product.ctr && (
+                                {product.productClicks !== null && product.productClicks !== undefined && (
                                   <span className="flex items-center gap-1 text-gray-300">
                                     <MousePointer className="w-3 h-3 text-gray-500" />
-                                    CTR: {(parseFloat(product.ctr) * 100).toFixed(2)}%
+                                    クリック Clicks: {product.productClicks.toLocaleString()}回
+                                  </span>
+                                )}
+                                {product.productImpressions !== null && product.productImpressions !== undefined && (
+                                  <span className="flex items-center gap-1 text-gray-300">
+                                    <Eye className="w-3 h-3 text-gray-500" />
+                                    インプ Impressions: {product.productImpressions.toLocaleString()}回
+                                  </span>
+                                )}
+                              </div>
+                              {/* CTR・CTOR */}
+                              <div className="flex flex-wrap gap-3 text-xs mt-1">
+                                {product.ctr && (
+                                  <span className="flex items-center gap-1 text-gray-400">
+                                    クリック率 CTR: {(parseFloat(product.ctr) * 100).toFixed(2)}%
                                   </span>
                                 )}
                                 {product.ctor && (
-                                  <span className="flex items-center gap-1 text-gray-300">
-                                    <TrendingUp className="w-3 h-3 text-gray-500" />
-                                    CTOR: {(parseFloat(product.ctor) * 100).toFixed(2)}%
+                                  <span className="flex items-center gap-1 text-gray-400">
+                                    購入率 CTOR: {(parseFloat(product.ctor) * 100).toFixed(2)}%
                                   </span>
                                 )}
                               </div>
