@@ -5051,10 +5051,14 @@ ${metricsDescription}${historicalContext}`,
             // Parse start time as JST and convert to UTC
             // CSV dates from TikTok are in JST (Japan Standard Time, UTC+9)
             const jstDateStr = row.startTime;
-            // Append JST timezone if not present
-            const startDateJST = new Date(jstDateStr + ' GMT+0900');
-            // Convert to UTC for storage
-            const startDate = new Date(startDateJST.getTime());
+            console.log('[CSV Import] Input date string:', jstDateStr);
+            
+            // Use ISO 8601 format for reliable parsing across all environments
+            // Convert "2025-08-31 06:00" to "2025-08-31T06:00:00+09:00"
+            const isoFormat = jstDateStr.replace(' ', 'T') + ':00+09:00';
+            const startDate = new Date(isoFormat);
+            console.log('[CSV Import] ISO format:', isoFormat);
+            console.log('[CSV Import] Parsed UTC:', startDate.toISOString());
             const endDate = new Date(startDate.getTime() + row.duration * 1000);
             const durationMinutes = Math.round(row.duration / 60);
 

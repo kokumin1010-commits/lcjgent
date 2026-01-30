@@ -641,10 +641,12 @@ export default function LiverMypage() {
                 aiAdvice?: string | null;
               }, index: number) => {
                 // JST（日本時間）で表示
-                const rawStartDate = new Date(ls.livestreamDate);
-                const startDate = new Date(rawStartDate.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
-                const rawEndDate = ls.livestreamEndTime ? new Date(ls.livestreamEndTime) : null;
-                const endDate = rawEndDate ? new Date(rawEndDate.getTime() + (9 * 60 * 60 * 1000)) : null;
+                // データベースはUTCで保存されているので、そのまま使用
+                // toLocaleTimeString("ja-JP")が自動的にJSTに変換する
+                const startDate = new Date(ls.livestreamDate);
+                const endDate = ls.livestreamEndTime ? new Date(ls.livestreamEndTime) : null;
+                const rawStartDate = startDate;
+                const rawEndDate = endDate;
                 const duration = ls.duration 
                   ? Math.round(ls.duration / 60 * 10) / 10
                   : rawEndDate
