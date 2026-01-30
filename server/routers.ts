@@ -1670,7 +1670,14 @@ ${JSON.stringify(teamSummary, null, 2)}`;
         }, 0);
         // 広告費は契約情報のfixedFee（ブランド投入）から取得
         const totalAdCost = contracts.reduce((sum, c) => sum + (c.fixedFee || 0), 0);
-        const avgRoas = totalAdCost > 0 ? totalGmv / totalAdCost : 0;
+        // インプレッション数を集計
+        const totalImpressions = livestreams.reduce((sum, ls) => sum + (ls.impressions || 0), 0);
+        // 広告換算費用 = インプレッション × 15円（CPM ¥15,000 = 1000インプレッションあたり¥15,000 → 1インプレッションあたり¥15）
+        const adValue = totalImpressions * 15;
+        // 総価値 = GMV + 広告換算費用
+        const totalValue = totalGmv + adValue;
+        // ROAS = 総価値 ÷ 固定費（契約金額）
+        const avgRoas = totalAdCost > 0 ? totalValue / totalAdCost : 0;
         // 同じ日の配信は1回としてカウント（ユニークな日付の数）
         const uniqueDates = new Set<string>();
         livestreams.forEach((ls) => {
@@ -1716,8 +1723,11 @@ ${JSON.stringify(teamSummary, null, 2)}`;
 
 ## 実績データ
 - 総GMV: ¥${totalGmv.toLocaleString()}
-- 総広告費: ¥${totalAdCost.toLocaleString()}
-- 平均ROAS: ${avgRoas.toFixed(2)}倍
+- 総インプレッション: ${totalImpressions.toLocaleString()}回
+- 広告換算費用: ¥${adValue.toLocaleString()}（CPM ¥15,000ベース）
+- 総価値: ¥${totalValue.toLocaleString()}（GMV + 広告換算費用）
+- 総広告費（契約金額）: ¥${totalAdCost.toLocaleString()}
+- 広告効果ROAS: ${avgRoas.toFixed(2)}倍
 - 配信回数: ${totalLivestreams}回
 - 平均売上/配信: ¥${Math.round(avgSalesPerLive).toLocaleString()}
 - 平均配信時間: ${Math.round(avgDuration)}分
@@ -1769,6 +1779,9 @@ ${topProducts.map((p, i) => `${i + 1}. ${p.name}: ¥${p.gmv.toLocaleString()}`).
           proposal: proposalContent,
           metrics: {
             totalGmv,
+            totalImpressions,
+            adValue,
+            totalValue,
             totalAdCost,
             avgRoas,
             totalLivestreams,

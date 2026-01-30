@@ -4856,16 +4856,34 @@ export default function BrandDetail() {
                   <p className="text-lg font-bold text-cyan-400">¥{(adProposalData.metrics?.totalGmv || 0).toLocaleString()}</p>
                 </div>
                 <div className="bg-gradient-to-br from-pink-950/50 to-pink-900/30 rounded-lg p-3 border border-pink-500/30">
-                  <p className="text-xs text-gray-400">{language === 'ja' ? '総広告費' : '总广告费'}</p>
-                  <p className="text-lg font-bold text-pink-400">¥{(adProposalData.metrics?.totalAdCost || 0).toLocaleString()}</p>
+                  <p className="text-xs text-gray-400">{language === 'ja' ? '広告換算費用' : '广告换算费用'}</p>
+                  <p className="text-lg font-bold text-pink-400">¥{(adProposalData.metrics?.adValue || 0).toLocaleString()}</p>
+                  <p className="text-[9px] text-gray-500">CPM ¥15,000</p>
                 </div>
                 <div className="bg-gradient-to-br from-amber-950/50 to-amber-900/30 rounded-lg p-3 border border-amber-500/30">
-                  <p className="text-xs text-gray-400">{language === 'ja' ? '平均ROAS' : '平均ROAS'}</p>
+                  <p className="text-xs text-gray-400">{language === 'ja' ? '広告効果ROAS' : '广告效果ROAS'}</p>
                   <p className="text-lg font-bold text-amber-400">{(adProposalData.metrics?.avgRoas || 0).toFixed(2)}倍</p>
+                  <p className="text-[9px] text-gray-500">総価値÷契約金額</p>
                 </div>
                 <div className="bg-gradient-to-br from-purple-950/50 to-purple-900/30 rounded-lg p-3 border border-purple-500/30">
                   <p className="text-xs text-gray-400">{language === 'ja' ? '配信回数' : '直播次数'}</p>
                   <p className="text-lg font-bold text-purple-400">{adProposalData.metrics?.totalLivestreams || 0}回</p>
+                </div>
+              </div>
+              {/* Additional Metrics Row */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-gradient-to-br from-green-950/50 to-green-900/30 rounded-lg p-3 border border-green-500/30">
+                  <p className="text-xs text-gray-400">{language === 'ja' ? '総インプレッション' : '总印象数'}</p>
+                  <p className="text-lg font-bold text-green-400">{(adProposalData.metrics?.totalImpressions || 0).toLocaleString()}</p>
+                </div>
+                <div className="bg-gradient-to-br from-indigo-950/50 to-indigo-900/30 rounded-lg p-3 border border-indigo-500/30">
+                  <p className="text-xs text-gray-400">{language === 'ja' ? '総価値' : '总价值'}</p>
+                  <p className="text-lg font-bold text-indigo-400">¥{(adProposalData.metrics?.totalValue || 0).toLocaleString()}</p>
+                  <p className="text-[9px] text-gray-500">GMV+広告換算</p>
+                </div>
+                <div className="bg-gradient-to-br from-rose-950/50 to-rose-900/30 rounded-lg p-3 border border-rose-500/30">
+                  <p className="text-xs text-gray-400">{language === 'ja' ? '契約金額' : '合同金额'}</p>
+                  <p className="text-lg font-bold text-rose-400">¥{(adProposalData.metrics?.totalAdCost || 0).toLocaleString()}</p>
                 </div>
               </div>
 
