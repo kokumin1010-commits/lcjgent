@@ -998,3 +998,27 @@ export const csvImportHistory = mysqlTable("csv_import_history", {
 
 export type CsvImportHistory = typeof csvImportHistory.$inferSelect;
 export type InsertCsvImportHistory = typeof csvImportHistory.$inferInsert;
+
+
+/**
+ * Livestream CSV Import History table for tracking CSV imports
+ * 配信履歴CSVインポート履歴テーブル - TikTok配信パフォーマンスCSVのインポート履歴を記録
+ */
+export const livestreamCsvImportHistory = mysqlTable("livestream_csv_import_history", {
+  id: int("id").autoincrement().primaryKey(),
+  liverId: int("liverId").notNull(), // References livers.id - インポートしたライバー
+  brandId: int("brandId").notNull(), // References brands.id - 対象ブランド
+  fileName: varchar("fileName", { length: 255 }).notNull(), // インポートしたファイル名
+  livestreamCount: int("livestreamCount").notNull(), // インポートした配信数
+  createdCount: int("createdCount").notNull(), // 新規作成された配信数
+  updatedCount: int("updatedCount").notNull(), // 更新された配信数
+  totalGmv: bigint("totalGmv", { mode: "number" }), // インポートした配信の合計GMV
+  dateRangeStart: timestamp("dateRangeStart"), // インポートした配信の開始日
+  dateRangeEnd: timestamp("dateRangeEnd"), // インポートした配信の終了日
+  importedBy: int("importedBy").notNull(), // User ID who imported the CSV
+  importedByName: varchar("importedByName", { length: 255 }).notNull(), // インポートしたユーザー名
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type LivestreamCsvImportHistory = typeof livestreamCsvImportHistory.$inferSelect;
+export type InsertLivestreamCsvImportHistory = typeof livestreamCsvImportHistory.$inferInsert;

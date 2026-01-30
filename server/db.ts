@@ -1,6 +1,6 @@
-import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull } from "drizzle-orm";
+import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -4320,4 +4320,115 @@ export async function getCsvImportHistoryByBrand(brandId: number) {
       livestreamDate: livestream?.livestreamDate,
     };
   });
+}
+
+
+// ========================================
+// Livestream CSV Import History Management
+// ========================================
+
+/**
+ * Create a livestream CSV import history record
+ */
+export async function createLivestreamCsvImportHistory(data: {
+  liverId: number;
+  brandId: number;
+  fileName: string;
+  livestreamCount: number;
+  createdCount: number;
+  updatedCount: number;
+  totalGmv?: number | null;
+  dateRangeStart?: Date | null;
+  dateRangeEnd?: Date | null;
+  importedBy: number;
+  importedByName: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(livestreamCsvImportHistory).values({
+    liverId: data.liverId,
+    brandId: data.brandId,
+    fileName: data.fileName,
+    livestreamCount: data.livestreamCount,
+    createdCount: data.createdCount,
+    updatedCount: data.updatedCount,
+    totalGmv: data.totalGmv ?? null,
+    dateRangeStart: data.dateRangeStart ?? null,
+    dateRangeEnd: data.dateRangeEnd ?? null,
+    importedBy: data.importedBy,
+    importedByName: data.importedByName,
+  });
+  
+  return result;
+}
+
+/**
+ * Get livestream CSV import history for a liver
+ */
+export async function getLivestreamCsvImportHistoryByLiver(liverId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(livestreamCsvImportHistory)
+    .where(eq(livestreamCsvImportHistory.liverId, liverId))
+    .orderBy(desc(livestreamCsvImportHistory.createdAt));
+}
+
+/**
+ * Delete a livestream CSV import history record and associated livestreams
+ */
+export async function deleteLivestreamCsvImportHistory(historyId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Get the history record first
+  const history = await db
+    .select()
+    .from(livestreamCsvImportHistory)
+    .where(eq(livestreamCsvImportHistory.id, historyId))
+    .limit(1);
+  
+  if (history.length === 0) {
+    throw new Error("Import history not found");
+  }
+  
+  const { liverId, brandId, dateRangeStart, dateRangeEnd } = history[0];
+  
+  // Delete all livestreams within the date range that were imported via CSV
+  if (dateRangeStart && dateRangeEnd) {
+    await db
+      .delete(brandLivestreams)
+      .where(
+        and(
+          eq(brandLivestreams.liverId, liverId),
+          eq(brandLivestreams.brandId, brandId),
+          eq(brandLivestreams.csvImported, "yes"),
+          gte(brandLivestreams.livestreamDate, dateRangeStart),
+          lte(brandLivestreams.livestreamDate, dateRangeEnd)
+        )
+      );
+  }
+  
+  // Delete the history record
+  await db
+    .delete(livestreamCsvImportHistory)
+    .where(eq(livestreamCsvImportHistory.id, historyId));
+  
+  return { deleted: true, historyId };
+}
+
+/**
+ * Get all livestream CSV import history
+ */
+export async function getAllLivestreamCsvImportHistory() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(livestreamCsvImportHistory)
+    .orderBy(desc(livestreamCsvImportHistory.createdAt));
 }

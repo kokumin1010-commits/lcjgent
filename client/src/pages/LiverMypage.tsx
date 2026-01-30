@@ -25,9 +25,22 @@ import {
   CheckCircle,
   AlertCircle,
   AlertTriangle,
-  X
+  X,
+  Trash2,
+  History
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 import { SiTiktok, SiInstagram, SiYoutube } from "react-icons/si";
 
@@ -41,6 +54,7 @@ export default function LiverMypage() {
   const [showCsvImportDialog, setShowCsvImportDialog] = useState(false);
   const [csvImportResult, setCsvImportResult] = useState<{ created: number; updated: number; errors: string[] } | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [showImportHistoryDialog, setShowImportHistoryDialog] = useState(false);
 
   // Get current liver info
   const { data: liverInfo, isLoading: isLoadingLiver } = trpc.liver.me.useQuery();
@@ -55,6 +69,20 @@ export default function LiverMypage() {
     onSuccess: () => {
       clearLiverToken();
       navigate("/liver/login");
+    },
+  });
+
+  // Get import history
+  const { data: importHistory, refetch: refetchImportHistory } = trpc.csvImport.getImportHistory.useQuery(
+    { liverId: liverInfo?.id || 0 },
+    { enabled: !!liverInfo?.id }
+  );
+
+  // Delete import history mutation
+  const deleteImportHistoryMutation = trpc.csvImport.deleteImportHistory.useMutation({
+    onSuccess: () => {
+      refetchImportHistory();
+      window.location.reload();
     },
   });
 
@@ -553,15 +581,28 @@ export default function LiverMypage() {
               <Video className="h-4 w-4" />
               配信履歴
             </h3>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowCsvImportDialog(true)}
-              className="text-xs border-gray-600 text-gray-400 hover:text-white hover:border-gray-500"
-            >
-              <FileSpreadsheet className="h-3 w-3 mr-1" />
+            <div className="flex items-center gap-2">
+              {importHistory && importHistory.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowImportHistoryDialog(true)}
+                  className="text-xs border-gray-600 text-gray-400 hover:text-white hover:border-gray-500"
+                >
+                  <History className="h-3 w-3 mr-1" />
+                  履歴
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCsvImportDialog(true)}
+                className="text-xs border-gray-600 text-gray-400 hover:text-white hover:border-gray-500"
+              >
+                <FileSpreadsheet className="h-3 w-3 mr-1" />
               CSVインポート
-            </Button>
+              </Button>
+            </div>
           </div>
 
           {isLoadingLivestreams ? (
@@ -810,6 +851,117 @@ export default function LiverMypage() {
                 setShowCsvImportDialog(false);
                 setCsvImportResult(null);
               }}
+              className="text-gray-400"
+            >
+              閉じる
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import History Dialog */}
+      <Dialog open={showImportHistoryDialog} onOpenChange={setShowImportHistoryDialog}>
+        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="h-5 w-5 text-blue-400" />
+              CSVインポート履歴
+            </DialogTitle>
+            <DialogDescription className="text-gray-400">
+              過去のインポート履歴を確認・削除できます。
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 mt-4 max-h-96 overflow-y-auto">
+            {importHistory && importHistory.length > 0 ? (
+              importHistory.map((history) => {
+                const startDate = history.dateRangeStart ? new Date(history.dateRangeStart) : null;
+                const endDate = history.dateRangeEnd ? new Date(history.dateRangeEnd) : null;
+                const formatDate = (date: Date | null) => {
+                  if (!date) return '';
+                  return `${date.getMonth() + 1}/${date.getDate()}`;
+                };
+                
+                return (
+                  <div key={history.id} className="bg-gray-800/50 border border-gray-700 rounded-lg p-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-medium text-white">
+                            {startDate && endDate ? (
+                              `${formatDate(startDate)} 〜 ${formatDate(endDate)}`
+                            ) : (
+                              history.fileName
+                            )}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-400 space-y-0.5">
+                          <p>
+                            {new Date(history.createdAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}
+                          </p>
+                          <p>
+                            配信数: {history.livestreamCount}件
+                            (新規: {history.createdCount}, 更新: {history.updatedCount})
+                          </p>
+                          {history.totalGmv && (
+                            <p className="text-yellow-400">
+                              合計売上: ¥{history.totalGmv.toLocaleString()}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-400 hover:text-red-300 hover:bg-red-900/20 h-8 px-2"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent className="bg-gray-900 border-gray-700">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle className="text-white">インポート履歴を削除</AlertDialogTitle>
+                            <AlertDialogDescription className="text-gray-400">
+                              このインポート履歴と関連する配信データをすべて削除します。
+                              <br />
+                              <span className="text-red-400 font-medium">
+                                {startDate && endDate && `${formatDate(startDate)} 〜 ${formatDate(endDate)} の配信データが削除されます。`}
+                              </span>
+                              <br />
+                              この操作は取り消せません。
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel className="bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700">
+                              キャンセル
+                            </AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => deleteImportHistoryMutation.mutate({ historyId: history.id })}
+                              className="bg-red-600 hover:bg-red-700 text-white"
+                            >
+                              削除する
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="text-center py-8 text-gray-400">
+                <History className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">インポート履歴がありません</p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end mt-4">
+            <Button
+              variant="ghost"
+              onClick={() => setShowImportHistoryDialog(false)}
               className="text-gray-400"
             >
               閉じる

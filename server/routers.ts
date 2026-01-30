@@ -217,6 +217,9 @@ import {
   createCsvImportHistory,
   getCsvImportHistoryByLivestream,
   deleteCsvImportHistory,
+  createLivestreamCsvImportHistory,
+  getLivestreamCsvImportHistoryByLiver,
+  deleteLivestreamCsvImportHistory,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -5101,6 +5104,29 @@ ${metricsDescription}${historicalContext}`,
           }
         }
 
+        // Save import history
+        if (results.created > 0 || results.updated > 0) {
+          // Calculate date range
+          const dates = input.csvData.map(row => new Date(row.startTime)).filter(d => !isNaN(d.getTime()));
+          const dateRangeStart = dates.length > 0 ? new Date(Math.min(...dates.map(d => d.getTime()))) : null;
+          const dateRangeEnd = dates.length > 0 ? new Date(Math.max(...dates.map(d => d.getTime()))) : null;
+          const totalGmv = input.csvData.reduce((sum, row) => sum + row.grossRevenue, 0);
+          
+          await createLivestreamCsvImportHistory({
+            liverId: input.liverId,
+            brandId: input.brandId,
+            fileName: `TikTok配信データ_${new Date().toISOString().slice(0, 10)}.xlsx`,
+            livestreamCount: input.csvData.length,
+            createdCount: results.created,
+            updatedCount: results.updated,
+            totalGmv,
+            dateRangeStart,
+            dateRangeEnd,
+            importedBy: ctx.user.id,
+            importedByName: ctx.user.name || ctx.user.email,
+          });
+        }
+
         return results;
       }),
 
@@ -5109,6 +5135,20 @@ ${metricsDescription}${historicalContext}`,
       .input(z.object({ brandId: z.number() }))
       .query(async ({ input }) => {
         return await getCsvImportedLivestreams(input.brandId);
+      }),
+      
+    // Get import history for a liver
+    getImportHistory: protectedProcedure
+      .input(z.object({ liverId: z.number() }))
+      .query(async ({ input }) => {
+        return await getLivestreamCsvImportHistoryByLiver(input.liverId);
+      }),
+      
+    // Delete import history and associated livestreams
+    deleteImportHistory: protectedProcedure
+      .input(z.object({ historyId: z.number() }))
+      .mutation(async ({ input }) => {
+        return await deleteLivestreamCsvImportHistory(input.historyId);
       }),
   }),
 });
