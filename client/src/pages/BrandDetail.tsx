@@ -5905,6 +5905,11 @@ ${proposal.proposalContent}
                   <h4 className="text-sm font-bold text-purple-300 mb-3 flex items-center gap-2">
                     <span className="text-lg">🎯</span>
                     {language === 'ja' ? 'おすすめ広告配分' : '推荐广告分配'}
+                    {adAlertData.allocationRecommendation.isLearningBased && (
+                      <span className="ml-2 px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">
+                        🧠 {language === 'ja' ? '学習済み' : '已学习'}
+                      </span>
+                    )}
                   </h4>
                   <div className="grid grid-cols-2 gap-4 mb-3">
                     <div className="text-center bg-black/30 rounded-lg p-3">
@@ -5920,6 +5925,39 @@ ${proposal.proposalContent}
                   </div>
                   <div className="bg-black/20 rounded-lg p-3">
                     <p className="text-sm text-purple-200">💡 {adAlertData.allocationRecommendation.reason}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Learning Data Info */}
+              {adAlertData.learningData && (
+                <div className={`rounded-lg p-3 border ${adAlertData.learningData.hasData ? 'bg-gradient-to-br from-green-950/20 to-emerald-950/20 border-green-500/30' : 'bg-gradient-to-br from-gray-950/20 to-slate-950/20 border-gray-500/30'}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{adAlertData.learningData.hasData ? '🧠' : '📊'}</span>
+                      <span className={`text-sm font-medium ${adAlertData.learningData.hasData ? 'text-green-300' : 'text-gray-400'}`}>
+                        {language === 'ja' ? '予測精度' : '预测精度'}
+                      </span>
+                    </div>
+                    {adAlertData.learningData.hasData ? (
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-gray-400">
+                          {language === 'ja' ? `${adAlertData.learningData.recordCount}件の実績データ` : `${adAlertData.learningData.recordCount}条实绩数据`}
+                        </span>
+                        <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">
+                          {language === 'ja' ? '高精度' : '高精度'}
+                        </span>
+                        {adAlertData.learningData.learnedAvgRoas && (
+                          <span className="text-xs text-amber-400">
+                            {language === 'ja' ? '学習ROAS: ' : '学习ROAS: '}{adAlertData.learningData.learnedAvgRoas.toFixed(2)}{language === 'ja' ? '倍' : '倍'}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-500">
+                        {language === 'ja' ? '業界平均値で予測（広告実績を記録すると精度向上）' : '以行业平均值预测（记录广告实绩可提高精度）'}
+                      </span>
+                    )}
                   </div>
                 </div>
               )}

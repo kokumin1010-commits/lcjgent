@@ -2399,6 +2399,40 @@ ${topProducts.map((p, i) => `${i + 1}. ${p.name}: ¥${p.gmv.toLocaleString()}`).
           throw new Error('Brand not found');
         }
 
+        // Get learning data (historical ad performance stats)
+        const db = await getDb();
+        let learningStats: {
+          avgRoas: string | null;
+          avgCpm: string | null;
+          avgCpc: string | null;
+          optimalLiveRatio: string | null;
+          optimalClipRatio: string | null;
+          totalRecords: number | null;
+        } | null = null;
+        
+        if (db) {
+          const [stats] = await db
+            .select({
+              avgRoas: brandAdPerformanceStats.avgRoas,
+              avgCpm: brandAdPerformanceStats.avgCpm,
+              avgCpc: brandAdPerformanceStats.avgCpc,
+              optimalLiveRatio: brandAdPerformanceStats.optimalLiveRatio,
+              optimalClipRatio: brandAdPerformanceStats.optimalClipRatio,
+              totalRecords: brandAdPerformanceStats.totalRecords,
+            })
+            .from(brandAdPerformanceStats)
+            .where(eq(brandAdPerformanceStats.brandId, input.brandId));
+          if (stats && stats.totalRecords && stats.totalRecords >= 3) {
+            learningStats = stats;
+          }
+        }
+        
+        const hasLearningData = learningStats !== null;
+        const learningDataRecords = learningStats?.totalRecords || 0;
+        const learnedAvgRoas = learningStats?.avgRoas ? parseFloat(learningStats.avgRoas) : null;
+        const learnedOptimalLiveRatio = learningStats?.optimalLiveRatio ? parseFloat(learningStats.optimalLiveRatio) : null;
+        const learnedAvgCpm = learningStats?.avgCpm ? parseFloat(learningStats.avgCpm) : null;
+
         // Get all livestreams for this brand
         const livestreams = await getLivestreamsByBrandId(input.brandId);
         const contracts = await getContractsByBrandId(input.brandId);
@@ -2450,13 +2484,21 @@ ${topProducts.map((p, i) => `${i + 1}. ${p.name}: ¥${p.gmv.toLocaleString()}`).
         const contentPerformanceScore = avgImpressionsPerLive > 50000 ? 0.7 : avgImpressionsPerLive > 20000 ? 0.5 : 0.3;
         
         // Calculate recommended allocation (live:clip ratio)
-        // If live performance is strong, allocate more to live ads
-        // If content performance is strong, allocate more to clip ads
+        // If we have learning data, use the learned optimal ratio
+        // Otherwise, calculate based on current performance
         let recommendedLiveRatio = 0.5; // Default 50:50
         let allocationReason = '';
         const isJaLang = input.language === 'ja';
+        let isLearningBased = false;
         
-        if (livePerformanceScore >= 0.7 && contentPerformanceScore < 0.5) {
+        // Use learned optimal ratio if available (3+ records)
+        if (hasLearningData && learnedOptimalLiveRatio !== null) {
+          recommendedLiveRatio = learnedOptimalLiveRatio;
+          isLearningBased = true;
+          allocationReason = isJaLang
+            ? `過去${learningDataRecords}件の広告実績データに基づく最適配分です（学習済み）`
+            : `基于过去${learningDataRecords}条广告实绩数据的最优分配（已学习）`;
+        } else if (livePerformanceScore >= 0.7 && contentPerformanceScore < 0.5) {
           recommendedLiveRatio = 0.7; // 70% live, 30% clip
           allocationReason = isJaLang 
             ? 'ライブ配信の売上が高いため、ライブ広告重視が効果的です'
@@ -2479,15 +2521,31 @@ ${topProducts.map((p, i) => `${i + 1}. ${p.name}: ¥${p.gmv.toLocaleString()}`).
         }
 
         // Helper function to calculate allocation for each scenario
+        // If we have learning data, use learned ROAS for more accurate predictions
         const calculateAllocation = (totalBudget: number) => {
           const liveBudget = Math.round(totalBudget * recommendedLiveRatio);
           const clipBudget = totalBudget - liveBudget;
           
-          const liveImpressions = (liveBudget / liveAdCpm) * 1000;
-          const clipImpressions = (clipBudget / clipAdCpm) * 1000 * clipAdReachMultiplier;
+          // Use learned CPM if available, otherwise use default
+          const effectiveLiveAdCpm = learnedAvgCpm !== null ? learnedAvgCpm * 1.2 : liveAdCpm; // Live ads slightly more expensive
+          const effectiveClipAdCpm = learnedAvgCpm !== null ? learnedAvgCpm * 0.8 : clipAdCpm; // Clip ads slightly cheaper
           
-          const liveGmv = liveImpressions * (avgConversionRate / 100) * liveAdConversionBoost;
-          const clipGmv = clipImpressions * (avgConversionRate / 100) * clipAdConversionBoost;
+          const liveImpressions = (liveBudget / effectiveLiveAdCpm) * 1000;
+          const clipImpressions = (clipBudget / effectiveClipAdCpm) * 1000 * clipAdReachMultiplier;
+          
+          let liveGmv: number;
+          let clipGmv: number;
+          
+          // If we have learned ROAS data, use it for more accurate predictions
+          if (hasLearningData && learnedAvgRoas !== null) {
+            // Use learned ROAS to calculate projected GMV
+            liveGmv = liveBudget * learnedAvgRoas * 1.1; // Live ads typically perform 10% better
+            clipGmv = clipBudget * learnedAvgRoas * 0.9; // Clip ads typically perform 10% lower
+          } else {
+            // Use default calculation based on conversion rate
+            liveGmv = liveImpressions * (avgConversionRate / 100) * liveAdConversionBoost;
+            clipGmv = clipImpressions * (avgConversionRate / 100) * clipAdConversionBoost;
+          }
           
           return {
             liveBudget,
@@ -2650,6 +2708,9 @@ ${topProducts.map((p, i) => `${i + 1}. ${p.name}: ¥${p.gmv.toLocaleString()}`).
 - ライブ広告（Live Shopping Ads）: ライブ配信中に視聴者を増やし、即時購入を促進。コンバージョン率が高い。
 - 切り抜き広告（Spark Ads）: ライブのハイライトを切り抜いて配信後も継続的にリーチ。認知度向上に効果的。
 
+## 学習データ情報
+${hasLearningData ? '- 過去の広告実績データ: ' + learningDataRecords + '件\n- 学習済み平均ROAS: ' + (learnedAvgRoas?.toFixed(2) || 'なし') + '倍\n- 学習済み最適ライブ配分: ' + (learnedOptimalLiveRatio ? Math.round(learnedOptimalLiveRatio * 100) + '%' : 'なし') + '\n- 学習済み平均CPM: ¥' + (learnedAvgCpm?.toLocaleString() || 'なし') + '\n- ※この予測は実績データに基づいています（精度が高い）' : '- 学習データ: なし（業界平均値で予測）\n- ※広告実績を記録すると予測精度が向上します'}
+
 ## レポート作成指示
 1. まず現在のライブ成績がいかに優れているかを強調してください
 2. 広告費をかけないことでどれだけ損しているかを具体的な数字で示してください
@@ -2785,6 +2846,15 @@ ${topProducts.map((p, i) => `${i + 1}. ${p.name}: ¥${p.gmv.toLocaleString()}`).
             liveRatio: recommendedLiveRatio,
             clipRatio: 1 - recommendedLiveRatio,
             reason: allocationReason,
+            isLearningBased,
+          },
+          // Learning data info
+          learningData: {
+            hasData: hasLearningData,
+            recordCount: learningDataRecords,
+            learnedAvgRoas,
+            learnedOptimalLiveRatio,
+            learnedAvgCpm,
           },
           // Urgency
           urgency: {
