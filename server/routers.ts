@@ -1669,6 +1669,162 @@ ${JSON.stringify(teamSummary, null, 2)}`;
         // Get products for the brand
         const products = await getProductsByBrandId(input.brandId);
 
+        // 契約ステータス別に分類
+        const completedContracts = contracts.filter(c => c.status === '完了');
+        const activeContracts = contracts.filter(c => c.status === '契約中');
+
+        // 契約ごとの配信データを取得する関数
+        const getContractMetrics = async (contract: typeof contracts[0]) => {
+          // 契約に紐付いた配信を取得
+          const linkedLivestreams = await getContractLinkedLivestreams(contract.id);
+          
+          // GMV計算
+          const gmv = linkedLivestreams.reduce((sum, ls) => {
+            const gmvValue = ls.salesAmount || ls.gmv || 0;
+            return sum + gmvValue;
+          }, 0);
+          
+          // インプレッション数
+          const impressions = linkedLivestreams.reduce((sum, ls) => sum + (ls.impressions || 0), 0);
+          
+          // 広告換算費用
+          const adValue = impressions * 15;
+          
+          // 総価値
+          const totalValue = gmv + adValue;
+          
+          // 契約金額
+          const contractAmount = contract.fixedFee || 0;
+          
+          // ROAS
+          const roas = contractAmount > 0 ? totalValue / contractAmount : 0;
+          
+          // 配信回数（ユニークな日付）
+          const uniqueDates = new Set<string>();
+          linkedLivestreams.forEach((ls) => {
+            if (ls.livestreamDate) {
+              const dateStr = new Date(ls.livestreamDate).toISOString().split('T')[0];
+              uniqueDates.add(dateStr);
+            }
+          });
+          const livestreamCount = uniqueDates.size;
+          
+          return {
+            contractId: contract.id,
+            serviceType: contract.serviceType,
+            status: contract.status,
+            fixedFee: contractAmount,
+            startDate: contract.startDate,
+            endDate: contract.endDate,
+            gmv,
+            impressions,
+            adValue,
+            totalValue,
+            roas,
+            livestreamCount,
+            avgSalesPerLive: livestreamCount > 0 ? gmv / livestreamCount : 0,
+          };
+        };
+
+        // 完了契約のメトリクス
+        const completedContractMetrics = await Promise.all(
+          completedContracts.map(c => getContractMetrics(c))
+        );
+        
+        // 進行中契約のメトリクス（予測ROAS付き）
+        const activeContractMetrics = await Promise.all(
+          activeContracts.map(async (c) => {
+            const metrics = await getContractMetrics(c);
+            
+            // 予測ROASを計算（現時点の平均売上 × 予定回数 / 契約金額）
+            // plannedLivestreamCountが設定されていればそれを使用、なければ契約期間から推定
+            let estimatedTotalLivestreams = metrics.livestreamCount;
+            if (c.plannedLivestreamCount && c.plannedLivestreamCount > 0) {
+              // 予定配信回数が設定されている場合はそれを使用
+              estimatedTotalLivestreams = c.plannedLivestreamCount;
+            } else if (c.startDate && c.endDate) {
+              // 予定配信回数が未設定の場合は契約期間から推定（月に2回と仮定）
+              const startDate = new Date(c.startDate);
+              const endDate = new Date(c.endDate);
+              const months = Math.max(1, (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30));
+              estimatedTotalLivestreams = Math.round(months * 2);
+            }
+            
+            // 進捗率
+            const progressRate = estimatedTotalLivestreams > 0 
+              ? metrics.livestreamCount / estimatedTotalLivestreams 
+              : 0;
+            
+            // 予測GMV（現時点の平均 × 予定回数）
+            const projectedGmv = metrics.livestreamCount > 0 
+              ? (metrics.gmv / metrics.livestreamCount) * estimatedTotalLivestreams 
+              : 0;
+            
+            // 予測インプレッション
+            const projectedImpressions = metrics.livestreamCount > 0 
+              ? (metrics.impressions / metrics.livestreamCount) * estimatedTotalLivestreams 
+              : 0;
+            
+            // 予測広告換算費用
+            const projectedAdValue = projectedImpressions * 15;
+            
+            // 予測総価値
+            const projectedTotalValue = projectedGmv + projectedAdValue;
+            
+            // 予測ROAS
+            const projectedRoas = metrics.fixedFee > 0 ? projectedTotalValue / metrics.fixedFee : 0;
+            
+            return {
+              ...metrics,
+              plannedLivestreamCount: c.plannedLivestreamCount || null,
+              estimatedTotalLivestreams,
+              progressRate,
+              projectedGmv,
+              projectedImpressions,
+              projectedAdValue,
+              projectedTotalValue,
+              projectedRoas,
+            };
+          })
+        );
+
+        // 完了契約の合計
+        const completedTotalsBase = {
+          gmv: completedContractMetrics.reduce((sum, m) => sum + m.gmv, 0),
+          impressions: completedContractMetrics.reduce((sum, m) => sum + m.impressions, 0),
+          adValue: completedContractMetrics.reduce((sum, m) => sum + m.adValue, 0),
+          totalValue: completedContractMetrics.reduce((sum, m) => sum + m.totalValue, 0),
+          contractAmount: completedContractMetrics.reduce((sum, m) => sum + m.fixedFee, 0),
+          livestreamCount: completedContractMetrics.reduce((sum, m) => sum + m.livestreamCount, 0),
+        };
+        const completedTotals = {
+          ...completedTotalsBase,
+          roas: completedTotalsBase.contractAmount > 0 
+            ? completedTotalsBase.totalValue / completedTotalsBase.contractAmount 
+            : 0,
+        };
+
+        // 進行中契約の合計
+        const activeTotalsBase = {
+          gmv: activeContractMetrics.reduce((sum, m) => sum + m.gmv, 0),
+          impressions: activeContractMetrics.reduce((sum, m) => sum + m.impressions, 0),
+          adValue: activeContractMetrics.reduce((sum, m) => sum + m.adValue, 0),
+          totalValue: activeContractMetrics.reduce((sum, m) => sum + m.totalValue, 0),
+          contractAmount: activeContractMetrics.reduce((sum, m) => sum + m.fixedFee, 0),
+          livestreamCount: activeContractMetrics.reduce((sum, m) => sum + m.livestreamCount, 0),
+          projectedGmv: activeContractMetrics.reduce((sum, m) => sum + m.projectedGmv, 0),
+          projectedTotalValue: activeContractMetrics.reduce((sum, m) => sum + m.projectedTotalValue, 0),
+        };
+        const activeTotals = {
+          ...activeTotalsBase,
+          roas: activeTotalsBase.contractAmount > 0 
+            ? activeTotalsBase.totalValue / activeTotalsBase.contractAmount 
+            : 0,
+          projectedRoas: activeTotalsBase.contractAmount > 0 
+            ? activeTotalsBase.projectedTotalValue / activeTotalsBase.contractAmount 
+            : 0,
+        };
+
         // Calculate key metrics
         // salesAmountがnullの場合はgmvを使用、両方nullの場合はproductGmvTotalを使用
         const totalGmv = livestreams.reduce((sum, ls) => {
@@ -1716,8 +1872,7 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           ? livestreams.reduce((sum, ls) => sum + (ls.duration || 0), 0) / totalLivestreams 
           : 0;
 
-        // Get contract info
-        const activeContracts = contracts.filter(c => c.status === '契約中');
+        // Get contract info (activeContracts is already defined above)
         const totalContractValue = activeContracts.reduce((sum, c) => sum + (c.fixedFee || 0), 0);
 
         // Build prompt for AI based on language
@@ -1849,8 +2004,14 @@ ${topProducts.map((p, i) => `${i + 1}. ${p.name}: ¥${p.gmv.toLocaleString()}`).
             avgDuration,
             topProducts,
             activeContractsCount: activeContracts.length,
+            completedContractsCount: completedContracts.length,
             totalContractValue,
             productsCount: products.length,
+            // 契約ステータス別メトリクス
+            completedTotals,
+            activeTotals,
+            completedContractMetrics,
+            activeContractMetrics,
           },
           generatedAt: new Date().toISOString(),
         };
@@ -3110,6 +3271,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
           endDate: z.date().optional(),
           status: z.enum(["契約中", "完了", "保留", "終了"]).default("契約中"),
           memo: z.string().optional(),
+          plannedLivestreamCount: z.number().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -3177,6 +3339,7 @@ Return ONLY valid JSON, no markdown or explanation.`,
           endDate: z.union([z.date(), z.string()]).optional(),
           status: z.enum(["契約中", "完了", "保留", "終了"]).optional(),
           memo: z.string().optional(),
+          plannedLivestreamCount: z.number().nullable().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {

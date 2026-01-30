@@ -37,7 +37,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn, Info, History, ChevronLeft, ChevronRight, Download, FolderOpen, Link, ExternalLink } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn, Info, History, ChevronLeft, ChevronRight, Download, FolderOpen, Link, ExternalLink, TrendingUp, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 
 const translations = {
@@ -656,7 +656,7 @@ export default function BrandDetail() {
   const [addContractDialogOpen, setAddContractDialogOpen] = useState(false);
   const [newProduct, setNewProduct] = useState({ productName: "", listPrice: 0, specialPrice: 0, commissionRate: "", remarks: "" });
   const [newLivestream, setNewLivestream] = useState({ livestreamDate: "", livestreamStartTime: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "", productClicks: 0, impressions: 0, salesCount: 0, cartAddCount: 0, productId: null as number | null, productCommission: "", adCost: 0, ctr: "", cvr: "", cpc: 0, acos: "", roas: "" });
-  const [newContract, setNewContract] = useState({ serviceType: "単発ライブ契約" as "単発ライブ契約" | "期間契約" | "運用代行型（TSP）" | "パッケージ／複合契約", fixedFee: 0, status: "契約中" as "契約中" | "完了" | "保留" | "終了", startDate: "", endDate: "", memo: "", linkedLivestreamIds: [] as number[] });
+  const [newContract, setNewContract] = useState({ serviceType: "単発ライブ契約" as "単発ライブ契約" | "期間契約" | "運用代行型（TSP）" | "パッケージ／複合契約", fixedFee: 0, status: "契約中" as "契約中" | "完了" | "保留" | "終了", startDate: "", endDate: "", memo: "", linkedLivestreamIds: [] as number[], plannedLivestreamCount: undefined as number | undefined });
   // Delete states
   const [deleteProductDialogOpen, setDeleteProductDialogOpen] = useState(false);
   const [deleteLivestreamDialogOpen, setDeleteLivestreamDialogOpen] = useState(false);
@@ -885,7 +885,7 @@ ${proposal.proposalContent}
     onSuccess: () => {
       refetchContracts();
       setAddContractDialogOpen(false);
-      setNewContract({ serviceType: "単発ライブ契約", fixedFee: 0, status: "契約中", startDate: "", endDate: "", memo: "", linkedLivestreamIds: [] });
+      setNewContract({ serviceType: "単発ライブ契約", fixedFee: 0, status: "契約中", startDate: "", endDate: "", memo: "", linkedLivestreamIds: [], plannedLivestreamCount: undefined });
       toast.success(language === 'zh' ? '合同已添加' : '契約を追加しました');
     },
     onError: () => {
@@ -1767,7 +1767,7 @@ ${proposal.proposalContent}
                     </p>
                   </div>
                   {/* 日付を小さく表示 */}
-                  <div className="flex items-center gap-4 text-xs text-gray-400">
+                  <div className="flex items-center gap-4 text-xs text-gray-400 flex-wrap">
                     <div className="flex items-center gap-2">
                       <span>{t.startDate}:</span>
                       <span className="text-white font-mono">{formatDate(contract.startDate)}</span>
@@ -1776,6 +1776,12 @@ ${proposal.proposalContent}
                       <span>{t.endDate}:</span>
                       <span className="text-white font-mono">{formatDate(contract.endDate)}</span>
                     </div>
+                    {contract.plannedLivestreamCount && (
+                      <div className="flex items-center gap-2">
+                        <span>{language === 'ja' ? '予定配信:' : '计划直播:'}</span>
+                        <span className="text-cyan-400 font-mono">{contract.plannedLivestreamCount}{language === 'ja' ? '回' : '次'}</span>
+                      </div>
+                    )}
                     {contract.commissionRate && (
                       <div className="flex items-center gap-2">
                         <span>{t.commissionRate}:</span>
@@ -2747,6 +2753,20 @@ ${proposal.proposalContent}
                   className="bg-black/60 border-red-900/50 text-white mt-1"
                 />
               </div>
+              <div>
+                <Label className="text-gray-400">{language === 'ja' ? '予定配信回数' : '计划直播次数'}</Label>
+                <Input
+                  type="number"
+                  value={editingContract.plannedLivestreamCount || ""}
+                  onChange={(e) => setEditingContract({ ...editingContract, plannedLivestreamCount: e.target.value ? parseInt(e.target.value) : null })}
+                  placeholder={language === 'ja' ? '例: 6' : '例: 6'}
+                  className="bg-black/60 border-red-900/50 text-white mt-1"
+                  min={1}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {language === 'ja' ? '契約期間中に予定している配信回数を入力してください' : '请输入合同期内计划的直播次数'}
+                </p>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-gray-400">{t.startDate}</Label>
@@ -2982,6 +3002,7 @@ ${proposal.proposalContent}
                       startDate: startDateStr,
                       endDate: endDateStr,
                       memo: editingContract.memo || undefined,
+                      plannedLivestreamCount: editingContract.plannedLivestreamCount ? Number(editingContract.plannedLivestreamCount) : null,
                     };
                     console.log("契約更新データ:", JSON.stringify(contractData, null, 2));
                     
@@ -3764,6 +3785,20 @@ ${proposal.proposalContent}
                 </SelectContent>
               </Select>
             </div>
+            <div>
+              <Label className="text-gray-400">{language === 'ja' ? '予定配信回数' : '计划直播次数'}</Label>
+              <Input
+                type="number"
+                value={newContract.plannedLivestreamCount || ""}
+                onChange={(e) => setNewContract({ ...newContract, plannedLivestreamCount: e.target.value ? parseInt(e.target.value) : undefined })}
+                placeholder={language === 'ja' ? '例: 6' : '例: 6'}
+                className="bg-black/60 border-red-900/50 text-white mt-1"
+                min={1}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                {language === 'ja' ? '契約期間中に予定している配信回数を入力してください' : '请输入合同期内计划的直播次数'}
+              </p>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label className="text-gray-400">{t.startDate}</Label>
@@ -3866,6 +3901,7 @@ ${proposal.proposalContent}
                   startDate: newContract.startDate ? new Date(newContract.startDate) : undefined,
                   endDate: newContract.endDate ? new Date(newContract.endDate) : undefined,
                   memo: newContract.memo || undefined,
+                  plannedLivestreamCount: newContract.plannedLivestreamCount,
                 });
                 // ライブ紐付けがあれば実行
                 if (newContract.linkedLivestreamIds.length > 0 && result.contractId) {
@@ -4972,6 +5008,97 @@ ${proposal.proposalContent}
                   <p className="text-lg font-bold text-rose-400">¥{(adProposalData.metrics?.totalAdCost || 0).toLocaleString()}</p>
                 </div>
               </div>
+
+              {/* 契約ステータス別メトリクス */}
+              {adProposalData.metrics?.activeContractMetrics && adProposalData.metrics.activeContractMetrics.length > 0 && (
+                <div className="bg-gradient-to-br from-blue-950/30 to-cyan-950/20 rounded-lg p-4 border border-blue-500/30">
+                  <h4 className="text-sm font-bold text-blue-300 mb-3 flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-blue-400" />
+                    {language === 'ja' ? '進行中契約の配信進捗' : '进行中合同的直播进度'}
+                  </h4>
+                  <div className="space-y-3">
+                    {adProposalData.metrics.activeContractMetrics.map((contract: any, index: number) => (
+                      <div key={index} className="bg-black/30 rounded-lg p-3 border border-blue-500/20">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-white font-medium text-sm">{contract.serviceType}</span>
+                            <span className="text-xs text-gray-400">¥{(contract.fixedFee || 0).toLocaleString()}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-cyan-400 font-mono text-sm">
+                              {contract.livestreamCount}/{contract.plannedLivestreamCount || contract.estimatedTotalLivestreams}
+                              {language === 'ja' ? '回' : '次'}
+                            </span>
+                            {contract.plannedLivestreamCount && (
+                              <span className="text-xs text-green-400 bg-green-500/20 px-1.5 py-0.5 rounded">
+                                {language === 'ja' ? '予定設定済' : '已设定'}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {/* 進捗バー */}
+                        <div className="relative h-2 bg-gray-800 rounded-full overflow-hidden mb-2">
+                          <div 
+                            className="absolute h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full transition-all"
+                            style={{ width: `${Math.min(100, (contract.progressRate || 0) * 100)}%` }}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-400">
+                            {language === 'ja' ? '進捗: ' : '进度: '}
+                            <span className="text-blue-400 font-mono">{((contract.progressRate || 0) * 100).toFixed(0)}%</span>
+                          </span>
+                          <span className="text-gray-400">
+                            {language === 'ja' ? '現在ROAS: ' : '当前ROAS: '}
+                            <span className="text-amber-400 font-mono">{(contract.roas || 0).toFixed(2)}倍</span>
+                          </span>
+                          <span className="text-gray-400">
+                            {language === 'ja' ? '予測ROAS: ' : '预测ROAS: '}
+                            <span className="text-green-400 font-mono">{(contract.projectedRoas || 0).toFixed(2)}倍</span>
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 完了契約のサマリー */}
+              {adProposalData.metrics?.completedContractMetrics && adProposalData.metrics.completedContractMetrics.length > 0 && (
+                <div className="bg-gradient-to-br from-gray-900/50 to-gray-800/30 rounded-lg p-4 border border-gray-600/30">
+                  <h4 className="text-sm font-bold text-gray-300 mb-3 flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-400" />
+                    {language === 'ja' ? '完了契約の実績' : '已完成合同的业绩'}
+                    <span className="text-xs text-gray-500 ml-2">
+                      ({adProposalData.metrics.completedContractMetrics.length}{language === 'ja' ? '件' : '件'})
+                    </span>
+                  </h4>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="text-center">
+                      <p className="text-xs text-gray-500">{language === 'ja' ? '合計GMV' : '总GMV'}</p>
+                      <p className="text-lg font-bold text-cyan-400">
+                        ¥{adProposalData.metrics.completedContractMetrics.reduce((sum: number, c: any) => sum + (c.gmv || 0), 0).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-gray-500">{language === 'ja' ? '平均ROAS' : '平均ROAS'}</p>
+                      <p className="text-lg font-bold text-amber-400">
+                        {(() => {
+                          const totalValue = adProposalData.metrics.completedContractMetrics.reduce((sum: number, c: any) => sum + (c.totalValue || 0), 0);
+                          const totalFee = adProposalData.metrics.completedContractMetrics.reduce((sum: number, c: any) => sum + (c.fixedFee || 0), 0);
+                          return totalFee > 0 ? (totalValue / totalFee).toFixed(2) : '0.00';
+                        })()}倍
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-gray-500">{language === 'ja' ? '総配信回数' : '总直播次数'}</p>
+                      <p className="text-lg font-bold text-purple-400">
+                        {adProposalData.metrics.completedContractMetrics.reduce((sum: number, c: any) => sum + (c.livestreamCount || 0), 0)}{language === 'ja' ? '回' : '次'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Top Products */}
               {adProposalData.metrics?.topProducts && adProposalData.metrics.topProducts.length > 0 && (

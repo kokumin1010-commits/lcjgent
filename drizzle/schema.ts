@@ -419,6 +419,7 @@ export const brandContracts = mysqlTable("brand_contracts", {
   commissionRate: varchar("commissionRate", { length: 50 }), // 成果報酬（例：10%、または固定金額）
   startDate: timestamp("startDate"), // 契約開始日
   endDate: timestamp("endDate"), // 契約終了日
+  plannedLivestreamCount: int("plannedLivestreamCount"), // 予定配信回数
   status: mysqlEnum("status", ["契約中", "完了", "保留", "終了"]).default("契約中").notNull(), // ステータス
   memo: text("memo"), // メモ
   createdBy: int("createdBy").notNull(), // 作成者（user ID）

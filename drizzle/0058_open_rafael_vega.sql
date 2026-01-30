@@ -1,0 +1,1 @@
+ALTER TABLE `brand_contracts` ADD `plannedLivestreamCount` int;
