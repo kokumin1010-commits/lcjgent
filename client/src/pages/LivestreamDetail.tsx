@@ -509,9 +509,15 @@ export default function LivestreamDetail() {
                 {/* Delivery Period */}
                 <div className="flex justify-between items-start">
                   <span className="text-red-500 font-medium">配信期間</span>
-                  <div className="text-right">
-                    <p>開始　{formatDateTime(livestream.livestreamDate)}</p>
-                    <p>終了　{formatDateTime(livestream.livestreamEndTime)}</p>
+                  <div className="text-right space-y-1">
+                    <p className="text-white">
+                      <span className="text-gray-200 mr-2">開始</span>
+                      <span className="font-medium text-white">{formatDateTime(livestream.livestreamDate)}</span>
+                    </p>
+                    <p className="text-white">
+                      <span className="text-gray-200 mr-2">終了</span>
+                      <span className="font-medium text-white">{formatDateTime(livestream.livestreamEndTime)}</span>
+                    </p>
                   </div>
                 </div>
                 
@@ -525,14 +531,14 @@ export default function LivestreamDetail() {
 
                 {/* Performance Metrics Grid */}
                 <div className="bg-gray-800/50 rounded-lg p-4">
-                  <h3 className="text-sm font-medium text-gray-400 mb-3 flex items-center gap-2">
+                  <h3 className="text-sm font-medium text-gray-200 mb-3 flex items-center gap-2">
                     <Eye className="w-4 h-4" />
                     配信パフォーマンス
                   </h3>
                   <div className="grid grid-cols-2 gap-4">
                     {/* Duration */}
                     <div className="bg-gray-900/50 rounded p-3">
-                      <p className="text-gray-400 text-xs">配信時間</p>
+                      <p className="text-gray-300 text-xs">配信時間</p>
                       <p className="text-white font-bold text-lg">
                         {livestream.duration 
                           ? `${Math.floor(livestream.duration / 60)}時間${livestream.duration % 60}分`
@@ -542,7 +548,7 @@ export default function LivestreamDetail() {
                     
                     {/* Viewer Count */}
                     <div className="bg-gray-900/50 rounded p-3">
-                      <p className="text-gray-400 text-xs">視聴者数</p>
+                      <p className="text-gray-300 text-xs">視聴者数</p>
                       <p className="text-white font-bold text-lg">
                         {livestream.viewerCount?.toLocaleString() || "-"}
                       </p>
@@ -550,7 +556,7 @@ export default function LivestreamDetail() {
                     
                     {/* Product Clicks */}
                     <div className="bg-gray-900/50 rounded p-3">
-                      <p className="text-gray-400 text-xs flex items-center gap-1">
+                      <p className="text-gray-300 text-xs flex items-center gap-1">
                         <MousePointer className="w-3 h-3" />
                         商品クリック数
                       </p>
@@ -561,7 +567,7 @@ export default function LivestreamDetail() {
                     
                     {/* Order Count */}
                     <div className="bg-gray-900/50 rounded p-3">
-                      <p className="text-gray-400 text-xs flex items-center gap-1">
+                      <p className="text-gray-300 text-xs flex items-center gap-1">
                         <ShoppingCart className="w-3 h-3" />
                         注文数
                       </p>
@@ -573,7 +579,7 @@ export default function LivestreamDetail() {
                     {/* Impressions */}
                     {livestream.impressions && (
                       <div className="bg-gray-900/50 rounded p-3">
-                        <p className="text-gray-400 text-xs">インプレッション</p>
+                        <p className="text-gray-300 text-xs">インプレッション</p>
                         <p className="text-white font-bold text-lg">
                           {livestream.impressions?.toLocaleString()}
                         </p>
@@ -583,7 +589,7 @@ export default function LivestreamDetail() {
                     {/* CVR */}
                     {livestream.cvr && (
                       <div className="bg-gray-900/50 rounded p-3">
-                        <p className="text-gray-400 text-xs">CVR（コンバージョン率）</p>
+                        <p className="text-gray-300 text-xs">CVR（コンバージョン率）</p>
                         <p className="text-white font-bold text-lg">
                           {livestream.cvr}
                         </p>
@@ -593,7 +599,7 @@ export default function LivestreamDetail() {
                     {/* CTR */}
                     {livestream.ctr && (
                       <div className="bg-gray-900/50 rounded p-3">
-                        <p className="text-gray-400 text-xs">CTR（クリック率）</p>
+                        <p className="text-gray-300 text-xs">CTR（クリック率）</p>
                         <p className="text-white font-bold text-lg">
                           {livestream.ctr}
                         </p>
@@ -613,7 +619,7 @@ export default function LivestreamDetail() {
                       {/* Likes */}
                       {livestream.likes !== null && livestream.likes !== undefined && (
                         <div className="bg-gray-900/50 rounded p-3">
-                          <p className="text-gray-400 text-xs flex items-center gap-1">
+                          <p className="text-gray-300 text-xs flex items-center gap-1">
                             <Heart className="w-3 h-3 text-pink-400" />
                             いいね
                           </p>
@@ -626,7 +632,7 @@ export default function LivestreamDetail() {
                       {/* Comments */}
                       {livestream.comments !== null && livestream.comments !== undefined && (
                         <div className="bg-gray-900/50 rounded p-3">
-                          <p className="text-gray-400 text-xs flex items-center gap-1">
+                          <p className="text-gray-300 text-xs flex items-center gap-1">
                             <MessageCircle className="w-3 h-3 text-blue-400" />
                             コメント
                           </p>
@@ -639,7 +645,7 @@ export default function LivestreamDetail() {
                       {/* Shares */}
                       {livestream.shares !== null && livestream.shares !== undefined && (
                         <div className="bg-gray-900/50 rounded p-3">
-                          <p className="text-gray-400 text-xs flex items-center gap-1">
+                          <p className="text-gray-300 text-xs flex items-center gap-1">
                             <Share2 className="w-3 h-3 text-green-400" />
                             シェア
                           </p>
@@ -652,7 +658,7 @@ export default function LivestreamDetail() {
                       {/* New Followers */}
                       {livestream.newFollowers !== null && livestream.newFollowers !== undefined && (
                         <div className="bg-gray-900/50 rounded p-3">
-                          <p className="text-gray-400 text-xs flex items-center gap-1">
+                          <p className="text-gray-300 text-xs flex items-center gap-1">
                             <UserPlus className="w-3 h-3 text-yellow-400" />
                             新規フォロワー
                           </p>
@@ -665,7 +671,7 @@ export default function LivestreamDetail() {
                       {/* Average View Duration */}
                       {livestream.avgViewDuration !== null && livestream.avgViewDuration !== undefined && (
                         <div className="bg-gray-900/50 rounded p-3">
-                          <p className="text-gray-400 text-xs flex items-center gap-1">
+                          <p className="text-gray-300 text-xs flex items-center gap-1">
                             <Timer className="w-3 h-3 text-cyan-400" />
                             平均視聴時間
                           </p>
@@ -689,7 +695,7 @@ export default function LivestreamDetail() {
                       {/* Items Sold */}
                       {livestream.itemsSold !== null && livestream.itemsSold !== undefined && (
                         <div className="bg-gray-900/50 rounded p-3">
-                          <p className="text-gray-400 text-xs flex items-center gap-1">
+                          <p className="text-gray-300 text-xs flex items-center gap-1">
                             <Package className="w-3 h-3 text-orange-400" />
                             販売数
                           </p>
@@ -702,7 +708,7 @@ export default function LivestreamDetail() {
                       {/* Customers */}
                       {livestream.customerCount !== null && livestream.customerCount !== undefined && (
                         <div className="bg-gray-900/50 rounded p-3">
-                          <p className="text-gray-400 text-xs flex items-center gap-1">
+                          <p className="text-gray-300 text-xs flex items-center gap-1">
                             <Users className="w-3 h-3 text-blue-400" />
                             購入者数
                           </p>
@@ -715,7 +721,7 @@ export default function LivestreamDetail() {
                       {/* Average Price */}
                       {livestream.avgPrice !== null && livestream.avgPrice !== undefined && (
                         <div className="bg-gray-900/50 rounded p-3 col-span-2">
-                          <p className="text-gray-400 text-xs flex items-center gap-1">
+                          <p className="text-gray-300 text-xs flex items-center gap-1">
                             <DollarSign className="w-3 h-3 text-yellow-400" />
                             平均単価
                           </p>
@@ -847,8 +853,8 @@ export default function LivestreamDetail() {
                             {livestream.aiStructuredAdvice.actionPlans.map((plan: { action: string; reason: string; timing: string }, i: number) => (
                               <div key={i} className="bg-gray-800/50 rounded p-3">
                                 <p className="text-white font-medium">{plan.action}</p>
-                                <p className="text-gray-400 text-sm mt-1">理由: {plan.reason}</p>
-                                <p className="text-gray-500 text-xs mt-1">タイミング: {plan.timing}</p>
+                                <p className="text-gray-300 text-sm mt-1">理由: {plan.reason}</p>
+                                <p className="text-gray-400 text-xs mt-1">タイミング: {plan.timing}</p>
                               </div>
                             ))}
                           </div>
@@ -870,7 +876,7 @@ export default function LivestreamDetail() {
                           <div className="grid grid-cols-2 gap-2">
                             {Object.entries(livestream.aiStructuredAdvice.calculatedMetrics).map(([key, value]) => (
                               <div key={key} className="bg-gray-800/50 rounded p-2">
-                                <p className="text-gray-400 text-xs">{key}</p>
+                                <p className="text-gray-300 text-xs">{key}</p>
                                 <p className="text-white font-medium">{String(value)}</p>
                               </div>
                             ))}

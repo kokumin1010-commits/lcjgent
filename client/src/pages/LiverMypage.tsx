@@ -583,6 +583,10 @@ export default function LiverMypage() {
                 salesAmount?: number | null;
                 gmv?: number | null;
                 duration?: number | null;
+                viewerCount?: number | null;
+                likes?: number | null;
+                comments?: number | null;
+                brandName?: string | null;
                 aiStructuredAdvice?: {
                   summary?: string;
                   goodPoints?: string[];
@@ -592,7 +596,7 @@ export default function LiverMypage() {
                   calculatedMetrics?: Record<string, string | number>;
                 } | null;
                 aiAdvice?: string | null;
-              }) => {
+              }, index: number) => {
                 const startDate = new Date(ls.livestreamDate);
                 const endDate = ls.livestreamEndTime ? new Date(ls.livestreamEndTime) : null;
                 const duration = ls.duration 
@@ -602,43 +606,84 @@ export default function LiverMypage() {
                     : 0;
                 const hasAiAdvice = ls.aiStructuredAdvice || ls.aiAdvice;
 
+                // 前回比較を計算
+                const currentSales = ls.salesAmount || ls.gmv || 0;
+                const prevLs = displayedLivestreams[index + 1];
+                const prevSales = prevLs ? (prevLs.salesAmount || prevLs.gmv || 0) : null;
+                const salesDiff = prevSales !== null ? currentSales - prevSales : null;
+                const salesDiffPercent = prevSales && prevSales > 0 ? Math.round((salesDiff! / prevSales) * 100) : null;
+                
+                // 売上金額の色分け（100万以上は緑、50万以上は黄、それ以下は赤）
+                const getSalesColor = (sales: number) => {
+                  if (sales >= 1000000) return "text-green-400";
+                  if (sales >= 500000) return "text-yellow-400";
+                  return "text-red-400";
+                };
+
                 return (
                   <Card 
                     key={ls.id} 
                     className="bg-gray-800/50 border-gray-700 hover:bg-gray-700/50 transition-colors cursor-pointer active:scale-[0.99]"
                     onClick={() => navigate(`/livestreams/${ls.id}`)}
                   >
-                    <CardContent className="p-3 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="text-center bg-gray-700/50 rounded px-2 py-1">
-                          <p className="text-xs font-bold text-white">
-                            {startDate.getMonth() + 1}/{startDate.getDate()}
-                          </p>
-                          <p className="text-[10px] text-gray-400">
-                            {startDate.toLocaleDateString("ja-JP", { weekday: "short" })}
-                          </p>
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-1">
-                            <p className="text-xs text-gray-400">
-                              {startDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
-                              {endDate && ` - ${endDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}`}
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="text-center bg-gray-700/50 rounded px-2 py-1">
+                            <p className="text-xs font-bold text-white">
+                              {startDate.getMonth() + 1}/{startDate.getDate()}
                             </p>
-                            {hasAiAdvice && (
-                              <Sparkles className="h-3 w-3 text-yellow-500" />
-                            )}
+                            <p className="text-[10px] text-gray-400">
+                              {startDate.toLocaleDateString("ja-JP", { weekday: "short" })}
+                            </p>
                           </div>
-                          <p className="text-xs text-gray-500">
-                            {duration > 0 ? `${duration}h` : "-"}
-                          </p>
+                          <div>
+                            <div className="flex items-center gap-1">
+                              <p className="text-xs text-gray-300">
+                                {startDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
+                                {endDate && ` - ${endDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}`}
+                              </p>
+                              {hasAiAdvice && (
+                                <Sparkles className="h-3 w-3 text-yellow-500" />
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <p className="text-xs text-gray-400">
+                                {duration > 0 ? `${duration}h` : "-"}
+                              </p>
+                              {ls.viewerCount && (
+                                <span className="text-xs text-gray-400 flex items-center gap-0.5">
+                                  <Eye className="h-3 w-3" />
+                                  {ls.viewerCount.toLocaleString()}
+                                </span>
+                              )}
+                              {ls.likes && (
+                                <span className="text-xs text-pink-400 flex items-center gap-0.5">
+                                  ❤ {ls.likes.toLocaleString()}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end">
+                          <div className="flex items-center gap-2">
+                            <p className={`text-sm font-bold ${getSalesColor(currentSales)}`}>
+                              ¥{currentSales.toLocaleString()}
+                            </p>
+                            <ChevronRight className="h-4 w-4 text-gray-500" />
+                          </div>
+                          {salesDiffPercent !== null && (
+                            <p className={`text-[10px] ${salesDiff! >= 0 ? "text-green-400" : "text-red-400"}`}>
+                              {salesDiff! >= 0 ? "▲" : "▼"} {Math.abs(salesDiffPercent)}%
+                            </p>
+                          )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-bold text-red-400">
-                          ¥{(ls.salesAmount || ls.gmv || 0).toLocaleString()}
+                      {ls.brandName && (
+                        <p className="text-[10px] text-gray-500 mt-1 pl-12">
+                          {ls.brandName}
                         </p>
-                        <ChevronRight className="h-4 w-4 text-gray-500" />
-                      </div>
+                      )}
                     </CardContent>
                   </Card>
                 );
