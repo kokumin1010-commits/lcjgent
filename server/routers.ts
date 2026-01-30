@@ -1671,7 +1671,15 @@ ${JSON.stringify(teamSummary, null, 2)}`;
         // 広告費は契約情報のfixedFee（ブランド投入）から取得
         const totalAdCost = contracts.reduce((sum, c) => sum + (c.fixedFee || 0), 0);
         const avgRoas = totalAdCost > 0 ? totalGmv / totalAdCost : 0;
-        const totalLivestreams = livestreams.length;
+        // 同じ日の配信は1回としてカウント（ユニークな日付の数）
+        const uniqueDates = new Set<string>();
+        livestreams.forEach((ls) => {
+          if (ls.livestreamDate) {
+            const dateStr = new Date(ls.livestreamDate).toISOString().split('T')[0];
+            uniqueDates.add(dateStr);
+          }
+        });
+        const totalLivestreams = uniqueDates.size;
         const avgSalesPerLive = totalLivestreams > 0 ? totalGmv / totalLivestreams : 0;
         
         // Get top products by GMV from all livestreams

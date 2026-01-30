@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useParams, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -707,6 +707,18 @@ export default function BrandDetail() {
   const { data: memos = [], refetch: refetchMemos } = trpc.brandMemo.listByBrand.useQuery({ brandId });
   const { data: monthlyGmvSummary = [] } = trpc.brandLivestream.monthlyGmvSummary.useQuery({ brandId });
   const { data: lcjStaff = [] } = trpc.brand.getLcjStaff.useQuery({ brandId }, { enabled: brandId > 0 });
+
+  // 同じ日の配信は1回としてカウント（ユニークな日付の数）
+  const uniqueLivestreamDays = useMemo(() => {
+    const uniqueDates = new Set<string>();
+    livestreams.forEach((ls) => {
+      if (ls.livestreamDate) {
+        const dateStr = new Date(ls.livestreamDate).toISOString().split('T')[0];
+        uniqueDates.add(dateStr);
+      }
+    });
+    return uniqueDates.size;
+  }, [livestreams]);
 
   // 商品リンクを一括取得（商品パフォーマンステーブル用）
   const productIds = products.map((p) => p.id);
@@ -1564,7 +1576,7 @@ export default function BrandDetail() {
               <span className="text-xs text-pink-200 uppercase tracking-wider font-bold">{t.livestreams}</span>
             </div>
             <p className="text-3xl font-black" style={{ fontFamily: 'JetBrains Mono, monospace', color: '#ff66cc', textShadow: '0 0 10px rgba(255, 100, 200, 0.8)' }}>
-              {livestreams.length}<span className="text-sm text-pink-300 ml-1">{t.times}</span>
+              {uniqueLivestreamDays}<span className="text-sm text-pink-300 ml-1">{t.times}</span>
             </p>
           </div>
           <div className="relative overflow-hidden rounded-xl p-4 transition-all duration-300 hover:scale-105" style={{
