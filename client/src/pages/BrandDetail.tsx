@@ -749,7 +749,7 @@ export default function BrandDetail() {
     setAdProposalDialogOpen(true);
     setIsGeneratingProposal(true);
     setAdProposalData(null);
-    generateAdProposalMutation.mutate({ brandId });
+    generateAdProposalMutation.mutate({ brandId, language: language as 'ja' | 'zh' });
   };
 
   // Save ad proposal mutation
@@ -5059,7 +5059,7 @@ ${proposal.proposalContent}
                     onClick={() => {
                       setIsGeneratingProposal(true);
                       setAdProposalData(null);
-                      generateAdProposalMutation.mutate({ brandId });
+                      generateAdProposalMutation.mutate({ brandId, language: language as 'ja' | 'zh' });
                     }}
                     className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white"
                   >

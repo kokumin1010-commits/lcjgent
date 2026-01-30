@@ -1651,8 +1651,9 @@ ${JSON.stringify(teamSummary, null, 2)}`;
 
     // Generate AI advertising proposal for a brand
     generateAdProposal: protectedProcedure
-      .input(z.object({ brandId: z.number() }))
+      .input(z.object({ brandId: z.number(), language: z.enum(['ja', 'zh']).optional().default('ja') }))
       .mutation(async ({ input }) => {
+        const lang = input.language || 'ja';
         // Get brand data
         const brand = await getBrandById(input.brandId);
         if (!brand) {
@@ -1719,8 +1720,8 @@ ${JSON.stringify(teamSummary, null, 2)}`;
         const activeContracts = contracts.filter(c => c.status === '契約中');
         const totalContractValue = activeContracts.reduce((sum, c) => sum + (c.fixedFee || 0), 0);
 
-        // Build prompt for AI
-        const prompt = `あなたはTikTokライブコマースの広告戦略コンサルタントです。以下のブランドデータを分析し、具体的な広告提案を作成してください。
+        // Build prompt for AI based on language
+        const promptJa = `あなたはTikTokライブコマースの広告戦略コンサルタントです。以下のブランドデータを分析し、具体的な広告提案を作成してください。
 
 ## ブランド情報
 - ブランド名: ${brand.name} (${brand.nameJa || ''})
@@ -1769,10 +1770,63 @@ ${topProducts.map((p, i) => `${i + 1}. ${p.name}: ¥${p.gmv.toLocaleString()}`).
 
 日本語で回答してください。具体的な数字を含めてください。`;
 
+        const promptZh = `你是TikTok直播电商的广告策略顾问。请分析以下品牌数据，并制定具体的广告提案。
+
+## 品牌信息
+- 品牌名: ${brand.name} (${brand.nameJa || ''})
+- 类别: ${brand.category || '未设置'}
+- 状态: ${brand.status || '未设置'}
+
+## 业绩数据
+- 总GMV: ¥${totalGmv.toLocaleString()}
+- 总曝光量: ${totalImpressions.toLocaleString()}次
+- 广告换算费用: ¥${adValue.toLocaleString()}（CPM ¥15,000基准）
+- 总价值: ¥${totalValue.toLocaleString()}（GMV + 广告换算费用）
+- 总广告费（合同金额）: ¥${totalAdCost.toLocaleString()}
+- 广告效果ROAS: ${avgRoas.toFixed(2)}倍
+- 直播次数: ${totalLivestreams}次
+- 平均销售额/直播: ¥${Math.round(avgSalesPerLive).toLocaleString()}
+- 平均直播时长: ${Math.round(avgDuration)}分钟
+
+## 畅销商品TOP5
+${topProducts.map((p, i) => `${i + 1}. ${p.name}: ¥${p.gmv.toLocaleString()}`).join('\n')}
+
+## 合同信息
+- 有效合同数: ${activeContracts.length}件
+- 合同总额: ¥${totalContractValue.toLocaleString()}
+
+## 商品数
+- 注册商品数: ${products.length}个
+
+---
+
+请分析以上数据，按以下格式制定广告提案：
+
+1. **现状分析** (约200字)
+   - ROAS评估（与行业平均比较）
+   - 优势与课题
+
+2. **推荐广告策略** (约300字)
+   - 推荐广告预算（具体金额）
+   - 推荐直播频率
+   - 目标用户群体建议
+   - 推荐商品选择
+
+3. **行动计划** (约200字)
+   - 短期（1个月）具体行动
+   - 中期（3个月）目标
+   - 预期ROAS改善率
+
+请用中文回答。请包含具体数字。`;
+
+        const prompt = lang === 'zh' ? promptZh : promptJa;
+
         // Call LLM
+        const systemPromptJa = "あなたはTikTokライブコマースの広告戦略コンサルタントです。データに基づいた具体的で実行可能な広告提案を作成してください。";
+        const systemPromptZh = "你是TikTok直播电商的广告策略顾问。请根据数据制定具体可执行的广告提案。";
         const response = await invokeLLM({
           messages: [
-            { role: "system", content: "あなたはTikTokライブコマースの広告戦略コンサルタントです。データに基づいた具体的で実行可能な広告提案を作成してください。" },
+            { role: "system", content: lang === 'zh' ? systemPromptZh : systemPromptJa },
             { role: "user", content: prompt },
           ],
         });
