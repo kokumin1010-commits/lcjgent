@@ -230,7 +230,7 @@ import {
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
-import { lineUsers, brands, lineGroups, schedules, adAlertHistory } from "../drizzle/schema";
+import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats } from "../drizzle/schema";
 import { eq, and, not, isNotNull, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { authRouter } from "./auth";
@@ -3204,6 +3204,198 @@ ${topProducts.map((p, i) => `${i + 1}. ${p.name}: ¥${p.gmv.toLocaleString()}`).
         if (!db) throw new Error('Database not available');
         await db.delete(adAlertHistory).where(eq(adAlertHistory.id, input.alertId));
         return { success: true };
+      }),
+
+    // ========== Ad Investment Records (Learning System) ==========
+    
+    // Create ad investment record
+    createAdInvestmentRecord: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+        investmentDate: z.string(), // ISO date string
+        adType: z.enum(["live", "clip", "mixed"]),
+        totalBudget: z.number(),
+        liveBudget: z.number().optional(),
+        clipBudget: z.number().optional(),
+        actualGmv: z.number().optional(),
+        actualImpressions: z.number().optional(),
+        actualClicks: z.number().optional(),
+        actualConversions: z.number().optional(),
+        predictedGmv: z.number().optional(),
+        predictedRoas: z.number().optional(),
+        campaignName: z.string().optional(),
+        notes: z.string().optional(),
+        livestreamId: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error('Database not available');
+        
+        // Calculate metrics
+        const actualRoas = input.actualGmv && input.totalBudget > 0 
+          ? input.actualGmv / input.totalBudget 
+          : 0;
+        const cpm = input.actualImpressions && input.actualImpressions > 0 
+          ? (input.totalBudget / input.actualImpressions) * 1000 
+          : 0;
+        const cpc = input.actualClicks && input.actualClicks > 0 
+          ? input.totalBudget / input.actualClicks 
+          : 0;
+        const conversionRate = input.actualClicks && input.actualClicks > 0 && input.actualConversions 
+          ? input.actualConversions / input.actualClicks 
+          : 0;
+        
+        // Calculate prediction accuracy
+        let predictionAccuracy = 0;
+        if (input.predictedGmv && input.actualGmv) {
+          const diff = Math.abs(input.predictedGmv - input.actualGmv);
+          const maxVal = Math.max(input.predictedGmv, input.actualGmv);
+          predictionAccuracy = maxVal > 0 ? 1 - (diff / maxVal) : 0;
+        }
+        
+        const result = await db.insert(adInvestmentRecords).values({
+          brandId: input.brandId,
+          investmentDate: new Date(input.investmentDate),
+          adType: input.adType,
+          totalBudget: input.totalBudget,
+          liveBudget: input.liveBudget || 0,
+          clipBudget: input.clipBudget || 0,
+          actualGmv: input.actualGmv || 0,
+          actualImpressions: input.actualImpressions || 0,
+          actualClicks: input.actualClicks || 0,
+          actualConversions: input.actualConversions || 0,
+          actualRoas: String(actualRoas),
+          cpm: String(cpm),
+          cpc: String(cpc),
+          conversionRate: String(conversionRate),
+          predictedGmv: input.predictedGmv || 0,
+          predictedRoas: String(input.predictedRoas || 0),
+          predictionAccuracy: String(predictionAccuracy),
+          campaignName: input.campaignName || null,
+          notes: input.notes || null,
+          livestreamId: input.livestreamId || null,
+          createdBy: ctx.user.id,
+          createdByName: ctx.user.name || ctx.user.email,
+        });
+        
+        // Update brand performance stats
+        await updateBrandAdPerformanceStats(db, input.brandId);
+        
+        return { success: true, id: (result as any)[0]?.insertId };
+      }),
+    
+    // Get ad investment records for a brand
+    getAdInvestmentRecords: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error('Database not available');
+        const records = await db
+          .select()
+          .from(adInvestmentRecords)
+          .where(eq(adInvestmentRecords.brandId, input.brandId))
+          .orderBy(desc(adInvestmentRecords.investmentDate));
+        return records;
+      }),
+    
+    // Update ad investment record (add actual results)
+    updateAdInvestmentRecord: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        actualGmv: z.number().optional(),
+        actualImpressions: z.number().optional(),
+        actualClicks: z.number().optional(),
+        actualConversions: z.number().optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error('Database not available');
+        
+        // Get current record
+        const [record] = await db
+          .select()
+          .from(adInvestmentRecords)
+          .where(eq(adInvestmentRecords.id, input.id));
+        
+        if (!record) throw new Error('Record not found');
+        
+        const totalBudget = record.totalBudget || 1;
+        const actualGmv = input.actualGmv ?? record.actualGmv ?? 0;
+        const actualImpressions = input.actualImpressions ?? record.actualImpressions ?? 0;
+        const actualClicks = input.actualClicks ?? record.actualClicks ?? 0;
+        const actualConversions = input.actualConversions ?? record.actualConversions ?? 0;
+        
+        // Recalculate metrics
+        const actualRoas = actualGmv / totalBudget;
+        const cpm = actualImpressions > 0 ? (totalBudget / actualImpressions) * 1000 : 0;
+        const cpc = actualClicks > 0 ? totalBudget / actualClicks : 0;
+        const conversionRate = actualClicks > 0 ? actualConversions / actualClicks : 0;
+        
+        // Recalculate prediction accuracy
+        let predictionAccuracy = 0;
+        const predictedGmv = record.predictedGmv || 0;
+        if (predictedGmv && actualGmv) {
+          const diff = Math.abs(predictedGmv - actualGmv);
+          const maxVal = Math.max(predictedGmv, actualGmv);
+          predictionAccuracy = maxVal > 0 ? 1 - (diff / maxVal) : 0;
+        }
+        
+        await db.update(adInvestmentRecords)
+          .set({
+            actualGmv,
+            actualImpressions,
+            actualClicks,
+            actualConversions,
+            actualRoas: String(actualRoas),
+            cpm: String(cpm),
+            cpc: String(cpc),
+            conversionRate: String(conversionRate),
+            predictionAccuracy: String(predictionAccuracy),
+            notes: input.notes ?? record.notes,
+          })
+          .where(eq(adInvestmentRecords.id, input.id));
+        
+        // Update brand performance stats
+        await updateBrandAdPerformanceStats(db, record.brandId);
+        
+        return { success: true };
+      }),
+    
+    // Delete ad investment record
+    deleteAdInvestmentRecord: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error('Database not available');
+        
+        // Get brand ID before deletion
+        const [record] = await db
+          .select({ brandId: adInvestmentRecords.brandId })
+          .from(adInvestmentRecords)
+          .where(eq(adInvestmentRecords.id, input.id));
+        
+        await db.delete(adInvestmentRecords).where(eq(adInvestmentRecords.id, input.id));
+        
+        // Update brand performance stats
+        if (record) {
+          await updateBrandAdPerformanceStats(db, record.brandId);
+        }
+        
+        return { success: true };
+      }),
+    
+    // Get brand ad performance stats (learned data)
+    getBrandAdPerformanceStats: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error('Database not available');
+        const [stats] = await db
+          .select()
+          .from(brandAdPerformanceStats)
+          .where(eq(brandAdPerformanceStats.brandId, input.brandId));
+        return stats || null;
       }),
 
     // Upload image for brand
@@ -6728,3 +6920,120 @@ ${metricsDescription}${historicalContext}`,
 });
 
 export type AppRouter = typeof appRouter;
+
+// Helper function to update brand ad performance stats based on historical data
+async function updateBrandAdPerformanceStats(db: any, brandId: number) {
+  try {
+    // Get all investment records for this brand
+    const records = await db
+      .select()
+      .from(adInvestmentRecords)
+      .where(eq(adInvestmentRecords.brandId, brandId));
+    
+    if (records.length === 0) {
+      // Delete stats if no records
+      await db.delete(brandAdPerformanceStats).where(eq(brandAdPerformanceStats.brandId, brandId));
+      return;
+    }
+    
+    // Calculate averages
+    let totalRoas = 0;
+    let totalCpm = 0;
+    let totalCpc = 0;
+    let totalConversionRate = 0;
+    let liveAdRoasSum = 0;
+    let liveAdCount = 0;
+    let clipAdRoasSum = 0;
+    let clipAdCount = 0;
+    let totalPredictionAccuracy = 0;
+    let predictionCount = 0;
+    
+    for (const record of records) {
+      totalRoas += parseFloat(record.actualRoas || '0');
+      totalCpm += parseFloat(record.cpm || '0');
+      totalCpc += parseFloat(record.cpc || '0');
+      totalConversionRate += parseFloat(record.conversionRate || '0');
+      
+      const roas = parseFloat(record.actualRoas || '0');
+      if (record.adType === 'live') {
+        liveAdRoasSum += roas;
+        liveAdCount++;
+      } else if (record.adType === 'clip') {
+        clipAdRoasSum += roas;
+        clipAdCount++;
+      } else {
+        // Mixed - count for both
+        liveAdRoasSum += roas;
+        liveAdCount++;
+        clipAdRoasSum += roas;
+        clipAdCount++;
+      }
+      
+      const accuracy = parseFloat(record.predictionAccuracy || '0');
+      if (accuracy > 0) {
+        totalPredictionAccuracy += accuracy;
+        predictionCount++;
+      }
+    }
+    
+    const count = records.length;
+    const avgRoas = totalRoas / count;
+    const avgCpm = totalCpm / count;
+    const avgCpc = totalCpc / count;
+    const avgConversionRate = totalConversionRate / count;
+    const liveAdAvgRoas = liveAdCount > 0 ? liveAdRoasSum / liveAdCount : 0;
+    const clipAdAvgRoas = clipAdCount > 0 ? clipAdRoasSum / clipAdCount : 0;
+    const avgPredictionAccuracy = predictionCount > 0 ? totalPredictionAccuracy / predictionCount : 0;
+    
+    // Calculate optimal allocation based on performance
+    let optimalLiveRatio = 0.5;
+    let optimalClipRatio = 0.5;
+    if (liveAdAvgRoas > 0 || clipAdAvgRoas > 0) {
+      const totalAvgRoas = liveAdAvgRoas + clipAdAvgRoas;
+      if (totalAvgRoas > 0) {
+        optimalLiveRatio = liveAdAvgRoas / totalAvgRoas;
+        optimalClipRatio = clipAdAvgRoas / totalAvgRoas;
+      }
+    }
+    
+    // Upsert stats
+    const existingStats = await db
+      .select()
+      .from(brandAdPerformanceStats)
+      .where(eq(brandAdPerformanceStats.brandId, brandId));
+    
+    if (existingStats.length > 0) {
+      await db.update(brandAdPerformanceStats)
+        .set({
+          avgRoas: String(avgRoas),
+          avgCpm: String(avgCpm),
+          avgCpc: String(avgCpc),
+          avgConversionRate: String(avgConversionRate),
+          liveAdAvgRoas: String(liveAdAvgRoas),
+          clipAdAvgRoas: String(clipAdAvgRoas),
+          optimalLiveRatio: String(optimalLiveRatio),
+          optimalClipRatio: String(optimalClipRatio),
+          avgPredictionAccuracy: String(avgPredictionAccuracy),
+          totalRecords: count,
+          lastCalculatedAt: new Date(),
+        })
+        .where(eq(brandAdPerformanceStats.brandId, brandId));
+    } else {
+      await db.insert(brandAdPerformanceStats).values({
+        brandId,
+        avgRoas: String(avgRoas),
+        avgCpm: String(avgCpm),
+        avgCpc: String(avgCpc),
+        avgConversionRate: String(avgConversionRate),
+        liveAdAvgRoas: String(liveAdAvgRoas),
+        clipAdAvgRoas: String(clipAdAvgRoas),
+        optimalLiveRatio: String(optimalLiveRatio),
+        optimalClipRatio: String(optimalClipRatio),
+        avgPredictionAccuracy: String(avgPredictionAccuracy),
+        totalRecords: count,
+      });
+    }
+  } catch (error) {
+    console.error('Error updating brand ad performance stats:', error);
+  }
+}

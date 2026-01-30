@@ -1117,3 +1117,92 @@ export const adAlertHistory = mysqlTable("ad_alert_history", {
 
 export type AdAlertHistory = typeof adAlertHistory.$inferSelect;
 export type InsertAdAlertHistory = typeof adAlertHistory.$inferInsert;
+
+
+/**
+ * Ad Investment Records table for tracking actual ad spending and results
+ * Used to improve prediction accuracy over time
+ */
+export const adInvestmentRecords = mysqlTable("ad_investment_records", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(), // References brands.id
+  
+  // Investment details
+  investmentDate: timestamp("investmentDate").notNull(), // When the ad was run
+  adType: mysqlEnum("adType", ["live", "clip", "mixed"]).default("mixed").notNull(), // Type of ad
+  
+  // Budget breakdown
+  totalBudget: bigint("totalBudget", { mode: "number" }).notNull(), // Total ad spend
+  liveBudget: bigint("liveBudget", { mode: "number" }).default(0), // Budget for live ads
+  clipBudget: bigint("clipBudget", { mode: "number" }).default(0), // Budget for clip/video ads
+  
+  // Actual results
+  actualGmv: bigint("actualGmv", { mode: "number" }).default(0), // Actual GMV generated
+  actualImpressions: bigint("actualImpressions", { mode: "number" }).default(0), // Actual impressions
+  actualClicks: bigint("actualClicks", { mode: "number" }).default(0), // Actual clicks
+  actualConversions: int("actualConversions").default(0), // Actual conversions
+  
+  // Calculated metrics
+  actualRoas: decimal("actualRoas", { precision: 10, scale: 4 }).default("0"), // Actual ROAS
+  cpm: decimal("cpm", { precision: 10, scale: 2 }).default("0"), // Cost per 1000 impressions
+  cpc: decimal("cpc", { precision: 10, scale: 2 }).default("0"), // Cost per click
+  conversionRate: decimal("conversionRate", { precision: 10, scale: 4 }).default("0"), // Conversion rate
+  
+  // Prediction comparison (for learning)
+  predictedGmv: bigint("predictedGmv", { mode: "number" }).default(0), // What we predicted
+  predictedRoas: decimal("predictedRoas", { precision: 10, scale: 4 }).default("0"), // Predicted ROAS
+  predictionAccuracy: decimal("predictionAccuracy", { precision: 10, scale: 4 }).default("0"), // How accurate was prediction (%)
+  
+  // Context
+  campaignName: varchar("campaignName", { length: 255 }), // Optional campaign name
+  notes: text("notes"), // Additional notes
+  
+  // Related livestream (if applicable)
+  livestreamId: int("livestreamId"), // References livestreams.id if tied to specific live
+  
+  // User info
+  createdBy: int("createdBy").notNull(),
+  createdByName: varchar("createdByName", { length: 255 }).notNull(),
+  
+  // Timestamps
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AdInvestmentRecord = typeof adInvestmentRecords.$inferSelect;
+export type InsertAdInvestmentRecord = typeof adInvestmentRecords.$inferInsert;
+
+/**
+ * Brand Ad Performance Stats table for aggregated learning data
+ * Stores calculated averages and trends for each brand
+ */
+export const brandAdPerformanceStats = mysqlTable("brand_ad_performance_stats", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: int("brandId").notNull().unique(), // References brands.id
+  
+  // Historical averages
+  avgRoas: decimal("avgRoas", { precision: 10, scale: 4 }).default("0"),
+  avgCpm: decimal("avgCpm", { precision: 10, scale: 2 }).default("0"),
+  avgCpc: decimal("avgCpc", { precision: 10, scale: 2 }).default("0"),
+  avgConversionRate: decimal("avgConversionRate", { precision: 10, scale: 4 }).default("0"),
+  
+  // Performance by ad type
+  liveAdAvgRoas: decimal("liveAdAvgRoas", { precision: 10, scale: 4 }).default("0"),
+  clipAdAvgRoas: decimal("clipAdAvgRoas", { precision: 10, scale: 4 }).default("0"),
+  
+  // Optimal allocation (learned from data)
+  optimalLiveRatio: decimal("optimalLiveRatio", { precision: 5, scale: 2 }).default("0.5"),
+  optimalClipRatio: decimal("optimalClipRatio", { precision: 5, scale: 2 }).default("0.5"),
+  
+  // Prediction accuracy tracking
+  avgPredictionAccuracy: decimal("avgPredictionAccuracy", { precision: 10, scale: 4 }).default("0"),
+  totalRecords: int("totalRecords").default(0), // Number of records used for calculation
+  
+  // Timestamps
+  lastCalculatedAt: timestamp("lastCalculatedAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type BrandAdPerformanceStats = typeof brandAdPerformanceStats.$inferSelect;
+export type InsertBrandAdPerformanceStats = typeof brandAdPerformanceStats.$inferInsert;

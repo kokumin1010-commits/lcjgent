@@ -141,6 +141,31 @@ const translations = {
     lcjReward: "LCJ報酬",
     lcjRewardAllTime: "LCJ報酬（全期間）",
     lcjRewardByProduct: "商品別内訳",
+    // Ad Investment Records
+    adInvestmentRecords: "広告投入実績",
+    addInvestmentRecord: "実績を追加",
+    investmentDate: "投入日",
+    adType: "広告タイプ",
+    liveAd: "ライブ広告",
+    clipAd: "切り抜き広告",
+    mixedAd: "混合",
+    totalBudget: "総予算",
+    actualGmv: "実績GMV",
+    actualImpressions: "実績インプレッション",
+    actualClicks: "実績クリック",
+    actualConversions: "実績コンバージョン",
+    actualRoas: "実績ROAS",
+    predictedGmv: "予測GMV",
+    predictionAccuracy: "予測精度",
+    campaignName: "キャンペーン名",
+    noInvestmentRecords: "広告投入実績はありません",
+    addActualResults: "実績を入力",
+    learnedStats: "学習データ",
+    avgRoas: "平均ROAS",
+    avgCpm: "平均CPM",
+    avgCpc: "平均CPC",
+    optimalAllocation: "最適配分",
+    totalRecordsCount: "総レコード数",
   },
   zh: {
     title: "品牌详情",
@@ -242,6 +267,31 @@ const translations = {
     lcjReward: "LCJ报酬",
     lcjRewardAllTime: "LCJ报酬（全期间）",
     lcjRewardByProduct: "商品别明细",
+    // Ad Investment Records
+    adInvestmentRecords: "广告投入实绩",
+    addInvestmentRecord: "添加实绩",
+    investmentDate: "投入日期",
+    adType: "广告类型",
+    liveAd: "直播广告",
+    clipAd: "切片广告",
+    mixedAd: "混合",
+    totalBudget: "总预算",
+    actualGmv: "实际GMV",
+    actualImpressions: "实际曝光",
+    actualClicks: "实际点击",
+    actualConversions: "实际转化",
+    actualRoas: "实际ROAS",
+    predictedGmv: "预测GMV",
+    predictionAccuracy: "预测精度",
+    campaignName: "活动名称",
+    noInvestmentRecords: "没有广告投入实绩",
+    addActualResults: "输入实绩",
+    learnedStats: "学习数据",
+    avgRoas: "平均ROAS",
+    avgCpm: "平均CPM",
+    avgCpc: "平均CPC",
+    optimalAllocation: "最优分配",
+    totalRecordsCount: "总记录数",
   },
 };
 
@@ -697,6 +747,27 @@ export default function BrandDetail() {
   const [adAlertHistoryDialogOpen, setAdAlertHistoryDialogOpen] = useState(false);
   const [selectedHistoryAlert, setSelectedHistoryAlert] = useState<any>(null);
 
+  // Ad Investment Records states
+  const [adInvestmentDialogOpen, setAdInvestmentDialogOpen] = useState(false);
+  const [addInvestmentDialogOpen, setAddInvestmentDialogOpen] = useState(false);
+  const [editInvestmentDialogOpen, setEditInvestmentDialogOpen] = useState(false);
+  const [editingInvestment, setEditingInvestment] = useState<any>(null);
+  const [newInvestment, setNewInvestment] = useState({
+    investmentDate: new Date().toISOString().split('T')[0],
+    adType: 'mixed' as 'live' | 'clip' | 'mixed',
+    totalBudget: 0,
+    liveBudget: 0,
+    clipBudget: 0,
+    actualGmv: 0,
+    actualImpressions: 0,
+    actualClicks: 0,
+    actualConversions: 0,
+    predictedGmv: 0,
+    predictedRoas: 0,
+    campaignName: '',
+    notes: '',
+  });
+
   // AI Image Add states
   const [aiImageAddDialogOpen, setAiImageAddDialogOpen] = useState(false);
   const [aiImageFile, setAiImageFile] = useState<File | null>(null);
@@ -717,6 +788,8 @@ export default function BrandDetail() {
   const { data: monthlyGmvSummary = [] } = trpc.brandLivestream.monthlyGmvSummary.useQuery({ brandId });
   const { data: lcjStaff = [] } = trpc.brand.getLcjStaff.useQuery({ brandId }, { enabled: brandId > 0 });
   const { data: proposalHistory = [], refetch: refetchProposalHistory } = trpc.brand.getAdProposalHistory.useQuery({ brandId }, { enabled: brandId > 0 });
+  const { data: adInvestmentRecords = [], refetch: refetchInvestmentRecords } = trpc.brand.getAdInvestmentRecords.useQuery({ brandId }, { enabled: brandId > 0 });
+  const { data: brandAdStats } = trpc.brand.getBrandAdPerformanceStats.useQuery({ brandId }, { enabled: brandId > 0 });
 
   // 同じ日の配信は1回としてカウント（ユニークな日付の数）
   const uniqueLivestreamDays = useMemo(() => {
@@ -913,6 +986,86 @@ export default function BrandDetail() {
       urgency: {
         level: adAlertData.urgency.level,
       },
+    });
+  };
+
+  // Ad Investment Records mutations
+  const createInvestmentMutation = trpc.brand.createAdInvestmentRecord.useMutation({
+    onSuccess: () => {
+      toast.success(language === 'ja' ? "広告投入実績を追加しました" : "已添加广告投入实绩");
+      refetchInvestmentRecords();
+      setAddInvestmentDialogOpen(false);
+      setNewInvestment({
+        investmentDate: new Date().toISOString().split('T')[0],
+        adType: 'mixed',
+        totalBudget: 0,
+        liveBudget: 0,
+        clipBudget: 0,
+        actualGmv: 0,
+        actualImpressions: 0,
+        actualClicks: 0,
+        actualConversions: 0,
+        predictedGmv: 0,
+        predictedRoas: 0,
+        campaignName: '',
+        notes: '',
+      });
+    },
+    onError: () => {
+      toast.error(language === 'ja' ? "追加に失敗しました" : "添加失败");
+    },
+  });
+
+  const updateInvestmentMutation = trpc.brand.updateAdInvestmentRecord.useMutation({
+    onSuccess: () => {
+      toast.success(language === 'ja' ? "実績を更新しました" : "已更新实绩");
+      refetchInvestmentRecords();
+      setEditInvestmentDialogOpen(false);
+      setEditingInvestment(null);
+    },
+    onError: () => {
+      toast.error(language === 'ja' ? "更新に失敗しました" : "更新失败");
+    },
+  });
+
+  const deleteInvestmentMutation = trpc.brand.deleteAdInvestmentRecord.useMutation({
+    onSuccess: () => {
+      toast.success(language === 'ja' ? "実績を削除しました" : "已删除实绩");
+      refetchInvestmentRecords();
+    },
+    onError: () => {
+      toast.error(language === 'ja' ? "削除に失敗しました" : "删除失败");
+    },
+  });
+
+  const handleCreateInvestment = () => {
+    createInvestmentMutation.mutate({
+      brandId,
+      investmentDate: newInvestment.investmentDate,
+      adType: newInvestment.adType,
+      totalBudget: newInvestment.totalBudget,
+      liveBudget: newInvestment.liveBudget,
+      clipBudget: newInvestment.clipBudget,
+      actualGmv: newInvestment.actualGmv,
+      actualImpressions: newInvestment.actualImpressions,
+      actualClicks: newInvestment.actualClicks,
+      actualConversions: newInvestment.actualConversions,
+      predictedGmv: newInvestment.predictedGmv,
+      predictedRoas: newInvestment.predictedRoas,
+      campaignName: newInvestment.campaignName || undefined,
+      notes: newInvestment.notes || undefined,
+    });
+  };
+
+  const handleUpdateInvestment = () => {
+    if (!editingInvestment) return;
+    updateInvestmentMutation.mutate({
+      id: editingInvestment.id,
+      actualGmv: editingInvestment.actualGmv,
+      actualImpressions: editingInvestment.actualImpressions,
+      actualClicks: editingInvestment.actualClicks,
+      actualConversions: editingInvestment.actualConversions,
+      notes: editingInvestment.notes,
     });
   };
 
@@ -1725,6 +1878,18 @@ ${proposal.proposalContent}
               >
                 <TrendingUp className="h-4 w-4 mr-2" />
                 {language === 'ja' ? '広告アラート' : '广告警报'}
+              </Button>
+              <Button
+                onClick={() => setAdInvestmentDialogOpen(true)}
+                className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white shadow-lg shadow-green-500/30"
+              >
+                <DollarSign className="h-4 w-4 mr-2" />
+                {language === 'ja' ? '広告実績' : '广告实绩'}
+                {adInvestmentRecords.length > 0 && (
+                  <Badge className="ml-2 bg-green-500/30 text-green-300 border border-green-400/50 text-xs">
+                    {adInvestmentRecords.length}
+                  </Badge>
+                )}
               </Button>
               {/* Language Toggle */}
               <Button
@@ -6056,6 +6221,438 @@ ${proposal.proposalContent}
                 </Button>
               )}
             </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Ad Investment Records Dialog */}
+      <Dialog open={adInvestmentDialogOpen} onOpenChange={setAdInvestmentDialogOpen}>
+        <DialogContent className="bg-black/95 border-green-900/50 text-white max-w-5xl backdrop-blur-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-3">
+              <div className="w-1 h-6 bg-gradient-to-b from-green-400 to-emerald-600 rounded-full" />
+              <TrendingUp className="h-5 w-5 text-green-400" />
+              {t.adInvestmentRecords}
+            </DialogTitle>
+          </DialogHeader>
+
+          {/* Learned Stats Summary */}
+          {brandAdStats && (
+            <div className="bg-gradient-to-r from-green-950/50 to-emerald-950/50 rounded-lg p-4 border border-green-500/30 mb-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Sparkles className="h-4 w-4 text-green-400" />
+                <span className="text-sm font-bold text-green-300">{t.learnedStats}</span>
+                <Badge className="bg-green-500/30 text-green-300 border border-green-400/50 text-xs">
+                  {brandAdStats.totalRecords} {language === 'ja' ? 'レコード' : '条记录'}
+                </Badge>
+              </div>
+              <div className="grid grid-cols-4 gap-4">
+                <div>
+                  <div className="text-xs text-gray-400">{t.avgRoas}</div>
+                  <div className="text-lg font-bold text-green-300">{parseFloat(brandAdStats.avgRoas || '0').toFixed(2)}{language === 'ja' ? '倍' : '倍'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-400">{t.avgCpm}</div>
+                  <div className="text-lg font-bold text-cyan-300">¥{Math.round(parseFloat(brandAdStats.avgCpm || '0')).toLocaleString()}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-400">{t.avgCpc}</div>
+                  <div className="text-lg font-bold text-purple-300">¥{Math.round(parseFloat(brandAdStats.avgCpc || '0')).toLocaleString()}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-400">{t.optimalAllocation}</div>
+                  <div className="text-sm font-bold">
+                    <span className="text-amber-300">📺 {Math.round(parseFloat(brandAdStats.optimalLiveRatio || '0.5') * 100)}%</span>
+                    <span className="text-gray-500 mx-1">/</span>
+                    <span className="text-pink-300">🎬 {Math.round(parseFloat(brandAdStats.optimalClipRatio || '0.5') * 100)}%</span>
+                  </div>
+                </div>
+              </div>
+              {parseFloat(brandAdStats.avgPredictionAccuracy || '0') > 0 && (
+                <div className="mt-2 text-xs text-gray-400">
+                  {t.predictionAccuracy}: <span className="text-green-400">{(parseFloat(brandAdStats.avgPredictionAccuracy || '0') * 100).toFixed(1)}%</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Records List */}
+          <div className="space-y-3">
+            {adInvestmentRecords.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                {t.noInvestmentRecords}
+              </div>
+            ) : (
+              adInvestmentRecords.map((record: any) => (
+                <div key={record.id} className="bg-gray-900/50 rounded-lg p-4 border border-gray-700 hover:border-green-500/50 transition-colors">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <Badge className={`${
+                        record.adType === 'live' ? 'bg-amber-500/30 text-amber-300 border-amber-400/50' :
+                        record.adType === 'clip' ? 'bg-pink-500/30 text-pink-300 border-pink-400/50' :
+                        'bg-purple-500/30 text-purple-300 border-purple-400/50'
+                      } border`}>
+                        {record.adType === 'live' ? t.liveAd : record.adType === 'clip' ? t.clipAd : t.mixedAd}
+                      </Badge>
+                      <span className="text-sm text-gray-400">
+                        {new Date(record.investmentDate).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'zh-CN')}
+                      </span>
+                      {record.campaignName && (
+                        <span className="text-sm text-gray-300">{record.campaignName}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setEditingInvestment(record);
+                          setEditInvestmentDialogOpen(true);
+                        }}
+                        className="text-gray-400 hover:text-white"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          if (confirm(language === 'ja' ? 'この実績を削除しますか？' : '确定要删除此实绩吗？')) {
+                            deleteInvestmentMutation.mutate({ id: record.id });
+                          }
+                        }}
+                        className="text-red-400 hover:text-red-300"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-5 gap-4">
+                    <div>
+                      <div className="text-xs text-gray-500">{t.totalBudget}</div>
+                      <div className="text-lg font-bold text-white">¥{record.totalBudget.toLocaleString()}</div>
+                      {record.liveBudget > 0 || record.clipBudget > 0 ? (
+                        <div className="text-xs text-gray-400">
+                          📺¥{record.liveBudget.toLocaleString()} / 🎬¥{record.clipBudget.toLocaleString()}
+                        </div>
+                      ) : null}
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">{t.actualGmv}</div>
+                      <div className="text-lg font-bold text-green-300">¥{(record.actualGmv || 0).toLocaleString()}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">{t.actualRoas}</div>
+                      <div className="text-lg font-bold text-cyan-300">{parseFloat(record.actualRoas || '0').toFixed(2)}{language === 'ja' ? '倍' : '倍'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">{t.actualImpressions}</div>
+                      <div className="text-lg font-bold text-purple-300">{(record.actualImpressions || 0).toLocaleString()}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">{t.predictionAccuracy}</div>
+                      <div className={`text-lg font-bold ${
+                        parseFloat(record.predictionAccuracy || '0') >= 0.8 ? 'text-green-300' :
+                        parseFloat(record.predictionAccuracy || '0') >= 0.5 ? 'text-yellow-300' : 'text-red-300'
+                      }`}>
+                        {record.predictionAccuracy ? `${(parseFloat(record.predictionAccuracy) * 100).toFixed(1)}%` : '-'}
+                      </div>
+                    </div>
+                  </div>
+                  {record.notes && (
+                    <div className="mt-2 text-xs text-gray-400 border-t border-gray-700 pt-2">
+                      {record.notes}
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+
+          <DialogFooter className="flex-wrap gap-2">
+            <Button
+              onClick={() => setAddInvestmentDialogOpen(true)}
+              className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              {t.addInvestmentRecord}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setAdInvestmentDialogOpen(false)}
+              className="border-green-500/50 bg-green-950/50 text-gray-200 hover:bg-green-900/40 hover:text-white"
+            >
+              {t.close}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Investment Record Dialog */}
+      <Dialog open={addInvestmentDialogOpen} onOpenChange={setAddInvestmentDialogOpen}>
+        <DialogContent className="bg-black/95 border-green-900/50 text-white max-w-2xl backdrop-blur-xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-3">
+              <Plus className="h-5 w-5 text-green-400" />
+              {t.addInvestmentRecord}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-gray-300">{t.investmentDate}</Label>
+                <Input
+                  type="date"
+                  value={newInvestment.investmentDate}
+                  onChange={(e) => setNewInvestment({ ...newInvestment, investmentDate: e.target.value })}
+                  className="bg-gray-900/50 border-gray-700 text-white"
+                />
+              </div>
+              <div>
+                <Label className="text-gray-300">{t.adType}</Label>
+                <Select
+                  value={newInvestment.adType}
+                  onValueChange={(value: 'live' | 'clip' | 'mixed') => setNewInvestment({ ...newInvestment, adType: value })}
+                >
+                  <SelectTrigger className="bg-gray-900/50 border-gray-700 text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-900 border-gray-700">
+                    <SelectItem value="live">{t.liveAd}</SelectItem>
+                    <SelectItem value="clip">{t.clipAd}</SelectItem>
+                    <SelectItem value="mixed">{t.mixedAd}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <Label className="text-gray-300">{t.totalBudget}</Label>
+                <Input
+                  type="number"
+                  value={newInvestment.totalBudget}
+                  onChange={(e) => setNewInvestment({ ...newInvestment, totalBudget: parseInt(e.target.value) || 0 })}
+                  className="bg-gray-900/50 border-gray-700 text-white"
+                />
+              </div>
+              <div>
+                <Label className="text-gray-300">{t.liveAd} (¥)</Label>
+                <Input
+                  type="number"
+                  value={newInvestment.liveBudget}
+                  onChange={(e) => setNewInvestment({ ...newInvestment, liveBudget: parseInt(e.target.value) || 0 })}
+                  className="bg-gray-900/50 border-gray-700 text-white"
+                />
+              </div>
+              <div>
+                <Label className="text-gray-300">{t.clipAd} (¥)</Label>
+                <Input
+                  type="number"
+                  value={newInvestment.clipBudget}
+                  onChange={(e) => setNewInvestment({ ...newInvestment, clipBudget: parseInt(e.target.value) || 0 })}
+                  className="bg-gray-900/50 border-gray-700 text-white"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-gray-300">{t.campaignName}</Label>
+              <Input
+                value={newInvestment.campaignName}
+                onChange={(e) => setNewInvestment({ ...newInvestment, campaignName: e.target.value })}
+                placeholder={language === 'ja' ? 'キャンペーン名を入力...' : '输入活动名称...'}
+                className="bg-gray-900/50 border-gray-700 text-white"
+              />
+            </div>
+
+            <div className="border-t border-gray-700 pt-4">
+              <div className="text-sm text-gray-400 mb-2">{language === 'ja' ? '実績データ（後から入力可）' : '实绩数据（可稍后输入）'}</div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-300">{t.actualGmv}</Label>
+                  <Input
+                    type="number"
+                    value={newInvestment.actualGmv}
+                    onChange={(e) => setNewInvestment({ ...newInvestment, actualGmv: parseInt(e.target.value) || 0 })}
+                    className="bg-gray-900/50 border-gray-700 text-white"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-300">{t.actualImpressions}</Label>
+                  <Input
+                    type="number"
+                    value={newInvestment.actualImpressions}
+                    onChange={(e) => setNewInvestment({ ...newInvestment, actualImpressions: parseInt(e.target.value) || 0 })}
+                    className="bg-gray-900/50 border-gray-700 text-white"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-300">{t.actualClicks}</Label>
+                  <Input
+                    type="number"
+                    value={newInvestment.actualClicks}
+                    onChange={(e) => setNewInvestment({ ...newInvestment, actualClicks: parseInt(e.target.value) || 0 })}
+                    className="bg-gray-900/50 border-gray-700 text-white"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-300">{t.actualConversions}</Label>
+                  <Input
+                    type="number"
+                    value={newInvestment.actualConversions}
+                    onChange={(e) => setNewInvestment({ ...newInvestment, actualConversions: parseInt(e.target.value) || 0 })}
+                    className="bg-gray-900/50 border-gray-700 text-white"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-gray-700 pt-4">
+              <div className="text-sm text-gray-400 mb-2">{language === 'ja' ? '予測データ（広告アラートから転記）' : '预测数据（从广告警报转录）'}</div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-300">{t.predictedGmv}</Label>
+                  <Input
+                    type="number"
+                    value={newInvestment.predictedGmv}
+                    onChange={(e) => setNewInvestment({ ...newInvestment, predictedGmv: parseInt(e.target.value) || 0 })}
+                    className="bg-gray-900/50 border-gray-700 text-white"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-300">{language === 'ja' ? '予測ROAS' : '预测ROAS'}</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={newInvestment.predictedRoas}
+                    onChange={(e) => setNewInvestment({ ...newInvestment, predictedRoas: parseFloat(e.target.value) || 0 })}
+                    className="bg-gray-900/50 border-gray-700 text-white"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-gray-300">{language === 'ja' ? 'メモ' : '备注'}</Label>
+              <Textarea
+                value={newInvestment.notes}
+                onChange={(e) => setNewInvestment({ ...newInvestment, notes: e.target.value })}
+                placeholder={language === 'ja' ? 'メモを入力...' : '输入备注...'}
+                className="bg-gray-900/50 border-gray-700 text-white"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setAddInvestmentDialogOpen(false)}
+              className="border-gray-600"
+            >
+              {t.cancel}
+            </Button>
+            <Button
+              onClick={handleCreateInvestment}
+              disabled={createInvestmentMutation.isPending || newInvestment.totalBudget <= 0}
+              className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white"
+            >
+              {createInvestmentMutation.isPending ? (language === 'ja' ? '追加中...' : '添加中...') : t.add}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Investment Record Dialog */}
+      <Dialog open={editInvestmentDialogOpen} onOpenChange={setEditInvestmentDialogOpen}>
+        <DialogContent className="bg-black/95 border-green-900/50 text-white max-w-lg backdrop-blur-xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-3">
+              <Edit2 className="h-5 w-5 text-green-400" />
+              {t.addActualResults}
+            </DialogTitle>
+          </DialogHeader>
+
+          {editingInvestment && (
+            <div className="space-y-4">
+              <div className="bg-gray-900/50 rounded-lg p-3 border border-gray-700">
+                <div className="text-sm text-gray-400 mb-1">{t.totalBudget}</div>
+                <div className="text-xl font-bold text-white">¥{editingInvestment.totalBudget.toLocaleString()}</div>
+                <div className="text-xs text-gray-500">
+                  {new Date(editingInvestment.investmentDate).toLocaleDateString(language === 'ja' ? 'ja-JP' : 'zh-CN')}
+                  {editingInvestment.campaignName && ` - ${editingInvestment.campaignName}`}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-300">{t.actualGmv}</Label>
+                  <Input
+                    type="number"
+                    value={editingInvestment.actualGmv || 0}
+                    onChange={(e) => setEditingInvestment({ ...editingInvestment, actualGmv: parseInt(e.target.value) || 0 })}
+                    className="bg-gray-900/50 border-gray-700 text-white"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-300">{t.actualImpressions}</Label>
+                  <Input
+                    type="number"
+                    value={editingInvestment.actualImpressions || 0}
+                    onChange={(e) => setEditingInvestment({ ...editingInvestment, actualImpressions: parseInt(e.target.value) || 0 })}
+                    className="bg-gray-900/50 border-gray-700 text-white"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-300">{t.actualClicks}</Label>
+                  <Input
+                    type="number"
+                    value={editingInvestment.actualClicks || 0}
+                    onChange={(e) => setEditingInvestment({ ...editingInvestment, actualClicks: parseInt(e.target.value) || 0 })}
+                    className="bg-gray-900/50 border-gray-700 text-white"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-300">{t.actualConversions}</Label>
+                  <Input
+                    type="number"
+                    value={editingInvestment.actualConversions || 0}
+                    onChange={(e) => setEditingInvestment({ ...editingInvestment, actualConversions: parseInt(e.target.value) || 0 })}
+                    className="bg-gray-900/50 border-gray-700 text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-gray-300">{language === 'ja' ? 'メモ' : '备注'}</Label>
+                <Textarea
+                  value={editingInvestment.notes || ''}
+                  onChange={(e) => setEditingInvestment({ ...editingInvestment, notes: e.target.value })}
+                  className="bg-gray-900/50 border-gray-700 text-white"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditInvestmentDialogOpen(false);
+                setEditingInvestment(null);
+              }}
+              className="border-gray-600"
+            >
+              {t.cancel}
+            </Button>
+            <Button
+              onClick={handleUpdateInvestment}
+              disabled={updateInvestmentMutation.isPending}
+              className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white"
+            >
+              {updateInvestmentMutation.isPending ? (language === 'ja' ? '更新中...' : '更新中...') : t.save}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
