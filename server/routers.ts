@@ -209,6 +209,10 @@ import {
   getProductLinksForProducts,
   getAllLivestreams,
   getAllProducts,
+  findExistingLivestream,
+  updateLivestreamFromCsv,
+  createLivestreamFromCsv,
+  getCsvImportedLivestreams,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -4929,6 +4933,120 @@ ${metricsDescription}${historicalContext}`,
         }
 
         return result;
+      }),
+  }),
+
+  // CSV Import Router (TikTok配信パフォーマンスCSVインポート)
+  csvImport: router({
+    // Parse and import CSV data
+    importLivestreams: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+        liverId: z.number(),
+        csvData: z.array(z.object({
+          livestream: z.string(),
+          startTime: z.string(),
+          duration: z.number(), // in seconds
+          grossRevenue: z.number(),
+          directGmv: z.number(),
+          itemsSold: z.number(),
+          customers: z.number(),
+          avgPrice: z.number(),
+          ordersPaidFor: z.number(),
+          gmvPer1kShows: z.string(),
+          gmvPer1kViews: z.string(),
+          views: z.number(),
+          viewers: z.number(),
+          peakViewers: z.number(),
+          newFollowers: z.number(),
+          avgViewDuration: z.number(), // in seconds
+          likes: z.number(),
+          comments: z.number(),
+          shares: z.number(),
+          productImpressions: z.number(),
+          productClicks: z.number(),
+          ctr: z.string(),
+          ctor: z.string(),
+        })),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const results = {
+          created: 0,
+          updated: 0,
+          skipped: 0,
+          errors: [] as string[],
+        };
+
+        // Get brand info for streamer name
+        const brand = await getBrandById(input.brandId);
+        const streamerName = brand?.name || "Unknown";
+
+        for (const row of input.csvData) {
+          try {
+            // Parse start time and calculate end time
+            const startDate = new Date(row.startTime);
+            const endDate = new Date(startDate.getTime() + row.duration * 1000);
+            const durationMinutes = Math.round(row.duration / 60);
+
+            // Check for existing livestream
+            const existing = await findExistingLivestream(
+              input.brandId,
+              startDate,
+              streamerName
+            );
+
+            const livestreamData = {
+              brandId: input.brandId,
+              liverId: input.liverId,
+              livestreamDate: startDate,
+              livestreamEndTime: endDate,
+              streamerName,
+              salesAmount: row.grossRevenue,
+              gmv: row.directGmv,
+              duration: durationMinutes,
+              viewerCount: row.viewers,
+              peakViewers: row.peakViewers,
+              orderCount: row.ordersPaidFor,
+              productClicks: row.productClicks,
+              impressions: row.productImpressions,
+              itemsSold: row.itemsSold,
+              customerCount: row.customers,
+              avgPrice: row.avgPrice,
+              newFollowers: row.newFollowers,
+              avgViewDuration: row.avgViewDuration,
+              likes: row.likes,
+              comments: row.comments,
+              shares: row.shares,
+              gmvPer1kShows: row.gmvPer1kShows,
+              gmvPer1kViews: row.gmvPer1kViews,
+              ctr: row.ctr,
+              ctor: row.ctor,
+              platform: "TikTok",
+              createdBy: ctx.user.id,
+            };
+
+            if (existing) {
+              // Update existing record
+              await updateLivestreamFromCsv(existing.id, livestreamData);
+              results.updated++;
+            } else {
+              // Create new record
+              await createLivestreamFromCsv(livestreamData as any);
+              results.created++;
+            }
+          } catch (error) {
+            results.errors.push(`Row ${row.startTime}: ${error instanceof Error ? error.message : "Unknown error"}`);
+          }
+        }
+
+        return results;
+      }),
+
+    // Get CSV imported livestreams
+    getImported: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        return await getCsvImportedLivestreams(input.brandId);
       }),
   }),
 });

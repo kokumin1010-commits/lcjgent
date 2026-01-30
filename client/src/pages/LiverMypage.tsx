@@ -19,8 +19,15 @@ import {
   Settings,
   Link2,
   Users,
-  Sparkles
+  Sparkles,
+  Upload,
+  FileSpreadsheet,
+  CheckCircle,
+  AlertCircle,
+  X
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+
 import { SiTiktok, SiInstagram, SiYoutube } from "react-icons/si";
 
 export default function LiverMypage() {
@@ -30,6 +37,9 @@ export default function LiverMypage() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   });
   const [showAllLivestreams, setShowAllLivestreams] = useState(false);
+  const [showCsvImportDialog, setShowCsvImportDialog] = useState(false);
+  const [csvImportResult, setCsvImportResult] = useState<{ created: number; updated: number; errors: string[] } | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   // Get current liver info
   const { data: liverInfo, isLoading: isLoadingLiver } = trpc.liver.me.useQuery();
@@ -46,6 +56,126 @@ export default function LiverMypage() {
       navigate("/liver/login");
     },
   });
+
+  const csvImportMutation = trpc.csvImport.importLivestreams.useMutation({
+    onSuccess: (result) => {
+      setCsvImportResult(result);
+      setIsImporting(false);
+      // Refresh livestreams data
+      window.location.reload();
+    },
+    onError: (error) => {
+      setCsvImportResult({ created: 0, updated: 0, errors: [error.message] });
+      setIsImporting(false);
+    },
+  });
+
+  // Parse Excel/CSV file and convert to data array
+  const parseExcelFile = async (file: File): Promise<Array<{
+    livestream: string;
+    startTime: string;
+    duration: number;
+    grossRevenue: number;
+    directGmv: number;
+    itemsSold: number;
+    customers: number;
+    avgPrice: number;
+    ordersPaidFor: number;
+    gmvPer1kShows: string;
+    gmvPer1kViews: string;
+    views: number;
+    viewers: number;
+    peakViewers: number;
+    newFollowers: number;
+    avgViewDuration: number;
+    likes: number;
+    comments: number;
+    shares: number;
+    productImpressions: number;
+    productClicks: number;
+    ctr: string;
+    ctor: string;
+  }>> => {
+    const XLSX = await import('xlsx');
+    const arrayBuffer = await file.arrayBuffer();
+    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as unknown[][];
+    
+    // Skip header row
+    const dataRows = jsonData.slice(1);
+    
+    return dataRows.map((row: unknown[]) => {
+      // Parse duration string (e.g., "64714" seconds)
+      const durationSeconds = Number(row[2]) || 0;
+      // Parse avg view duration (e.g., "00:00:35" format or seconds)
+      let avgViewDuration = 0;
+      const avgViewDurationRaw = row[15];
+      if (typeof avgViewDurationRaw === 'string' && avgViewDurationRaw.includes(':')) {
+        const parts = avgViewDurationRaw.split(':').map(Number);
+        avgViewDuration = (parts[0] || 0) * 3600 + (parts[1] || 0) * 60 + (parts[2] || 0);
+      } else {
+        avgViewDuration = Number(avgViewDurationRaw) || 0;
+      }
+      
+      return {
+        livestream: String(row[0] || ''),
+        startTime: String(row[1] || ''),
+        duration: durationSeconds,
+        grossRevenue: Number(row[3]) || 0,
+        directGmv: Number(row[4]) || 0,
+        itemsSold: Number(row[5]) || 0,
+        customers: Number(row[6]) || 0,
+        avgPrice: Number(row[7]) || 0,
+        ordersPaidFor: Number(row[8]) || 0,
+        gmvPer1kShows: String(row[9] || '0'),
+        gmvPer1kViews: String(row[10] || '0'),
+        views: Number(row[11]) || 0,
+        viewers: Number(row[12]) || 0,
+        peakViewers: Number(row[13]) || 0,
+        newFollowers: Number(row[14]) || 0,
+        avgViewDuration,
+        likes: Number(row[16]) || 0,
+        comments: Number(row[17]) || 0,
+        shares: Number(row[18]) || 0,
+        productImpressions: Number(row[19]) || 0,
+        productClicks: Number(row[20]) || 0,
+        ctr: String(row[21] || '0%'),
+        ctor: String(row[22] || '0%'),
+      };
+    }).filter(row => row.startTime); // Filter out empty rows
+  };
+
+  const handleCsvFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !liverInfo) return;
+    
+    setIsImporting(true);
+    setCsvImportResult(null);
+    
+    try {
+      const csvData = await parseExcelFile(file);
+      
+      if (csvData.length === 0) {
+        setCsvImportResult({ created: 0, updated: 0, errors: ['データが見つかりませんでした'] });
+        setIsImporting(false);
+        return;
+      }
+      
+      // Get brand ID from first livestream or use default
+      const brandId = livestreams?.[0]?.brandId || 1;
+      
+      csvImportMutation.mutate({
+        brandId,
+        liverId: liverInfo.id,
+        csvData,
+      });
+    } catch (error) {
+      setCsvImportResult({ created: 0, updated: 0, errors: [error instanceof Error ? error.message : 'ファイルの読み込みに失敗しました'] });
+      setIsImporting(false);
+    }
+  };
 
   // Calculate monthly stats
   const monthlyStats = useMemo(() => {
@@ -396,10 +526,21 @@ export default function LiverMypage() {
 
         {/* Livestream History */}
         <div>
-          <h3 className="text-sm font-bold text-gray-400 mb-2 flex items-center gap-2">
-            <Video className="h-4 w-4" />
-            配信履歴
-          </h3>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-bold text-gray-400 flex items-center gap-2">
+              <Video className="h-4 w-4" />
+              配信履歴
+            </h3>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowCsvImportDialog(true)}
+              className="text-xs border-gray-600 text-gray-400 hover:text-white hover:border-gray-500"
+            >
+              <FileSpreadsheet className="h-3 w-3 mr-1" />
+              CSVインポート
+            </Button>
+          </div>
 
           {isLoadingLivestreams ? (
             <div className="flex justify-center py-8">
@@ -495,6 +636,111 @@ export default function LiverMypage() {
           )}
         </div>
       </div>
+
+      {/* CSV Import Dialog */}
+      <Dialog open={showCsvImportDialog} onOpenChange={setShowCsvImportDialog}>
+        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5 text-blue-400" />
+              TikTok配信データのインポート
+            </DialogTitle>
+            <DialogDescription className="text-gray-400">
+              TikTokダッシュボードからダウンロードしたExcel/CSVファイルをアップロードしてください。
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-4">
+            {/* File Upload Area */}
+            <label className="block">
+              <div className="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition-colors">
+                {isImporting ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                    <p className="text-sm text-gray-400">インポート中...</p>
+                  </div>
+                ) : (
+                  <>
+                    <Upload className="h-8 w-8 mx-auto text-gray-500 mb-2" />
+                    <p className="text-sm text-gray-400">
+                      クリックまたはドラッグ&ドロップ
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      .xlsx, .csv 対応
+                    </p>
+                  </>
+                )}
+              </div>
+              <input
+                type="file"
+                accept=".xlsx,.csv"
+                onChange={handleCsvFileUpload}
+                className="hidden"
+                disabled={isImporting}
+              />
+            </label>
+
+            {/* Import Result */}
+            {csvImportResult && (
+              <div className={`p-4 rounded-lg ${
+                csvImportResult.errors.length > 0 
+                  ? 'bg-red-900/30 border border-red-700' 
+                  : 'bg-green-900/30 border border-green-700'
+              }`}>
+                <div className="flex items-center gap-2 mb-2">
+                  {csvImportResult.errors.length > 0 ? (
+                    <AlertCircle className="h-5 w-5 text-red-400" />
+                  ) : (
+                    <CheckCircle className="h-5 w-5 text-green-400" />
+                  )}
+                  <span className="font-medium">
+                    {csvImportResult.errors.length > 0 ? 'エラーが発生しました' : 'インポート完了'}
+                  </span>
+                </div>
+                <div className="text-sm space-y-1">
+                  <p className="text-green-400">新規登録: {csvImportResult.created}件</p>
+                  <p className="text-blue-400">更新: {csvImportResult.updated}件</p>
+                  {csvImportResult.errors.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-red-400 text-xs">エラー:</p>
+                      {csvImportResult.errors.slice(0, 3).map((err, i) => (
+                        <p key={i} className="text-xs text-red-300 truncate">{err}</p>
+                      ))}
+                      {csvImportResult.errors.length > 3 && (
+                        <p className="text-xs text-red-400">他 {csvImportResult.errors.length - 3}件のエラー</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Instructions */}
+            <div className="bg-gray-800/50 rounded-lg p-3">
+              <p className="text-xs text-gray-400 mb-2">インポート手順:</p>
+              <ol className="text-xs text-gray-500 space-y-1 list-decimal list-inside">
+                <li>TikTokダッシュボードを開く</li>
+                <li>「ライブパフォーマンス」セクションへ移動</li>
+                <li>「エクスポート」ボタンをクリック</li>
+                <li>ダウンロードしたファイルをここにアップロード</li>
+              </ol>
+            </div>
+          </div>
+
+          <div className="flex justify-end mt-4">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setShowCsvImportDialog(false);
+                setCsvImportResult(null);
+              }}
+              className="text-gray-400"
+            >
+              閉じる
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

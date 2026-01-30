@@ -4056,3 +4056,95 @@ export async function getProductLinksForProducts(productIds: number[]) {
     .where(inArray(productLinks.productId, productIds))
     .orderBy(asc(productLinks.sortOrder), asc(productLinks.id));
 }
+
+
+// ============================================
+// CSV Import Functions (TikTok配信パフォーマンスCSVインポート)
+// ============================================
+
+/**
+ * Check if a livestream already exists by date and streamer name
+ */
+export async function findExistingLivestream(
+  brandId: number,
+  livestreamDate: Date,
+  streamerName: string
+) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  // Find livestream within 1 hour of the given date with matching streamer name
+  const startRange = new Date(livestreamDate.getTime() - 60 * 60 * 1000); // 1 hour before
+  const endRange = new Date(livestreamDate.getTime() + 60 * 60 * 1000); // 1 hour after
+  
+  const result = await db
+    .select()
+    .from(brandLivestreams)
+    .where(
+      and(
+        eq(brandLivestreams.brandId, brandId),
+        sql`${brandLivestreams.livestreamDate} >= ${startRange}`,
+        sql`${brandLivestreams.livestreamDate} <= ${endRange}`,
+        eq(brandLivestreams.streamerName, streamerName)
+      )
+    )
+    .limit(1);
+  
+  return result.length > 0 ? result[0] : null;
+}
+
+/**
+ * Update an existing livestream with CSV data
+ */
+export async function updateLivestreamFromCsv(
+  id: number,
+  data: Partial<InsertBrandLivestream>
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db
+    .update(brandLivestreams)
+    .set({
+      ...data,
+      csvImported: "yes",
+    })
+    .where(eq(brandLivestreams.id, id));
+  
+  return { id, updated: true };
+}
+
+/**
+ * Create a new livestream from CSV data
+ */
+export async function createLivestreamFromCsv(data: InsertBrandLivestream) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(brandLivestreams).values({
+    ...data,
+    csvImported: "yes",
+  });
+  
+  const insertId = (result as any)[0]?.insertId;
+  return { id: insertId, created: true };
+}
+
+/**
+ * Get all livestreams for a brand that were imported from CSV
+ */
+export async function getCsvImportedLivestreams(brandId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(brandLivestreams)
+    .where(
+      and(
+        eq(brandLivestreams.brandId, brandId),
+        eq(brandLivestreams.csvImported, "yes")
+      )
+    )
+    .orderBy(desc(brandLivestreams.livestreamDate));
+}

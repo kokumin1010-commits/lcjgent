@@ -2209,3 +2209,15 @@
   - 商品クリック数、注文数
   - インプレッション、CVR、CTR
 - [x] テストして動作確認（315テストパス）
+
+
+## TikTok配信パフォーマンスCSVインポート機能
+- [x] データベーススキーマを拡張（likes, comments, shares, newFollowers, avgViewDuration, itemsSold, customers, avgPrice）
+- [x] CSVパース・インポートAPIを実装（csvImport.importLivestreams）
+  - Excel/CSVファイルのアップロード処理
+  - 開始時刻+Durationから終了時刻を自動計算
+  - 既存の配信記録との重複チェック（日時で照合、重複時は更新）
+  - 未登録の配信を一括登録
+- [x] CSVインポートUIを実装（ライバーマイページに追加）
+- [x] xlsxパッケージをインストールしてExcelファイルに対応
+- [x] テストして動作確認（315テストパス）

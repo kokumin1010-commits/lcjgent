@@ -266,6 +266,20 @@ export const brandLivestreams = mysqlTable("brand_livestreams", {
   adCost: bigint("adCost", { mode: "number" }), // 広告費
   ctr: varchar("ctr", { length: 20 }), // CTR（クリック率）
   cvr: varchar("cvr", { length: 20 }), // CVR（コンバージョン率）
+  ctor: varchar("ctor", { length: 20 }), // CTOR（SKU注文率）
+  // CSVインポート用追加フィールド
+  peakViewers: int("peakViewers"), // ピーク視聴者数
+  newFollowers: int("newFollowers"), // 新規フォロワー数
+  avgViewDuration: int("avgViewDuration"), // 平均視聴時間（秒）
+  likes: int("likes"), // いいね数
+  comments: int("comments"), // コメント数
+  shares: int("shares"), // シェア数
+  avgPrice: bigint("avgPrice", { mode: "number" }), // 平均単価
+  gmvPer1kShows: varchar("gmvPer1kShows", { length: 50 }), // GMV/1K shows
+  gmvPer1kViews: varchar("gmvPer1kViews", { length: 50 }), // GMV/1K views
+  customerCount: int("customerCount"), // 顧客数
+  itemsSold: int("itemsSold"), // 販売アイテム数
+  csvImported: mysqlEnum("csvImported", ["yes", "no"]).default("no"), // CSVインポートフラグ
   cpc: bigint("cpc", { mode: "number" }), // CPC（クリック単価）
   acos: varchar("acos", { length: 20 }), // ACOS（広告費売上比率）
   roas: varchar("roas", { length: 20 }), // ROAS（広告費用対効果）
