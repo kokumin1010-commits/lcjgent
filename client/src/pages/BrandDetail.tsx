@@ -690,6 +690,11 @@ export default function BrandDetail() {
   const [proposalHistoryOpen, setProposalHistoryOpen] = useState(false);
   const [selectedHistoryProposal, setSelectedHistoryProposal] = useState<any>(null);
 
+  // Ad Alert states
+  const [adAlertDialogOpen, setAdAlertDialogOpen] = useState(false);
+  const [isGeneratingAlert, setIsGeneratingAlert] = useState(false);
+  const [adAlertData, setAdAlertData] = useState<any>(null);
+
   // AI Image Add states
   const [aiImageAddDialogOpen, setAiImageAddDialogOpen] = useState(false);
   const [aiImageFile, setAiImageFile] = useState<File | null>(null);
@@ -750,6 +755,27 @@ export default function BrandDetail() {
     setIsGeneratingProposal(true);
     setAdProposalData(null);
     generateAdProposalMutation.mutate({ brandId, language: language as 'ja' | 'zh' });
+  };
+
+  // Ad Alert mutation
+  const generateAdAlertMutation = trpc.brand.generateAdAlert.useMutation({
+    onSuccess: (data) => {
+      setAdAlertData(data);
+      setIsGeneratingAlert(false);
+      toast.success(language === 'ja' ? "広告アラートを生成しました" : "已生成广告警报");
+    },
+    onError: (error) => {
+      setIsGeneratingAlert(false);
+      toast.error(language === 'ja' ? "アラートの生成に失敗しました" : "警报生成失败");
+      console.error("Ad alert generation error:", error);
+    },
+  });
+
+  const handleGenerateAdAlert = () => {
+    setAdAlertDialogOpen(true);
+    setIsGeneratingAlert(true);
+    setAdAlertData(null);
+    generateAdAlertMutation.mutate({ brandId, language: language as 'ja' | 'zh' });
   };
 
   // Save ad proposal mutation
@@ -1554,6 +1580,13 @@ ${proposal.proposalContent}
               >
                 <Sparkles className="h-4 w-4 mr-2" />
                 {language === 'ja' ? '広告提案' : '广告提案'}
+              </Button>
+              <Button
+                onClick={handleGenerateAdAlert}
+                className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white shadow-lg shadow-amber-500/30"
+              >
+                <TrendingUp className="h-4 w-4 mr-2" />
+                {language === 'ja' ? '広告アラート' : '广告警报'}
               </Button>
               {/* Language Toggle */}
               <Button
@@ -5459,6 +5492,230 @@ ${proposal.proposalContent}
             >
               {t.close}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Ad Alert Dialog */}
+      <Dialog open={adAlertDialogOpen} onOpenChange={setAdAlertDialogOpen}>
+        <DialogContent className="bg-black/95 border-amber-900/50 text-white max-w-4xl backdrop-blur-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-3">
+              <div className="w-1 h-6 bg-gradient-to-b from-amber-400 to-orange-600 rounded-full" />
+              <TrendingUp className="h-5 w-5 text-amber-400" />
+              {language === 'ja' ? '広告費投入アラート' : '广告费投入警报'}
+            </DialogTitle>
+            <p className="text-gray-400 text-sm mt-1">
+              {language === 'ja' 
+                ? 'ライブ成績に基づく広告費投入の機会分析' 
+                : '基于直播成绩的广告费投入机会分析'}
+            </p>
+          </DialogHeader>
+          
+          {isGeneratingAlert ? (
+            <div className="flex flex-col items-center justify-center py-16 space-y-4">
+              <div className="relative">
+                <div className="w-16 h-16 border-4 border-amber-500/30 rounded-full animate-spin border-t-amber-500" />
+                <TrendingUp className="absolute inset-0 m-auto h-6 w-6 text-amber-400 animate-pulse" />
+              </div>
+              <p className="text-gray-400 text-sm">{language === 'ja' ? 'AIがデータを分析中...' : 'AI正在分析数据...'}</p>
+              <p className="text-gray-500 text-xs">{language === 'ja' ? '広告投入の機会を計算しています' : '正在计算广告投入机会'}</p>
+            </div>
+          ) : adAlertData ? (
+            <div className="space-y-6 py-4">
+              {/* Urgency Banner */}
+              <div className={`rounded-lg p-4 border ${
+                adAlertData.urgency.level === 'high' 
+                  ? 'bg-gradient-to-r from-red-950/50 to-orange-950/50 border-red-500/50' 
+                  : adAlertData.urgency.level === 'medium'
+                  ? 'bg-gradient-to-r from-amber-950/50 to-yellow-950/50 border-amber-500/50'
+                  : 'bg-gradient-to-r from-gray-900/50 to-gray-800/50 border-gray-500/50'
+              }`}>
+                <div className="flex items-center gap-3">
+                  <div className={`w-3 h-3 rounded-full animate-pulse ${
+                    adAlertData.urgency.level === 'high' ? 'bg-red-500' 
+                    : adAlertData.urgency.level === 'medium' ? 'bg-amber-500' 
+                    : 'bg-gray-500'
+                  }`} />
+                  <span className={`font-bold ${
+                    adAlertData.urgency.level === 'high' ? 'text-red-400' 
+                    : adAlertData.urgency.level === 'medium' ? 'text-amber-400' 
+                    : 'text-gray-400'
+                  }`}>
+                    {adAlertData.urgency.level === 'high' 
+                      ? (language === 'ja' ? '🚨 緊急度: 高' : '🚨 紧急程度: 高')
+                      : adAlertData.urgency.level === 'medium'
+                      ? (language === 'ja' ? '⚠️ 緊急度: 中' : '⚠️ 紧急程度: 中')
+                      : (language === 'ja' ? 'ℹ️ 緊急度: 低' : 'ℹ️ 紧急程度: 低')}
+                  </span>
+                </div>
+                <p className="text-gray-300 mt-2">{adAlertData.urgency.reason}</p>
+              </div>
+
+              {/* Current Performance */}
+              <div className="bg-gradient-to-br from-cyan-950/30 to-blue-950/30 rounded-lg p-4 border border-cyan-500/30">
+                <h4 className="text-sm font-bold text-cyan-300 mb-3 flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4" />
+                  {language === 'ja' ? '現在のライブ成績（広告費なし）' : '当前直播成绩（无广告费）'}
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="text-center">
+                    <p className="text-xs text-gray-400">{language === 'ja' ? '総GMV' : '总GMV'}</p>
+                    <p className="text-lg font-bold text-cyan-400">¥{(adAlertData.currentMetrics.totalGmv || 0).toLocaleString()}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-gray-400">{language === 'ja' ? '配信回数' : '直播次数'}</p>
+                    <p className="text-lg font-bold text-purple-400">{adAlertData.currentMetrics.totalLivestreams}{language === 'ja' ? '回' : '次'}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-gray-400">{language === 'ja' ? '平均GMV/配信' : '平均GMV/直播'}</p>
+                    <p className="text-lg font-bold text-green-400">¥{Math.round(adAlertData.currentMetrics.avgGmvPerLive || 0).toLocaleString()}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-gray-400">{language === 'ja' ? 'パフォーマンス' : '表现分数'}</p>
+                    <p className="text-lg font-bold text-amber-400">{adAlertData.currentMetrics.performanceScore}/100</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Opportunity Cost */}
+              <div className="bg-gradient-to-br from-red-950/30 to-orange-950/30 rounded-lg p-4 border border-red-500/30">
+                <h4 className="text-sm font-bold text-red-300 mb-3 flex items-center gap-2">
+                  <span className="text-lg">💸</span>
+                  {language === 'ja' ? '機会損失（広告をかけないと損する金額）' : '机会成本（不投广告会亏损的金额）'}
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center bg-black/30 rounded-lg p-3">
+                    <p className="text-xs text-gray-400">{language === 'ja' ? '逃している推定インプレッション' : '错失的估计印象数'}</p>
+                    <p className="text-2xl font-bold text-red-400">{Math.round(adAlertData.opportunityCost.missedImpressions || 0).toLocaleString()}</p>
+                  </div>
+                  <div className="text-center bg-black/30 rounded-lg p-3">
+                    <p className="text-xs text-gray-400">{language === 'ja' ? '機会損失額（推定GMV）' : '机会成本（估计GMV）'}</p>
+                    <p className="text-2xl font-bold text-red-400">¥{Math.round(adAlertData.opportunityCost.missedGmv || 0).toLocaleString()}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Ad Investment Scenarios */}
+              <div className="bg-gradient-to-br from-green-950/30 to-emerald-950/30 rounded-lg p-4 border border-green-500/30">
+                <h4 className="text-sm font-bold text-green-300 mb-3 flex items-center gap-2">
+                  <span className="text-lg">📈</span>
+                  {language === 'ja' ? '広告費投入シナリオ（かけるとこれだけ伸びる）' : '广告费投入方案（投入后可以增长这么多）'}
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Small Budget */}
+                  <div className="bg-black/30 rounded-lg p-4 border border-gray-700/50 hover:border-green-500/50 transition-all">
+                    <div className="text-center mb-3">
+                      <Badge className="bg-gray-600 text-white">{language === 'ja' ? '小規模' : '小规模'}</Badge>
+                      <p className="text-xl font-bold text-white mt-2">¥{(adAlertData.scenarios.small.budget || 0).toLocaleString()}</p>
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">{language === 'ja' ? '追加インプレッション' : '增加印象数'}</span>
+                        <span className="text-cyan-400">+{Math.round(adAlertData.scenarios.small.additionalImpressions || 0).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">{language === 'ja' ? '予測追加GMV' : '预测增加GMV'}</span>
+                        <span className="text-green-400">+¥{Math.round(adAlertData.scenarios.small.projectedGmv || 0).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">ROAS</span>
+                        <span className="text-amber-400">{(adAlertData.scenarios.small.roas || 0).toFixed(2)}{language === 'ja' ? '倍' : '倍'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Medium Budget - Recommended */}
+                  <div className="bg-gradient-to-br from-green-900/30 to-emerald-900/30 rounded-lg p-4 border-2 border-green-500/70 relative">
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                      <Badge className="bg-green-500 text-white">{language === 'ja' ? 'おすすめ' : '推荐'}</Badge>
+                    </div>
+                    <div className="text-center mb-3 mt-2">
+                      <Badge className="bg-green-600 text-white">{language === 'ja' ? '中規模' : '中规模'}</Badge>
+                      <p className="text-xl font-bold text-white mt-2">¥{(adAlertData.scenarios.medium.budget || 0).toLocaleString()}</p>
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">{language === 'ja' ? '追加インプレッション' : '增加印象数'}</span>
+                        <span className="text-cyan-400">+{Math.round(adAlertData.scenarios.medium.additionalImpressions || 0).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">{language === 'ja' ? '予測追加GMV' : '预测增加GMV'}</span>
+                        <span className="text-green-400">+¥{Math.round(adAlertData.scenarios.medium.projectedGmv || 0).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">ROAS</span>
+                        <span className="text-amber-400">{(adAlertData.scenarios.medium.roas || 0).toFixed(2)}{language === 'ja' ? '倍' : '倍'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Large Budget */}
+                  <div className="bg-black/30 rounded-lg p-4 border border-gray-700/50 hover:border-green-500/50 transition-all">
+                    <div className="text-center mb-3">
+                      <Badge className="bg-purple-600 text-white">{language === 'ja' ? '大規模' : '大规模'}</Badge>
+                      <p className="text-xl font-bold text-white mt-2">¥{(adAlertData.scenarios.large.budget || 0).toLocaleString()}</p>
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">{language === 'ja' ? '追加インプレッション' : '增加印象数'}</span>
+                        <span className="text-cyan-400">+{Math.round(adAlertData.scenarios.large.additionalImpressions || 0).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">{language === 'ja' ? '予測追加GMV' : '预测增加GMV'}</span>
+                        <span className="text-green-400">+¥{Math.round(adAlertData.scenarios.large.projectedGmv || 0).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">ROAS</span>
+                        <span className="text-amber-400">{(adAlertData.scenarios.large.roas || 0).toFixed(2)}{language === 'ja' ? '倍' : '倍'}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* AI Analysis */}
+              <div className="bg-gradient-to-br from-amber-950/30 to-orange-950/20 rounded-lg p-4 border border-amber-500/30">
+                <h4 className="text-sm font-bold text-amber-300 mb-3 flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-amber-400" />
+                  {language === 'ja' ? 'AI分析レポート' : 'AI分析报告'}
+                </h4>
+                <div className="prose prose-invert prose-sm max-w-none">
+                  <div className="text-gray-300 whitespace-pre-wrap leading-relaxed text-sm">
+                    {adAlertData.aiAnalysis}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-16 space-y-4">
+              <p className="text-gray-400">{language === 'ja' ? 'データがありません' : '没有数据'}</p>
+            </div>
+          )}
+
+          <DialogFooter className="flex-wrap gap-2">
+            <div className="flex gap-2 w-full sm:w-auto sm:ml-auto">
+              <Button
+                variant="outline"
+                onClick={() => setAdAlertDialogOpen(false)}
+                className="border-amber-500/50 bg-amber-950/50 text-gray-200 hover:bg-amber-900/40 hover:text-white"
+              >
+                {t.close}
+              </Button>
+              {adAlertData && (
+                <Button
+                  onClick={() => {
+                    setIsGeneratingAlert(true);
+                    setAdAlertData(null);
+                    generateAdAlertMutation.mutate({ brandId, language: language as 'ja' | 'zh' });
+                  }}
+                  className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white"
+                >
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  {language === 'ja' ? '再生成' : '重新生成'}
+                </Button>
+              )}
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

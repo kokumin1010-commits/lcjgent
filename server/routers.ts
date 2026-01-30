@@ -2387,6 +2387,279 @@ ${topProducts.map((p, i) => `${i + 1}. ${p.name}: ¥${p.gmv.toLocaleString()}`).
         };
       }),
 
+    // Generate Ad Alert Report (Opportunity Cost Analysis)
+    generateAdAlert: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+        language: z.enum(['ja', 'zh']).default('ja'),
+      }))
+      .mutation(async ({ input }) => {
+        const brand = await getBrandById(input.brandId);
+        if (!brand) {
+          throw new Error('Brand not found');
+        }
+
+        // Get all livestreams for this brand
+        const livestreams = await getLivestreamsByBrandId(input.brandId);
+        const contracts = await getContractsByBrandId(input.brandId);
+        const products = await getProductsByBrandId(input.brandId);
+
+        // Calculate current metrics
+        const totalGmv = livestreams.reduce((sum, ls) => {
+          return sum + (ls.salesAmount || ls.gmv || ls.productGmvTotal || 0);
+        }, 0);
+        const totalImpressions = livestreams.reduce((sum, ls) => sum + (ls.impressions || 0), 0);
+        const adValue = totalImpressions * 15; // CPM ¥15,000
+        const totalValue = totalGmv + adValue;
+        const contractAmount = contracts.reduce((sum, c) => sum + (c.fixedFee || 0), 0);
+        const currentRoas = contractAmount > 0 ? totalValue / contractAmount : 0;
+
+        // Count unique livestream dates
+        const uniqueDates = new Set<string>();
+        livestreams.forEach((ls) => {
+          if (ls.livestreamDate) {
+            uniqueDates.add(new Date(ls.livestreamDate).toISOString().split('T')[0]);
+          }
+        });
+        const totalLivestreams = uniqueDates.size;
+        const avgGmvPerLive = totalLivestreams > 0 ? totalGmv / totalLivestreams : 0;
+        const avgImpressionsPerLive = totalLivestreams > 0 ? totalImpressions / totalLivestreams : 0;
+
+        // Calculate engagement rate (estimate from impressions and GMV)
+        const avgConversionRate = totalImpressions > 0 ? (totalGmv / totalImpressions) * 100 : 0;
+
+        // Ad Investment Scenarios
+        // Industry benchmarks for TikTok ads
+        const adCpm = 15000; // CPM for TikTok ads
+        const organicReachMultiplier = 2.5; // Paid ads typically get 2.5x more reach
+        const paidConversionBoost = 1.3; // Paid traffic converts 30% better due to targeting
+
+        // Scenario 1: Small ad budget (¥100,000)
+        const smallBudget = 100000;
+        const smallAdImpressions = (smallBudget / adCpm) * 1000;
+        const smallProjectedGmv = smallAdImpressions * (avgConversionRate / 100) * paidConversionBoost;
+        const smallTotalProjectedGmv = totalGmv + smallProjectedGmv;
+        const smallRoas = smallBudget > 0 ? smallProjectedGmv / smallBudget : 0;
+
+        // Scenario 2: Medium ad budget (¥300,000)
+        const mediumBudget = 300000;
+        const mediumAdImpressions = (mediumBudget / adCpm) * 1000;
+        const mediumProjectedGmv = mediumAdImpressions * (avgConversionRate / 100) * paidConversionBoost;
+        const mediumTotalProjectedGmv = totalGmv + mediumProjectedGmv;
+        const mediumRoas = mediumBudget > 0 ? mediumProjectedGmv / mediumBudget : 0;
+
+        // Scenario 3: Large ad budget (¥500,000)
+        const largeBudget = 500000;
+        const largeAdImpressions = (largeBudget / adCpm) * 1000;
+        const largeProjectedGmv = largeAdImpressions * (avgConversionRate / 100) * paidConversionBoost;
+        const largeTotalProjectedGmv = totalGmv + largeProjectedGmv;
+        const largeRoas = largeBudget > 0 ? largeProjectedGmv / largeBudget : 0;
+
+        // Opportunity Cost Calculation
+        // If current performance is good, calculate what they're missing without ads
+        const potentialReachWithAds = totalImpressions * organicReachMultiplier;
+        const missedImpressions = potentialReachWithAds - totalImpressions;
+        const missedGmv = missedImpressions * (avgConversionRate / 100);
+        const opportunityCost = missedGmv;
+
+        // Performance Score (0-100)
+        const performanceScore = Math.min(100, Math.round(
+          (currentRoas > 3 ? 30 : currentRoas * 10) +
+          (avgGmvPerLive > 500000 ? 30 : (avgGmvPerLive / 500000) * 30) +
+          (avgConversionRate > 0.5 ? 20 : avgConversionRate * 40) +
+          (totalLivestreams > 10 ? 20 : totalLivestreams * 2)
+        ));
+
+        // Urgency Level based on performance
+        let urgencyLevel: 'high' | 'medium' | 'low' = 'low';
+        let urgencyReason = '';
+        if (performanceScore >= 70 && currentRoas >= 2.5) {
+          urgencyLevel = 'high';
+          urgencyReason = input.language === 'ja' 
+            ? 'ライブ成績が非常に良好です。今広告費を投入しないと大きな機会損失になります！'
+            : '直播效果非常好！现在不投入广告费将错失巨大机会！';
+        } else if (performanceScore >= 50 && currentRoas >= 1.5) {
+          urgencyLevel = 'medium';
+          urgencyReason = input.language === 'ja'
+            ? 'ライブ成績が安定しています。広告費投入でさらなる成長が期待できます。'
+            : '直播效果稳定。投入广告费可以带来更多增长。';
+        } else {
+          urgencyLevel = 'low';
+          urgencyReason = input.language === 'ja'
+            ? 'まずはライブ成績の改善を優先し、その後広告投入を検討しましょう。'
+            : '建议先改善直播效果，然后再考虑广告投入。';
+        }
+
+        // Build AI prompt for detailed analysis
+        const isJa = input.language === 'ja';
+        const prompt = isJa ? `あなたはTikTokライブコマースの広告戦略コンサルタントです。以下のデータを分析し、ブランドに広告費投入を提案する説得力のあるレポートを作成してください。
+
+## 重要な前提
+- 現在の「契約金額」はライブ配信契約の固定費であり、広告費ではありません
+- 広告費はライブや動画に対して別途投入するものです
+- このレポートは「広告費をかけないと損する」「広告費をかけるとこれだけ伸びる」を伝えるものです
+
+## ブランド情報
+- ブランド名: ${brand.name} (${brand.nameJa || ''})
+- カテゴリー: ${brand.category || '未設定'}
+
+## 現在のライブ成績（広告費なし）
+- 総GMV: ¥${totalGmv.toLocaleString()}
+- 総インプレッション: ${totalImpressions.toLocaleString()}回
+- 平均コンバージョン率: ${avgConversionRate.toFixed(3)}%
+- 配信回数: ${totalLivestreams}回
+- 平均GMV/配信: ¥${Math.round(avgGmvPerLive).toLocaleString()}
+- パフォーマンススコア: ${performanceScore}/100
+
+## 機会損失分析
+- 広告をかけないことで逃している推定インプレッション: ${Math.round(missedImpressions).toLocaleString()}回
+- 機会損失額（逃している推定GMV）: ¥${Math.round(opportunityCost).toLocaleString()}
+
+## 広告費投入シナリオ
+
+### シナリオ1: 小規模投入（¥${smallBudget.toLocaleString()}）
+- 追加インプレッション: ${Math.round(smallAdImpressions).toLocaleString()}回
+- 予測追加GMV: ¥${Math.round(smallProjectedGmv).toLocaleString()}
+- 予測ROAS: ${smallRoas.toFixed(2)}倍
+
+### シナリオ2: 中規模投入（¥${mediumBudget.toLocaleString()}）
+- 追加インプレッション: ${Math.round(mediumAdImpressions).toLocaleString()}回
+- 予測追加GMV: ¥${Math.round(mediumProjectedGmv).toLocaleString()}
+- 予測ROAS: ${mediumRoas.toFixed(2)}倍
+
+### シナリオ3: 大規模投入（¥${largeBudget.toLocaleString()}）
+- 追加インプレッション: ${Math.round(largeAdImpressions).toLocaleString()}回
+- 予測追加GMV: ¥${Math.round(largeProjectedGmv).toLocaleString()}
+- 予測ROAS: ${largeRoas.toFixed(2)}倍
+
+## レポート作成指示
+1. まず現在のライブ成績がいかに優れているかを強調してください
+2. 広告費をかけないことでどれだけ損しているかを具体的な数字で示してください
+3. 各シナリオのメリットを説明し、おすすめのシナリオを提案してください
+4. 緊急性を伝え、今すぐ広告費を投入すべき理由を説明してください
+5. 具体的な広告戦略（ターゲティング、クリエイティブ、タイミング）を提案してください
+
+レポートは説得力があり、ブランドが「広告費をかけたい」と思うような内容にしてください。` 
+        : `你是TikTok直播电商的广告策略顾问。请分析以下数据，制作一份有说服力的广告费投入提案报告。
+
+## 重要前提
+- 当前的“合同金额”是直播合同的固定费用，不是广告费
+- 广告费是针对直播和视频另外投入的
+- 这份报告要传达“不投广告会亏损”“投广告能增长这么多”
+
+## 品牌信息
+- 品牌名: ${brand.name} (${brand.nameJa || ''})
+- 类别: ${brand.category || '未设置'}
+
+## 当前直播成绩（无广告费）
+- 总GMV: ¥${totalGmv.toLocaleString()}
+- 总印象数: ${totalImpressions.toLocaleString()}次
+- 平均转化率: ${avgConversionRate.toFixed(3)}%
+- 直播次数: ${totalLivestreams}次
+- 平均GMV/直播: ¥${Math.round(avgGmvPerLive).toLocaleString()}
+- 表现分数: ${performanceScore}/100
+
+## 机会成本分析
+- 不投广告错失的估计印象数: ${Math.round(missedImpressions).toLocaleString()}次
+- 机会成本（错失的估计GMV）: ¥${Math.round(opportunityCost).toLocaleString()}
+
+## 广告费投入方案
+
+### 方案一: 小规模投入（¥${smallBudget.toLocaleString()}）
+- 增加印象数: ${Math.round(smallAdImpressions).toLocaleString()}次
+- 预测增加GMV: ¥${Math.round(smallProjectedGmv).toLocaleString()}
+- 预测ROAS: ${smallRoas.toFixed(2)}倍
+
+### 方案二: 中规模投入（¥${mediumBudget.toLocaleString()}）
+- 增加印象数: ${Math.round(mediumAdImpressions).toLocaleString()}次
+- 预测增加GMV: ¥${Math.round(mediumProjectedGmv).toLocaleString()}
+- 预测ROAS: ${mediumRoas.toFixed(2)}倍
+
+### 方案三: 大规模投入（¥${largeBudget.toLocaleString()}）
+- 增加印象数: ${Math.round(largeAdImpressions).toLocaleString()}次
+- 预测增加GMV: ¥${Math.round(largeProjectedGmv).toLocaleString()}
+- 预测ROAS: ${largeRoas.toFixed(2)}倍
+
+## 报告制作指示
+1. 首先强调当前直播成绩有多优秀
+2. 用具体数字说明不投广告会亏损多少
+3. 说明各方案的优势，推荐最佳方案
+4. 传达紧迫性，说明为什么现在就要投入广告费
+5. 提供具体的广告策略（定向、创意、时机）
+
+报告要有说服力，让品牌“想要投入广告费”。`;
+
+        // Call LLM for analysis
+        const llmResponse = await invokeLLM({
+          messages: [
+            { role: 'system', content: isJa 
+              ? 'あなたはTikTokライブコマースの広告戦略コンサルタントです。データに基づいて説得力のある広告投入提案を作成してください。Markdown形式で出力してください。'
+              : '你是TikTok直播电商的广告策略顾问。请根据数据制作有说服力的广告投入提案。请以Markdown格式输出。'
+            },
+            { role: 'user', content: prompt }
+          ],
+        });
+
+        const aiAnalysis = llmResponse.choices[0]?.message?.content || '';
+
+        return {
+          brandId: input.brandId,
+          brandName: brand.name,
+          brandNameJa: brand.nameJa,
+          language: input.language,
+          // Current Performance
+          currentMetrics: {
+            totalGmv,
+            totalImpressions,
+            avgConversionRate,
+            totalLivestreams,
+            avgGmvPerLive,
+            avgImpressionsPerLive,
+            contractAmount,
+            currentRoas,
+            performanceScore,
+          },
+          // Opportunity Cost
+          opportunityCost: {
+            missedImpressions,
+            missedGmv: opportunityCost,
+            potentialReachWithAds,
+          },
+          // Ad Investment Scenarios
+          scenarios: {
+            small: {
+              budget: smallBudget,
+              additionalImpressions: smallAdImpressions,
+              projectedGmv: smallProjectedGmv,
+              totalProjectedGmv: smallTotalProjectedGmv,
+              roas: smallRoas,
+            },
+            medium: {
+              budget: mediumBudget,
+              additionalImpressions: mediumAdImpressions,
+              projectedGmv: mediumProjectedGmv,
+              totalProjectedGmv: mediumTotalProjectedGmv,
+              roas: mediumRoas,
+            },
+            large: {
+              budget: largeBudget,
+              additionalImpressions: largeAdImpressions,
+              projectedGmv: largeProjectedGmv,
+              totalProjectedGmv: largeTotalProjectedGmv,
+              roas: largeRoas,
+            },
+          },
+          // Urgency
+          urgency: {
+            level: urgencyLevel,
+            reason: urgencyReason,
+          },
+          // AI Analysis
+          aiAnalysis,
+          generatedAt: new Date().toISOString(),
+        };
+      }),
+
     // Upload image for brand
     uploadImage: protectedProcedure
       .input(
