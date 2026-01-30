@@ -1668,7 +1668,8 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           const gmvValue = ls.salesAmount || ls.gmv || ls.productGmvTotal || 0;
           return sum + gmvValue;
         }, 0);
-        const totalAdCost = livestreams.reduce((sum, ls) => sum + (ls.adCost || 0), 0);
+        // 広告費は契約情報のfixedFee（ブランド投入）から取得
+        const totalAdCost = contracts.reduce((sum, c) => sum + (c.fixedFee || 0), 0);
         const avgRoas = totalAdCost > 0 ? totalGmv / totalAdCost : 0;
         const totalLivestreams = livestreams.length;
         const avgSalesPerLive = totalLivestreams > 0 ? totalGmv / totalLivestreams : 0;
