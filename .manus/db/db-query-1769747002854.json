@@ -1,0 +1,280 @@
+{
+  "query": "SELECT id, liverId, DATE(livestreamDate) as date, TIME(livestreamDate) as start_time, gmv, viewerCount, likes FROM brand_livestreams WHERE liverId IS NOT NULL ORDER BY livestreamDate DESC LIMIT 30;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, liverId, DATE(livestreamDate) as date, TIME(livestreamDate) as start_time, gmv, viewerCount, likes FROM brand_livestreams WHERE liverId IS NOT NULL ORDER BY livestreamDate DESC LIMIT 30;",
+  "rows": [
+    {
+      "id": "420026",
+      "liverId": "120005",
+      "date": "2026-01-29",
+      "start_time": "11:10:00",
+      "gmv": "NULL",
+      "viewerCount": "NULL",
+      "likes": "NULL"
+    },
+    {
+      "id": "120027",
+      "liverId": "120005",
+      "date": "2025-12-30",
+      "start_time": "10:00:00",
+      "gmv": "NULL",
+      "viewerCount": "NULL",
+      "likes": "NULL"
+    },
+    {
+      "id": "450066",
+      "liverId": "120005",
+      "date": "2025-09-26",
+      "start_time": "18:54:00",
+      "gmv": "86282218",
+      "viewerCount": "273444",
+      "likes": "4998191"
+    },
+    {
+      "id": "450067",
+      "liverId": "120005",
+      "date": "2025-09-26",
+      "start_time": "16:56:00",
+      "gmv": "0",
+      "viewerCount": "1017",
+      "likes": "51051"
+    },
+    {
+      "id": "450068",
+      "liverId": "120005",
+      "date": "2025-09-25",
+      "start_time": "10:02:00",
+      "gmv": "22510946",
+      "viewerCount": "102063",
+      "likes": "2571106"
+    },
+    {
+      "id": "450069",
+      "liverId": "120005",
+      "date": "2025-09-24",
+      "start_time": "10:00:00",
+      "gmv": "186037",
+      "viewerCount": "10362",
+      "likes": "299481"
+    },
+    {
+      "id": "450070",
+      "liverId": "120005",
+      "date": "2025-09-24",
+      "start_time": "06:00:00",
+      "gmv": "22843",
+      "viewerCount": "4532",
+      "likes": "165348"
+    },
+    {
+      "id": "450071",
+      "liverId": "120005",
+      "date": "2025-09-23",
+      "start_time": "06:00:00",
+      "gmv": "72363",
+      "viewerCount": "6430",
+      "likes": "575676"
+    },
+    {
+      "id": "450072",
+      "liverId": "120005",
+      "date": "2025-09-22",
+      "start_time": "10:00:00",
+      "gmv": "40823",
+      "viewerCount": "3264",
+      "likes": "195350"
+    },
+    {
+      "id": "450073",
+      "liverId": "120005",
+      "date": "2025-09-22",
+      "start_time": "06:00:00",
+      "gmv": "62070",
+      "viewerCount": "3132",
+      "likes": "115730"
+    },
+    {
+      "id": "450074",
+      "liverId": "120005",
+      "date": "2025-09-21",
+      "start_time": "20:00:00",
+      "gmv": "158139",
+      "viewerCount": "10436",
+      "likes": "747736"
+    },
+    {
+      "id": "450075",
+      "liverId": "120005",
+      "date": "2025-09-21",
+      "start_time": "06:02:00",
+      "gmv": "251358",
+      "viewerCount": "13079",
+      "likes": "639777"
+    },
+    {
+      "id": "450076",
+      "liverId": "120005",
+      "date": "2025-09-20",
+      "start_time": "06:02:00",
+      "gmv": "193177",
+      "viewerCount": "8791",
+      "likes": "173162"
+    },
+    {
+      "id": "450077",
+      "liverId": "120005",
+      "date": "2025-09-19",
+      "start_time": "06:00:00",
+      "gmv": "19800",
+      "viewerCount": "2790",
+      "likes": "48233"
+    },
+    {
+      "id": "450078",
+      "liverId": "120005",
+      "date": "2025-09-17",
+      "start_time": "06:01:00",
+      "gmv": "11637652",
+      "viewerCount": "46796",
+      "likes": "4033784"
+    },
+    {
+      "id": "450079",
+      "liverId": "120005",
+      "date": "2025-09-16",
+      "start_time": "10:01:00",
+      "gmv": "15279786",
+      "viewerCount": "51975",
+      "likes": "1746468"
+    },
+    {
+      "id": "450080",
+      "liverId": "120005",
+      "date": "2025-09-15",
+      "start_time": "22:02:00",
+      "gmv": "957187",
+      "viewerCount": "11928",
+      "likes": "107280"
+    },
+    {
+      "id": "450081",
+      "liverId": "120005",
+      "date": "2025-09-15",
+      "start_time": "06:00:00",
+      "gmv": "48774",
+      "viewerCount": "3581",
+      "likes": "230415"
+    },
+    {
+      "id": "450082",
+      "liverId": "120005",
+      "date": "2025-09-14",
+      "start_time": "08:03:00",
+      "gmv": "293930",
+      "viewerCount": "7082",
+      "likes": "402234"
+    },
+    {
+      "id": "450083",
+      "liverId": "120005",
+      "date": "2025-09-14",
+      "start_time": "06:02:00",
+      "gmv": "61066",
+      "viewerCount": "3942",
+      "likes": "88904"
+    },
+    {
+      "id": "450084",
+      "liverId": "120005",
+      "date": "2025-09-13",
+      "start_time": "20:00:00",
+      "gmv": "147294",
+      "viewerCount": "2351",
+      "likes": "303688"
+    },
+    {
+      "id": "450085",
+      "liverId": "120005",
+      "date": "2025-09-13",
+      "start_time": "08:11:00",
+      "gmv": "228297",
+      "viewerCount": "5136",
+      "likes": "376091"
+    },
+    {
+      "id": "450086",
+      "liverId": "120005",
+      "date": "2025-09-13",
+      "start_time": "06:01:00",
+      "gmv": "33377",
+      "viewerCount": "3256",
+      "likes": "155393"
+    },
+    {
+      "id": "450087",
+      "liverId": "120005",
+      "date": "2025-09-12",
+      "start_time": "20:00:00",
+      "gmv": "242229",
+      "viewerCount": "2974",
+      "likes": "278026"
+    },
+    {
+      "id": "450088",
+      "liverId": "120005",
+      "date": "2025-09-12",
+      "start_time": "10:23:00",
+      "gmv": "57012",
+      "viewerCount": "1401",
+      "likes": "55549"
+    },
+    {
+      "id": "450089",
+      "liverId": "120005",
+      "date": "2025-09-12",
+      "start_time": "09:00:00",
+      "gmv": "46499",
+      "viewerCount": "1840",
+      "likes": "72446"
+    },
+    {
+      "id": "450090",
+      "liverId": "120005",
+      "date": "2025-09-12",
+      "start_time": "06:01:00",
+      "gmv": "28907",
+      "viewerCount": "2692",
+      "likes": "154840"
+    },
+    {
+      "id": "450091",
+      "liverId": "120005",
+      "date": "2025-09-11",
+      "start_time": "06:01:00",
+      "gmv": "40431",
+      "viewerCount": "2164",
+      "likes": "142891"
+    },
+    {
+      "id": "450092",
+      "liverId": "120005",
+      "date": "2025-09-10",
+      "start_time": "20:03:00",
+      "gmv": "197983",
+      "viewerCount": "3499",
+      "likes": "459127"
+    },
+    {
+      "id": "450093",
+      "liverId": "120005",
+      "date": "2025-09-10",
+      "start_time": "10:00:00",
+      "gmv": "119288",
+      "viewerCount": "2825",
+      "likes": "275334"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tliverId\tdate\tstart_time\tgmv\tviewerCount\tlikes\n420026\t120005\t2026-01-29\t11:10:00\tNULL\tNULL\tNULL\n120027\t120005\t2025-12-30\t10:00:00\tNULL\tNULL\tNULL\n450066\t120005\t2025-09-26\t18:54:00\t86282218\t273444\t4998191\n450067\t120005\t2025-09-26\t16:56:00\t0\t1017\t51051\n450068\t120005\t2025-09-25\t10:02:00\t22510946\t102063\t2571106\n450069\t120005\t2025-09-24\t10:00:00\t186037\t10362\t299481\n450070\t120005\t2025-09-24\t06:00:00\t22843\t4532\t165348\n450071\t120005\t2025-09-23\t06:00:00\t72363\t6430\t575676\n450072\t120005\t2025-09-22\t10:00:00\t40823\t3264\t195350\n450073\t120005\t2025-09-22\t06:00:00\t62070\t3132\t115730\n450074\t120005\t2025-09-21\t20:00:00\t158139\t10436\t747736\n450075\t120005\t2025-09-21\t06:02:00\t251358\t13079\t639777\n450076\t120005\t2025-09-20\t06:02:00\t193177\t8791\t173162\n450077\t120005\t2025-09-19\t06:00:00\t19800\t2790\t48233\n450078\t120005\t2025-09-17\t06:01:00\t11637652\t46796\t4033784\n450079\t120005\t2025-09-16\t10:01:00\t15279786\t51975\t1746468\n450080\t120005\t2025-09-15\t22:02:00\t957187\t11928\t107280\n450081\t120005\t2025-09-15\t06:00:00\t48774\t3581\t230415\n450082\t120005\t2025-09-14\t08:03:00\t293930\t7082\t402234\n450083\t120005\t2025-09-14\t06:02:00\t61066\t3942\t88904\n450084\t120005\t2025-09-13\t20:00:00\t147294\t2351\t303688\n450085\t120005\t2025-09-13\t08:11:00\t228297\t5136\t376091\n450086\t120005\t2025-09-13\t06:01:00\t33377\t3256\t155393\n450087\t120005\t2025-09-12\t20:00:00\t242229\t2974\t278026\n450088\t120005\t2025-09-12\t10:23:00\t57012\t1401\t55549\n450089\t120005\t2025-09-12\t09:00:00\t46499\t1840\t72446\n450090\t120005\t2025-09-12\t06:01:00\t28907\t2692\t154840\n450091\t120005\t2025-09-11\t06:01:00\t40431\t2164\t142891\n450092\t120005\t2025-09-10\t20:03:00\t197983\t3499\t459127\n450093\t120005\t2025-09-10\t10:00:00\t119288\t2825\t275334\n",
+  "stderr": "",
+  "execution_time_ms": 1529
+}

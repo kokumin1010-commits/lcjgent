@@ -599,12 +599,15 @@ export default function LiverMypage() {
                 } | null;
                 aiAdvice?: string | null;
               }, index: number) => {
-                const startDate = new Date(ls.livestreamDate);
-                const endDate = ls.livestreamEndTime ? new Date(ls.livestreamEndTime) : null;
+                // JST（日本時間）で表示
+                const rawStartDate = new Date(ls.livestreamDate);
+                const startDate = new Date(rawStartDate.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
+                const rawEndDate = ls.livestreamEndTime ? new Date(ls.livestreamEndTime) : null;
+                const endDate = rawEndDate ? new Date(rawEndDate.getTime() + (9 * 60 * 60 * 1000)) : null;
                 const duration = ls.duration 
                   ? Math.round(ls.duration / 60 * 10) / 10
-                  : endDate
-                    ? Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60) * 10) / 10
+                  : rawEndDate
+                    ? Math.round((rawEndDate.getTime() - rawStartDate.getTime()) / (1000 * 60 * 60) * 10) / 10
                     : 0;
                 const hasAiAdvice = ls.aiStructuredAdvice || ls.aiAdvice;
 

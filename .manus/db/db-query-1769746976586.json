@@ -1,0 +1,170 @@
+{
+  "query": "SELECT id, liverId, DATE(createdAt) as date, gmv, viewerCount, duration FROM brand_livestreams WHERE gmv > 100000 ORDER BY createdAt DESC LIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, liverId, DATE(createdAt) as date, gmv, viewerCount, duration FROM brand_livestreams WHERE gmv > 100000 ORDER BY createdAt DESC LIMIT 20;",
+  "rows": [
+    {
+      "id": "450108",
+      "liverId": "120005",
+      "date": "2026-01-30",
+      "gmv": "126191",
+      "viewerCount": "5863",
+      "duration": "387"
+    },
+    {
+      "id": "450110",
+      "liverId": "120005",
+      "date": "2026-01-30",
+      "gmv": "204571",
+      "viewerCount": "4370",
+      "duration": "197"
+    },
+    {
+      "id": "450111",
+      "liverId": "120005",
+      "date": "2026-01-30",
+      "gmv": "278197",
+      "viewerCount": "4050",
+      "duration": "183"
+    },
+    {
+      "id": "450107",
+      "liverId": "120005",
+      "date": "2026-01-30",
+      "gmv": "169629",
+      "viewerCount": "5842",
+      "duration": "192"
+    },
+    {
+      "id": "450102",
+      "liverId": "120005",
+      "date": "2026-01-30",
+      "gmv": "323174",
+      "viewerCount": "5955",
+      "duration": "366"
+    },
+    {
+      "id": "450103",
+      "liverId": "120005",
+      "date": "2026-01-30",
+      "gmv": "103870",
+      "viewerCount": "2717",
+      "duration": "182"
+    },
+    {
+      "id": "450105",
+      "liverId": "120005",
+      "date": "2026-01-30",
+      "gmv": "184887",
+      "viewerCount": "3362",
+      "duration": "189"
+    },
+    {
+      "id": "450084",
+      "liverId": "120005",
+      "date": "2026-01-30",
+      "gmv": "147294",
+      "viewerCount": "2351",
+      "duration": "130"
+    },
+    {
+      "id": "450092",
+      "liverId": "120005",
+      "date": "2026-01-30",
+      "gmv": "197983",
+      "viewerCount": "3499",
+      "duration": "210"
+    },
+    {
+      "id": "450075",
+      "liverId": "120005",
+      "date": "2026-01-30",
+      "gmv": "251358",
+      "viewerCount": "13079",
+      "duration": "336"
+    },
+    {
+      "id": "450082",
+      "liverId": "120005",
+      "date": "2026-01-30",
+      "gmv": "293930",
+      "viewerCount": "7082",
+      "duration": "195"
+    },
+    {
+      "id": "450101",
+      "liverId": "120005",
+      "date": "2026-01-30",
+      "gmv": "344228",
+      "viewerCount": "3537",
+      "duration": "186"
+    },
+    {
+      "id": "450099",
+      "liverId": "120005",
+      "date": "2026-01-30",
+      "gmv": "205736",
+      "viewerCount": "3119",
+      "duration": "139"
+    },
+    {
+      "id": "450100",
+      "liverId": "120005",
+      "date": "2026-01-30",
+      "gmv": "616572",
+      "viewerCount": "14537",
+      "duration": "367"
+    },
+    {
+      "id": "450097",
+      "liverId": "120005",
+      "date": "2026-01-30",
+      "gmv": "117363",
+      "viewerCount": "3414",
+      "duration": "194"
+    },
+    {
+      "id": "450087",
+      "liverId": "120005",
+      "date": "2026-01-30",
+      "gmv": "242229",
+      "viewerCount": "2974",
+      "duration": "137"
+    },
+    {
+      "id": "450079",
+      "liverId": "120005",
+      "date": "2026-01-30",
+      "gmv": "15279786",
+      "viewerCount": "51975",
+      "duration": "1200"
+    },
+    {
+      "id": "450085",
+      "liverId": "120005",
+      "date": "2026-01-30",
+      "gmv": "228297",
+      "viewerCount": "5136",
+      "duration": "209"
+    },
+    {
+      "id": "450080",
+      "liverId": "120005",
+      "date": "2026-01-30",
+      "gmv": "957187",
+      "viewerCount": "11928",
+      "duration": "132"
+    },
+    {
+      "id": "450093",
+      "liverId": "120005",
+      "date": "2026-01-30",
+      "gmv": "119288",
+      "viewerCount": "2825",
+      "duration": "201"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tliverId\tdate\tgmv\tviewerCount\tduration\n450108\t120005\t2026-01-30\t126191\t5863\t387\n450110\t120005\t2026-01-30\t204571\t4370\t197\n450111\t120005\t2026-01-30\t278197\t4050\t183\n450107\t120005\t2026-01-30\t169629\t5842\t192\n450102\t120005\t2026-01-30\t323174\t5955\t366\n450103\t120005\t2026-01-30\t103870\t2717\t182\n450105\t120005\t2026-01-30\t184887\t3362\t189\n450084\t120005\t2026-01-30\t147294\t2351\t130\n450092\t120005\t2026-01-30\t197983\t3499\t210\n450075\t120005\t2026-01-30\t251358\t13079\t336\n450082\t120005\t2026-01-30\t293930\t7082\t195\n450101\t120005\t2026-01-30\t344228\t3537\t186\n450099\t120005\t2026-01-30\t205736\t3119\t139\n450100\t120005\t2026-01-30\t616572\t14537\t367\n450097\t120005\t2026-01-30\t117363\t3414\t194\n450087\t120005\t2026-01-30\t242229\t2974\t137\n450079\t120005\t2026-01-30\t15279786\t51975\t1200\n450085\t120005\t2026-01-30\t228297\t5136\t209\n450080\t120005\t2026-01-30\t957187\t11928\t132\n450093\t120005\t2026-01-30\t119288\t2825\t201\n",
+  "stderr": "",
+  "execution_time_ms": 1516
+}

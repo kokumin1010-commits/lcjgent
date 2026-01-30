@@ -116,13 +116,15 @@ export default function LiverDetail() {
   };
   
   const formatDate = (date: Date | string) => {
+    // JST（日本時間）で表示
     const d = new Date(date);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    const weekday = ["日", "月", "火", "水", "木", "金", "土"][d.getDay()];
-    const hours = String(d.getHours()).padStart(2, "0");
-    const mins = String(d.getMinutes()).padStart(2, "0");
+    const jstDate = new Date(d.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
+    const year = jstDate.getUTCFullYear();
+    const month = String(jstDate.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(jstDate.getUTCDate()).padStart(2, "0");
+    const weekday = ["日", "月", "火", "水", "木", "金", "土"][jstDate.getUTCDay()];
+    const hours = String(jstDate.getUTCHours()).padStart(2, "0");
+    const mins = String(jstDate.getUTCMinutes()).padStart(2, "0");
     return `${year}/${month}/${day}(${weekday})\n${hours}:${mins}`;
   };
   

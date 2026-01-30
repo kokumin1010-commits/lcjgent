@@ -1,0 +1,20 @@
+{
+  "query": "SELECT id, liverId, livestreamDate, livestreamEndTime, gmv, viewerCount, duration, likes FROM brand_livestreams WHERE DATE(livestreamDate) = '2025-08-31' ORDER BY livestreamDate;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, liverId, livestreamDate, livestreamEndTime, gmv, viewerCount, duration, likes FROM brand_livestreams WHERE DATE(livestreamDate) = '2025-08-31' ORDER BY livestreamDate;",
+  "rows": [
+    {
+      "id": "450007",
+      "liverId": "120005",
+      "livestreamDate": "2025-08-31 06:00:00",
+      "livestreamEndTime": "2025-08-31 11:41:08",
+      "gmv": "439643",
+      "viewerCount": "8386",
+      "duration": "341",
+      "likes": "234160"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tliverId\tlivestreamDate\tlivestreamEndTime\tgmv\tviewerCount\tduration\tlikes\n450007\t120005\t2025-08-31 06:00:00\t2025-08-31 11:41:08\t439643\t8386\t341\t234160\n",
+  "stderr": "",
+  "execution_time_ms": 1514
+}
