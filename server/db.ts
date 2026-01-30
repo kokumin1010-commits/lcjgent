@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -5043,4 +5043,483 @@ export async function getReceiptStatistics() {
     .groupBy(receipts.status);
   
   return stats;
+}
+
+
+// =====================================================
+// LINE User Point System Functions
+// LINEユーザーベースのポイントシステム関数
+// =====================================================
+
+/**
+ * Get or create LINE user point balance
+ */
+export async function getOrCreateLinePointBalance(lineUserId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const existing = await db
+    .select()
+    .from(linePointBalances)
+    .where(eq(linePointBalances.lineUserId, lineUserId))
+    .limit(1);
+  
+  if (existing.length > 0) {
+    return existing[0];
+  }
+  
+  // Create new balance record
+  await db.insert(linePointBalances).values({
+    lineUserId,
+    balance: 0,
+    totalEarned: 0,
+    totalUsed: 0,
+  });
+  
+  const created = await db
+    .select()
+    .from(linePointBalances)
+    .where(eq(linePointBalances.lineUserId, lineUserId))
+    .limit(1);
+  
+  return created[0];
+}
+
+/**
+ * Get LINE user point balance
+ */
+export async function getLinePointBalance(lineUserId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db
+    .select()
+    .from(linePointBalances)
+    .where(eq(linePointBalances.lineUserId, lineUserId))
+    .limit(1);
+  
+  return result[0] || null;
+}
+
+/**
+ * Update LINE user point balance
+ */
+export async function updateLinePointBalance(
+  lineUserId: string,
+  balanceChange: number,
+  type: "earn" | "use"
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const balance = await getOrCreateLinePointBalance(lineUserId);
+  
+  const newBalance = balance.balance + balanceChange;
+  const newTotalEarned = type === "earn" ? balance.totalEarned + balanceChange : balance.totalEarned;
+  const newTotalUsed = type === "use" ? balance.totalUsed + Math.abs(balanceChange) : balance.totalUsed;
+  
+  await db
+    .update(linePointBalances)
+    .set({
+      balance: newBalance,
+      totalEarned: newTotalEarned,
+      totalUsed: newTotalUsed,
+    })
+    .where(eq(linePointBalances.lineUserId, lineUserId));
+  
+  return { balance: newBalance, totalEarned: newTotalEarned, totalUsed: newTotalUsed };
+}
+
+/**
+ * Create LINE user point transaction
+ */
+export async function createLinePointTransaction(data: {
+  lineUserId: string;
+  type: "earn" | "use" | "expire" | "refund" | "adjustment";
+  amount: number;
+  referenceType: "receipt" | "order" | "manual" | "system";
+  referenceId?: number;
+  description?: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Get current balance
+  const balance = await getOrCreateLinePointBalance(data.lineUserId);
+  const balanceAfter = balance.balance + data.amount;
+  
+  // Create transaction
+  await db.insert(linePointTransactions).values({
+    lineUserId: data.lineUserId,
+    type: data.type,
+    amount: data.amount,
+    balanceAfter,
+    referenceType: data.referenceType,
+    referenceId: data.referenceId,
+    description: data.description,
+  });
+  
+  // Update balance
+  if (data.type === "earn" || data.type === "refund") {
+    await updateLinePointBalance(data.lineUserId, data.amount, "earn");
+  } else if (data.type === "use") {
+    await updateLinePointBalance(data.lineUserId, data.amount, "use");
+  } else {
+    // For expire and adjustment, just update the balance directly
+    await db
+      .update(linePointBalances)
+      .set({ balance: balanceAfter })
+      .where(eq(linePointBalances.lineUserId, data.lineUserId));
+  }
+  
+  return { balanceAfter };
+}
+
+/**
+ * Get LINE user point transactions
+ */
+export async function getLinePointTransactions(
+  lineUserId: string,
+  options?: { limit?: number; offset?: number }
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  let query = db
+    .select()
+    .from(linePointTransactions)
+    .where(eq(linePointTransactions.lineUserId, lineUserId))
+    .orderBy(desc(linePointTransactions.createdAt));
+  
+  if (options?.limit) {
+    query = query.limit(options.limit) as typeof query;
+  }
+  if (options?.offset) {
+    query = query.offset(options.offset) as typeof query;
+  }
+  
+  return await query;
+}
+
+// --- LINE Receipt Functions ---
+
+/**
+ * Create a new LINE receipt
+ */
+export async function createLineReceipt(data: InsertLineReceipt) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(lineReceipts).values(data);
+  return result[0].insertId;
+}
+
+/**
+ * Get LINE receipt by ID
+ */
+export async function getLineReceiptById(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db
+    .select()
+    .from(lineReceipts)
+    .where(eq(lineReceipts.id, id))
+    .limit(1);
+  
+  return result[0] || null;
+}
+
+/**
+ * Get LINE receipts for a user
+ */
+export async function getLineReceiptsByUser(lineUserId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return await db
+    .select()
+    .from(lineReceipts)
+    .where(eq(lineReceipts.lineUserId, lineUserId))
+    .orderBy(desc(lineReceipts.submittedAt));
+}
+
+/**
+ * Get all LINE receipts with filters (for admin)
+ */
+export async function getAllLineReceipts(options?: {
+  status?: "pending" | "approved" | "rejected" | "on_hold";
+  limit?: number;
+  offset?: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  let query = db
+    .select({
+      receipt: lineReceipts,
+      lineUser: lineUsers,
+    })
+    .from(lineReceipts)
+    .leftJoin(lineUsers, eq(lineReceipts.lineUserId, lineUsers.lineUserId))
+    .orderBy(desc(lineReceipts.submittedAt));
+  
+  if (options?.status) {
+    query = query.where(eq(lineReceipts.status, options.status)) as typeof query;
+  }
+  
+  if (options?.limit) {
+    query = query.limit(options.limit) as typeof query;
+  }
+  if (options?.offset) {
+    query = query.offset(options.offset) as typeof query;
+  }
+  
+  return await query;
+}
+
+/**
+ * Get pending LINE receipts count
+ */
+export async function getPendingLineReceiptsCount() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(lineReceipts)
+    .where(eq(lineReceipts.status, "pending"));
+  
+  return result[0]?.count || 0;
+}
+
+/**
+ * Update LINE receipt OCR data
+ */
+export async function updateLineReceiptOcr(
+  id: number,
+  data: {
+    storeName?: string;
+    purchaseDate?: Date;
+    totalAmount?: number;
+    currency?: string;
+    ocrRawText?: string;
+    ocrConfidence?: string;
+    pointsCalculated?: number;
+    imageHash?: string;
+  }
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db
+    .update(lineReceipts)
+    .set(data)
+    .where(eq(lineReceipts.id, id));
+}
+
+/**
+ * Update LINE receipt status
+ */
+export async function updateLineReceiptStatus(
+  id: number,
+  status: "pending" | "approved" | "rejected" | "on_hold",
+  reviewedBy: number,
+  reviewNote?: string
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db
+    .update(lineReceipts)
+    .set({
+      status,
+      reviewedBy,
+      reviewedAt: new Date(),
+      reviewNote,
+    })
+    .where(eq(lineReceipts.id, id));
+}
+
+/**
+ * Award points for an approved LINE receipt
+ */
+export async function awardPointsForLineReceipt(receiptId: number, points: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const receipt = await getLineReceiptById(receiptId);
+  if (!receipt) throw new Error("Receipt not found");
+  
+  // Update receipt with awarded points
+  await db
+    .update(lineReceipts)
+    .set({ pointsAwarded: points })
+    .where(eq(lineReceipts.id, receiptId));
+  
+  // Create point transaction
+  await createLinePointTransaction({
+    lineUserId: receipt.lineUserId,
+    type: "earn",
+    amount: points,
+    referenceType: "receipt",
+    referenceId: receiptId,
+    description: `レシート承認によるポイント付与 (${receipt.storeName || "不明店舗"})`,
+  });
+  
+  return { success: true, pointsAwarded: points };
+}
+
+/**
+ * Check for duplicate LINE receipt by image hash
+ */
+export async function checkDuplicateLineReceiptByHash(imageHash: string, excludeId?: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  if (excludeId) {
+    const result = await db
+      .select()
+      .from(lineReceipts)
+      .where(and(eq(lineReceipts.imageHash, imageHash), not(eq(lineReceipts.id, excludeId))))
+      .limit(1);
+    return result[0] || null;
+  }
+  
+  const result = await db
+    .select()
+    .from(lineReceipts)
+    .where(eq(lineReceipts.imageHash, imageHash))
+    .limit(1);
+  return result[0] || null;
+}
+
+/**
+ * Check for duplicate LINE receipt by details
+ */
+export async function checkDuplicateLineReceiptByDetails(
+  lineUserId: string,
+  storeName: string,
+  purchaseDate: Date,
+  totalAmount: number,
+  excludeId?: number
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Check within a 1-day window for the same store and amount
+  const dayStart = new Date(purchaseDate);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(purchaseDate);
+  dayEnd.setHours(23, 59, 59, 999);
+  
+  let conditions = and(
+    eq(lineReceipts.lineUserId, lineUserId),
+    eq(lineReceipts.storeName, storeName),
+    eq(lineReceipts.totalAmount, totalAmount),
+    gte(lineReceipts.purchaseDate, dayStart),
+    lte(lineReceipts.purchaseDate, dayEnd)
+  );
+  
+  if (excludeId) {
+    conditions = and(conditions, not(eq(lineReceipts.id, excludeId)));
+  }
+  
+  const result = await db
+    .select()
+    .from(lineReceipts)
+    .where(conditions!)
+    .limit(1);
+  
+  return result[0] || null;
+}
+
+/**
+ * Get recent LINE receipts count for a user
+ */
+export async function getRecentLineReceiptsCount(lineUserId: string, hoursAgo: number = 24) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const cutoff = new Date(Date.now() - hoursAgo * 60 * 60 * 1000);
+  
+  const result = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(lineReceipts)
+    .where(
+      and(
+        eq(lineReceipts.lineUserId, lineUserId),
+        gte(lineReceipts.submittedAt, cutoff)
+      )
+    );
+  
+  return result[0]?.count || 0;
+}
+
+/**
+ * Update LINE receipt fraud flags
+ */
+export async function updateLineReceiptFraudFlags(
+  id: number,
+  fraudFlags: string[],
+  fraudScore: number
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db
+    .update(lineReceipts)
+    .set({
+      fraudFlags,
+      fraudScore: fraudScore.toFixed(2),
+    })
+    .where(eq(lineReceipts.id, id));
+}
+
+/**
+ * Create LINE fraud detection log
+ */
+export async function createLineFraudDetectionLog(data: InsertLineFraudDetectionLog) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.insert(lineFraudDetectionLogs).values(data);
+}
+
+/**
+ * Get LINE fraud logs for a receipt
+ */
+export async function getLineFraudLogsForReceipt(receiptId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return await db
+    .select()
+    .from(lineFraudDetectionLogs)
+    .where(eq(lineFraudDetectionLogs.receiptId, receiptId))
+    .orderBy(desc(lineFraudDetectionLogs.createdAt));
+}
+
+/**
+ * Get LINE receipt statistics
+ */
+export async function getLineReceiptStatistics() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const [pending, approved, rejected, onHold, totalPoints] = await Promise.all([
+    db.select({ count: sql<number>`COUNT(*)` }).from(lineReceipts).where(eq(lineReceipts.status, "pending")),
+    db.select({ count: sql<number>`COUNT(*)` }).from(lineReceipts).where(eq(lineReceipts.status, "approved")),
+    db.select({ count: sql<number>`COUNT(*)` }).from(lineReceipts).where(eq(lineReceipts.status, "rejected")),
+    db.select({ count: sql<number>`COUNT(*)` }).from(lineReceipts).where(eq(lineReceipts.status, "on_hold")),
+    db.select({ total: sql<number>`COALESCE(SUM(pointsAwarded), 0)` }).from(lineReceipts).where(eq(lineReceipts.status, "approved")),
+  ]);
+  
+  return {
+    pending: pending[0]?.count || 0,
+    approved: approved[0]?.count || 0,
+    rejected: rejected[0]?.count || 0,
+    onHold: onHold[0]?.count || 0,
+    totalPointsAwarded: totalPoints[0]?.total || 0,
+  };
 }

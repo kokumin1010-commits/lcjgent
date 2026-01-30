@@ -22,7 +22,7 @@ import {
 import { useLanguage, Language } from "@/contexts/LanguageContext";
 
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, Coins, Receipt } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, Coins, Receipt, MessageCircle } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -104,6 +104,7 @@ function DashboardLayoutContent({
     { icon: Video, label: t("nav.livers"), path: "/livers" },
     { icon: Coins, label: t("nav.points"), path: "/points" },
     { icon: Receipt, label: t("nav.receipts"), path: "/receipts", adminOnly: true },
+    { icon: MessageCircle, label: t("nav.lineReceipts"), path: "/line-receipts", adminOnly: true },
     { icon: Users, label: t("nav.staff"), path: "/staff" },
     { icon: Settings, label: t("nav.masterControl"), path: "/master-control" },
   ];

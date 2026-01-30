@@ -1,4 +1,3 @@
-import { invokeLLM } from "./_core/llm";
 import { replyMessage, LineWebhookEvent, getUserProfile, getBotInfo, getGroupSummary, getGroupMemberProfile, getMessageContent, getTranscodingStatus } from "./line";
 import { analyzeVideoContent, generateVideoAnalysisPrompt, VideoAnalysisResult } from "./videoAnalysis";
 import { 
@@ -21,7 +20,20 @@ import {
   deleteSchedule,
   updateSchedule,
   searchSchedules,
+  // LINE Point System
+  getOrCreateLinePointBalance,
+  createLineReceipt,
+  updateLineReceiptOcr,
+  checkDuplicateLineReceiptByHash,
+  checkDuplicateLineReceiptByDetails,
+  getRecentLineReceiptsCount,
+  updateLineReceiptFraudFlags,
+  createLineFraudDetectionLog,
+  updateLineReceiptStatus,
 } from "./db";
+import { storagePut } from "./storage";
+import { invokeLLM } from "./_core/llm";
+import crypto from "crypto";
 import type { InsertSchedule } from "../drizzle/schema";
 
 // ============================================
@@ -1020,6 +1032,14 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
     // Remove mention from message for processing
     const cleanMessage = isGroupChat ? removeMention(userMessage) : userMessage;
     
+    // Check for point balance inquiry command
+    if (cleanMessage.match(/ポイント|残高|確認|照会|point|balance/i)) {
+      const pointResult = await handlePointBalanceInquiry(userId, event.replyToken);
+      if (pointResult) {
+        return; // Point inquiry handled, no need to continue
+      }
+    }
+    
     // Get conversation context
     const context = await getConversationContext(userId, chatId, 10);
     
@@ -1368,6 +1388,326 @@ export async function processVideoMessage(event: LineWebhookEvent): Promise<void
 }
 
 /**
+ * Handle point balance inquiry
+ * ポイント残高照会コマンドを処理
+ */
+async function handlePointBalanceInquiry(lineUserId: string, replyToken: string): Promise<boolean> {
+  try {
+    const balance = await getOrCreateLinePointBalance(lineUserId);
+    
+    const message = `🎯 **LCJポイント残高**\n\n` +
+      `💰 現在のポイント: ${balance.balance.toLocaleString()} pt\n` +
+      `✅ 獲得累計: ${balance.totalEarned.toLocaleString()} pt\n` +
+      `🛒 利用累計: ${balance.totalUsed.toLocaleString()} pt\n\n` +
+      `📷 レシートを送信するとポイントが貯まります！`;
+    
+    await replyMessage(replyToken, [
+      { type: "text", text: message },
+    ]);
+    
+    return true;
+  } catch (error) {
+    console.error("[LINE Agent] Failed to get point balance:", error);
+    return false;
+  }
+}
+
+/**
+ * Process receipt image message from LINE
+ * LINEから送信されたレシート画像を処理してポイント申請を行う
+ */
+export async function processReceiptImageMessage(event: LineWebhookEvent): Promise<void> {
+  // Check if this is an image message
+  if (event.type !== "message" || event.message?.type !== "image") {
+    return;
+  }
+  
+  const messageId = event.message.id;
+  const userId = event.source.userId;
+  const isGroupChat = event.source.type === "group";
+  const groupId = event.source.groupId;
+  
+  if (!userId) {
+    console.log(`[LINE Agent] No user ID for image message`);
+    return;
+  }
+  
+  console.log(`[LINE Agent] Processing receipt image from ${userId}`);
+  
+  try {
+    // Get user profile
+    let profile = null;
+    try {
+      profile = await getUserProfile(userId);
+    } catch (error) {
+      console.error("[LINE Agent] Failed to get user profile:", error);
+    }
+    
+    // Create or update LINE user
+    await createOrUpdateLineUser({
+      lineUserId: userId,
+      displayName: profile?.displayName,
+      pictureUrl: profile?.pictureUrl,
+      statusMessage: profile?.statusMessage,
+    });
+    
+    // Update last message timestamp
+    await updateLineUserLastMessage(userId);
+    
+    // For group chats, check if we should respond
+    let shouldRespond = !isGroupChat; // Always respond in DM
+    
+    if (isGroupChat && groupId) {
+      const hasSession = hasActiveSession(groupId, userId);
+      if (hasSession) {
+        startOrRefreshSession(groupId, userId);
+        shouldRespond = true;
+        console.log(`[LINE Agent] User has active session, processing receipt image`);
+      } else {
+        // For image messages in groups without session, skip
+        console.log(`[LINE Agent] Group image message without active session, skipping`);
+      }
+    }
+    
+    if (!shouldRespond) {
+      return;
+    }
+    
+    if (!event.replyToken) {
+      console.log(`[LINE Agent] No reply token for image message`);
+      return;
+    }
+    
+    // Check submission frequency (max 10 per 24 hours)
+    const recentCount = await getRecentLineReceiptsCount(userId, 24);
+    if (recentCount >= 10) {
+      await replyMessage(event.replyToken, [
+        { type: "text", text: "⚠️ 24時間以内の申請上限（10件）に達しています。\n\n明日以降に再度お試しください。" },
+      ]);
+      return;
+    }
+    
+    // Get image content
+    const imageContent = await getMessageContent(messageId);
+    if (!imageContent) {
+      await replyMessage(event.replyToken, [
+        { type: "text", text: "画像の取得に失敗しました。もう一度お送りください。" },
+      ]);
+      return;
+    }
+    
+    // Generate image hash for duplicate detection
+    const imageHash = crypto.createHash("sha256").update(imageContent.data).digest("hex");
+    
+    // Check for duplicate image
+    const duplicateByHash = await checkDuplicateLineReceiptByHash(imageHash);
+    if (duplicateByHash) {
+      await replyMessage(event.replyToken, [
+        { type: "text", text: "⚠️ このレシート画像は既に登録されています。\n\n別のレシートをお送りください。" },
+      ]);
+      return;
+    }
+    
+    // Upload image to S3
+    const timestamp = Date.now();
+    const ext = imageContent.contentType.includes("png") ? "png" : "jpg";
+    const fileKey = `line-receipts/${userId}/${timestamp}-${messageId}.${ext}`;
+    const { url: imageUrl } = await storagePut(fileKey, imageContent.data, imageContent.contentType);
+    
+    // Create receipt record
+    const receiptId = await createLineReceipt({
+      lineUserId: userId,
+      lineMessageId: messageId,
+      imageUrl,
+      imageKey: fileKey,
+      imageHash,
+      status: "pending",
+    });
+    
+    // Send initial response
+    await replyMessage(event.replyToken, [
+      { type: "text", text: "📷 レシートを受け付けました！\n\n解析中です。しばらくお待ちください..." },
+    ]);
+    
+    // Run OCR analysis (async, don't block reply)
+    processReceiptOcr(receiptId, imageContent.data, imageContent.contentType, userId).catch(error => {
+      console.error("[LINE Agent] OCR processing failed:", error);
+    });
+    
+  } catch (error) {
+    console.error("[LINE Agent] Error processing receipt image:", error);
+    
+    if (event.replyToken) {
+      await replyMessage(event.replyToken, [
+        { type: "text", text: "レシートの処理中にエラーが発生しました。しばらくしてからもう一度お試しください。" },
+      ]);
+    }
+  }
+}
+
+/**
+ * Process receipt OCR analysis (runs asynchronously)
+ */
+async function processReceiptOcr(
+  receiptId: number,
+  imageData: Buffer,
+  contentType: string,
+  lineUserId: string
+): Promise<void> {
+  try {
+    const base64Image = imageData.toString("base64");
+    
+    // Run OCR analysis with LLM
+    const ocrResult = await invokeLLM({
+      messages: [
+        {
+          role: "system",
+          content: `あなたはレシート画像を解析するAIです。以下の情報を抽出してJSON形式で返してください：
+- storeName: 店舗名
+- purchaseDate: 購入日時（YYYY-MM-DD HH:mm形式）
+- totalAmount: 合計金額（数値のみ、通貨記号なし）
+- currency: 通貨コード（JPY, CNY, USD等）
+
+抽出できない項目はnullを返してください。`,
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:${contentType};base64,${base64Image}`,
+              },
+            },
+            {
+              type: "text",
+              text: "このレシート画像から情報を抽出してください。",
+            },
+          ],
+        },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "receipt_ocr",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              storeName: { type: ["string", "null"] },
+              purchaseDate: { type: ["string", "null"] },
+              totalAmount: { type: ["number", "null"] },
+              currency: { type: ["string", "null"] },
+              rawText: { type: ["string", "null"] },
+              confidence: { type: ["number", "null"] },
+            },
+            required: ["storeName", "purchaseDate", "totalAmount", "currency", "rawText", "confidence"],
+            additionalProperties: false,
+          },
+        },
+      },
+    });
+    
+    const messageContent = ocrResult.choices[0].message.content;
+    const ocrData = JSON.parse(typeof messageContent === "string" ? messageContent : "{}");
+    
+    // Calculate points (2% return)
+    const pointsCalculated = ocrData.totalAmount ? Math.floor(ocrData.totalAmount * 0.02) : undefined;
+    
+    // Update receipt with OCR data
+    await updateLineReceiptOcr(receiptId, {
+      storeName: ocrData.storeName,
+      purchaseDate: ocrData.purchaseDate ? new Date(ocrData.purchaseDate) : undefined,
+      totalAmount: ocrData.totalAmount,
+      currency: ocrData.currency || "JPY",
+      ocrRawText: ocrData.rawText,
+      ocrConfidence: ocrData.confidence?.toString(),
+      pointsCalculated,
+    });
+    
+    // Run fraud detection
+    const fraudFlags: string[] = [];
+    let fraudScore = 0;
+    
+    // Check for expired receipt (older than 7 days)
+    if (ocrData.purchaseDate) {
+      const purchaseDate = new Date(ocrData.purchaseDate);
+      const daysSincePurchase = (Date.now() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24);
+      if (daysSincePurchase > 7) {
+        fraudFlags.push("expired_receipt");
+        fraudScore += 50;
+        await createLineFraudDetectionLog({
+          receiptId,
+          lineUserId,
+          checkType: "expired_receipt",
+          detected: true,
+          severity: "high",
+          details: `購入日から${Math.floor(daysSincePurchase)}日経過（7日以内のみ有効）`,
+        });
+      }
+    }
+    
+    // Check for duplicate receipt by details
+    if (ocrData.storeName && ocrData.purchaseDate && ocrData.totalAmount) {
+      const duplicateByDetails = await checkDuplicateLineReceiptByDetails(
+        lineUserId,
+        ocrData.storeName,
+        new Date(ocrData.purchaseDate),
+        ocrData.totalAmount,
+        receiptId
+      );
+      if (duplicateByDetails) {
+        fraudFlags.push("duplicate_receipt");
+        fraudScore += 40;
+        await createLineFraudDetectionLog({
+          receiptId,
+          lineUserId,
+          checkType: "duplicate_receipt",
+          detected: true,
+          severity: "medium",
+          details: `同じ店舗・日付・金額のレシートが既に存在します`,
+          relatedReceiptId: duplicateByDetails.id,
+        });
+      }
+    }
+    
+    // Check for unusually high amount (over 100,000 JPY)
+    if (ocrData.totalAmount && ocrData.totalAmount > 100000) {
+      fraudFlags.push("high_amount");
+      fraudScore += 20;
+      await createLineFraudDetectionLog({
+        receiptId,
+        lineUserId,
+        checkType: "high_amount",
+        detected: true,
+        severity: "low",
+        details: `高額購入: ¥${ocrData.totalAmount.toLocaleString()}`,
+      });
+    }
+    
+    // Update fraud flags
+    if (fraudFlags.length > 0) {
+      await updateLineReceiptFraudFlags(receiptId, fraudFlags, fraudScore);
+      
+      // Auto-hold if fraud score is high
+      if (fraudScore >= 50) {
+        await updateLineReceiptStatus(receiptId, "on_hold", 0, "自動保留: 不正検知スコアが高いため");
+      }
+    }
+    
+    console.log(`[LINE Agent] Receipt OCR completed for ${receiptId}:`, {
+      storeName: ocrData.storeName,
+      totalAmount: ocrData.totalAmount,
+      pointsCalculated,
+      fraudScore,
+    });
+    
+  } catch (error) {
+    console.error("[LINE Agent] OCR analysis failed:", error);
+  }
+}
+
+/**
  * Combined message processor - handles both text and video messages
  */
 export async function processLineMessageAll(event: LineWebhookEvent): Promise<void> {
@@ -1385,8 +1725,7 @@ export async function processLineMessageAll(event: LineWebhookEvent): Promise<vo
       await processVideoMessage(event);
       break;
     case "image":
-      // TODO: Add image processing if needed
-      console.log(`[LINE Agent] Image message received, not yet implemented`);
+      await processReceiptImageMessage(event);
       break;
     case "audio":
       // TODO: Add audio processing if needed

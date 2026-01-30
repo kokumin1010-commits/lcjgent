@@ -1345,3 +1345,144 @@ export const fraudDetectionLogs = mysqlTable("fraud_detection_logs", {
 
 export type FraudDetectionLog = typeof fraudDetectionLogs.$inferSelect;
 export type InsertFraudDetectionLog = typeof fraudDetectionLogs.$inferInsert;
+
+
+// =====================================================
+// LINE User Point System (LCJ ポイントシステム)
+// LINEユーザーベースのポイント管理
+// =====================================================
+
+/**
+ * LINE User Point Balances table
+ * LINEユーザーのポイント残高を管理
+ */
+export const linePointBalances = mysqlTable("line_point_balances", {
+  id: int("id").autoincrement().primaryKey(),
+  lineUserId: varchar("lineUserId", { length: 64 }).notNull().unique(), // LINE User ID
+  
+  // Balance info
+  balance: bigint("balance", { mode: "number" }).default(0).notNull(), // Current available points
+  totalEarned: bigint("totalEarned", { mode: "number" }).default(0).notNull(), // Lifetime earned points
+  totalUsed: bigint("totalUsed", { mode: "number" }).default(0).notNull(), // Lifetime used points
+  
+  // Timestamps
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type LinePointBalance = typeof linePointBalances.$inferSelect;
+export type InsertLinePointBalance = typeof linePointBalances.$inferInsert;
+
+/**
+ * LINE User Point Transactions table
+ * LINEユーザーのポイント取引履歴
+ */
+export const linePointTransactions = mysqlTable("line_point_transactions", {
+  id: int("id").autoincrement().primaryKey(),
+  lineUserId: varchar("lineUserId", { length: 64 }).notNull(), // LINE User ID
+  
+  // Transaction type
+  type: mysqlEnum("type", ["earn", "use", "expire", "refund", "adjustment"]).notNull(),
+  
+  // Amount (positive for earn, negative for use)
+  amount: bigint("amount", { mode: "number" }).notNull(),
+  balanceAfter: bigint("balanceAfter", { mode: "number" }).notNull(), // Balance after this transaction
+  
+  // Reference to source (receipt for earn, order for use)
+  referenceType: mysqlEnum("referenceType", ["receipt", "order", "manual", "system"]).notNull(),
+  referenceId: int("referenceId"), // ID of the related receipt or order
+  
+  // Description
+  description: text("description"),
+  
+  // Timestamps
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type LinePointTransaction = typeof linePointTransactions.$inferSelect;
+export type InsertLinePointTransaction = typeof linePointTransactions.$inferInsert;
+
+/**
+ * LINE User Receipts table
+ * LINEユーザーのレシート申請を管理
+ */
+export const lineReceipts = mysqlTable("line_receipts", {
+  id: int("id").autoincrement().primaryKey(),
+  lineUserId: varchar("lineUserId", { length: 64 }).notNull(), // LINE User ID
+  lineMessageId: varchar("lineMessageId", { length: 64 }), // Original LINE message ID
+  
+  // Receipt image
+  imageUrl: text("imageUrl").notNull(), // S3 URL
+  imageKey: varchar("imageKey", { length: 512 }).notNull(), // S3 key
+  imageHash: varchar("imageHash", { length: 64 }), // SHA-256 hash for duplicate detection
+  
+  // OCR extracted data
+  storeName: varchar("storeName", { length: 255 }), // Store/shop name
+  purchaseDate: timestamp("purchaseDate"), // Date of purchase
+  totalAmount: bigint("totalAmount", { mode: "number" }), // Total purchase amount
+  currency: varchar("currency", { length: 10 }).default("JPY"), // Currency code
+  
+  // Raw OCR result
+  ocrRawText: text("ocrRawText"), // Full OCR text
+  ocrConfidence: decimal("ocrConfidence", { precision: 5, scale: 2 }), // OCR confidence score (0-100)
+  
+  // Point calculation
+  pointsCalculated: bigint("pointsCalculated", { mode: "number" }), // Points to be awarded (2% of amount)
+  pointsAwarded: bigint("pointsAwarded", { mode: "number" }), // Actually awarded points (after approval)
+  
+  // Status
+  status: mysqlEnum("status", ["pending", "approved", "rejected", "on_hold"]).default("pending").notNull(),
+  
+  // Review info
+  reviewedBy: int("reviewedBy"), // Admin user who reviewed
+  reviewedAt: timestamp("reviewedAt"),
+  reviewNote: text("reviewNote"), // Note from reviewer
+  
+  // Fraud detection
+  fraudFlags: json("fraudFlags").$type<string[]>(), // Array of fraud flag codes
+  fraudScore: decimal("fraudScore", { precision: 5, scale: 2 }).default("0"), // Risk score (0-100)
+  
+  // Timestamps
+  submittedAt: timestamp("submittedAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type LineReceipt = typeof lineReceipts.$inferSelect;
+export type InsertLineReceipt = typeof lineReceipts.$inferInsert;
+
+/**
+ * LINE User Fraud Detection Logs table
+ * LINEユーザーの不正検知ログ
+ */
+export const lineFraudDetectionLogs = mysqlTable("line_fraud_detection_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // Reference
+  receiptId: int("receiptId").notNull(), // References lineReceipts.id
+  lineUserId: varchar("lineUserId", { length: 64 }).notNull(), // LINE User ID
+  
+  // Detection info
+  checkType: mysqlEnum("checkType", [
+    "duplicate_image",      // Same image submitted before
+    "duplicate_receipt",    // Same store/date/amount combination
+    "expired_receipt",      // Receipt older than 7 days
+    "high_frequency",       // Too many submissions in short time
+    "high_amount",          // Unusually high amount
+    "suspicious_pattern",   // Other suspicious patterns
+  ]).notNull(),
+  
+  // Result
+  detected: boolean("detected").default(false).notNull(), // Was fraud detected?
+  severity: mysqlEnum("severity", ["low", "medium", "high"]).default("low").notNull(),
+  
+  // Details
+  details: text("details"), // Detailed explanation
+  relatedReceiptId: int("relatedReceiptId"), // ID of related receipt (for duplicates)
+  
+  // Timestamps
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type LineFraudDetectionLog = typeof lineFraudDetectionLogs.$inferSelect;
+export type InsertLineFraudDetectionLog = typeof lineFraudDetectionLogs.$inferInsert;

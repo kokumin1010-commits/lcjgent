@@ -292,6 +292,8 @@ const jaTranslations: Record<string, string> = {
   // Point System
   "nav.points": "ポイント管理",
   "nav.receipts": "レシート管理",
+  "nav.lineReceipts": "LINEレシート管理",
+  "lineReceiptManagement": "LINEレシート管理",
   "points.title": "ポイント管理",
   "points.balance": "ポイント残高",
   "points.totalEarned": "累計獲得",
@@ -622,6 +624,8 @@ const zhTranslations: Record<string, string> = {
   // Point System
   "nav.points": "积分管理",
   "nav.receipts": "小票管理",
+  "nav.lineReceipts": "LINE小票管理",
+  "lineReceiptManagement": "LINE小票管理",
   "points.title": "积分管理",
   "points.balance": "积分余额",
   "points.totalEarned": "累计获得",

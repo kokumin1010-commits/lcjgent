@@ -7362,6 +7362,150 @@ ${metricsDescription}${historicalContext}`,
       const { getReceiptStatistics } = await import("./db");
       return await getReceiptStatistics();
     }),
+    
+    // --- LINE Receipt Admin endpoints ---
+    
+    // Get all LINE receipts (admin only)
+    adminGetLineReceipts: protectedProcedure
+      .input(z.object({
+        status: z.enum(["pending", "approved", "rejected", "on_hold"]).optional(),
+        limit: z.number().min(1).max(100).default(50),
+        offset: z.number().min(0).default(0),
+      }).optional())
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        const { getAllLineReceipts } = await import("./db");
+        const receipts = await getAllLineReceipts(input);
+        return receipts;
+      }),
+    
+    // Get LINE receipt details (admin only)
+    adminGetLineReceipt: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        const { getLineReceiptById, getLineFraudLogsForReceipt } = await import("./db");
+        const receipt = await getLineReceiptById(input.id);
+        if (!receipt) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "レシートが見つかりません" });
+        }
+        const fraudLogs = await getLineFraudLogsForReceipt(input.id);
+        return { receipt, fraudLogs };
+      }),
+    
+    // Get pending LINE receipts count (admin only)
+    adminGetPendingLineCount: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+      }
+      const { getPendingLineReceiptsCount } = await import("./db");
+      return await getPendingLineReceiptsCount();
+    }),
+    
+    // Update LINE receipt OCR data (admin only)
+    adminUpdateLineReceiptOcr: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        storeName: z.string().optional(),
+        purchaseDate: z.string().optional(),
+        totalAmount: z.number().optional(),
+        currency: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        const { updateLineReceiptOcr } = await import("./db");
+        const { id, ...data } = input;
+        let pointsCalculated: number | undefined;
+        if (data.totalAmount !== undefined) {
+          pointsCalculated = Math.floor(data.totalAmount * 0.02);
+        }
+        await updateLineReceiptOcr(id, {
+          ...data,
+          purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : undefined,
+          pointsCalculated,
+        });
+        return { success: true };
+      }),
+    
+    // Approve LINE receipt (admin only)
+    adminApproveLineReceipt: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        pointsOverride: z.number().optional(),
+        note: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        const { getLineReceiptById, updateLineReceiptStatus, awardPointsForLineReceipt } = await import("./db");
+        const receipt = await getLineReceiptById(input.id);
+        if (!receipt) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "レシートが見つかりません" });
+        }
+        if (receipt.status === "approved") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "既に承認済みです" });
+        }
+        const pointsToAward = input.pointsOverride ?? receipt.pointsCalculated ?? 0;
+        await updateLineReceiptStatus(input.id, "approved", ctx.user.id, input.note);
+        if (pointsToAward > 0) {
+          await awardPointsForLineReceipt(input.id, pointsToAward);
+        }
+        return { success: true, pointsAwarded: pointsToAward };
+      }),
+    
+    // Reject LINE receipt (admin only)
+    adminRejectLineReceipt: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        note: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        const { getLineReceiptById, updateLineReceiptStatus } = await import("./db");
+        const receipt = await getLineReceiptById(input.id);
+        if (!receipt) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "レシートが見つかりません" });
+        }
+        await updateLineReceiptStatus(input.id, "rejected", ctx.user.id, input.note);
+        return { success: true };
+      }),
+    
+    // Hold LINE receipt (admin only)
+    adminHoldLineReceipt: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        note: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        const { getLineReceiptById, updateLineReceiptStatus } = await import("./db");
+        const receipt = await getLineReceiptById(input.id);
+        if (!receipt) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "レシートが見つかりません" });
+        }
+        await updateLineReceiptStatus(input.id, "on_hold", ctx.user.id, input.note);
+        return { success: true };
+      }),
+    
+    // Get LINE receipt statistics (admin only)
+    adminGetLineStatistics: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+      }
+      const { getLineReceiptStatistics } = await import("./db");
+      return await getLineReceiptStatistics();
+    }),
   }),
 });
 

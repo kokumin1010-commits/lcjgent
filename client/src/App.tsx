@@ -42,6 +42,7 @@ import LiverSchedule from "./pages/LiverSchedule";
 import LiverProfile from "./pages/LiverProfile";
 import MyPoints from "./pages/MyPoints";
 import ReceiptManagement from "./pages/ReceiptManagement";
+import LineReceiptManagement from "./pages/LineReceiptManagement";
 
 function Router() {
   return (
@@ -201,6 +202,11 @@ function Router() {
       <Route path={"/receipts"}>
         <DashboardLayout>
           <ReceiptManagement />
+        </DashboardLayout>
+      </Route>
+      <Route path={"/line-receipts"}>
+        <DashboardLayout>
+          <LineReceiptManagement />
         </DashboardLayout>
       </Route>
       <Route path={"/404"} component={NotFound} />
