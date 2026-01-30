@@ -19,6 +19,35 @@ import {
   AlertCircle
 } from "lucide-react";
 
+// Helper function to convert UTC to JST
+function toJST(date: Date): Date {
+  return new Date(date.getTime() + 9 * 60 * 60 * 1000);
+}
+
+// Helper function to format time in JST
+function formatTimeJST(date: Date | string): string {
+  const d = new Date(date);
+  const jst = toJST(d);
+  return jst.toLocaleTimeString("ja-JP", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "UTC",
+  });
+}
+
+// Helper function to get JST date parts
+function getJSTDateParts(date: Date | string): { year: number; month: number; day: number; dayOfWeek: number } {
+  const d = new Date(date);
+  const jst = toJST(d);
+  return {
+    year: jst.getUTCFullYear(),
+    month: jst.getUTCMonth(),
+    day: jst.getUTCDate(),
+    dayOfWeek: jst.getUTCDay(),
+  };
+}
+
 type Schedule = {
   id: number;
   title: string;
@@ -100,16 +129,18 @@ export default function LiverSchedule() {
     for (let i = 1; i <= lastDay.getDate(); i++) {
       const date = new Date(year, month, i);
       const daySchedules = (schedules || []).filter((s: Schedule) => {
-        const scheduleDate = new Date(s.startTime);
-        return scheduleDate.getDate() === i && 
-               scheduleDate.getMonth() === month && 
-               scheduleDate.getFullYear() === year;
+        // JSTで日付を比較
+        const jstParts = getJSTDateParts(s.startTime);
+        return jstParts.day === i && 
+               jstParts.month === month && 
+               jstParts.year === year;
       });
       const dayLivestreams = monthlyLivestreams.filter((ls: Livestream) => {
-        const lsDate = new Date(ls.livestreamDate);
-        return lsDate.getDate() === i && 
-               lsDate.getMonth() === month && 
-               lsDate.getFullYear() === year;
+        // JSTで日付を比較
+        const jstParts = getJSTDateParts(ls.livestreamDate);
+        return jstParts.day === i && 
+               jstParts.month === month && 
+               jstParts.year === year;
       });
       days.push({ date, isCurrentMonth: true, schedules: daySchedules, livestreams: dayLivestreams });
     }
@@ -128,14 +159,24 @@ export default function LiverSchedule() {
   const selectedDateData = useMemo(() => {
     if (!selectedDate) return { schedules: [], livestreams: [] };
     
+    const selectedYear = selectedDate.getFullYear();
+    const selectedMonth = selectedDate.getMonth();
+    const selectedDay = selectedDate.getDate();
+    
     const daySchedules = (schedules || []).filter((s: Schedule) => {
-      const scheduleDate = new Date(s.startTime);
-      return scheduleDate.toDateString() === selectedDate.toDateString();
+      // JSTで日付を比較
+      const jstParts = getJSTDateParts(s.startTime);
+      return jstParts.day === selectedDay && 
+             jstParts.month === selectedMonth && 
+             jstParts.year === selectedYear;
     });
     
     const dayLivestreams = monthlyLivestreams.filter((ls: Livestream) => {
-      const lsDate = new Date(ls.livestreamDate);
-      return lsDate.toDateString() === selectedDate.toDateString();
+      // JSTで日付を比較
+      const jstParts = getJSTDateParts(ls.livestreamDate);
+      return jstParts.day === selectedDay && 
+             jstParts.month === selectedMonth && 
+             jstParts.year === selectedYear;
     });
     
     return { schedules: daySchedules, livestreams: dayLivestreams };
@@ -382,14 +423,8 @@ export default function LiverSchedule() {
                               <p className="font-medium text-white">{schedule.title}</p>
                               <p className="text-sm text-gray-400">
                                 <Clock className="h-3 w-3 inline mr-1" />
-                                {new Date(schedule.startTime).toLocaleTimeString("ja-JP", { 
-                                  hour: "2-digit", 
-                                  minute: "2-digit" 
-                                })}
-                                {schedule.endTime && ` - ${new Date(schedule.endTime).toLocaleTimeString("ja-JP", { 
-                                  hour: "2-digit", 
-                                  minute: "2-digit" 
-                                })}`}
+                                {formatTimeJST(schedule.startTime)}
+                                {schedule.endTime && ` - ${formatTimeJST(schedule.endTime)}`}
                               </p>
                             </div>
                           </div>
@@ -444,14 +479,8 @@ export default function LiverSchedule() {
                           </div>
                           <div>
                             <p className="font-medium text-white">
-                              {new Date(ls.livestreamDate).toLocaleTimeString("ja-JP", { 
-                                hour: "2-digit", 
-                                minute: "2-digit" 
-                              })}
-                              {ls.livestreamEndTime && ` - ${new Date(ls.livestreamEndTime).toLocaleTimeString("ja-JP", { 
-                                hour: "2-digit", 
-                                minute: "2-digit" 
-                              })}`}
+                              {formatTimeJST(ls.livestreamDate)}
+                              {ls.livestreamEndTime && ` - ${formatTimeJST(ls.livestreamEndTime)}`}
                             </p>
                             <p className="text-sm text-gray-400">
                               売上: ¥{(ls.salesAmount || ls.gmv || 0).toLocaleString()}
