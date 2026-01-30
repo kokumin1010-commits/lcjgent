@@ -379,16 +379,17 @@ function parseScheduledAt(scheduledAt: string): Date {
   return new Date(now.getTime() + 24 * 60 * 60 * 1000);
 }
 
-// Format scheduled time for display
+// Format scheduled time for display (detailed format with year)
 function formatScheduledTime(date: Date): string {
-  const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+  const dayNames = ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日'];
   const dayOfWeek = dayNames[date.getDay()];
+  const year = date.getFullYear();
   const month = date.getMonth() + 1;
   const day = date.getDate();
   const hours = date.getHours().toString().padStart(2, '0');
   const minutes = date.getMinutes().toString().padStart(2, '0');
   
-  return `${month}月${day}日(${dayOfWeek}) ${hours}:${minutes}`;
+  return `${year}年${month}月${day}日 ${dayOfWeek} ${hours}:${minutes}`;
 }
 
 // Execute agent actions
