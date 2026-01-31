@@ -44,12 +44,18 @@ import MyPoints from "./pages/MyPoints";
 import ReceiptManagement from "./pages/ReceiptManagement";
 import LineReceiptManagement from "./pages/LineReceiptManagement";
 import MallHome from "./pages/MallHome";
+import LineLogin from "./pages/LineLogin";
+import LineLoginCallback from "./pages/LineLoginCallback";
+import LineMypage from "./pages/LineMypage";
 
 function Router() {
   return (
     <Switch>
       {/* LCJ MALL - Public Pages */}
       <Route path={"/"} component={MallHome} />
+      <Route path="/line-login" component={LineLogin} />
+      <Route path="/line-callback" component={LineLoginCallback} />
+      <Route path="/mypage" component={LineMypage} />
       
       {/* Authentication */}
       <Route path={"/login"} component={Login} />

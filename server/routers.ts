@@ -226,6 +226,11 @@ import {
   getLatestProposalVersion,
   updateAdProposalStatus,
   deleteAdProposal,
+  createOrUpdateLineUser,
+  getLineUserByLineId,
+  getLinePointBalance,
+  getLinePointTransactions,
+  getLineReceiptsByUser,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -239,6 +244,274 @@ import { checkAndSendReminders } from "./reminderScheduler";
 import { completionRouter } from "./completion";
 import { sendReminderEmail } from "./emailService";
 import { transcribeAudio } from "./_core/voiceTranscription";
+
+// ============================================
+// LINE Login API for MALL (General User Authentication)
+// ============================================
+
+// LINE Login configuration
+const LINE_LOGIN_CHANNEL_ID = process.env.LINE_LOGIN_CHANNEL_ID || "";
+const LINE_LOGIN_CHANNEL_SECRET = process.env.LINE_LOGIN_CHANNEL_SECRET || "";
+const LINE_LOGIN_CALLBACK_URL = process.env.APP_URL ? `${process.env.APP_URL}/api/line-login/callback` : "";
+
+// Generate LINE Login URL
+export function getLineLoginUrl(state: string): string {
+  const params = new URLSearchParams({
+    response_type: "code",
+    client_id: LINE_LOGIN_CHANNEL_ID,
+    redirect_uri: LINE_LOGIN_CALLBACK_URL,
+    state: state,
+    scope: "profile openid",
+  });
+  return `https://access.line.me/oauth2/v2.1/authorize?${params.toString()}`;
+}
+
+// Exchange authorization code for access token
+async function exchangeLineCode(code: string): Promise<{
+  access_token: string;
+  token_type: string;
+  refresh_token: string;
+  expires_in: number;
+  scope: string;
+  id_token: string;
+} | null> {
+  try {
+    const response = await fetch("https://api.line.me/oauth2/v2.1/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        code: code,
+        redirect_uri: LINE_LOGIN_CALLBACK_URL,
+        client_id: LINE_LOGIN_CHANNEL_ID,
+        client_secret: LINE_LOGIN_CHANNEL_SECRET,
+      }).toString(),
+    });
+    
+    if (!response.ok) {
+      console.error("[LINE Login] Token exchange failed:", await response.text());
+      return null;
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error("[LINE Login] Token exchange error:", error);
+    return null;
+  }
+}
+
+// Get LINE user profile
+async function getLineProfile(accessToken: string): Promise<{
+  userId: string;
+  displayName: string;
+  pictureUrl?: string;
+  statusMessage?: string;
+} | null> {
+  try {
+    const response = await fetch("https://api.line.me/v2/profile", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+    
+    if (!response.ok) {
+      console.error("[LINE Login] Profile fetch failed:", await response.text());
+      return null;
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error("[LINE Login] Profile fetch error:", error);
+    return null;
+  }
+}
+
+// LINE Login router for MALL users
+export const lineLoginRouter = router({
+  // Get LINE Login URL
+  getLoginUrl: publicProcedure.query(async () => {
+    const state = nanoid(32);
+    const loginUrl = getLineLoginUrl(state);
+    return { loginUrl, state };
+  }),
+  
+  // Handle LINE Login callback
+  callback: publicProcedure
+    .input(z.object({
+      code: z.string(),
+      state: z.string(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      // Exchange code for token
+      const tokenData = await exchangeLineCode(input.code);
+      if (!tokenData) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "LINE認証に失敗しました",
+        });
+      }
+      
+      // Get user profile
+      const profile = await getLineProfile(tokenData.access_token);
+      if (!profile) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "LINEプロフィールの取得に失敗しました",
+        });
+      }
+      
+      // Upsert LINE user
+      const lineUser = await createOrUpdateLineUser({
+        lineUserId: profile.userId,
+        displayName: profile.displayName,
+        pictureUrl: profile.pictureUrl,
+        statusMessage: profile.statusMessage,
+        userType: "customer",
+      });
+      
+      if (!lineUser) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "ユーザー登録に失敗しました",
+        });
+      }
+      
+      // Create session token for LINE user
+      const sessionData = {
+        lineUserId: profile.userId,
+        displayName: profile.displayName,
+        pictureUrl: profile.pictureUrl,
+        createdAt: Date.now(),
+        expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
+      };
+      
+      // Set session cookie
+      ctx.res.cookie("line_session", JSON.stringify(sessionData), {
+        ...getSessionCookieOptions(ctx.req),
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      });
+      
+      return {
+        success: true,
+        user: {
+          lineUserId: profile.userId,
+          displayName: profile.displayName,
+          pictureUrl: profile.pictureUrl,
+        },
+      };
+    }),
+  
+  // Get current LINE user session
+  me: publicProcedure.query(async ({ ctx }) => {
+    const sessionCookie = ctx.req.cookies?.line_session;
+    if (!sessionCookie) {
+      return null;
+    }
+    
+    try {
+      const session = JSON.parse(sessionCookie);
+      if (session.expiresAt < Date.now()) {
+        return null;
+      }
+      
+      // Get fresh user data from database
+      const lineUser = await getLineUserByLineId(session.lineUserId);
+      if (!lineUser) {
+        return null;
+      }
+      
+      // Get point balance
+      const pointBalance = await getLinePointBalance(lineUser.lineUserId);
+      
+      return {
+        lineUserId: lineUser.lineUserId,
+        displayName: lineUser.displayName,
+        pictureUrl: lineUser.pictureUrl,
+        points: pointBalance?.balance || 0,
+        lifetimePoints: pointBalance?.totalEarned || 0,
+      };
+    } catch {
+      return null;
+    }
+  }),
+  
+  // Logout
+  logout: publicProcedure.mutation(async ({ ctx }) => {
+    ctx.res.clearCookie("line_session", getSessionCookieOptions(ctx.req));
+    return { success: true };
+  }),
+  
+  // Get point balance for current LINE user
+  getMyPoints: publicProcedure.query(async ({ ctx }) => {
+    const sessionCookie = ctx.req.cookies?.line_session;
+    if (!sessionCookie) {
+      throw new TRPCError({
+        code: "UNAUTHORIZED",
+        message: "ログインが必要です",
+      });
+    }
+    
+    try {
+      const session = JSON.parse(sessionCookie);
+      const lineUser = await getLineUserByLineId(session.lineUserId);
+      if (!lineUser) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "ユーザーが見つかりません",
+        });
+      }
+      
+      const pointBalance = await getLinePointBalance(lineUser.lineUserId);
+      const transactions = await getLinePointTransactions(lineUser.lineUserId, { limit: 50 });
+      
+      return {
+        balance: pointBalance?.balance || 0,
+        lifetimeEarned: pointBalance?.totalEarned || 0,
+        lifetimeUsed: pointBalance?.totalUsed || 0,
+        transactions,
+      };
+    } catch (error) {
+      if (error instanceof TRPCError) throw error;
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "ポイント情報の取得に失敗しました",
+      });
+    }
+  }),
+  
+  // Get receipt history for current LINE user
+  getMyReceipts: publicProcedure.query(async ({ ctx }) => {
+    const sessionCookie = ctx.req.cookies?.line_session;
+    if (!sessionCookie) {
+      throw new TRPCError({
+        code: "UNAUTHORIZED",
+        message: "ログインが必要です",
+      });
+    }
+    
+    try {
+      const session = JSON.parse(sessionCookie);
+      const lineUser = await getLineUserByLineId(session.lineUserId);
+      if (!lineUser) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "ユーザーが見つかりません",
+        });
+      }
+      
+      const receipts = await getLineReceiptsByUser(lineUser.lineUserId);
+      return receipts;
+    } catch (error) {
+      if (error instanceof TRPCError) throw error;
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "レシート履歴の取得に失敗しました",
+      });
+    }
+  }),
+});
 
 export const appRouter = router({
   system: systemRouter,
@@ -7541,6 +7814,8 @@ ${metricsDescription}${historicalContext}`,
       return await getLineReceiptStatistics();
     }),
   }),
+
+  lineLogin: lineLoginRouter,
 });
 
 export type AppRouter = typeof appRouter;
@@ -7661,3 +7936,4 @@ async function updateBrandAdPerformanceStats(db: any, brandId: number) {
     console.error('Error updating brand ad performance stats:', error);
   }
 }
+
