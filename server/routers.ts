@@ -8020,6 +8020,36 @@ ${metricsDescription}${historicalContext}`,
 
         return { success: true, pointsUsed: totalPoints };
       }),
+
+    // 商品画像アップロード（管理者のみ）
+    uploadProductImage: protectedProcedure
+      .input(z.object({
+        base64: z.string(),
+        filename: z.string(),
+        productId: z.number().optional(), // 既存商品への追加時
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+
+        const buffer = Buffer.from(input.base64, "base64");
+        const ext = input.filename.split(".").pop()?.toLowerCase() || "png";
+        const key = `mall/products/${nanoid()}.${ext}`;
+        const contentType = `image/${ext === "jpg" ? "jpeg" : ext}`;
+        
+        const { url } = await storagePut(key, buffer, contentType);
+        
+        // 既存商品への画像追加
+        if (input.productId) {
+          await updateMallProduct(input.productId, {
+            imageUrl: url,
+            imageKey: key,
+          });
+        }
+        
+        return { url, key };
+      }),
   }),
 });
 

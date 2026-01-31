@@ -144,28 +144,46 @@ export default function ProductManagement() {
     }
   };
 
+  const uploadImage = trpc.mall.uploadProductImage.useMutation({
+    onSuccess: (data) => {
+      setFormData((prev) => ({ ...prev, imageUrl: data.url }));
+      toast.success("画像をアップロードしました");
+    },
+    onError: (error) => {
+      toast.error(error.message || "画像のアップロードに失敗しました");
+    },
+  });
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // ファイルサイズチェック（5MB以下）
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("画像サイズは5MB以下にしてください");
+      return;
+    }
+
     setIsUploading(true);
     try {
-      const formDataUpload = new FormData();
-      formDataUpload.append("file", file);
-
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formDataUpload,
-      });
-
-      if (!response.ok) throw new Error("Upload failed");
-
-      const { url } = await response.json();
-      setFormData((prev) => ({ ...prev, imageUrl: url }));
-      toast.success("画像をアップロードしました");
+      // ファイルをBase64に変換
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64 = (reader.result as string).split(",")[1];
+        await uploadImage.mutateAsync({
+          base64,
+          filename: file.name,
+          productId: editingProduct || undefined,
+        });
+        setIsUploading(false);
+      };
+      reader.onerror = () => {
+        toast.error("ファイルの読み込みに失敗しました");
+        setIsUploading(false);
+      };
+      reader.readAsDataURL(file);
     } catch (error) {
       toast.error("画像のアップロードに失敗しました");
-    } finally {
       setIsUploading(false);
     }
   };
@@ -303,28 +321,71 @@ export default function ProductManagement() {
 
                   <div className="col-span-2">
                     <label className="text-sm font-medium">商品画像</label>
-                    <div className="flex items-center gap-4">
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleImageUpload}
-                        disabled={isUploading}
-                        className="flex-1"
-                      />
+                    <div className="mt-2 space-y-3">
+                      {/* 画像プレビュー */}
                       {formData.imageUrl && (
-                        <img
-                          src={formData.imageUrl}
-                          alt="Preview"
-                          className="h-16 w-16 object-cover rounded"
-                        />
+                        <div className="relative inline-block">
+                          <img
+                            src={formData.imageUrl}
+                            alt="Preview"
+                            className="h-32 w-32 object-cover rounded-lg border"
+                          />
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full"
+                            onClick={() => setFormData({ ...formData, imageUrl: "" })}
+                          >
+                            ×
+                          </Button>
+                        </div>
                       )}
+                      
+                      {/* アップロードエリア */}
+                      <div className="flex items-center gap-4">
+                        <label className="flex-1 cursor-pointer">
+                          <div className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
+                            isUploading ? "bg-muted" : "hover:bg-muted/50 hover:border-primary"
+                          }`}>
+                            {isUploading ? (
+                              <div className="flex items-center justify-center gap-2">
+                                <div className="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full" />
+                                <span className="text-sm text-muted-foreground">アップロード中...</span>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center gap-1">
+                                <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                                <span className="text-sm text-muted-foreground">
+                                  クリックして画像を選択
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  PNG, JPG, GIF（5MB以下）
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <Input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageUpload}
+                            disabled={isUploading}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                      
+                      {/* URL直接入力 */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">または</span>
+                        <Input
+                          value={formData.imageUrl}
+                          onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                          placeholder="画像URLを直接入力"
+                          className="flex-1"
+                        />
+                      </div>
                     </div>
-                    <Input
-                      value={formData.imageUrl}
-                      onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                      placeholder="または画像URLを直接入力"
-                      className="mt-2"
-                    />
                   </div>
                 </div>
 
