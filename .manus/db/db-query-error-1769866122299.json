@@ -1,0 +1,8 @@
+{
+  "query": "ALTER TABLE line_users ADD COLUMN IF NOT EXISTS email VARCHAR(320) UNIQUE, ADD COLUMN IF NOT EXISTS password VARCHAR(255);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute ALTER TABLE line_users ADD COLUMN IF NOT EXISTS email VARCHAR(320) UNIQUE, ADD COLUMN IF NOT EXISTS password VARCHAR(255);",
+  "returncode": 1,
+  "logs": [
+    "ERROR 8200 (HY000) at line 1: unsupported add column 'email' constraint UNIQUE KEY when altering 'GgA9WvTBCZMf6mjyMMwACw.line_users'"
+  ]
+}

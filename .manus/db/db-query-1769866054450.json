@@ -1,0 +1,25 @@
+{
+  "query": "SELECT id, email, password FROM line_users WHERE email IS NOT NULL LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, email, password FROM line_users WHERE email IS NOT NULL LIMIT 10;",
+  "rows": [
+    {
+      "id": "660003",
+      "email": "test@example.com",
+      "password": "$2b$10$I6Kph9jIKMG1rlU6hRO7J.MfZ5cpEdtkR7/SLxrWwicr9CDqyBzTW"
+    },
+    {
+      "id": "660004",
+      "email": "newuser@example.com",
+      "password": "$2b$10$J7mgksMBjUdsilLoOKwHTu2LA7JjQV.TFGV5Nt4kJgGejTCOmhUA."
+    },
+    {
+      "id": "660005",
+      "email": "test@gmail.com",
+      "password": "$2b$10$4/1OaPeyJ6GrZzwxFRk3x.99FR/JfrdG1OC3MPkn4QGL50ZMnKxMa"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\temail\tpassword\n660003\ttest@example.com\t$2b$10$I6Kph9jIKMG1rlU6hRO7J.MfZ5cpEdtkR7/SLxrWwicr9CDqyBzTW\n660004\tnewuser@example.com\t$2b$10$J7mgksMBjUdsilLoOKwHTu2LA7JjQV.TFGV5Nt4kJgGejTCOmhUA.\n660005\ttest@gmail.com\t$2b$10$4/1OaPeyJ6GrZzwxFRk3x.99FR/JfrdG1OC3MPkn4QGL50ZMnKxMa\n",
+  "stderr": "",
+  "execution_time_ms": 1545
+}

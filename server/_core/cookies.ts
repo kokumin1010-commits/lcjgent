@@ -24,25 +24,25 @@ function isSecureRequest(req: Request) {
 export function getSessionCookieOptions(
   req: Request
 ): Pick<CookieOptions, "domain" | "httpOnly" | "path" | "sameSite" | "secure"> {
-  // const hostname = req.hostname;
-  // const shouldSetDomain =
-  //   hostname &&
-  //   !LOCAL_HOSTS.has(hostname) &&
-  //   !isIpAddress(hostname) &&
-  //   hostname !== "127.0.0.1" &&
-  //   hostname !== "::1";
-
-  // const domain =
-  //   shouldSetDomain && !hostname.startsWith(".")
-  //     ? `.${hostname}`
-  //     : shouldSetDomain
-  //       ? hostname
-  //       : undefined;
-
+  const hostname = req.hostname;
+  const isLocalhost = LOCAL_HOSTS.has(hostname) || isIpAddress(hostname);
+  
+  // For production domains, use lax sameSite to allow cookies on same-site navigation
+  // For localhost/development, use none with secure for cross-origin requests
+  if (isLocalhost) {
+    return {
+      httpOnly: true,
+      path: "/",
+      sameSite: "none",
+      secure: isSecureRequest(req),
+    };
+  }
+  
+  // Production: use lax sameSite for better cookie persistence
   return {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
+    sameSite: "lax",
     secure: isSecureRequest(req),
   };
 }

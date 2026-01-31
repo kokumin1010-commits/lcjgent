@@ -22,7 +22,7 @@ import {
 import { useLanguage, Language } from "@/contexts/LanguageContext";
 
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, Coins, Receipt, MessageCircle, Package, ShoppingCart } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, Coins, Receipt, MessageCircle, Package, ShoppingCart, UserCheck } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -107,6 +107,7 @@ function DashboardLayoutContent({
     { icon: MessageCircle, label: t("nav.lineReceipts"), path: "/master/line-receipts", adminOnly: true },
     { icon: Package, label: t("nav.products") || "商品管理", path: "/master/products", adminOnly: true },
     { icon: ShoppingCart, label: t("nav.orders") || "注文管理", path: "/master/orders", adminOnly: true },
+    { icon: UserCheck, label: t("nav.mallMembers") || "LCJ MALL会員様", path: "/master/mall-members", adminOnly: true },
     { icon: Users, label: t("nav.staff"), path: "/master/staff" },
     { icon: Settings, label: t("nav.masterControl"), path: "/master/control" },
   ];
