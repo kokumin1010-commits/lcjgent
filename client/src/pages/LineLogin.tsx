@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { Loader2, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,49 +15,58 @@ export default function LineLogin() {
   const [error, setError] = useState<string | null>(null);
   const [liffReady, setLiffReady] = useState(false);
   const [debugInfo, setDebugInfo] = useState<string>("");
+  const hasProcessedLogin = useRef(false);
 
   // LIFF callback mutation
   const liffCallbackMutation = trpc.lineLogin.liffCallback.useMutation({
     onSuccess: () => {
+      console.log("[LIFF] Login successful, redirecting to mypage");
       setLocation("/mypage");
     },
     onError: (err) => {
+      console.error("[LIFF] Login error:", err);
       setError(err.message || "ログインに失敗しました");
       setIsLoggingIn(false);
+      hasProcessedLogin.current = false;
     },
   });
 
   useEffect(() => {
     const initLiff = async () => {
       try {
-        // Get the base URL without query parameters
-        const baseUrl = window.location.origin + window.location.pathname;
-        
-        setDebugInfo(`Initializing LIFF with ID: ${LIFF_ID}, URL: ${baseUrl}`);
+        console.log("[LIFF] Starting initialization with ID:", LIFF_ID);
+        setDebugInfo(`Initializing LIFF with ID: ${LIFF_ID}`);
         
         await liff.init({ liffId: LIFF_ID });
-        setLiffReady(true);
         
         const isLoggedIn = liff.isLoggedIn();
         const isInClient = liff.isInClient();
         
+        console.log("[LIFF] Initialized. isLoggedIn:", isLoggedIn, "isInClient:", isInClient);
         setDebugInfo(prev => prev + `\nLIFF Ready. isLoggedIn: ${isLoggedIn}, isInClient: ${isInClient}`);
+        setLiffReady(true);
 
-        // Check if user is already logged in via LIFF
-        if (isLoggedIn) {
+        // If user is logged in via LIFF and we haven't processed yet
+        if (isLoggedIn && !hasProcessedLogin.current) {
+          hasProcessedLogin.current = true;
           setIsLoggingIn(true);
+          
           const accessToken = liff.getAccessToken();
-          setDebugInfo(prev => prev + `\nAccess Token: ${accessToken ? 'obtained' : 'null'}`);
+          console.log("[LIFF] Access token obtained:", accessToken ? "yes" : "no");
+          setDebugInfo(prev => prev + `\nAccess Token: ${accessToken ? 'obtained (' + accessToken.substring(0, 10) + '...)' : 'null'}`);
           
           if (accessToken) {
+            console.log("[LIFF] Calling liffCallback mutation");
+            setDebugInfo(prev => prev + `\nCalling liffCallback mutation...`);
             liffCallbackMutation.mutate({ accessToken });
           } else {
             setError("アクセストークンを取得できませんでした");
             setIsLoggingIn(false);
+            hasProcessedLogin.current = false;
           }
         }
       } catch (err: any) {
-        console.error("LIFF initialization failed:", err);
+        console.error("[LIFF] Initialization failed:", err);
         setDebugInfo(prev => prev + `\nLIFF Error: ${err.message || JSON.stringify(err)}`);
         setError(`LIFFの初期化に失敗しました: ${err.message || 'Unknown error'}`);
       } finally {
@@ -71,30 +80,49 @@ export default function LineLogin() {
   const handleLogin = () => {
     if (!liffReady) return;
     
+    console.log("[LIFF] handleLogin called");
     setIsLoggingIn(true);
+    setError(null);
     
-    // Use LIFF login
-    if (!liff.isLoggedIn()) {
-      // Use the base URL without query parameters as redirect URI
-      const redirectUri = window.location.origin + "/line-login";
-      setDebugInfo(prev => prev + `\nStarting login with redirectUri: ${redirectUri}`);
-      liff.login({ redirectUri });
-    } else {
-      // Already logged in, get access token
+    // Check if already logged in
+    if (liff.isLoggedIn()) {
+      console.log("[LIFF] Already logged in, getting access token");
       const accessToken = liff.getAccessToken();
       if (accessToken) {
+        hasProcessedLogin.current = true;
         liffCallbackMutation.mutate({ accessToken });
       } else {
         setError("アクセストークンを取得できませんでした");
         setIsLoggingIn(false);
       }
+    } else {
+      // Start LIFF login
+      console.log("[LIFF] Not logged in, starting login flow");
+      const redirectUri = window.location.origin + "/line-login";
+      setDebugInfo(prev => prev + `\nStarting login with redirectUri: ${redirectUri}`);
+      liff.login({ redirectUri });
     }
   };
 
   if (isInitializing) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-rose-50 to-white flex items-center justify-center">
-        <Loader2 className="h-8 w-8 text-rose-500 animate-spin" />
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 text-rose-500 animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">読み込み中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show loading while processing login
+  if (isLoggingIn && !error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-rose-50 to-white flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 text-rose-500 animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">ログイン処理中...</p>
+        </div>
       </div>
     );
   }
