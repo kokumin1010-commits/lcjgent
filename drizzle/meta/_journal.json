@@ -463,6 +463,13 @@
       "when": 1769863351382,
       "tag": "0065_unique_avengers",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "5",
+      "when": 1769871418801,
+      "tag": "0066_old_rockslide",
+      "breakpoints": true
     }
   ]
 }

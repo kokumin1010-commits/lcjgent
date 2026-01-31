@@ -257,6 +257,10 @@ import {
   updateUserAddress,
   deleteUserAddress,
   setDefaultUserAddress,
+  createPasswordResetToken,
+  getPasswordResetToken,
+  markPasswordResetTokenAsUsed,
+  updateLineUserPassword,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -619,6 +623,151 @@ export const lineLoginRouter = router({
     ctx.res.clearCookie("line_session", getSessionCookieOptions(ctx.req));
     return { success: true };
   }),
+
+  // Request password reset - sends email with reset link
+  requestPasswordReset: publicProcedure
+    .input(z.object({
+      email: z.string().email(),
+    }))
+    .mutation(async ({ input }) => {
+      // Find user by email
+      const user = await getLineUserByEmail(input.email);
+      if (!user) {
+        // Don't reveal if email exists or not for security
+        return {
+          success: true,
+          message: "メールアドレスが登録されている場合、パスワードリセットのメールを送信しました",
+        };
+      }
+      
+      // Generate reset token
+      const token = nanoid(64);
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+      
+      // Save token to database
+      await createPasswordResetToken({
+        lineUserId: user.id,
+        email: input.email,
+        token,
+        expiresAt,
+      });
+      
+      // Send email with reset link
+      const resetUrl = `${process.env.APP_URL || 'https://lcjmall.com'}/reset-password?token=${token}`;
+      
+      try {
+        const nodemailer = await import("nodemailer");
+        const transporter = nodemailer.createTransport({
+          host: "smtp.gmail.com",
+          port: 587,
+          secure: false,
+          auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS,
+          },
+        });
+        
+        await transporter.sendMail({
+          from: `"LCJ MALL" <${process.env.SMTP_USER}>`,
+          to: input.email,
+          subject: "【LCJ MALL】パスワードリセットのご案内",
+          html: `
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #e11d48;">パスワードリセットのご案内</h2>
+              <p>${user.displayName || 'お客'}様</p>
+              <p>LCJ MALLのパスワードリセットをリクエストいただきました。</p>
+              <p>以下のボタンをクリックして、新しいパスワードを設定してください。</p>
+              <p style="margin: 30px 0;">
+                <a href="${resetUrl}" style="background-color: #e11d48; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                  パスワードをリセットする
+                </a>
+              </p>
+              <p style="color: #666; font-size: 14px;">このリンクは1時間後に無効になります。</p>
+              <p style="color: #666; font-size: 14px;">このメールに心当たりがない場合は、無視してください。</p>
+              <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;" />
+              <p style="color: #999; font-size: 12px;">LCJ MALL</p>
+            </div>
+          `,
+        });
+      } catch (error) {
+        console.error("Failed to send password reset email:", error);
+        // Still return success to not reveal if email exists
+      }
+      
+      return {
+        success: true,
+        message: "メールアドレスが登録されている場合、パスワードリセットのメールを送信しました",
+      };
+    }),
+
+  // Verify password reset token
+  verifyResetToken: publicProcedure
+    .input(z.object({
+      token: z.string(),
+    }))
+    .query(async ({ input }) => {
+      const resetToken = await getPasswordResetToken(input.token);
+      
+      if (!resetToken) {
+        return { valid: false, message: "無効なリンクです" };
+      }
+      
+      if (resetToken.usedAt) {
+        return { valid: false, message: "このリンクは既に使用されています" };
+      }
+      
+      if (new Date(resetToken.expiresAt) < new Date()) {
+        return { valid: false, message: "このリンクは有効期限が切れています" };
+      }
+      
+      return { valid: true, email: resetToken.email };
+    }),
+
+  // Reset password with token
+  resetPassword: publicProcedure
+    .input(z.object({
+      token: z.string(),
+      newPassword: z.string().min(6),
+    }))
+    .mutation(async ({ input }) => {
+      const resetToken = await getPasswordResetToken(input.token);
+      
+      if (!resetToken) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "無効なリンクです",
+        });
+      }
+      
+      if (resetToken.usedAt) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "このリンクは既に使用されています",
+        });
+      }
+      
+      if (new Date(resetToken.expiresAt) < new Date()) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "このリンクは有効期限が切れています",
+        });
+      }
+      
+      // Hash new password
+      const bcrypt = await import("bcryptjs");
+      const hashedPassword = await bcrypt.hash(input.newPassword, 10);
+      
+      // Update user password
+      await updateLineUserPassword(resetToken.lineUserId, hashedPassword);
+      
+      // Mark token as used
+      await markPasswordResetTokenAsUsed(input.token);
+      
+      return {
+        success: true,
+        message: "パスワードが正常にリセットされました",
+      };
+    }),
   
   // Get point balance for current LINE user
   getMyPoints: publicProcedure.query(async ({ ctx }) => {

@@ -1665,3 +1665,35 @@ export const userAddresses = mysqlTable("user_addresses", {
 });
 export type UserAddress = typeof userAddresses.$inferSelect;
 export type InsertUserAddress = typeof userAddresses.$inferInsert;
+
+
+// ============================================
+// LCJ MALL - パスワードリセット
+// ============================================
+
+/**
+ * パスワードリセットトークンテーブル
+ * LCJ MALL会員のパスワードリセット用トークンを管理
+ */
+export const linePasswordResetTokens = mysqlTable("line_password_reset_tokens", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // ユーザー情報
+  lineUserId: int("lineUserId").notNull(), // References line_users.id
+  email: varchar("email", { length: 320 }).notNull(), // メールアドレス
+  
+  // トークン
+  token: varchar("token", { length: 128 }).notNull().unique(), // リセットトークン
+  
+  // 有効期限（1時間）
+  expiresAt: timestamp("expiresAt").notNull(),
+  
+  // 使用済みフラグ
+  usedAt: timestamp("usedAt"), // 使用された日時（nullなら未使用）
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type LinePasswordResetToken = typeof linePasswordResetTokens.$inferSelect;
+export type InsertLinePasswordResetToken = typeof linePasswordResetTokens.$inferInsert;

@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE line_users SET password = '$2b$10$bQFS3uB3gmYR/c.SLCk9Z.oO70rxiysWidDcs5oh0IL8RPUUPB7A.' WHERE email = 'test@gmail.com' OR email = 'Test@gmail.com';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute UPDATE line_users SET password = '$2b$10$bQFS3uB3gmYR/c.SLCk9Z.oO70rxiysWidDcs5oh0IL8RPUUPB7A.' WHERE email = 'test@gmail.com' OR email = 'Test@gmail.com';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1544
+}

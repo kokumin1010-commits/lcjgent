@@ -52,6 +52,8 @@ import OrderManagement from "./pages/OrderManagement";
 import MallMembers from "./pages/MallMembers";
 import MallProducts from "./pages/MallProducts";
 import MallProductDetail from "./pages/MallProductDetail";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 
 function Router() {
   return (
@@ -60,6 +62,8 @@ function Router() {
       <Route path={"/"} component={MallHome} />
       <Route path="/line-login" component={LineLogin} />
       <Route path="/line-callback" component={LineLoginCallback} />
+      <Route path="/forgot-password" component={ForgotPassword} />
+      <Route path="/reset-password" component={ResetPassword} />
       <Route path="/mypage" component={LineMypage} />
       <Route path="/mall/products" component={MallProducts} />
       <Route path="/mall/products/:id" component={MallProductDetail} />

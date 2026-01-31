@@ -26,23 +26,29 @@ export function getSessionCookieOptions(
 ): Pick<CookieOptions, "domain" | "httpOnly" | "path" | "sameSite" | "secure"> {
   const hostname = req.hostname;
   const isLocalhost = LOCAL_HOSTS.has(hostname) || isIpAddress(hostname);
+  const isSecure = isSecureRequest(req);
   
-  // For production domains, use lax sameSite to allow cookies on same-site navigation
-  // For localhost/development, use none with secure for cross-origin requests
-  if (isLocalhost) {
+  // For all environments, use sameSite: none with secure: true for HTTPS
+  // This ensures cookies work across all scenarios including:
+  // - Same-site navigation
+  // - Cross-origin requests (LIFF, LINE browser)
+  // - API calls from JavaScript
+  
+  if (isSecure) {
+    // HTTPS: use sameSite: none to ensure cookies are sent in all contexts
     return {
       httpOnly: true,
       path: "/",
       sameSite: "none",
-      secure: isSecureRequest(req),
+      secure: true,
     };
   }
   
-  // Production: use lax sameSite for better cookie persistence
+  // HTTP (localhost only): use lax for development
   return {
     httpOnly: true,
     path: "/",
     sameSite: "lax",
-    secure: isSecureRequest(req),
+    secure: false,
   };
 }

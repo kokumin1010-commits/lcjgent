@@ -1,0 +1,44 @@
+{
+  "query": "SELECT * FROM line_users WHERE email LIKE '%test%' OR email LIKE '%Test%' LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT * FROM line_users WHERE email LIKE '%test%' OR email LIKE '%Test%' LIMIT 5;",
+  "rows": [
+    {
+      "id": "660003",
+      "lineUserId": "NULL",
+      "displayName": "テストユーザー",
+      "pictureUrl": "NULL",
+      "statusMessage": "NULL",
+      "brandId": "NULL",
+      "staffId": "NULL",
+      "liverId": "NULL",
+      "userType": "customer",
+      "isBlocked": "0",
+      "lastMessageAt": "NULL",
+      "createdAt": "2026-01-31 12:52:04",
+      "updatedAt": "2026-01-31 12:52:04",
+      "email": "test@example.com",
+      "password": "$2b$10$I6Kph9jIKMG1rlU6hRO7J.MfZ5cpEdtkR7/SLxrWwicr9CDqyBzTW"
+    },
+    {
+      "id": "660005",
+      "lineUserId": "NULL",
+      "displayName": "Lcjmallテスト",
+      "pictureUrl": "NULL",
+      "statusMessage": "NULL",
+      "brandId": "NULL",
+      "staffId": "NULL",
+      "liverId": "NULL",
+      "userType": "customer",
+      "isBlocked": "0",
+      "lastMessageAt": "NULL",
+      "createdAt": "2026-01-31 13:11:01",
+      "updatedAt": "2026-01-31 13:11:01",
+      "email": "test@gmail.com",
+      "password": "$2b$10$4/1OaPeyJ6GrZzwxFRk3x.99FR/JfrdG1OC3MPkn4QGL50ZMnKxMa"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tlineUserId\tdisplayName\tpictureUrl\tstatusMessage\tbrandId\tstaffId\tliverId\tuserType\tisBlocked\tlastMessageAt\tcreatedAt\tupdatedAt\temail\tpassword\n660003\tNULL\tテストユーザー\tNULL\tNULL\tNULL\tNULL\tNULL\tcustomer\t0\tNULL\t2026-01-31 12:52:04\t2026-01-31 12:52:04\ttest@example.com\t$2b$10$I6Kph9jIKMG1rlU6hRO7J.MfZ5cpEdtkR7/SLxrWwicr9CDqyBzTW\n660005\tNULL\tLcjmallテスト\tNULL\tNULL\tNULL\tNULL\tNULL\tcustomer\t0\tNULL\t2026-01-31 13:11:01\t2026-01-31 13:11:01\ttest@gmail.com\t$2b$10$4/1OaPeyJ6GrZzwxFRk3x.99FR/JfrdG1OC3MPkn4QGL50ZMnKxMa\n",
+  "stderr": "",
+  "execution_time_ms": 1545
+}

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { toast } from "sonner";
 import liff from "@line/liff";
 
@@ -387,7 +387,7 @@ export default function LineLogin() {
                 )}
               </Button>
 
-              <div className="text-center">
+              <div className="text-center space-y-2">
                 <Button
                   type="button"
                   variant="link"
@@ -402,6 +402,15 @@ export default function LineLogin() {
                     ? "すでにアカウントをお持ちの方はこちら"
                     : "新規登録はこちら"}
                 </Button>
+                {!isRegistering && (
+                  <div>
+                    <Link href="/forgot-password">
+                      <Button variant="link" className="text-sm text-muted-foreground">
+                        パスワードを忘れた方はこちら
+                      </Button>
+                    </Link>
+                  </div>
+                )}
               </div>
             </form>
           </TabsContent>
