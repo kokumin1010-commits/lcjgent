@@ -6239,6 +6239,28 @@ ${conversationText}
         await cancelPendingResponse(input.messageId);
         return { success: true };
       }),
+
+    // Get member point history (for admin)
+    getMemberPointHistory: protectedProcedure
+      .input(z.object({ lineUserId: z.string() }))
+      .query(async ({ input }) => {
+        const pointBalance = await getLinePointBalance(input.lineUserId);
+        const transactions = await getLinePointTransactions(input.lineUserId, { limit: 100 });
+        
+        return {
+          balance: pointBalance?.balance || 0,
+          lifetimeEarned: pointBalance?.totalEarned || 0,
+          lifetimeUsed: pointBalance?.totalUsed || 0,
+          transactions,
+        };
+      }),
+
+    // Get member receipt history (for admin)
+    getMemberReceiptHistory: protectedProcedure
+      .input(z.object({ lineUserId: z.string() }))
+      .query(async ({ input }) => {
+        return await getLineReceiptsByUser(input.lineUserId);
+      }),
   }),
 
   // Schedule Management Router

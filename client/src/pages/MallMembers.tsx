@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, Search, Users, Mail, Phone, Calendar, Coins, UserCheck, UserX, RefreshCw } from "lucide-react";
+import { Loader2, Search, Users, Mail, Calendar, Coins, UserCheck, UserX, RefreshCw, Receipt, ArrowUpCircle, ArrowDownCircle, Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import {
@@ -16,15 +16,28 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default function MallMembers() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMember, setSelectedMember] = useState<any>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("info");
 
   const { data: members, isLoading, refetch } = trpc.line.listUsers.useQuery();
+
+  // Get point history when member is selected
+  const { data: pointHistory, isLoading: isLoadingPoints } = trpc.line.getMemberPointHistory.useQuery(
+    { lineUserId: selectedMember?.lineUserId || "" },
+    { enabled: !!selectedMember?.lineUserId && isDetailOpen }
+  );
+
+  // Get receipt history when member is selected
+  const { data: receiptHistory, isLoading: isLoadingReceipts } = trpc.line.getMemberReceiptHistory.useQuery(
+    { lineUserId: selectedMember?.lineUserId || "" },
+    { enabled: !!selectedMember?.lineUserId && isDetailOpen }
+  );
 
   // Filter members based on search query
   const filteredMembers = members?.filter((member: any) => {
@@ -43,7 +56,23 @@ export default function MallMembers() {
 
   const handleViewDetail = (member: any) => {
     setSelectedMember(member);
+    setActiveTab("info");
     setIsDetailOpen(true);
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "approved":
+        return <Badge className="bg-green-100 text-green-700"><CheckCircle className="h-3 w-3 mr-1" />承認済み</Badge>;
+      case "rejected":
+        return <Badge className="bg-red-100 text-red-700"><XCircle className="h-3 w-3 mr-1" />却下</Badge>;
+      case "pending":
+        return <Badge className="bg-yellow-100 text-yellow-700"><Clock className="h-3 w-3 mr-1" />審査中</Badge>;
+      case "on_hold":
+        return <Badge className="bg-orange-100 text-orange-700"><AlertCircle className="h-3 w-3 mr-1" />保留</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
   };
 
   if (isLoading) {
@@ -223,7 +252,7 @@ export default function MallMembers() {
 
       {/* Member Detail Dialog */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl max-h-[80vh]">
           <DialogHeader>
             <DialogTitle>会員詳細</DialogTitle>
             <DialogDescription>
@@ -231,66 +260,249 @@ export default function MallMembers() {
             </DialogDescription>
           </DialogHeader>
           {selectedMember && (
-            <div className="space-y-4">
-              {/* Profile */}
-              <div className="flex items-center gap-4">
-                {selectedMember.pictureUrl ? (
-                  <img
-                    src={selectedMember.pictureUrl}
-                    alt={selectedMember.displayName}
-                    className="h-16 w-16 rounded-full object-cover"
-                  />
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="info">
+                  <Users className="h-4 w-4 mr-2" />
+                  基本情報
+                </TabsTrigger>
+                <TabsTrigger value="points">
+                  <Coins className="h-4 w-4 mr-2" />
+                  ポイント履歴
+                </TabsTrigger>
+                <TabsTrigger value="receipts">
+                  <Receipt className="h-4 w-4 mr-2" />
+                  レシート履歴
+                </TabsTrigger>
+              </TabsList>
+
+              {/* Basic Info Tab */}
+              <TabsContent value="info" className="mt-4">
+                <div className="space-y-4">
+                  {/* Profile */}
+                  <div className="flex items-center gap-4">
+                    {selectedMember.pictureUrl ? (
+                      <img
+                        src={selectedMember.pictureUrl}
+                        alt={selectedMember.displayName}
+                        className="h-16 w-16 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
+                        <Users className="h-8 w-8 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div>
+                      <h3 className="text-lg font-semibold">{selectedMember.displayName || "未設定"}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedMember.lineUserId && !selectedMember.lineUserId.startsWith('email_') 
+                          ? "LINEログイン会員" 
+                          : "メール登録会員"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Details */}
+                  <div className="grid gap-3">
+                    <div className="grid grid-cols-3 gap-2">
+                      <Label className="text-muted-foreground">メールアドレス</Label>
+                      <div className="col-span-2">{selectedMember.email || "-"}</div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Label className="text-muted-foreground">LINE ID</Label>
+                      <div className="col-span-2 font-mono text-sm">
+                        {selectedMember.lineUserId && !selectedMember.lineUserId.startsWith('email_') 
+                          ? selectedMember.lineUserId 
+                          : "-"}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Label className="text-muted-foreground">ステータスメッセージ</Label>
+                      <div className="col-span-2">{selectedMember.statusMessage || "-"}</div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Label className="text-muted-foreground">登録日時</Label>
+                      <div className="col-span-2">
+                        {selectedMember.createdAt 
+                          ? format(new Date(selectedMember.createdAt), "yyyy年MM月dd日 HH:mm", { locale: ja })
+                          : "-"}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Label className="text-muted-foreground">最終更新</Label>
+                      <div className="col-span-2">
+                        {selectedMember.updatedAt 
+                          ? format(new Date(selectedMember.updatedAt), "yyyy年MM月dd日 HH:mm", { locale: ja })
+                          : "-"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+
+              {/* Points Tab */}
+              <TabsContent value="points" className="mt-4">
+                {isLoadingPoints ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
                 ) : (
-                  <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
-                    <Users className="h-8 w-8 text-muted-foreground" />
+                  <div className="space-y-4">
+                    {/* Point Summary */}
+                    <div className="grid grid-cols-3 gap-4">
+                      <Card>
+                        <CardContent className="pt-4">
+                          <div className="text-center">
+                            <p className="text-sm text-muted-foreground">現在のポイント</p>
+                            <p className="text-2xl font-bold text-primary">{pointHistory?.balance?.toLocaleString() || 0}</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="pt-4">
+                          <div className="text-center">
+                            <p className="text-sm text-muted-foreground">累計獲得</p>
+                            <p className="text-xl font-semibold text-green-600">+{pointHistory?.lifetimeEarned?.toLocaleString() || 0}</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="pt-4">
+                          <div className="text-center">
+                            <p className="text-sm text-muted-foreground">累計使用</p>
+                            <p className="text-xl font-semibold text-red-600">-{pointHistory?.lifetimeUsed?.toLocaleString() || 0}</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Transaction History */}
+                    <div>
+                      <h4 className="font-medium mb-2">ポイント履歴</h4>
+                      <ScrollArea className="h-[250px] border rounded-md">
+                        {pointHistory?.transactions && pointHistory.transactions.length > 0 ? (
+                          <div className="divide-y">
+                            {pointHistory.transactions.map((tx: any, index: number) => (
+                              <div key={index} className="p-3 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  {tx.type === "earn" ? (
+                                    <ArrowUpCircle className="h-5 w-5 text-green-500" />
+                                  ) : (
+                                    <ArrowDownCircle className="h-5 w-5 text-red-500" />
+                                  )}
+                                  <div>
+                                    <p className="text-sm font-medium">{tx.description || (tx.type === "earn" ? "ポイント獲得" : "ポイント使用")}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {tx.createdAt ? format(new Date(tx.createdAt), "yyyy/MM/dd HH:mm", { locale: ja }) : "-"}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className={`font-semibold ${tx.amount > 0 ? "text-green-600" : "text-red-600"}`}>
+                                  {tx.amount > 0 ? "+" : ""}{tx.amount?.toLocaleString()}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center h-full text-muted-foreground">
+                            ポイント履歴がありません
+                          </div>
+                        )}
+                      </ScrollArea>
+                    </div>
                   </div>
                 )}
-                <div>
-                  <h3 className="text-lg font-semibold">{selectedMember.displayName || "未設定"}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedMember.lineUserId && !selectedMember.lineUserId.startsWith('email_') 
-                      ? "LINEログイン会員" 
-                      : "メール登録会員"}
-                  </p>
-                </div>
-              </div>
+              </TabsContent>
 
-              {/* Details */}
-              <div className="grid gap-3">
-                <div className="grid grid-cols-3 gap-2">
-                  <Label className="text-muted-foreground">メールアドレス</Label>
-                  <div className="col-span-2">{selectedMember.email || "-"}</div>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <Label className="text-muted-foreground">LINE ID</Label>
-                  <div className="col-span-2 font-mono text-sm">
-                    {selectedMember.lineUserId && !selectedMember.lineUserId.startsWith('email_') 
-                      ? selectedMember.lineUserId 
-                      : "-"}
+              {/* Receipts Tab */}
+              <TabsContent value="receipts" className="mt-4">
+                {isLoadingReceipts ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <Label className="text-muted-foreground">ステータスメッセージ</Label>
-                  <div className="col-span-2">{selectedMember.statusMessage || "-"}</div>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <Label className="text-muted-foreground">登録日時</Label>
-                  <div className="col-span-2">
-                    {selectedMember.createdAt 
-                      ? format(new Date(selectedMember.createdAt), "yyyy年MM月dd日 HH:mm", { locale: ja })
-                      : "-"}
+                ) : (
+                  <div className="space-y-4">
+                    {/* Receipt Summary */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <Card>
+                        <CardContent className="pt-4">
+                          <div className="text-center">
+                            <p className="text-sm text-muted-foreground">申請件数</p>
+                            <p className="text-2xl font-bold">{receiptHistory?.length || 0}</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="pt-4">
+                          <div className="text-center">
+                            <p className="text-sm text-muted-foreground">承認済み</p>
+                            <p className="text-2xl font-bold text-green-600">
+                              {receiptHistory?.filter((r: any) => r.status === "approved").length || 0}
+                            </p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Receipt History */}
+                    <div>
+                      <h4 className="font-medium mb-2">レシート申請履歴</h4>
+                      <ScrollArea className="h-[250px] border rounded-md">
+                        {receiptHistory && receiptHistory.length > 0 ? (
+                          <div className="divide-y">
+                            {receiptHistory.map((receipt: any, index: number) => (
+                              <div key={index} className="p-3">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center gap-2">
+                                    <Receipt className="h-4 w-4 text-muted-foreground" />
+                                    <span className="font-medium">{receipt.storeName || "店舗名不明"}</span>
+                                  </div>
+                                  {getStatusBadge(receipt.status)}
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
+                                  <div>
+                                    <span>金額: </span>
+                                    <span className="font-medium text-foreground">¥{receipt.totalAmount?.toLocaleString() || 0}</span>
+                                  </div>
+                                  <div>
+                                    <span>ポイント: </span>
+                                    <span className="font-medium text-primary">{receipt.pointsAwarded?.toLocaleString() || 0}pt</span>
+                                  </div>
+                                  <div>
+                                    <span>購入日: </span>
+                                    <span>{receipt.purchaseDate ? format(new Date(receipt.purchaseDate), "yyyy/MM/dd", { locale: ja }) : "-"}</span>
+                                  </div>
+                                  <div>
+                                    <span>申請日: </span>
+                                    <span>{receipt.submittedAt ? format(new Date(receipt.submittedAt), "yyyy/MM/dd", { locale: ja }) : "-"}</span>
+                                  </div>
+                                </div>
+                                {receipt.imageUrl && (
+                                  <div className="mt-2">
+                                    <a 
+                                      href={receipt.imageUrl} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="text-sm text-primary hover:underline"
+                                    >
+                                      レシート画像を表示
+                                    </a>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center h-full text-muted-foreground">
+                            レシート申請履歴がありません
+                          </div>
+                        )}
+                      </ScrollArea>
+                    </div>
                   </div>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <Label className="text-muted-foreground">最終更新</Label>
-                  <div className="col-span-2">
-                    {selectedMember.updatedAt 
-                      ? format(new Date(selectedMember.updatedAt), "yyyy年MM月dd日 HH:mm", { locale: ja })
-                      : "-"}
-                  </div>
-                </div>
-              </div>
-            </div>
+                )}
+              </TabsContent>
+            </Tabs>
           )}
         </DialogContent>
       </Dialog>
