@@ -261,6 +261,11 @@ import {
   getPasswordResetToken,
   markPasswordResetTokenAsUsed,
   updateLineUserPassword,
+  createLineLinkCode,
+  verifyAndUseLinkCode,
+  linkLineAccountToEmailUser,
+  checkLineAccountLinked,
+  getActiveLinkCode,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -919,6 +924,80 @@ export const lineLoginRouter = router({
         message: "レシート履歴の取得に失敗しました",
       });
     }
+  }),
+
+  // ==========================================
+  // LINE Account Linking (LINE連携)
+  // ==========================================
+
+  // Check if LINE account is linked
+  checkLineLinked: publicProcedure.query(async ({ ctx }) => {
+    const result = await getLineUserFromSession(ctx);
+    if (!result || !result.lineUser) {
+      throw new TRPCError({
+        code: "UNAUTHORIZED",
+        message: "ログインが必要です",
+      });
+    }
+    
+    const { lineUser } = result;
+    const isLinked = lineUser.lineUserId !== null && !lineUser.lineUserId.startsWith('email_');
+    
+    return {
+      isLinked,
+      lineUserId: isLinked ? lineUser.lineUserId : null,
+    };
+  }),
+
+  // Generate LINE link code
+  generateLinkCode: publicProcedure.mutation(async ({ ctx }) => {
+    const result = await getLineUserFromSession(ctx);
+    if (!result || !result.lineUser) {
+      throw new TRPCError({
+        code: "UNAUTHORIZED",
+        message: "ログインが必要です",
+      });
+    }
+    
+    const { lineUser } = result;
+    
+    // Check if already linked
+    if (lineUser.lineUserId && !lineUser.lineUserId.startsWith('email_')) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "既にLINEアカウントが連携されています",
+      });
+    }
+    
+    // Generate new code
+    const { code, expiresAt } = await createLineLinkCode(lineUser.id);
+    
+    return {
+      code,
+      expiresAt: expiresAt.toISOString(),
+      message: "このコードをLINE公式アカウントに送信してください",
+    };
+  }),
+
+  // Get active link code (if any)
+  getActiveLinkCode: publicProcedure.query(async ({ ctx }) => {
+    const result = await getLineUserFromSession(ctx);
+    if (!result || !result.lineUser) {
+      throw new TRPCError({
+        code: "UNAUTHORIZED",
+        message: "ログインが必要です",
+      });
+    }
+    
+    const activeCode = await getActiveLinkCode(result.lineUser.id);
+    if (!activeCode) {
+      return null;
+    }
+    
+    return {
+      code: activeCode.code,
+      expiresAt: activeCode.expiresAt.toISOString(),
+    };
   }),
 });
 

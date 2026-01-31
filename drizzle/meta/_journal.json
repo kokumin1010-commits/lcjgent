@@ -470,6 +470,13 @@
       "when": 1769871418801,
       "tag": "0066_old_rockslide",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "5",
+      "when": 1769889528450,
+      "tag": "0067_lazy_joshua_kane",
+      "breakpoints": true
     }
   ]
 }

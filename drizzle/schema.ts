@@ -1697,3 +1697,31 @@ export const linePasswordResetTokens = mysqlTable("line_password_reset_tokens", 
 
 export type LinePasswordResetToken = typeof linePasswordResetTokens.$inferSelect;
 export type InsertLinePasswordResetToken = typeof linePasswordResetTokens.$inferInsert;
+
+
+/**
+ * LINE Link Codes table for linking email accounts with LINE accounts
+ * メールアカウントとLINEアカウントを連携するためのコードテーブル
+ */
+export const lineLinkCodes = mysqlTable("line_link_codes", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // ユーザー情報
+  lineUserId: int("lineUserId").notNull(), // References line_users.id (email user)
+  
+  // 連携コード（6桁の数字）
+  code: varchar("code", { length: 6 }).notNull(),
+  
+  // 有効期限（10分）
+  expiresAt: timestamp("expiresAt").notNull(),
+  
+  // 使用済みフラグ
+  usedAt: timestamp("usedAt"), // 使用された日時（nullなら未使用）
+  linkedLineUserId: varchar("linkedLineUserId", { length: 64 }), // 連携されたLINE User ID
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type LineLinkCode = typeof lineLinkCodes.$inferSelect;
+export type InsertLineLinkCode = typeof lineLinkCodes.$inferInsert;

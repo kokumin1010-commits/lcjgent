@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `line_link_codes` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `lineUserId` int NOT NULL,\n  `code` varchar(6) NOT NULL,\n  `expiresAt` timestamp NOT NULL,\n  `usedAt` timestamp NULL,\n  `linkedLineUserId` varchar(64) NULL,\n  `createdAt` timestamp NOT NULL DEFAULT (now()),\n  CONSTRAINT `line_link_codes_id` PRIMARY KEY(`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute CREATE TABLE `line_link_codes` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `lineUserId` int NOT NULL,\n  `code` varchar(6) NOT NULL,\n  `expiresAt` timestamp NOT NULL,\n  `usedAt` timestamp NULL,\n  `linkedLineUserId` varchar(64) NULL,\n  `createdAt` timestamp NOT NULL DEFAULT (now()),\n  CONSTRAINT `line_link_codes_id` PRIMARY KEY(`id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1689
+}

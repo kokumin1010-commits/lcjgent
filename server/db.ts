@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -6233,4 +6233,143 @@ export async function updateLineUserPassword(userId: number, hashedPassword: str
   await db.update(lineUsers)
     .set({ password: hashedPassword })
     .where(eq(lineUsers.id, userId));
+}
+
+
+// ==========================================
+// LINE Link Code Functions (LINE連携コード)
+// ==========================================
+
+/**
+ * Generate a 6-digit link code for LINE account linking
+ */
+export async function createLineLinkCode(lineUserId: number): Promise<{ code: string; expiresAt: Date }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Generate 6-digit code
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  
+  // Set expiration to 10 minutes from now
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+  
+  // Delete any existing unused codes for this user
+  await db.delete(lineLinkCodes)
+    .where(and(
+      eq(lineLinkCodes.lineUserId, lineUserId),
+      sql`${lineLinkCodes.usedAt} IS NULL`
+    ));
+  
+  // Insert new code
+  await db.insert(lineLinkCodes).values({
+    lineUserId,
+    code,
+    expiresAt,
+  });
+  
+  return { code, expiresAt };
+}
+
+/**
+ * Verify and use a link code
+ * Returns the line_users.id if valid, null if invalid/expired
+ */
+export async function verifyAndUseLinkCode(code: string, linkedLineUserId: string): Promise<number | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  // Find valid code
+  const result = await db.select()
+    .from(lineLinkCodes)
+    .where(and(
+      eq(lineLinkCodes.code, code),
+      sql`${lineLinkCodes.usedAt} IS NULL`,
+      sql`${lineLinkCodes.expiresAt} > NOW()`
+    ))
+    .limit(1);
+  
+  if (result.length === 0) return null;
+  
+  const linkCode = result[0];
+  
+  // Mark code as used
+  await db.update(lineLinkCodes)
+    .set({
+      usedAt: new Date(),
+      linkedLineUserId,
+    })
+    .where(eq(lineLinkCodes.id, linkCode.id));
+  
+  return linkCode.lineUserId;
+}
+
+/**
+ * Link LINE account to email user
+ * Updates the line_users record to include the LINE User ID
+ */
+export async function linkLineAccountToEmailUser(emailUserId: number, lineUserId: string, displayName?: string, pictureUrl?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Check if LINE ID is already linked to another account
+  const existingLineUser = await db.select()
+    .from(lineUsers)
+    .where(eq(lineUsers.lineUserId, lineUserId))
+    .limit(1);
+  
+  if (existingLineUser.length > 0 && existingLineUser[0].id !== emailUserId) {
+    // LINE ID is already linked to a different account
+    throw new Error("LINE_ALREADY_LINKED");
+  }
+  
+  // Update email user with LINE ID
+  await db.update(lineUsers)
+    .set({
+      lineUserId,
+      displayName: displayName || undefined,
+      pictureUrl: pictureUrl || undefined,
+    })
+    .where(eq(lineUsers.id, emailUserId));
+  
+  return true;
+}
+
+/**
+ * Check if user has LINE account linked
+ */
+export async function checkLineAccountLinked(emailUserId: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  
+  const result = await db.select({ lineUserId: lineUsers.lineUserId })
+    .from(lineUsers)
+    .where(eq(lineUsers.id, emailUserId))
+    .limit(1);
+  
+  return result.length > 0 && result[0].lineUserId !== null;
+}
+
+/**
+ * Get active link code for user (if any)
+ */
+export async function getActiveLinkCode(emailUserId: number): Promise<{ code: string; expiresAt: Date } | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select()
+    .from(lineLinkCodes)
+    .where(and(
+      eq(lineLinkCodes.lineUserId, emailUserId),
+      sql`${lineLinkCodes.usedAt} IS NULL`,
+      sql`${lineLinkCodes.expiresAt} > NOW()`
+    ))
+    .orderBy(desc(lineLinkCodes.createdAt))
+    .limit(1);
+  
+  if (result.length === 0) return null;
+  
+  return {
+    code: result[0].code,
+    expiresAt: result[0].expiresAt,
+  };
 }

@@ -1,10 +1,12 @@
 import { trpc } from "@/lib/trpc";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ShoppingBag, Coins, Receipt, LogOut, ArrowLeft, Clock, CheckCircle, XCircle, AlertCircle, TrendingUp, TrendingDown, ShoppingCart, History } from "lucide-react";
+import { Loader2, ShoppingBag, Coins, Receipt, LogOut, ArrowLeft, Clock, CheckCircle, XCircle, AlertCircle, TrendingUp, TrendingDown, ShoppingCart, History, Link2, Copy, RefreshCw } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
@@ -21,6 +23,65 @@ export default function LineMypage() {
   const { data: receipts, isLoading: receiptsLoading } = trpc.lineLogin.getMyReceipts.useQuery(undefined, {
     enabled: !!user,
   });
+  
+  // LINE連携状態
+  const { data: linkStatus, isLoading: linkStatusLoading, refetch: refetchLinkStatus } = trpc.lineLogin.checkLineLinked.useQuery(undefined, {
+    enabled: !!user,
+  });
+  
+  // 有効な連携コード
+  const { data: activeCode, refetch: refetchActiveCode } = trpc.lineLogin.getActiveLinkCode.useQuery(undefined, {
+    enabled: !!user && !linkStatus?.isLinked,
+  });
+  
+  // 連携コード生成
+  const generateCodeMutation = trpc.lineLogin.generateLinkCode.useMutation({
+    onSuccess: () => {
+      refetchActiveCode();
+      toast.success("連携コードを発行しました");
+    },
+    onError: (error) => {
+      toast.error(error.message || "コードの発行に失敗しました");
+    },
+  });
+  
+  // コードの残り時間を計算
+  const [remainingTime, setRemainingTime] = useState<string | null>(null);
+  
+  useEffect(() => {
+    if (!activeCode?.expiresAt) {
+      setRemainingTime(null);
+      return;
+    }
+    
+    const updateRemainingTime = () => {
+      const expiresAt = new Date(activeCode.expiresAt).getTime();
+      const now = Date.now();
+      const diff = expiresAt - now;
+      
+      if (diff <= 0) {
+        setRemainingTime(null);
+        refetchActiveCode();
+        return;
+      }
+      
+      const minutes = Math.floor(diff / 60000);
+      const seconds = Math.floor((diff % 60000) / 1000);
+      setRemainingTime(`${minutes}:${seconds.toString().padStart(2, '0')}`);
+    };
+    
+    updateRemainingTime();
+    const interval = setInterval(updateRemainingTime, 1000);
+    return () => clearInterval(interval);
+  }, [activeCode?.expiresAt, refetchActiveCode]);
+  
+  // コードをコピー
+  const copyCode = () => {
+    if (activeCode?.code) {
+      navigator.clipboard.writeText(activeCode.code);
+      toast.success("コードをコピーしました");
+    }
+  };
   
   // フィルタリングされたポイント履歴
   const filteredTransactions = pointsData?.transactions?.filter((tx: any) => {
@@ -315,6 +376,117 @@ export default function LineMypage() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* LINE連携セクション */}
+        <Card className="mt-8 border-emerald-200 bg-gradient-to-br from-emerald-50 to-green-50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-emerald-700">
+              <div className="h-10 w-10 bg-gradient-to-br from-emerald-500 to-green-500 rounded-full flex items-center justify-center">
+                <Link2 className="h-5 w-5 text-white" />
+              </div>
+              LINEアカウント連携
+            </CardTitle>
+            <CardDescription>
+              LINEを連携すると、レシートをLINEで送信できるようになります
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {linkStatusLoading ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin text-emerald-500" />
+              </div>
+            ) : linkStatus?.isLinked ? (
+              <div className="bg-white/60 rounded-lg p-4">
+                <div className="flex items-center gap-3">
+                  <CheckCircle className="h-8 w-8 text-emerald-500" />
+                  <div>
+                    <p className="font-bold text-emerald-700">LINE連携済み</p>
+                    <p className="text-sm text-muted-foreground">レシートをLINEで送信できます</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {activeCode?.code && remainingTime ? (
+                  <div className="bg-white rounded-lg p-4 border-2 border-emerald-200">
+                    <p className="text-sm text-muted-foreground mb-2">連携コード（有効期限: {remainingTime}）</p>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 bg-emerald-50 rounded-lg p-3 text-center">
+                        <span className="text-3xl font-mono font-bold tracking-widest text-emerald-700">
+                          {activeCode.code}
+                        </span>
+                      </div>
+                      <Button variant="outline" size="icon" onClick={copyCode}>
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-3">
+                      このコードをLCJ MALL公式LINEに送信してください
+                    </p>
+                    <Button
+                      variant="outline"
+                      className="w-full mt-3 gap-2"
+                      onClick={() => generateCodeMutation.mutate()}
+                      disabled={generateCodeMutation.isPending}
+                    >
+                      <RefreshCw className={`h-4 w-4 ${generateCodeMutation.isPending ? 'animate-spin' : ''}`} />
+                      新しいコードを発行
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <p className="text-sm text-muted-foreground mb-4">
+                      LINEを連携すると、レシートをLINEで送信できるようになります
+                    </p>
+                    <Button
+                      className="w-full bg-emerald-500 hover:bg-emerald-600 gap-2"
+                      onClick={() => generateCodeMutation.mutate()}
+                      disabled={generateCodeMutation.isPending}
+                    >
+                      {generateCodeMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Link2 className="h-4 w-4" />
+                      )}
+                      連携コードを発行
+                    </Button>
+                  </div>
+                )}
+                
+                {/* LINE連携の手順 */}
+                <div className="bg-white/60 rounded-lg p-4 mt-4">
+                  <p className="font-medium text-sm mb-3">連携手順</p>
+                  <ol className="space-y-2 text-sm text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <span className="flex-shrink-0 h-5 w-5 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-xs font-bold">1</span>
+                      <span>上の「連携コードを発行」ボタンをタップ</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="flex-shrink-0 h-5 w-5 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-xs font-bold">2</span>
+                      <span>表示された6桁のコードをコピー</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="flex-shrink-0 h-5 w-5 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-xs font-bold">3</span>
+                      <span>LCJ MALL公式LINEにコードを送信</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="flex-shrink-0 h-5 w-5 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-xs font-bold">4</span>
+                      <span>連携完了！</span>
+                    </li>
+                  </ol>
+                  <a href="https://lin.ee/hpVjAiOe" target="_blank" rel="noopener noreferrer" className="block mt-4">
+                    <Button variant="outline" className="w-full gap-2 border-[#06C755] text-[#06C755] hover:bg-[#06C755]/10">
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
+                      </svg>
+                      LCJ MALL公式LINEを開く
+                    </Button>
+                  </a>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* How to earn points */}
         <Card className="mt-8 border-rose-100">

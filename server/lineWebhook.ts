@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { ENV } from "./_core/env";
-import { getDb } from "./db";
+import { getDb, verifyAndUseLinkCode, linkLineAccountToEmailUser, getLineUserById } from "./db";
 import { livers } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { sendLinePushMessage } from "./_core/lineMessaging";
@@ -238,6 +238,26 @@ async function handleTextMessage(
   const lineUserId = event.source.userId;
   if (!lineUserId) return;
 
+  // 6桁の数字かチェック
+  const trimmedText = text.trim();
+  if (!/^\d{6}$/.test(trimmedText)) {
+    // 連携コードではない場合は案内メッセージを送信
+    await sendLinePushMessage(lineUserId, [
+      {
+        type: "text",
+        text: `LINE連携をするには、6桁の連携コードを送信してください。\n\n【LCJ MALL会員の方】\nマイページ → LINE連携 → コード発行\n\n【LCJライバーの方】\nアプリ → プロフィール → LINE連携\n\n例: 123456`,
+      },
+    ]);
+    return;
+  }
+
+  // まずLCJ MALL会員の連携コードをチェック
+  const mallUserLinked = await tryLinkMallUser(trimmedText, lineUserId);
+  if (mallUserLinked) {
+    return; // MALL会員の連携が完了
+  }
+
+  // 次にライバーの連携コードをチェック
   // 既に連携済みかチェック
   const existingLiver = await findLiverByLineUserId(lineUserId);
   if (existingLiver) {
@@ -250,19 +270,6 @@ async function handleTextMessage(
     return;
   }
 
-  // 6桁の数字かチェック
-  const trimmedText = text.trim();
-  if (!/^\d{6}$/.test(trimmedText)) {
-    // 連携コードではない場合は無視（通常のメッセージ）
-    await sendLinePushMessage(lineUserId, [
-      {
-        type: "text",
-        text: `LINE連携をするには、LCJライバーアプリで発行した6桁の連携コードを送信してください。\n\n例: 123456`,
-      },
-    ]);
-    return;
-  }
-
   // 連携コードでライバーを検索
   const liverData = await findLiverByLinkCode(trimmedText);
   
@@ -270,7 +277,7 @@ async function handleTextMessage(
     await sendLinePushMessage(lineUserId, [
       {
         type: "text",
-        text: `連携コードが見つからないか、有効期限が切れています。\n\nLCJライバーアプリで新しいコードを発行してください。`,
+        text: `連携コードが見つからないか、有効期限が切れています。\n\n新しいコードを発行してください。`,
       },
     ]);
     return;
@@ -285,6 +292,72 @@ async function handleTextMessage(
       text: `🎉 ${liverData.name}さん、LINE連携が完了しました！\n\nこれから配信後にAIコーチングがLINEに届きます。\n\n頑張ってください！💪`,
     },
   ]);
+}
+
+/**
+ * Try to link LCJ MALL user with LINE account
+ * Returns true if linked successfully, false if code not found
+ */
+async function tryLinkMallUser(
+  code: string,
+  lineUserId: string
+): Promise<boolean> {
+  try {
+    // 連携コードを検証して使用
+    const emailUserId = await verifyAndUseLinkCode(code, lineUserId);
+    
+    if (!emailUserId) {
+      return false; // コードが見つからないか期限切れ
+    }
+    
+    // LINEプロフィールを取得（名前とアイコン）
+    let displayName = "LCJ MALL会員";
+    let pictureUrl: string | undefined;
+    
+    try {
+      const profileResponse = await fetch(`https://api.line.me/v2/bot/profile/${lineUserId}`, {
+        headers: {
+          Authorization: `Bearer ${ENV.lineChannelAccessToken}`,
+        },
+      });
+      
+      if (profileResponse.ok) {
+        const profile = await profileResponse.json();
+        displayName = profile.displayName || displayName;
+        pictureUrl = profile.pictureUrl;
+      }
+    } catch {
+      // プロフィール取得失敗しても継続
+    }
+    
+    // メールユーザーにLINE IDを紐付け
+    await linkLineAccountToEmailUser(emailUserId, lineUserId, displayName, pictureUrl);
+    
+    // ユーザー情報を取得して名前を表示
+    const user = await getLineUserById(emailUserId);
+    const userName = user?.displayName || "お客様";
+    
+    await sendLinePushMessage(lineUserId, [
+      {
+        type: "text",
+        text: `🎉 ${userName}さん、LINE連携が完了しました！\n\nこれでレシートをLINEで送信できるようになりました。\n\n購入後はレシート画像をこちらに送信してポイントを獲得してください！`,
+      },
+    ]);
+    
+    return true;
+  } catch (error) {
+    if (error instanceof Error && error.message === "LINE_ALREADY_LINKED") {
+      await sendLinePushMessage(lineUserId, [
+        {
+          type: "text",
+          text: `このLINEアカウントは既に別のアカウントに連携されています。\n\n別のLINEアカウントでお試しください。`,
+        },
+      ]);
+      return true; // エラーだが処理済み
+    }
+    console.error("[LINE Webhook] Error linking MALL user:", error);
+    return false;
+  }
 }
 
 /**
