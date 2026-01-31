@@ -1486,3 +1486,144 @@ export const lineFraudDetectionLogs = mysqlTable("line_fraud_detection_logs", {
 
 export type LineFraudDetectionLog = typeof lineFraudDetectionLogs.$inferSelect;
 export type InsertLineFraudDetectionLog = typeof lineFraudDetectionLogs.$inferInsert;
+
+
+// ============================================
+// LCJ MALL - 商品・注文管理
+// ============================================
+
+/**
+ * MALL商品テーブル
+ */
+export const mallProducts = mysqlTable("mall_products", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // 基本情報
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  category: varchar("category", { length: 100 }),
+  
+  // 価格
+  price: int("price").notNull(), // 通常価格（円）
+  pointPrice: int("pointPrice"), // ポイント価格（ポイントのみで購入可能な場合）
+  
+  // 在庫
+  stock: int("stock").default(0).notNull(),
+  
+  // 画像
+  imageUrl: text("imageUrl"),
+  imageKey: varchar("imageKey", { length: 512 }),
+  imageUrls: json("imageUrls").$type<string[]>(), // 複数画像対応
+  imageKeys: json("imageKeys").$type<string[]>(),
+  
+  // ステータス
+  status: mysqlEnum("status", ["draft", "active", "sold_out", "archived"]).default("draft").notNull(),
+  
+  // 表示順
+  sortOrder: int("sortOrder").default(0).notNull(),
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type MallProduct = typeof mallProducts.$inferSelect;
+export type InsertMallProduct = typeof mallProducts.$inferInsert;
+
+/**
+ * MALL注文テーブル
+ */
+export const mallOrders = mysqlTable("mall_orders", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // 注文番号
+  orderNumber: varchar("orderNumber", { length: 64 }).notNull().unique(),
+  
+  // 購入者（LINEユーザー）
+  lineUserId: int("lineUserId").notNull(),
+  
+  // 注文ステータス
+  status: mysqlEnum("status", [
+    "pending",      // 注文受付
+    "confirmed",    // 確認済み
+    "shipped",      // 発送済み
+    "delivered",    // 配達完了
+    "cancelled",    // キャンセル
+  ]).default("pending").notNull(),
+  
+  // 金額
+  totalAmount: int("totalAmount").notNull(), // 合計金額（円）
+  pointsUsed: int("pointsUsed").default(0).notNull(), // 使用ポイント
+  cashAmount: int("cashAmount").default(0).notNull(), // 現金支払い額
+  
+  // 配送先情報
+  shippingName: varchar("shippingName", { length: 255 }),
+  shippingPhone: varchar("shippingPhone", { length: 50 }),
+  shippingPostalCode: varchar("shippingPostalCode", { length: 20 }),
+  shippingAddress: text("shippingAddress"),
+  
+  // メモ
+  notes: text("notes"),
+  adminNotes: text("adminNotes"), // 管理者用メモ
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  shippedAt: timestamp("shippedAt"),
+  deliveredAt: timestamp("deliveredAt"),
+});
+
+export type MallOrder = typeof mallOrders.$inferSelect;
+export type InsertMallOrder = typeof mallOrders.$inferInsert;
+
+/**
+ * MALL注文明細テーブル
+ */
+export const mallOrderItems = mysqlTable("mall_order_items", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // 注文ID
+  orderId: int("orderId").notNull(),
+  
+  // 商品情報（注文時点の情報を保存）
+  productId: int("productId").notNull(),
+  productName: varchar("productName", { length: 255 }).notNull(),
+  productPrice: int("productPrice").notNull(),
+  productPointPrice: int("productPointPrice"),
+  
+  // 数量
+  quantity: int("quantity").default(1).notNull(),
+  
+  // 小計
+  subtotal: int("subtotal").notNull(), // 小計（円）
+  pointSubtotal: int("pointSubtotal").default(0).notNull(), // ポイント小計
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type MallOrderItem = typeof mallOrderItems.$inferSelect;
+export type InsertMallOrderItem = typeof mallOrderItems.$inferInsert;
+
+/**
+ * MALLカートテーブル（一時的なカート保存用）
+ */
+export const mallCarts = mysqlTable("mall_carts", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // LINEユーザー
+  lineUserId: int("lineUserId").notNull(),
+  
+  // 商品
+  productId: int("productId").notNull(),
+  
+  // 数量
+  quantity: int("quantity").default(1).notNull(),
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type MallCart = typeof mallCarts.$inferSelect;
+export type InsertMallCart = typeof mallCarts.$inferInsert;

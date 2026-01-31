@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -5522,4 +5522,456 @@ export async function getLineReceiptStatistics() {
     onHold: onHold[0]?.count || 0,
     totalPointsAwarded: totalPoints[0]?.total || 0,
   };
+}
+
+
+// ============================================
+// MALL商品管理
+// ============================================
+
+// 商品一覧取得
+export async function getMallProducts(options?: {
+  status?: "draft" | "active" | "sold_out" | "archived";
+  category?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const db = await getDb();
+  if (!db) return [];
+
+  let query = db.select().from(mallProducts);
+  
+  const conditions = [];
+  if (options?.status) {
+    conditions.push(eq(mallProducts.status, options.status));
+  }
+  if (options?.category) {
+    conditions.push(eq(mallProducts.category, options.category));
+  }
+  
+  if (conditions.length > 0) {
+    query = query.where(and(...conditions)) as typeof query;
+  }
+  
+  query = query.orderBy(asc(mallProducts.sortOrder), desc(mallProducts.createdAt)) as typeof query;
+  
+  if (options?.limit) {
+    query = query.limit(options.limit) as typeof query;
+  }
+  if (options?.offset) {
+    query = query.offset(options.offset) as typeof query;
+  }
+  
+  return await query;
+}
+
+// 商品詳細取得
+export async function getMallProductById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.select().from(mallProducts).where(eq(mallProducts.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+// 商品作成
+export async function createMallProduct(data: InsertMallProduct) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(mallProducts).values(data);
+  return result;
+}
+
+// 商品更新
+export async function updateMallProduct(id: number, data: Partial<InsertMallProduct>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.update(mallProducts).set(data).where(eq(mallProducts.id, id));
+}
+
+// 商品削除
+export async function deleteMallProduct(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.delete(mallProducts).where(eq(mallProducts.id, id));
+}
+
+// 商品在庫更新
+export async function updateMallProductStock(id: number, quantity: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.update(mallProducts)
+    .set({ stock: sql`${mallProducts.stock} + ${quantity}` })
+    .where(eq(mallProducts.id, id));
+}
+
+// カテゴリ一覧取得
+export async function getMallCategories() {
+  const db = await getDb();
+  if (!db) return [];
+
+  const result = await db
+    .selectDistinct({ category: mallProducts.category })
+    .from(mallProducts)
+    .where(isNotNull(mallProducts.category));
+  
+  return result.map(r => r.category).filter(Boolean) as string[];
+}
+
+// ============================================
+// MALLカート管理
+// ============================================
+
+// カート取得
+export async function getMallCart(lineUserId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db.select({
+    cart: mallCarts,
+    product: mallProducts,
+  })
+    .from(mallCarts)
+    .innerJoin(mallProducts, eq(mallCarts.productId, mallProducts.id))
+    .where(eq(mallCarts.lineUserId, lineUserId));
+}
+
+// カートに追加
+export async function addToMallCart(lineUserId: number, productId: number, quantity: number = 1) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // 既存のカートアイテムを確認
+  const existing = await db.select()
+    .from(mallCarts)
+    .where(and(
+      eq(mallCarts.lineUserId, lineUserId),
+      eq(mallCarts.productId, productId)
+    ))
+    .limit(1);
+
+  if (existing.length > 0) {
+    // 数量を更新
+    await db.update(mallCarts)
+      .set({ quantity: sql`${mallCarts.quantity} + ${quantity}` })
+      .where(eq(mallCarts.id, existing[0].id));
+  } else {
+    // 新規追加
+    await db.insert(mallCarts).values({
+      lineUserId,
+      productId,
+      quantity,
+    });
+  }
+}
+
+// カート数量更新
+export async function updateMallCartQuantity(lineUserId: number, productId: number, quantity: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  if (quantity <= 0) {
+    await db.delete(mallCarts)
+      .where(and(
+        eq(mallCarts.lineUserId, lineUserId),
+        eq(mallCarts.productId, productId)
+      ));
+  } else {
+    await db.update(mallCarts)
+      .set({ quantity })
+      .where(and(
+        eq(mallCarts.lineUserId, lineUserId),
+        eq(mallCarts.productId, productId)
+      ));
+  }
+}
+
+// カートから削除
+export async function removeFromMallCart(lineUserId: number, productId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.delete(mallCarts)
+    .where(and(
+      eq(mallCarts.lineUserId, lineUserId),
+      eq(mallCarts.productId, productId)
+    ));
+}
+
+// カートをクリア
+export async function clearMallCart(lineUserId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.delete(mallCarts).where(eq(mallCarts.lineUserId, lineUserId));
+}
+
+// ============================================
+// MALL注文管理
+// ============================================
+
+// 注文番号生成
+function generateOrderNumber(): string {
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+  const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
+  return `LCJ${dateStr}${randomStr}`;
+}
+
+// 注文作成
+export async function createMallOrder(data: {
+  lineUserId: number;
+  items: Array<{
+    productId: number;
+    quantity: number;
+    usePoints: boolean;
+  }>;
+  pointsToUse: number;
+  shippingInfo?: {
+    name?: string;
+    phone?: string;
+    postalCode?: string;
+    address?: string;
+  };
+  notes?: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // 商品情報を取得
+  const productIds = data.items.map(item => item.productId);
+  const products = await db.select()
+    .from(mallProducts)
+    .where(inArray(mallProducts.id, productIds));
+
+  const productMap = new Map(products.map(p => [p.id, p]));
+
+  // 合計金額を計算
+  let totalAmount = 0;
+  const orderItems: Array<{
+    productId: number;
+    productName: string;
+    productPrice: number;
+    productPointPrice: number | null;
+    quantity: number;
+    subtotal: number;
+    pointSubtotal: number;
+  }> = [];
+
+  for (const item of data.items) {
+    const product = productMap.get(item.productId);
+    if (!product) continue;
+
+    const subtotal = product.price * item.quantity;
+    totalAmount += subtotal;
+
+    orderItems.push({
+      productId: product.id,
+      productName: product.name,
+      productPrice: product.price,
+      productPointPrice: product.pointPrice,
+      quantity: item.quantity,
+      subtotal,
+      pointSubtotal: 0,
+    });
+  }
+
+  // ポイント使用を計算
+  const pointsUsed = Math.min(data.pointsToUse, totalAmount);
+  const cashAmount = totalAmount - pointsUsed;
+
+  // 注文を作成
+  const orderNumber = generateOrderNumber();
+  const [orderResult] = await db.insert(mallOrders).values({
+    orderNumber,
+    lineUserId: data.lineUserId,
+    totalAmount,
+    pointsUsed,
+    cashAmount,
+    shippingName: data.shippingInfo?.name,
+    shippingPhone: data.shippingInfo?.phone,
+    shippingPostalCode: data.shippingInfo?.postalCode,
+    shippingAddress: data.shippingInfo?.address,
+    notes: data.notes,
+  });
+
+  const orderId = orderResult.insertId;
+
+  // 注文明細を作成
+  for (const item of orderItems) {
+    await db.insert(mallOrderItems).values({
+      orderId,
+      ...item,
+    });
+  }
+
+  // 在庫を減らす
+  for (const item of data.items) {
+    await db.update(mallProducts)
+      .set({ stock: sql`${mallProducts.stock} - ${item.quantity}` })
+      .where(eq(mallProducts.id, item.productId));
+  }
+
+  // ポイントを消費
+  if (pointsUsed > 0) {
+    // ポイント残高を更新
+    await db.update(linePointBalances)
+      .set({ 
+        balance: sql`${linePointBalances.balance} - ${pointsUsed}`,
+        totalUsed: sql`${linePointBalances.totalUsed} + ${pointsUsed}`,
+      })
+      .where(eq(linePointBalances.lineUserId, String(data.lineUserId)));
+
+    // ポイント取引履歴を追加
+    await db.insert(linePointTransactions).values({
+      lineUserId: String(data.lineUserId),
+      type: "use",
+      amount: -pointsUsed,
+      balanceAfter: 0, // 後で更新
+      description: `LCJ MALL注文 ${orderNumber}`,
+      referenceType: "order",
+      referenceId: orderId,
+    });
+  }
+
+  // カートをクリア
+  await clearMallCart(data.lineUserId);
+
+  return { orderId, orderNumber, totalAmount, pointsUsed, cashAmount };
+}
+
+// 注文一覧取得（管理者用）
+export async function getMallOrders(options?: {
+  status?: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled";
+  lineUserId?: number;
+  limit?: number;
+  offset?: number;
+}) {
+  const db = await getDb();
+  if (!db) return [];
+
+  let query = db.select({
+    order: mallOrders,
+    lineUser: lineUsers,
+  })
+    .from(mallOrders)
+    .leftJoin(lineUsers, eq(mallOrders.lineUserId, lineUsers.id));
+
+  const conditions = [];
+  if (options?.status) {
+    conditions.push(eq(mallOrders.status, options.status));
+  }
+  if (options?.lineUserId) {
+    conditions.push(eq(mallOrders.lineUserId, options.lineUserId));
+  }
+
+  if (conditions.length > 0) {
+    query = query.where(and(...conditions)) as typeof query;
+  }
+
+  query = query.orderBy(desc(mallOrders.createdAt)) as typeof query;
+
+  if (options?.limit) {
+    query = query.limit(options.limit) as typeof query;
+  }
+  if (options?.offset) {
+    query = query.offset(options.offset) as typeof query;
+  }
+
+  return await query;
+}
+
+// 注文詳細取得
+export async function getMallOrderById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const orders = await db.select({
+    order: mallOrders,
+    lineUser: lineUsers,
+  })
+    .from(mallOrders)
+    .leftJoin(lineUsers, eq(mallOrders.lineUserId, lineUsers.id))
+    .where(eq(mallOrders.id, id))
+    .limit(1);
+
+  if (orders.length === 0) return undefined;
+
+  const items = await db.select()
+    .from(mallOrderItems)
+    .where(eq(mallOrderItems.orderId, id));
+
+  return {
+    ...orders[0],
+    items,
+  };
+}
+
+// 注文ステータス更新
+export async function updateMallOrderStatus(
+  id: number, 
+  status: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled",
+  adminNotes?: string
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const updateData: Partial<InsertMallOrder> = { status };
+  
+  if (status === "shipped") {
+    updateData.shippedAt = new Date();
+  } else if (status === "delivered") {
+    updateData.deliveredAt = new Date();
+  }
+  
+  if (adminNotes !== undefined) {
+    updateData.adminNotes = adminNotes;
+  }
+
+  await db.update(mallOrders).set(updateData).where(eq(mallOrders.id, id));
+}
+
+// ユーザーの注文一覧取得
+export async function getMallOrdersByLineUser(lineUserId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const orders = await db.select()
+    .from(mallOrders)
+    .where(eq(mallOrders.lineUserId, lineUserId))
+    .orderBy(desc(mallOrders.createdAt));
+
+  // 各注文の明細を取得
+  const ordersWithItems = await Promise.all(
+    orders.map(async (order) => {
+      const items = await db.select()
+        .from(mallOrderItems)
+        .where(eq(mallOrderItems.orderId, order.id));
+      return { ...order, items };
+    })
+  );
+
+  return ordersWithItems;
+}
+
+
+/**
+ * Use LINE points for purchase
+ */
+export async function useLinePoints(
+  lineUserId: string,
+  amount: number,
+  description: string
+) {
+  return await createLinePointTransaction({
+    lineUserId,
+    type: "use",
+    amount: -amount, // Negative for spending
+    referenceType: "order",
+    description,
+  });
 }

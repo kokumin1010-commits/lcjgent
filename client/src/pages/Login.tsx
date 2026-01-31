@@ -26,7 +26,10 @@ export default function Login() {
   const loginMutation = trpc.auth.login.useMutation({
     onSuccess: () => {
       toast.success(t("login.title"));
-      window.location.href = "/";
+      // Check if there's a redirect URL in the query params
+      const params = new URLSearchParams(window.location.search);
+      const redirect = params.get('redirect') || '/master';
+      window.location.href = redirect;
     },
     onError: (error) => {
       toast.error(error.message);

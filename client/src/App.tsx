@@ -47,6 +47,9 @@ import MallHome from "./pages/MallHome";
 import LineLogin from "./pages/LineLogin";
 import LineLoginCallback from "./pages/LineLoginCallback";
 import LineMypage from "./pages/LineMypage";
+import ProductManagement from "./pages/ProductManagement";
+import MallProducts from "./pages/MallProducts";
+import MallProductDetail from "./pages/MallProductDetail";
 
 function Router() {
   return (
@@ -56,6 +59,8 @@ function Router() {
       <Route path="/line-login" component={LineLogin} />
       <Route path="/line-callback" component={LineLoginCallback} />
       <Route path="/mypage" component={LineMypage} />
+      <Route path="/mall/products" component={MallProducts} />
+      <Route path="/mall/products/:id" component={MallProductDetail} />
       
       {/* Authentication */}
       <Route path={"/login"} component={Login} />
@@ -207,6 +212,11 @@ function Router() {
       <Route path={"/master/line-receipts"}>
         <DashboardLayout>
           <LineReceiptManagement />
+        </DashboardLayout>
+      </Route>
+      <Route path={"/master/products"}>
+        <DashboardLayout>
+          <ProductManagement />
         </DashboardLayout>
       </Route>
       

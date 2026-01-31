@@ -231,6 +231,23 @@ import {
   getLinePointBalance,
   getLinePointTransactions,
   getLineReceiptsByUser,
+  getMallProducts,
+  getMallProductById,
+  createMallProduct,
+  updateMallProduct,
+  deleteMallProduct,
+  getMallCategories,
+  getMallCart,
+  addToMallCart,
+  updateMallCartQuantity,
+  removeFromMallCart,
+  clearMallCart,
+  createMallOrder,
+  getMallOrders,
+  getMallOrderById,
+  updateMallOrderStatus,
+  getMallOrdersByLineUser,
+  useLinePoints,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -7816,6 +7833,194 @@ ${metricsDescription}${historicalContext}`,
   }),
 
   lineLogin: lineLoginRouter,
+
+  // MALL商品管理
+  mall: router({
+    // 商品一覧取得（公開）
+    getProducts: publicProcedure
+      .input(z.object({
+        status: z.enum(["draft", "active", "sold_out", "archived"]).optional(),
+        category: z.string().optional(),
+        limit: z.number().optional(),
+        offset: z.number().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return await getMallProducts(input);
+      }),
+
+    // 商品詳細取得（公開）
+    getProductById: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return await getMallProductById(input.id);
+      }),
+
+    // カテゴリ一覧取得（公開）
+    getCategories: publicProcedure.query(async () => {
+      return await getMallCategories();
+    }),
+
+    // 商品作成（管理者のみ）
+    createProduct: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1),
+        description: z.string().optional(),
+        category: z.string().optional(),
+        price: z.number().min(0),
+        pointPrice: z.number().optional(),
+        stock: z.number().default(0),
+        imageUrl: z.string().optional(),
+        imageKey: z.string().optional(),
+        imageUrls: z.array(z.string()).optional(),
+        imageKeys: z.array(z.string()).optional(),
+        status: z.enum(["draft", "active", "sold_out", "archived"]).default("draft"),
+        sortOrder: z.number().default(0),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        await createMallProduct(input);
+        return { success: true };
+      }),
+
+    // 商品更新（管理者のみ）
+    updateProduct: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().min(1).optional(),
+        description: z.string().optional(),
+        category: z.string().optional(),
+        price: z.number().min(0).optional(),
+        pointPrice: z.number().nullable().optional(),
+        stock: z.number().optional(),
+        imageUrl: z.string().optional(),
+        imageKey: z.string().optional(),
+        imageUrls: z.array(z.string()).optional(),
+        imageKeys: z.array(z.string()).optional(),
+        status: z.enum(["draft", "active", "sold_out", "archived"]).optional(),
+        sortOrder: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        const { id, ...data } = input;
+        await updateMallProduct(id, data);
+        return { success: true };
+      }),
+
+    // 商品削除（管理者のみ）
+    deleteProduct: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        await deleteMallProduct(input.id);
+        return { success: true };
+      }),
+
+    // 注文一覧取得（管理者のみ）
+    getOrders: protectedProcedure
+      .input(z.object({
+        status: z.enum(["pending", "confirmed", "shipped", "delivered", "cancelled"]).optional(),
+        limit: z.number().optional(),
+        offset: z.number().optional(),
+      }).optional())
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        return await getMallOrders(input);
+      }),
+
+    // 注文詳細取得（管理者のみ）
+    getOrderById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        return await getMallOrderById(input.id);
+      }),
+
+    // 注文ステータス更新（管理者のみ）
+    updateOrderStatus: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(["pending", "confirmed", "shipped", "delivered", "cancelled"]),
+        adminNotes: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        await updateMallOrderStatus(input.id, input.status, input.adminNotes);
+        return { success: true };
+      }),
+
+    // 公開商品一覧取得（アクティブな商品のみ）
+    getPublicProducts: publicProcedure.query(async () => {
+      return await getMallProducts({ status: "active" });
+    }),
+
+    // ポイントで商品購入
+    purchaseWithPoints: publicProcedure
+      .input(z.object({
+        productId: z.number(),
+        quantity: z.number().min(1).default(1),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        // LINEセッションからユーザー情報を取得
+        const lineSession = ctx.req.cookies?.line_session;
+        if (!lineSession) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "LINEログインが必要です" });
+        }
+
+        let lineUserId: string;
+        try {
+          const payload = JSON.parse(Buffer.from(lineSession.split('.')[1], 'base64').toString());
+          lineUserId = payload.lineUserId;
+        } catch {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "セッションが無効です" });
+        }
+
+        // 商品情報を取得
+        const product = await getMallProductById(input.productId);
+        if (!product) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "商品が見つかりません" });
+        }
+
+        if (product.status !== "active") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "この商品は現在購入できません" });
+        }
+
+        if (product.stock < input.quantity) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "在庫が不足しています" });
+        }
+
+        if (!product.pointPrice) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "この商品はポイント購入に対応していません" });
+        }
+
+        const totalPoints = product.pointPrice * input.quantity;
+
+        // ポイント残高を確認
+        const balance = await getLinePointBalance(lineUserId);
+        if (!balance || balance.balance < totalPoints) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "ポイントが不足しています" });
+        }
+
+        // ポイントを消費
+        await useLinePoints(lineUserId, totalPoints, `商品購入: ${product.name}`);
+
+        // 在庫を減らす
+        await updateMallProduct(product.id, { stock: product.stock - input.quantity });
+
+        return { success: true, pointsUsed: totalPoints };
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;
