@@ -1,0 +1,22 @@
+{
+  "query": "SELECT id, screenshotUrl FROM brand_livestreams WHERE screenshotUrl IS NOT NULL ORDER BY id DESC LIMIT 3;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, screenshotUrl FROM brand_livestreams WHERE screenshotUrl IS NOT NULL ORDER BY id DESC LIMIT 3;",
+  "rows": [
+    {
+      "id": "630003",
+      "screenshotUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/livestreams/120005/1769899814381-1NGbgIURQ6TelRHn6eHCQ.png"
+    },
+    {
+      "id": "420026",
+      "screenshotUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/livestreams/120005/1769712094580-yBSYLPARxuxVD2zStdbEh.png"
+    },
+    {
+      "id": "420001",
+      "screenshotUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/livestreams/120005/1769700954668--9-SiOcz_ml4nGS-jHOBd.png"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tscreenshotUrl\n630003\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/livestreams/120005/1769899814381-1NGbgIURQ6TelRHn6eHCQ.png\n420026\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/livestreams/120005/1769712094580-yBSYLPARxuxVD2zStdbEh.png\n420001\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/livestreams/120005/1769700954668--9-SiOcz_ml4nGS-jHOBd.png\n",
+  "stderr": "",
+  "execution_time_ms": 1559
+}

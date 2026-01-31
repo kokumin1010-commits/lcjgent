@@ -734,27 +734,10 @@ export default function LiverRecord() {
     setIsSubmitting(true);
     
     try {
-      // Upload screenshot if exists and not already uploaded
-      let finalScreenshotUrl = screenshotUrl;
-      if (screenshotFile && !screenshotUrl) {
-        const reader = new FileReader();
-        const base64Promise = new Promise<string>((resolve) => {
-          reader.onloadend = () => {
-            const result = reader.result as string;
-            const base64 = result.split(",")[1];
-            resolve(base64);
-          };
-          reader.readAsDataURL(screenshotFile);
-        });
-        const base64 = await base64Promise;
-
-        const uploadResult = await uploadScreenshotMutation.mutateAsync({
-          base64,
-          filename: screenshotFile.name,
-          liverId,
-        });
-        finalScreenshotUrl = uploadResult.url;
-      }
+      // Use the first uploaded screenshot URL (already uploaded during analysis)
+      const finalScreenshotUrl = screenshotUrls.length > 0 
+        ? screenshotUrls[0] 
+        : screenshotUrl;
       
       const livestreamDateTime = new Date(`${startDate}T${startTime}`);
       const endDateTime = endDate && endTime 
