@@ -22,13 +22,21 @@ function toJST(date: Date): Date {
 
 // Helper function to format time in JST
 function formatTimeJST(date: Date): string {
-  const jst = toJST(date);
-  return jst.toLocaleTimeString("ja-JP", {
+  // Use toLocaleTimeString with Asia/Tokyo timezone for correct JST display
+  return date.toLocaleTimeString("ja-JP", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
-    timeZone: "UTC",
+    timeZone: "Asia/Tokyo",
   });
+}
+
+// Helper function to format time range in JST (start - end)
+function formatTimeRangeJST(startDate: Date, endDate: Date | null): string {
+  const startTime = formatTimeJST(startDate);
+  if (!endDate) return startTime;
+  const endTime = formatTimeJST(endDate);
+  return `${startTime}-${endTime}`;
 }
 
 // Helper function to get JST date key
@@ -234,24 +242,26 @@ export default function PublicSchedule() {
   const saveEditSchedule = () => {
     if (!editSchedule || !selectedSchedule) return;
     
-    const startDate = new Date(selectedSchedule.startTime);
+    // Get the date from the original schedule (in JST)
+    const originalDate = new Date(selectedSchedule.startTime);
+    const year = originalDate.toLocaleString('en-US', { timeZone: 'Asia/Tokyo', year: 'numeric' });
+    const month = originalDate.toLocaleString('en-US', { timeZone: 'Asia/Tokyo', month: 'numeric' });
+    const day = originalDate.toLocaleString('en-US', { timeZone: 'Asia/Tokyo', day: 'numeric' });
+    
     const [startHour, startMin] = editSchedule.startTime.split(":").map(Number);
     const [endHour, endMin] = editSchedule.endTime.split(":").map(Number);
     
-    // Create start time in JST
-    const jstStartDate = new Date(startDate);
-    jstStartDate.setUTCHours(startHour - 9, startMin, 0, 0);
-    
-    // Create end time in JST
-    const jstEndDate = new Date(startDate);
-    jstEndDate.setUTCHours(endHour - 9, endMin, 0, 0);
+    // Create UTC dates directly from JST input
+    // JST is UTC+9, so we subtract 9 hours from the JST time to get UTC
+    const startTimeUTC = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), startHour - 9, startMin));
+    const endTimeUTC = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), endHour - 9, endMin));
     
     updateScheduleMutation.mutate({
       id: editSchedule.id,
       title: editSchedule.title,
       description: editSchedule.description || undefined,
-      startTime: jstStartDate.toISOString(),
-      endTime: jstEndDate.toISOString(),
+      startTime: startTimeUTC.toISOString(),
+      endTime: endTimeUTC.toISOString(),
       isAllDay: editSchedule.isAllDay,
       category: editSchedule.category,
     });
@@ -609,15 +619,14 @@ export default function PublicSchedule() {
       const actualEndDate = newSchedule.repeatType !== "none" ? dateStr : endDateStr;
       const [actualEndYear, actualEndMonth, actualEndDay] = actualEndDate.split("-").map(Number);
       
-      const startTimeJST = newSchedule.isAllDay 
-        ? new Date(year, month - 1, day, 0, 0)
-        : new Date(year, month - 1, day, startHour, startMinute);
-      const endTimeJST = newSchedule.isAllDay
-        ? new Date(actualEndYear, actualEndMonth - 1, actualEndDay, 23, 59)
-        : new Date(actualEndYear, actualEndMonth - 1, actualEndDay, endHour, endMinute);
-      
-      const startTimeUTC = new Date(startTimeJST.getTime() - 9 * 60 * 60 * 1000);
-      const endTimeUTC = new Date(endTimeJST.getTime() - 9 * 60 * 60 * 1000);
+      // Create UTC dates directly from JST input
+      // JST is UTC+9, so we subtract 9 hours from the JST time to get UTC
+      const startTimeUTC = newSchedule.isAllDay 
+        ? new Date(Date.UTC(year, month - 1, day, 0 - 9, 0))
+        : new Date(Date.UTC(year, month - 1, day, startHour - 9, startMinute));
+      const endTimeUTC = newSchedule.isAllDay
+        ? new Date(Date.UTC(actualEndYear, actualEndMonth - 1, actualEndDay, 23 - 9, 59))
+        : new Date(Date.UTC(actualEndYear, actualEndMonth - 1, actualEndDay, endHour - 9, endMinute));
       
       await createScheduleMutation.mutateAsync({
         title: newSchedule.title,
@@ -831,7 +840,7 @@ export default function PublicSchedule() {
                             // 複数日予定の途中はタイトルを表示しない（バーのみ）
                             <span className="opacity-0"> </span>
                           ) : (
-                            schedule.isAllDay || isMultiDay ? schedule.title : `${formatTimeJST(new Date(schedule.startTime)).slice(0, 5)} ${schedule.title}`
+                            schedule.isAllDay || isMultiDay ? schedule.title : `${formatTimeJST(new Date(schedule.startTime))} ${schedule.title}`
                           )}
                         </div>
                       );
@@ -919,8 +928,14 @@ export default function PublicSchedule() {
                       onClick={() => handleScheduleClick(schedule)}
                     >
                       {/* Time */}
-                      <div className="w-14 text-right text-sm text-gray-500 pt-0.5">
-                        {schedule.isAllDay ? "終日" : formatTimeJST(new Date(schedule.startTime))}
+                      <div className="w-20 text-right text-sm text-gray-500 pt-0.5">
+                        {schedule.isAllDay 
+                          ? "終日" 
+                          : formatTimeRangeJST(
+                              new Date(schedule.startTime), 
+                              schedule.endTime ? new Date(schedule.endTime) : null
+                            )
+                        }
                       </div>
                       
                       {/* Vertical line */}

@@ -1,0 +1,150 @@
+{
+  "query": "SELECT id, title, liverName, startTime, endTime FROM schedules ORDER BY startTime DESC LIMIT 30;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, title, liverName, startTime, endTime FROM schedules ORDER BY startTime DESC LIMIT 30;",
+  "rows": [
+    {
+      "id": "90009",
+      "title": "NANA配信",
+      "liverName": "Taisei",
+      "startTime": "2026-02-19 18:00:00",
+      "endTime": "2026-02-19 22:00:00"
+    },
+    {
+      "id": "90003",
+      "title": "NANA配信",
+      "liverName": "NANA",
+      "startTime": "2026-02-10 12:00:00",
+      "endTime": "2026-02-10 15:00:00"
+    },
+    {
+      "id": "90007",
+      "title": "NANA配信",
+      "liverName": "NANA",
+      "startTime": "2026-02-09 20:00:00",
+      "endTime": "2026-02-10 00:00:00"
+    },
+    {
+      "id": "90008",
+      "title": "NANA配信",
+      "liverName": "NANA",
+      "startTime": "2026-02-05 20:00:00",
+      "endTime": "2026-02-06 00:00:00"
+    },
+    {
+      "id": "90006",
+      "title": "NANA配信",
+      "liverName": "NANA",
+      "startTime": "2026-02-05 20:00:00",
+      "endTime": "2026-02-05 23:00:00"
+    },
+    {
+      "id": "90004",
+      "title": "NANA配信",
+      "liverName": "NANA",
+      "startTime": "2026-02-04 12:00:00",
+      "endTime": "2026-02-04 15:00:00"
+    },
+    {
+      "id": "90005",
+      "title": "NANA配信",
+      "liverName": "NANA",
+      "startTime": "2026-02-03 20:00:00",
+      "endTime": "2026-02-04 00:00:00"
+    },
+    {
+      "id": "90002",
+      "title": "NANA配信",
+      "liverName": "NANA",
+      "startTime": "2026-02-03 15:00:00",
+      "endTime": "2026-02-03 18:00:00"
+    },
+    {
+      "id": "120003",
+      "title": "テスト15時",
+      "liverName": "Ryu Hair Artist",
+      "startTime": "2026-02-02 06:00:00",
+      "endTime": "2026-02-02 07:00:00"
+    },
+    {
+      "id": "120002",
+      "title": "Ryu",
+      "liverName": "ryu",
+      "startTime": "2026-01-31 21:00:00",
+      "endTime": "2026-01-31 22:00:00"
+    },
+    {
+      "id": "120001",
+      "title": "Ryu",
+      "liverName": "ryu",
+      "startTime": "2026-01-31 18:00:00",
+      "endTime": "2026-01-31 21:00:00"
+    },
+    {
+      "id": "90001",
+      "title": "はづき",
+      "liverName": "はづき",
+      "startTime": "2026-01-30 14:00:00",
+      "endTime": "2026-01-30 16:00:00"
+    },
+    {
+      "id": "30001",
+      "title": "テスト配信",
+      "liverName": "京極 琉",
+      "startTime": "2026-01-26 01:00:00",
+      "endTime": "2026-01-26 02:00:00"
+    },
+    {
+      "id": "1",
+      "title": "ライブ配信",
+      "liverName": "京極 琉",
+      "startTime": "2026-01-25 07:00:00",
+      "endTime": "2026-01-25 09:00:00"
+    },
+    {
+      "id": "2",
+      "title": "ライブ配信",
+      "liverName": "京極 琉",
+      "startTime": "2026-01-25 07:00:00",
+      "endTime": "2026-01-25 09:00:00"
+    },
+    {
+      "id": "60001",
+      "title": "19-22 深圳",
+      "liverName": "京極 琉",
+      "startTime": "2026-01-23 16:00:00",
+      "endTime": "2026-01-23 17:00:00"
+    },
+    {
+      "id": "60002",
+      "title": "ryu 20-24時ライブ",
+      "liverName": "京極 琉",
+      "startTime": "2026-01-23 06:00:00",
+      "endTime": "2026-01-24 05:59:00"
+    },
+    {
+      "id": "60003",
+      "title": "10-11時ライブ",
+      "liverName": "未指定",
+      "startTime": "2026-01-22 06:00:00",
+      "endTime": "2026-01-23 05:59:00"
+    },
+    {
+      "id": "3",
+      "title": "ライブ配信 (ryukyogokuアカウント)",
+      "liverName": "京極 琉",
+      "startTime": "2024-01-26 20:00:00",
+      "endTime": "2024-01-27 00:00:00"
+    },
+    {
+      "id": "4",
+      "title": "ライブ配信",
+      "liverName": "yae",
+      "startTime": "2024-01-26 00:00:00",
+      "endTime": "2024-01-26 11:00:00"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tliverName\tstartTime\tendTime\n90009\tNANA配信\tTaisei\t2026-02-19 18:00:00\t2026-02-19 22:00:00\n90003\tNANA配信\tNANA\t2026-02-10 12:00:00\t2026-02-10 15:00:00\n90007\tNANA配信\tNANA\t2026-02-09 20:00:00\t2026-02-10 00:00:00\n90008\tNANA配信\tNANA\t2026-02-05 20:00:00\t2026-02-06 00:00:00\n90006\tNANA配信\tNANA\t2026-02-05 20:00:00\t2026-02-05 23:00:00\n90004\tNANA配信\tNANA\t2026-02-04 12:00:00\t2026-02-04 15:00:00\n90005\tNANA配信\tNANA\t2026-02-03 20:00:00\t2026-02-04 00:00:00\n90002\tNANA配信\tNANA\t2026-02-03 15:00:00\t2026-02-03 18:00:00\n120003\tテスト15時\tRyu Hair Artist\t2026-02-02 06:00:00\t2026-02-02 07:00:00\n120002\tRyu\tryu\t2026-01-31 21:00:00\t2026-01-31 22:00:00\n120001\tRyu\tryu\t2026-01-31 18:00:00\t2026-01-31 21:00:00\n90001\tはづき\tはづき\t2026-01-30 14:00:00\t2026-01-30 16:00:00\n30001\tテスト配信\t京極 琉\t2026-01-26 01:00:00\t2026-01-26 02:00:00\n1\tライブ配信\t京極 琉\t2026-01-25 07:00:00\t2026-01-25 09:00:00\n2\tライブ配信\t京極 琉\t2026-01-25 07:00:00\t2026-01-25 09:00:00\n60001\t19-22 深圳\t京極 琉\t2026-01-23 16:00:00\t2026-01-23 17:00:00\n60002\tryu 20-24時ライブ\t京極 琉\t2026-01-23 06:00:00\t2026-01-24 05:59:00\n60003\t10-11時ライブ\t未指定\t2026-01-22 06:00:00\t2026-01-23 05:59:00\n3\tライブ配信 (ryukyogokuアカウント)\t京極 琉\t2024-01-26 20:00:00\t2024-01-27 00:00:00\n4\tライブ配信\tyae\t2024-01-26 00:00:00\t2024-01-26 11:00:00\n",
+  "stderr": "",
+  "execution_time_ms": 1542
+}
