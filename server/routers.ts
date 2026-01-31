@@ -7155,9 +7155,36 @@ ${conversationText}
     // Analyze screenshot to extract livestream data
     analyzeScreenshot: protectedProcedure
       .input(z.object({
-        imageUrl: z.string(),
+        imageUrl: z.string().optional(),
+        imageBase64: z.string().optional(),
+        mimeType: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
+        // Determine image source - prefer base64 for reliability
+        let imageContent: { type: "image_url"; image_url: { url: string; detail: "high" } };
+        
+        if (input.imageBase64) {
+          // Use base64 data URL for direct image data
+          const mimeType = input.mimeType || "image/png";
+          imageContent = {
+            type: "image_url",
+            image_url: {
+              url: `data:${mimeType};base64,${input.imageBase64}`,
+              detail: "high",
+            },
+          };
+        } else if (input.imageUrl) {
+          // Fallback to URL (may not work with all AI models)
+          imageContent = {
+            type: "image_url",
+            image_url: {
+              url: input.imageUrl,
+              detail: "high",
+            },
+          };
+        } else {
+          throw new Error("Either imageUrl or imageBase64 must be provided");
+        }
         const systemPrompt = `あなたはTikTokライブ配信のダッシュボードスクリーンショットを解析するエキスパートです。
 【最重要】画像内の数値を正確に読み取ってください。数値が見える場合は必ず抽出してください。
 
@@ -7249,13 +7276,7 @@ ${conversationText}
             {
               role: "user",
               content: [
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: input.imageUrl,
-                    detail: "high",
-                  },
-                },
+                imageContent,
                 {
                   type: "text",
                   text: `このTikTokライブ配信ダッシュボードのスクリーンショットから、配信データを抽出してください。
@@ -7271,7 +7292,6 @@ ${conversationText}
               ],
             },
           ],
-
         });
 
         const content = response.choices[0]?.message?.content;

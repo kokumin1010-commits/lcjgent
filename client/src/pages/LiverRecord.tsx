@@ -247,9 +247,13 @@ export default function LiverRecord() {
       });
       setScreenshotUrl(uploadResult.url);
       
-      // Then analyze the screenshot
+      // Determine MIME type from file
+      const mimeType = fileToAnalyze.type || "image/png";
+      
+      // Analyze the screenshot using Base64 data directly (bypasses CloudFront URL access issues)
       const analysisResult = await analyzeScreenshotMutation.mutateAsync({
-        imageUrl: uploadResult.url,
+        imageBase64: base64,
+        mimeType: mimeType,
       });
       
       setAnalysisConfidence(analysisResult.confidence || null);
