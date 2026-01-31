@@ -200,10 +200,12 @@ export default function MallHome() {
             LINEでLCJ公式アカウントを友だち追加して、レシートを送るだけ。
             簡単にポイントが貯まります。
           </p>
-          <Button size="lg" variant="secondary" className="gap-2">
-            <Gift className="h-5 w-5" />
-            LINE友だち追加
-          </Button>
+          <a href="https://lin.ee/hpVjAiOe" target="_blank" rel="noopener noreferrer">
+            <Button size="lg" variant="secondary" className="gap-2">
+              <Gift className="h-5 w-5" />
+              LINE友だち追加
+            </Button>
+          </a>
         </div>
       </section>
 
