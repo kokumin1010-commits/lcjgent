@@ -7510,6 +7510,205 @@ ${metricsDescription}${historicalContext}`,
           };
         }
       }),
+
+    // Analyze multiple screenshots and merge results
+    analyzeMultipleScreenshots: protectedProcedure
+      .input(z.object({
+        images: z.array(z.object({
+          imageBase64: z.string(),
+          mimeType: z.string().optional(),
+        })).min(1).max(4),
+      }))
+      .mutation(async ({ input }) => {
+        console.log(`[analyzeMultipleScreenshots] Analyzing ${input.images.length} images`);
+        
+        // Analyze each image in parallel
+        const analysisPromises = input.images.map(async (image, index) => {
+          const mimeType = image.mimeType || "image/png";
+          const imageContent = {
+            type: "image_url" as const,
+            image_url: {
+              url: `data:${mimeType};base64,${image.imageBase64}`,
+              detail: "high" as const,
+            },
+          };
+          
+          const systemPrompt = `あなたはTikTokライブ配信のダッシュボードスクリーンショットを解析するエキスパートです。
+【最重要】画像内の数値を正確に読み取ってください。数値が見える場合は必ず抽出してください。
+
+## TikTok LIVEダッシュボードのレイアウト詳細
+
+### 上部ヘッダーエリア
+- 左上: 「LIVEダッシュボード」タイトル
+- 中央上: 配信日時範囲（例: "Dec 29 16:00:54 - Dec 30 00:11:00 UTC+09:00"）
+- 右上: 配信時間（例: "8h10m6s"）
+
+### 中央メインエリア（最も重要）
+- 【GMV/売上金額】: 画面中央に大きな数字で表示（例: "8,814,883" または "¥8,814,883"）
+
+### 中央の指標グリッド（複数のカードが並ぶ - 2行×6列程度）
+【上段】
+- 「インプレッション」/ "Impressions": 数値（例: 606.07K = 606070）
+- 「商品クリック数」/ "Product clicks": 数値（例: 79.4K = 79400）
+- 「LIVE CTR」: パーセント値（例: 87.2%）
+- 「視聴者数」/ "Viewers" / "Unique viewers": 数値（例: 45.57K = 45570）
+- 「ピーク視聴者数」/ "Peak viewers": 数値
+
+【下段 - 注文関連データ（重要）】
+- 「注文数」/ "Orders": 数値（例: 1.06K = 1060件）← 【客単価計算に必須】
+- 「注文率」/ "Order rate": パーセント値（例: 3.2%）
+- 「商品販売数」/ "Products sold": 数値（例: 2.06K = 2060）
+
+## 数値読み取りルール
+- "K" = 1,000倍（例: 45.57K = 45570）
+- "M" = 1,000,000倍（例: 1.08M = 1080000）
+- カンマは無視（例: 8,814,883 = 8814883）
+- 時間表示は分に変換（例: 8h10m6s = 8*60+10 = 490分）
+
+## 出力形式（必ずこの形式で返してください）
+{
+  "salesAmount": 数値,
+  "viewerCount": 数値,
+  "peakViewerCount": 数値,
+  "productClicks": 数値,
+  "orderCount": 数値,
+  "durationMinutes": 数値,
+  "startDateTime": "YYYY-MM-DD HH:mm",
+  "endDateTime": "YYYY-MM-DD HH:mm",
+  "rawData": {
+    "impressions": 数値,
+    "liveCtr": 数値,
+    "orderRate": 数値,
+    "productSales": 数値
+  },
+  "confidence": "high" | "medium" | "low"
+}`;
+
+          try {
+            const response = await invokeLLM({
+              messages: [
+                { role: "system", content: systemPrompt },
+                {
+                  role: "user",
+                  content: [
+                    imageContent,
+                    {
+                      type: "text",
+                      text: `このTikTokライブ配信ダッシュボードのスクリーンショットから、配信データを抽出してください。JSON形式で返してください。`,
+                    },
+                  ],
+                },
+              ],
+            });
+
+            const content = response.choices[0]?.message?.content;
+            if (!content || typeof content !== "string") {
+              console.error(`[analyzeMultipleScreenshots] Image ${index + 1}: No content returned`);
+              return null;
+            }
+
+            let jsonStr = content;
+            const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+            if (jsonMatch) {
+              jsonStr = jsonMatch[1].trim();
+            }
+
+            const parsed = JSON.parse(jsonStr);
+            console.log(`[analyzeMultipleScreenshots] Image ${index + 1} result:`, JSON.stringify(parsed, null, 2));
+            return parsed;
+          } catch (e) {
+            console.error(`[analyzeMultipleScreenshots] Image ${index + 1} failed:`, e);
+            return null;
+          }
+        });
+
+        const results = await Promise.all(analysisPromises);
+        const validResults = results.filter(r => r !== null);
+
+        if (validResults.length === 0) {
+          throw new Error("すべての画像の解析に失敗しました");
+        }
+
+        // Merge results - take the highest confidence values or average
+        const mergedResult = {
+          salesAmount: null as number | null,
+          viewerCount: null as number | null,
+          peakViewerCount: null as number | null,
+          productClicks: null as number | null,
+          orderCount: null as number | null,
+          durationMinutes: null as number | null,
+          startDateTime: null as string | null,
+          endDateTime: null as string | null,
+          rawData: {} as Record<string, number>,
+          confidence: "medium" as string,
+          individualResults: validResults,
+          mergeStrategy: "highest_value" as string,
+        };
+
+        // For numeric fields, take the maximum (most likely to be correct for totals)
+        // For date/time fields, take the earliest start and latest end
+        const numericFields = ['salesAmount', 'viewerCount', 'peakViewerCount', 'productClicks', 'orderCount', 'durationMinutes'] as const;
+        
+        for (const field of numericFields) {
+          const values = validResults
+            .map(r => r[field])
+            .filter((v): v is number => typeof v === 'number' && v > 0);
+          
+          if (values.length > 0) {
+            // Take the maximum value (most complete data)
+            (mergedResult as any)[field] = Math.max(...values);
+          }
+        }
+
+        // For date/time, take earliest start and latest end
+        const startDates = validResults
+          .map(r => r.startDateTime)
+          .filter((v): v is string => typeof v === 'string' && v.length > 0)
+          .sort();
+        if (startDates.length > 0) {
+          mergedResult.startDateTime = startDates[0];
+        }
+
+        const endDates = validResults
+          .map(r => r.endDateTime)
+          .filter((v): v is string => typeof v === 'string' && v.length > 0)
+          .sort();
+        if (endDates.length > 0) {
+          mergedResult.endDateTime = endDates[endDates.length - 1];
+        }
+
+        // Merge rawData
+        for (const result of validResults) {
+          if (result.rawData) {
+            for (const [key, value] of Object.entries(result.rawData)) {
+              if (typeof value === 'number' && value > 0) {
+                if (!mergedResult.rawData[key] || value > mergedResult.rawData[key]) {
+                  mergedResult.rawData[key] = value;
+                }
+              }
+            }
+          }
+        }
+
+        // Determine confidence based on consistency
+        const confidenceCounts = validResults.reduce((acc, r) => {
+          const conf = r.confidence || 'medium';
+          acc[conf] = (acc[conf] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+
+        if (confidenceCounts['high'] && confidenceCounts['high'] >= validResults.length / 2) {
+          mergedResult.confidence = 'high';
+        } else if (confidenceCounts['low'] && confidenceCounts['low'] >= validResults.length / 2) {
+          mergedResult.confidence = 'low';
+        } else {
+          mergedResult.confidence = 'medium';
+        }
+
+        console.log(`[analyzeMultipleScreenshots] Merged result:`, JSON.stringify(mergedResult, null, 2));
+
+        return mergedResult;
+      }),
   }),
 
   // Brand Files Router

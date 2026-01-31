@@ -41,6 +41,11 @@ export default function LiverRecord() {
   const [impactFactor, setImpactFactor] = useState<"構成" | "商品" | "ライバー" | "広告" | "その他" | "">("");
   const [resultReason, setResultReason] = useState("");
   const [remarks, setRemarks] = useState("");
+  // Multiple screenshots support (up to 4)
+  const [screenshotFiles, setScreenshotFiles] = useState<File[]>([]);
+  const [screenshotPreviews, setScreenshotPreviews] = useState<string[]>([]);
+  const [screenshotUrls, setScreenshotUrls] = useState<string[]>([]);
+  // Legacy single screenshot state (for backward compatibility)
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
@@ -83,6 +88,7 @@ export default function LiverRecord() {
   
   const uploadScreenshotMutation = trpc.liverManagement.uploadScreenshot.useMutation();
   const analyzeScreenshotMutation = trpc.liverManagement.analyzeScreenshot.useMutation();
+  const analyzeMultipleScreenshotsMutation = trpc.liverManagement.analyzeMultipleScreenshots.useMutation();
   const generateAdviceMutation = trpc.liverManagement.generateAdvice.useMutation();
   
   const translations = {
@@ -135,6 +141,11 @@ export default function LiverRecord() {
       detailsForm: "詳細情報",
       minutes: "分",
       editableHint: "解析データは編集可能です",
+      multipleScreenshots: "複数のスクリーンショットをアップロード（最大4枚）",
+      addMore: "追加",
+      analyzingMultiple: "複数画像を解析中...",
+      mergedResults: "統合結果",
+      imageCount: "枚",
     },
     zh: {
       title: "记录直播内容",
@@ -185,29 +196,198 @@ export default function LiverRecord() {
       detailsForm: "详细信息",
       minutes: "分钟",
       editableHint: "分析数据可编辑",
+      multipleScreenshots: "上传多张截图（最多4张）",
+      addMore: "添加",
+      analyzingMultiple: "正在分析多张图片...",
+      mergedResults: "合并结果",
+      imageCount: "张",
     },
   };
   
   const tr = translations[language as keyof typeof translations] || translations.ja;
   
+  // Handle multiple screenshot uploads
+  const handleMultipleScreenshotChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    
+    // Limit to 4 images total
+    const newFiles = [...screenshotFiles, ...files].slice(0, 4);
+    setScreenshotFiles(newFiles);
+    
+    // Generate previews for new files
+    const newPreviews = await Promise.all(
+      newFiles.map(file => {
+        return new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(file);
+        });
+      })
+    );
+    setScreenshotPreviews(newPreviews);
+    
+    // Also set legacy single screenshot state for backward compatibility
+    if (newFiles.length > 0) {
+      setScreenshotFile(newFiles[0]);
+      setScreenshotPreview(newPreviews[0]);
+    }
+    
+    // Auto-analyze after upload
+    setTimeout(() => {
+      handleAnalyzeMultipleScreenshots(newFiles);
+    }, 500);
+  };
+  
+  // Remove a specific screenshot by index
+  const removeScreenshotByIndex = (index: number) => {
+    const newFiles = screenshotFiles.filter((_, i) => i !== index);
+    const newPreviews = screenshotPreviews.filter((_, i) => i !== index);
+    const newUrls = screenshotUrls.filter((_, i) => i !== index);
+    
+    setScreenshotFiles(newFiles);
+    setScreenshotPreviews(newPreviews);
+    setScreenshotUrls(newUrls);
+    
+    // Update legacy state
+    if (newFiles.length > 0) {
+      setScreenshotFile(newFiles[0]);
+      setScreenshotPreview(newPreviews[0]);
+      setScreenshotUrl(newUrls[0] || null);
+    } else {
+      setScreenshotFile(null);
+      setScreenshotPreview(null);
+      setScreenshotUrl(null);
+      setAdvice(null);
+      setAnalysisConfidence(null);
+      setSalesAmount("");
+      setViewerCount("");
+      setPeakViewerCount("");
+      setProductClicks("");
+      setOrderCount("");
+      setDurationMinutes("");
+    }
+  };
+  
+  // Analyze multiple screenshots
+  const handleAnalyzeMultipleScreenshots = async (files?: File[]) => {
+    const filesToAnalyze = files || screenshotFiles;
+    if (filesToAnalyze.length === 0) return;
+    
+    setIsAnalyzing(true);
+    try {
+      // Convert all files to base64
+      const imagesData = await Promise.all(
+        filesToAnalyze.map(async (file) => {
+          const base64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const result = reader.result as string;
+              resolve(result.split(",")[1]);
+            };
+            reader.readAsDataURL(file);
+          });
+          
+          // Upload each screenshot
+          const uploadResult = await uploadScreenshotMutation.mutateAsync({
+            base64,
+            filename: file.name,
+            liverId,
+          });
+          
+          return {
+            imageBase64: base64,
+            mimeType: file.type || "image/png",
+            url: uploadResult.url,
+          };
+        })
+      );
+      
+      // Store uploaded URLs
+      setScreenshotUrls(imagesData.map(d => d.url));
+      setScreenshotUrl(imagesData[0]?.url || null);
+      
+      // Analyze all screenshots together
+      const analysisResult = await analyzeMultipleScreenshotsMutation.mutateAsync({
+        images: imagesData.map(d => ({
+          imageBase64: d.imageBase64,
+          mimeType: d.mimeType,
+        })),
+      });
+      
+      setAnalysisConfidence(analysisResult.confidence || null);
+      
+      // Auto-fill form with merged data
+      if (analysisResult.salesAmount !== null && analysisResult.salesAmount !== undefined) {
+        setSalesAmount(analysisResult.salesAmount.toString());
+      }
+      if (analysisResult.viewerCount !== null && analysisResult.viewerCount !== undefined) {
+        setViewerCount(analysisResult.viewerCount.toString());
+      }
+      if (analysisResult.peakViewerCount !== null && analysisResult.peakViewerCount !== undefined) {
+        setPeakViewerCount(analysisResult.peakViewerCount.toString());
+      }
+      if (analysisResult.productClicks !== null && analysisResult.productClicks !== undefined) {
+        setProductClicks(analysisResult.productClicks.toString());
+      }
+      if (analysisResult.orderCount !== null && analysisResult.orderCount !== undefined) {
+        setOrderCount(analysisResult.orderCount.toString());
+      }
+      if (analysisResult.durationMinutes !== null && analysisResult.durationMinutes !== undefined) {
+        setDurationMinutes(analysisResult.durationMinutes.toString());
+      }
+      
+      // Extract date/time if available
+      if (analysisResult.startDateTime) {
+        const [datePart, timePart] = analysisResult.startDateTime.split(' ');
+        if (datePart) setStartDate(datePart);
+        if (timePart) setStartTime(timePart);
+      }
+      if (analysisResult.endDateTime) {
+        const [datePart, timePart] = analysisResult.endDateTime.split(' ');
+        if (datePart) setEndDate(datePart);
+        if (timePart) setEndTime(timePart);
+      }
+      
+      toast.success(tr.analysisComplete);
+      
+      // Auto-generate advice
+      handleGenerateAdvice(analysisResult);
+    } catch (error) {
+      console.error("Multiple screenshot analysis failed:", error);
+      toast.error(tr.analysisError);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+  
+  // Legacy single screenshot handler (for backward compatibility)
   const handleScreenshotChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Use the new multiple screenshot handler
+      const newFiles = [file];
+      setScreenshotFiles(newFiles);
       setScreenshotFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
-        setScreenshotPreview(reader.result as string);
+        const preview = reader.result as string;
+        setScreenshotPreview(preview);
+        setScreenshotPreviews([preview]);
       };
       reader.readAsDataURL(file);
       
       // Auto-analyze after upload
       setTimeout(() => {
-        handleAnalyzeScreenshot(file);
+        handleAnalyzeMultipleScreenshots([file]);
       }, 500);
     }
   };
   
   const removeScreenshot = () => {
+    setScreenshotFiles([]);
+    setScreenshotPreviews([]);
+    setScreenshotUrls([]);
     setScreenshotFile(null);
     setScreenshotPreview(null);
     setScreenshotUrl(null);
@@ -470,48 +650,111 @@ export default function LiverRecord() {
           </div>
         </div>
         
-        {/* Screenshot Upload Section - TOP */}
+        {/* Screenshot Upload Section - Multiple Images Support */}
         <Card className="bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700 overflow-hidden">
-          <CardContent className="p-0">
-            {screenshotPreview ? (
-              <div className="relative">
-                {/* Screenshot Image */}
-                <img 
-                  src={screenshotPreview} 
-                  alt="Screenshot"
-                  className="w-full h-auto"
-                />
-                
-                {/* Remove Button */}
-                <button
-                  type="button"
-                  onClick={removeScreenshot}
-                  className="absolute top-3 right-3 bg-red-600 rounded-full p-2 hover:bg-red-700 shadow-lg"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-gray-300 flex items-center gap-2">
+              <Camera className="w-4 h-4" />
+              {tr.screenshot}
+              {screenshotPreviews.length > 0 && (
+                <span className="text-xs text-gray-500">({screenshotPreviews.length}/4{tr.imageCount})</span>
+              )}
+            </CardTitle>
+            <p className="text-xs text-gray-500">{tr.multipleScreenshots}</p>
+          </CardHeader>
+          <CardContent className="p-3">
+            {screenshotPreviews.length > 0 ? (
+              <div className="space-y-3">
+                {/* Screenshot Grid */}
+                <div className="grid grid-cols-2 gap-2">
+                  {screenshotPreviews.map((preview, index) => (
+                    <div key={index} className="relative aspect-video bg-gray-800 rounded-lg overflow-hidden">
+                      <img 
+                        src={preview} 
+                        alt={`Screenshot ${index + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                      {/* Remove Button */}
+                      <button
+                        type="button"
+                        onClick={() => removeScreenshotByIndex(index)}
+                        className="absolute top-1 right-1 bg-red-600 rounded-full p-1 hover:bg-red-700 shadow-lg"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                      {/* Image Number Badge */}
+                      <div className="absolute bottom-1 left-1 bg-black/70 rounded px-1.5 py-0.5">
+                        <span className="text-xs text-white">{index + 1}</span>
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {/* Add More Button (if less than 4 images) */}
+                  {screenshotPreviews.length < 4 && (
+                    <label className="aspect-video bg-gray-800/50 rounded-lg border-2 border-dashed border-gray-600 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-800 hover:border-gray-500 transition-colors">
+                      <Camera className="w-6 h-6 text-gray-400 mb-1" />
+                      <span className="text-xs text-gray-400">{tr.addMore}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleMultipleScreenshotChange}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                </div>
                 
                 {/* Analyzing Overlay */}
                 {isAnalyzing && (
-                  <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center">
-                    <Loader2 className="w-12 h-12 animate-spin text-purple-500 mb-3" />
-                    <p className="text-white font-medium">{tr.analyzing}</p>
+                  <div className="bg-purple-900/30 rounded-lg p-4 flex items-center justify-center gap-3">
+                    <Loader2 className="w-6 h-6 animate-spin text-purple-500" />
+                    <p className="text-white text-sm">
+                      {screenshotPreviews.length > 1 ? tr.analyzingMultiple : tr.analyzing}
+                    </p>
+                  </div>
+                )}
+                
+                {/* Re-analyze Button */}
+                {!isAnalyzing && (
+                  <div className="flex justify-between items-center">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={removeScreenshot}
+                      className="text-red-400 hover:bg-red-600/20 text-xs"
+                    >
+                      <X className="w-3 h-3 mr-1" />
+                      すべて削除
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleAnalyzeMultipleScreenshots()}
+                      className="text-purple-400 hover:bg-purple-600/20 text-xs"
+                    >
+                      <Sparkles className="w-3 h-3 mr-1" />
+                      {tr.analyzeScreenshot}
+                    </Button>
                   </div>
                 )}
               </div>
             ) : (
-              <label className="flex flex-col items-center justify-center w-full h-48 cursor-pointer hover:bg-gray-800/50 transition-colors">
+              <label className="flex flex-col items-center justify-center w-full h-40 cursor-pointer hover:bg-gray-800/50 transition-colors rounded-lg border-2 border-dashed border-gray-600">
                 <div className="flex flex-col items-center">
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center mb-3">
-                    <Camera className="w-8 h-8 text-white" />
+                  <div className="w-14 h-14 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center mb-2">
+                    <Camera className="w-7 h-7 text-white" />
                   </div>
-                  <span className="text-white font-medium">{tr.tapToUpload}</span>
-                  <span className="text-sm text-gray-400 mt-1">{tr.aiAnalysis}</span>
+                  <span className="text-white font-medium text-sm">{tr.tapToUpload}</span>
+                  <span className="text-xs text-gray-400 mt-1">{tr.aiAnalysis}</span>
                 </div>
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={handleScreenshotChange}
+                  multiple
+                  onChange={handleMultipleScreenshotChange}
                   className="hidden"
                 />
               </label>
@@ -628,7 +871,7 @@ export default function LiverRecord() {
         {/* Details Form Section - Combined with Analysis Results */}
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* AI Analysis Results Section - Same design as form below */}
-          {screenshotPreview && (
+          {screenshotPreviews.length > 0 && (
             <Card className="bg-gray-900 border-gray-700">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
@@ -649,7 +892,7 @@ export default function LiverRecord() {
                     )}
                     <Button
                       type="button"
-                      onClick={() => handleAnalyzeScreenshot()}
+                      onClick={() => handleAnalyzeMultipleScreenshots()}
                       disabled={isAnalyzing}
                       variant="ghost"
                       size="sm"
