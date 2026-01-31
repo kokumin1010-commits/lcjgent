@@ -266,6 +266,11 @@ import {
   linkLineAccountToEmailUser,
   checkLineAccountLinked,
   getActiveLinkCode,
+  saveScreenshotAnalysis,
+  getAnalysisByImageHash,
+  getAnalysisHistoryByLiverId,
+  getAnalysisHistoryByLivestreamId,
+  getRecentAnalysisHistory,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -7517,9 +7522,13 @@ ${metricsDescription}${historicalContext}`,
         images: z.array(z.object({
           imageBase64: z.string(),
           mimeType: z.string().optional(),
+          imageHash: z.string().optional(), // For cache lookup
         })).min(1).max(4),
+        liverId: z.number().optional(), // For history tracking
+        livestreamId: z.number().optional(), // For history tracking
+        saveToHistory: z.boolean().optional().default(true), // Whether to save to history
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
         console.log(`[analyzeMultipleScreenshots] Analyzing ${input.images.length} images`);
         
         // Analyze each image in parallel
@@ -7727,7 +7736,72 @@ ${metricsDescription}${historicalContext}`,
 
         console.log(`[analyzeMultipleScreenshots] Merged result:`, JSON.stringify(mergedResult, null, 2));
 
+        // Save to history if requested
+        if (input.saveToHistory) {
+          try {
+            // Create a combined hash from all image hashes
+            const combinedHash = input.images
+              .map(img => img.imageHash || '')
+              .filter(h => h)
+              .join('_') || `multi_${Date.now()}`;
+            
+            await saveScreenshotAnalysis({
+              liverId: input.liverId || null,
+              livestreamId: input.livestreamId || null,
+              imageHash: combinedHash,
+              salesAmount: mergedResult.salesAmount || null,
+              viewerCount: mergedResult.viewerCount || null,
+              peakViewerCount: mergedResult.peakViewerCount || null,
+              productClicks: mergedResult.productClicks || null,
+              orderCount: mergedResult.orderCount || null,
+              durationMinutes: mergedResult.durationMinutes || null,
+              startDateTime: mergedResult.startDateTime || null,
+              endDateTime: mergedResult.endDateTime || null,
+              impressions: null, // TODO: Add to mergedResult if needed
+              liveCtr: null, // TODO: Add to mergedResult if needed
+              orderRate: null, // TODO: Add to mergedResult if needed
+              productSales: null, // TODO: Add to mergedResult if needed
+              confidence: (mergedResult.confidence as 'high' | 'medium' | 'low') || 'medium',
+              rawResponse: mergedResult,
+              analysisVersion: '1.0',
+              analyzedBy: ctx.user?.id || null,
+            });
+            console.log(`[analyzeMultipleScreenshots] Saved to history`);
+          } catch (historyError) {
+            console.error(`[analyzeMultipleScreenshots] Failed to save history:`, historyError);
+            // Don't fail the request if history save fails
+          }
+        }
+
         return mergedResult;
+      }),
+
+    // Get analysis history by image hash (for cache)
+    getAnalysisByHash: protectedProcedure
+      .input(z.object({ imageHash: z.string() }))
+      .query(async ({ input }) => {
+        return await getAnalysisByImageHash(input.imageHash);
+      }),
+
+    // Get analysis history by liver ID
+    getAnalysisHistoryByLiver: protectedProcedure
+      .input(z.object({ liverId: z.number(), limit: z.number().optional().default(20) }))
+      .query(async ({ input }) => {
+        return await getAnalysisHistoryByLiverId(input.liverId, input.limit);
+      }),
+
+    // Get analysis history by livestream ID
+    getAnalysisHistoryByLivestream: protectedProcedure
+      .input(z.object({ livestreamId: z.number() }))
+      .query(async ({ input }) => {
+        return await getAnalysisHistoryByLivestreamId(input.livestreamId);
+      }),
+
+    // Get recent analysis history (admin)
+    getRecentAnalysisHistory: protectedProcedure
+      .input(z.object({ limit: z.number().optional().default(50) }))
+      .query(async ({ input }) => {
+        return await getRecentAnalysisHistory(input.limit);
       }),
   }),
 

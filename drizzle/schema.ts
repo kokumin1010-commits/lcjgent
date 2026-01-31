@@ -1725,3 +1725,49 @@ export const lineLinkCodes = mysqlTable("line_link_codes", {
 
 export type LineLinkCode = typeof lineLinkCodes.$inferSelect;
 export type InsertLineLinkCode = typeof lineLinkCodes.$inferInsert;
+
+
+/**
+ * Screenshot Analysis History table for storing AI analysis results
+ * スクリーンショット解析履歴テーブル - AI解析結果を保存
+ */
+export const screenshotAnalysisHistory = mysqlTable("screenshot_analysis_history", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // 関連エンティティ
+  liverId: int("liverId"), // References livers.id（任意）
+  livestreamId: int("livestreamId"), // References brandLivestreams.id（任意）
+  
+  // 画像情報
+  imageHash: varchar("imageHash", { length: 128 }).notNull(), // 画像のハッシュ値（キャッシュキー）
+  imageUrl: text("imageUrl"), // S3 URL
+  imageKey: varchar("imageKey", { length: 512 }), // S3 key
+  
+  // 解析結果
+  salesAmount: bigint("salesAmount", { mode: "number" }), // 売上金額
+  viewerCount: int("viewerCount"), // 視聴者数
+  peakViewerCount: int("peakViewerCount"), // ピーク視聴者数
+  productClicks: int("productClicks"), // 商品クリック数
+  orderCount: int("orderCount"), // 注文数
+  durationMinutes: int("durationMinutes"), // 配信時間（分）
+  startDateTime: varchar("startDateTime", { length: 20 }), // 開始日時
+  endDateTime: varchar("endDateTime", { length: 20 }), // 終了日時
+  
+  // 追加メトリクス
+  impressions: int("impressions"), // インプレッション数
+  liveCtr: varchar("liveCtr", { length: 20 }), // LIVE CTR
+  orderRate: varchar("orderRate", { length: 20 }), // 注文率
+  productSales: int("productSales"), // 商品販売数
+  
+  // 解析メタデータ
+  confidence: mysqlEnum("confidence", ["high", "medium", "low"]).default("medium"), // 解析信頼度
+  rawResponse: json("rawResponse").$type<Record<string, any>>(), // LLMの生レスポンス
+  analysisVersion: varchar("analysisVersion", { length: 20 }).default("1.0"), // 解析バージョン
+  
+  // タイムスタンプ
+  analyzedBy: int("analyzedBy"), // User ID who performed the analysis
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ScreenshotAnalysisHistory = typeof screenshotAnalysisHistory.$inferSelect;
+export type InsertScreenshotAnalysisHistory = typeof screenshotAnalysisHistory.$inferInsert;

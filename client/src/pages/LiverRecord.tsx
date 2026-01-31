@@ -368,36 +368,53 @@ export default function LiverRecord() {
   const [analysisCache, setAnalysisCache] = useState<Map<string, any>>(new Map());
   
   // Analyze multiple screenshots
+  // 解析進捗状態
+  const [analysisProgress, setAnalysisProgress] = useState<{ current: number; total: number; status: string } | null>(null);
+  
   const handleAnalyzeMultipleScreenshots = async (files?: File[]) => {
     const filesToAnalyze = files || screenshotFiles;
     if (filesToAnalyze.length === 0) return;
     
     setIsAnalyzing(true);
+    setAnalysisProgress({ current: 0, total: filesToAnalyze.length, status: '準備中...' });
+    
     try {
-      // Convert all files to base64 with compression
-      const imagesData = await Promise.all(
-        filesToAnalyze.map(async (file) => {
-          // 画像を圧縮（最大幅1920px、品質80%）
-          const compressed = await compressImage(file, 1920, 1080, 0.8);
-          
-          // キャッシュキーを計算
-          const cacheKey = await calculateImageHash(compressed.base64);
-          
-          // Upload each screenshot
-          const uploadResult = await uploadScreenshotMutation.mutateAsync({
-            base64: compressed.base64,
-            filename: file.name,
-            liverId,
-          });
-          
-          return {
-            imageBase64: compressed.base64,
-            mimeType: compressed.mimeType,
-            url: uploadResult.url,
-            cacheKey,
-          };
-        })
-      );
+      // Convert all files to base64 with compression (with progress)
+      const imagesData: Array<{
+        imageBase64: string;
+        mimeType: string;
+        url: string;
+        cacheKey: string;
+      }> = [];
+      
+      for (let i = 0; i < filesToAnalyze.length; i++) {
+        const file = filesToAnalyze[i];
+        setAnalysisProgress({ 
+          current: i + 1, 
+          total: filesToAnalyze.length, 
+          status: `画像 ${i + 1}/${filesToAnalyze.length} を処理中...` 
+        });
+        
+        // 画像を圧縮（最大幅1920px、品質80%）
+        const compressed = await compressImage(file, 1920, 1080, 0.8);
+        
+        // キャッシュキーを計算
+        const cacheKey = await calculateImageHash(compressed.base64);
+        
+        // Upload each screenshot
+        const uploadResult = await uploadScreenshotMutation.mutateAsync({
+          base64: compressed.base64,
+          filename: file.name,
+          liverId,
+        });
+        
+        imagesData.push({
+          imageBase64: compressed.base64,
+          mimeType: compressed.mimeType,
+          url: uploadResult.url,
+          cacheKey,
+        });
+      }
       
       // Store uploaded URLs
       setScreenshotUrls(imagesData.map(d => d.url));
@@ -425,12 +442,21 @@ export default function LiverRecord() {
         analysisResult = cachedResult;
         toast.success('キャッシュから結果を取得しました');
       } else {
+        setAnalysisProgress({ 
+          current: filesToAnalyze.length, 
+          total: filesToAnalyze.length, 
+          status: 'AI解析中...' 
+        });
+        
         // Analyze all screenshots together
         analysisResult = await analyzeMultipleScreenshotsMutation.mutateAsync({
           images: imagesData.map(d => ({
             imageBase64: d.imageBase64,
             mimeType: d.mimeType,
+            imageHash: d.cacheKey, // 履歴保存用
           })),
+          liverId, // 履歴追跡用
+          saveToHistory: true, // 履歴に保存
         });
         
         // 結果をキャッシュに保存
@@ -484,6 +510,7 @@ export default function LiverRecord() {
       toast.error(tr.analysisError);
     } finally {
       setIsAnalyzing(false);
+      setAnalysisProgress(null);
     }
   };
   
@@ -1036,7 +1063,10 @@ export default function LiverRecord() {
                       className="h-7 px-2 text-purple-400 hover:bg-purple-600/20"
                     >
                       {isAnalyzing ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                          {analysisProgress ? analysisProgress.status : '解析中...'}
+                        </>
                       ) : (
                         <>
                           <Sparkles className="w-3 h-3 mr-1" />

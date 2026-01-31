@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `screenshot_analysis_history` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `liverId` int,\n  `livestreamId` int,\n  `imageHash` varchar(128) NOT NULL,\n  `imageUrl` text,\n  `imageKey` varchar(512),\n  `salesAmount` bigint,\n  `viewerCount` int,\n  `peakViewerCount` int,\n  `productClicks` int,\n  `orderCount` int,\n  `durationMinutes` int,\n  `startDateTime` varchar(20),\n  `endDateTime` varchar(20),\n  `impressions` int,\n  `liveCtr` varchar(20),\n  `orderRate` varchar(20),\n  `productSales` int,\n  `confidence` enum('high','medium','low') DEFAULT 'medium',\n  `rawResponse` json,\n  `analysisVersion` varchar(20) DEFAULT '1.0',\n  `analyzedBy` int,\n  `createdAt` timestamp NOT NULL DEFAULT (now()),\n  CONSTRAINT `screenshot_analysis_history_id` PRIMARY KEY(`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute CREATE TABLE IF NOT EXISTS `screenshot_analysis_history` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `liverId` int,\n  `livestreamId` int,\n  `imageHash` varchar(128) NOT NULL,\n  `imageUrl` text,\n  `imageKey` varchar(512),\n  `salesAmount` bigint,\n  `viewerCount` int,\n  `peakViewerCount` int,\n  `productClicks` int,\n  `orderCount` int,\n  `durationMinutes` int,\n  `startDateTime` varchar(20),\n  `endDateTime` varchar(20),\n  `impressions` int,\n  `liveCtr` varchar(20),\n  `orderRate` varchar(20),\n  `productSales` int,\n  `confidence` enum('high','medium','low') DEFAULT 'medium',\n  `rawResponse` json,\n  `analysisVersion` varchar(20) DEFAULT '1.0',\n  `analyzedBy` int,\n  `createdAt` timestamp NOT NULL DEFAULT (now()),\n  CONSTRAINT `screenshot_analysis_history_id` PRIMARY KEY(`id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1832
+}

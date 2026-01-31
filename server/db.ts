@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -6372,4 +6372,82 @@ export async function getActiveLinkCode(emailUserId: number): Promise<{ code: st
     code: result[0].code,
     expiresAt: result[0].expiresAt,
   };
+}
+
+
+// ============================================
+// Screenshot Analysis History Functions
+// ============================================
+
+/**
+ * Save screenshot analysis result to history
+ */
+export async function saveScreenshotAnalysis(data: InsertScreenshotAnalysisHistory) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(screenshotAnalysisHistory).values(data);
+  return { id: Number(result[0].insertId), ...data };
+}
+
+/**
+ * Get analysis history by image hash (for cache lookup)
+ */
+export async function getAnalysisByImageHash(imageHash: string) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select()
+    .from(screenshotAnalysisHistory)
+    .where(eq(screenshotAnalysisHistory.imageHash, imageHash))
+    .orderBy(desc(screenshotAnalysisHistory.createdAt))
+    .limit(1);
+  
+  return result.length > 0 ? result[0] : null;
+}
+
+/**
+ * Get analysis history by liver ID
+ */
+export async function getAnalysisHistoryByLiverId(liverId: number, limit: number = 20) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const result = await db.select()
+    .from(screenshotAnalysisHistory)
+    .where(eq(screenshotAnalysisHistory.liverId, liverId))
+    .orderBy(desc(screenshotAnalysisHistory.createdAt))
+    .limit(limit);
+  
+  return result;
+}
+
+/**
+ * Get analysis history by livestream ID
+ */
+export async function getAnalysisHistoryByLivestreamId(livestreamId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const result = await db.select()
+    .from(screenshotAnalysisHistory)
+    .where(eq(screenshotAnalysisHistory.livestreamId, livestreamId))
+    .orderBy(desc(screenshotAnalysisHistory.createdAt));
+  
+  return result;
+}
+
+/**
+ * Get recent analysis history (for admin view)
+ */
+export async function getRecentAnalysisHistory(limit: number = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const result = await db.select()
+    .from(screenshotAnalysisHistory)
+    .orderBy(desc(screenshotAnalysisHistory.createdAt))
+    .limit(limit);
+  
+  return result;
 }
