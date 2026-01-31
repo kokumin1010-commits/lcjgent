@@ -1,10 +1,16 @@
-import { Button } from "@/components/ui/button";
+import { useState } from "react";
+import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShoppingBag, Gift, Video, Star, ArrowRight, Coins, Receipt, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { ShoppingBag, Gift, Video, Star, ArrowRight, Coins, Receipt, Users, Sparkles, Tag, ShoppingCart } from "lucide-react";
 import { useLocation } from "wouter";
 
 export default function MallHome() {
   const [, setLocation] = useLocation();
+  
+  // 商品一覧を取得（販売中のもののみ）
+  const { data: products, isLoading: productsLoading } = trpc.mall.getProducts.useQuery({ status: "active" });
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-rose-50 to-white">
@@ -20,6 +26,9 @@ export default function MallHome() {
           <nav className="hidden md:flex items-center gap-6">
             <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               特徴
+            </a>
+            <a href="#products" className="text-sm font-medium text-rose-500 hover:text-rose-600 transition-colors">
+              商品一覧
             </a>
             <a href="#points" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               ポイント
@@ -174,8 +183,116 @@ export default function MallHome() {
         </div>
       </section>
 
+      {/* 商品一覧セクション - ワクワク感のあるデザイン */}
+      <section id="products" className="py-20 px-4 bg-white">
+        <div className="container mx-auto">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 bg-gradient-to-r from-rose-500 to-pink-500 text-white px-4 py-2 rounded-full text-sm font-medium mb-4">
+              <Sparkles className="h-4 w-4" />
+              今すぐ購入可能
+            </div>
+            <h2 className="text-3xl font-bold mb-4">人気商品ラインナップ</h2>
+            <p className="text-muted-foreground">ポイントでも購入できるお得な商品</p>
+          </div>
+          
+          {productsLoading ? (
+            <div className="text-center py-12">
+              <div className="animate-spin h-8 w-8 border-4 border-rose-500 border-t-transparent rounded-full mx-auto mb-4" />
+              <p className="text-muted-foreground">商品を読み込み中...</p>
+            </div>
+          ) : products && products.length > 0 ? (
+            <>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {products.slice(0, 8).map((product) => (
+                  <Card 
+                    key={product.id} 
+                    className="group cursor-pointer overflow-hidden border-2 hover:border-rose-300 hover:shadow-xl transition-all duration-300"
+                    onClick={() => setLocation(`/mall/products/${product.id}`)}
+                  >
+                    <div className="relative aspect-square bg-gradient-to-br from-rose-50 to-pink-50 overflow-hidden">
+                      {product.imageUrl ? (
+                        <img 
+                          src={product.imageUrl} 
+                          alt={product.name}
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <ShoppingBag className="h-16 w-16 text-rose-200" />
+                        </div>
+                      )}
+                      {product.pointPrice && (
+                        <Badge className="absolute top-3 left-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0">
+                          <Coins className="h-3 w-3 mr-1" />
+                          ポイント対応
+                        </Badge>
+                      )}
+                      {product.stock <= 5 && product.stock > 0 && (
+                        <Badge variant="destructive" className="absolute top-3 right-3">
+                          残り{product.stock}点
+                        </Badge>
+                      )}
+                    </div>
+                    <CardContent className="p-4">
+                      <p className="text-xs text-muted-foreground mb-1">{product.category || "カテゴリなし"}</p>
+                      <h3 className="font-semibold text-lg mb-3 line-clamp-2 group-hover:text-rose-500 transition-colors">
+                        {product.name}
+                      </h3>
+                      <div className="space-y-2">
+                        {/* 販売価格 */}
+                        <div className="flex items-center gap-2">
+                          <Tag className="h-4 w-4 text-gray-400" />
+                          <span className="text-xl font-bold text-gray-900">¥{product.price.toLocaleString()}</span>
+                        </div>
+                        {/* ポイント交換価格 */}
+                        {product.pointPrice && (
+                          <div className="flex items-center gap-2 bg-gradient-to-r from-purple-50 to-pink-50 px-3 py-2 rounded-lg">
+                            <Coins className="h-4 w-4 text-purple-500" />
+                            <span className="text-lg font-bold text-purple-600">{product.pointPrice.toLocaleString()}</span>
+                            <span className="text-sm text-purple-500">ポイントで交換</span>
+                          </div>
+                        )}
+                      </div>
+                      <Button 
+                        className="w-full mt-4 bg-rose-500 hover:bg-rose-600 gap-2"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLocation(`/mall/products/${product.id}`);
+                        }}
+                      >
+                        <ShoppingCart className="h-4 w-4" />
+                        詳細を見る
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              
+              {products.length > 8 && (
+                <div className="text-center mt-10">
+                  <Button 
+                    size="lg" 
+                    variant="outline" 
+                    className="gap-2 border-rose-300 text-rose-600 hover:bg-rose-50"
+                    onClick={() => setLocation("/mall/products")}
+                  >
+                    すべての商品を見る
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center py-12">
+              <ShoppingBag className="h-16 w-16 text-gray-200 mx-auto mb-4" />
+              <p className="text-muted-foreground">現在販売中の商品はありません</p>
+            </div>
+          )}
+        </div>
+      </section>
+
       {/* Livestream Section */}
-      <section id="livestream" className="py-20 px-4 bg-white">
+      <section id="livestream" className="py-20 px-4 bg-gradient-to-b from-rose-50 to-white">
         <div className="container mx-auto text-center">
           <h2 className="text-3xl font-bold mb-4">人気ライバーの配信をチェック</h2>
           <p className="text-muted-foreground mb-8">毎日様々なライバーが商品を紹介しています</p>
