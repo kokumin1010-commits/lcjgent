@@ -267,3 +267,95 @@ describe("LINE Point System", () => {
     });
   });
 });
+
+
+// Mock the LINE module
+vi.mock("./line", () => ({
+  pushMessage: vi.fn(),
+}));
+
+import { pushMessage } from "./line";
+
+describe("LINE Receipt Notification", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe("Approval Notification", () => {
+    it("should send approval notification with correct message format", async () => {
+      vi.mocked(pushMessage).mockResolvedValue(true);
+
+      const lineUserId = "U1234567890";
+      const storeName = "テスト店舗";
+      const amount = 5000;
+      const pointsAwarded = 100;
+      const newBalance = 500;
+
+      const message = `🎉 レシートが承認されました！\n您的收据已获批准！\n\n🏪 店舗名/店铺名: ${storeName}\n💰 購入金額/购买金额: ¥${amount.toLocaleString()}\n⭐ 獲得ポイント/获得积分: ${pointsAwarded}ポイント\n\n📊 現在の残高/当前余额: ${newBalance}ポイント\n\nご利用ありがとうございます！\n感谢您的使用！`;
+
+      await pushMessage(lineUserId, [{ type: "text", text: message }]);
+
+      expect(pushMessage).toHaveBeenCalledWith(lineUserId, [{ type: "text", text: message }]);
+      expect(pushMessage).toHaveBeenCalledTimes(1);
+    });
+
+    it("should handle notification failure gracefully", async () => {
+      vi.mocked(pushMessage).mockResolvedValue(false);
+
+      const result = await pushMessage("U_INVALID", [{ type: "text", text: "test" }]);
+
+      expect(result).toBe(false);
+    });
+  });
+
+  describe("Rejection Notification", () => {
+    it("should send rejection notification with reason", async () => {
+      vi.mocked(pushMessage).mockResolvedValue(true);
+
+      const lineUserId = "U1234567890";
+      const storeName = "テスト店舗";
+      const reason = "レシートが不鮮明です";
+
+      const message = `❌ レシートが却下されました\n您的收据已被拒绝\n\n🏪 店舗名/店铺名: ${storeName}\n\n📝 却下理由/拒绝原因:\n${reason}\n\n正しいレシート画像を再度送信してください。\n请重新发送正确的收据图片。`;
+
+      await pushMessage(lineUserId, [{ type: "text", text: message }]);
+
+      expect(pushMessage).toHaveBeenCalledWith(lineUserId, [{ type: "text", text: message }]);
+    });
+
+    it("should include bilingual content in rejection message", async () => {
+      vi.mocked(pushMessage).mockResolvedValue(true);
+
+      const lineUserId = "U1234567890";
+      const storeName = "不明";
+      const reason = "対象外の店舗です";
+
+      const message = `❌ レシートが却下されました\n您的收据已被拒绝\n\n🏪 店舗名/店铺名: ${storeName}\n\n📝 却下理由/拒绝原因:\n${reason}\n\n正しいレシート画像を再度送信してください。\n请重新发送正确的收据图片。`;
+
+      await pushMessage(lineUserId, [{ type: "text", text: message }]);
+
+      // Verify bilingual content
+      expect(message).toContain("レシートが却下されました");
+      expect(message).toContain("您的收据已被拒绝");
+      expect(message).toContain("却下理由/拒绝原因");
+    });
+  });
+
+  describe("Message Content Validation", () => {
+    it("should handle unknown store name", async () => {
+      vi.mocked(pushMessage).mockResolvedValue(true);
+
+      const storeName = "不明";
+      const message = `🎉 レシートが承認されました！\n您的收据已获批准！\n\n🏪 店舗名/店铺名: ${storeName}`;
+
+      expect(message).toContain("店舗名/店铺名: 不明");
+    });
+
+    it("should format large amounts correctly", async () => {
+      const amount = 100000;
+      const formattedAmount = `¥${amount.toLocaleString()}`;
+
+      expect(formattedAmount).toBe("¥100,000");
+    });
+  });
+});

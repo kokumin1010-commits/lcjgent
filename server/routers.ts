@@ -7444,7 +7444,8 @@ ${metricsDescription}${historicalContext}`,
         if (ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
         }
-        const { getLineReceiptById, updateLineReceiptStatus, awardPointsForLineReceipt } = await import("./db");
+        const { getLineReceiptById, updateLineReceiptStatus, awardPointsForLineReceipt, getLinePointBalance } = await import("./db");
+        const { pushMessage } = await import("./line");
         const receipt = await getLineReceiptById(input.id);
         if (!receipt) {
           throw new TRPCError({ code: "NOT_FOUND", message: "レシートが見つかりません" });
@@ -7457,6 +7458,23 @@ ${metricsDescription}${historicalContext}`,
         if (pointsToAward > 0) {
           await awardPointsForLineReceipt(input.id, pointsToAward);
         }
+        
+        // Send LINE notification to user
+        try {
+          const balance = await getLinePointBalance(receipt.lineUserId);
+          const newBalance = balance?.balance ?? pointsToAward;
+          const storeName = receipt.storeName || "不明";
+          const amount = receipt.totalAmount ? `¥${receipt.totalAmount.toLocaleString()}` : "不明";
+          
+          const message = `🎉 レシートが承認されました！\n您的收据已获批准！\n\n🏪 店舗名/店铺名: ${storeName}\n💰 購入金額/购买金额: ${amount}\n⭐ 獲得ポイント/获得积分: ${pointsToAward}ポイント\n\n📊 現在の残高/当前余额: ${newBalance}ポイント\n\nご利用ありがとうございます！\n感谢您的使用！`;
+          
+          await pushMessage(receipt.lineUserId, [{ type: "text", text: message }]);
+          console.log(`[LINE Receipt] Sent approval notification to ${receipt.lineUserId}`);
+        } catch (notifyError) {
+          console.error("[LINE Receipt] Failed to send approval notification:", notifyError);
+          // Don't throw - notification failure shouldn't fail the approval
+        }
+        
         return { success: true, pointsAwarded: pointsToAward };
       }),
     
@@ -7471,11 +7489,27 @@ ${metricsDescription}${historicalContext}`,
           throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
         }
         const { getLineReceiptById, updateLineReceiptStatus } = await import("./db");
+        const { pushMessage } = await import("./line");
         const receipt = await getLineReceiptById(input.id);
         if (!receipt) {
           throw new TRPCError({ code: "NOT_FOUND", message: "レシートが見つかりません" });
         }
         await updateLineReceiptStatus(input.id, "rejected", ctx.user.id, input.note);
+        
+        // Send LINE notification to user
+        try {
+          const storeName = receipt.storeName || "不明";
+          const reason = input.note || "理由は記載されていません";
+          
+          const message = `❌ レシートが却下されました\n您的收据已被拒绝\n\n🏪 店舗名/店铺名: ${storeName}\n\n📝 却下理由/拒绝原因:\n${reason}\n\n正しいレシート画像を再度送信してください。\n请重新发送正确的收据图片。`;
+          
+          await pushMessage(receipt.lineUserId, [{ type: "text", text: message }]);
+          console.log(`[LINE Receipt] Sent rejection notification to ${receipt.lineUserId}`);
+        } catch (notifyError) {
+          console.error("[LINE Receipt] Failed to send rejection notification:", notifyError);
+          // Don't throw - notification failure shouldn't fail the rejection
+        }
+        
         return { success: true };
       }),
     
