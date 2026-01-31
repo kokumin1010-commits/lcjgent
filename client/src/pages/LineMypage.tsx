@@ -1,15 +1,18 @@
 import { trpc } from "@/lib/trpc";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ShoppingBag, Coins, Receipt, LogOut, ArrowLeft, Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { Loader2, ShoppingBag, Coins, Receipt, LogOut, ArrowLeft, Clock, CheckCircle, XCircle, AlertCircle, TrendingUp, TrendingDown, ShoppingCart, History } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 
 export default function LineMypage() {
   const [, setLocation] = useLocation();
+  const [historyFilter, setHistoryFilter] = useState<"all" | "earn" | "use">("all");
   
   const { data: user, isLoading: userLoading } = trpc.lineLogin.me.useQuery();
   const { data: pointsData, isLoading: pointsLoading } = trpc.lineLogin.getMyPoints.useQuery(undefined, {
@@ -18,6 +21,14 @@ export default function LineMypage() {
   const { data: receipts, isLoading: receiptsLoading } = trpc.lineLogin.getMyReceipts.useQuery(undefined, {
     enabled: !!user,
   });
+  
+  // フィルタリングされたポイント履歴
+  const filteredTransactions = pointsData?.transactions?.filter((tx: any) => {
+    if (historyFilter === "all") return true;
+    if (historyFilter === "earn") return tx.amount > 0;
+    if (historyFilter === "use") return tx.amount < 0;
+    return true;
+  }) || [];
 
   const logoutMutation = trpc.lineLogin.logout.useMutation({
     onSuccess: () => {
@@ -115,35 +126,56 @@ export default function LineMypage() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        {/* Points Summary */}
-        <Card className="mb-8 border-rose-100">
+        {/* Points Summary - 改善されたデザイン */}
+        <Card className="mb-8 border-rose-200 bg-gradient-to-br from-rose-50 to-pink-50 shadow-lg">
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2">
-              <Coins className="h-5 w-5 text-rose-500" />
-              ポイント残高
+            <CardTitle className="flex items-center gap-2 text-rose-700">
+              <div className="h-10 w-10 bg-gradient-to-br from-rose-500 to-pink-500 rounded-full flex items-center justify-center">
+                <Coins className="h-5 w-5 text-white" />
+              </div>
+              保有ポイント
             </CardTitle>
           </CardHeader>
           <CardContent>
             {pointsLoading ? (
-              <Loader2 className="h-6 w-6 animate-spin" />
+              <div className="flex justify-center py-4">
+                <Loader2 className="h-8 w-8 animate-spin text-rose-500" />
+              </div>
             ) : (
-              <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-bold text-rose-500">
-                  {pointsData?.balance.toLocaleString() || 0}
-                </span>
-                <span className="text-lg text-muted-foreground">ポイント</span>
-              </div>
+              <>
+                <div className="flex items-baseline gap-2 mb-6">
+                  <span className="text-5xl font-bold bg-gradient-to-r from-rose-500 to-pink-500 bg-clip-text text-transparent">
+                    {pointsData?.balance.toLocaleString() || 0}
+                  </span>
+                  <span className="text-xl text-rose-600 font-medium">ポイント</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-white/60 rounded-lg p-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <TrendingUp className="h-4 w-4 text-green-500" />
+                      <p className="text-sm text-muted-foreground">累計獲得</p>
+                    </div>
+                    <p className="text-lg font-bold text-green-600">+{pointsData?.lifetimeEarned.toLocaleString() || 0} pt</p>
+                  </div>
+                  <div className="bg-white/60 rounded-lg p-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <TrendingDown className="h-4 w-4 text-blue-500" />
+                      <p className="text-sm text-muted-foreground">累計利用</p>
+                    </div>
+                    <p className="text-lg font-bold text-blue-600">-{pointsData?.lifetimeUsed.toLocaleString() || 0} pt</p>
+                  </div>
+                </div>
+                <div className="mt-4 pt-4 border-t border-rose-200">
+                  <Button 
+                    className="w-full bg-rose-500 hover:bg-rose-600 gap-2"
+                    onClick={() => setLocation("/mall/products")}
+                  >
+                    <ShoppingBag className="h-4 w-4" />
+                    ポイントで商品を購入
+                  </Button>
+                </div>
+              </>
             )}
-            <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-muted-foreground">累計獲得</p>
-                <p className="font-medium">{pointsData?.lifetimeEarned.toLocaleString() || 0} pt</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">累計利用</p>
-                <p className="font-medium">{pointsData?.lifetimeUsed.toLocaleString() || 0} pt</p>
-              </div>
-            </div>
           </CardContent>
         </Card>
 
@@ -157,26 +189,66 @@ export default function LineMypage() {
           <TabsContent value="history">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">ポイント履歴</CardTitle>
-                <CardDescription>ポイントの獲得・利用履歴</CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <History className="h-5 w-5 text-rose-500" />
+                      ポイント履歴
+                    </CardTitle>
+                    <CardDescription>ポイントの獲得・利用履歴</CardDescription>
+                  </div>
+                  <Select value={historyFilter} onValueChange={(v) => setHistoryFilter(v as "all" | "earn" | "use")}>
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue placeholder="すべて" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">すべて</SelectItem>
+                      <SelectItem value="earn">獲得のみ</SelectItem>
+                      <SelectItem value="use">利用のみ</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </CardHeader>
               <CardContent>
                 {pointsLoading ? (
                   <div className="flex justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin" />
                   </div>
-                ) : pointsData?.transactions && pointsData.transactions.length > 0 ? (
+                ) : filteredTransactions.length > 0 ? (
                   <div className="space-y-3">
-                    {pointsData.transactions.map((tx: any) => (
+                    {filteredTransactions.map((tx: any) => (
                       <div key={tx.id} className="flex items-center justify-between py-3 border-b last:border-0">
-                        <div>
-                          <p className="font-medium">{tx.description || (tx.type === "earn" ? "ポイント獲得" : "ポイント利用")}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {format(new Date(tx.createdAt), "yyyy/MM/dd HH:mm", { locale: ja })}
-                          </p>
+                        <div className="flex items-start gap-3">
+                          <div className={`h-10 w-10 rounded-full flex items-center justify-center ${tx.amount > 0 ? "bg-green-100" : "bg-red-100"}`}>
+                            {tx.amount > 0 ? (
+                              <TrendingUp className="h-5 w-5 text-green-600" />
+                            ) : (
+                              <TrendingDown className="h-5 w-5 text-red-600" />
+                            )}
+                          </div>
+                          <div>
+                            <p className="font-medium">
+                              {tx.description || (tx.amount > 0 ? "ポイント獲得" : "ポイント利用")}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {format(new Date(tx.createdAt), "yyyy年M月d日 HH:mm", { locale: ja })}
+                            </p>
+                            {tx.referenceType && (
+                              <Badge variant="outline" className="mt-1 text-xs">
+                                {tx.referenceType === "receipt" && <Receipt className="h-3 w-3 mr-1" />}
+                                {tx.referenceType === "order" && <ShoppingCart className="h-3 w-3 mr-1" />}
+                                {tx.referenceType === "receipt" ? "レシート承認" : tx.referenceType === "order" ? "商品購入" : tx.referenceType}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
-                        <div className={`font-bold ${tx.amount > 0 ? "text-green-600" : "text-red-600"}`}>
-                          {tx.amount > 0 ? "+" : ""}{tx.amount.toLocaleString()} pt
+                        <div className="text-right">
+                          <div className={`text-lg font-bold ${tx.amount > 0 ? "text-green-600" : "text-red-600"}`}>
+                            {tx.amount > 0 ? "+" : ""}{tx.amount.toLocaleString()} pt
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            残高: {tx.balanceAfter?.toLocaleString() || "-"} pt
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -184,7 +256,7 @@ export default function LineMypage() {
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
                     <Coins className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                    <p>ポイント履歴がありません</p>
+                    <p>{historyFilter === "all" ? "ポイント履歴がありません" : historyFilter === "earn" ? "獲得履歴がありません" : "利用履歴がありません"}</p>
                   </div>
                 )}
               </CardContent>
