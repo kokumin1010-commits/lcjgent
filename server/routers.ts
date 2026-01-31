@@ -461,6 +461,62 @@ export const lineLoginRouter = router({
     }
   }),
   
+  // LIFF callback - authenticate using LIFF access token
+  liffCallback: publicProcedure
+    .input(z.object({
+      accessToken: z.string(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      // Verify access token and get user profile
+      const profile = await getLineProfile(input.accessToken);
+      if (!profile) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "LINEプロフィールの取得に失敗しました",
+        });
+      }
+      
+      // Upsert LINE user
+      const lineUser = await createOrUpdateLineUser({
+        lineUserId: profile.userId,
+        displayName: profile.displayName,
+        pictureUrl: profile.pictureUrl,
+        statusMessage: profile.statusMessage,
+        userType: "customer",
+      });
+      
+      if (!lineUser) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "ユーザー登録に失敗しました",
+        });
+      }
+      
+      // Create session token for LINE user
+      const sessionData = {
+        lineUserId: profile.userId,
+        displayName: profile.displayName,
+        pictureUrl: profile.pictureUrl,
+        createdAt: Date.now(),
+        expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
+      };
+      
+      // Set session cookie
+      ctx.res.cookie("line_session", JSON.stringify(sessionData), {
+        ...getSessionCookieOptions(ctx.req),
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      });
+      
+      return {
+        success: true,
+        user: {
+          lineUserId: profile.userId,
+          displayName: profile.displayName,
+          pictureUrl: profile.pictureUrl,
+        },
+      };
+    }),
+
   // Logout
   logout: publicProcedure.mutation(async ({ ctx }) => {
     ctx.res.clearCookie("line_session", getSessionCookieOptions(ctx.req));

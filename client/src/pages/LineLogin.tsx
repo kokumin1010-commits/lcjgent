@@ -3,23 +3,77 @@ import { trpc } from "@/lib/trpc";
 import { Loader2, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
+import liff from "@line/liff";
+
+const LIFF_ID = "2009018493-9HZXJj8d";
 
 export default function LineLogin() {
   const [, setLocation] = useLocation();
-  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [liffReady, setLiffReady] = useState(false);
 
-  const { data: loginData, isLoading } = trpc.lineLogin.getLoginUrl.useQuery();
+  // LIFF callback mutation
+  const liffCallbackMutation = trpc.lineLogin.liffCallback.useMutation({
+    onSuccess: () => {
+      setLocation("/mypage");
+    },
+    onError: (err) => {
+      setError(err.message || "ログインに失敗しました");
+      setIsLoggingIn(false);
+    },
+  });
+
+  useEffect(() => {
+    const initLiff = async () => {
+      try {
+        await liff.init({ liffId: LIFF_ID });
+        setLiffReady(true);
+
+        // Check if user is already logged in via LIFF
+        if (liff.isLoggedIn()) {
+          setIsLoggingIn(true);
+          const accessToken = liff.getAccessToken();
+          if (accessToken) {
+            liffCallbackMutation.mutate({ accessToken });
+          } else {
+            setError("アクセストークンを取得できませんでした");
+            setIsLoggingIn(false);
+          }
+        }
+      } catch (err) {
+        console.error("LIFF initialization failed:", err);
+        setError("LIFFの初期化に失敗しました");
+      } finally {
+        setIsInitializing(false);
+      }
+    };
+
+    initLiff();
+  }, []);
 
   const handleLogin = () => {
-    if (loginData?.loginUrl) {
-      setIsRedirecting(true);
-      // Store state in sessionStorage for verification
-      sessionStorage.setItem("line_login_state", loginData.state);
-      window.location.href = loginData.loginUrl;
+    if (!liffReady) return;
+    
+    setIsLoggingIn(true);
+    
+    // Use LIFF login
+    if (!liff.isLoggedIn()) {
+      liff.login({ redirectUri: window.location.href });
+    } else {
+      // Already logged in, get access token
+      const accessToken = liff.getAccessToken();
+      if (accessToken) {
+        liffCallbackMutation.mutate({ accessToken });
+      } else {
+        setError("アクセストークンを取得できませんでした");
+        setIsLoggingIn(false);
+      }
     }
   };
 
-  if (isLoading) {
+  if (isInitializing) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-rose-50 to-white flex items-center justify-center">
         <Loader2 className="h-8 w-8 text-rose-500 animate-spin" />
@@ -42,16 +96,22 @@ export default function LineLogin() {
           LINEアカウントでログインして、ポイント残高の確認やレシート申請履歴を確認できます。
         </p>
 
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm">
+            {error}
+          </div>
+        )}
+
         <Button
           size="lg"
           className="w-full bg-[#06C755] hover:bg-[#05b04c] text-white gap-2"
           onClick={handleLogin}
-          disabled={isRedirecting}
+          disabled={isLoggingIn || !liffReady}
         >
-          {isRedirecting ? (
+          {isLoggingIn ? (
             <>
               <Loader2 className="h-5 w-5 animate-spin" />
-              リダイレクト中...
+              ログイン中...
             </>
           ) : (
             <>
