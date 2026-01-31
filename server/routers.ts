@@ -275,7 +275,7 @@ import { transcribeAudio } from "./_core/voiceTranscription";
 // LINE Login configuration
 const LINE_LOGIN_CHANNEL_ID = process.env.LINE_LOGIN_CHANNEL_ID || "";
 const LINE_LOGIN_CHANNEL_SECRET = process.env.LINE_LOGIN_CHANNEL_SECRET || "";
-const LINE_LOGIN_CALLBACK_URL = process.env.APP_URL ? `${process.env.APP_URL}/api/line-login/callback` : "";
+const LINE_LOGIN_CALLBACK_URL = process.env.APP_URL ? `${process.env.APP_URL}/line-callback` : "";
 
 // Generate LINE Login URL
 export function getLineLoginUrl(state: string): string {

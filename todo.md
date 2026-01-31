@@ -2781,3 +2781,9 @@
 - [x] バグを修正（LINE_LOGIN_CHANNEL_IDが未設定だった）
 - [x] 動作確認
 
+
+## LINEログインコールバック404エラー修正
+- [x] コールバックURLのルーティングを確認
+- [x] サーバー側のコールバックエンドポイントを確認・修正（/api/line-login/callback → /line-callback）
+- [x] 動作確認
+
