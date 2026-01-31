@@ -1611,8 +1611,8 @@ async function processReceiptOcr(
     const messageContent = ocrResult.choices[0].message.content;
     const ocrData = JSON.parse(typeof messageContent === "string" ? messageContent : "{}");
     
-    // Calculate points (2% return)
-    const pointsCalculated = ocrData.totalAmount ? Math.floor(ocrData.totalAmount * 0.02) : undefined;
+    // Calculate points (1% return)
+    const pointsCalculated = ocrData.totalAmount ? Math.floor(ocrData.totalAmount * 0.01) : undefined;
     
     // Update receipt with OCR data
     await updateLineReceiptOcr(receiptId, {

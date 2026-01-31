@@ -242,27 +242,27 @@ describe("LINE Point System", () => {
   });
 
   describe("Point Calculation", () => {
-    it("should calculate 2% points correctly", () => {
+    it("should calculate 1% points correctly", () => {
       const amount = 5000;
-      const expectedPoints = Math.floor(amount * 0.02);
-      expect(expectedPoints).toBe(100);
+      const expectedPoints = Math.floor(amount * 0.01);
+      expect(expectedPoints).toBe(50);
     });
 
     it("should handle decimal amounts correctly", () => {
       const amount = 5555;
-      const expectedPoints = Math.floor(amount * 0.02);
-      expect(expectedPoints).toBe(111);
+      const expectedPoints = Math.floor(amount * 0.01);
+      expect(expectedPoints).toBe(55);
     });
 
     it("should handle small amounts", () => {
       const amount = 100;
-      const expectedPoints = Math.floor(amount * 0.02);
-      expect(expectedPoints).toBe(2);
+      const expectedPoints = Math.floor(amount * 0.01);
+      expect(expectedPoints).toBe(1);
     });
 
-    it("should handle very small amounts (less than 50 yen)", () => {
-      const amount = 49;
-      const expectedPoints = Math.floor(amount * 0.02);
+    it("should handle very small amounts (less than 100 yen)", () => {
+      const amount = 99;
+      const expectedPoints = Math.floor(amount * 0.01);
       expect(expectedPoints).toBe(0);
     });
   });

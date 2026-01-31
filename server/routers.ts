@@ -7127,8 +7127,8 @@ ${metricsDescription}${historicalContext}`,
           const messageContent = ocrResult.choices[0].message.content;
           const ocrData = JSON.parse(typeof messageContent === 'string' ? messageContent : "{}");
           
-          // Calculate points (2% return)
-          const pointsCalculated = ocrData.totalAmount ? Math.floor(ocrData.totalAmount * 0.02) : undefined;
+          // Calculate points (1% return)
+          const pointsCalculated = ocrData.totalAmount ? Math.floor(ocrData.totalAmount * 0.01) : undefined;
           
           // Update receipt with OCR data
           await updateReceiptOcr(receiptId, {
@@ -7279,7 +7279,7 @@ ${metricsDescription}${historicalContext}`,
         const { id, ...data } = input;
         let pointsCalculated: number | undefined;
         if (data.totalAmount !== undefined) {
-          pointsCalculated = Math.floor(data.totalAmount * 0.02);
+          pointsCalculated = Math.floor(data.totalAmount * 0.01);
         }
         await updateReceiptOcr(id, {
           ...data,
@@ -7423,7 +7423,7 @@ ${metricsDescription}${historicalContext}`,
         const { id, ...data } = input;
         let pointsCalculated: number | undefined;
         if (data.totalAmount !== undefined) {
-          pointsCalculated = Math.floor(data.totalAmount * 0.02);
+          pointsCalculated = Math.floor(data.totalAmount * 0.01);
         }
         await updateLineReceiptOcr(id, {
           ...data,

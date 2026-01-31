@@ -97,7 +97,7 @@ export default function MallHome() {
                 </div>
                 <CardTitle>レシートでポイント</CardTitle>
                 <CardDescription>
-                  購入後のレシートをLINEで送信するだけで、購入金額の2%がポイントに
+                  購入後のレシートをLINEで送信するだけで、購入金額の1%がポイントに
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -151,7 +151,7 @@ export default function MallHome() {
                   </div>
                   <div>
                     <h3 className="font-semibold">ポイントを獲得</h3>
-                    <p className="text-sm text-muted-foreground">承認後、購入金額の2%がポイントとして付与</p>
+                    <p className="text-sm text-muted-foreground">承認後、購入金額の1%がポイントとして付与</p>
                   </div>
                 </div>
               </div>
@@ -161,11 +161,11 @@ export default function MallHome() {
                 <div className="inline-flex items-center justify-center h-20 w-20 bg-gradient-to-br from-rose-500 to-pink-500 rounded-full mb-4">
                   <Star className="h-10 w-10 text-white" />
                 </div>
-                <h3 className="text-2xl font-bold mb-2">2%還元</h3>
-                <p className="text-muted-foreground mb-6">購入金額の2%がポイントに</p>
+                <h3 className="text-2xl font-bold mb-2">1%還元</h3>
+                <p className="text-muted-foreground mb-6">購入金額の1%がポイントに</p>
                 <div className="bg-rose-50 rounded-lg p-4">
                   <p className="text-sm text-muted-foreground">例：10,000円の購入で</p>
-                  <p className="text-3xl font-bold text-rose-500">200ポイント</p>
+                  <p className="text-3xl font-bold text-rose-500">100ポイント</p>
                   <p className="text-sm text-muted-foreground">獲得！</p>
                 </div>
               </div>

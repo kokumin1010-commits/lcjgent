@@ -144,17 +144,17 @@ describe("Point System", () => {
 });
 
 describe("Point Calculation", () => {
-  it("calculates 2% of purchase amount", () => {
-    // Test the calculation logic (2% return rate)
+  it("calculates 1% of purchase amount", () => {
+    // Test the calculation logic (1% return rate)
     const calculatePoints = (amount: number): number => {
-      return Math.floor(amount * 0.02);
+      return Math.floor(amount * 0.01);
     };
 
-    expect(calculatePoints(1000)).toBe(20);
-    expect(calculatePoints(5000)).toBe(100);
-    expect(calculatePoints(10000)).toBe(200);
-    expect(calculatePoints(999)).toBe(19); // Floor function
-    expect(calculatePoints(50)).toBe(1);
-    expect(calculatePoints(49)).toBe(0); // Too small
+    expect(calculatePoints(1000)).toBe(10);
+    expect(calculatePoints(5000)).toBe(50);
+    expect(calculatePoints(10000)).toBe(100);
+    expect(calculatePoints(999)).toBe(9); // Floor function
+    expect(calculatePoints(100)).toBe(1);
+    expect(calculatePoints(99)).toBe(0); // Too small
   });
 });
