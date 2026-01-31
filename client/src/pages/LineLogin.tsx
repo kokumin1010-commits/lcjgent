@@ -6,7 +6,6 @@ import { useLocation } from "wouter";
 import liff from "@line/liff";
 
 // LIFF ID for LCJ MALL LINE Login
-// Updated: 2026-01-31
 const LIFF_ID = "2009018493-9HZXJj8d";
 
 export default function LineLogin() {
@@ -15,6 +14,7 @@ export default function LineLogin() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [liffReady, setLiffReady] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string>("");
 
   // LIFF callback mutation
   const liffCallbackMutation = trpc.lineLogin.liffCallback.useMutation({
@@ -30,13 +30,25 @@ export default function LineLogin() {
   useEffect(() => {
     const initLiff = async () => {
       try {
+        // Get the base URL without query parameters
+        const baseUrl = window.location.origin + window.location.pathname;
+        
+        setDebugInfo(`Initializing LIFF with ID: ${LIFF_ID}, URL: ${baseUrl}`);
+        
         await liff.init({ liffId: LIFF_ID });
         setLiffReady(true);
+        
+        const isLoggedIn = liff.isLoggedIn();
+        const isInClient = liff.isInClient();
+        
+        setDebugInfo(prev => prev + `\nLIFF Ready. isLoggedIn: ${isLoggedIn}, isInClient: ${isInClient}`);
 
         // Check if user is already logged in via LIFF
-        if (liff.isLoggedIn()) {
+        if (isLoggedIn) {
           setIsLoggingIn(true);
           const accessToken = liff.getAccessToken();
+          setDebugInfo(prev => prev + `\nAccess Token: ${accessToken ? 'obtained' : 'null'}`);
+          
           if (accessToken) {
             liffCallbackMutation.mutate({ accessToken });
           } else {
@@ -44,9 +56,10 @@ export default function LineLogin() {
             setIsLoggingIn(false);
           }
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("LIFF initialization failed:", err);
-        setError("LIFFの初期化に失敗しました");
+        setDebugInfo(prev => prev + `\nLIFF Error: ${err.message || JSON.stringify(err)}`);
+        setError(`LIFFの初期化に失敗しました: ${err.message || 'Unknown error'}`);
       } finally {
         setIsInitializing(false);
       }
@@ -62,7 +75,10 @@ export default function LineLogin() {
     
     // Use LIFF login
     if (!liff.isLoggedIn()) {
-      liff.login({ redirectUri: window.location.href });
+      // Use the base URL without query parameters as redirect URI
+      const redirectUri = window.location.origin + "/line-login";
+      setDebugInfo(prev => prev + `\nStarting login with redirectUri: ${redirectUri}`);
+      liff.login({ redirectUri });
     } else {
       // Already logged in, get access token
       const accessToken = liff.getAccessToken();
@@ -101,6 +117,14 @@ export default function LineLogin() {
         {error && (
           <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm">
             {error}
+            {debugInfo && (
+              <details className="mt-2 text-left">
+                <summary className="cursor-pointer text-xs">デバッグ情報</summary>
+                <pre className="mt-1 text-xs whitespace-pre-wrap break-all bg-red-100 p-2 rounded">
+                  {debugInfo}
+                </pre>
+              </details>
+            )}
           </div>
         )}
 
