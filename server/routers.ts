@@ -7200,15 +7200,23 @@ ${conversationText}
   - この数値は通常最も大きく表示される
   - カンマ区切りの数字を探してください
 
-### 中央の指標グリッド（複数のカードが並ぶ）
-- 「商品販売数」/ "Products sold": 数値（例: 2.06K = 2060）
+### 中央の指標グリッド（複数のカードが並ぶ - 2行×6列程度）
+【上段】
 - 「インプレッション」/ "Impressions": 数値（例: 606.07K = 606070）
 - 「商品クリック数」/ "Product clicks": 数値（例: 79.4K = 79400）
 - 「LIVE CTR」: パーセント値（例: 87.2%）
-- 「注文数」/ "Orders": 数値（例: 1.06K = 1060）
-- 「注文率」/ "Order rate": パーセント値（例: 3.2%）
 - 「視聴者数」/ "Viewers" / "Unique viewers": 数値（例: 45.57K = 45570）
 - 「ピーク視聴者数」/ "Peak viewers": 数値
+
+【下段 - 注文関連データ（重要）】
+- 「注文数」/ "Orders": 数値（例: 1.06K = 1060件）← 【客単価計算に必須】
+- 「注文率」/ "Order rate": パーセント値（例: 3.2%）
+- 「商品販売数」/ "Products sold": 数値（例: 2.06K = 2060）
+
+【客単価の計算方法】
+客単価 = 売上金額(GMV) ÷ 注文数
+例: 8,814,883円 ÷ 1,060件 = 8,316円
+※ 客単価が数百円になることは通常ありません。数千円〜数万円が一般的です。
 
 ### 左側パネル
 - パフォーマンストレンドグラフ
@@ -7312,8 +7320,17 @@ ${conversationText}
           
           // Debug log
           console.log("[analyzeScreenshot] Parsed result:", JSON.stringify(parsed, null, 2));
+          console.log("[analyzeScreenshot] salesAmount:", parsed.salesAmount);
+          console.log("[analyzeScreenshot] orderCount:", parsed.orderCount);
+          console.log("[analyzeScreenshot] viewerCount:", parsed.viewerCount);
           console.log("[analyzeScreenshot] startDateTime:", parsed.startDateTime);
           console.log("[analyzeScreenshot] endDateTime:", parsed.endDateTime);
+          
+          // 客単価の予測計算（デバッグ用）
+          if (parsed.salesAmount && parsed.orderCount && parsed.orderCount > 0) {
+            const expectedAvgOrder = Math.round(parsed.salesAmount / parsed.orderCount);
+            console.log(`[analyzeScreenshot] 予測客単価: ${parsed.salesAmount} ÷ ${parsed.orderCount} = ${expectedAvgOrder}円`);
+          }
           
           // Ensure required fields exist with defaults
           return {
@@ -7366,6 +7383,7 @@ ${conversationText}
         
         if (input.salesAmount && input.orderCount && input.orderCount > 0) {
           const avgOrderValue = Math.round(input.salesAmount / input.orderCount);
+          console.log(`[generateAdvice] 客単価計算: ${input.salesAmount} ÷ ${input.orderCount} = ${avgOrderValue}`);
           metrics["客単価"] = `¥${avgOrderValue.toLocaleString()}`;
         }
         
