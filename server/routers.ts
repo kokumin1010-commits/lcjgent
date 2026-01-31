@@ -248,6 +248,12 @@ import {
   updateMallOrderStatus,
   getMallOrdersByLineUser,
   useLinePoints,
+  getUserAddresses,
+  getUserAddressById,
+  createUserAddress,
+  updateUserAddress,
+  deleteUserAddress,
+  setDefaultUserAddress,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -8049,6 +8055,186 @@ ${metricsDescription}${historicalContext}`,
         }
         
         return { url, key };
+      }),
+
+    // ===== 住所管理API =====
+    
+    // 郵便番号から住所を検索
+    searchAddressByPostalCode: publicProcedure
+      .input(z.object({
+        postalCode: z.string().regex(/^\d{7}$/, "郵便番号は7桁の数字で入力してください"),
+      }))
+      .query(async ({ input }) => {
+        try {
+          // 郵便番号検索API（zipcloud）を使用
+          const response = await fetch(
+            `https://zipcloud.ibsnet.co.jp/api/search?zipcode=${input.postalCode}`
+          );
+          const data = await response.json();
+          
+          if (data.status !== 200 || !data.results || data.results.length === 0) {
+            return { found: false, address: null };
+          }
+          
+          const result = data.results[0];
+          return {
+            found: true,
+            address: {
+              prefecture: result.address1,
+              city: result.address2,
+              town: result.address3,
+            },
+          };
+        } catch (error) {
+          console.error("郵便番号検索エラー:", error);
+          return { found: false, address: null };
+        }
+      }),
+
+    // ユーザーの住所一覧を取得
+    getMyAddresses: publicProcedure
+      .query(async ({ ctx }) => {
+        const sessionCookie = ctx.req.cookies?.line_session;
+        if (!sessionCookie) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+        }
+        const session = JSON.parse(sessionCookie);
+        const lineUser = await getLineUserByLineId(session.lineUserId);
+        if (!lineUser) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "ユーザーが見つかりません" });
+        }
+        return await getUserAddresses(lineUser.id);
+      }),
+
+    // 住所を追加
+    addAddress: publicProcedure
+      .input(z.object({
+        label: z.string().max(50).default("自宅"),
+        recipientName: z.string().min(1).max(100),
+        phoneNumber: z.string().min(10).max(20),
+        postalCode: z.string().regex(/^\d{7}$/),
+        prefecture: z.string().min(1).max(20),
+        city: z.string().min(1).max(100),
+        addressLine1: z.string().min(1).max(255),
+        addressLine2: z.string().max(255).optional(),
+        isDefault: z.boolean().default(false),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const sessionCookie = ctx.req.cookies?.line_session;
+        if (!sessionCookie) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+        }
+        const session = JSON.parse(sessionCookie);
+        const lineUser = await getLineUserByLineId(session.lineUserId);
+        if (!lineUser) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "ユーザーが見つかりません" });
+        }
+        
+        // 初めての住所の場合はデフォルトに設定
+        const existingAddresses = await getUserAddresses(lineUser.id);
+        const isDefault = existingAddresses.length === 0 ? true : input.isDefault;
+        
+        return await createUserAddress({
+          lineUserId: lineUser.id,
+          label: input.label,
+          recipientName: input.recipientName,
+          phoneNumber: input.phoneNumber,
+          postalCode: input.postalCode,
+          prefecture: input.prefecture,
+          city: input.city,
+          addressLine1: input.addressLine1,
+          addressLine2: input.addressLine2 || null,
+          isDefault,
+        });
+      }),
+
+    // 住所を更新
+    updateAddress: publicProcedure
+      .input(z.object({
+        id: z.number(),
+        label: z.string().max(50).optional(),
+        recipientName: z.string().min(1).max(100).optional(),
+        phoneNumber: z.string().min(10).max(20).optional(),
+        postalCode: z.string().regex(/^\d{7}$/).optional(),
+        prefecture: z.string().min(1).max(20).optional(),
+        city: z.string().min(1).max(100).optional(),
+        addressLine1: z.string().min(1).max(255).optional(),
+        addressLine2: z.string().max(255).optional(),
+        isDefault: z.boolean().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const sessionCookie = ctx.req.cookies?.line_session;
+        if (!sessionCookie) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+        }
+        const session = JSON.parse(sessionCookie);
+        const lineUser = await getLineUserByLineId(session.lineUserId);
+        if (!lineUser) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "ユーザーが見つかりません" });
+        }
+        
+        const address = await getUserAddressById(input.id);
+        if (!address || address.lineUserId !== lineUser.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "住所が見つかりません" });
+        }
+        
+        const { id, ...updateData } = input;
+        return await updateUserAddress(id, updateData);
+      }),
+
+    // 住所を削除
+    deleteAddress: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const sessionCookie = ctx.req.cookies?.line_session;
+        if (!sessionCookie) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+        }
+        const session = JSON.parse(sessionCookie);
+        const lineUser = await getLineUserByLineId(session.lineUserId);
+        if (!lineUser) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "ユーザーが見つかりません" });
+        }
+        
+        const address = await getUserAddressById(input.id);
+        if (!address || address.lineUserId !== lineUser.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "住所が見つかりません" });
+        }
+        
+        await deleteUserAddress(input.id);
+        
+        // 削除した住所がデフォルトだった場合、他の住所をデフォルトに
+        if (address.isDefault) {
+          const remainingAddresses = await getUserAddresses(lineUser.id);
+          if (remainingAddresses.length > 0) {
+            await setDefaultUserAddress(remainingAddresses[0].id, lineUser.id);
+          }
+        }
+        
+        return { success: true };
+      }),
+
+    // デフォルト住所を設定
+    setDefaultAddress: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const sessionCookie = ctx.req.cookies?.line_session;
+        if (!sessionCookie) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+        }
+        const session = JSON.parse(sessionCookie);
+        const lineUser = await getLineUserByLineId(session.lineUserId);
+        if (!lineUser) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "ユーザーが見つかりません" });
+        }
+        
+        const address = await getUserAddressById(input.id);
+        if (!address || address.lineUserId !== lineUser.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "住所が見つかりません" });
+        }
+        
+        await setDefaultUserAddress(input.id, lineUser.id);
+        return { success: true };
       }),
   }),
 });

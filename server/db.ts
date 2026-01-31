@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -5974,4 +5974,132 @@ export async function useLinePoints(
     referenceType: "order",
     description,
   });
+}
+
+
+// ===== User Address Management Functions =====
+
+/**
+ * Get all addresses for a LINE user
+ */
+export async function getUserAddresses(lineUserId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db
+    .select()
+    .from(userAddresses)
+    .where(eq(userAddresses.lineUserId, lineUserId))
+    .orderBy(desc(userAddresses.isDefault), desc(userAddresses.createdAt));
+}
+
+/**
+ * Get a single address by ID
+ */
+export async function getUserAddressById(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db
+    .select()
+    .from(userAddresses)
+    .where(eq(userAddresses.id, id))
+    .limit(1);
+  return result[0] || null;
+}
+
+/**
+ * Get default address for a LINE user
+ */
+export async function getDefaultUserAddress(lineUserId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db
+    .select()
+    .from(userAddresses)
+    .where(and(
+      eq(userAddresses.lineUserId, lineUserId),
+      eq(userAddresses.isDefault, true)
+    ))
+    .limit(1);
+  return result[0] || null;
+}
+
+/**
+ * Create a new address
+ */
+export async function createUserAddress(data: InsertUserAddress) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // If this is the first address or marked as default, update other addresses
+  if (data.isDefault) {
+    await db
+      .update(userAddresses)
+      .set({ isDefault: false })
+      .where(eq(userAddresses.lineUserId, data.lineUserId));
+  }
+
+  const result = await db.insert(userAddresses).values(data);
+  return { id: result[0].insertId, ...data };
+}
+
+/**
+ * Update an existing address
+ */
+export async function updateUserAddress(
+  id: number,
+  data: Partial<InsertUserAddress>
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // If setting as default, unset other defaults first
+  if (data.isDefault) {
+    const address = await getUserAddressById(id);
+    if (address) {
+      await db
+        .update(userAddresses)
+        .set({ isDefault: false })
+        .where(eq(userAddresses.lineUserId, address.lineUserId));
+    }
+  }
+
+  await db
+    .update(userAddresses)
+    .set(data)
+    .where(eq(userAddresses.id, id));
+
+  return await getUserAddressById(id);
+}
+
+/**
+ * Delete an address
+ */
+export async function deleteUserAddress(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.delete(userAddresses).where(eq(userAddresses.id, id));
+}
+
+/**
+ * Set an address as default
+ */
+export async function setDefaultUserAddress(id: number, lineUserId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Unset all defaults for this user
+  await db
+    .update(userAddresses)
+    .set({ isDefault: false })
+    .where(eq(userAddresses.lineUserId, lineUserId));
+
+  // Set the specified address as default
+  await db
+    .update(userAddresses)
+    .set({ isDefault: true })
+    .where(eq(userAddresses.id, id));
 }

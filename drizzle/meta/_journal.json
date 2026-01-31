@@ -449,6 +449,13 @@
       "when": 1769831887869,
       "tag": "0063_careless_madripoor",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "5",
+      "when": 1769851675119,
+      "tag": "0064_marvelous_paladin",
+      "breakpoints": true
     }
   ]
 }

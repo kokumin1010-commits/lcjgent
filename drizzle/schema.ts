@@ -1627,3 +1627,38 @@ export const mallCarts = mysqlTable("mall_carts", {
 
 export type MallCart = typeof mallCarts.$inferSelect;
 export type InsertMallCart = typeof mallCarts.$inferInsert;
+
+
+/**
+ * ユーザー配送先住所テーブル
+ * LINEユーザーの配送先住所を保存
+ */
+export const userAddresses = mysqlTable("user_addresses", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // LINEユーザーID
+  lineUserId: int("lineUserId").notNull(),
+  
+  // 住所ラベル（自宅、会社など）
+  label: varchar("label", { length: 50 }).default("自宅").notNull(),
+  
+  // 受取人情報
+  recipientName: varchar("recipientName", { length: 100 }).notNull(),
+  phoneNumber: varchar("phoneNumber", { length: 20 }).notNull(),
+  
+  // 住所情報
+  postalCode: varchar("postalCode", { length: 10 }).notNull(), // 郵便番号（ハイフンなし）
+  prefecture: varchar("prefecture", { length: 20 }).notNull(), // 都道府県
+  city: varchar("city", { length: 100 }).notNull(), // 市区町村
+  addressLine1: varchar("addressLine1", { length: 255 }).notNull(), // 番地
+  addressLine2: varchar("addressLine2", { length: 255 }), // 建物名・部屋番号（任意）
+  
+  // デフォルト住所フラグ
+  isDefault: boolean("isDefault").default(false).notNull(),
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type UserAddress = typeof userAddresses.$inferSelect;
+export type InsertUserAddress = typeof userAddresses.$inferInsert;
