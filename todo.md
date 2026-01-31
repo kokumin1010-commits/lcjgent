@@ -2787,3 +2787,10 @@
 - [x] サーバー側のコールバックエンドポイントを確認・修正（/api/line-login/callback → /line-callback）
 - [x] 動作確認
 
+
+## LINEログイン Invalid redirect_uri エラー修正
+- [ ] 現在のredirect_uri設定を確認
+- [ ] APP_URL環境変数を確認
+- [ ] LINE Developersコンソールの設定と一致させる
+- [ ] 動作確認
+
