@@ -6,6 +6,7 @@ import { useLocation } from "wouter";
 import liff from "@line/liff";
 
 // LIFF ID for LCJ MALL LINE Login
+// Updated: 2026-01-31
 const LIFF_ID = "2009018493-9HZXJj8d";
 
 export default function LineLogin() {
