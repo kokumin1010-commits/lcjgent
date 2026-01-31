@@ -36,6 +36,10 @@ export default function LineLogin() {
   const liffCallbackMutation = trpc.lineLogin.liffCallback.useMutation({
     onSuccess: (data) => {
       addDebug(`Login successful: ${JSON.stringify(data)}`);
+      // Save session token to localStorage for fallback authentication
+      if (data.sessionToken) {
+        localStorage.setItem('lcj_session_token', data.sessionToken);
+      }
       toast.success("ログインしました");
       // Wait a bit for cookie to be set, then redirect
       setTimeout(() => {
@@ -52,7 +56,11 @@ export default function LineLogin() {
 
   // Email login mutation
   const emailLoginMutation = trpc.lineLogin.emailLogin.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // Save session token to localStorage for fallback authentication
+      if (data.sessionToken) {
+        localStorage.setItem('lcj_session_token', data.sessionToken);
+      }
       toast.success("ログインしました");
       // Wait for cookie to be set, then redirect
       setTimeout(() => {

@@ -59,10 +59,16 @@ const trpcClient = trpc.createClient({
         // Get liver token from localStorage
         const liverToken = getLiverToken();
         
-        // Add Authorization header if liver token exists
+        // Get LCJ MALL session token from localStorage (fallback for cookie issues)
+        const lcjSessionToken = localStorage.getItem('lcj_session_token');
+        
+        // Add Authorization header if token exists
         const headers = new Headers(init?.headers);
         if (liverToken) {
           headers.set("Authorization", `Bearer ${liverToken}`);
+        } else if (lcjSessionToken) {
+          // Use LCJ session token for LINE/email login fallback
+          headers.set("Authorization", `Bearer ${lcjSessionToken}`);
         }
         
         return globalThis.fetch(input, {

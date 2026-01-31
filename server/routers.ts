@@ -436,7 +436,22 @@ export const lineLoginRouter = router({
   
   // Get current LINE user session
   me: publicProcedure.query(async ({ ctx }) => {
-    const sessionCookie = ctx.req.cookies?.line_session;
+    // Try to get session from cookie first
+    let sessionCookie = ctx.req.cookies?.line_session;
+    
+    // If no cookie, try Authorization header (for localStorage fallback)
+    if (!sessionCookie) {
+      const authHeader = ctx.req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+          const token = authHeader.substring(7);
+          sessionCookie = Buffer.from(token, 'base64').toString('utf-8');
+        } catch {
+          return null;
+        }
+      }
+    }
+    
     if (!sessionCookie) {
       return null;
     }
@@ -510,11 +525,15 @@ export const lineLoginRouter = router({
       // Create session token for LINE user
       const sessionData = {
         lineUserId: profile.userId,
+        userId: lineUser.id,
         displayName: profile.displayName,
         pictureUrl: profile.pictureUrl,
         createdAt: Date.now(),
         expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
       };
+      
+      // Create session token for localStorage fallback
+      const sessionToken = Buffer.from(JSON.stringify(sessionData)).toString('base64');
       
       // Set session cookie
       ctx.res.cookie("line_session", JSON.stringify(sessionData), {
@@ -524,6 +543,7 @@ export const lineLoginRouter = router({
       
       return {
         success: true,
+        sessionToken, // Return token for localStorage fallback
         user: {
           lineUserId: profile.userId,
           displayName: profile.displayName,
@@ -603,6 +623,9 @@ export const lineLoginRouter = router({
         expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
       };
       
+      // Create session token for localStorage fallback
+      const sessionToken = Buffer.from(JSON.stringify(sessionData)).toString('base64');
+      
       ctx.res.cookie("line_session", JSON.stringify(sessionData), {
         ...getSessionCookieOptions(ctx.req),
         maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
@@ -610,6 +633,7 @@ export const lineLoginRouter = router({
       
       return {
         success: true,
+        sessionToken, // Return token for localStorage fallback
         user: {
           id: user.id,
           displayName: user.displayName,
