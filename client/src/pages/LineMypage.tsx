@@ -32,6 +32,8 @@ export default function LineMypage() {
 
   const logoutMutation = trpc.lineLogin.logout.useMutation({
     onSuccess: () => {
+      // Clear localStorage token
+      localStorage.removeItem('line_session_token');
       setLocation("/");
     },
   });

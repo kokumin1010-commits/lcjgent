@@ -279,6 +279,66 @@ import { transcribeAudio } from "./_core/voiceTranscription";
 // LINE Login API for MALL (General User Authentication)
 // ============================================
 
+// Helper function to get LINE session from cookie or Authorization header
+function getLineSession(ctx: { req: { cookies?: { line_session?: string }; headers: { authorization?: string } } }): string | null {
+  // Try to get session from cookie first
+  let sessionCookie = ctx.req.cookies?.line_session;
+  
+  // If no cookie, try Authorization header (for localStorage fallback)
+  if (!sessionCookie) {
+    const authHeader = ctx.req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.substring(7);
+        sessionCookie = Buffer.from(token, 'base64').toString('utf-8');
+      } catch {
+        // Invalid token format
+      }
+    }
+  }
+  
+  return sessionCookie || null;
+}
+
+// Helper function to get LINE user from session
+async function getLineUserFromSession(ctx: { req: { cookies?: { line_session?: string }; headers: { authorization?: string } } }): Promise<{
+  lineUser: Awaited<ReturnType<typeof getLineUserByLineId>> | Awaited<ReturnType<typeof getLineUserById>>;
+  session: { lineUserId?: string; userId?: number; expiresAt?: number };
+} | null> {
+  const sessionCookie = getLineSession(ctx);
+  if (!sessionCookie) {
+    return null;
+  }
+  
+  try {
+    const session = JSON.parse(sessionCookie);
+    
+    // Check session expiration
+    if (session.expiresAt && session.expiresAt < Date.now()) {
+      return null;
+    }
+    
+    // Support both LINE login (lineUserId) and email login (userId)
+    let lineUser = null;
+    if (session.lineUserId && !session.lineUserId.startsWith('email_')) {
+      lineUser = await getLineUserByLineId(session.lineUserId);
+    } else if (session.userId) {
+      lineUser = await getLineUserById(session.userId);
+    } else if (session.lineUserId) {
+      // email login with email_ prefix
+      lineUser = await getLineUserById(parseInt(session.lineUserId.replace('email_', '')));
+    }
+    
+    if (!lineUser) {
+      return null;
+    }
+    
+    return { lineUser, session };
+  } catch {
+    return null;
+  }
+}
+
 // LINE Login configuration
 const LINE_LOGIN_CHANNEL_ID = process.env.LINE_LOGIN_CHANNEL_ID || "";
 const LINE_LOGIN_CHANNEL_SECRET = process.env.LINE_LOGIN_CHANNEL_SECRET || "";
@@ -795,24 +855,23 @@ export const lineLoginRouter = router({
   
   // Get point balance for current LINE user
   getMyPoints: publicProcedure.query(async ({ ctx }) => {
-    const sessionCookie = ctx.req.cookies?.line_session;
-    if (!sessionCookie) {
+    const result = await getLineUserFromSession(ctx);
+    if (!result) {
       throw new TRPCError({
         code: "UNAUTHORIZED",
         message: "ログインが必要です",
       });
     }
     
+    const { lineUser } = result;
+    if (!lineUser) {
+      throw new TRPCError({
+        code: "UNAUTHORIZED",
+        message: "ユーザーが見つかりません",
+      });
+    }
+    
     try {
-      const session = JSON.parse(sessionCookie);
-      const lineUser = await getLineUserByLineId(session.lineUserId);
-      if (!lineUser) {
-        throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "ユーザーが見つかりません",
-        });
-      }
-      
       const pointBalance = lineUser.lineUserId ? await getLinePointBalance(lineUser.lineUserId) : null;
       const transactions = lineUser.lineUserId ? await getLinePointTransactions(lineUser.lineUserId, { limit: 50 }) : [];
       
@@ -833,24 +892,24 @@ export const lineLoginRouter = router({
   
   // Get receipt history for current LINE user
   getMyReceipts: publicProcedure.query(async ({ ctx }) => {
-    const sessionCookie = ctx.req.cookies?.line_session;
-    if (!sessionCookie) {
+    const result = await getLineUserFromSession(ctx);
+    if (!result) {
       throw new TRPCError({
         code: "UNAUTHORIZED",
         message: "ログインが必要です",
       });
     }
     
+    const { lineUser } = result;
+    if (!lineUser) {
+      throw new TRPCError({
+        code: "UNAUTHORIZED",
+        message: "ユーザーが見つかりません",
+      });
+    }
+    
     try {
-      const session = JSON.parse(sessionCookie);
-      const lineUser = await getLineUserByLineId(session.lineUserId);
-      if (!lineUser) {
-        throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "ユーザーが見つかりません",
-        });
-      }
-      
+      // For email users without lineUserId, return empty receipts
       const receipts = lineUser.lineUserId ? await getLineReceiptsByUser(lineUser.lineUserId) : [];
       return receipts;
     } catch (error) {
@@ -8328,17 +8387,13 @@ ${metricsDescription}${historicalContext}`,
       }))
       .mutation(async ({ ctx, input }) => {
         // LINEセッションからユーザー情報を取得
-        const lineSession = ctx.req.cookies?.line_session;
-        if (!lineSession) {
-          throw new TRPCError({ code: "UNAUTHORIZED", message: "LINEログインが必要です" });
+        const result = await getLineUserFromSession(ctx);
+        if (!result || !result.lineUser) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
         }
-
-        let lineUserId: string;
-        try {
-          const payload = JSON.parse(Buffer.from(lineSession.split('.')[1], 'base64').toString());
-          lineUserId = payload.lineUserId;
-        } catch {
-          throw new TRPCError({ code: "UNAUTHORIZED", message: "セッションが無効です" });
+        const lineUserId = result.lineUser.lineUserId;
+        if (!lineUserId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "ポイント購入にはLINEアカウントの連携が必要です" });
         }
 
         // 商品情報を取得
@@ -8443,16 +8498,11 @@ ${metricsDescription}${historicalContext}`,
     // ユーザーの住所一覧を取得
     getMyAddresses: publicProcedure
       .query(async ({ ctx }) => {
-        const sessionCookie = ctx.req.cookies?.line_session;
-        if (!sessionCookie) {
+        const result = await getLineUserFromSession(ctx);
+        if (!result || !result.lineUser) {
           throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
         }
-        const session = JSON.parse(sessionCookie);
-        const lineUser = await getLineUserByLineId(session.lineUserId);
-        if (!lineUser) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "ユーザーが見つかりません" });
-        }
-        return await getUserAddresses(lineUser.id);
+        return await getUserAddresses(result.lineUser.id);
       }),
 
     // 住所を追加
@@ -8469,15 +8519,11 @@ ${metricsDescription}${historicalContext}`,
         isDefault: z.boolean().default(false),
       }))
       .mutation(async ({ ctx, input }) => {
-        const sessionCookie = ctx.req.cookies?.line_session;
-        if (!sessionCookie) {
+        const result = await getLineUserFromSession(ctx);
+        if (!result || !result.lineUser) {
           throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
         }
-        const session = JSON.parse(sessionCookie);
-        const lineUser = await getLineUserByLineId(session.lineUserId);
-        if (!lineUser) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "ユーザーが見つかりません" });
-        }
+        const lineUser = result.lineUser;
         
         // 初めての住所の場合はデフォルトに設定
         const existingAddresses = await getUserAddresses(lineUser.id);
@@ -8512,15 +8558,11 @@ ${metricsDescription}${historicalContext}`,
         isDefault: z.boolean().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
-        const sessionCookie = ctx.req.cookies?.line_session;
-        if (!sessionCookie) {
+        const result = await getLineUserFromSession(ctx);
+        if (!result || !result.lineUser) {
           throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
         }
-        const session = JSON.parse(sessionCookie);
-        const lineUser = await getLineUserByLineId(session.lineUserId);
-        if (!lineUser) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "ユーザーが見つかりません" });
-        }
+        const lineUser = result.lineUser;
         
         const address = await getUserAddressById(input.id);
         if (!address || address.lineUserId !== lineUser.id) {
@@ -8535,15 +8577,11 @@ ${metricsDescription}${historicalContext}`,
     deleteAddress: publicProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ ctx, input }) => {
-        const sessionCookie = ctx.req.cookies?.line_session;
-        if (!sessionCookie) {
+        const result = await getLineUserFromSession(ctx);
+        if (!result || !result.lineUser) {
           throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
         }
-        const session = JSON.parse(sessionCookie);
-        const lineUser = await getLineUserByLineId(session.lineUserId);
-        if (!lineUser) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "ユーザーが見つかりません" });
-        }
+        const lineUser = result.lineUser;
         
         const address = await getUserAddressById(input.id);
         if (!address || address.lineUserId !== lineUser.id) {
@@ -8567,15 +8605,11 @@ ${metricsDescription}${historicalContext}`,
     setDefaultAddress: publicProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ ctx, input }) => {
-        const sessionCookie = ctx.req.cookies?.line_session;
-        if (!sessionCookie) {
+        const result = await getLineUserFromSession(ctx);
+        if (!result || !result.lineUser) {
           throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
         }
-        const session = JSON.parse(sessionCookie);
-        const lineUser = await getLineUserByLineId(session.lineUserId);
-        if (!lineUser) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "ユーザーが見つかりません" });
-        }
+        const lineUser = result.lineUser;
         
         const address = await getUserAddressById(input.id);
         if (!address || address.lineUserId !== lineUser.id) {

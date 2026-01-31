@@ -2859,3 +2859,29 @@
 - [x] me関数をAuthorizationヘッダーからのトークンにも対応
 - [x] LINEログイン（liffCallback）にも同様の修正を適用
 - [x] 開発環境で新規登録・ログイン・マイページ遷移をテスト成功
+
+
+## ログイン状態の永続化とマイページ修正
+- [ ] セッショントークンの有効期限を延長（30日以上）
+- [ ] ログイン状態を永続的に維持するように修正
+- [ ] マイページのローディングが終わらない問題を修正
+- [ ] テストと動作確認
+
+
+## LCJ MALLセッション維持問題の完全修正
+- [x] getLineSession()ヘルパー関数を作成（Cookie + Authorizationヘッダー両方対応）
+- [x] getLineUserFromSession()ヘルパー関数を作成（LINE IDとメールユーザーID両方対応）
+- [x] 全てのLINEユーザーAPIをヘルパー関数を使用するように更新
+  - [x] getMyPoints
+  - [x] getMyReceipts
+  - [x] submitReceipt
+  - [x] getMyReceiptHistory
+  - [x] getUserAddresses
+  - [x] addUserAddress
+  - [x] updateUserAddress
+  - [x] deleteUserAddress
+  - [x] setDefaultAddress
+  - [x] purchaseWithPoints
+- [x] ログアウト時にlocalStorageのトークンをクリアするように修正
+- [x] 開発環境でテスト成功（ログイン→マイページ→リロード→ログアウト）
+
