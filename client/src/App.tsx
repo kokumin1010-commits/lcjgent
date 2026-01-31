@@ -48,6 +48,7 @@ import LineLogin from "./pages/LineLogin";
 import LineLoginCallback from "./pages/LineLoginCallback";
 import LineMypage from "./pages/LineMypage";
 import ProductManagement from "./pages/ProductManagement";
+import OrderManagement from "./pages/OrderManagement";
 import MallProducts from "./pages/MallProducts";
 import MallProductDetail from "./pages/MallProductDetail";
 
@@ -217,6 +218,11 @@ function Router() {
       <Route path={"/master/products"}>
         <DashboardLayout>
           <ProductManagement />
+        </DashboardLayout>
+      </Route>
+      <Route path={"/master/orders"}>
+        <DashboardLayout>
+          <OrderManagement />
         </DashboardLayout>
       </Route>
       
