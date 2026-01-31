@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
-import { useLocation, useSearch } from "wouter";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Loader2, CheckCircle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function LineLoginCallback() {
   const [, setLocation] = useLocation();
-  const search = useSearch();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState("");
+  const [debugInfo, setDebugInfo] = useState("");
 
   const callbackMutation = trpc.lineLogin.callback.useMutation({
     onSuccess: () => {
@@ -25,10 +25,27 @@ export default function LineLoginCallback() {
   });
 
   useEffect(() => {
-    const params = new URLSearchParams(search);
-    const code = params.get("code");
-    const state = params.get("state");
-    const error = params.get("error");
+    // Get the full URL to extract parameters
+    const fullUrl = window.location.href;
+    const urlObj = new URL(fullUrl);
+    
+    // Try to get parameters from query string first
+    let code = urlObj.searchParams.get("code");
+    let state = urlObj.searchParams.get("state");
+    let error = urlObj.searchParams.get("error");
+    
+    // If not found in query string, try hash fragment (some OAuth flows use this)
+    if (!code && urlObj.hash) {
+      const hashParams = new URLSearchParams(urlObj.hash.substring(1));
+      code = hashParams.get("code") || code;
+      state = hashParams.get("state") || state;
+      error = hashParams.get("error") || error;
+    }
+    
+    // Debug info for troubleshooting
+    const debug = `URL: ${fullUrl}\ncode: ${code}\nstate: ${state}\nerror: ${error}`;
+    setDebugInfo(debug);
+    console.log("[LINE Login Callback]", debug);
 
     if (error) {
       setStatus("error");
@@ -42,7 +59,7 @@ export default function LineLoginCallback() {
       setStatus("error");
       setErrorMessage("認証情報が不足しています");
     }
-  }, [search]);
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-rose-50 to-white flex items-center justify-center p-4">
@@ -79,6 +96,13 @@ export default function LineLoginCallback() {
                 再度ログイン
               </Button>
             </div>
+            {/* Debug info for troubleshooting */}
+            <details className="mt-4 text-left">
+              <summary className="text-xs text-muted-foreground cursor-pointer">デバッグ情報</summary>
+              <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-auto whitespace-pre-wrap break-all">
+                {debugInfo}
+              </pre>
+            </details>
           </>
         )}
       </div>
