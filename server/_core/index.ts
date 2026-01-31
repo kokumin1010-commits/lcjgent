@@ -330,6 +330,11 @@ async function startServer() {
       
       console.log("[LINE Webhook] Received events:", body.events.length);
       
+      // プロラインフリーへ非同期で転送（LCJの処理をブロックしない）
+      lineModule.forwardToProline(bodyString, signature).catch((err: Error) => {
+        console.error("[Proline Forward] Async forward error:", err);
+      });
+      
       // Process each event
       for (const event of body.events) {
         await processLineEvent(event, lineModule, lineDb);

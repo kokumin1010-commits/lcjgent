@@ -302,6 +302,39 @@ export async function getContentPreview(
   }
 }
 
+// Forward webhook to Proline Free
+export async function forwardToProline(
+  rawBody: string,
+  signature: string
+): Promise<void> {
+  const prolineUrl = ENV.prolineWebhookUrl;
+  
+  if (!prolineUrl) {
+    console.log("[Proline Forward] PROLINE_WEBHOOK_URL not configured, skipping");
+    return;
+  }
+  
+  try {
+    const response = await fetch(prolineUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Line-Signature": signature,
+      },
+      body: rawBody,
+    });
+    
+    if (response.ok) {
+      console.log(`[Proline Forward] Successfully forwarded to ${prolineUrl}`);
+    } else {
+      console.error(`[Proline Forward] Failed with status ${response.status}: ${await response.text()}`);
+    }
+  } catch (error) {
+    // 転送失敗してもLCJの処理は継続
+    console.error("[Proline Forward] Error forwarding webhook:", error);
+  }
+}
+
 // Get bot info
 export async function getBotInfo(): Promise<{
   userId: string;

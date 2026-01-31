@@ -6,6 +6,42 @@ import { eq } from "drizzle-orm";
 import { sendLinePushMessage } from "./_core/lineMessaging";
 
 /**
+ * プロラインフリーへWebhookを転送する
+ * LCJの処理をブロックしないように非同期で実行
+ */
+export async function forwardToProline(
+  rawBody: string,
+  signature: string
+): Promise<void> {
+  const prolineUrl = ENV.prolineWebhookUrl;
+  
+  if (!prolineUrl) {
+    console.log("[Proline Forward] PROLINE_WEBHOOK_URL not configured, skipping");
+    return;
+  }
+  
+  try {
+    const response = await fetch(prolineUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Line-Signature": signature,
+      },
+      body: rawBody,
+    });
+    
+    if (response.ok) {
+      console.log(`[Proline Forward] Successfully forwarded to ${prolineUrl}`);
+    } else {
+      console.error(`[Proline Forward] Failed with status ${response.status}: ${await response.text()}`);
+    }
+  } catch (error) {
+    // 転送失敗してもLCJの処理は継続
+    console.error("[Proline Forward] Error forwarding webhook:", error);
+  }
+}
+
+/**
  * LINE Webhook Event Types
  */
 interface LineWebhookEvent {
@@ -155,10 +191,21 @@ export async function findLiverByLineUserId(
 
 /**
  * Handle LINE webhook events
+ * @param body - Parsed webhook body
+ * @param rawBody - Raw request body string (for forwarding)
+ * @param signature - X-Line-Signature header (for forwarding)
  */
 export async function handleLineWebhook(
-  body: LineWebhookBody
+  body: LineWebhookBody,
+  rawBody?: string,
+  signature?: string
 ): Promise<{ processed: number; errors: string[] }> {
+  // プロラインフリーへ非同期で転送（LCJの処理をブロックしない）
+  if (rawBody && signature) {
+    forwardToProline(rawBody, signature).catch((err) => {
+      console.error("[Proline Forward] Async forward error:", err);
+    });
+  }
   const errors: string[] = [];
   let processed = 0;
 

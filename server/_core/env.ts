@@ -10,4 +10,6 @@ export const ENV = {
   // LINE Messaging API
   lineChannelSecret: process.env.LINE_CHANNEL_SECRET ?? "",
   lineChannelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN ?? "",
+  // プロラインフリー Webhook転送
+  prolineWebhookUrl: process.env.PROLINE_WEBHOOK_URL ?? "",
 };
