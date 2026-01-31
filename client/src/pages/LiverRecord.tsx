@@ -62,6 +62,32 @@ export default function LiverRecord() {
   } | null>(null);
   const [calculatedMetrics, setCalculatedMetrics] = useState<Record<string, string | number> | null>(null);
   const [analysisConfidence, setAnalysisConfidence] = useState<string | null>(null);
+  const [isAutoCalculatedDuration, setIsAutoCalculatedDuration] = useState(false);
+  
+  // 配信時間の自動計算
+  useEffect(() => {
+    // 開始日時と終了日時が両方設定されている場合のみ計算
+    if (startDate && startTime && endDate && endTime) {
+      try {
+        const startDateTime = new Date(`${startDate}T${startTime}:00`);
+        const endDateTime = new Date(`${endDate}T${endTime}:00`);
+        
+        // 有効な日時かチェック
+        if (!isNaN(startDateTime.getTime()) && !isNaN(endDateTime.getTime())) {
+          const diffMs = endDateTime.getTime() - startDateTime.getTime();
+          
+          // 終了時間が開始時間より後の場合のみ計算
+          if (diffMs > 0) {
+            const diffMinutes = Math.round(diffMs / (1000 * 60));
+            setDurationMinutes(diffMinutes.toString());
+            setIsAutoCalculatedDuration(true);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to calculate duration:", e);
+      }
+    }
+  }, [startDate, startTime, endDate, endTime]);
   
   // Fetch liver info
   const { data: liver, isLoading: liverLoading } = trpc.liverManagement.getById.useQuery({
@@ -137,6 +163,8 @@ export default function LiverRecord() {
       productClicks: "商品クリック数",
       orderCount: "注文数",
       durationMinutes: "配信時間",
+      autoCalculated: "自動計算",
+      manualInput: "手動入力",
       confidence: "解析信頼度",
       high: "高",
       medium: "中",
@@ -196,6 +224,8 @@ export default function LiverRecord() {
       productClicks: "商品点击数",
       orderCount: "订单数",
       durationMinutes: "直播时长",
+      autoCalculated: "自动计算",
+      manualInput: "手动输入",
       confidence: "分析可信度",
       high: "高",
       medium: "中",
@@ -984,17 +1014,30 @@ export default function LiverRecord() {
                   <Label className="text-gray-400 text-sm flex items-center gap-2">
                     <Clock className="h-4 w-4 text-orange-500" />
                     {tr.durationMinutes}
+                    {isAutoCalculatedDuration && (
+                      <span className="text-xs bg-green-600/30 text-green-400 px-2 py-0.5 rounded">
+                        {tr.autoCalculated}
+                      </span>
+                    )}
                   </Label>
                   <div className="relative">
                     <Input
                       type="number"
                       value={durationMinutes}
-                      onChange={(e) => setDurationMinutes(e.target.value)}
+                      onChange={(e) => {
+                        setDurationMinutes(e.target.value);
+                        setIsAutoCalculatedDuration(false); // 手動入力時は自動計算フラグをオフ
+                      }}
                       placeholder="0"
-                      className="bg-gray-800 border-gray-700 text-white pr-12"
+                      className={`bg-gray-800 border-gray-700 text-white pr-12 ${isAutoCalculatedDuration ? 'border-green-600/50' : ''}`}
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">{tr.minutes}</span>
                   </div>
+                  {isAutoCalculatedDuration && startDate && startTime && endDate && endTime && (
+                    <p className="text-xs text-green-400">
+                      {startDate} {startTime} 〜 {endDate !== startDate ? `${endDate} ` : ''}{endTime} から自動計算
+                    </p>
+                  )}
                 </div>
 
                 {/* Product Clicks & Order Count */}

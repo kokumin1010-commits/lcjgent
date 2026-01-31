@@ -7585,6 +7585,9 @@ ${metricsDescription}${historicalContext}`,
 }`;
 
           try {
+            console.log(`[analyzeMultipleScreenshots] Image ${index + 1}: Starting LLM analysis...`);
+            console.log(`[analyzeMultipleScreenshots] Image ${index + 1}: Base64 length: ${image.imageBase64.length}`);
+            
             const response = await invokeLLM({
               messages: [
                 { role: "system", content: systemPrompt },
@@ -7601,11 +7604,15 @@ ${metricsDescription}${historicalContext}`,
               ],
             });
 
+            console.log(`[analyzeMultipleScreenshots] Image ${index + 1}: LLM response received`);
+            
             const content = response.choices[0]?.message?.content;
             if (!content || typeof content !== "string") {
-              console.error(`[analyzeMultipleScreenshots] Image ${index + 1}: No content returned`);
+              console.error(`[analyzeMultipleScreenshots] Image ${index + 1}: No content returned. Response:`, JSON.stringify(response, null, 2));
               return null;
             }
+
+            console.log(`[analyzeMultipleScreenshots] Image ${index + 1}: Raw content:`, content.substring(0, 500));
 
             let jsonStr = content;
             const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -7616,8 +7623,9 @@ ${metricsDescription}${historicalContext}`,
             const parsed = JSON.parse(jsonStr);
             console.log(`[analyzeMultipleScreenshots] Image ${index + 1} result:`, JSON.stringify(parsed, null, 2));
             return parsed;
-          } catch (e) {
-            console.error(`[analyzeMultipleScreenshots] Image ${index + 1} failed:`, e);
+          } catch (e: any) {
+            console.error(`[analyzeMultipleScreenshots] Image ${index + 1} failed:`, e?.message || e);
+            console.error(`[analyzeMultipleScreenshots] Image ${index + 1} stack:`, e?.stack);
             return null;
           }
         });
