@@ -228,6 +228,9 @@ import {
   deleteAdProposal,
   createOrUpdateLineUser,
   getLineUserByLineId,
+  getLineUserByEmail,
+  createEmailLineUser,
+  getLineUserById,
   getLinePointBalance,
   getLinePointTransactions,
   getLineReceiptsByUser,
@@ -441,18 +444,26 @@ export const lineLoginRouter = router({
       }
       
       // Get fresh user data from database
-      const lineUser = await getLineUserByLineId(session.lineUserId);
+      // Support both LINE login (lineUserId) and email login (userId)
+      let lineUser = null;
+      if (session.lineUserId && !session.lineUserId.startsWith('email_')) {
+        lineUser = await getLineUserByLineId(session.lineUserId);
+      } else if (session.userId) {
+        lineUser = await getLineUserById(session.userId);
+      }
+      
       if (!lineUser) {
         return null;
       }
       
       // Get point balance
-      const pointBalance = await getLinePointBalance(lineUser.lineUserId);
+      const pointBalance = lineUser.lineUserId ? await getLinePointBalance(lineUser.lineUserId) : null;
       
       return {
-        lineUserId: lineUser.lineUserId,
+        lineUserId: lineUser.lineUserId || `email_${lineUser.id}`,
         displayName: lineUser.displayName,
         pictureUrl: lineUser.pictureUrl,
+        email: lineUser.email,
         points: pointBalance?.balance || 0,
         lifetimePoints: pointBalance?.totalEarned || 0,
       };
@@ -517,6 +528,92 @@ export const lineLoginRouter = router({
       };
     }),
 
+  // Email registration
+  emailRegister: publicProcedure
+    .input(z.object({
+      email: z.string().email(),
+      password: z.string().min(6),
+      name: z.string().min(1),
+    }))
+    .mutation(async ({ input }) => {
+      // Check if email already exists
+      const existingUser = await getLineUserByEmail(input.email);
+      if (existingUser) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "このメールアドレスは既に登録されています",
+        });
+      }
+      
+      // Hash password
+      const bcrypt = await import("bcryptjs");
+      const hashedPassword = await bcrypt.hash(input.password, 10);
+      
+      // Create user
+      const newUser = await createEmailLineUser({
+        email: input.email,
+        password: hashedPassword,
+        displayName: input.name,
+      });
+      
+      return {
+        success: true,
+        userId: newUser.id,
+      };
+    }),
+
+  // Email login
+  emailLogin: publicProcedure
+    .input(z.object({
+      email: z.string().email(),
+      password: z.string(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      // Find user by email
+      const user = await getLineUserByEmail(input.email);
+      if (!user || !user.password) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "メールアドレスまたはパスワードが正しくありません",
+        });
+      }
+      
+      // Verify password
+      const bcrypt = await import("bcryptjs");
+      const isValid = await bcrypt.compare(input.password, user.password);
+      if (!isValid) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "メールアドレスまたはパスワードが正しくありません",
+        });
+      }
+      
+      // Create session
+      const sessionData = {
+        lineUserId: user.lineUserId || `email_${user.id}`,
+        userId: user.id,
+        displayName: user.displayName,
+        pictureUrl: user.pictureUrl,
+        email: user.email,
+        createdAt: Date.now(),
+        expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
+      };
+      
+      ctx.res.cookie("line_session", JSON.stringify(sessionData), {
+        ...getSessionCookieOptions(ctx.req),
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      });
+      
+      return {
+        success: true,
+        user: {
+          id: user.id,
+          displayName: user.displayName,
+          email: user.email,
+        },
+      };
+    }),
+
   // Logout
   logout: publicProcedure.mutation(async ({ ctx }) => {
     ctx.res.clearCookie("line_session", getSessionCookieOptions(ctx.req));
@@ -543,8 +640,8 @@ export const lineLoginRouter = router({
         });
       }
       
-      const pointBalance = await getLinePointBalance(lineUser.lineUserId);
-      const transactions = await getLinePointTransactions(lineUser.lineUserId, { limit: 50 });
+      const pointBalance = lineUser.lineUserId ? await getLinePointBalance(lineUser.lineUserId) : null;
+      const transactions = lineUser.lineUserId ? await getLinePointTransactions(lineUser.lineUserId, { limit: 50 }) : [];
       
       return {
         balance: pointBalance?.balance || 0,
@@ -581,7 +678,7 @@ export const lineLoginRouter = router({
         });
       }
       
-      const receipts = await getLineReceiptsByUser(lineUser.lineUserId);
+      const receipts = lineUser.lineUserId ? await getLineReceiptsByUser(lineUser.lineUserId) : [];
       return receipts;
     } catch (error) {
       if (error instanceof TRPCError) throw error;

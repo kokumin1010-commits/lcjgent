@@ -1,0 +1,17 @@
+{
+  "query": "SELECT id, email, displayName, lineUserId, SUBSTRING(password, 1, 20) as password_prefix FROM line_users WHERE email = 'test@example.com';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, email, displayName, lineUserId, SUBSTRING(password, 1, 20) as password_prefix FROM line_users WHERE email = 'test@example.com';",
+  "rows": [
+    {
+      "id": "660003",
+      "email": "test@example.com",
+      "displayName": "テストユーザー",
+      "lineUserId": "NULL",
+      "password_prefix": "$2b$10$I6Kph9jIKMG1r"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\temail\tdisplayName\tlineUserId\tpassword_prefix\n660003\ttest@example.com\tテストユーザー\tNULL\t$2b$10$I6Kph9jIKMG1r\n",
+  "stderr": "",
+  "execution_time_ms": 1535
+}

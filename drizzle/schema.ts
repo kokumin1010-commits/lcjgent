@@ -578,10 +578,13 @@ export type InsertAiQuestionTemplate = typeof aiQuestionTemplates.$inferInsert;
  */
 export const lineUsers = mysqlTable("line_users", {
   id: int("id").autoincrement().primaryKey(),
-  lineUserId: varchar("lineUserId", { length: 64 }).notNull().unique(), // LINE User ID
-  displayName: varchar("displayName", { length: 255 }), // LINE display name
+  lineUserId: varchar("lineUserId", { length: 64 }).unique(), // LINE User ID (optional for email users)
+  displayName: varchar("displayName", { length: 255 }), // LINE display name or user name
   pictureUrl: text("pictureUrl"), // Profile picture URL
   statusMessage: text("statusMessage"), // Status message
+  // Email/Password authentication fields
+  email: varchar("email", { length: 320 }).unique(), // Email for email login
+  password: varchar("password", { length: 255 }), // Hashed password for email login
   // Link to internal entities
   brandId: int("brandId"), // Link to brand (customer)
   staffId: int("staffId"), // Link to staff (internal)

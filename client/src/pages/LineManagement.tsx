@@ -175,7 +175,7 @@ export default function LineManagement() {
     const query = searchQuery.toLowerCase();
     return (
       user.displayName?.toLowerCase().includes(query) ||
-      user.lineUserId.toLowerCase().includes(query)
+      (user.lineUserId && user.lineUserId.toLowerCase().includes(query))
     );
   });
 
@@ -346,7 +346,7 @@ export default function LineManagement() {
                         )}
                         <div>
                           <CardTitle className="text-base">
-                            {user.displayName || user.lineUserId.slice(0, 8) + "..."}
+                            {user.displayName || (user.lineUserId ? user.lineUserId.slice(0, 8) + "..." : "ユーザー")}
                           </CardTitle>
                           <CardDescription className="text-xs">
                             {user.userType === "liver" 
@@ -682,9 +682,9 @@ export default function LineManagement() {
                 <SelectItem value="all">
                   {language === "ja" ? "すべてのメッセージ" : "所有消息"}
                 </SelectItem>
-                {lineUsers?.map((user) => (
-                  <SelectItem key={user.lineUserId} value={user.lineUserId}>
-                    {user.displayName || user.lineUserId.slice(0, 12) + "..."}
+                {lineUsers?.filter((user) => user.lineUserId).map((user) => (
+                  <SelectItem key={user.lineUserId!} value={user.lineUserId!}>
+                    {user.displayName || user.lineUserId!.slice(0, 12) + "..."}
                   </SelectItem>
                 ))}
               </SelectContent>

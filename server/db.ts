@@ -2321,7 +2321,7 @@ export async function getLiverInteractionSummary(liverId: number) {
   
   // Get message count
   let messageCount = 0;
-  if (lineUser.length > 0) {
+  if (lineUser.length > 0 && lineUser[0].lineUserId) {
     const messages = await db
       .select({ count: sql<number>`count(*)` })
       .from(lineMessages)
@@ -2331,7 +2331,7 @@ export async function getLiverInteractionSummary(liverId: number) {
   
   // Get recent messages
   let recentMessages: any[] = [];
-  if (lineUser.length > 0) {
+  if (lineUser.length > 0 && lineUser[0].lineUserId) {
     recentMessages = await db
       .select()
       .from(lineMessages)
@@ -6102,4 +6102,63 @@ export async function setDefaultUserAddress(id: number, lineUserId: number) {
     .update(userAddresses)
     .set({ isDefault: true })
     .where(eq(userAddresses.id, id));
+}
+
+
+// ========================================
+// Email Authentication Functions
+// メール認証関連の関数
+// ========================================
+
+/**
+ * Get LINE user by email
+ */
+export async function getLineUserByEmail(email: string) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db
+    .select()
+    .from(lineUsers)
+    .where(eq(lineUsers.email, email))
+    .limit(1);
+  
+  return result[0] || null;
+}
+
+/**
+ * Get LINE user by ID
+ */
+export async function getLineUserById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db
+    .select()
+    .from(lineUsers)
+    .where(eq(lineUsers.id, id))
+    .limit(1);
+  
+  return result[0] || null;
+}
+
+/**
+ * Create email-based LINE user
+ */
+export async function createEmailLineUser(data: {
+  email: string;
+  password: string;
+  displayName: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(lineUsers).values({
+    email: data.email,
+    password: data.password,
+    displayName: data.displayName,
+    userType: "customer",
+  });
+  
+  return { id: result[0].insertId };
 }

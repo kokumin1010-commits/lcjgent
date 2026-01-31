@@ -170,9 +170,9 @@ export default function LineFollowUps() {
                       <SelectValue placeholder={language === "ja" ? "ユーザーを選択" : "选择用户"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {lineUsers?.map((user) => (
-                        <SelectItem key={user.lineUserId} value={user.lineUserId}>
-                          {user.displayName || user.lineUserId.slice(0, 12) + "..."}
+                      {lineUsers?.filter((user) => user.lineUserId).map((user) => (
+                        <SelectItem key={user.lineUserId!} value={user.lineUserId!}>
+                          {user.displayName || user.lineUserId!.slice(0, 12) + "..."}
                         </SelectItem>
                       ))}
                     </SelectContent>

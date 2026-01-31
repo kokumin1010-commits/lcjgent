@@ -1,0 +1,17 @@
+{
+  "query": "SELECT id, email, displayName, lineUserId, password FROM line_users WHERE email IS NOT NULL LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, email, displayName, lineUserId, password FROM line_users WHERE email IS NOT NULL LIMIT 5;",
+  "rows": [
+    {
+      "id": "660003",
+      "email": "test@example.com",
+      "displayName": "テストユーザー",
+      "lineUserId": "NULL",
+      "password": "$2b$10$I6Kph9jIKMG1rlU6hRO7J.MfZ5cpEdtkR7/SLxrWwicr9CDqyBzTW"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\temail\tdisplayName\tlineUserId\tpassword\n660003\ttest@example.com\tテストユーザー\tNULL\t$2b$10$I6Kph9jIKMG1rlU6hRO7J.MfZ5cpEdtkR7/SLxrWwicr9CDqyBzTW\n",
+  "stderr": "",
+  "execution_time_ms": 1639
+}
