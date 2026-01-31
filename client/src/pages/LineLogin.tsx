@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import liff from "@line/liff";
 
+// LIFF ID for LCJ MALL LINE Login
 const LIFF_ID = "2009018493-9HZXJj8d";
 
 export default function LineLogin() {
