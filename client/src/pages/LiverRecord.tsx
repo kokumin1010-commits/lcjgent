@@ -100,6 +100,10 @@ export default function LiverRecord() {
       noSchedule: "スケジュールなし（手動入力）",
       startDateTime: "開始日時",
       endDateTime: "終了日時",
+      deliveryDate: "配信日",
+      startTime: "開始時刻",
+      endTime: "終了時刻",
+      endDate: "終了日",
       salesAmount: "売上金額",
       deliveryResult: "配信結果",
       success: "成功",
@@ -155,6 +159,10 @@ export default function LiverRecord() {
       noSchedule: "无日程（手动输入）",
       startDateTime: "开始时间",
       endDateTime: "结束时间",
+      deliveryDate: "直播日期",
+      startTime: "开始时刻",
+      endTime: "结束时刻",
+      endDate: "结束日期",
       salesAmount: "销售金额",
       deliveryResult: "直播结果",
       success: "成功",
@@ -489,14 +497,25 @@ export default function LiverRecord() {
     productClicks?: number | null;
     orderCount?: number | null;
     durationMinutes?: number | null;
-  }) => {
-    const dataToUse = data || {
-      salesAmount: salesAmount ? parseInt(salesAmount) : undefined,
-      viewerCount: viewerCount ? parseInt(viewerCount) : undefined,
-      peakViewerCount: peakViewerCount ? parseInt(peakViewerCount) : undefined,
-      productClicks: productClicks ? parseInt(productClicks) : undefined,
-      orderCount: orderCount ? parseInt(orderCount) : undefined,
-      durationMinutes: durationMinutes ? parseInt(durationMinutes) : undefined,
+    startDateTime?: string | null;
+    endDateTime?: string | null;
+    confidence?: string | null;
+    rawData?: Record<string, number>;
+    individualResults?: unknown[];
+    mergeStrategy?: string;
+  } | null) => {
+    // Skip if no data provided
+    if (!data) {
+      console.log("[handleGenerateAdvice] No data provided, skipping");
+      return;
+    }
+    const dataToUse = {
+      salesAmount: data.salesAmount ?? (salesAmount ? parseInt(salesAmount) : undefined),
+      viewerCount: data.viewerCount ?? (viewerCount ? parseInt(viewerCount) : undefined),
+      peakViewerCount: data.peakViewerCount ?? (peakViewerCount ? parseInt(peakViewerCount) : undefined),
+      productClicks: data.productClicks ?? (productClicks ? parseInt(productClicks) : undefined),
+      orderCount: data.orderCount ?? (orderCount ? parseInt(orderCount) : undefined),
+      durationMinutes: data.durationMinutes ?? (durationMinutes ? parseInt(durationMinutes) : undefined),
     };
     
     setIsGeneratingAdvice(true);
@@ -1061,21 +1080,30 @@ export default function LiverRecord() {
                 </Select>
               </div>
               
-              {/* Start DateTime */}
+              {/* Delivery Date */}
+              <div className="space-y-2">
+                <Label className="text-gray-400 text-sm flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-red-500" />
+                  {tr.deliveryDate} <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    // 終了日が未設定なら同じ日付をデフォルト設定
+                    if (!endDate) {
+                      setEndDate(e.target.value);
+                    }
+                  }}
+                  className="bg-gray-800 border-gray-600"
+                />
+              </div>
+              
+              {/* Start/End Time */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label className="text-gray-400 text-sm">
-                    {tr.startDateTime} <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="bg-gray-800 border-gray-600"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-gray-400 text-sm">&nbsp;</Label>
+                  <Label className="text-gray-400 text-sm">{tr.startTime}</Label>
                   <Input
                     type="time"
                     value={startTime}
@@ -1083,21 +1111,8 @@ export default function LiverRecord() {
                     className="bg-gray-800 border-gray-600"
                   />
                 </div>
-              </div>
-              
-              {/* End DateTime */}
-              <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label className="text-gray-400 text-sm">{tr.endDateTime}</Label>
-                  <Input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="bg-gray-800 border-gray-600"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-gray-400 text-sm">&nbsp;</Label>
+                  <Label className="text-gray-400 text-sm">{tr.endTime}</Label>
                   <Input
                     type="time"
                     value={endTime}
@@ -1105,6 +1120,26 @@ export default function LiverRecord() {
                     className="bg-gray-800 border-gray-600"
                   />
                 </div>
+              </div>
+              
+              {/* End Date (日付をまたぐ配信用) */}
+              <div className="space-y-2">
+                <Label className="text-gray-400 text-sm flex items-center gap-2">
+                  {tr.endDate}
+                  <span className="text-xs text-gray-500">(日付をまたぐ場合のみ)</span>
+                </Label>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="bg-gray-800 border-gray-600"
+                  min={startDate}
+                />
+                {endDate && startDate && endDate !== startDate && (
+                  <p className="text-xs text-yellow-400">
+                    ※ 終了日が配信日と異なります（日付をまたぐ配信）
+                  </p>
+                )}
               </div>
               
               {/* Result */}
