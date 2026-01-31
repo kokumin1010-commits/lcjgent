@@ -23,7 +23,7 @@ export default function TaskCreate() {
       toast.success("タスクが正常に登録されました", {
         description: `タスクID: ${data.taskId}`,
       });
-      setLocation("/tasks");
+      setLocation("/master/tasks");
     },
     onError: (error) => {
       toast.error("タスクの登録に失敗しました", {
@@ -109,7 +109,7 @@ export default function TaskCreate() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => setLocation("/tasks")}>
+        <Button variant="ghost" size="icon" onClick={() => setLocation("/master/tasks")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
@@ -255,7 +255,7 @@ export default function TaskCreate() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setLocation("/tasks")}
+                onClick={() => setLocation("/master/tasks")}
                 disabled={createTaskMutation.isPending}
               >
                 キャンセル

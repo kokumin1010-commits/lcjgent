@@ -27,7 +27,7 @@ export default function Dashboard() {
       <Button
         size="lg"
         className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg md:hidden z-50"
-        onClick={() => setLocation("/tasks/create")}
+        onClick={() => setLocation("/master/tasks/create")}
       >
         <Plus className="h-6 w-6" />
       </Button>
@@ -42,7 +42,7 @@ export default function Dashboard() {
       <Button
         size="lg"
         className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-md"
-        onClick={() => setLocation("/reports/chat")}
+        onClick={() => setLocation("/master/reports/chat")}
       >
         <FileText className="h-5 w-5 mr-2" />
         {t("dashboard.dailyReport")}
@@ -61,7 +61,7 @@ export default function Dashboard() {
 
         <Card 
           className="cursor-pointer hover:bg-accent transition-colors"
-          onClick={() => setLocation("/tasks?status=in_progress")}
+          onClick={() => setLocation("/master/tasks?status=in_progress")}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">{t("dashboard.inProgress")}</CardTitle>
@@ -74,7 +74,7 @@ export default function Dashboard() {
 
         <Card 
           className="cursor-pointer hover:bg-accent transition-colors"
-          onClick={() => setLocation("/tasks?status=completed")}
+          onClick={() => setLocation("/master/tasks?status=completed")}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">{t("dashboard.completed")}</CardTitle>
@@ -87,7 +87,7 @@ export default function Dashboard() {
 
         <Card 
           className="cursor-pointer hover:bg-accent transition-colors border-red-200"
-          onClick={() => setLocation("/tasks?overdue=true")}
+          onClick={() => setLocation("/master/tasks?overdue=true")}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">{t("dashboard.overdue")}</CardTitle>
@@ -181,7 +181,7 @@ export default function Dashboard() {
                     variant="outline"
                     size="sm"
                     className="w-full text-red-600 border-red-300 hover:bg-red-50"
-                    onClick={() => setLocation("/tasks")}
+                    onClick={() => setLocation("/master/tasks")}
                   >
                     {t("dashboard.viewAll")} ({stats.overdueTasks.length})
                   </Button>

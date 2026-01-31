@@ -70,7 +70,7 @@ export default function ReportForm() {
   const createReport = trpc.report.create.useMutation({
     onSuccess: () => {
       toast.success("レポートを作成しました");
-      setLocation("/reports");
+      setLocation("/master/reports");
     },
     onError: (error) => {
       toast.error(`作成に失敗しました: ${error.message}`);
@@ -80,7 +80,7 @@ export default function ReportForm() {
   const updateReport = trpc.report.update.useMutation({
     onSuccess: () => {
       toast.success("レポートを更新しました");
-      setLocation("/reports");
+      setLocation("/master/reports");
     },
     onError: (error) => {
       toast.error(`更新に失敗しました: ${error.message}`);
@@ -170,7 +170,7 @@ export default function ReportForm() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setLocation("/reports")}
+              onClick={() => setLocation("/master/reports")}
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
@@ -322,7 +322,7 @@ export default function ReportForm() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setLocation("/reports")}
+                onClick={() => setLocation("/master/reports")}
               >
                 キャンセル
               </Button>

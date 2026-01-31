@@ -53,7 +53,7 @@ export default function StaffTasks() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
         <p className="text-muted-foreground">担当者が見つかりません</p>
-        <Button onClick={() => setLocation("/tasks")}>
+        <Button onClick={() => setLocation("/master/tasks")}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           タスク一覧に戻る
         </Button>
@@ -84,7 +84,7 @@ export default function StaffTasks() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setLocation("/tasks")}
+            onClick={() => setLocation("/master/tasks")}
             className="mb-2"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />

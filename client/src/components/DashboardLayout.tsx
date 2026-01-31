@@ -52,7 +52,7 @@ export default function DashboardLayout({
   }
 
   if (!user) {
-    window.location.href = "/login";
+    window.location.href = "/login?redirect=/master";
     return null;
   }
 
@@ -90,23 +90,23 @@ function DashboardLayoutContent({
   const { language, setLanguage, t } = useLanguage();
 
   const menuItems = [
-    { icon: LayoutDashboard, label: t("nav.dashboard"), path: "/" },
-    { icon: ClipboardList, label: t("nav.tasks"), path: "/tasks" },
-    { icon: FileText, label: t("nav.reports"), path: "/reports" },
-    { icon: Brain, label: t("nav.reportAnalysis"), path: "/report-analysis" },
-    { icon: UserCog, label: t("nav.reportStaff"), path: "/report-staff" },
-    { icon: Building2, label: t("nav.brands"), path: "/brands" },
-    { icon: CreditCard, label: t("nav.businessCards"), path: "/business-cards" },
-    { icon: MessageSquare, label: t("nav.line"), path: "/line" },
-    { icon: Bell, label: t("nav.lineFollowUps"), path: "/line/follow-ups" },
-    { icon: AlertCircle, label: t("nav.pendingResponses"), path: "/line/pending" },
-    { icon: Calendar, label: t("nav.calendar"), path: "/calendar" },
-    { icon: Video, label: t("nav.livers"), path: "/livers" },
-    { icon: Coins, label: t("nav.points"), path: "/points" },
-    { icon: Receipt, label: t("nav.receipts"), path: "/receipts", adminOnly: true },
-    { icon: MessageCircle, label: t("nav.lineReceipts"), path: "/line-receipts", adminOnly: true },
-    { icon: Users, label: t("nav.staff"), path: "/staff" },
-    { icon: Settings, label: t("nav.masterControl"), path: "/master-control" },
+    { icon: LayoutDashboard, label: t("nav.dashboard"), path: "/master" },
+    { icon: ClipboardList, label: t("nav.tasks"), path: "/master/tasks" },
+    { icon: FileText, label: t("nav.reports"), path: "/master/reports" },
+    { icon: Brain, label: t("nav.reportAnalysis"), path: "/master/report-analysis" },
+    { icon: UserCog, label: t("nav.reportStaff"), path: "/master/report-staff" },
+    { icon: Building2, label: t("nav.brands"), path: "/master/brands" },
+    { icon: CreditCard, label: t("nav.businessCards"), path: "/master/business-cards" },
+    { icon: MessageSquare, label: t("nav.line"), path: "/master/line" },
+    { icon: Bell, label: t("nav.lineFollowUps"), path: "/master/line/follow-ups" },
+    { icon: AlertCircle, label: t("nav.pendingResponses"), path: "/master/line/pending" },
+    { icon: Calendar, label: t("nav.calendar"), path: "/master/calendar" },
+    { icon: Video, label: t("nav.livers"), path: "/master/livers" },
+    { icon: Coins, label: t("nav.points"), path: "/master/points" },
+    { icon: Receipt, label: t("nav.receipts"), path: "/master/receipts", adminOnly: true },
+    { icon: MessageCircle, label: t("nav.lineReceipts"), path: "/master/line-receipts", adminOnly: true },
+    { icon: Users, label: t("nav.staff"), path: "/master/staff" },
+    { icon: Settings, label: t("nav.masterControl"), path: "/master/control" },
   ];
 
   const activeMenuItem = menuItems.find(item => item.path === location);

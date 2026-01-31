@@ -76,7 +76,7 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
   const deleteTaskMutation = trpc.task.delete.useMutation({
     onSuccess: () => {
       toast.success("タスクを削除しました");
-      setLocation("/tasks");
+      setLocation("/master/tasks");
     },
     onError: (error) => {
       toast.error("タスクの削除に失敗しました", {
@@ -97,7 +97,7 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => setLocation("/tasks")}>
+          <Button variant="ghost" size="icon" onClick={() => setLocation("/master/tasks")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <h1 className="text-3xl font-bold tracking-tight">タスクが見つかりません</h1>
@@ -124,7 +124,7 @@ export default function TaskDetail({ taskId }: TaskDetailProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => setLocation("/tasks")}>
+          <Button variant="ghost" size="icon" onClick={() => setLocation("/master/tasks")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>

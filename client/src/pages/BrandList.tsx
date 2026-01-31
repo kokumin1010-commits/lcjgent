@@ -319,7 +319,7 @@ export default function BrandList() {
               </div>
             </div>
           </div>
-          <Link href="/brands/new">
+          <Link href="/master/brands/new">
             <Button className="bg-red-600 hover:bg-red-700 text-white">
               <Plus className="h-4 w-4 mr-2" />
               {t.newBrand}

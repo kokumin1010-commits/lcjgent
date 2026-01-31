@@ -666,11 +666,11 @@ export default function Reports() {
               {t("reports.list")}
             </h2>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setLocation("/reports/chat")}>
+              <Button variant="outline" onClick={() => setLocation("/master/reports/chat")}>
                 <MessageSquare className="h-4 w-4 mr-2" />
                 {t("reports.chatCreate")}
               </Button>
-              <Button onClick={() => setLocation("/reports/new")}>
+              <Button onClick={() => setLocation("/master/reports/new")}>
                 <Plus className="h-4 w-4 mr-2" />
                 {t("reports.create")}
               </Button>

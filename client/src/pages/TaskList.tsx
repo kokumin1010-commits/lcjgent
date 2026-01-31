@@ -52,7 +52,7 @@ export default function TaskList() {
           <h1 className="text-3xl font-bold tracking-tight">タスク一覧</h1>
           <p className="text-muted-foreground mt-2">登録されたタスクを管理します</p>
         </div>
-        <Button onClick={() => setLocation("/tasks/create")}>
+        <Button onClick={() => setLocation("/master/tasks/create")}>
           <Plus className="mr-2 h-4 w-4" />
           新規タスク登録
         </Button>
