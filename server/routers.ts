@@ -285,6 +285,7 @@ export function getLineLoginUrl(state: string): string {
     redirect_uri: LINE_LOGIN_CALLBACK_URL,
     state: state,
     scope: "profile openid",
+    prompt: "consent", // Always show consent screen to ensure code is returned
   });
   return `https://access.line.me/oauth2/v2.1/authorize?${params.toString()}`;
 }
