@@ -18,6 +18,63 @@ import { ArrowLeft, X, Sparkles, Loader2, Lightbulb, Camera, DollarSign, Users, 
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 
+// 画像圧縮ユーティリティ関数
+const compressImage = async (file: File, maxWidth: number = 1920, maxHeight: number = 1080, quality: number = 0.8): Promise<{ base64: string; mimeType: string }> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    img.onload = () => {
+      let { width, height } = img;
+      
+      // アスペクト比を維持してリサイズ
+      if (width > maxWidth || height > maxHeight) {
+        const ratio = Math.min(maxWidth / width, maxHeight / height);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+      }
+      
+      canvas.width = width;
+      canvas.height = height;
+      
+      if (!ctx) {
+        reject(new Error('Canvas context not available'));
+        return;
+      }
+      
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      // JPEGで圧縮（PNGより小さくなる）
+      const dataUrl = canvas.toDataURL('image/jpeg', quality);
+      const base64 = dataUrl.split(',')[1];
+      
+      console.log(`[compressImage] Original: ${file.size} bytes, Compressed base64 length: ${base64.length}`);
+      
+      resolve({
+        base64,
+        mimeType: 'image/jpeg',
+      });
+    };
+    
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = URL.createObjectURL(file);
+  });
+};
+
+// 画像ハッシュを計算（キャッシュ用）
+const calculateImageHash = async (base64: string): Promise<string> => {
+  // 簡易ハッシュ: base64の最初と1000文字 + 長さ
+  const sample = base64.substring(0, 1000);
+  let hash = 0;
+  for (let i = 0; i < sample.length; i++) {
+    const char = sample.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return `${Math.abs(hash)}_${base64.length}`;
+};
+
 export default function LiverRecord() {
   const params = useParams<{ id: string }>();
   const liverId = parseInt(params.id || "0", 10);
@@ -307,6 +364,9 @@ export default function LiverRecord() {
     }
   };
   
+  // 解析結果キャッシュ（セッション内のみ有効）
+  const [analysisCache, setAnalysisCache] = useState<Map<string, any>>(new Map());
+  
   // Analyze multiple screenshots
   const handleAnalyzeMultipleScreenshots = async (files?: File[]) => {
     const filesToAnalyze = files || screenshotFiles;
@@ -314,29 +374,27 @@ export default function LiverRecord() {
     
     setIsAnalyzing(true);
     try {
-      // Convert all files to base64
+      // Convert all files to base64 with compression
       const imagesData = await Promise.all(
         filesToAnalyze.map(async (file) => {
-          const base64 = await new Promise<string>((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-              const result = reader.result as string;
-              resolve(result.split(",")[1]);
-            };
-            reader.readAsDataURL(file);
-          });
+          // 画像を圧縮（最大幅1920px、品質80%）
+          const compressed = await compressImage(file, 1920, 1080, 0.8);
+          
+          // キャッシュキーを計算
+          const cacheKey = await calculateImageHash(compressed.base64);
           
           // Upload each screenshot
           const uploadResult = await uploadScreenshotMutation.mutateAsync({
-            base64,
+            base64: compressed.base64,
             filename: file.name,
             liverId,
           });
           
           return {
-            imageBase64: base64,
-            mimeType: file.type || "image/png",
+            imageBase64: compressed.base64,
+            mimeType: compressed.mimeType,
             url: uploadResult.url,
+            cacheKey,
           };
         })
       );
@@ -345,13 +403,43 @@ export default function LiverRecord() {
       setScreenshotUrls(imagesData.map(d => d.url));
       setScreenshotUrl(imagesData[0]?.url || null);
       
-      // Analyze all screenshots together
-      const analysisResult = await analyzeMultipleScreenshotsMutation.mutateAsync({
-        images: imagesData.map(d => ({
-          imageBase64: d.imageBase64,
-          mimeType: d.mimeType,
-        })),
-      });
+      // キャッシュキーを結合（全画像のハッシュを結合）
+      const combinedCacheKey = imagesData.map(d => d.cacheKey).join('_');
+      
+      // キャッシュをチェック
+      const cachedResult = analysisCache.get(combinedCacheKey);
+      let analysisResult: {
+        salesAmount?: number | null;
+        viewerCount?: number | null;
+        peakViewerCount?: number | null;
+        productClicks?: number | null;
+        orderCount?: number | null;
+        durationMinutes?: number | null;
+        startDateTime?: string | null;
+        endDateTime?: string | null;
+        confidence?: string | null;
+      };
+      
+      if (cachedResult) {
+        console.log('[handleAnalyzeMultipleScreenshots] Using cached result');
+        analysisResult = cachedResult;
+        toast.success('キャッシュから結果を取得しました');
+      } else {
+        // Analyze all screenshots together
+        analysisResult = await analyzeMultipleScreenshotsMutation.mutateAsync({
+          images: imagesData.map(d => ({
+            imageBase64: d.imageBase64,
+            mimeType: d.mimeType,
+          })),
+        });
+        
+        // 結果をキャッシュに保存
+        setAnalysisCache(prev => {
+          const newCache = new Map(prev);
+          newCache.set(combinedCacheKey, analysisResult);
+          return newCache;
+        });
+      }
       
       setAnalysisConfidence(analysisResult.confidence || null);
       

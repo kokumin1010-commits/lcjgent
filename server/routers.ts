@@ -7584,50 +7584,62 @@ ${metricsDescription}${historicalContext}`,
   "confidence": "high" | "medium" | "low"
 }`;
 
-          try {
-            console.log(`[analyzeMultipleScreenshots] Image ${index + 1}: Starting LLM analysis...`);
-            console.log(`[analyzeMultipleScreenshots] Image ${index + 1}: Base64 length: ${image.imageBase64.length}`);
-            
-            const response = await invokeLLM({
-              messages: [
-                { role: "system", content: systemPrompt },
-                {
-                  role: "user",
-                  content: [
-                    imageContent,
-                    {
-                      type: "text",
-                      text: `このTikTokライブ配信ダッシュボードのスクリーンショットから、配信データを抽出してください。JSON形式で返してください。`,
-                    },
-                  ],
-                },
-              ],
-            });
+          // リトライ付きでLLMを呼び出すヘルパー関数
+          const analyzeWithRetry = async (retryCount: number = 0): Promise<any> => {
+            try {
+              console.log(`[analyzeMultipleScreenshots] Image ${index + 1}: Starting LLM analysis... (attempt ${retryCount + 1})`);
+              console.log(`[analyzeMultipleScreenshots] Image ${index + 1}: Base64 length: ${image.imageBase64.length}`);
+              
+              const response = await invokeLLM({
+                messages: [
+                  { role: "system", content: systemPrompt },
+                  {
+                    role: "user",
+                    content: [
+                      imageContent,
+                      {
+                        type: "text",
+                        text: `このTikTokライブ配信ダッシュボードのスクリーンショットから、配信データを抽出してください。JSON形式で返してください。`,
+                      },
+                    ],
+                  },
+                ],
+              });
 
-            console.log(`[analyzeMultipleScreenshots] Image ${index + 1}: LLM response received`);
-            
-            const content = response.choices[0]?.message?.content;
-            if (!content || typeof content !== "string") {
-              console.error(`[analyzeMultipleScreenshots] Image ${index + 1}: No content returned. Response:`, JSON.stringify(response, null, 2));
+              console.log(`[analyzeMultipleScreenshots] Image ${index + 1}: LLM response received`);
+              
+              const content = response.choices[0]?.message?.content;
+              if (!content || typeof content !== "string") {
+                throw new Error(`No content returned. Response: ${JSON.stringify(response, null, 2)}`);
+              }
+
+              console.log(`[analyzeMultipleScreenshots] Image ${index + 1}: Raw content:`, content.substring(0, 500));
+
+              let jsonStr = content;
+              const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+              if (jsonMatch) {
+                jsonStr = jsonMatch[1].trim();
+              }
+
+              const parsed = JSON.parse(jsonStr);
+              console.log(`[analyzeMultipleScreenshots] Image ${index + 1} result:`, JSON.stringify(parsed, null, 2));
+              return parsed;
+            } catch (e: any) {
+              console.error(`[analyzeMultipleScreenshots] Image ${index + 1} failed (attempt ${retryCount + 1}):`, e?.message || e);
+              
+              // リトライ（1回まで）
+              if (retryCount < 1) {
+                console.log(`[analyzeMultipleScreenshots] Image ${index + 1}: Retrying in 2 seconds...`);
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                return analyzeWithRetry(retryCount + 1);
+              }
+              
+              console.error(`[analyzeMultipleScreenshots] Image ${index + 1}: All retries exhausted`);
               return null;
             }
-
-            console.log(`[analyzeMultipleScreenshots] Image ${index + 1}: Raw content:`, content.substring(0, 500));
-
-            let jsonStr = content;
-            const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
-            if (jsonMatch) {
-              jsonStr = jsonMatch[1].trim();
-            }
-
-            const parsed = JSON.parse(jsonStr);
-            console.log(`[analyzeMultipleScreenshots] Image ${index + 1} result:`, JSON.stringify(parsed, null, 2));
-            return parsed;
-          } catch (e: any) {
-            console.error(`[analyzeMultipleScreenshots] Image ${index + 1} failed:`, e?.message || e);
-            console.error(`[analyzeMultipleScreenshots] Image ${index + 1} stack:`, e?.stack);
-            return null;
-          }
+          };
+          
+          return analyzeWithRetry()
         });
 
         const results = await Promise.all(analysisPromises);
