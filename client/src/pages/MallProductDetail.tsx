@@ -92,7 +92,7 @@ export default function MallProductDetail() {
         <div className="text-center">
           <Package className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-xl font-semibold mb-2">商品が見つかりません</h3>
-          <Link href="/products">
+          <Link href="/mall/products">
             <Button variant="outline">商品一覧に戻る</Button>
           </Link>
         </div>
@@ -108,7 +108,7 @@ export default function MallProductDetail() {
       <header className="bg-white/80 backdrop-blur-sm border-b border-pink-100 sticky top-0 z-50">
         <div className="container py-4">
           <div className="flex items-center justify-between">
-            <Link href="/products" className="flex items-center gap-2">
+            <Link href="/mall/products" className="flex items-center gap-2">
               <ArrowLeft className="h-5 w-5 text-pink-500" />
               <span className="text-xl font-bold bg-gradient-to-r from-pink-500 to-rose-500 bg-clip-text text-transparent">
                 LCJ MALL

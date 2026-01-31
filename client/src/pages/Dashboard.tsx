@@ -1,6 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, ClipboardList, Clock, CheckCircle2, Users, Plus, AlertTriangle, FileText } from "lucide-react";
+import { Loader2, ClipboardList, Clock, CheckCircle2, Users, Plus, AlertTriangle, FileText, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -38,15 +38,25 @@ export default function Dashboard() {
         </p>
       </div>
 
-      {/* Daily Report Button */}
-      <Button
-        size="lg"
-        className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-md"
-        onClick={() => setLocation("/master/reports/chat")}
-      >
-        <FileText className="h-5 w-5 mr-2" />
-        {t("dashboard.dailyReport")}
-      </Button>
+      {/* Action Buttons */}
+      <div className="grid gap-3 grid-cols-2">
+        <Button
+          size="lg"
+          className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-md"
+          onClick={() => setLocation("/master/reports/chat")}
+        >
+          <FileText className="h-5 w-5 mr-2" />
+          {t("dashboard.dailyReport")}
+        </Button>
+        <Button
+          size="lg"
+          className="w-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-md"
+          onClick={() => setLocation("/master/products")}
+        >
+          <ShoppingBag className="h-5 w-5 mr-2" />
+          {t("nav.products")}
+        </Button>
+      </div>
 
       <div className="grid gap-4 grid-cols-2">
         <Card>
