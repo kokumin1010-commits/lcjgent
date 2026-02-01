@@ -90,10 +90,28 @@ export function verifyLineSignature(
 }
 
 /**
- * LINE連携コードを生成（6桁の数字）
+ * LINE連携コードを生成
+ * ライバー用: L-XXXXXX
+ * モール会員用: M-XXXXXX
  */
-export function generateLinkCode(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+export function generateLinkCode(type: 'liver' | 'mall' = 'liver'): string {
+  const prefix = type === 'liver' ? 'L' : 'M';
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  return `${prefix}-${code}`;
+}
+
+/**
+ * ライバー用連携コードを生成
+ */
+export function generateLiverLinkCode(): string {
+  return generateLinkCode('liver');
+}
+
+/**
+ * モール会員用連携コードを生成
+ */
+export function generateMallLinkCode(): string {
+  return generateLinkCode('mall');
 }
 
 /**
@@ -277,6 +295,9 @@ async function handleFollowEvent(event: LineWebhookEvent): Promise<void> {
 
 /**
  * Handle text message (連携コード入力)
+ * コード形式:
+ * - L-XXXXXX: ライバー用
+ * - M-XXXXXX: モール会員用
  */
 async function handleTextMessage(
   event: LineWebhookEvent,
@@ -285,26 +306,42 @@ async function handleTextMessage(
   const lineUserId = event.source.userId;
   if (!lineUserId) return;
 
-  // 6桁の数字かチェック
-  const trimmedText = text.trim();
-  if (!/^\d{6}$/.test(trimmedText)) {
+  const trimmedText = text.trim().toUpperCase();
+  
+  // プレフィックス付きコードの形式をチェック (L-XXXXXX または M-XXXXXX)
+  const codeMatch = trimmedText.match(/^([LM])-?(\d{6})$/);
+  
+  if (!codeMatch) {
     // 連携コードではない場合は案内メッセージを送信
     await sendLinePushMessage(lineUserId, [
       {
         type: "text",
-        text: `LINE連携をするには、6桁の連携コードを送信してください。\n\n【LCJ MALL会員の方】\nマイページ → LINE連携 → コード発行\n\n【LCJライバーの方】\nアプリ → プロフィール → LINE連携\n\n例: 123456`,
+        text: `LINE連携をするには、連携コードを送信してください。\n\n【LCJ MALL会員の方】\nマイページ → LINE連携 → コード発行\n例: M-123456\n\n【LCJライバーの方】\nアプリ → プロフィール → LINE連携\n例: L-123456`,
       },
     ]);
     return;
   }
 
-  // まずLCJ MALL会員の連携コードをチェック
-  const mallUserLinked = await tryLinkMallUser(trimmedText, lineUserId);
-  if (mallUserLinked) {
-    return; // MALL会員の連携が完了
+  const codeType = codeMatch[1]; // 'L' or 'M'
+  const fullCode = `${codeType}-${codeMatch[2]}`; // Normalize to X-XXXXXX format
+
+  if (codeType === 'M') {
+    // モール会員用コード
+    const mallUserLinked = await tryLinkMallUser(fullCode, lineUserId);
+    if (mallUserLinked) {
+      return; // MALL会員の連携が完了
+    }
+    // コードが見つからない場合
+    await sendLinePushMessage(lineUserId, [
+      {
+        type: "text",
+        text: `モール会員用の連携コードが見つからないか、有効期限が切れています。\n\nLCJ MALLのマイページから新しいコードを発行してください。`,
+      },
+    ]);
+    return;
   }
 
-  // 次にライバーの連携コードをチェック
+  // ライバー用コード (L-XXXXXX)
   // 既に連携済みかチェック
   const existingLiver = await findLiverByLineUserId(lineUserId);
   if (existingLiver) {
@@ -318,13 +355,13 @@ async function handleTextMessage(
   }
 
   // 連携コードでライバーを検索
-  const liverData = await findLiverByLinkCode(trimmedText);
+  const liverData = await findLiverByLinkCode(fullCode);
   
   if (!liverData) {
     await sendLinePushMessage(lineUserId, [
       {
         type: "text",
-        text: `連携コードが見つからないか、有効期限が切れています。\n\n新しいコードを発行してください。`,
+        text: `ライバー用の連携コードが見つからないか、有効期限が切れています。\n\nLCJライバーアプリで新しいコードを発行してください。`,
       },
     ]);
     return;

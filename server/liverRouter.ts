@@ -395,8 +395,8 @@ export const liverRouter = router({
         throw new TRPCError({ code: "UNAUTHORIZED" });
       }
 
-      const { generateLinkCode, saveLinkCodeForLiver } = await import("./lineWebhook");
-      const linkCode = generateLinkCode();
+      const { generateLiverLinkCode, saveLinkCodeForLiver } = await import("./lineWebhook");
+      const linkCode = generateLiverLinkCode();
       await saveLinkCodeForLiver(payload.liverId, linkCode);
 
       return { linkCode, expiresIn: 600 }; // 10 minutes

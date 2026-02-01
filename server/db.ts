@@ -6241,14 +6241,16 @@ export async function updateLineUserPassword(userId: number, hashedPassword: str
 // ==========================================
 
 /**
- * Generate a 6-digit link code for LINE account linking
+ * Generate a link code for LINE account linking (MALL user)
+ * Format: M-XXXXXX
  */
 export async function createLineLinkCode(lineUserId: number): Promise<{ code: string; expiresAt: Date }> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  // Generate 6-digit code
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  // Generate code with M- prefix for MALL users
+  const numericCode = Math.floor(100000 + Math.random() * 900000).toString();
+  const code = `M-${numericCode}`;
   
   // Set expiration to 10 minutes from now
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000);

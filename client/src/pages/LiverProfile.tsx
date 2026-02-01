@@ -123,13 +123,13 @@ function LineLinkSection({ lineUserId }: { lineUserId?: string | null }) {
         <ol className="list-decimal list-inside space-y-1">
           <li>LCJ公式LINEを友だち追加</li>
           <li>下の「連携コードを発行」をタップ</li>
-          <li>表示される6桁のコードをLINEに送信</li>
+          <li>表示されるコード（L-XXXXXX）をLINEに送信</li>
         </ol>
       </div>
 
       {linkCode ? (
         <div className="p-4 bg-yellow-900/30 border border-yellow-600 rounded-lg text-center">
-          <p className="text-sm text-yellow-400 mb-2">連携コード（{Math.floor(timeLeft / 60)}分{timeLeft % 60}秒有効）</p>
+          <p className="text-sm text-yellow-400 mb-2">ライバー用連携コード（{Math.floor(timeLeft / 60)}分{timeLeft % 60}秒有効）</p>
           <p className="text-4xl font-bold text-white tracking-widest">{linkCode}</p>
           <p className="mt-2 text-xs text-gray-400">このコードをLCJ公式LINEに送信してください</p>
         </div>

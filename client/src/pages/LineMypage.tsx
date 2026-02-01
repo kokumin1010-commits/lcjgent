@@ -409,7 +409,7 @@ export default function LineMypage() {
               <div className="space-y-4">
                 {activeCode?.code && remainingTime ? (
                   <div className="bg-white rounded-lg p-4 border-2 border-emerald-200">
-                    <p className="text-sm text-muted-foreground mb-2">連携コード（有効期限: {remainingTime}）</p>
+                    <p className="text-sm text-muted-foreground mb-2">モール会員用連携コード（有効期限: {remainingTime}）</p>
                     <div className="flex items-center gap-3">
                       <div className="flex-1 bg-emerald-50 rounded-lg p-3 text-center">
                         <span className="text-3xl font-mono font-bold tracking-widest text-emerald-700">
@@ -463,7 +463,7 @@ export default function LineMypage() {
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="flex-shrink-0 h-5 w-5 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-xs font-bold">2</span>
-                      <span>表示された6桁のコードをコピー</span>
+                      <span>表示されたコード（M-XXXXXX）をコピー</span>
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="flex-shrink-0 h-5 w-5 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-xs font-bold">3</span>
