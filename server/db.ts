@@ -3038,6 +3038,26 @@ export async function updateSchedule(id: number, data: Partial<InsertSchedule>) 
     .where(eq(schedules.id, id));
 }
 
+// Update all recurring schedules with the same parentScheduleId
+export async function updateRecurringSchedules(parentScheduleId: number, data: Partial<InsertSchedule>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Update all schedules with this parentScheduleId (including the parent itself)
+  await db
+    .update(schedules)
+    .set(data)
+    .where(
+      and(
+        or(
+          eq(schedules.id, parentScheduleId),
+          eq(schedules.parentScheduleId, parentScheduleId)
+        ),
+        not(eq(schedules.status, "cancelled"))
+      )
+    );
+}
+
 // Delete schedule (soft delete - set status to cancelled)
 export async function deleteSchedule(id: number) {
   const db = await getDb();
@@ -3047,6 +3067,23 @@ export async function deleteSchedule(id: number) {
     .update(schedules)
     .set({ status: "cancelled" })
     .where(eq(schedules.id, id));
+}
+
+// Delete all recurring schedules with the same parentScheduleId
+export async function deleteRecurringSchedules(parentScheduleId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Delete all schedules with this parentScheduleId (including the parent itself)
+  await db
+    .update(schedules)
+    .set({ status: "cancelled" })
+    .where(
+      or(
+        eq(schedules.id, parentScheduleId),
+        eq(schedules.parentScheduleId, parentScheduleId)
+      )
+    );
 }
 
 // Get all schedules (for management UI)

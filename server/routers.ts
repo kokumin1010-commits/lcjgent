@@ -157,6 +157,8 @@ import {
   getSchedulesByLiverName,
   updateSchedule,
   deleteSchedule,
+  updateRecurringSchedules,
+  deleteRecurringSchedules,
   getUpcomingSchedules,
   createLiver,
   getLiverByEmail,
@@ -6838,6 +6840,7 @@ ${conversationText}
           isAllDay: z.boolean().optional(),
           category: z.enum(["delivery", "meeting", "live", "other"]).optional(),
           notes: z.string().optional(),
+          updateAll: z.boolean().optional(), // すべての繰り返しを更新するかどうか
         })
       )
       .mutation(async ({ input, ctx }) => {
@@ -6852,7 +6855,7 @@ ${conversationText}
           throw new TRPCError({ code: "FORBIDDEN", message: "この予定を編集する権限がありません" });
         }
         
-        const { id, ...data } = input;
+        const { id, updateAll, ...data } = input;
         const updateData: Record<string, unknown> = {};
         
         if (data.title !== undefined) updateData.title = data.title;
@@ -6863,13 +6866,29 @@ ${conversationText}
         if (data.category !== undefined) updateData.category = data.category;
         if (data.notes !== undefined) updateData.notes = data.notes;
         
-        await updateSchedule(id, updateData);
+        // すべての繰り返しを更新する場合
+        if (updateAll && schedule.parentScheduleId) {
+          // 日付以外のフィールドのみ更新（タイトル、説明、カテゴリ、終日フラグなど）
+          const recurringUpdateData: Record<string, unknown> = {};
+          if (data.title !== undefined) recurringUpdateData.title = data.title;
+          if (data.description !== undefined) recurringUpdateData.description = data.description;
+          if (data.isAllDay !== undefined) recurringUpdateData.isAllDay = data.isAllDay;
+          if (data.category !== undefined) recurringUpdateData.category = data.category;
+          if (data.notes !== undefined) recurringUpdateData.notes = data.notes;
+          
+          await updateRecurringSchedules(schedule.parentScheduleId, recurringUpdateData);
+        } else {
+          await updateSchedule(id, updateData);
+        }
         return { success: true };
       }),
 
     // Public: Delete a schedule (requires matching liverName)
     publicDelete: protectedProcedure
-      .input(z.object({ id: z.number() }))
+      .input(z.object({ 
+        id: z.number(),
+        deleteAll: z.boolean().optional(), // すべての繰り返しを削除するかどうか
+      }))
       .mutation(async ({ input, ctx }) => {
         // Get the schedule to check ownership
         const schedule = await getScheduleById(input.id);
@@ -6882,7 +6901,12 @@ ${conversationText}
           throw new TRPCError({ code: "FORBIDDEN", message: "この予定を削除する権限がありません" });
         }
         
-        await deleteSchedule(input.id);
+        // すべての繰り返しを削除する場合
+        if (input.deleteAll && schedule.parentScheduleId) {
+          await deleteRecurringSchedules(schedule.parentScheduleId);
+        } else {
+          await deleteSchedule(input.id);
+        }
         return { success: true };
       }),
   }),

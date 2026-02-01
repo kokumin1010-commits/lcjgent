@@ -91,6 +91,7 @@ type Schedule = {
   category?: string | null;
   liverName?: string | null;
   liverId?: number | null;
+  parentScheduleId?: number | null; // 繰り返し予定の親 ID
 };
 
 export default function PublicSchedule() {
@@ -176,6 +177,8 @@ export default function PublicSchedule() {
     endTime: string;
     isAllDay: boolean;
     category: "delivery" | "meeting" | "live" | "other";
+    updateAll: boolean; // すべての繰り返しを更新するか
+    isRecurring: boolean; // 繰り返し予定かどうか
   } | null>(null);
 
   // Create schedule mutation (uses user's name from auth)
@@ -242,6 +245,8 @@ export default function PublicSchedule() {
       endTime: schedule.endTime ? formatTimeJST(endDate) : formatTimeJST(startDate),
       isAllDay: schedule.isAllDay || false,
       category: (schedule.category as "delivery" | "meeting" | "live" | "other") || "other",
+      updateAll: false, // デフォルトはこの予定のみ
+      isRecurring: !!schedule.parentScheduleId, // 繰り返し予定かどうか
     });
     setIsEditMode(true);
   };
@@ -270,6 +275,7 @@ export default function PublicSchedule() {
       endTime: endTimeUTC.toISOString(),
       isAllDay: editSchedule.isAllDay,
       category: editSchedule.category,
+      updateAll: editSchedule.updateAll, // すべての繰り返しを更新するか
     });
   };
 
@@ -1138,6 +1144,44 @@ export default function PublicSchedule() {
                         rows={3}
                       />
                     </div>
+                    
+                    {/* 繰り返し予定の場合のみ表示 */}
+                    {editSchedule.isRecurring && (
+                      <div className="p-3 bg-pink-50 rounded-lg border border-pink-200">
+                        <p className="text-sm text-pink-700 mb-2 font-medium">繰り返し予定の更新範囲</p>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setEditSchedule(prev => prev ? { ...prev, updateAll: false } : null)}
+                            className={cn(
+                              "flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors",
+                              !editSchedule.updateAll
+                                ? "bg-pink-500 text-white"
+                                : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
+                            )}
+                          >
+                            この予定のみ
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditSchedule(prev => prev ? { ...prev, updateAll: true } : null)}
+                            className={cn(
+                              "flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors",
+                              editSchedule.updateAll
+                                ? "bg-pink-500 text-white"
+                                : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
+                            )}
+                          >
+                            すべての繰り返し
+                          </button>
+                        </div>
+                        {editSchedule.updateAll && (
+                          <p className="text-xs text-pink-600 mt-2">
+                            ※ タイトル、メモ、カテゴリ、終日設定が全ての繰り返しに適用されます
+                          </p>
+                        )}
+                      </div>
+                    )}
                     
                     <div className="flex gap-2">
                       <Button
