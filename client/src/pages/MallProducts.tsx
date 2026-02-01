@@ -162,10 +162,15 @@ export default function MallProducts() {
                       </div>
                     )}
                     {product.pointPrice && product.stock > 0 && (
-                      <Badge className="absolute top-2 right-2 bg-gradient-to-r from-pink-500 to-rose-500">
-                        <Star className="h-3 w-3 mr-1" />
-                        ポイント交換可
-                      </Badge>
+                      <div className="absolute top-2 right-2">
+                        <div className="relative">
+                          <div className="absolute inset-0 bg-gradient-to-r from-amber-400 to-yellow-400 rounded-full blur-sm animate-pulse"></div>
+                          <Badge className="relative bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-amber-900 font-bold border-2 border-amber-300 shadow-lg px-3 py-1">
+                            <Star className="h-3 w-3 mr-1 fill-amber-700" />
+                            ポイント交換可
+                          </Badge>
+                        </div>
+                      </div>
                     )}
                   </div>
                   <CardContent className="p-4">
@@ -178,14 +183,23 @@ export default function MallProducts() {
                       {product.name}
                     </h3>
                     <div className="flex items-end justify-between">
-                      <div>
+                      <div className="flex-1">
                         <p className="text-2xl font-bold text-pink-600">
                           ¥{product.price.toLocaleString()}
                         </p>
                         {product.pointPrice && (
-                          <p className="text-sm text-muted-foreground">
-                            または {product.pointPrice.toLocaleString()}pt
-                          </p>
+                          <div className="mt-2 relative">
+                            <div className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-400 shadow-lg shadow-amber-200/50 animate-pulse">
+                              <Star className="h-4 w-4 text-amber-700 fill-amber-700" />
+                              <span className="text-lg font-black text-amber-800">
+                                {product.pointPrice.toLocaleString()}
+                              </span>
+                              <span className="text-sm font-bold text-amber-700">pt</span>
+                            </div>
+                            <span className="block text-xs text-amber-600 font-medium mt-1">
+                              ✨ ポイントで交換可能！
+                            </span>
+                          </div>
                         )}
                       </div>
                       {product.stock > 0 && (

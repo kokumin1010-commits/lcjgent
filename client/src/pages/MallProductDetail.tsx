@@ -376,10 +376,15 @@ export default function MallProductDetail() {
                 </div>
               )}
               {product.pointPrice && (
-                <Badge className="absolute top-4 left-4 bg-gradient-to-r from-yellow-400 to-orange-400 text-white px-4 py-2 text-lg shadow-lg">
-                  <Coins className="h-5 w-5 mr-2" />
-                  {product.pointPrice.toLocaleString()}pt
-                </Badge>
+                <div className="absolute top-4 left-4">
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-gradient-to-r from-amber-400 to-yellow-400 rounded-full blur-sm animate-pulse"></div>
+                    <Badge className="relative bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-amber-900 px-4 py-2 text-lg shadow-lg border-2 border-amber-300 font-bold">
+                      <Coins className="h-5 w-5 mr-2 text-amber-700" />
+                      {product.pointPrice.toLocaleString()}pt
+                    </Badge>
+                  </div>
+                </div>
               )}
               {product.stock <= 5 && product.stock > 0 && (
                 <Badge className="absolute top-4 right-4 bg-red-500 text-white">
@@ -424,11 +429,14 @@ export default function MallProductDetail() {
                   </p>
                 </div>
                 {product.pointPrice && (
-                  <div className="bg-gradient-to-r from-yellow-50 to-orange-50 px-4 py-2 rounded-xl border border-yellow-200">
-                    <span className="text-sm text-yellow-700">ポイント価格</span>
-                    <p className="text-2xl font-bold text-orange-600">
-                      {product.pointPrice.toLocaleString()}pt
-                    </p>
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-gradient-to-r from-amber-400 to-yellow-400 rounded-2xl blur-md opacity-50 animate-pulse"></div>
+                    <div className="relative bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 px-5 py-3 rounded-2xl border-2 border-amber-300 shadow-lg shadow-amber-200/50">
+                      <span className="text-sm font-semibold text-amber-800">✨ ポイント価格</span>
+                      <p className="text-3xl font-black text-amber-900">
+                        {product.pointPrice.toLocaleString()}<span className="text-xl">pt</span>
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
