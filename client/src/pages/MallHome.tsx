@@ -65,7 +65,7 @@ export default function MallHome() {
               そのすべてが、価値になる。
             </span>
           </h1>
-          <p className="text-base md:text-lg text-gray-600 mb-8 md:mb-10 leading-relaxed px-2">
+          <p className="text-base md:text-lg text-gray-600 mb-6 md:mb-8 leading-relaxed px-2">
             LCJ Mallは、
             <br className="sm:hidden" />
             TikTok Shopで購入したすべての商品を対象に、
@@ -74,6 +74,14 @@ export default function MallHome() {
             <br className="sm:hidden" />
             <span className="font-semibold text-gray-800">LCJ公式ショッピングサービス</span>です。
           </p>
+          
+          {/* 還元率バッジ */}
+          <div className="flex justify-center mb-8 md:mb-10">
+            <div className="inline-flex items-center gap-2 bg-gradient-to-r from-rose-500 to-pink-500 text-white px-5 py-2.5 md:px-6 md:py-3 rounded-full shadow-lg">
+              <Coins className="h-5 w-5 md:h-6 md:w-6" />
+              <span className="text-lg md:text-xl font-bold">購入金額の1%還元</span>
+            </div>
+          </div>
           <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center px-4">
             <Button 
               size="lg" 
@@ -152,12 +160,16 @@ export default function MallHome() {
               </div>
               <h3 className="text-lg md:text-xl font-bold mb-2 md:mb-3">ポイントが貯まる・使える</h3>
               <p className="text-gray-600 text-sm md:text-base">
-                内容確認後、LCJ Mallポイントを付与。
+                内容確認後、<span className="font-semibold text-rose-500">購入金額の1%</span>をポイント付与。
                 <br />
                 貯まったポイントは、
                 <br />
                 LCJモール内で<span className="font-semibold text-rose-500">1pt＝1円</span>として使えます。
               </p>
+              <div className="mt-4 bg-rose-50 rounded-lg p-3">
+                <p className="text-xs text-gray-500">例：10,000円の購入で</p>
+                <p className="text-xl font-bold text-rose-500">100pt 獲得！</p>
+              </div>
             </div>
           </div>
         </div>
@@ -185,7 +197,7 @@ export default function MallHome() {
               </div>
               <div>
                 <h3 className="font-semibold text-gray-900 text-sm md:text-base">レシートを送るだけ</h3>
-                <p className="text-gray-600 text-xs md:text-sm">ポイントが貯まる</p>
+                <p className="text-gray-600 text-xs md:text-sm">購入金額の<span className="font-semibold text-rose-500">1%</span>がポイントに</p>
               </div>
             </div>
             <div className="flex items-start gap-3 md:gap-4 p-4 md:p-5 bg-purple-50 rounded-xl">
