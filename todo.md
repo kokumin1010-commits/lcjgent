@@ -3068,3 +3068,9 @@
 - [x] LINE友だち追加URLにLIFFログインを組み込む
 - [x] 友だち追加完了後に自動的にログイン処理を実行
 - [x] ログイン成功後にマイページへリダイレクト
+
+
+## サイトメタデータ（OGP/SEO）の修正
+- [x] サイトタイトルをLCJ MALLに変更
+- [x] 説明文をLCJ MALLに合った内容に変更
+- [x] OGPメタタグを追加（og:title, og:description, twitter:card等）
