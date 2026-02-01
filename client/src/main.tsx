@@ -62,12 +62,30 @@ const trpcClient = trpc.createClient({
         // Get LCJ MALL session token from localStorage (fallback for cookie issues)
         const lcjSessionToken = localStorage.getItem('lcj_session_token');
         
-        // Add Authorization header if token exists
+        // Add Authorization header based on current page context
         const headers = new Headers(init?.headers);
-        if (liverToken) {
+        const currentPath = window.location.pathname;
+        
+        // Determine which token to use based on the page context
+        // LCJ MALL pages (mypage, line-login, etc.) should use lcjSessionToken
+        // Liver pages should use liverToken
+        const isLcjMallPage = currentPath === '/mypage' || 
+                              currentPath.startsWith('/line-') || 
+                              currentPath === '/' ||
+                              currentPath.startsWith('/products') ||
+                              currentPath.startsWith('/mall');
+        const isLiverPage = currentPath.startsWith('/liver/');
+        
+        if (isLiverPage && liverToken) {
+          headers.set("Authorization", `Bearer ${liverToken}`);
+        } else if (isLcjMallPage && lcjSessionToken) {
+          // Use LCJ session token for LINE/email login pages
+          headers.set("Authorization", `Bearer ${lcjSessionToken}`);
+        } else if (liverToken) {
+          // Fallback to liver token for other pages
           headers.set("Authorization", `Bearer ${liverToken}`);
         } else if (lcjSessionToken) {
-          // Use LCJ session token for LINE/email login fallback
+          // Fallback to LCJ session token
           headers.set("Authorization", `Bearer ${lcjSessionToken}`);
         }
         
