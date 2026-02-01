@@ -34,6 +34,7 @@ export default function LiverSelfRecord() {
     livestreamDate: dateParam || "",
     livestreamStartTime: "",
     livestreamEndTime: "",
+    livestreamEndDate: "",
     salesAmount: "",
     viewerCount: "",
     peakViewerCount: "",
@@ -142,6 +143,9 @@ export default function LiverSelfRecord() {
     livestreamDate: "配信日",
     startTime: "開始時刻",
     endTime: "終了時刻",
+    endDate: "終了日",
+    endDateHint: "(日付をまたぐ場合のみ)",
+    endDateWarning: "※ 終了日が配信日と異なります（日付をまたぐ配信）",
     result: "結果",
     selectResult: "結果を選択",
     success: "成功",
@@ -292,9 +296,16 @@ export default function LiverSelfRecord() {
       
       // 終了時刻（endDateTime: "YYYY-MM-DD HH:mm"形式）
       if (analysisResult.endDateTime) {
-        const [, timePart] = analysisResult.endDateTime.split(' ');
+        const [endDatePart, timePart] = analysisResult.endDateTime.split(' ');
         if (timePart) {
           updates.livestreamEndTime = timePart;
+        }
+        // 終了日が開始日と異なる場合は終了日を設定
+        if (endDatePart && analysisResult.startDateTime) {
+          const [startDatePart] = analysisResult.startDateTime.split(' ');
+          if (endDatePart !== startDatePart) {
+            updates.livestreamEndDate = endDatePart;
+          }
         }
       }
       
@@ -387,8 +398,10 @@ export default function LiverSelfRecord() {
       }
 
       const livestreamDateTime = new Date(`${formData.livestreamDate}T${formData.livestreamStartTime}`);
+      // 終了日が設定されている場合はそれを使用、そうでなければ配信日を使用
+      const endDateToUse = formData.livestreamEndDate || formData.livestreamDate;
       const endDateTime = formData.livestreamEndTime 
-        ? new Date(`${formData.livestreamDate}T${formData.livestreamEndTime}`)
+        ? new Date(`${endDateToUse}T${formData.livestreamEndTime}`)
         : undefined;
 
       // impactFactorが空の場合はundefinedを送信
@@ -797,6 +810,26 @@ export default function LiverSelfRecord() {
                     className="bg-gray-800 border-gray-700 text-white"
                   />
                 </div>
+              </div>
+
+              {/* End Date (日付をまたぐ配信用) */}
+              <div className="space-y-2">
+                <Label className="text-gray-400 text-sm flex items-center gap-2">
+                  {tr.endDate}
+                  <span className="text-xs text-gray-500">{tr.endDateHint}</span>
+                </Label>
+                <Input
+                  type="date"
+                  value={formData.livestreamEndDate}
+                  onChange={(e) => setFormData({ ...formData, livestreamEndDate: e.target.value })}
+                  className="bg-gray-800 border-gray-700 text-white"
+                  min={formData.livestreamDate}
+                />
+                {formData.livestreamEndDate && formData.livestreamDate && formData.livestreamEndDate !== formData.livestreamDate && (
+                  <p className="text-xs text-yellow-400">
+                    {tr.endDateWarning}
+                  </p>
+                )}
               </div>
 
               {/* Result */}
