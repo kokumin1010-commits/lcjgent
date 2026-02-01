@@ -1,0 +1,59 @@
+{
+  "query": "SELECT id, email, displayName, lineUserId, createdAt FROM line_users WHERE lineUserId IS NULL OR lineUserId = '' ORDER BY createdAt DESC LIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, email, displayName, lineUserId, createdAt FROM line_users WHERE lineUserId IS NULL OR lineUserId = '' ORDER BY createdAt DESC LIMIT 20;",
+  "rows": [
+    {
+      "id": "690001",
+      "email": "shihomi208@gmail.com",
+      "displayName": "SHIHO",
+      "lineUserId": "NULL",
+      "createdAt": "2026-02-01 05:09:26"
+    },
+    {
+      "id": "660008",
+      "email": "testuser3@example.com",
+      "displayName": "テストユーザー3",
+      "lineUserId": "NULL",
+      "createdAt": "2026-01-31 15:31:38"
+    },
+    {
+      "id": "660007",
+      "email": "devtest2026@example.com",
+      "displayName": "開発テスト",
+      "lineUserId": "NULL",
+      "createdAt": "2026-01-31 15:25:34"
+    },
+    {
+      "id": "660006",
+      "email": "newuser2026@test.com",
+      "displayName": "テストユーザー",
+      "lineUserId": "NULL",
+      "createdAt": "2026-01-31 15:23:24"
+    },
+    {
+      "id": "660005",
+      "email": "test@gmail.com",
+      "displayName": "Lcjmallテスト",
+      "lineUserId": "NULL",
+      "createdAt": "2026-01-31 13:11:01"
+    },
+    {
+      "id": "660004",
+      "email": "newuser@example.com",
+      "displayName": "テストユーザー",
+      "lineUserId": "NULL",
+      "createdAt": "2026-01-31 12:59:04"
+    },
+    {
+      "id": "660003",
+      "email": "test@example.com",
+      "displayName": "テストユーザー",
+      "lineUserId": "NULL",
+      "createdAt": "2026-01-31 12:52:04"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\temail\tdisplayName\tlineUserId\tcreatedAt\n690001\tshihomi208@gmail.com\tSHIHO\tNULL\t2026-02-01 05:09:26\n660008\ttestuser3@example.com\tテストユーザー3\tNULL\t2026-01-31 15:31:38\n660007\tdevtest2026@example.com\t開発テスト\tNULL\t2026-01-31 15:25:34\n660006\tnewuser2026@test.com\tテストユーザー\tNULL\t2026-01-31 15:23:24\n660005\ttest@gmail.com\tLcjmallテスト\tNULL\t2026-01-31 13:11:01\n660004\tnewuser@example.com\tテストユーザー\tNULL\t2026-01-31 12:59:04\n660003\ttest@example.com\tテストユーザー\tNULL\t2026-01-31 12:52:04\n",
+  "stderr": "",
+  "execution_time_ms": 1526
+}

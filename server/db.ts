@@ -6309,6 +6309,7 @@ export async function verifyAndUseLinkCode(code: string, linkedLineUserId: strin
  * Link LINE account to email user (Mall member)
  * Updates the line_users record to include the LINE User ID
  * Note: Same LINE ID can be linked to both Liver and Mall member accounts
+ * If there's an existing LINE BOT account (email is NULL), we merge it into the email account
  */
 export async function linkLineAccountToEmailUser(emailUserId: number, lineUserId: string, displayName?: string, pictureUrl?: string) {
   const db = await getDb();
@@ -6322,8 +6323,19 @@ export async function linkLineAccountToEmailUser(emailUserId: number, lineUserId
     .limit(1);
   
   if (existingLineUser.length > 0 && existingLineUser[0].id !== emailUserId) {
-    // LINE ID is already linked to a different MALL account
-    throw new Error("LINE_ALREADY_LINKED_TO_MALL");
+    // Check if the existing account is a LINE BOT account (no email) - if so, we can merge
+    if (existingLineUser[0].email === null || existingLineUser[0].email === '') {
+      // This is a LINE BOT account without email - we can safely merge
+      // First, clear the lineUserId from the old account to avoid conflicts
+      await db.update(lineUsers)
+        .set({ lineUserId: null })
+        .where(eq(lineUsers.id, existingLineUser[0].id));
+      
+      console.log(`[LINE Link] Merged LINE BOT account (ID: ${existingLineUser[0].id}) into email account (ID: ${emailUserId})`);
+    } else {
+      // LINE ID is already linked to a different MALL account with email
+      throw new Error("LINE_ALREADY_LINKED_TO_MALL");
+    }
   }
   
   // Update email user with LINE ID
