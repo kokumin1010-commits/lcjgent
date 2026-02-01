@@ -170,6 +170,8 @@ export default function PublicSchedule() {
     id: number;
     title: string;
     description: string;
+    startDate: string; // YYYY-MM-DD形式
+    endDate: string; // YYYY-MM-DD形式
     startTime: string;
     endTime: string;
     isAllDay: boolean;
@@ -226,10 +228,16 @@ export default function PublicSchedule() {
     const startDate = new Date(schedule.startTime);
     const endDate = schedule.endTime ? new Date(schedule.endTime) : startDate;
     
+    // JSTで日付を取得（YYYY-MM-DD形式）
+    const startDateStr = startDate.toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' }); // sv-SEはYYYY-MM-DD形式
+    const endDateStr = endDate.toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' });
+    
     setEditSchedule({
       id: schedule.id,
       title: schedule.title,
       description: schedule.description || "",
+      startDate: startDateStr,
+      endDate: endDateStr,
       startTime: formatTimeJST(startDate),
       endTime: schedule.endTime ? formatTimeJST(endDate) : formatTimeJST(startDate),
       isAllDay: schedule.isAllDay || false,
@@ -242,19 +250,17 @@ export default function PublicSchedule() {
   const saveEditSchedule = () => {
     if (!editSchedule || !selectedSchedule) return;
     
-    // Get the date from the original schedule (in JST)
-    const originalDate = new Date(selectedSchedule.startTime);
-    const year = originalDate.toLocaleString('en-US', { timeZone: 'Asia/Tokyo', year: 'numeric' });
-    const month = originalDate.toLocaleString('en-US', { timeZone: 'Asia/Tokyo', month: 'numeric' });
-    const day = originalDate.toLocaleString('en-US', { timeZone: 'Asia/Tokyo', day: 'numeric' });
+    // editScheduleの日付フィールドから日付を取得（ユーザーが編集可能）
+    const [startYear, startMonth, startDay] = editSchedule.startDate.split("-").map(Number);
+    const [endYear, endMonth, endDay] = editSchedule.endDate.split("-").map(Number);
     
     const [startHour, startMin] = editSchedule.startTime.split(":").map(Number);
     const [endHour, endMin] = editSchedule.endTime.split(":").map(Number);
     
     // Create UTC dates directly from JST input
     // JST is UTC+9, so we subtract 9 hours from the JST time to get UTC
-    const startTimeUTC = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), startHour - 9, startMin));
-    const endTimeUTC = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), endHour - 9, endMin));
+    const startTimeUTC = new Date(Date.UTC(startYear, startMonth - 1, startDay, startHour - 9, startMin));
+    const endTimeUTC = new Date(Date.UTC(endYear, endMonth - 1, endDay, endHour - 9, endMin));
     
     updateScheduleMutation.mutate({
       id: editSchedule.id,
@@ -1076,10 +1082,33 @@ export default function PublicSchedule() {
                       />
                     </div>
                     
+                    {/* 日付選択 */}
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1">
+                        <label className="text-sm text-gray-500">開始日</label>
+                        <Input
+                          type="date"
+                          value={editSchedule.startDate}
+                          onChange={(e) => setEditSchedule(prev => prev ? { ...prev, startDate: e.target.value } : null)}
+                          className="mt-1"
+                        />
+                      </div>
+                      <span className="text-gray-400 pt-5">～</span>
+                      <div className="flex-1">
+                        <label className="text-sm text-gray-500">終了日</label>
+                        <Input
+                          type="date"
+                          value={editSchedule.endDate}
+                          onChange={(e) => setEditSchedule(prev => prev ? { ...prev, endDate: e.target.value } : null)}
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
+                    
                     {!editSchedule.isAllDay && (
                       <div className="flex items-center gap-2">
                         <div className="flex-1">
-                          <label className="text-sm text-gray-500">開始</label>
+                          <label className="text-sm text-gray-500">開始時刻</label>
                           <Input
                             type="time"
                             value={editSchedule.startTime}
@@ -1089,7 +1118,7 @@ export default function PublicSchedule() {
                         </div>
                         <span className="text-gray-400 pt-5">～</span>
                         <div className="flex-1">
-                          <label className="text-sm text-gray-500">終了</label>
+                          <label className="text-sm text-gray-500">終了時刻</label>
                           <Input
                             type="time"
                             value={editSchedule.endTime}
