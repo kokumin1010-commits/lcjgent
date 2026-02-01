@@ -233,7 +233,7 @@ async function startServer() {
     if (event.source.type === "user" && event.message?.type === "text") {
       const text = event.message.text?.trim() || "";
       
-      // Check if it's a 6-digit link code
+      // Check if it's a 6-digit link code (Liver)
       if (/^\d{6}$/.test(text)) {
         const { findLiverByLineUserId, findLiverByLinkCode, linkLineUserToLiver } = await import("../lineWebhook");
         const { sendLinePushMessage } = await import("./../_core/lineMessaging");
@@ -275,6 +275,69 @@ async function startServer() {
             text: `🎉 ${liverData.name}さん、LINE連携が完了しました！\n\nこれから配信後にAIコーチングがLINEに届きます。\n\n頑張ってください！💪`,
           },
         ]);
+        return;
+      }
+      
+      // Check if it's a Mall link code (M-XXXXXX format)
+      if (/^M-\d{6}$/i.test(text)) {
+        const { verifyAndUseLinkCode, linkLineAccountToEmailUser, getLineUserById } = await import("../db");
+        const { sendLinePushMessage } = await import("./../_core/lineMessaging");
+        const lineUserId = event.source.userId;
+        
+        if (!lineUserId) return;
+        
+        // Verify the code and get the email user ID
+        const emailUserId = await verifyAndUseLinkCode(text.toUpperCase(), lineUserId);
+        
+        if (!emailUserId) {
+          await sendLinePushMessage(lineUserId, [
+            {
+              type: "text",
+              text: `連携コードが見つからないか、有効期限が切れています。\n\nLCJ MALLマイページで新しいコードを発行してください。`,
+            },
+          ]);
+          return;
+        }
+        
+        // Get LINE profile
+        const profile = await line.getUserProfile(lineUserId);
+        
+        // Link the LINE account to the email user
+        try {
+          await linkLineAccountToEmailUser(
+            emailUserId,
+            lineUserId,
+            profile?.displayName,
+            profile?.pictureUrl
+          );
+          
+          // Get user info for personalized message
+          const emailUser = await getLineUserById(emailUserId);
+          const userName = emailUser?.displayName || profile?.displayName || "お客様";
+          
+          await sendLinePushMessage(lineUserId, [
+            {
+              type: "text",
+              text: `🎉 ${userName}さん、LINE連携が完了しました！\n\nこれからレシートをLINEで送信できます。\n\nTikTok Shopで購入したら、レシート画像をこのトークに送信してポイントを獲得しましょう！💰`,
+            },
+          ]);
+        } catch (error: any) {
+          if (error.message === "LINE_ALREADY_LINKED") {
+            await sendLinePushMessage(lineUserId, [
+              {
+                type: "text",
+                text: `このLINEアカウントは既に別のアカウントに連携されています。\n\n別のアカウントでログインしてお試しください。`,
+              },
+            ]);
+          } else {
+            await sendLinePushMessage(lineUserId, [
+              {
+                type: "text",
+                text: `連携処理中にエラーが発生しました。\n\nしばらくしてから再度お試しください。`,
+              },
+            ]);
+          }
+        }
         return;
       }
     }
