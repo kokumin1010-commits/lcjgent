@@ -88,6 +88,7 @@ export default function LineLogin() {
     const initLiff = async () => {
       try {
         addDebug(`Starting LIFF initialization with ID: ${LIFF_ID}`);
+        addDebug(`Current URL: ${window.location.href}`);
         
         await liff.init({ liffId: LIFF_ID });
         
@@ -102,8 +103,20 @@ export default function LineLogin() {
           setStatus("logging_in");
           
           try {
-            const accessToken = liff.getAccessToken();
+            // For LINE browser (isInClient), use getIDToken instead of getAccessToken
+            let accessToken = liff.getAccessToken();
             addDebug(`Access token: ${accessToken ? accessToken.substring(0, 20) + '...' : 'null'}`);
+            
+            // If in LINE client and no access token, try to get ID token
+            if (!accessToken && isInClient) {
+              addDebug("In LINE client, trying getIDToken...");
+              const idToken = liff.getIDToken();
+              addDebug(`ID token: ${idToken ? idToken.substring(0, 20) + '...' : 'null'}`);
+              // Use ID token as fallback (server needs to handle this)
+              if (idToken) {
+                accessToken = idToken;
+              }
+            }
             
             if (accessToken) {
               addDebug("Calling liffCallback mutation...");
@@ -111,14 +124,22 @@ export default function LineLogin() {
             } else {
               // Access token is null, need to re-login
               addDebug("No access token, logging out and re-login");
-              liff.logout();
+              try {
+                liff.logout();
+              } catch (logoutErr) {
+                addDebug(`Logout error (ignored): ${logoutErr}`);
+              }
               setStatus("ready");
               hasProcessedLogin.current = false;
             }
           } catch (tokenError: any) {
             addDebug(`Token error: ${tokenError.message}`);
             // Token might be expired, logout and let user re-login
-            liff.logout();
+            try {
+              liff.logout();
+            } catch (logoutErr) {
+              addDebug(`Logout error (ignored): ${logoutErr}`);
+            }
             setStatus("ready");
             hasProcessedLogin.current = false;
           }
@@ -143,18 +164,34 @@ export default function LineLogin() {
     setError(null);
     
     try {
+      const isInClient = liff.isInClient();
+      addDebug(`isInClient: ${isInClient}`);
+      
       // Check if already logged in
       if (liff.isLoggedIn()) {
         addDebug("Already logged in, getting access token");
-        const accessToken = liff.getAccessToken();
+        let accessToken = liff.getAccessToken();
+        
+        // Try ID token if access token is null (common in LINE browser)
+        if (!accessToken && isInClient) {
+          addDebug("Trying getIDToken...");
+          const idToken = liff.getIDToken();
+          if (idToken) {
+            accessToken = idToken;
+          }
+        }
         
         if (accessToken) {
-          addDebug(`Got access token: ${accessToken.substring(0, 20)}...`);
+          addDebug(`Got token: ${accessToken.substring(0, 20)}...`);
           hasProcessedLogin.current = true;
           liffCallbackMutation.mutate({ accessToken });
         } else {
-          addDebug("No access token despite being logged in, re-login");
-          liff.logout();
+          addDebug("No token despite being logged in, re-login");
+          try {
+            liff.logout();
+          } catch (e) {
+            addDebug(`Logout error (ignored): ${e}`);
+          }
           // Start fresh login
           const redirectUri = window.location.origin + "/line-login";
           addDebug(`Starting login with redirectUri: ${redirectUri}`);

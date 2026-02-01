@@ -561,14 +561,37 @@ export const lineLoginRouter = router({
     }
   }),
   
-  // LIFF callback - authenticate using LIFF access token
+  // LIFF callback - authenticate using LIFF access token or ID token
   liffCallback: publicProcedure
     .input(z.object({
       accessToken: z.string(),
     }))
     .mutation(async ({ input, ctx }) => {
-      // Verify access token and get user profile
-      const profile = await getLineProfile(input.accessToken);
+      // First try to get profile using access token
+      let profile = await getLineProfile(input.accessToken);
+      
+      // If failed, try to decode as ID token (JWT)
+      if (!profile) {
+        console.log("[LINE Login] Access token failed, trying to decode as ID token...");
+        try {
+          // ID token is a JWT, decode the payload
+          const parts = input.accessToken.split('.');
+          if (parts.length === 3) {
+            const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+            console.log("[LINE Login] ID token payload:", payload);
+            if (payload.sub) {
+              profile = {
+                userId: payload.sub,
+                displayName: payload.name || 'LINE User',
+                pictureUrl: payload.picture,
+              };
+            }
+          }
+        } catch (decodeErr) {
+          console.error("[LINE Login] ID token decode error:", decodeErr);
+        }
+      }
+      
       if (!profile) {
         throw new TRPCError({
           code: "UNAUTHORIZED",
