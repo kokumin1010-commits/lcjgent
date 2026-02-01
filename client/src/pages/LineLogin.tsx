@@ -34,12 +34,36 @@ export default function LineLogin() {
 
   // LIFF callback mutation
   const liffCallbackMutation = trpc.lineLogin.liffCallback.useMutation({
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       addDebug(`Login successful: ${JSON.stringify(data)}`);
       // Save session token to localStorage for fallback authentication
       if (data.sessionToken) {
         localStorage.setItem('lcj_session_token', data.sessionToken);
       }
+      
+      // Check if coming from add_friend flow
+      const urlParams = new URLSearchParams(window.location.search);
+      const isAddFriendFlow = urlParams.get('add_friend') === '1';
+      
+      if (isAddFriendFlow && liff.isInClient()) {
+        // 友だち追加フローの場合、友だち状態を確認
+        try {
+          const friendshipStatus = await liff.getFriendship();
+          addDebug(`Friendship status after login: ${JSON.stringify(friendshipStatus)}`);
+          
+          if (!friendshipStatus.friendFlag) {
+            // まだ友だちでない場合、友だち追加を促す
+            toast.success("ログインしました。LINE友だち追加もお願いします！");
+            setTimeout(() => {
+              window.location.href = `https://line.me/R/ti/p/@lcjmall?oat_content=url&openExternalBrowser=0`;
+            }, 1500);
+            return;
+          }
+        } catch (err) {
+          addDebug(`getFriendship error: ${err}`);
+        }
+      }
+      
       toast.success("ログインしました");
       // Wait a bit for cookie to be set, then redirect
       setTimeout(() => {
@@ -89,6 +113,13 @@ export default function LineLogin() {
       try {
         addDebug(`Starting LIFF initialization with ID: ${LIFF_ID}`);
         addDebug(`Current URL: ${window.location.href}`);
+        
+        // Check if coming from add_friend flow
+        const urlParams = new URLSearchParams(window.location.search);
+        const isAddFriendFlow = urlParams.get('add_friend') === '1';
+        if (isAddFriendFlow) {
+          addDebug("Add friend flow detected");
+        }
         
         await liff.init({ liffId: LIFF_ID });
         
@@ -240,6 +271,61 @@ export default function LineLogin() {
     setStatus("ready");
   };
 
+  // LINE友だち追加 + 自動ログイン
+  const handleAddFriendAndLogin = async () => {
+    addDebug("handleAddFriendAndLogin called");
+    
+    // LINE公式アカウントID (@lcjmall)
+    const LINE_OA_ID = "@lcjmall";
+    
+    // Check if in LINE client
+    const isInClient = liff.isInClient();
+    addDebug(`isInClient: ${isInClient}`);
+    
+    if (isInClient) {
+      // LINEブラウザ内の場合、友だち追加後にログインを実行
+      try {
+        // 友だち追加ページを開く
+        const friendshipStatus = await liff.getFriendship();
+        addDebug(`Friendship status: ${JSON.stringify(friendshipStatus)}`);
+        
+        if (friendshipStatus.friendFlag) {
+          // すでに友だちの場合、そのままログイン
+          addDebug("Already friends, proceeding to login");
+          toast.success("すでにLINE友だちです。ログインします...");
+          handleLineLogin();
+        } else {
+          // 友だちでない場合、友だち追加ページへ
+          addDebug("Not friends yet, opening add friend page");
+          // LINEアプリ内で友だち追加ページを開く
+          window.location.href = `https://line.me/R/ti/p/${LINE_OA_ID}?oat_content=url&openExternalBrowser=0`;
+        }
+      } catch (err: any) {
+        addDebug(`getFriendship error: ${err.message}`);
+        // エラーの場合は直接友だち追加ページへ
+        window.location.href = `https://line.me/R/ti/p/${LINE_OA_ID}?oat_content=url&openExternalBrowser=0`;
+      }
+    } else {
+      // LINEブラウザ外の場合
+      // LIFFアプリを開きつつ友だち追加を促す
+      // liff.openWindowを使用してLINEアプリ内で開く
+      try {
+        // まずログインを実行し、ログイン後に友だち追加を確認
+        addDebug("External browser, starting login with friend add prompt");
+        setStatus("logging_in");
+        
+        // LIFFログインを開始（LINEアプリが開く）
+        const redirectUri = window.location.origin + "/line-login?add_friend=1";
+        addDebug(`Login redirectUri: ${redirectUri}`);
+        liff.login({ redirectUri });
+      } catch (err: any) {
+        addDebug(`Login error: ${err.message}`);
+        // フォールバック: 直接友だち追加URLへ
+        window.open(`https://lin.ee/hpVjAiOe`, "_blank");
+      }
+    }
+  };
+
   if (status === "initializing") {
     return (
       <div className="min-h-screen bg-gradient-to-b from-rose-50 to-white flex items-center justify-center">
@@ -342,14 +428,16 @@ export default function LineLogin() {
               <p className="text-sm text-muted-foreground mb-4 text-center">
                 まだLINE友だち追加していない方は
               </p>
-              <a href="https://lin.ee/hpVjAiOe" target="_blank" rel="noopener noreferrer" className="block">
-                <Button variant="outline" className="w-full gap-2">
-                  <svg className="h-4 w-4 text-[#06C755]" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
-                  </svg>
-                  LINE友だち追加
-                </Button>
-              </a>
+              <Button 
+                variant="outline" 
+                className="w-full gap-2"
+                onClick={handleAddFriendAndLogin}
+              >
+                <svg className="h-4 w-4 text-[#06C755]" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
+                </svg>
+                LINE友だち追加
+              </Button>
             </div>
           </TabsContent>
 
