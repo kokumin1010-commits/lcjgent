@@ -3,344 +3,345 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ShoppingBag, Gift, Video, Star, ArrowRight, Coins, Receipt, Users, Sparkles, Tag, ShoppingCart } from "lucide-react";
+import { ShoppingBag, Gift, ArrowRight, Coins, Receipt, Check, ChevronDown, ChevronUp, ShieldCheck, HelpCircle, Sparkles, MessageCircle } from "lucide-react";
 import { useLocation } from "wouter";
 
 export default function MallHome() {
   const [, setLocation] = useLocation();
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
   
   // 商品一覧を取得（販売中のもののみ）
   const { data: products, isLoading: productsLoading } = trpc.mall.getProducts.useQuery({ status: "active" });
 
+  const faqs = [
+    {
+      q: "本当にすべての商品が対象ですか？",
+      a: "はい。TikTok Shopで購入した商品であれば、原則すべてがLCJ Mallポイントの対象となります。\n※一部条件・確認事項があります。"
+    },
+    {
+      q: "ポイントはどこで使えますか？",
+      a: "LCJモール内の対象店舗・サービスで、1pt＝1円として利用できます。"
+    },
+    {
+      q: "上限はありますか？",
+      a: "一部上限があります（詳細は案内をご確認ください）。"
+    }
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-rose-50 to-white">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <ShoppingBag className="h-8 w-8 text-rose-500" />
-            <span className="text-xl font-bold bg-gradient-to-r from-rose-500 to-pink-500 bg-clip-text text-transparent">
+    <div className="min-h-screen bg-white">
+      {/* Header - シンプルで洗練されたデザイン */}
+      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-gray-100">
+        <div className="container mx-auto px-4 h-14 md:h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2" onClick={() => setLocation("/")} style={{ cursor: "pointer" }}>
+            <ShoppingBag className="h-6 w-6 md:h-7 md:w-7 text-rose-500" />
+            <span className="text-lg md:text-xl font-bold bg-gradient-to-r from-rose-500 to-pink-500 bg-clip-text text-transparent">
               LCJ MALL
             </span>
           </div>
-          <nav className="hidden md:flex items-center gap-6">
-            <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              特徴
-            </a>
-            <a href="#products" className="text-sm font-medium text-rose-500 hover:text-rose-600 transition-colors">
-              商品一覧
-            </a>
-            <a href="#points" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              ポイント
-            </a>
-            <a href="#livestream" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              ライブコマース
-            </a>
-          </nav>
           <div className="flex items-center gap-2">
-            <Button size="sm" className="bg-[#06C755] hover:bg-[#05b04c] text-white gap-1" onClick={() => setLocation("/line-login")}>
+            <Button 
+              size="sm" 
+              className="bg-[#06C755] hover:bg-[#05b04c] text-white gap-1 text-xs md:text-sm px-3 md:px-4" 
+              onClick={() => setLocation("/line-login")}
+            >
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
               </svg>
-              LINEでログイン
+              <span className="hidden sm:inline">LINEで無料ではじめる</span>
+              <span className="sm:hidden">LINE登録</span>
             </Button>
           </div>
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="py-20 px-4">
-        <div className="container mx-auto text-center">
-          <div className="inline-flex items-center gap-2 bg-rose-100 text-rose-700 px-4 py-2 rounded-full text-sm font-medium mb-6">
-            <Gift className="h-4 w-4" />
-            ライブコマースでお得にショッピング
-          </div>
-          <h1 className="text-4xl md:text-6xl font-bold mb-6">
-            <span className="bg-gradient-to-r from-rose-500 via-pink-500 to-purple-500 bg-clip-text text-transparent">
-              LCJ MALL
-            </span>
+      {/* HERO Section - ファーストビュー */}
+      <section className="py-12 md:py-20 px-4 bg-gradient-to-b from-rose-50/50 to-white">
+        <div className="container mx-auto text-center max-w-3xl">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4 md:mb-6 leading-tight">
+            <span className="text-gray-900">TikTok Shopで買う。</span>
             <br />
-            <span className="text-foreground">ライブコマースの新しい形</span>
+            <span className="bg-gradient-to-r from-rose-500 via-pink-500 to-purple-500 bg-clip-text text-transparent">
+              そのすべてが、価値になる。
+            </span>
           </h1>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8">
-            ライブ配信で商品を見て、購入して、レシートを送るだけでポイントが貯まる。
-            貯まったポイントはLCJ MALLでのお買い物に使えます。
+          <p className="text-base md:text-lg text-gray-600 mb-8 md:mb-10 leading-relaxed px-2">
+            LCJ Mallは、
+            <br className="sm:hidden" />
+            TikTok Shopで購入したすべての商品を対象に、
+            <br />
+            ポイントが貯まり、LCJモールで使える
+            <br className="sm:hidden" />
+            <span className="font-semibold text-gray-800">LCJ公式ショッピングサービス</span>です。
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" className="bg-rose-500 hover:bg-rose-600 gap-2">
-              <Video className="h-5 w-5" />
-              ライブ配信を見る
-              <ArrowRight className="h-4 w-4" />
+          <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center px-4">
+            <Button 
+              size="lg" 
+              className="bg-[#06C755] hover:bg-[#05b04c] text-white gap-2 text-base md:text-lg py-6 md:py-7 px-6 md:px-8 shadow-lg hover:shadow-xl transition-all"
+              onClick={() => setLocation("/line-login")}
+            >
+              <svg className="h-5 w-5 md:h-6 md:w-6" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
+              </svg>
+              LINEで無料ではじめる
             </Button>
-            <Button size="lg" variant="outline" className="gap-2" onClick={() => setLocation("/livers")}>
-              <Users className="h-5 w-5" />
-              ライバー一覧
+            <Button 
+              size="lg" 
+              variant="outline" 
+              className="gap-2 text-base md:text-lg py-6 md:py-7 px-6 md:px-8 border-2 hover:bg-gray-50"
+              onClick={() => setLocation("/mall/products")}
+            >
+              <ShoppingBag className="h-5 w-5" />
+              使える商品を見る
             </Button>
           </div>
         </div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" className="py-20 px-4 bg-white">
-        <div className="container mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4">LCJ MALLの特徴</h2>
-            <p className="text-muted-foreground">ライブコマースとポイントシステムで、お得にショッピング</p>
-          </div>
-          <div className="grid md:grid-cols-3 gap-6">
-            <Card className="border-rose-100 hover:border-rose-200 transition-colors">
-              <CardHeader>
-                <div className="h-12 w-12 bg-rose-100 rounded-lg flex items-center justify-center mb-4">
-                  <Video className="h-6 w-6 text-rose-500" />
-                </div>
-                <CardTitle>ライブコマース</CardTitle>
-                <CardDescription>
-                  人気ライバーによるライブ配信で、商品の魅力をリアルタイムでお届け
-                </CardDescription>
-              </CardHeader>
-            </Card>
-            <Card className="border-pink-100 hover:border-pink-200 transition-colors">
-              <CardHeader>
-                <div className="h-12 w-12 bg-pink-100 rounded-lg flex items-center justify-center mb-4">
-                  <Receipt className="h-6 w-6 text-pink-500" />
-                </div>
-                <CardTitle>レシートでポイント</CardTitle>
-                <CardDescription>
-                  購入後のレシートをLINEで送信するだけで、購入金額の1%がポイントに
-                </CardDescription>
-              </CardHeader>
-            </Card>
-            <Card className="border-purple-100 hover:border-purple-200 transition-colors">
-              <CardHeader>
-                <div className="h-12 w-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-                  <Coins className="h-6 w-6 text-purple-500" />
-                </div>
-                <CardTitle>ポイントでお買い物</CardTitle>
-                <CardDescription>
-                  貯まったポイントはLCJ MALLでのお買い物に1ポイント=1円として利用可能
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          </div>
+      {/* 共感ブロック - ワクワクの火種 */}
+      <section className="py-12 md:py-16 px-4 bg-white">
+        <div className="container mx-auto max-w-2xl text-center">
+          <h2 className="text-2xl md:text-3xl font-bold mb-4 text-gray-900">
+            "買って終わり"にしない。
+          </h2>
+          <p className="text-base md:text-lg text-gray-600 leading-relaxed">
+            TikTok LIVEで見つけた「欲しい」。
+            <br />
+            その買い物が、<span className="font-semibold text-rose-500">次に使える価値</span>に変わります。
+          </p>
         </div>
       </section>
 
-      {/* Points Section */}
-      <section id="points" className="py-20 px-4 bg-gradient-to-b from-rose-50 to-white">
-        <div className="container mx-auto">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div>
-              <h2 className="text-3xl font-bold mb-6">
-                レシートを送るだけで
-                <br />
-                <span className="text-rose-500">ポイントが貯まる</span>
-              </h2>
-              <div className="space-y-4">
-                <div className="flex items-start gap-4">
-                  <div className="h-8 w-8 bg-rose-100 rounded-full flex items-center justify-center shrink-0">
-                    <span className="text-rose-500 font-bold">1</span>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">ライブコマースで商品を購入</h3>
-                    <p className="text-sm text-muted-foreground">お気に入りのライバーの配信から商品を購入</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-4">
-                  <div className="h-8 w-8 bg-pink-100 rounded-full flex items-center justify-center shrink-0">
-                    <span className="text-pink-500 font-bold">2</span>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">レシートをLINEで送信</h3>
-                    <p className="text-sm text-muted-foreground">購入後7日以内にレシート画像をLINEで送信</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-4">
-                  <div className="h-8 w-8 bg-purple-100 rounded-full flex items-center justify-center shrink-0">
-                    <span className="text-purple-500 font-bold">3</span>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">ポイントを獲得</h3>
-                    <p className="text-sm text-muted-foreground">承認後、購入金額の1%がポイントとして付与</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-2xl shadow-xl p-8 border">
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center h-20 w-20 bg-gradient-to-br from-rose-500 to-pink-500 rounded-full mb-4">
-                  <Star className="h-10 w-10 text-white" />
-                </div>
-                <h3 className="text-2xl font-bold mb-2">1%還元</h3>
-                <p className="text-muted-foreground mb-6">購入金額の1%がポイントに</p>
-                <div className="bg-rose-50 rounded-lg p-4">
-                  <p className="text-sm text-muted-foreground">例：10,000円の購入で</p>
-                  <p className="text-3xl font-bold text-rose-500">100ポイント</p>
-                  <p className="text-sm text-muted-foreground">獲得！</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 商品一覧セクション - ワクワク感のあるデザイン */}
-      <section id="products" className="py-20 px-4 bg-white">
-        <div className="container mx-auto">
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center gap-2 bg-gradient-to-r from-rose-500 to-pink-500 text-white px-4 py-2 rounded-full text-sm font-medium mb-4">
-              <Sparkles className="h-4 w-4" />
-              今すぐ購入可能
-            </div>
-            <h2 className="text-3xl font-bold mb-4">人気商品ラインナップ</h2>
-            <p className="text-muted-foreground">ポイントでも購入できるお得な商品</p>
+      {/* How it works - 3ステップ */}
+      <section className="py-12 md:py-20 px-4 bg-gray-50">
+        <div className="container mx-auto max-w-4xl">
+          <div className="text-center mb-10 md:mb-12">
+            <h2 className="text-2xl md:text-3xl font-bold mb-2">使い方は、たった3ステップ</h2>
+            <p className="text-gray-500 text-sm md:text-base">How it works</p>
           </div>
           
-          {productsLoading ? (
-            <div className="text-center py-12">
-              <div className="animate-spin h-8 w-8 border-4 border-rose-500 border-t-transparent rounded-full mx-auto mb-4" />
-              <p className="text-muted-foreground">商品を読み込み中...</p>
-            </div>
-          ) : products && products.length > 0 ? (
-            <>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {products.slice(0, 8).map((product) => (
-                  <Card 
-                    key={product.id} 
-                    className="group cursor-pointer overflow-hidden border-2 hover:border-rose-300 hover:shadow-xl transition-all duration-300"
-                    onClick={() => setLocation(`/mall/products/${product.id}`)}
-                  >
-                    <div className="relative aspect-square bg-gradient-to-br from-rose-50 to-pink-50 overflow-hidden">
-                      {product.imageUrl ? (
-                        <img 
-                          src={product.imageUrl} 
-                          alt={product.name}
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <ShoppingBag className="h-16 w-16 text-rose-200" />
-                        </div>
-                      )}
-                      {product.pointPrice && (
-                        <Badge className="absolute top-3 left-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0">
-                          <Coins className="h-3 w-3 mr-1" />
-                          ポイント対応
-                        </Badge>
-                      )}
-                      {product.stock <= 5 && product.stock > 0 && (
-                        <Badge variant="destructive" className="absolute top-3 right-3">
-                          残り{product.stock}点
-                        </Badge>
-                      )}
-                    </div>
-                    <CardContent className="p-4">
-                      <p className="text-xs text-muted-foreground mb-1">{product.category || "カテゴリなし"}</p>
-                      <h3 className="font-semibold text-lg mb-3 line-clamp-2 group-hover:text-rose-500 transition-colors">
-                        {product.name}
-                      </h3>
-                      <div className="space-y-2">
-                        {/* 販売価格 */}
-                        <div className="flex items-center gap-2">
-                          <Tag className="h-4 w-4 text-gray-400" />
-                          <span className="text-xl font-bold text-gray-900">¥{product.price.toLocaleString()}</span>
-                        </div>
-                        {/* ポイント交換価格 */}
-                        {product.pointPrice && (
-                          <div className="flex items-center gap-2 bg-gradient-to-r from-purple-50 to-pink-50 px-3 py-2 rounded-lg">
-                            <Coins className="h-4 w-4 text-purple-500" />
-                            <span className="text-lg font-bold text-purple-600">{product.pointPrice.toLocaleString()}</span>
-                            <span className="text-sm text-purple-500">ポイントで交換</span>
-                          </div>
-                        )}
-                      </div>
-                      <Button 
-                        className="w-full mt-4 bg-rose-500 hover:bg-rose-600 gap-2"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setLocation(`/mall/products/${product.id}`);
-                        }}
-                      >
-                        <ShoppingCart className="h-4 w-4" />
-                        詳細を見る
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))}
+          <div className="grid md:grid-cols-3 gap-6 md:gap-8">
+            {/* Step 1 */}
+            <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-gray-100 text-center">
+              <div className="inline-flex items-center justify-center h-14 w-14 md:h-16 md:w-16 bg-gradient-to-br from-rose-500 to-pink-500 rounded-full mb-4 md:mb-6 text-white text-xl md:text-2xl font-bold">
+                1
               </div>
-              
-              {products.length > 8 && (
-                <div className="text-center mt-10">
-                  <Button 
-                    size="lg" 
-                    variant="outline" 
-                    className="gap-2 border-rose-300 text-rose-600 hover:bg-rose-50"
-                    onClick={() => setLocation("/mall/products")}
-                  >
-                    すべての商品を見る
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="text-center py-12">
-              <ShoppingBag className="h-16 w-16 text-gray-200 mx-auto mb-4" />
-              <p className="text-muted-foreground">現在販売中の商品はありません</p>
+              <h3 className="text-lg md:text-xl font-bold mb-2 md:mb-3">TikTok Shopで購入</h3>
+              <p className="text-gray-600 text-sm md:text-base">
+                いつも通り、TikTok Shopで商品を購入。
+              </p>
             </div>
-          )}
-        </div>
-      </section>
 
-      {/* Livestream Section */}
-      <section id="livestream" className="py-20 px-4 bg-gradient-to-b from-rose-50 to-white">
-        <div className="container mx-auto text-center">
-          <h2 className="text-3xl font-bold mb-4">人気ライバーの配信をチェック</h2>
-          <p className="text-muted-foreground mb-8">毎日様々なライバーが商品を紹介しています</p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" variant="outline" className="gap-2" onClick={() => setLocation("/livers")}>
-              <Users className="h-5 w-5" />
-              ライバー一覧を見る
-            </Button>
-            <Button size="lg" variant="outline" className="gap-2" onClick={() => setLocation("/s")}>
-              <Video className="h-5 w-5" />
-              配信スケジュール
-            </Button>
+            {/* Step 2 */}
+            <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-gray-100 text-center">
+              <div className="inline-flex items-center justify-center h-14 w-14 md:h-16 md:w-16 bg-gradient-to-br from-pink-500 to-purple-500 rounded-full mb-4 md:mb-6 text-white text-xl md:text-2xl font-bold">
+                2
+              </div>
+              <h3 className="text-lg md:text-xl font-bold mb-2 md:mb-3">レシートをLINEに送信</h3>
+              <p className="text-gray-600 text-sm md:text-base">
+                購入後、購入証明（レシート）を
+                <br />
+                LCJ Mall公式LINEに送信。
+              </p>
+            </div>
+
+            {/* Step 3 */}
+            <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-gray-100 text-center">
+              <div className="inline-flex items-center justify-center h-14 w-14 md:h-16 md:w-16 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-full mb-4 md:mb-6 text-white text-xl md:text-2xl font-bold">
+                3
+              </div>
+              <h3 className="text-lg md:text-xl font-bold mb-2 md:mb-3">ポイントが貯まる・使える</h3>
+              <p className="text-gray-600 text-sm md:text-base">
+                内容確認後、LCJ Mallポイントを付与。
+                <br />
+                貯まったポイントは、
+                <br />
+                LCJモール内で<span className="font-semibold text-rose-500">1pt＝1円</span>として使えます。
+              </p>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-20 px-4 bg-gradient-to-r from-rose-500 to-pink-500">
-        <div className="container mx-auto text-center text-white">
-          <h2 className="text-3xl font-bold mb-4">今すぐ始めよう</h2>
-          <p className="text-rose-100 mb-8 max-w-xl mx-auto">
-            LINEでLCJ公式アカウントを友だち追加して、レシートを送るだけ。
-            簡単にポイントが貯まります。
+      {/* ベネフィットブロック */}
+      <section className="py-12 md:py-16 px-4 bg-white">
+        <div className="container mx-auto max-w-3xl">
+          <h2 className="text-2xl md:text-3xl font-bold mb-8 md:mb-10 text-center">
+            LCJ Mallがうれしい理由
+          </h2>
+          <div className="grid sm:grid-cols-2 gap-4 md:gap-6">
+            <div className="flex items-start gap-3 md:gap-4 p-4 md:p-5 bg-rose-50 rounded-xl">
+              <div className="h-8 w-8 md:h-10 md:w-10 bg-rose-500 rounded-full flex items-center justify-center shrink-0">
+                <Check className="h-4 w-4 md:h-5 md:w-5 text-white" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 text-sm md:text-base">買い方はいつも通り</h3>
+                <p className="text-gray-600 text-xs md:text-sm">TikTok Shopで購入</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 md:gap-4 p-4 md:p-5 bg-pink-50 rounded-xl">
+              <div className="h-8 w-8 md:h-10 md:w-10 bg-pink-500 rounded-full flex items-center justify-center shrink-0">
+                <Receipt className="h-4 w-4 md:h-5 md:w-5 text-white" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 text-sm md:text-base">レシートを送るだけ</h3>
+                <p className="text-gray-600 text-xs md:text-sm">ポイントが貯まる</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 md:gap-4 p-4 md:p-5 bg-purple-50 rounded-xl">
+              <div className="h-8 w-8 md:h-10 md:w-10 bg-purple-500 rounded-full flex items-center justify-center shrink-0">
+                <Coins className="h-4 w-4 md:h-5 md:w-5 text-white" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 text-sm md:text-base">1pt＝1円</h3>
+                <p className="text-gray-600 text-xs md:text-sm">計算いらずで使える</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 md:gap-4 p-4 md:p-5 bg-indigo-50 rounded-xl">
+              <div className="h-8 w-8 md:h-10 md:w-10 bg-indigo-500 rounded-full flex items-center justify-center shrink-0">
+                <ShieldCheck className="h-4 w-4 md:h-5 md:w-5 text-white" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 text-sm md:text-base">LCJ公式サービス</h3>
+                <p className="text-gray-600 text-xs md:text-sm">だから安心</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* すべて対象ブロック */}
+      <section className="py-12 md:py-16 px-4 bg-gradient-to-b from-rose-50 to-white">
+        <div className="container mx-auto max-w-2xl text-center">
+          <div className="bg-white rounded-2xl p-6 md:p-10 shadow-lg border border-rose-100">
+            <div className="inline-flex items-center justify-center h-14 w-14 md:h-16 md:w-16 bg-gradient-to-br from-rose-500 to-pink-500 rounded-full mb-4 md:mb-6">
+              <Sparkles className="h-7 w-7 md:h-8 md:w-8 text-white" />
+            </div>
+            <h2 className="text-xl md:text-2xl font-bold mb-3 md:mb-4 text-gray-900">
+              TikTok Shopで買ったなら、OK。
+            </h2>
+            <p className="text-gray-600 text-sm md:text-base leading-relaxed">
+              原則として、TikTok Shopで購入したすべての商品が
+              <br />
+              LCJ Mallポイントの対象です。
+            </p>
+            <p className="text-xs md:text-sm text-gray-400 mt-3 md:mt-4">
+              ※一部条件・確認事項があります。
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* 商品導線ブロック */}
+      <section className="py-12 md:py-16 px-4 bg-white">
+        <div className="container mx-auto max-w-2xl text-center">
+          <h2 className="text-xl md:text-2xl font-bold mb-4 md:mb-6">
+            ポイントが使える商品を見てみる
+          </h2>
+          <Button 
+            size="lg" 
+            className="bg-rose-500 hover:bg-rose-600 text-white gap-2 text-base md:text-lg py-5 md:py-6 px-6 md:px-8"
+            onClick={() => setLocation("/mall/products")}
+          >
+            <ShoppingBag className="h-5 w-5" />
+            使える商品を見る
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </section>
+
+      {/* 信頼ブロック */}
+      <section className="py-10 md:py-12 px-4 bg-gray-50">
+        <div className="container mx-auto max-w-3xl">
+          <div className="flex flex-wrap justify-center gap-4 md:gap-8 text-xs md:text-sm text-gray-500">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-gray-400" />
+              <span>LCJ公式ショッピングサービス</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Receipt className="h-4 w-4 text-gray-400" />
+              <span>購入証明に基づくポイント付与</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Check className="h-4 w-4 text-gray-400" />
+              <span>不正防止・確認体制あり</span>
+            </div>
+          </div>
+          <p className="text-center text-xs text-gray-400 mt-4 md:mt-6">
+            ※本サービスはLCJが独自に運営しています。
           </p>
-          <a href="https://lin.ee/hpVjAiOe" target="_blank" rel="noopener noreferrer">
-            <Button size="lg" variant="secondary" className="gap-2">
-              <Gift className="h-5 w-5" />
-              LINE友だち追加
-            </Button>
-          </a>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="py-12 md:py-16 px-4 bg-white">
+        <div className="container mx-auto max-w-2xl">
+          <div className="flex items-center justify-center gap-2 mb-8 md:mb-10">
+            <HelpCircle className="h-5 w-5 md:h-6 md:w-6 text-gray-400" />
+            <h2 className="text-xl md:text-2xl font-bold">よくある質問</h2>
+          </div>
+          <div className="space-y-3 md:space-y-4">
+            {faqs.map((faq, index) => (
+              <div 
+                key={index}
+                className="border border-gray-200 rounded-xl overflow-hidden"
+              >
+                <button
+                  className="w-full px-4 md:px-6 py-4 md:py-5 flex items-center justify-between text-left bg-white hover:bg-gray-50 transition-colors"
+                  onClick={() => setOpenFaq(openFaq === index ? null : index)}
+                >
+                  <span className="font-medium text-gray-900 text-sm md:text-base pr-4">Q. {faq.q}</span>
+                  {openFaq === index ? (
+                    <ChevronUp className="h-5 w-5 text-gray-400 shrink-0" />
+                  ) : (
+                    <ChevronDown className="h-5 w-5 text-gray-400 shrink-0" />
+                  )}
+                </button>
+                {openFaq === index && (
+                  <div className="px-4 md:px-6 py-4 md:py-5 bg-gray-50 border-t border-gray-200">
+                    <p className="text-gray-600 text-sm md:text-base whitespace-pre-line">
+                      A. {faq.a}
+                    </p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 最終CTA */}
+      <section className="py-12 md:py-16 px-4 bg-gradient-to-b from-white to-rose-50">
+        <div className="container mx-auto max-w-2xl text-center">
+          <h2 className="text-xl md:text-2xl font-bold mb-4 md:mb-6 text-gray-900">
+            今すぐ始めよう
+          </h2>
+          <p className="text-gray-600 mb-6 md:mb-8 text-sm md:text-base">
+            TikTok Shopでのお買い物を、もっとお得に。
+          </p>
+          <Button 
+            size="lg" 
+            className="bg-[#06C755] hover:bg-[#05b04c] text-white gap-2 text-base md:text-lg py-6 md:py-7 px-8 md:px-10 shadow-lg hover:shadow-xl transition-all"
+            onClick={() => setLocation("/line-login")}
+          >
+            <svg className="h-5 w-5 md:h-6 md:w-6" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
+            </svg>
+            LINEで無料ではじめる
+          </Button>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="py-12 px-4 bg-gray-900 text-gray-400">
-        <div className="container mx-auto">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="flex items-center gap-2">
-              <ShoppingBag className="h-6 w-6 text-rose-400" />
-              <span className="text-lg font-bold text-white">LCJ MALL</span>
-            </div>
-            <div className="flex gap-6 text-sm">
-              <a href="#" className="hover:text-white transition-colors">利用規約</a>
-              <a href="#" className="hover:text-white transition-colors">プライバシーポリシー</a>
-              <a href="#" className="hover:text-white transition-colors">特定商取引法に基づく表記</a>
-            </div>
-            <p className="text-sm">© 2025 LCJ MALL. All rights reserved.</p>
+      <footer className="py-6 md:py-8 px-4 bg-gray-900 text-white">
+        <div className="container mx-auto text-center">
+          <div className="flex items-center justify-center gap-2 mb-3 md:mb-4">
+            <ShoppingBag className="h-5 w-5 md:h-6 md:w-6 text-rose-400" />
+            <span className="text-base md:text-lg font-bold">LCJ MALL</span>
           </div>
+          <p className="text-xs md:text-sm text-gray-400">
+            © 2024 LCJ MALL. All rights reserved.
+          </p>
         </div>
       </footer>
     </div>
