@@ -1771,3 +1771,45 @@ export const screenshotAnalysisHistory = mysqlTable("screenshot_analysis_history
 
 export type ScreenshotAnalysisHistory = typeof screenshotAnalysisHistory.$inferSelect;
 export type InsertScreenshotAnalysisHistory = typeof screenshotAnalysisHistory.$inferInsert;
+
+
+/**
+ * Point Requests table for TikTok Shop receipt point redemption
+ * TikTok Shop配達済みレシートによるポイント申請テーブル
+ */
+export const pointRequests = mysqlTable("point_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // 申請者情報
+  userId: int("userId").notNull(), // References users.id
+  
+  // レシート情報
+  orderNumber: varchar("orderNumber", { length: 64 }).notNull(), // 注文番号（重複チェック用）
+  orderAmount: int("orderAmount").notNull(), // 注文金額（円）
+  deliveryDate: timestamp("deliveryDate"), // 配達日時
+  
+  // スクリーンショット
+  receiptImageUrl: text("receiptImageUrl").notNull(), // レシート画像URL
+  receiptImageKey: varchar("receiptImageKey", { length: 512 }), // S3 key
+  deliveryImageUrl: text("deliveryImageUrl"), // 配達済み画面のスクリーンショットURL
+  deliveryImageKey: varchar("deliveryImageKey", { length: 512 }), // S3 key
+  
+  // ポイント計算
+  pointsRequested: int("pointsRequested").notNull(), // 申請ポイント（金額の1%）
+  pointsApproved: int("pointsApproved"), // 承認されたポイント
+  
+  // ステータス
+  status: mysqlEnum("status", ["pending", "approved", "rejected"]).default("pending").notNull(),
+  rejectionReason: text("rejectionReason"), // 却下理由
+  
+  // 審査情報
+  reviewedBy: int("reviewedBy"), // 審査した管理者のUser ID
+  reviewedAt: timestamp("reviewedAt"), // 審査日時
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type PointRequest = typeof pointRequests.$inferSelect;
+export type InsertPointRequest = typeof pointRequests.$inferInsert;

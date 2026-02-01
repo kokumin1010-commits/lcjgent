@@ -273,6 +273,17 @@ import {
   getAnalysisHistoryByLiverId,
   getAnalysisHistoryByLivestreamId,
   getRecentAnalysisHistory,
+  createPointRequest,
+  getPointRequestById,
+  getPointRequestsByUserId,
+  getPendingPointRequests,
+  getAllPointRequests,
+  checkOrderNumberExists,
+  countTodayPointRequestsByUser,
+  approvePointRequest,
+  rejectPointRequest,
+  getUserPointBalance,
+  getUserPointTransactions,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -9102,6 +9113,201 @@ ${metricsDescription}${historicalContext}`,
         
         await setDefaultUserAddress(input.id, lineUser.id);
         return { success: true };
+      }),
+  }),
+
+  // ===== TikTok Shopポイント申請API =====
+  pointRequest: router({
+    // ポイント申請を作成
+    submit: protectedProcedure
+      .input(z.object({
+        orderNumber: z.string().min(1, "注文番号を入力してください"),
+        orderAmount: z.number().min(1, "注文金額を入力してください"),
+        deliveryDate: z.string().optional(),
+        receiptImage: z.object({
+          base64: z.string(),
+          mimeType: z.string(),
+        }),
+        deliveryImage: z.object({
+          base64: z.string(),
+          mimeType: z.string(),
+        }).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        // 1日5件の上限チェック
+        const todayCount = await countTodayPointRequestsByUser(ctx.user.id);
+        if (todayCount >= 5) {
+          throw new TRPCError({ 
+            code: "BAD_REQUEST", 
+            message: "1日の申請上限（5件）に達しています。明日再度お試しください。" 
+          });
+        }
+
+        // 重複注文番号チェック
+        const exists = await checkOrderNumberExists(input.orderNumber);
+        if (exists) {
+          throw new TRPCError({ 
+            code: "BAD_REQUEST", 
+            message: "この注文番号は既に申請済みです。" 
+          });
+        }
+
+        // レシート画像をS3にアップロード
+        const receiptBuffer = Buffer.from(input.receiptImage.base64, "base64");
+        const receiptExt = input.receiptImage.mimeType.split("/")[1] || "png";
+        const receiptKey = `point-requests/${ctx.user.id}/${nanoid()}-receipt.${receiptExt}`;
+        const { url: receiptUrl } = await storagePut(receiptKey, receiptBuffer, input.receiptImage.mimeType);
+
+        // 配達済み画像をS3にアップロード（任意）
+        let deliveryUrl: string | undefined;
+        let deliveryKey: string | undefined;
+        if (input.deliveryImage) {
+          const deliveryBuffer = Buffer.from(input.deliveryImage.base64, "base64");
+          const deliveryExt = input.deliveryImage.mimeType.split("/")[1] || "png";
+          deliveryKey = `point-requests/${ctx.user.id}/${nanoid()}-delivery.${deliveryExt}`;
+          const result = await storagePut(deliveryKey, deliveryBuffer, input.deliveryImage.mimeType);
+          deliveryUrl = result.url;
+        }
+
+        // ポイント計算（1%還元）
+        const pointsRequested = Math.floor(input.orderAmount * 0.01);
+
+        // 申請を作成
+        const requestId = await createPointRequest({
+          userId: ctx.user.id,
+          orderNumber: input.orderNumber,
+          orderAmount: input.orderAmount,
+          deliveryDate: input.deliveryDate ? new Date(input.deliveryDate) : undefined,
+          receiptImageUrl: receiptUrl,
+          receiptImageKey: receiptKey,
+          deliveryImageUrl: deliveryUrl,
+          deliveryImageKey: deliveryKey,
+          pointsRequested,
+          status: "pending",
+        });
+
+        return { 
+          success: true, 
+          requestId, 
+          pointsRequested,
+          message: `${pointsRequested}ポイントの申請を受け付けました。承認後にポイントが付与されます。`
+        };
+      }),
+
+    // 自分の申請一覧を取得
+    myRequests: protectedProcedure
+      .query(async ({ ctx }) => {
+        return await getPointRequestsByUserId(ctx.user.id);
+      }),
+
+    // 自分のポイント残高を取得
+    myBalance: protectedProcedure
+      .query(async ({ ctx }) => {
+        const balance = await getUserPointBalance(ctx.user.id);
+        return balance || { balance: 0, totalEarned: 0, totalUsed: 0 };
+      }),
+
+    // 自分のポイント取引履歴を取得
+    myTransactions: protectedProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        return await getUserPointTransactions(ctx.user.id, input?.limit || 50);
+      }),
+
+    // 今日の申請数を取得
+    todayCount: protectedProcedure
+      .query(async ({ ctx }) => {
+        const count = await countTodayPointRequestsByUser(ctx.user.id);
+        return { count, remaining: 5 - count };
+      }),
+
+    // ===== 管理者向けAPI =====
+
+    // 承認待ちの申請一覧を取得
+    pendingRequests: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        return await getPendingPointRequests();
+      }),
+
+    // 全ての申請一覧を取得
+    allRequests: protectedProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        return await getAllPointRequests(input?.limit || 100);
+      }),
+
+    // 申請を承認
+    approve: protectedProcedure
+      .input(z.object({
+        requestId: z.number(),
+        pointsApproved: z.number().optional(), // 指定がなければ申請ポイントをそのまま承認
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+
+        const request = await getPointRequestById(input.requestId);
+        if (!request) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "申請が見つかりません" });
+        }
+
+        if (request.status !== "pending") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "この申請は既に処理済みです" });
+        }
+
+        const pointsToApprove = input.pointsApproved ?? request.pointsRequested;
+        await approvePointRequest(input.requestId, ctx.user.id, pointsToApprove);
+
+        return { success: true, pointsApproved: pointsToApprove };
+      }),
+
+    // 申請を却下
+    reject: protectedProcedure
+      .input(z.object({
+        requestId: z.number(),
+        reason: z.string().min(1, "却下理由を入力してください"),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+
+        const request = await getPointRequestById(input.requestId);
+        if (!request) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "申請が見つかりません" });
+        }
+
+        if (request.status !== "pending") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "この申請は既に処理済みです" });
+        }
+
+        await rejectPointRequest(input.requestId, ctx.user.id, input.reason);
+
+        return { success: true };
+      }),
+
+    // 申請の詳細を取得
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const request = await getPointRequestById(input.id);
+        if (!request) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "申請が見つかりません" });
+        }
+
+        // 自分の申請または管理者のみ閲覧可能
+        if (request.userId !== ctx.user.id && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "この申請を閲覧する権限がありません" });
+        }
+
+        return request;
       }),
   }),
 });

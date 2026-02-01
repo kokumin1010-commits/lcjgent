@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `point_requests` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `userId` int NOT NULL,\n  `orderNumber` varchar(64) NOT NULL,\n  `orderAmount` int NOT NULL,\n  `deliveryDate` timestamp,\n  `receiptImageUrl` text NOT NULL,\n  `receiptImageKey` varchar(512),\n  `deliveryImageUrl` text,\n  `deliveryImageKey` varchar(512),\n  `pointsRequested` int NOT NULL,\n  `pointsApproved` int,\n  `status` enum('pending','approved','rejected') NOT NULL DEFAULT 'pending',\n  `rejectionReason` text,\n  `reviewedBy` int,\n  `reviewedAt` timestamp,\n  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  CONSTRAINT `point_requests_id` PRIMARY KEY(`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute CREATE TABLE IF NOT EXISTS `point_requests` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `userId` int NOT NULL,\n  `orderNumber` varchar(64) NOT NULL,\n  `orderAmount` int NOT NULL,\n  `deliveryDate` timestamp,\n  `receiptImageUrl` text NOT NULL,\n  `receiptImageKey` varchar(512),\n  `deliveryImageUrl` text,\n  `deliveryImageKey` varchar(512),\n  `pointsRequested` int NOT NULL,\n  `pointsApproved` int,\n  `status` enum('pending','approved','rejected') NOT NULL DEFAULT 'pending',\n  `rejectionReason` text,\n  `reviewedBy` int,\n  `reviewedAt` timestamp,\n  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  CONSTRAINT `point_requests_id` PRIMARY KEY(`id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1733
+}

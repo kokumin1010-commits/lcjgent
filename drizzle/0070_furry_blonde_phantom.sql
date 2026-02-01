@@ -1,0 +1,20 @@
+CREATE TABLE `point_requests` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`userId` int NOT NULL,
+	`orderNumber` varchar(64) NOT NULL,
+	`orderAmount` int NOT NULL,
+	`deliveryDate` timestamp,
+	`receiptImageUrl` text NOT NULL,
+	`receiptImageKey` varchar(512),
+	`deliveryImageUrl` text,
+	`deliveryImageKey` varchar(512),
+	`pointsRequested` int NOT NULL,
+	`pointsApproved` int,
+	`status` enum('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+	`rejectionReason` text,
+	`reviewedBy` int,
+	`reviewedAt` timestamp,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `point_requests_id` PRIMARY KEY(`id`)
+);

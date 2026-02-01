@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -6503,4 +6503,236 @@ export async function getRecentAnalysisHistory(limit: number = 50) {
     .limit(limit);
   
   return result;
+}
+
+
+// ==================== Point Request Functions ====================
+
+/**
+ * Create a new point request
+ */
+export async function createPointRequest(data: InsertPointRequest) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(pointRequests).values(data);
+  return result[0].insertId;
+}
+
+/**
+ * Get point request by ID
+ */
+export async function getPointRequestById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select()
+    .from(pointRequests)
+    .where(eq(pointRequests.id, id))
+    .limit(1);
+  
+  return result.length > 0 ? result[0] : null;
+}
+
+/**
+ * Get point requests by user ID
+ */
+export async function getPointRequestsByUserId(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db.select()
+    .from(pointRequests)
+    .where(eq(pointRequests.userId, userId))
+    .orderBy(desc(pointRequests.createdAt));
+}
+
+/**
+ * Get all pending point requests (for admin)
+ */
+export async function getPendingPointRequests() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db.select()
+    .from(pointRequests)
+    .where(eq(pointRequests.status, "pending"))
+    .orderBy(asc(pointRequests.createdAt));
+}
+
+/**
+ * Get all point requests (for admin)
+ */
+export async function getAllPointRequests(limit: number = 100) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db.select()
+    .from(pointRequests)
+    .orderBy(desc(pointRequests.createdAt))
+    .limit(limit);
+}
+
+/**
+ * Check if order number already exists (for duplicate prevention)
+ */
+export async function checkOrderNumberExists(orderNumber: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  
+  const result = await db.select({ id: pointRequests.id })
+    .from(pointRequests)
+    .where(eq(pointRequests.orderNumber, orderNumber))
+    .limit(1);
+  
+  return result.length > 0;
+}
+
+/**
+ * Count today's point requests by user (for daily limit check)
+ */
+export async function countTodayPointRequestsByUser(userId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  
+  const result = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(pointRequests)
+    .where(
+      and(
+        eq(pointRequests.userId, userId),
+        sql`${pointRequests.createdAt} >= ${today}`,
+        sql`${pointRequests.createdAt} < ${tomorrow}`
+      )
+    );
+  
+  return result[0]?.count || 0;
+}
+
+/**
+ * Approve a point request
+ */
+export async function approvePointRequest(id: number, adminUserId: number, pointsApproved: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Update point request status
+  await db.update(pointRequests)
+    .set({
+      status: "approved",
+      pointsApproved,
+      reviewedBy: adminUserId,
+      reviewedAt: new Date(),
+    })
+    .where(eq(pointRequests.id, id));
+  
+  // Get the request to find the user
+  const request = await getPointRequestById(id);
+  if (!request) throw new Error("Point request not found");
+  
+  // Update user's point balance
+  await addPointsToUser(request.userId, pointsApproved, id, "TikTok Shop購入ポイント還元");
+  
+  return true;
+}
+
+/**
+ * Reject a point request
+ */
+export async function rejectPointRequest(id: number, adminUserId: number, reason: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(pointRequests)
+    .set({
+      status: "rejected",
+      rejectionReason: reason,
+      reviewedBy: adminUserId,
+      reviewedAt: new Date(),
+    })
+    .where(eq(pointRequests.id, id));
+  
+  return true;
+}
+
+/**
+ * Add points to user's balance
+ */
+export async function addPointsToUser(userId: number, points: number, pointRequestId: number | null, description: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Get or create point balance
+  let balance = await db.select()
+    .from(pointBalances)
+    .where(eq(pointBalances.userId, userId))
+    .limit(1);
+  
+  let currentBalance = 0;
+  
+  if (balance.length === 0) {
+    // Create new balance record
+    await db.insert(pointBalances).values({
+      userId,
+      balance: points,
+      totalEarned: points,
+      totalUsed: 0,
+    });
+    currentBalance = points;
+  } else {
+    // Update existing balance
+    currentBalance = Number(balance[0].balance) + points;
+    await db.update(pointBalances)
+      .set({
+        balance: currentBalance,
+        totalEarned: sql`${pointBalances.totalEarned} + ${points}`,
+      })
+      .where(eq(pointBalances.userId, userId));
+  }
+  
+  // Record transaction
+  await db.insert(pointTransactions).values({
+    userId,
+    type: "earn",
+    amount: points,
+    balanceAfter: currentBalance,
+    referenceType: "receipt",
+    referenceId: pointRequestId,
+    description,
+  });
+  
+  return currentBalance;
+}
+
+/**
+ * Get user's point balance
+ */
+export async function getUserPointBalance(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select()
+    .from(pointBalances)
+    .where(eq(pointBalances.userId, userId))
+    .limit(1);
+  
+  return result.length > 0 ? result[0] : null;
+}
+
+/**
+ * Get user's point transactions
+ */
+export async function getUserPointTransactions(userId: number, limit: number = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db.select()
+    .from(pointTransactions)
+    .where(eq(pointTransactions.userId, userId))
+    .orderBy(desc(pointTransactions.createdAt))
+    .limit(limit);
 }

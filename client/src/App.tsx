@@ -54,6 +54,8 @@ import MallProducts from "./pages/MallProducts";
 import MallProductDetail from "./pages/MallProductDetail";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import PointRequest from "./pages/PointRequest";
+import PointRequestAdmin from "./pages/PointRequestAdmin";
 
 function Router() {
   return (
@@ -67,6 +69,12 @@ function Router() {
       <Route path="/mypage" component={LineMypage} />
       <Route path="/mall/products" component={MallProducts} />
       <Route path="/mall/products/:id" component={MallProductDetail} />
+      <Route path="/point-request" component={PointRequest} />
+      <Route path="/master/point-requests">
+        <DashboardLayout>
+          <PointRequestAdmin />
+        </DashboardLayout>
+      </Route>
       
       {/* Authentication */}
       <Route path={"/login"} component={Login} />

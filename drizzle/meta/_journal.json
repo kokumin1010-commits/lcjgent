@@ -491,6 +491,13 @@
       "when": 1769930131099,
       "tag": "0069_funny_payback",
       "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "5",
+      "when": 1769970987003,
+      "tag": "0070_furry_blonde_phantom",
+      "breakpoints": true
     }
   ]
 }
