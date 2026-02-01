@@ -1709,8 +1709,8 @@ export const lineLinkCodes = mysqlTable("line_link_codes", {
   // ユーザー情報
   lineUserId: int("lineUserId").notNull(), // References line_users.id (email user)
   
-  // 連携コード（6桁の数字）
-  code: varchar("code", { length: 6 }).notNull(),
+  // 連携コード（プレフィックス付き: L-XXXXXX または M-XXXXXX）
+  code: varchar("code", { length: 10 }).notNull(),
   
   // 有効期限（10分）
   expiresAt: timestamp("expiresAt").notNull(),

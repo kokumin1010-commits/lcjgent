@@ -1,0 +1,1 @@
+ALTER TABLE `line_link_codes` MODIFY COLUMN `code` varchar(10) NOT NULL;
