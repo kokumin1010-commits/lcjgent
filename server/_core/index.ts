@@ -182,25 +182,44 @@ async function startServer() {
             statusMessage: profile?.statusMessage,
           });
           
-          // Check if this LINE user is already linked to a liver account
+          // Check if this LINE user is already linked to a liver account or mall account
           const { findLiverByLineUserId } = await import("../lineWebhook");
+          const { getLineUserByLineId } = await import("../db");
           const { sendLinePushMessage } = await import("./../_core/lineMessaging");
-          const existingLiver = await findLiverByLineUserId(event.source.userId);
           
-          if (existingLiver) {
-            // Already linked - welcome back
+          const existingLiver = await findLiverByLineUserId(event.source.userId);
+          const existingMallUser = await getLineUserByLineId(event.source.userId);
+          
+          if (existingLiver && existingMallUser) {
+            // Both linked - welcome back
             await sendLinePushMessage(event.source.userId, [
               {
                 type: "text",
-                text: `${existingLiver.name}さん、おかえりなさい！🎉\n\nLINE連携は完了しています。配信後にAIコーチングが届きます。`,
+                text: `${existingLiver.name}さん、おかえりなさい！🎉\n\nライバーアカウントとモール会員アカウントの両方が連携済みです。\n\n・配信後にAIコーチングが届きます\n・TikTok Shopのレシートを送信してポイント獲得できます`,
+              },
+            ]);
+          } else if (existingLiver) {
+            // Liver linked but not mall - offer mall linking
+            await sendLinePushMessage(event.source.userId, [
+              {
+                type: "text",
+                text: `${existingLiver.name}さん、おかえりなさい！🎉\n\nライバーアカウントは連携済みです。配信後にAIコーチングが届きます。\n\n💰 LCJ MALLもお使いですか？\nTikTok Shopのレシートを送信してポイントを獲得できます。\n\n【モール連携方法】\n1. lcjmall.com にログイン\n2. マイページ → LINE連携\n3. 表示されるコード（M-XXXXXX）をこちらに送信`,
+              },
+            ]);
+          } else if (existingMallUser) {
+            // Mall linked but not liver - offer liver linking
+            await sendLinePushMessage(event.source.userId, [
+              {
+                type: "text",
+                text: `おかえりなさい！🎉\n\nLCJ MALLアカウントは連携済みです。TikTok Shopのレシートを送信してポイントを獲得できます。\n\n🎙️ LCJライバーですか？\n配信後にAIコーチングを受け取れます。\n\n【ライバー連携方法】\n1. LCJライバーアプリにログイン\n2. プロフィール編集 → LINE連携\n3. 表示される6桁のコードをこちらに送信`,
               },
             ]);
           } else {
-            // Not linked - send instructions
+            // Not linked to anything - send both options
             await sendLinePushMessage(event.source.userId, [
               {
                 type: "text",
-                text: `LCJ AIコーチングへようこそ！🎊\n\n配信後にAIからのアドバイスをLINEで受け取れます。\n\n【連携方法】\n1. LCJライバーアプリにログイン\n2. プロフィール編集 → LINE連携\n3. 表示される6桁のコードをこちらに送信\n\n連携コードを入力してください👇`,
+                text: `LCJへようこそ！🎊\n\n【LCJライバーの方】\n配信後にAIコーチングを受け取れます。\n1. LCJライバーアプリにログイン\n2. プロフィール編集 → LINE連携\n3. 6桁のコードを送信\n\n【LCJ MALL会員の方】\nTikTok Shopのレシートを送信してポイント獲得！\n1. lcjmall.com にログイン\n2. マイページ → LINE連携\n3. コード（M-XXXXXX）を送信\n\n連携コードを入力してください👇`,
               },
             ]);
           }
@@ -322,11 +341,11 @@ async function startServer() {
             },
           ]);
         } catch (error: any) {
-          if (error.message === "LINE_ALREADY_LINKED") {
+          if (error.message === "LINE_ALREADY_LINKED_TO_MALL") {
             await sendLinePushMessage(lineUserId, [
               {
                 type: "text",
-                text: `このLINEアカウントは既に別のアカウントに連携されています。\n\n別のアカウントでログインしてお試しください。`,
+                text: `このLINEアカウントは既に別のモール会員アカウントに連携されています。\n\n別のアカウントでログインしてお試しください。`,
               },
             ]);
           } else {

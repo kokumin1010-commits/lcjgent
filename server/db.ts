@@ -6306,22 +6306,24 @@ export async function verifyAndUseLinkCode(code: string, linkedLineUserId: strin
 }
 
 /**
- * Link LINE account to email user
+ * Link LINE account to email user (Mall member)
  * Updates the line_users record to include the LINE User ID
+ * Note: Same LINE ID can be linked to both Liver and Mall member accounts
  */
 export async function linkLineAccountToEmailUser(emailUserId: number, lineUserId: string, displayName?: string, pictureUrl?: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  // Check if LINE ID is already linked to another account
+  // Check if LINE ID is already linked to another MALL account (line_users table)
+  // Note: We allow the same LINE ID to be linked to both Liver (livers table) and Mall member (line_users table)
   const existingLineUser = await db.select()
     .from(lineUsers)
     .where(eq(lineUsers.lineUserId, lineUserId))
     .limit(1);
   
   if (existingLineUser.length > 0 && existingLineUser[0].id !== emailUserId) {
-    // LINE ID is already linked to a different account
-    throw new Error("LINE_ALREADY_LINKED");
+    // LINE ID is already linked to a different MALL account
+    throw new Error("LINE_ALREADY_LINKED_TO_MALL");
   }
   
   // Update email user with LINE ID
