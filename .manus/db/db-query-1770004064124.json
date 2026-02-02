@@ -1,0 +1,15 @@
+{
+  "query": "SELECT id, name, email FROM livers WHERE name LIKE '%Ryu%' OR name LIKE '%ryu%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, name, email FROM livers WHERE name LIKE '%Ryu%' OR name LIKE '%ryu%';",
+  "rows": [
+    {
+      "id": "120005",
+      "name": "Ryu kyogoku",
+      "email": "test@gmail.com"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\n120005\tRyu kyogoku\ttest@gmail.com\n",
+  "stderr": "",
+  "execution_time_ms": 1539
+}

@@ -1,0 +1,16 @@
+{
+  "query": "SELECT id, name, email, password FROM livers WHERE name LIKE '%Ryu%' OR name LIKE '%ryu%' LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, name, email, password FROM livers WHERE name LIKE '%Ryu%' OR name LIKE '%ryu%' LIMIT 5;",
+  "rows": [
+    {
+      "id": "120005",
+      "name": "Ryu kyogoku",
+      "email": "test@gmail.com",
+      "password": "$2b$10$2w.JvTG28kij6W.mlnKUBO5IgtOpvc4VXIbodKm6ZpMlFa.Gzrw3C"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\tpassword\n120005\tRyu kyogoku\ttest@gmail.com\t$2b$10$2w.JvTG28kij6W.mlnKUBO5IgtOpvc4VXIbodKm6ZpMlFa.Gzrw3C\n",
+  "stderr": "",
+  "execution_time_ms": 1514
+}

@@ -74,7 +74,7 @@ const trpcClient = trpc.createClient({
                               currentPath === '/' ||
                               currentPath.startsWith('/products') ||
                               currentPath.startsWith('/mall');
-        const isLiverPage = currentPath.startsWith('/liver/');
+        const isLiverPage = currentPath.startsWith('/liver/') || currentPath === '/s';
         
         if (isLiverPage && liverToken) {
           headers.set("Authorization", `Bearer ${liverToken}`);
