@@ -299,6 +299,7 @@ import {
   getScheduleGroupMembers,
   getAllScheduleGroupsWithMembers,
   setScheduleGroupMembers,
+  getLivestreamsByStreamerName,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -8074,6 +8075,16 @@ ${metricsDescription}${historicalContext}`,
       .input(z.object({ limit: z.number().optional().default(50) }))
       .query(async ({ input }) => {
         return await getRecentAnalysisHistory(input.limit);
+      }),
+
+    // Get livestreams by streamer name (for ranking detail view)
+    getLivestreamsByStreamerName: publicProcedure
+      .input(z.object({ 
+        streamerName: z.string(),
+        month: z.string().optional() // format: "YYYY-MM"
+      }))
+      .query(async ({ input }) => {
+        return await getLivestreamsByStreamerName(input.streamerName, input.month);
       }),
   }),
 

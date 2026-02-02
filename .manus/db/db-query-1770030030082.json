@@ -1,0 +1,25 @@
+{
+  "query": "SELECT liverId, streamerName, SUM(gmv) as totalSales FROM brand_livestreams WHERE livestreamDate >= '2026-01-01' AND livestreamDate <= '2026-01-31' GROUP BY liverId, streamerName ORDER BY totalSales DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT liverId, streamerName, SUM(gmv) as totalSales FROM brand_livestreams WHERE livestreamDate >= '2026-01-01' AND livestreamDate <= '2026-01-31' GROUP BY liverId, streamerName ORDER BY totalSales DESC LIMIT 10;",
+  "rows": [
+    {
+      "liverId": "NULL",
+      "streamerName": "KG",
+      "totalSales": "63489252"
+    },
+    {
+      "liverId": "NULL",
+      "streamerName": "@ryukyogoku",
+      "totalSales": "11367499"
+    },
+    {
+      "liverId": "NULL",
+      "streamerName": "@ryukyogku",
+      "totalSales": "21880"
+    }
+  ],
+  "messages": [],
+  "stdout": "liverId\tstreamerName\ttotalSales\nNULL\tKG\t63489252\nNULL\t@ryukyogoku\t11367499\nNULL\t@ryukyogku\t21880\n",
+  "stderr": "",
+  "execution_time_ms": 1491
+}

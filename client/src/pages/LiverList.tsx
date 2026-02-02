@@ -155,8 +155,8 @@ export default function LiverList() {
               <div className="space-y-3">
                 {salesRankingToShow.map((item, index) => (
                   <Link 
-                    key={item.liverId || index} 
-                    href={item.liverId ? `/livers/${item.liverId}` : "#"}
+                    key={item.liverId || item.streamerName || index} 
+                    href={`/livers/by-name/${encodeURIComponent(item.streamerName || '')}`}
                   >
                     <div className="flex items-center gap-4 p-3 rounded-lg hover:bg-gray-800/50 transition-colors cursor-pointer">
                       {getRankIcon(index + 1)}
@@ -277,8 +277,8 @@ export default function LiverList() {
               <div className="space-y-3">
                 {durationRankingToShow.map((item, index) => (
                   <Link 
-                    key={item.liverId || index} 
-                    href={item.liverId ? `/livers/${item.liverId}` : "#"}
+                    key={item.liverId || item.streamerName || index} 
+                    href={`/livers/by-name/${encodeURIComponent(item.streamerName || '')}`}
                   >
                     <div className="flex items-center gap-4 p-3 rounded-lg hover:bg-gray-800/50 transition-colors cursor-pointer">
                       {getRankIcon(index + 1)}

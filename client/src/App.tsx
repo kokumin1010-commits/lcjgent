@@ -59,6 +59,7 @@ import ResetPasswordAdmin from "./pages/ResetPasswordAdmin";
 import PointRequest from "./pages/PointRequest";
 import PointRequestAdmin from "./pages/PointRequestAdmin";
 import ScheduleGroupManagement from "./pages/ScheduleGroupManagement";
+import LiverByName from "./pages/LiverByName";
 
 function Router() {
   return (
@@ -258,6 +259,7 @@ function Router() {
       
       {/* Public Pages - Liver */}
       <Route path={"/livers"} component={LiverList} />
+      <Route path={"/livers/by-name/:name"} component={LiverByName} />
       <Route path={"/livers/:id"} component={LiverDetail} />
       <Route path={"/livestreams/:id"} component={LivestreamDetail} />
       

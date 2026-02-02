@@ -7010,3 +7010,35 @@ export async function setScheduleGroupMembers(groupId: number, liverIds: number[
   
   return true;
 }
+
+/**
+ * Get livestreams by streamer name with stats
+ */
+export async function getLivestreamsByStreamerName(streamerName: string, month?: string) {
+  const db = await getDb();
+  if (!db) return { livestreams: [], totalSales: 0, totalDuration: 0 };
+  
+  let whereConditions = eq(brandLivestreams.streamerName, streamerName);
+  
+  if (month) {
+    const [year, monthNum] = month.split('-').map(Number);
+    const startDate = new Date(year, monthNum - 1, 1);
+    const endDate = new Date(year, monthNum, 0, 23, 59, 59);
+    whereConditions = and(
+      whereConditions,
+      sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
+      sql`${brandLivestreams.livestreamDate} <= ${endDate}`
+    ) as any;
+  }
+  
+  const livestreams = await db
+    .select()
+    .from(brandLivestreams)
+    .where(whereConditions)
+    .orderBy(sql`${brandLivestreams.livestreamDate} DESC`);
+  
+  const totalSales = livestreams.reduce((sum, l) => sum + (l.gmv || 0), 0);
+  const totalDuration = livestreams.reduce((sum, l) => sum + (l.duration || 0), 0);
+  
+  return { livestreams, totalSales, totalDuration };
+}
