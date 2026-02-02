@@ -260,6 +260,8 @@ function Router() {
       {/* Public Pages - Liver */}
       <Route path={"/livers"} component={LiverList} />
       <Route path={"/livers/by-name/:name"} component={LiverByName} />
+      <Route path={"/livers/:id/edit"} component={LiverProfile} />
+      <Route path={"/livers/:id/record"} component={LiverSelfRecord} />
       <Route path={"/livers/:id"} component={LiverDetail} />
       <Route path={"/livestreams/:id"} component={LivestreamDetail} />
       

@@ -3226,3 +3226,9 @@
 - [x] /livers/:id/record ルートの404エラーを修正（/liver/recordへリダイレクト）
 - [x] ライバーページの全ボタンをテスト
 - [x] テストライバーアカウントを削除
+
+
+## ライバーページの404エラー修正（再発）
+- [x] /livers/:id/edit ルートを追加（LiverProfileページにリダイレクト）
+- [x] /livers/:id/record ルートを追加（LiverSelfRecordページにリダイレクト）
+- [x] 動作確認
