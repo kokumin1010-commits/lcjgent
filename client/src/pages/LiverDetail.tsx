@@ -203,7 +203,7 @@ export default function LiverDetail() {
           
           <div className="flex items-center gap-2">
             <h2 className="text-xl font-bold">{liver.name}</h2>
-            <Link href={`/livers/${liverId}/edit`}>
+            <Link href="/liver/profile">
               <Edit className="w-4 h-4 text-gray-400 hover:text-white cursor-pointer" />
             </Link>
           </div>
@@ -305,7 +305,7 @@ export default function LiverDetail() {
         
         {/* Record Button */}
         <div className="flex justify-center">
-          <Link href={`/livers/${liverId}/record`}>
+          <Link href="/liver/record">
             <Button className="bg-red-600 hover:bg-red-700 px-8 py-6 text-lg rounded-full">
               配信内容の記録
             </Button>

@@ -1,0 +1,50 @@
+{
+  "query": "SELECT id, name FROM livers;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, name FROM livers;",
+  "rows": [
+    {
+      "id": "120005",
+      "name": "Ryu kyogoku"
+    },
+    {
+      "id": "150001",
+      "name": "テストライバー"
+    },
+    {
+      "id": "360009",
+      "name": "はづき"
+    },
+    {
+      "id": "360012",
+      "name": "三宅あゆみ"
+    },
+    {
+      "id": "360013",
+      "name": "NANA"
+    },
+    {
+      "id": "360029",
+      "name": "しいほ"
+    },
+    {
+      "id": "540001",
+      "name": "けい"
+    },
+    {
+      "id": "540002",
+      "name": "みぃ"
+    },
+    {
+      "id": "540003",
+      "name": "yae"
+    },
+    {
+      "id": "600001",
+      "name": "yuko"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\n120005\tRyu kyogoku\n150001\tテストライバー\n360009\tはづき\n360012\t三宅あゆみ\n360013\tNANA\n360029\tしいほ\n540001\tけい\n540002\tみぃ\n540003\tyae\n600001\tyuko\n",
+  "stderr": "",
+  "execution_time_ms": 1558
+}
