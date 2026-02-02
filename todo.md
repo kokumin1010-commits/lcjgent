@@ -3232,3 +3232,10 @@
 - [x] /livers/:id/edit ルートを追加（LiverProfileページにリダイレクト）
 - [x] /livers/:id/record ルートを追加（LiverSelfRecordページにリダイレクト）
 - [x] 動作確認
+
+
+## ライバーページのバグ修正（本番環境）
+- [x] /livers/:id/record ルートが本番環境で404エラー - 修正済み（公開待ち）
+- [x] /master/livers/login リンクを確認 - 正しいURLは/liver/login
+- [x] 全ボタンをタップできるように修正
+- [x] 動作確認
