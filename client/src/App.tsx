@@ -54,6 +54,8 @@ import MallProducts from "./pages/MallProducts";
 import MallProductDetail from "./pages/MallProductDetail";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import ForgotPasswordAdmin from "./pages/ForgotPasswordAdmin";
+import ResetPasswordAdmin from "./pages/ResetPasswordAdmin";
 import PointRequest from "./pages/PointRequest";
 import PointRequestAdmin from "./pages/PointRequestAdmin";
 
@@ -78,6 +80,8 @@ function Router() {
       
       {/* Authentication */}
       <Route path={"/login"} component={Login} />
+      <Route path="/forgot-password-admin" component={ForgotPasswordAdmin} />
+      <Route path="/reset-password-admin" component={ResetPasswordAdmin} />
       <Route path="/complete/:token" component={TaskComplete} />
       
       {/* Master - Admin Dashboard */}

@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { toast } from "sonner";
 import { useLanguage, Language } from "@/contexts/LanguageContext";
 import { Globe } from "lucide-react";
@@ -159,7 +159,7 @@ export default function Login() {
                   : t("login.submit")}
             </Button>
 
-            <div className="text-center">
+            <div className="text-center space-y-2">
               <Button
                 type="button"
                 variant="link"
@@ -174,6 +174,15 @@ export default function Login() {
                   ? t("register.login")
                   : t("login.register")}
               </Button>
+              {!isRegistering && (
+                <div>
+                  <Link href="/forgot-password-admin">
+                    <Button type="button" variant="link" className="text-sm text-muted-foreground">
+                      {language === "ja" ? "パスワードを忘れた場合" : "忘记密码"}
+                    </Button>
+                  </Link>
+                </div>
+              )}
             </div>
           </form>
         </CardContent>

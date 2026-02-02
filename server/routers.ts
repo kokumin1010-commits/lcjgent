@@ -284,6 +284,11 @@ import {
   rejectPointRequest,
   getUserPointBalance,
   getUserPointTransactions,
+  createUserPasswordResetToken,
+  getUserPasswordResetToken,
+  markUserPasswordResetTokenUsed,
+  updateUserPassword,
+  getUserByEmail,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";

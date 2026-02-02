@@ -1813,3 +1813,31 @@ export const pointRequests = mysqlTable("point_requests", {
 
 export type PointRequest = typeof pointRequests.$inferSelect;
 export type InsertPointRequest = typeof pointRequests.$inferInsert;
+
+
+/**
+ * Password Reset Tokens table for password recovery
+ * パスワードリセット用トークンテーブル
+ */
+export const passwordResetTokens = mysqlTable("password_reset_tokens", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // ユーザー情報
+  userId: int("userId").notNull(), // References users.id
+  email: varchar("email", { length: 320 }).notNull(),
+  
+  // トークン情報
+  token: varchar("token", { length: 64 }).notNull().unique(), // ランダムトークン
+  
+  // 有効期限
+  expiresAt: timestamp("expiresAt").notNull(), // トークンの有効期限（通常1時間）
+  
+  // 使用状態
+  usedAt: timestamp("usedAt"), // 使用された日時（nullなら未使用）
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
+export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert;
