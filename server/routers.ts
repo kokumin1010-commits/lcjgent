@@ -9265,6 +9265,22 @@ ${metricsDescription}${historicalContext}`,
         const pointsToApprove = input.pointsApproved ?? request.pointsRequested;
         await approvePointRequest(input.requestId, ctx.user.id, pointsToApprove);
 
+        // LINE通知を送信（ユーザーがLINEユーザーの場合）
+        try {
+          const lineUser = await getLineUserById(request.userId);
+          if (lineUser?.lineUserId) {
+            await pushMessage(lineUser.lineUserId, [
+              {
+                type: "text",
+                text: `🎉 ポイント申請が承認されました！\n\n注文番号: ${request.orderNumber}\n承認ポイント: ${pointsToApprove}pt\n\nポイントが残高に加算されました。\nLCJ MALLでのお買い物にご利用いただけます。`,
+              },
+            ]);
+          }
+        } catch (notifyError) {
+          console.error("[PointRequest] LINE通知エラー:", notifyError);
+          // 通知失敗しても承認処理は成功とする
+        }
+
         return { success: true, pointsApproved: pointsToApprove };
       }),
 
