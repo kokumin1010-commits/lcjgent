@@ -1841,3 +1841,56 @@ export const passwordResetTokens = mysqlTable("password_reset_tokens", {
 
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert;
+
+
+/**
+ * Schedule Groups table for organizing schedules into named groups
+ * スケジュールグループテーブル（A/B/Cスケジュールなど）
+ * 
+ * 機能:
+ * - スケジュールを「Aスケジュール」「Bスケジュール」などの名前付きグループに分類
+ * - 管理者がグループ名を自由に変更可能
+ * - 各グループに複数のライバーを割り当て可能
+ */
+export const scheduleGroups = mysqlTable("schedule_groups", {
+  id: int("id").autoincrement().primaryKey(),
+  // グループ情報
+  name: varchar("name", { length: 255 }).notNull(), // グループ名（例：「Aスケジュール」「京極チーム」）
+  description: text("description"), // グループの説明
+  // 表示設定
+  color: varchar("color", { length: 20 }).default("#3B82F6"), // 表示色
+  icon: varchar("icon", { length: 50 }), // アイコン名（オプション）
+  // 並び順
+  sortOrder: int("sortOrder").default(0).notNull(), // 表示順序（小さい順）
+  // ステータス
+  isActive: boolean("isActive").default(true).notNull(), // アクティブかどうか
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ScheduleGroup = typeof scheduleGroups.$inferSelect;
+export type InsertScheduleGroup = typeof scheduleGroups.$inferInsert;
+
+
+/**
+ * Schedule Group Members table for assigning livers to groups
+ * スケジュールグループメンバーテーブル
+ * 
+ * 機能:
+ * - ライバーをスケジュールグループに割り当て
+ * - 1人のライバーは複数のグループに所属可能
+ */
+export const scheduleGroupMembers = mysqlTable("schedule_group_members", {
+  id: int("id").autoincrement().primaryKey(),
+  // 関連
+  groupId: int("groupId").notNull(), // References scheduleGroups.id
+  liverId: int("liverId").notNull(), // References livers.id
+  // 並び順
+  sortOrder: int("sortOrder").default(0).notNull(), // グループ内での表示順序
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ScheduleGroupMember = typeof scheduleGroupMembers.$inferSelect;
+export type InsertScheduleGroupMember = typeof scheduleGroupMembers.$inferInsert;

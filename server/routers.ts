@@ -289,6 +289,16 @@ import {
   markUserPasswordResetTokenUsed,
   updateUserPassword,
   getUserByEmail,
+  createScheduleGroup,
+  getAllScheduleGroups,
+  getScheduleGroupById,
+  updateScheduleGroup,
+  deleteScheduleGroup,
+  addLiverToScheduleGroup,
+  removeLiverFromScheduleGroup,
+  getScheduleGroupMembers,
+  getAllScheduleGroupsWithMembers,
+  setScheduleGroupMembers,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -7001,6 +7011,127 @@ ${conversationText}
         } else {
           await deleteSchedule(input.id);
         }
+        return { success: true };
+      }),
+  }),
+
+  // Schedule Group Router (スケジュールグループ管理)
+  scheduleGroup: router({
+    // Get all schedule groups (public - ログイン不要)
+    list: publicProcedure
+      .query(async () => {
+        return await getAllScheduleGroups();
+      }),
+
+    // Get all schedule groups with members (public - ログイン不要)
+    listWithMembers: publicProcedure
+      .query(async () => {
+        return await getAllScheduleGroupsWithMembers();
+      }),
+
+    // Get schedule group by ID (public - ログイン不要)
+    getById: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return await getScheduleGroupById(input.id);
+      }),
+
+    // Get schedule group members (public - ログイン不要)
+    getMembers: publicProcedure
+      .input(z.object({ groupId: z.number() }))
+      .query(async ({ input }) => {
+        return await getScheduleGroupMembers(input.groupId);
+      }),
+
+    // Create a new schedule group (protected - 管理者のみ)
+    create: protectedProcedure
+      .input(
+        z.object({
+          name: z.string().min(1),
+          description: z.string().optional(),
+          color: z.string().optional(),
+          icon: z.string().optional(),
+          sortOrder: z.number().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const id = await createScheduleGroup({
+          name: input.name,
+          description: input.description,
+          color: input.color || '#3B82F6',
+          icon: input.icon,
+          sortOrder: input.sortOrder || 0,
+        });
+        return { id, success: true };
+      }),
+
+    // Update a schedule group (protected - 管理者のみ)
+    update: protectedProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          name: z.string().min(1).optional(),
+          description: z.string().optional(),
+          color: z.string().optional(),
+          icon: z.string().optional(),
+          sortOrder: z.number().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        await updateScheduleGroup(id, data);
+        return { success: true };
+      }),
+
+    // Delete a schedule group (protected - 管理者のみ)
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteScheduleGroup(input.id);
+        return { success: true };
+      }),
+
+    // Add a liver to a schedule group (protected - 管理者のみ)
+    addMember: protectedProcedure
+      .input(
+        z.object({
+          groupId: z.number(),
+          liverId: z.number(),
+          sortOrder: z.number().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const id = await addLiverToScheduleGroup(
+          input.groupId,
+          input.liverId,
+          input.sortOrder || 0
+        );
+        return { id, success: true };
+      }),
+
+    // Remove a liver from a schedule group (protected - 管理者のみ)
+    removeMember: protectedProcedure
+      .input(
+        z.object({
+          groupId: z.number(),
+          liverId: z.number(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        await removeLiverFromScheduleGroup(input.groupId, input.liverId);
+        return { success: true };
+      }),
+
+    // Set all members for a schedule group (protected - 管理者のみ)
+    setMembers: protectedProcedure
+      .input(
+        z.object({
+          groupId: z.number(),
+          liverIds: z.array(z.number()),
+        })
+      )
+      .mutation(async ({ input }) => {
+        await setScheduleGroupMembers(input.groupId, input.liverIds);
         return { success: true };
       }),
   }),

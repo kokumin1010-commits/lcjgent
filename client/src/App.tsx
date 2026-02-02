@@ -58,6 +58,7 @@ import ForgotPasswordAdmin from "./pages/ForgotPasswordAdmin";
 import ResetPasswordAdmin from "./pages/ResetPasswordAdmin";
 import PointRequest from "./pages/PointRequest";
 import PointRequestAdmin from "./pages/PointRequestAdmin";
+import ScheduleGroupManagement from "./pages/ScheduleGroupManagement";
 
 function Router() {
   return (
@@ -251,6 +252,9 @@ function Router() {
       {/* Public Pages - Schedule */}
       <Route path={"/s"} component={PublicSchedule} />
       <Route path={"/s/:name"} component={PublicLiverSchedule} />
+      
+      {/* Schedule Group Management */}
+      <Route path={"/master/schedule-groups"} component={ScheduleGroupManagement} />
       
       {/* Public Pages - Liver */}
       <Route path={"/livers"} component={LiverList} />

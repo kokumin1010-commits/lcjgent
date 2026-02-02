@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -6807,3 +6807,206 @@ export async function updateUserPassword(userId: number, hashedPassword: string)
   return true;
 }
 
+
+
+// ============================================
+// Schedule Group Functions
+// ============================================
+
+/**
+ * Create a new schedule group
+ */
+export async function createScheduleGroup(data: InsertScheduleGroup) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.insert(scheduleGroups).values(data);
+  return result[0].insertId;
+}
+
+/**
+ * Get all schedule groups
+ */
+export async function getAllScheduleGroups() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db.select()
+    .from(scheduleGroups)
+    .where(eq(scheduleGroups.isActive, true))
+    .orderBy(asc(scheduleGroups.sortOrder), asc(scheduleGroups.id));
+}
+
+/**
+ * Get schedule group by ID
+ */
+export async function getScheduleGroupById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select()
+    .from(scheduleGroups)
+    .where(eq(scheduleGroups.id, id))
+    .limit(1);
+  
+  return result.length > 0 ? result[0] : null;
+}
+
+/**
+ * Update a schedule group
+ */
+export async function updateScheduleGroup(id: number, data: Partial<InsertScheduleGroup>) {
+  const db = await getDb();
+  if (!db) return false;
+  
+  await db.update(scheduleGroups)
+    .set(data)
+    .where(eq(scheduleGroups.id, id));
+  
+  return true;
+}
+
+/**
+ * Delete a schedule group (soft delete by setting isActive to false)
+ */
+export async function deleteScheduleGroup(id: number) {
+  const db = await getDb();
+  if (!db) return false;
+  
+  await db.update(scheduleGroups)
+    .set({ isActive: false })
+    .where(eq(scheduleGroups.id, id));
+  
+  return true;
+}
+
+/**
+ * Add a liver to a schedule group
+ */
+export async function addLiverToScheduleGroup(groupId: number, liverId: number, sortOrder: number = 0) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  // Check if already exists
+  const existing = await db.select()
+    .from(scheduleGroupMembers)
+    .where(and(
+      eq(scheduleGroupMembers.groupId, groupId),
+      eq(scheduleGroupMembers.liverId, liverId)
+    ))
+    .limit(1);
+  
+  if (existing.length > 0) {
+    return existing[0].id;
+  }
+  
+  const result = await db.insert(scheduleGroupMembers).values({
+    groupId,
+    liverId,
+    sortOrder,
+  });
+  
+  return result[0].insertId;
+}
+
+/**
+ * Remove a liver from a schedule group
+ */
+export async function removeLiverFromScheduleGroup(groupId: number, liverId: number) {
+  const db = await getDb();
+  if (!db) return false;
+  
+  await db.delete(scheduleGroupMembers)
+    .where(and(
+      eq(scheduleGroupMembers.groupId, groupId),
+      eq(scheduleGroupMembers.liverId, liverId)
+    ));
+  
+  return true;
+}
+
+/**
+ * Get all members of a schedule group
+ */
+export async function getScheduleGroupMembers(groupId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db.select({
+    id: scheduleGroupMembers.id,
+    groupId: scheduleGroupMembers.groupId,
+    liverId: scheduleGroupMembers.liverId,
+    sortOrder: scheduleGroupMembers.sortOrder,
+    createdAt: scheduleGroupMembers.createdAt,
+    liverName: livers.name,
+    liverColor: livers.color,
+    liverAvatarUrl: livers.avatarUrl,
+  })
+    .from(scheduleGroupMembers)
+    .leftJoin(livers, eq(scheduleGroupMembers.liverId, livers.id))
+    .where(eq(scheduleGroupMembers.groupId, groupId))
+    .orderBy(asc(scheduleGroupMembers.sortOrder), asc(scheduleGroupMembers.id));
+}
+
+/**
+ * Get all schedule groups with their members
+ */
+export async function getAllScheduleGroupsWithMembers() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const groups = await getAllScheduleGroups();
+  
+  const groupsWithMembers = await Promise.all(
+    groups.map(async (group) => {
+      const members = await getScheduleGroupMembers(group.id);
+      return {
+        ...group,
+        members,
+      };
+    })
+  );
+  
+  return groupsWithMembers;
+}
+
+/**
+ * Update member sort order within a group
+ */
+export async function updateScheduleGroupMemberOrder(groupId: number, liverId: number, sortOrder: number) {
+  const db = await getDb();
+  if (!db) return false;
+  
+  await db.update(scheduleGroupMembers)
+    .set({ sortOrder })
+    .where(and(
+      eq(scheduleGroupMembers.groupId, groupId),
+      eq(scheduleGroupMembers.liverId, liverId)
+    ));
+  
+  return true;
+}
+
+/**
+ * Set all members for a schedule group (replaces existing members)
+ */
+export async function setScheduleGroupMembers(groupId: number, liverIds: number[]) {
+  const db = await getDb();
+  if (!db) return false;
+  
+  // Delete existing members
+  await db.delete(scheduleGroupMembers)
+    .where(eq(scheduleGroupMembers.groupId, groupId));
+  
+  // Add new members
+  if (liverIds.length > 0) {
+    const values = liverIds.map((liverId, index) => ({
+      groupId,
+      liverId,
+      sortOrder: index,
+    }));
+    await db.insert(scheduleGroupMembers).values(values);
+  }
+  
+  return true;
+}

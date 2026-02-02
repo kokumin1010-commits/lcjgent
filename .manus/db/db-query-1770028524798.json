@@ -1,0 +1,40 @@
+{
+  "query": "SELECT id, email, name, role FROM users LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, email, name, role FROM users LIMIT 5;",
+  "rows": [
+    {
+      "id": "1",
+      "email": "ryuhairartist@gmail.com",
+      "name": "Ryu Hair Artist",
+      "role": "admin"
+    },
+    {
+      "id": "73",
+      "email": "test-1768338291542@example.com",
+      "name": "Test User",
+      "role": "user"
+    },
+    {
+      "id": "74",
+      "email": "duplicate-1768338293454@example.com",
+      "name": "First User",
+      "role": "user"
+    },
+    {
+      "id": "75",
+      "email": "login-test-1768338294180@example.com",
+      "name": "Login Test User",
+      "role": "user"
+    },
+    {
+      "id": "76",
+      "email": "wrong-password-1768338295196@example.com",
+      "name": "Wrong Password Test",
+      "role": "user"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\temail\tname\trole\n1\tryuhairartist@gmail.com\tRyu Hair Artist\tadmin\n73\ttest-1768338291542@example.com\tTest User\tuser\n74\tduplicate-1768338293454@example.com\tFirst User\tuser\n75\tlogin-test-1768338294180@example.com\tLogin Test User\tuser\n76\twrong-password-1768338295196@example.com\tWrong Password Test\tuser\n",
+  "stderr": "",
+  "execution_time_ms": 1548
+}

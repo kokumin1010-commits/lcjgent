@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Calendar, Clock, User, Plus, ChevronDown, ChevronLeft, ChevronRight, X, LogIn, LogOut, UserPlus } from "lucide-react";
+import { Calendar, Clock, User, Plus, ChevronDown, ChevronLeft, ChevronRight, X, LogIn, LogOut, UserPlus, Settings, Check } from "lucide-react";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
@@ -100,6 +101,12 @@ export default function PublicSchedule() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
   const [bottomSheetOpen, setBottomSheetOpen] = useState(false);
+
+  // Schedule group state
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
+
+  // Fetch schedule groups with members
+  const { data: scheduleGroups } = trpc.scheduleGroup.listWithMembers.useQuery();
 
   // Use auth from users table (same as management dashboard)
   const { user: adminUser, logout: adminLogout, loading: authLoading } = useAuth();
@@ -318,13 +325,26 @@ export default function PublicSchedule() {
     return map;
   }, [schedules]);
 
+  // Get selected group's member liver names
+  const selectedGroupLiverNames = useMemo(() => {
+    if (!selectedGroupId || !scheduleGroups) return null;
+    const group = scheduleGroups.find(g => g.id === selectedGroupId);
+    if (!group || !group.members) return null;
+    return group.members.map(m => m.liverName);
+  }, [selectedGroupId, scheduleGroups]);
+
   // Group schedules by date (JST) - 複数日予定は各日に展開
   const schedulesByDate = useMemo(() => {
     if (!schedules) return new Map<string, (Schedule & { isMultiDay?: boolean; isStart?: boolean; isEnd?: boolean; spanDays?: number })[]>();
     
+    // Filter schedules by selected group's members
+    const filteredSchedules = selectedGroupLiverNames 
+      ? schedules.filter(s => s.liverName && selectedGroupLiverNames.includes(s.liverName))
+      : schedules;
+    
     const map = new Map<string, (Schedule & { isMultiDay?: boolean; isStart?: boolean; isEnd?: boolean; spanDays?: number })[]>();
     
-    schedules.forEach((schedule) => {
+    filteredSchedules.forEach((schedule) => {
       const startDate = new Date(schedule.startTime);
       const endDate = schedule.endTime ? new Date(schedule.endTime) : startDate;
       const startKey = getJSTDateKey(startDate);
@@ -383,7 +403,7 @@ export default function PublicSchedule() {
     });
     
     return map;
-  }, [schedules]);
+  }, [schedules, selectedGroupLiverNames]);
 
   // Get today's date key in JST
   const todayKey = getJSTDateKey(new Date());
@@ -766,6 +786,56 @@ export default function PublicSchedule() {
           →
         </button>
       </div>
+
+      {/* Schedule Group Tabs */}
+      {scheduleGroups && scheduleGroups.length > 0 && (
+        <div className="border-b">
+          <ScrollArea className="w-full whitespace-nowrap">
+            <div className="flex gap-1 p-2">
+              {/* All schedules tab */}
+              <button
+                onClick={() => setSelectedGroupId(null)}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors",
+                  selectedGroupId === null
+                    ? "bg-pink-500 text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                )}
+              >
+                <Check className={cn("h-4 w-4", selectedGroupId === null ? "opacity-100" : "opacity-0")} />
+                すべて
+              </button>
+              {/* Group tabs */}
+              {scheduleGroups.map((group) => (
+                <button
+                  key={group.id}
+                  onClick={() => setSelectedGroupId(group.id)}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors",
+                    selectedGroupId === group.id
+                      ? "text-white"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  )}
+                  style={selectedGroupId === group.id ? { backgroundColor: group.color || '#3B82F6' } : undefined}
+                >
+                  {group.icon && <span>{group.icon}</span>}
+                  {group.name}
+                </button>
+              ))}
+              {/* Settings button for admin */}
+              {adminUser && (
+                <button
+                  onClick={() => navigate("/master/schedule-groups")}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                >
+                  <Settings className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
+        </div>
+      )}
 
       {/* Weekday Headers */}
       <div className="grid grid-cols-7 border-b">

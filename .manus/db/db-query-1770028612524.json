@@ -1,0 +1,17 @@
+{
+  "query": "SELECT id, email, name, role, password FROM users WHERE role = 'admin';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, email, name, role, password FROM users WHERE role = 'admin';",
+  "rows": [
+    {
+      "id": "1",
+      "email": "ryuhairartist@gmail.com",
+      "name": "Ryu Hair Artist",
+      "role": "admin",
+      "password": "$2b$10$jaDtZhGZYrc..cDoIQs06eGSJjhazyZah80IHIK52SF2780OyXLN6"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\temail\tname\trole\tpassword\n1\tryuhairartist@gmail.com\tRyu Hair Artist\tadmin\t$2b$10$jaDtZhGZYrc..cDoIQs06eGSJjhazyZah80IHIK52SF2780OyXLN6\n",
+  "stderr": "",
+  "execution_time_ms": 1513
+}

@@ -505,6 +505,13 @@
       "when": 1769997582432,
       "tag": "0071_perfect_mephisto",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "5",
+      "when": 1770027733379,
+      "tag": "0072_silent_annihilus",
+      "breakpoints": true
     }
   ]
 }
