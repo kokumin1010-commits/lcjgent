@@ -3183,4 +3183,10 @@
 - [ ] ルート設定の確認
 - [ ] 問題を特定して修正
 
-- [ ] /master/brands と /brands/1 の404エラーを修正
+- [x] /master/brands と /brands/1 の404エラーを修正
+
+## ライバー向け機能からManus OAuthを削除
+- [x] スケジュール関連APIをpublicProcedureに変更
+- [x] ライバー専用の簡易認証を実装（メール+ライバー名）
+- [ ] カレンダーページからManus OAuth依存を削除
+- [ ] テストして動作確認

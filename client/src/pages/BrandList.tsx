@@ -501,7 +501,7 @@ export default function BrandList() {
         {brands && brands.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {brands.map((brand) => (
-              <Link key={brand.id} href={`/brands/${brand.id}`}>
+              <Link key={brand.id} href={`/master/brands/${brand.id}`}>
                 <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-6 hover:border-red-500/50 hover:bg-gray-800/70 transition-all cursor-pointer group">
                   <div className="flex items-start gap-4 mb-4">
                     {brand.logoUrl ? (

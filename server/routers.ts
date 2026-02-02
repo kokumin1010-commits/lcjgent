@@ -296,6 +296,8 @@ import { getDb } from "./db";
 import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats } from "../drizzle/schema";
 import { eq, and, not, isNotNull, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
+import { jwtVerify } from "jose";
+import { ENV } from "./_core/env";
 import { authRouter } from "./auth";
 import { liverRouter } from "./liverRouter";
 import { checkAndSendReminders } from "./reminderScheduler";
@@ -6844,8 +6846,8 @@ ${conversationText}
         return schedule;
       }),
 
-    // Public: Update a schedule (requires matching liverName)
-    publicUpdate: protectedProcedure
+    // Public: Update a schedule (requires matching liverName - uses liver token auth)
+    publicUpdate: publicProcedure
       .input(
         z.object({
           id: z.number(),
@@ -6857,6 +6859,7 @@ ${conversationText}
           category: z.enum(["delivery", "meeting", "live", "other"]).optional(),
           notes: z.string().optional(),
           updateAll: z.boolean().optional(), // すべての繰り返しを更新するかどうか
+          liverName: z.string().optional(), // ライバー名で認証（トークンがない場合）
         })
       )
       .mutation(async ({ input, ctx }) => {
@@ -6866,12 +6869,49 @@ ${conversationText}
           throw new TRPCError({ code: "NOT_FOUND", message: "予定が見つかりません" });
         }
         
+        // Get user name from Manus OAuth, liver token, or input liverName
+        let userName: string | null = null;
+        
+        // 1. Try Manus OAuth user
+        if (ctx.user?.name) {
+          userName = ctx.user.name;
+        }
+        
+        // 2. Try liver token from Authorization header
+        if (!userName) {
+          const authHeader = ctx.req.headers.authorization;
+          if (authHeader?.startsWith("Bearer ")) {
+            const token = authHeader.slice(7);
+            try {
+              const secret = new TextEncoder().encode(ENV.cookieSecret);
+              const { payload } = await jwtVerify(token, secret);
+              if (payload && payload.type === "liver" && payload.liverId) {
+                const liver = await getLiverById(payload.liverId as number);
+                if (liver) {
+                  userName = liver.name;
+                }
+              }
+            } catch {
+              // Token verification failed, continue to next method
+            }
+          }
+        }
+        
+        // 3. Fallback to input liverName (for backward compatibility)
+        if (!userName && input.liverName) {
+          userName = input.liverName;
+        }
+        
+        if (!userName) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+        }
+        
         // Check if user owns this schedule (by matching liverName with user name)
-        if (schedule.liverName !== ctx.user.name) {
+        if (schedule.liverName !== userName) {
           throw new TRPCError({ code: "FORBIDDEN", message: "この予定を編集する権限がありません" });
         }
         
-        const { id, updateAll, ...data } = input;
+        const { id, updateAll, liverName: _, ...data } = input;
         const updateData: Record<string, unknown> = {};
         
         if (data.title !== undefined) updateData.title = data.title;
@@ -6899,11 +6939,12 @@ ${conversationText}
         return { success: true };
       }),
 
-    // Public: Delete a schedule (requires matching liverName)
-    publicDelete: protectedProcedure
+    // Public: Delete a schedule (requires matching liverName - uses liver token auth)
+    publicDelete: publicProcedure
       .input(z.object({ 
         id: z.number(),
         deleteAll: z.boolean().optional(), // すべての繰り返しを削除するかどうか
+        liverName: z.string().optional(), // ライバー名で認証（トークンがない場合）
       }))
       .mutation(async ({ input, ctx }) => {
         // Get the schedule to check ownership
@@ -6912,8 +6953,45 @@ ${conversationText}
           throw new TRPCError({ code: "NOT_FOUND", message: "予定が見つかりません" });
         }
         
+        // Get user name from Manus OAuth, liver token, or input liverName
+        let userName: string | null = null;
+        
+        // 1. Try Manus OAuth user
+        if (ctx.user?.name) {
+          userName = ctx.user.name;
+        }
+        
+        // 2. Try liver token from Authorization header
+        if (!userName) {
+          const authHeader = ctx.req.headers.authorization;
+          if (authHeader?.startsWith("Bearer ")) {
+            const token = authHeader.slice(7);
+            try {
+              const secret = new TextEncoder().encode(ENV.cookieSecret);
+              const { payload } = await jwtVerify(token, secret);
+              if (payload && payload.type === "liver" && payload.liverId) {
+                const liver = await getLiverById(payload.liverId as number);
+                if (liver) {
+                  userName = liver.name;
+                }
+              }
+            } catch {
+              // Token verification failed, continue to next method
+            }
+          }
+        }
+        
+        // 3. Fallback to input liverName (for backward compatibility)
+        if (!userName && input.liverName) {
+          userName = input.liverName;
+        }
+        
+        if (!userName) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+        }
+        
         // Check if user owns this schedule (by matching liverName with user name)
-        if (schedule.liverName !== ctx.user.name) {
+        if (schedule.liverName !== userName) {
           throw new TRPCError({ code: "FORBIDDEN", message: "この予定を削除する権限がありません" });
         }
         
