@@ -268,7 +268,7 @@ export default function BrandForm() {
       }
 
       toast.success(t.success);
-      navigate("/brands");
+      navigate("/master/brands");
     } catch (error) {
       toast.error(t.error);
     }
@@ -287,7 +287,7 @@ export default function BrandForm() {
       <div className="space-y-6 max-w-4xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/brands")}>
+          <Button variant="ghost" size="icon" onClick={() => navigate("/master/brands")}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <h1 className="text-2xl font-bold">{isEdit ? t.editTitle : t.newTitle}</h1>

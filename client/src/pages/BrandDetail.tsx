@@ -1801,7 +1801,7 @@ ${proposal.proposalContent}
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <button 
-                onClick={() => navigate("/brands")}
+                onClick={() => navigate("/master/brands")}
                 className="flex items-center gap-2 text-gray-400 hover:text-red-400 transition-colors"
               >
                 <ArrowLeft className="h-5 w-5" />
@@ -1817,7 +1817,7 @@ ${proposal.proposalContent}
                   </h1>
                   <Select
                     value={brandId.toString()}
-                    onValueChange={(value) => navigate(`/brands/${value}`)}
+                    onValueChange={(value) => navigate(`/master/brands/${value}`)}
                   >
                     <SelectTrigger className="w-[180px] bg-black/60 border-red-900/50 text-white hover:border-red-500/50 transition-colors">
                       <SelectValue placeholder="ブランドを選択" />
@@ -1859,7 +1859,7 @@ ${proposal.proposalContent}
                 {t.details}
               </Button>
               <Button
-                onClick={() => navigate(`/brands/${id}/edit`)}
+                onClick={() => navigate(`/master/brands/${id}/edit`)}
                 className="bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white shadow-lg shadow-red-500/30"
               >
                 <Edit2 className="h-4 w-4 mr-2" />
