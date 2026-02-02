@@ -1,0 +1,64 @@
+{
+  "query": "SELECT id, name, email, password FROM livers LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, name, email, password FROM livers LIMIT 10;",
+  "rows": [
+    {
+      "id": "120005",
+      "name": "Ryu kyogoku",
+      "email": "test@gmail.com",
+      "password": "$2b$10$2w.JvTG28kij6W.mlnKUBO5IgtOpvc4VXIbodKm6ZpMlFa.Gzrw3C"
+    },
+    {
+      "id": "360009",
+      "name": "はづき",
+      "email": "sayaka.arowz@gmail.com",
+      "password": "$2b$10$2Dg0O1b1mrgLByhhfCEYquD88EFbSjrfghERM0d0bOePYnjcY7y06"
+    },
+    {
+      "id": "360012",
+      "name": "三宅あゆみ",
+      "email": "ayuaki0615@gmail.com",
+      "password": "$2b$10$hrmhrlmtspqNpLLpVkVGb.L5gcBef.PNaxOpVgQQH83cduLPKfeGy"
+    },
+    {
+      "id": "360013",
+      "name": "NANA",
+      "email": "nana.k1210@icloud.com",
+      "password": "$2b$10$/kBFbIQoyzX1BQwOIz39HOyJvdICAs9ZFfEaY0jLBxVWJ5CBLuwFy"
+    },
+    {
+      "id": "360029",
+      "name": "しいほ",
+      "email": "shihomi208@gmail.com",
+      "password": "$2b$10$q74O.Ml9zA/ZukNIdpl8S.va1OHMFLot4fVb8MYBqY629MapR4ldy"
+    },
+    {
+      "id": "540001",
+      "name": "けい",
+      "email": "yaozg72835@yahoo.co.jp",
+      "password": "$2b$10$1GJ/0wiMh7iJDglvNFxbtuVESN9chTJA0/THVJAnub8Q5cVgBpuYK"
+    },
+    {
+      "id": "540002",
+      "name": "みぃ",
+      "email": "mi08101209mi@gmail.com",
+      "password": "$2b$10$P/8gurAFb84M4BnKOjsRy.gtj6.lkCLXWq.hLX2NO6VyF8W2Y2Aq2"
+    },
+    {
+      "id": "540003",
+      "name": "yae",
+      "email": "0203kuwa1213@gmail.com",
+      "password": "$2b$10$2gfHLY96ITKDLp6pmJhpPuEZZUBMpa41tAEI5P4wOByYoCOtUH6wy"
+    },
+    {
+      "id": "600001",
+      "name": "yuko",
+      "email": "yuko.niishiro@gmail.com",
+      "password": "$2b$10$6pf7PB1Y6fsrPwr4tbk4BelOJXnBrVFwj.G2Wp8LWzm2r9ze.Fw1i"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\tpassword\n120005\tRyu kyogoku\ttest@gmail.com\t$2b$10$2w.JvTG28kij6W.mlnKUBO5IgtOpvc4VXIbodKm6ZpMlFa.Gzrw3C\n360009\tはづき\tsayaka.arowz@gmail.com\t$2b$10$2Dg0O1b1mrgLByhhfCEYquD88EFbSjrfghERM0d0bOePYnjcY7y06\n360012\t三宅あゆみ\tayuaki0615@gmail.com\t$2b$10$hrmhrlmtspqNpLLpVkVGb.L5gcBef.PNaxOpVgQQH83cduLPKfeGy\n360013\tNANA\tnana.k1210@icloud.com\t$2b$10$/kBFbIQoyzX1BQwOIz39HOyJvdICAs9ZFfEaY0jLBxVWJ5CBLuwFy\n360029\tしいほ\tshihomi208@gmail.com\t$2b$10$q74O.Ml9zA/ZukNIdpl8S.va1OHMFLot4fVb8MYBqY629MapR4ldy\n540001\tけい\tyaozg72835@yahoo.co.jp\t$2b$10$1GJ/0wiMh7iJDglvNFxbtuVESN9chTJA0/THVJAnub8Q5cVgBpuYK\n540002\tみぃ\tmi08101209mi@gmail.com\t$2b$10$P/8gurAFb84M4BnKOjsRy.gtj6.lkCLXWq.hLX2NO6VyF8W2Y2Aq2\n540003\tyae\t0203kuwa1213@gmail.com\t$2b$10$2gfHLY96ITKDLp6pmJhpPuEZZUBMpa41tAEI5P4wOByYoCOtUH6wy\n600001\tyuko\tyuko.niishiro@gmail.com\t$2b$10$6pf7PB1Y6fsrPwr4tbk4BelOJXnBrVFwj.G2Wp8LWzm2r9ze.Fw1i\n",
+  "stderr": "",
+  "execution_time_ms": 1553
+}

@@ -3239,3 +3239,16 @@
 - [x] /master/livers/login リンクを確認 - 正しいURLは/liver/login
 - [x] 全ボタンをタップできるように修正
 - [x] 動作確認
+
+
+## /liver/recordページのバグ修正
+- [x] タップするとすぐにマイページに戻る問題を調査
+- [x] バグを修正（LiverLogin.tsxをmutateAsyncベースに変更）
+- [x] 動作確認
+
+
+## ライバー認証バグ修正
+- [x] ログイン後にトークンがlocalStorageに保存されない問題を修正
+- [x] mutateAsyncを使用したPromiseベースの処理に変更
+- [x] /liver/editルートを追加（LiverProfileにリダイレクト）
+- [x] 新規登録・ログイン・認証フローの動作確認

@@ -270,6 +270,7 @@ function Router() {
       <Route path={"/liver/login"} component={LiverLogin} />
       <Route path={"/liver/mypage"} component={LiverMypage} />
       <Route path={"/liver/profile"} component={LiverProfile} />
+      <Route path={"/liver/edit"} component={LiverProfile} />
       <Route path={"/liver/record"} component={LiverSelfRecord} />
       <Route path={"/liver/schedule"} component={LiverSchedule} />
       

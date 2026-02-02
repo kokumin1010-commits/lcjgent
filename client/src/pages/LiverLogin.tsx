@@ -14,14 +14,18 @@ export default function LiverLogin() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Check if already logged in
   const meQuery = trpc.liver.me.useQuery(undefined, {
-    enabled: !!getLiverToken(),
+    enabled: !!getLiverToken() && !isLoggingIn,
     retry: false,
   });
 
   useEffect(() => {
+    // Don't redirect if we're in the middle of logging in
+    if (isLoggingIn) return;
+    
     const token = getLiverToken();
     if (token && meQuery.data) {
       // Already logged in, redirect to mypage
@@ -29,7 +33,7 @@ export default function LiverLogin() {
     } else if (!token || meQuery.isError) {
       setIsCheckingAuth(false);
     }
-  }, [meQuery.data, meQuery.isError, navigate]);
+  }, [meQuery.data, meQuery.isError, navigate, isLoggingIn]);
 
   useEffect(() => {
     // If no token, stop checking immediately
@@ -38,24 +42,46 @@ export default function LiverLogin() {
     }
   }, []);
 
-  const loginMutation = trpc.liver.login.useMutation({
-    onSuccess: (data) => {
-      // Save token to localStorage
-      if (data.token) {
-        setLiverToken(data.token);
-      }
-      // Navigate to liver's own mypage
-      navigate(`/liver/mypage`);
-    },
-    onError: (err) => {
-      setError(err.message);
-    },
-  });
+  const loginMutation = trpc.liver.login.useMutation();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    loginMutation.mutate({ email, password });
+    setIsLoggingIn(true);
+    
+    try {
+      console.log('Attempting login...');
+      const data = await loginMutation.mutateAsync({ email, password });
+      console.log('Login response received:', data);
+      
+      if (data.token) {
+        console.log('Token received, saving to localStorage...');
+        setLiverToken(data.token);
+        
+        // Verify token was saved
+        const savedToken = getLiverToken();
+        console.log('Token saved successfully:', savedToken ? 'Yes' : 'No');
+        
+        if (savedToken) {
+          // Small delay to ensure localStorage is synced
+          await new Promise(resolve => setTimeout(resolve, 100));
+          console.log('Navigating to mypage...');
+          navigate("/liver/mypage");
+        } else {
+          console.error('Failed to save token to localStorage');
+          setError("トークンの保存に失敗しました。もう一度お試しください。");
+          setIsLoggingIn(false);
+        }
+      } else {
+        console.error('No token in response');
+        setError("ログインに失敗しました。もう一度お試しください。");
+        setIsLoggingIn(false);
+      }
+    } catch (err: any) {
+      console.error('Login error:', err);
+      setError(err.message || "ログインに失敗しました");
+      setIsLoggingIn(false);
+    }
   };
 
   // Show loading while checking auth
@@ -141,9 +167,9 @@ export default function LiverLogin() {
               <Button
                 type="submit"
                 className="w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
-                disabled={loginMutation.isPending}
+                disabled={loginMutation.isPending || isLoggingIn}
               >
-                {loginMutation.isPending ? (
+                {(loginMutation.isPending || isLoggingIn) ? (
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     ログイン中...
