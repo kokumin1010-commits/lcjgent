@@ -774,6 +774,8 @@ export const schedules = mysqlTable("schedules", {
   reminderEnabled: boolean("reminderEnabled").default(true).notNull(), // リマインドを送信するか
   reminderMinutesBefore: int("reminderMinutesBefore").default(30), // 何分前にリマインドを送るか
   reminderSentAt: timestamp("reminderSentAt"), // リマインド送信済み日時
+  // スケジュールグループ
+  scheduleGroupId: int("scheduleGroupId"), // 紐づくスケジュールグループID
   // タイムスタンプ
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

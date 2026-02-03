@@ -337,9 +337,14 @@ export default function PublicSchedule() {
   const schedulesByDate = useMemo(() => {
     if (!schedules) return new Map<string, (Schedule & { isMultiDay?: boolean; isStart?: boolean; isEnd?: boolean; spanDays?: number })[]>();
     
-    // Filter schedules by selected group's members
-    const filteredSchedules = selectedGroupLiverNames 
-      ? schedules.filter(s => s.liverName && selectedGroupLiverNames.includes(s.liverName))
+    // Filter schedules by selected group (scheduleGroupId or liverName)
+    const filteredSchedules = selectedGroupId
+      ? schedules.filter(s => 
+          // スケジュールにscheduleGroupIdが設定されている場合はそれでフィルタリング
+          // または従来の方法（liverNameがグループメンバーに含まれる）でフィルタリング
+          (s as any).scheduleGroupId === selectedGroupId ||
+          (selectedGroupLiverNames && s.liverName && selectedGroupLiverNames.includes(s.liverName))
+        )
       : schedules;
     
     const map = new Map<string, (Schedule & { isMultiDay?: boolean; isStart?: boolean; isEnd?: boolean; spanDays?: number })[]>();
@@ -660,13 +665,17 @@ export default function PublicSchedule() {
         ? new Date(Date.UTC(actualEndYear, actualEndMonth - 1, actualEndDay, 23 - 9, 59))
         : new Date(Date.UTC(actualEndYear, actualEndMonth - 1, actualEndDay, endHour - 9, endMinute));
       
+      // 選択中のグループの最初のメンバー名を使用、またはユーザー名、または未指定
+      const defaultLiverName = selectedGroupLiverNames?.[0] || user?.name || "未指定";
+      
       await createScheduleMutation.mutateAsync({
         title: newSchedule.title,
         description: newSchedule.description || undefined,
         startTime: startTimeUTC.toISOString(),
         endTime: endTimeUTC.toISOString(),
         category: newSchedule.category,
-        liverName: user?.name || "未指定",
+        liverName: defaultLiverName,
+        scheduleGroupId: selectedGroupId || undefined, // 選択中のグループIDを送信
       });
     }
     

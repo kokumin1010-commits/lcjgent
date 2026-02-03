@@ -1,0 +1,8 @@
+{
+  "query": "SELECT sgm.liverName FROM schedule_group_members sgm JOIN schedule_groups sg ON sgm.groupId = sg.id WHERE sg.name = 'KYOGOKU JAPAN';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT sgm.liverName FROM schedule_group_members sgm JOIN schedule_groups sg ON sgm.groupId = sg.id WHERE sg.name = 'KYOGOKU JAPAN';",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'sgm.livername' in 'field list'"
+  ]
+}

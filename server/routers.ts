@@ -6842,6 +6842,7 @@ ${conversationText}
           category: z.enum(["delivery", "meeting", "live", "other"]).optional(),
           liverName: z.string().min(1),
           notes: z.string().optional(),
+          scheduleGroupId: z.number().optional(), // スケジュールグループID
         })
       )
       .mutation(async ({ input }) => {
@@ -6854,6 +6855,7 @@ ${conversationText}
           category: input.category || "other",
           liverName: input.liverName,
           notes: input.notes,
+          scheduleGroupId: input.scheduleGroupId,
         });
         return schedule;
       }),
@@ -7414,17 +7416,17 @@ ${conversationText}
       }),
 
     // Upload screenshot for livestream
-    uploadScreenshot: protectedProcedure
+    uploadScreenshot: publicProcedure
       .input(z.object({
         base64: z.string(),
         filename: z.string(),
         liverId: z.number().optional(),
       }))
-      .mutation(async ({ ctx, input }) => {
+      .mutation(async ({ input }) => {
         const buffer = Buffer.from(input.base64, "base64");
         const ext = input.filename.split(".").pop() || "png";
         const timestamp = Date.now();
-        const key = `livestreams/${input.liverId || ctx.user.id}/${timestamp}-${nanoid()}.${ext}`;
+        const key = `livestreams/${input.liverId || 'unknown'}/${timestamp}-${nanoid()}.${ext}`;
         const contentType = `image/${ext === "jpg" ? "jpeg" : ext}`;
         
         const { url } = await storagePut(key, buffer, contentType);
@@ -7432,7 +7434,7 @@ ${conversationText}
       }),
 
     // Analyze screenshot to extract livestream data
-    analyzeScreenshot: protectedProcedure
+    analyzeScreenshot: publicProcedure
       .input(z.object({
         imageUrl: z.string().optional(),
         imageBase64: z.string().optional(),

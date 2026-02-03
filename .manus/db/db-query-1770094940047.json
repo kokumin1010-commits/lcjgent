@@ -1,0 +1,15 @@
+{
+  "query": "SELECT id, title, liverName FROM schedules WHERE title LIKE '%テスト予定KYOGOKU%' ORDER BY id DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, title, liverName FROM schedules WHERE title LIKE '%テスト予定KYOGOKU%' ORDER BY id DESC LIMIT 5;",
+  "rows": [
+    {
+      "id": "330012",
+      "title": "テスト予定KYOGOKU",
+      "liverName": "Ryu Hair Artist"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tliverName\n330012\tテスト予定KYOGOKU\tRyu Hair Artist\n",
+  "stderr": "",
+  "execution_time_ms": 1581
+}

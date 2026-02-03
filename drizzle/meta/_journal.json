@@ -519,6 +519,13 @@
       "when": 1770092680919,
       "tag": "0073_volatile_kitty_pryde",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "5",
+      "when": 1770095323494,
+      "tag": "0074_huge_northstar",
+      "breakpoints": true
     }
   ]
 }

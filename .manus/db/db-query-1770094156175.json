@@ -1,0 +1,100 @@
+{
+  "query": "SELECT id, title, liverName, startTime, endTime, status, createdAt FROM schedules ORDER BY id DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, title, liverName, startTime, endTime, status, createdAt FROM schedules ORDER BY id DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "330007",
+      "title": "みぃ20時～22時",
+      "liverName": "みぃ",
+      "startTime": "2026-02-03 11:00:00",
+      "endTime": "2026-02-03 13:00:00",
+      "status": "scheduled",
+      "createdAt": "2026-02-03 04:42:55"
+    },
+    {
+      "id": "330006",
+      "title": "みぃ20時～22時",
+      "liverName": "みぃ",
+      "startTime": "2026-02-03 11:00:00",
+      "endTime": "2026-02-03 13:00:00",
+      "status": "scheduled",
+      "createdAt": "2026-02-03 04:41:51"
+    },
+    {
+      "id": "330005",
+      "title": "yae10:00-13:00",
+      "liverName": "yae",
+      "startTime": "2026-02-05 01:00:00",
+      "endTime": "2026-02-05 04:00:00",
+      "status": "scheduled",
+      "createdAt": "2026-02-03 04:02:12"
+    },
+    {
+      "id": "330004",
+      "title": "NANA配信",
+      "liverName": "NANA",
+      "startTime": "2026-02-03 01:00:00",
+      "endTime": "2026-02-03 02:00:00",
+      "status": "cancelled",
+      "createdAt": "2026-02-03 03:51:25"
+    },
+    {
+      "id": "330003",
+      "title": "NANA配信",
+      "liverName": "NANA",
+      "startTime": "2026-02-02 11:00:00",
+      "endTime": "2026-02-01 15:00:00",
+      "status": "cancelled",
+      "createdAt": "2026-02-03 03:51:03"
+    },
+    {
+      "id": "330002",
+      "title": "NANA配信",
+      "liverName": "NANA",
+      "startTime": "2026-02-03 11:00:00",
+      "endTime": "2026-02-02 15:00:00",
+      "status": "cancelled",
+      "createdAt": "2026-02-03 03:49:02"
+    },
+    {
+      "id": "330001",
+      "title": "4:30-6:30",
+      "liverName": "しいほ",
+      "startTime": "2026-02-04 19:30:00",
+      "endTime": "2026-02-04 21:30:00",
+      "status": "scheduled",
+      "createdAt": "2026-02-03 02:47:09"
+    },
+    {
+      "id": "300002",
+      "title": "はづき",
+      "liverName": "はづき",
+      "startTime": "2026-02-02 09:00:00",
+      "endTime": "2026-02-02 11:00:00",
+      "status": "scheduled",
+      "createdAt": "2026-02-02 11:07:34"
+    },
+    {
+      "id": "300001",
+      "title": "はづき",
+      "liverName": "NULL",
+      "startTime": "2026-02-01 18:00:00",
+      "endTime": "2026-02-02 20:00:00",
+      "status": "cancelled",
+      "createdAt": "2026-02-02 11:06:31"
+    },
+    {
+      "id": "270006",
+      "title": "yae20:00-24:00",
+      "liverName": "yae",
+      "startTime": "2026-02-04 13:00:00",
+      "endTime": "2026-02-05 14:59:00",
+      "status": "scheduled",
+      "createdAt": "2026-02-02 07:51:10"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tliverName\tstartTime\tendTime\tstatus\tcreatedAt\n330007\tみぃ20時～22時\tみぃ\t2026-02-03 11:00:00\t2026-02-03 13:00:00\tscheduled\t2026-02-03 04:42:55\n330006\tみぃ20時～22時\tみぃ\t2026-02-03 11:00:00\t2026-02-03 13:00:00\tscheduled\t2026-02-03 04:41:51\n330005\tyae10:00-13:00\tyae\t2026-02-05 01:00:00\t2026-02-05 04:00:00\tscheduled\t2026-02-03 04:02:12\n330004\tNANA配信\tNANA\t2026-02-03 01:00:00\t2026-02-03 02:00:00\tcancelled\t2026-02-03 03:51:25\n330003\tNANA配信\tNANA\t2026-02-02 11:00:00\t2026-02-01 15:00:00\tcancelled\t2026-02-03 03:51:03\n330002\tNANA配信\tNANA\t2026-02-03 11:00:00\t2026-02-02 15:00:00\tcancelled\t2026-02-03 03:49:02\n330001\t4:30-6:30\tしいほ\t2026-02-04 19:30:00\t2026-02-04 21:30:00\tscheduled\t2026-02-03 02:47:09\n300002\tはづき\tはづき\t2026-02-02 09:00:00\t2026-02-02 11:00:00\tscheduled\t2026-02-02 11:07:34\n300001\tはづき\tNULL\t2026-02-01 18:00:00\t2026-02-02 20:00:00\tcancelled\t2026-02-02 11:06:31\n270006\tyae20:00-24:00\tyae\t2026-02-04 13:00:00\t2026-02-05 14:59:00\tscheduled\t2026-02-02 07:51:10\n",
+  "stderr": "",
+  "execution_time_ms": 1500
+}

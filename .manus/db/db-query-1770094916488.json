@@ -1,0 +1,36 @@
+{
+  "query": "SELECT * FROM schedules WHERE title LIKE '%テスト予定KYOGOKU%' ORDER BY id DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT * FROM schedules WHERE title LIKE '%テスト予定KYOGOKU%' ORDER BY id DESC LIMIT 5;",
+  "rows": [
+    {
+      "id": "330012",
+      "title": "テスト予定KYOGOKU",
+      "description": "NULL",
+      "startTime": "2026-02-03 01:00:00",
+      "endTime": "2026-02-03 02:00:00",
+      "isAllDay": "0",
+      "category": "other",
+      "liverId": "NULL",
+      "liverName": "Ryu Hair Artist",
+      "brandId": "NULL",
+      "lineGroupId": "NULL",
+      "isRecurring": "0",
+      "recurringPattern": "NULL",
+      "recurringEndDate": "NULL",
+      "parentScheduleId": "NULL",
+      "status": "scheduled",
+      "notes": "NULL",
+      "createdBy": "NULL",
+      "createdByLineUserId": "NULL",
+      "createdAt": "2026-02-03 05:01:32",
+      "updatedAt": "2026-02-03 05:01:32",
+      "reminderEnabled": "1",
+      "reminderMinutesBefore": "30",
+      "reminderSentAt": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tdescription\tstartTime\tendTime\tisAllDay\tcategory\tliverId\tliverName\tbrandId\tlineGroupId\tisRecurring\trecurringPattern\trecurringEndDate\tparentScheduleId\tstatus\tnotes\tcreatedBy\tcreatedByLineUserId\tcreatedAt\tupdatedAt\treminderEnabled\treminderMinutesBefore\treminderSentAt\n330012\tテスト予定KYOGOKU\tNULL\t2026-02-03 01:00:00\t2026-02-03 02:00:00\t0\tother\tNULL\tRyu Hair Artist\tNULL\tNULL\t0\tNULL\tNULL\tNULL\tscheduled\tNULL\tNULL\tNULL\t2026-02-03 05:01:32\t2026-02-03 05:01:32\t1\t30\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1497
+}

@@ -1,0 +1,26 @@
+{
+  "query": "SELECT id, title, liverName, startTime, endTime, status FROM schedules WHERE title LIKE '%みぃ%' OR liverName LIKE '%みぃ%' ORDER BY id DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, title, liverName, startTime, endTime, status FROM schedules WHERE title LIKE '%みぃ%' OR liverName LIKE '%みぃ%' ORDER BY id DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "330007",
+      "title": "みぃ20時～22時",
+      "liverName": "みぃ",
+      "startTime": "2026-02-03 11:00:00",
+      "endTime": "2026-02-03 13:00:00",
+      "status": "scheduled"
+    },
+    {
+      "id": "330006",
+      "title": "みぃ20時～22時",
+      "liverName": "みぃ",
+      "startTime": "2026-02-03 11:00:00",
+      "endTime": "2026-02-03 13:00:00",
+      "status": "scheduled"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tliverName\tstartTime\tendTime\tstatus\n330007\tみぃ20時～22時\tみぃ\t2026-02-03 11:00:00\t2026-02-03 13:00:00\tscheduled\n330006\tみぃ20時～22時\tみぃ\t2026-02-03 11:00:00\t2026-02-03 13:00:00\tscheduled\n",
+  "stderr": "",
+  "execution_time_ms": 1478
+}

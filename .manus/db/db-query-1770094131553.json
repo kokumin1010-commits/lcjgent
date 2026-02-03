@@ -1,0 +1,82 @@
+{
+  "query": "SELECT id, title, liverName, startTime, endTime, status FROM schedules WHERE DATE(startTime) = '2026-02-03' ORDER BY startTime;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, title, liverName, startTime, endTime, status FROM schedules WHERE DATE(startTime) = '2026-02-03' ORDER BY startTime;",
+  "rows": [
+    {
+      "id": "240001",
+      "title": "06:00〜08:00yuko",
+      "liverName": "yuko",
+      "startTime": "2026-02-03 01:00:00",
+      "endTime": "2026-02-03 02:00:00",
+      "status": "scheduled"
+    },
+    {
+      "id": "330004",
+      "title": "NANA配信",
+      "liverName": "NANA",
+      "startTime": "2026-02-03 01:00:00",
+      "endTime": "2026-02-03 02:00:00",
+      "status": "cancelled"
+    },
+    {
+      "id": "330002",
+      "title": "NANA配信",
+      "liverName": "NANA",
+      "startTime": "2026-02-03 11:00:00",
+      "endTime": "2026-02-02 15:00:00",
+      "status": "cancelled"
+    },
+    {
+      "id": "330006",
+      "title": "みぃ20時～22時",
+      "liverName": "みぃ",
+      "startTime": "2026-02-03 11:00:00",
+      "endTime": "2026-02-03 13:00:00",
+      "status": "scheduled"
+    },
+    {
+      "id": "330007",
+      "title": "みぃ20時～22時",
+      "liverName": "みぃ",
+      "startTime": "2026-02-03 11:00:00",
+      "endTime": "2026-02-03 13:00:00",
+      "status": "scheduled"
+    },
+    {
+      "id": "90002",
+      "title": "NANA配信",
+      "liverName": "NANA",
+      "startTime": "2026-02-03 15:00:00",
+      "endTime": "2026-02-03 18:00:00",
+      "status": "cancelled"
+    },
+    {
+      "id": "150003",
+      "title": "SHIHO配信",
+      "liverName": "しいほ",
+      "startTime": "2026-02-03 19:00:00",
+      "endTime": "2026-02-03 21:00:00",
+      "status": "cancelled"
+    },
+    {
+      "id": "90005",
+      "title": "NANA配信",
+      "liverName": "NANA",
+      "startTime": "2026-02-03 20:00:00",
+      "endTime": "2026-02-04 00:00:00",
+      "status": "cancelled"
+    },
+    {
+      "id": "120003",
+      "title": "あゆ配信",
+      "liverName": "ayu",
+      "startTime": "2026-02-03 22:40:00",
+      "endTime": "2026-02-04 00:40:00",
+      "status": "scheduled"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tliverName\tstartTime\tendTime\tstatus\n240001\t06:00〜08:00yuko\tyuko\t2026-02-03 01:00:00\t2026-02-03 02:00:00\tscheduled\n330004\tNANA配信\tNANA\t2026-02-03 01:00:00\t2026-02-03 02:00:00\tcancelled\n330002\tNANA配信\tNANA\t2026-02-03 11:00:00\t2026-02-02 15:00:00\tcancelled\n330006\tみぃ20時～22時\tみぃ\t2026-02-03 11:00:00\t2026-02-03 13:00:00\tscheduled\n330007\tみぃ20時～22時\tみぃ\t2026-02-03 11:00:00\t2026-02-03 13:00:00\tscheduled\n90002\tNANA配信\tNANA\t2026-02-03 15:00:00\t2026-02-03 18:00:00\tcancelled\n150003\tSHIHO配信\tしいほ\t2026-02-03 19:00:00\t2026-02-03 21:00:00\tcancelled\n90005\tNANA配信\tNANA\t2026-02-03 20:00:00\t2026-02-04 00:00:00\tcancelled\n120003\tあゆ配信\tayu\t2026-02-03 22:40:00\t2026-02-04 00:40:00\tscheduled\n",
+  "stderr": "",
+  "execution_time_ms": 1597
+}
