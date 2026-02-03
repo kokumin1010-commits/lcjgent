@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `product_livers` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `productId` int NOT NULL,\n  `liverId` int NOT NULL,\n  `specialSetName` varchar(255),\n  `specialPrice` int,\n  `commissionRate` decimal(5, 2),\n  `assignedAt` timestamp NOT NULL DEFAULT (now()),\n  `createdBy` int NOT NULL,\n  `createdAt` timestamp NOT NULL DEFAULT (now()),\n  CONSTRAINT `product_livers_id` PRIMARY KEY(`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute CREATE TABLE IF NOT EXISTS `product_livers` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `productId` int NOT NULL,\n  `liverId` int NOT NULL,\n  `specialSetName` varchar(255),\n  `specialPrice` int,\n  `commissionRate` decimal(5, 2),\n  `assignedAt` timestamp NOT NULL DEFAULT (now()),\n  `createdBy` int NOT NULL,\n  `createdAt` timestamp NOT NULL DEFAULT (now()),\n  CONSTRAINT `product_livers_id` PRIMARY KEY(`id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1985
+}

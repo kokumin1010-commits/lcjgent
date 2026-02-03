@@ -674,6 +674,42 @@ function ContractRoasDisplay({ contractId, fixedFee, onLinkClick, onViewDetails 
   );
 }
 
+// 商品に紐付いたライバーを表示するコンポーネント
+function ProductLiversCell({ productId }: { productId: number }) {
+  const { data: livers = [], isLoading } = trpc.brandProduct.getLivers.useQuery({ productId });
+  
+  if (isLoading) {
+    return <span className="text-gray-500 text-xs">...</span>;
+  }
+  
+  if (livers.length === 0) {
+    return <span className="text-gray-500 text-xs">-</span>;
+  }
+  
+  // ライバーごとに色を割り当て
+  const colors = [
+    'bg-pink-500/20 text-pink-300 border-pink-500/30',
+    'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
+    'bg-purple-500/20 text-purple-300 border-purple-500/30',
+    'bg-amber-500/20 text-amber-300 border-amber-500/30',
+    'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+  ];
+  
+  return (
+    <div className="flex flex-wrap gap-1">
+      {livers.map((liver, index) => (
+        <span
+          key={liver.id}
+          className={`text-xs px-2 py-0.5 rounded-full border ${colors[index % colors.length]}`}
+          title={liver.name}
+        >
+          {liver.name}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export default function BrandDetail() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
@@ -704,7 +740,7 @@ export default function BrandDetail() {
   const [addProductDialogOpen, setAddProductDialogOpen] = useState(false);
   const [addLivestreamDialogOpen, setAddLivestreamDialogOpen] = useState(false);
   const [addContractDialogOpen, setAddContractDialogOpen] = useState(false);
-  const [newProduct, setNewProduct] = useState({ productName: "", listPrice: 0, specialPrice: 0, commissionRate: "", remarks: "" });
+  const [newProduct, setNewProduct] = useState({ productName: "", listPrice: 0, specialPrice: 0, commissionRate: "", remarks: "", liverIds: [] as number[] });
   const [newLivestream, setNewLivestream] = useState({ livestreamDate: "", livestreamStartTime: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "", productClicks: 0, impressions: 0, salesCount: 0, cartAddCount: 0, productId: null as number | null, productCommission: "", adCost: 0, ctr: "", cvr: "", cpc: 0, acos: "", roas: "" });
   const [newContract, setNewContract] = useState({ serviceType: "単発ライブ契約" as "単発ライブ契約" | "期間契約" | "運用代行型（TSP）" | "パッケージ／複合契約", fixedFee: 0, status: "契約中" as "契約中" | "完了" | "保留" | "終了", startDate: "", endDate: "", memo: "", linkedLivestreamIds: [] as number[], plannedLivestreamCount: undefined as number | undefined });
   // Delete states
@@ -790,6 +826,7 @@ export default function BrandDetail() {
   const { data: proposalHistory = [], refetch: refetchProposalHistory } = trpc.brand.getAdProposalHistory.useQuery({ brandId }, { enabled: brandId > 0 });
   const { data: adInvestmentRecords = [], refetch: refetchInvestmentRecords } = trpc.brand.getAdInvestmentRecords.useQuery({ brandId }, { enabled: brandId > 0 });
   const { data: brandAdStats } = trpc.brand.getBrandAdPerformanceStats.useQuery({ brandId }, { enabled: brandId > 0 });
+  const { data: allLivers = [] } = trpc.liverManagement.list.useQuery();
 
   // 同じ日の配信は1回としてカウント（ユニークな日付の数）
   const uniqueLivestreamDays = useMemo(() => {
@@ -1263,7 +1300,7 @@ ${proposal.proposalContent}
     onSuccess: () => {
       refetchProducts();
       setAddProductDialogOpen(false);
-      setNewProduct({ productName: "", listPrice: 0, specialPrice: 0, commissionRate: "", remarks: "" });
+      setNewProduct({ productName: "", listPrice: 0, specialPrice: 0, commissionRate: "", remarks: "", liverIds: [] });
       toast.success("商品を追加しました");
     },
     onError: () => {
@@ -2402,6 +2439,7 @@ ${proposal.proposalContent}
                   <tr className="border-b border-red-900/30">
                     <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2 w-16"></th>
                     <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2 max-w-[150px]">{t.productName}</th>
+                    <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{language === 'ja' ? 'ライバー' : '主播'}</th>
                     <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.listPrice}</th>
                     <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.specialPrice}</th>
                     <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.gmv}</th>
@@ -2412,7 +2450,7 @@ ${proposal.proposalContent}
                 <tbody>
                   {products.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center text-gray-500 py-8">{t.noData}</td>
+                      <td colSpan={8} className="text-center text-gray-500 py-8">{t.noData}</td>
                     </tr>
                   ) : (
                     products.map((product) => (
@@ -2492,6 +2530,9 @@ ${proposal.proposalContent}
                               );
                             })()}
                           </div>
+                        </td>
+                        <td className="py-3 px-2">
+                          <ProductLiversCell productId={product.id} />
                         </td>
                         <td className="py-3 px-2 text-right text-gray-400 text-lg" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                           {formatCurrency(product.listPrice)}
@@ -3813,11 +3854,45 @@ ${proposal.proposalContent}
                 className="bg-black/60 border-red-900/50 text-white mt-1"
               />
             </div>
+            {/* ライバー選択 */}
+            <div>
+              <Label className="text-gray-400">{language === 'ja' ? '担当ライバー' : '负责主播'}</Label>
+              <div className="mt-2 max-h-40 overflow-y-auto bg-black/40 border border-red-900/30 rounded-md p-2">
+                {allLivers.length === 0 ? (
+                  <p className="text-gray-500 text-sm">{language === 'ja' ? 'ライバーが登録されていません' : '没有注册的主播'}</p>
+                ) : (
+                  <div className="space-y-1">
+                    {allLivers.map((liver) => (
+                      <label key={liver.id} className="flex items-center gap-2 cursor-pointer hover:bg-white/5 p-1 rounded">
+                        <input
+                          type="checkbox"
+                          checked={newProduct.liverIds.includes(liver.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setNewProduct({ ...newProduct, liverIds: [...newProduct.liverIds, liver.id] });
+                            } else {
+                              setNewProduct({ ...newProduct, liverIds: newProduct.liverIds.filter(id => id !== liver.id) });
+                            }
+                          }}
+                          className="rounded border-gray-600 bg-black/60 text-cyan-500 focus:ring-cyan-500"
+                        />
+                        <span className="text-sm text-gray-200">{liver.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {newProduct.liverIds.length > 0 && (
+                <p className="text-xs text-cyan-400 mt-1">
+                  {newProduct.liverIds.length}{language === 'ja' ? '名選択中' : '人已选择'}
+                </p>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => { setAddProductDialogOpen(false); setNewProduct({ productName: "", listPrice: 0, specialPrice: 0, commissionRate: "", remarks: "" }); }}
+              onClick={() => { setAddProductDialogOpen(false); setNewProduct({ productName: "", listPrice: 0, specialPrice: 0, commissionRate: "", remarks: "", liverIds: [] }); }}
               className="border-red-500/50 bg-red-950/50 text-gray-200 hover:bg-red-900/40 hover:text-white hover:border-red-400/70"
             >
               {t.cancel}
@@ -3832,6 +3907,7 @@ ${proposal.proposalContent}
                     specialPrice: newProduct.specialPrice,
                     discountRate: newProduct.commissionRate,
                     remarks: newProduct.remarks,
+                    liverIds: newProduct.liverIds,
                   });
                 }
               }}

@@ -300,6 +300,14 @@ import {
   getAllScheduleGroupsWithMembers,
   setScheduleGroupMembers,
   getLivestreamsByStreamerName,
+  addProductLiver,
+  removeProductLiver,
+  getProductLivers,
+  getLiversByProductId,
+  getProductsByLiverId,
+  bulkAddProductLivers,
+  updateProductLivers,
+  getLiverSalesStatsByBrand,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -4353,6 +4361,13 @@ ${hasLearningData ? '- 過去の広告実績データ: ' + learningDataRecords +
       .query(async ({ input }) => {
         return await getBrandEditLogs(input.brandId, input.limit || 50);
       }),
+
+    // Get liver sales stats for a brand
+    getLiverSalesStats: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        return await getLiverSalesStatsByBrand(input.brandId);
+      }),
   }),
 
   // Brand Products Router
@@ -4384,10 +4399,17 @@ ${hasLearningData ? '- 過去の広告実績データ: ' + learningDataRecords +
           shippingInfo: z.string().optional(),
           targetAudience: z.string().optional(),
           usageMethod: z.string().optional(),
+          liverIds: z.array(z.number()).optional(), // 担当ライバーIDの配列
         })
       )
       .mutation(async ({ ctx, input }) => {
-        const product = await createBrandProduct(input);
+        const { liverIds, ...productData } = input;
+        const product = await createBrandProduct(productData);
+        
+        // ライバーを紐付け
+        if (liverIds && liverIds.length > 0) {
+          await bulkAddProductLivers(product.id, liverIds, ctx.user.id);
+        }
         
         // Record edit log
         await logBrandEdit(
@@ -4711,6 +4733,59 @@ ${hasLearningData ? '- 過去の広告実績データ: ' + learningDataRecords +
       )
       .mutation(async ({ input }) => {
         return await reorderProductImages(input.productId, input.imageIds);
+      }),
+
+    // Product-Liver relationships
+    getLivers: protectedProcedure
+      .input(z.object({ productId: z.number() }))
+      .query(async ({ input }) => {
+        return await getLiversByProductId(input.productId);
+      }),
+
+    addLiver: protectedProcedure
+      .input(
+        z.object({
+          productId: z.number(),
+          liverId: z.number(),
+          specialSetName: z.string().optional(),
+          specialPrice: z.number().optional(),
+          commissionRate: z.number().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        await addProductLiver({
+          productId: input.productId,
+          liverId: input.liverId,
+          specialSetName: input.specialSetName,
+          specialPrice: input.specialPrice,
+          commissionRate: input.commissionRate,
+          createdBy: ctx.user.id,
+        });
+        return { success: true };
+      }),
+
+    removeLiver: protectedProcedure
+      .input(
+        z.object({
+          productId: z.number(),
+          liverId: z.number(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        await removeProductLiver(input.productId, input.liverId);
+        return { success: true };
+      }),
+
+    updateLivers: protectedProcedure
+      .input(
+        z.object({
+          productId: z.number(),
+          liverIds: z.array(z.number()),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        await updateProductLivers(input.productId, input.liverIds, ctx.user.id);
+        return { success: true };
       }),
   }),
 
@@ -7145,6 +7220,12 @@ ${conversationText}
 
   // Liver Management Router (ライバー管理画面用)
   liverManagement: router({
+    // Get all livers (simple list without stats)
+    list: protectedProcedure
+      .query(async () => {
+        return await getAllLivers();
+      }),
+
     // Get all livers with stats for a given month (public - ログイン不要)
     listWithStats: publicProcedure
       .input(z.object({ month: z.string() })) // format: "YYYY-MM"

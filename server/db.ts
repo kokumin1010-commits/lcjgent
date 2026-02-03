@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -7111,4 +7111,201 @@ export async function updateLiverPassword(liverId: number, hashedPassword: strin
     .where(eq(livers.id, liverId));
   
   return true;
+}
+
+
+// ============================================
+// Product-Liver Management Functions
+// ============================================
+
+/**
+ * Add a liver to a product
+ */
+export async function addProductLiver(data: {
+  productId: number;
+  liverId: number;
+  specialSetName?: string;
+  specialPrice?: number;
+  commissionRate?: number;
+  createdBy: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(productLivers).values({
+    productId: data.productId,
+    liverId: data.liverId,
+    specialSetName: data.specialSetName,
+    specialPrice: data.specialPrice,
+    commissionRate: data.commissionRate?.toString(),
+    createdBy: data.createdBy,
+  });
+  return result;
+}
+
+/**
+ * Remove a liver from a product
+ */
+export async function removeProductLiver(productId: number, liverId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.delete(productLivers)
+    .where(and(
+      eq(productLivers.productId, productId),
+      eq(productLivers.liverId, liverId)
+    ));
+}
+
+/**
+ * Get all product-liver relationships for a product
+ */
+export async function getProductLivers(productId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const result = await db.select()
+    .from(productLivers)
+    .where(eq(productLivers.productId, productId));
+  return result;
+}
+
+/**
+ * Get liver details for a product (with liver info)
+ */
+export async function getLiversByProductId(productId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const result = await db.select({
+    id: livers.id,
+    name: livers.name,
+    email: livers.email,
+    avatarUrl: livers.avatarUrl,
+    specialSetName: productLivers.specialSetName,
+    specialPrice: productLivers.specialPrice,
+    commissionRate: productLivers.commissionRate,
+    assignedAt: productLivers.assignedAt,
+  })
+    .from(productLivers)
+    .innerJoin(livers, eq(productLivers.liverId, livers.id))
+    .where(eq(productLivers.productId, productId));
+  return result;
+}
+
+/**
+ * Get products by liver ID
+ */
+export async function getProductsByLiverId(liverId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const result = await db.select({
+    id: brandProducts.id,
+    brandId: brandProducts.brandId,
+    name: brandProducts.productName,
+    listPrice: brandProducts.listPrice,
+    specialPrice: brandProducts.specialPrice,
+    specialSetName: productLivers.specialSetName,
+    liverSpecialPrice: productLivers.specialPrice,
+    commissionRate: productLivers.commissionRate,
+    assignedAt: productLivers.assignedAt,
+  })
+    .from(productLivers)
+    .innerJoin(brandProducts, eq(productLivers.productId, brandProducts.id))
+    .where(eq(productLivers.liverId, liverId));
+  return result;
+}
+
+/**
+ * Bulk add livers to a product
+ */
+export async function bulkAddProductLivers(productId: number, liverIds: number[], createdBy: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  if (liverIds.length === 0) return;
+
+  const values = liverIds.map(liverId => ({
+    productId,
+    liverId,
+    createdBy,
+  }));
+
+  await db.insert(productLivers).values(values);
+}
+
+/**
+ * Update product livers (replace all)
+ */
+export async function updateProductLivers(productId: number, liverIds: number[], createdBy: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Delete existing relationships
+  await db.delete(productLivers).where(eq(productLivers.productId, productId));
+
+  // Add new relationships
+  if (liverIds.length > 0) {
+    await bulkAddProductLivers(productId, liverIds, createdBy);
+  }
+}
+
+/**
+ * Get liver sales stats for a brand
+ */
+export async function getLiverSalesStatsByBrand(brandId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  // Get all products for this brand
+  const products = await db.select({ id: brandProducts.id })
+    .from(brandProducts)
+    .where(eq(brandProducts.brandId, brandId));
+
+  if (products.length === 0) return [];
+
+  const productIds = products.map(p => p.id);
+
+  // Get all livestreams for these products
+  const livestreams = await db.select({
+    liverId: brandLivestreams.liverId,
+    gmv: brandLivestreams.gmv,
+  })
+    .from(brandLivestreams)
+    .where(and(
+      inArray(brandLivestreams.productId, productIds),
+      isNotNull(brandLivestreams.liverId)
+    ));
+
+  // Aggregate by liver
+  const liverStats: Record<number, { totalGmv: number; livestreamCount: number }> = {};
+  for (const ls of livestreams) {
+    if (ls.liverId) {
+      if (!liverStats[ls.liverId]) {
+        liverStats[ls.liverId] = { totalGmv: 0, livestreamCount: 0 };
+      }
+      liverStats[ls.liverId].totalGmv += ls.gmv || 0;
+      liverStats[ls.liverId].livestreamCount += 1;
+    }
+  }
+
+  // Get liver details
+  const liverIds = Object.keys(liverStats).map(Number);
+  if (liverIds.length === 0) return [];
+
+  const liverDetails = await db.select({
+    id: livers.id,
+    name: livers.name,
+    avatarUrl: livers.avatarUrl,
+  })
+    .from(livers)
+    .where(inArray(livers.id, liverIds));
+
+  // Combine stats with liver details
+  return liverDetails.map(liver => ({
+    ...liver,
+    totalGmv: liverStats[liver.id]?.totalGmv || 0,
+    livestreamCount: liverStats[liver.id]?.livestreamCount || 0,
+  }));
 }

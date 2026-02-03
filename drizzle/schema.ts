@@ -1924,3 +1924,33 @@ export const liverPasswordResetTokens = mysqlTable("liver_password_reset_tokens"
 
 export type LiverPasswordResetToken = typeof liverPasswordResetTokens.$inferSelect;
 export type InsertLiverPasswordResetToken = typeof liverPasswordResetTokens.$inferInsert;
+
+
+/**
+ * Product-Liver relationship table for many-to-many association
+ * 商品×ライバー紐付けテーブル（多対多）
+ */
+export const productLivers = mysqlTable("product_livers", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // 商品情報
+  productId: int("productId").notNull(), // References brandProducts.id
+  
+  // ライバー情報
+  liverId: int("liverId").notNull(), // References livers.id
+  
+  // オプション情報
+  specialSetName: varchar("specialSetName", { length: 255 }), // 特別セット名
+  specialPrice: int("specialPrice"), // ライバー専用価格
+  commissionRate: decimal("commissionRate", { precision: 5, scale: 2 }), // ライバー専用成果報酬率
+  
+  // 紐付け情報
+  assignedAt: timestamp("assignedAt").defaultNow().notNull(), // 紐付け日時
+  createdBy: int("createdBy").notNull(), // 作成者
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ProductLiver = typeof productLivers.$inferSelect;
+export type InsertProductLiver = typeof productLivers.$inferInsert;
