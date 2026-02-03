@@ -17,7 +17,13 @@ import {
   getScheduleById,
   updateSchedule,
   deleteSchedule,
+  createLiverPasswordResetToken,
+  getLiverPasswordResetToken,
+  markLiverPasswordResetTokenUsed,
+  updateLiverPassword,
 } from "./db";
+import { nanoid } from "nanoid";
+import nodemailer from "nodemailer";
 
 // Helper function to get liver token from Authorization header or cookie
 function getLiverToken(ctx: { req: { headers: { authorization?: string }; cookies?: { liver_session?: string } } }): string | null {
@@ -421,6 +427,143 @@ export const liverRouter = router({
         lineLinkCodeExpiresAt: null,
       });
 
+      return { success: true };
+    }),
+
+  // Request password reset - sends email with reset link
+  requestPasswordReset: publicProcedure
+    .input(z.object({
+      email: z.string().email(),
+    }))
+    .mutation(async ({ input }) => {
+      // Find liver by email
+      const liver = await getLiverByEmail(input.email);
+      if (!liver) {
+        // Don't reveal if email exists or not for security
+        return {
+          success: true,
+          message: "メールアドレスが登録されている場合、パスワードリセットのメールを送信しました",
+        };
+      }
+      
+      // Generate reset token
+      const token = nanoid(64);
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+      
+      // Save token to database
+      await createLiverPasswordResetToken(liver.id, input.email, token, expiresAt);
+      
+      // Send email with reset link
+      const resetUrl = `${process.env.APP_URL || 'https://lcjmall.com'}/liver/reset-password?token=${token}`;
+      
+      try {
+        // Create transporter
+        const transporter = nodemailer.createTransport({
+          host: "smtp.gmail.com",
+          port: 587,
+          secure: false,
+          auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS,
+          },
+        });
+        
+        // Send email
+        await transporter.sendMail({
+          from: `"LCJスケジュール" <${process.env.SMTP_USER}>`,
+          to: input.email,
+          subject: "【LCJスケジュール】パスワードリセットのご案内",
+          html: `
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #ec4899;">パスワードリセットのご案内</h2>
+              <p>${liver.name} 様</p>
+              <p>パスワードリセットのリクエストを受け付けました。</p>
+              <p>以下のボタンをクリックして、新しいパスワードを設定してください。</p>
+              <p style="margin: 24px 0;">
+                <a href="${resetUrl}" style="background: linear-gradient(to right, #ec4899, #a855f7); color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">
+                  パスワードをリセット
+                </a>
+              </p>
+              <p style="color: #666; font-size: 14px;">※ このリンクは1時間有効です。</p>
+              <p style="color: #666; font-size: 14px;">※ このメールに心当たりがない場合は、無視してください。</p>
+              <hr style="margin: 24px 0; border: none; border-top: 1px solid #eee;" />
+              <p style="color: #999; font-size: 12px;">LCJスケジュール</p>
+            </div>
+          `,
+        });
+      } catch (error) {
+        console.error("Failed to send password reset email:", error);
+        // Still return success to not reveal email existence
+      }
+      
+      return {
+        success: true,
+        message: "メールアドレスが登録されている場合、パスワードリセットのメールを送信しました",
+      };
+    }),
+
+  // Verify password reset token
+  verifyResetToken: publicProcedure
+    .input(z.object({
+      token: z.string(),
+    }))
+    .query(async ({ input }) => {
+      const resetToken = await getLiverPasswordResetToken(input.token);
+      
+      if (!resetToken) {
+        return { valid: false, message: "無効なリンクです" };
+      }
+      
+      if (resetToken.usedAt) {
+        return { valid: false, message: "このリンクは既に使用されています" };
+      }
+      
+      if (new Date(resetToken.expiresAt) < new Date()) {
+        return { valid: false, message: "このリンクは有効期限が切れています" };
+      }
+      
+      return { valid: true, email: resetToken.email };
+    }),
+
+  // Reset password with token
+  resetPassword: publicProcedure
+    .input(z.object({
+      token: z.string(),
+      newPassword: z.string().min(6),
+    }))
+    .mutation(async ({ input }) => {
+      const resetToken = await getLiverPasswordResetToken(input.token);
+      
+      if (!resetToken) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "無効なリンクです",
+        });
+      }
+      
+      if (resetToken.usedAt) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "このリンクは既に使用されています",
+        });
+      }
+      
+      if (new Date(resetToken.expiresAt) < new Date()) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "このリンクは有効期限が切れています",
+        });
+      }
+      
+      // Hash new password
+      const hashedPassword = await bcrypt.hash(input.newPassword, 10);
+      
+      // Update password
+      await updateLiverPassword(resetToken.liverId, hashedPassword);
+      
+      // Mark token as used
+      await markLiverPasswordResetTokenUsed(resetToken.id);
+      
       return { success: true };
     }),
 });

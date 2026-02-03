@@ -60,6 +60,8 @@ import PointRequest from "./pages/PointRequest";
 import PointRequestAdmin from "./pages/PointRequestAdmin";
 import ScheduleGroupManagement from "./pages/ScheduleGroupManagement";
 import LiverByName from "./pages/LiverByName";
+import LiverForgotPassword from "./pages/LiverForgotPassword";
+import LiverResetPassword from "./pages/LiverResetPassword";
 
 function Router() {
   return (
@@ -273,6 +275,8 @@ function Router() {
       <Route path={"/liver/edit"} component={LiverProfile} />
       <Route path={"/liver/record"} component={LiverSelfRecord} />
       <Route path={"/liver/schedule"} component={LiverSchedule} />
+      <Route path={"/liver/forgot-password"} component={LiverForgotPassword} />
+      <Route path={"/liver/reset-password"} component={LiverResetPassword} />
       
       {/* 404 */}
       <Route path={"/404"} component={NotFound} />

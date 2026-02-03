@@ -204,7 +204,16 @@ export default function LiverLogin() {
               </Button>
             </form>
 
-            <div className="mt-6 text-center">
+            <div className="mt-4 text-center">
+              <Link
+                href="/liver/forgot-password"
+                className="text-sm text-gray-500 hover:text-pink-500"
+              >
+                パスワードをお忘れの方
+              </Link>
+            </div>
+
+            <div className="mt-4 text-center">
               <p className="text-sm text-gray-500">
                 アカウントをお持ちでない方は
               </p>
