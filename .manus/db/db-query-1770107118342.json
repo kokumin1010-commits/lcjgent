@@ -1,0 +1,90 @@
+{
+  "query": "SELECT id, streamerName, livestreamDate, duration, livestreamStartTime, livestreamEndTime FROM brand_livestreams WHERE liverId IS NOT NULL ORDER BY livestreamDate DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, streamerName, livestreamDate, duration, livestreamStartTime, livestreamEndTime FROM brand_livestreams WHERE liverId IS NOT NULL ORDER BY livestreamDate DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "780241",
+      "streamerName": "KYOGOKU",
+      "livestreamDate": "2026-01-31 01:00:00",
+      "duration": "845",
+      "livestreamStartTime": "NULL",
+      "livestreamEndTime": "2026-01-31 15:04:33"
+    },
+    {
+      "id": "780242",
+      "streamerName": "KYOGOKU",
+      "livestreamDate": "2026-01-30 15:00:00",
+      "duration": "134",
+      "livestreamStartTime": "NULL",
+      "livestreamEndTime": "2026-01-30 17:14:05"
+    },
+    {
+      "id": "780243",
+      "streamerName": "KYOGOKU",
+      "livestreamDate": "2026-01-30 10:59:00",
+      "duration": "241",
+      "livestreamStartTime": "NULL",
+      "livestreamEndTime": "2026-01-30 15:00:09"
+    },
+    {
+      "id": "780244",
+      "streamerName": "KYOGOKU",
+      "livestreamDate": "2026-01-30 07:01:00",
+      "duration": "238",
+      "livestreamStartTime": "NULL",
+      "livestreamEndTime": "2026-01-30 10:58:44"
+    },
+    {
+      "id": "780245",
+      "streamerName": "KYOGOKU",
+      "livestreamDate": "2026-01-30 05:04:00",
+      "duration": "116",
+      "livestreamStartTime": "NULL",
+      "livestreamEndTime": "2026-01-30 07:00:24"
+    },
+    {
+      "id": "780246",
+      "streamerName": "KYOGOKU",
+      "livestreamDate": "2026-01-29 21:20:00",
+      "duration": "464",
+      "livestreamStartTime": "NULL",
+      "livestreamEndTime": "2026-01-30 05:04:03"
+    },
+    {
+      "id": "780247",
+      "streamerName": "KYOGOKU",
+      "livestreamDate": "2026-01-29 11:10:00",
+      "duration": "414",
+      "livestreamStartTime": "NULL",
+      "livestreamEndTime": "2026-01-29 18:04:20"
+    },
+    {
+      "id": "780248",
+      "streamerName": "KYOGOKU",
+      "livestreamDate": "2026-01-29 07:02:00",
+      "duration": "243",
+      "livestreamStartTime": "NULL",
+      "livestreamEndTime": "2026-01-29 11:04:47"
+    },
+    {
+      "id": "780249",
+      "streamerName": "KYOGOKU",
+      "livestreamDate": "2026-01-29 05:13:00",
+      "duration": "109",
+      "livestreamStartTime": "NULL",
+      "livestreamEndTime": "2026-01-29 07:02:14"
+    },
+    {
+      "id": "780250",
+      "streamerName": "KYOGOKU",
+      "livestreamDate": "2026-01-29 01:01:00",
+      "duration": "251",
+      "livestreamStartTime": "NULL",
+      "livestreamEndTime": "2026-01-29 05:12:19"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tstreamerName\tlivestreamDate\tduration\tlivestreamStartTime\tlivestreamEndTime\n780241\tKYOGOKU\t2026-01-31 01:00:00\t845\tNULL\t2026-01-31 15:04:33\n780242\tKYOGOKU\t2026-01-30 15:00:00\t134\tNULL\t2026-01-30 17:14:05\n780243\tKYOGOKU\t2026-01-30 10:59:00\t241\tNULL\t2026-01-30 15:00:09\n780244\tKYOGOKU\t2026-01-30 07:01:00\t238\tNULL\t2026-01-30 10:58:44\n780245\tKYOGOKU\t2026-01-30 05:04:00\t116\tNULL\t2026-01-30 07:00:24\n780246\tKYOGOKU\t2026-01-29 21:20:00\t464\tNULL\t2026-01-30 05:04:03\n780247\tKYOGOKU\t2026-01-29 11:10:00\t414\tNULL\t2026-01-29 18:04:20\n780248\tKYOGOKU\t2026-01-29 07:02:00\t243\tNULL\t2026-01-29 11:04:47\n780249\tKYOGOKU\t2026-01-29 05:13:00\t109\tNULL\t2026-01-29 07:02:14\n780250\tKYOGOKU\t2026-01-29 01:01:00\t251\tNULL\t2026-01-29 05:12:19\n",
+  "stderr": "",
+  "execution_time_ms": 1592
+}

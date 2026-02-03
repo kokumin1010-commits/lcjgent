@@ -3369,3 +3369,20 @@
 - [x] 問題の原因を調査（createLivestreamとgenerateAdviceがprotectedProcedureだった）
 - [x] 根本的なバグを修正（createLivestreamとgenerateAdviceをpublicProcedureに変更）
 - [x] 動作確認テスト（本番環境での確認が必要）
+
+
+## マイページの総配信時間が正しく表示されない問題の修正
+- [ ] 問題の原因を調査（配信時間の計算ロジック）
+- [ ] 配信時間の計算ロジックを修正
+- [ ] 動作確認テスト
+
+
+## AI解析がクルクルのままになる問題の修正
+- [x] サーバーログを確認してAI解析APIのエラーを調査（analyzeScreenshotはpublicProcedureで問題なし）
+- [ ] analyzeScreenshot APIの問題を修正（LLMタイムアウトの可能性あり）
+- [ ] 動作確認テスト
+
+## ライバー認証が認識されない問題の修正
+- [x] 「予定を追加するにはログインが必要です」の原因を調査（別コンポーネントからの表示）
+- [ ] ライバー認証フローを修正（LINEアプリ内ブラウザのCookie問題の可能性）
+- [ ] 動作確認テスト

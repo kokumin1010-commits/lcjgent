@@ -1,0 +1,90 @@
+{
+  "query": "SELECT id, streamerName, livestreamDate, duration, salesAmount, gmv FROM brand_livestreams WHERE liverId IS NOT NULL ORDER BY livestreamDate DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, streamerName, livestreamDate, duration, salesAmount, gmv FROM brand_livestreams WHERE liverId IS NOT NULL ORDER BY livestreamDate DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "780241",
+      "streamerName": "KYOGOKU",
+      "livestreamDate": "2026-01-31 01:00:00",
+      "duration": "845",
+      "salesAmount": "2019880",
+      "gmv": "1900047"
+    },
+    {
+      "id": "780242",
+      "streamerName": "KYOGOKU",
+      "livestreamDate": "2026-01-30 15:00:00",
+      "duration": "134",
+      "salesAmount": "561443",
+      "gmv": "527572"
+    },
+    {
+      "id": "780243",
+      "streamerName": "KYOGOKU",
+      "livestreamDate": "2026-01-30 10:59:00",
+      "duration": "241",
+      "salesAmount": "4767131",
+      "gmv": "4658864"
+    },
+    {
+      "id": "780244",
+      "streamerName": "KYOGOKU",
+      "livestreamDate": "2026-01-30 07:01:00",
+      "duration": "238",
+      "salesAmount": "1669304",
+      "gmv": "1679559"
+    },
+    {
+      "id": "780245",
+      "streamerName": "KYOGOKU",
+      "livestreamDate": "2026-01-30 05:04:00",
+      "duration": "116",
+      "salesAmount": "253936",
+      "gmv": "233202"
+    },
+    {
+      "id": "780246",
+      "streamerName": "KYOGOKU",
+      "livestreamDate": "2026-01-29 21:20:00",
+      "duration": "464",
+      "salesAmount": "3678138",
+      "gmv": "3457745"
+    },
+    {
+      "id": "780247",
+      "streamerName": "KYOGOKU",
+      "livestreamDate": "2026-01-29 11:10:00",
+      "duration": "414",
+      "salesAmount": "12606264",
+      "gmv": "12123020"
+    },
+    {
+      "id": "780248",
+      "streamerName": "KYOGOKU",
+      "livestreamDate": "2026-01-29 07:02:00",
+      "duration": "243",
+      "salesAmount": "1019397",
+      "gmv": "890666"
+    },
+    {
+      "id": "780249",
+      "streamerName": "KYOGOKU",
+      "livestreamDate": "2026-01-29 05:13:00",
+      "duration": "109",
+      "salesAmount": "270913",
+      "gmv": "246195"
+    },
+    {
+      "id": "780250",
+      "streamerName": "KYOGOKU",
+      "livestreamDate": "2026-01-29 01:01:00",
+      "duration": "251",
+      "salesAmount": "1725328",
+      "gmv": "1639964"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tstreamerName\tlivestreamDate\tduration\tsalesAmount\tgmv\n780241\tKYOGOKU\t2026-01-31 01:00:00\t845\t2019880\t1900047\n780242\tKYOGOKU\t2026-01-30 15:00:00\t134\t561443\t527572\n780243\tKYOGOKU\t2026-01-30 10:59:00\t241\t4767131\t4658864\n780244\tKYOGOKU\t2026-01-30 07:01:00\t238\t1669304\t1679559\n780245\tKYOGOKU\t2026-01-30 05:04:00\t116\t253936\t233202\n780246\tKYOGOKU\t2026-01-29 21:20:00\t464\t3678138\t3457745\n780247\tKYOGOKU\t2026-01-29 11:10:00\t414\t12606264\t12123020\n780248\tKYOGOKU\t2026-01-29 07:02:00\t243\t1019397\t890666\n780249\tKYOGOKU\t2026-01-29 05:13:00\t109\t270913\t246195\n780250\tKYOGOKU\t2026-01-29 01:01:00\t251\t1725328\t1639964\n",
+  "stderr": "",
+  "execution_time_ms": 1716
+}
