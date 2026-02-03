@@ -7309,3 +7309,40 @@ export async function getLiverSalesStatsByBrand(brandId: number) {
     livestreamCount: liverStats[liver.id]?.livestreamCount || 0,
   }));
 }
+
+
+/**
+ * Check for duplicate TikTok Shop order number across ALL users
+ * 全ユーザー間でTikTok Shop注文番号の重複をチェック
+ */
+export async function checkDuplicateOrderNumberGlobal(
+  orderNumber: string,
+  excludeId?: number
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Search for the order number in ocrRawText JSON field
+  // ocrRawText contains: {"orderNumber": "...", "shopName": "...", ...}
+  let conditions = sql`JSON_EXTRACT(${lineReceipts.ocrRawText}, '$.orderNumber') = ${orderNumber}`;
+  
+  if (excludeId) {
+    conditions = sql`${conditions} AND ${lineReceipts.id} != ${excludeId}`;
+  }
+  
+  const result = await db
+    .select({
+      id: lineReceipts.id,
+      lineUserId: lineReceipts.lineUserId,
+      storeName: lineReceipts.storeName,
+      totalAmount: lineReceipts.totalAmount,
+      status: lineReceipts.status,
+      submittedAt: lineReceipts.submittedAt,
+      ocrRawText: lineReceipts.ocrRawText,
+    })
+    .from(lineReceipts)
+    .where(conditions)
+    .limit(1);
+  
+  return result[0] || null;
+}

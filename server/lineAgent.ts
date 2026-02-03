@@ -30,6 +30,7 @@ import {
   updateLineReceiptFraudFlags,
   createLineFraudDetectionLog,
   updateLineReceiptStatus,
+  checkDuplicateOrderNumberGlobal,
 } from "./db";
 import { storagePut } from "./storage";
 import { invokeLLM } from "./_core/llm";
@@ -1700,16 +1701,15 @@ async function processReceiptOcr(
       }
     }
     
-    // Check for duplicate order number
+    // Check for duplicate order number across ALL users (global check)
     if (ocrData.orderNumber) {
-      const duplicateByDetails = await checkDuplicateLineReceiptByDetails(
-        lineUserId,
+      const duplicateOrder = await checkDuplicateOrderNumberGlobal(
         ocrData.orderNumber,
-        ocrData.orderDate ? new Date(ocrData.orderDate) : new Date(),
-        ocrData.totalAmount,
         receiptId
       );
-      if (duplicateByDetails) {
+      if (duplicateOrder) {
+        // 全ユーザー間で重複が見つかった
+        const isSameUser = duplicateOrder.lineUserId === lineUserId;
         fraudFlags.push("duplicate_order");
         fraudScore += 100; // 同じ注文番号は完全に重複
         await createLineFraudDetectionLog({
@@ -1718,9 +1718,28 @@ async function processReceiptOcr(
           checkType: "duplicate_receipt",
           detected: true,
           severity: "high",
-          details: `同じ注文番号が既に登録されています: ${ocrData.orderNumber}`,
-          relatedReceiptId: duplicateByDetails.id,
+          details: isSameUser 
+            ? `あなたは既にこの注文でポイント申請済みです: ${ocrData.orderNumber}`
+            : `この注文番号は他のユーザーが既に申請済みです: ${ocrData.orderNumber}`,
+          relatedReceiptId: duplicateOrder.id,
         });
+        
+        // 即座に拒否してユーザーに通知
+        await updateLineReceiptStatus(receiptId, "rejected", 0, 
+          isSameUser 
+            ? "自動拒否: 同じ注文番号での重複申請"
+            : "自動拒否: 他ユーザーが既に申請済みの注文番号"
+        );
+        
+        await pushMessage(lineUserId, [
+          {
+            type: "text",
+            text: isSameUser
+              ? `❌ この注文は既にポイント申請済みです。\n\n注文番号: ${ocrData.orderNumber}\n\n同じ注文での重複申請はできません。`
+              : `❌ この注文番号は既に他の方が申請済みです。\n\n注文番号: ${ocrData.orderNumber}\n\n同じ注文での重複申請はできません。\nご自身の注文詳細画面を送信してください。`,
+          },
+        ]);
+        return; // 重複の場合はここで終了
       }
     }
     
