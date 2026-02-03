@@ -130,6 +130,9 @@ const IMAGE_COLLECTION_TIMEOUT_MS = 10 * 1000;
 // Maximum images per session
 const MAX_IMAGES_PER_SESSION = 3;
 
+// TikTok Shop screenshot guide image URL
+const TIKTOK_SHOP_GUIDE_IMAGE_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663045992616/QjyQieoeowHpYIKd.png";
+
 // Get or create pending image session
 function getOrCreatePendingImageSession(userId: string): PendingImageSession {
   let session = pendingImageSessions.get(userId);
@@ -1610,10 +1613,15 @@ export async function processReceiptImageMessage(event: LineWebhookEvent): Promi
       });
       session.receiptId = receiptId;
       
-      // Send initial response
+      // Send initial response with guide image
       if (event.replyToken) {
         await replyMessage(event.replyToken, [
-          { type: "text", text: "📷 画像を受け付けました！\n\n複数枚のスクリーンショットを送信する場合は、10秒以内に続けて送信してください。\n\n※ 配達ステータス、注文番号、合計金額が見えるように撮影してください" },
+          { type: "text", text: "📷 画像を受け付けました！\n\n複数枚のスクリーンショットを送信する場合は、10秒以内に続けて送信してください。" },
+          { 
+            type: "image", 
+            originalContentUrl: TIKTOK_SHOP_GUIDE_IMAGE_URL,
+            previewImageUrl: TIKTOK_SHOP_GUIDE_IMAGE_URL,
+          },
         ]);
       }
     } else {

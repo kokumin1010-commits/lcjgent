@@ -52,10 +52,15 @@ export function verifyLineSignature(body: string, signature: string): boolean {
   return hash === signature;
 }
 
+// LINE Message types
+type LineTextMessage = { type: "text"; text: string };
+type LineImageMessage = { type: "image"; originalContentUrl: string; previewImageUrl: string };
+type LineMessage = LineTextMessage | LineImageMessage;
+
 // Send reply message
 export async function replyMessage(
   replyToken: string,
-  messages: Array<{ type: string; text: string }>
+  messages: Array<LineMessage>
 ): Promise<boolean> {
   try {
     const response = await fetch("https://api.line.me/v2/bot/message/reply", {
@@ -79,7 +84,7 @@ export async function replyMessage(
 // Send push message (to user or group)
 export async function pushMessage(
   to: string,
-  messages: Array<{ type: string; text: string }>
+  messages: Array<LineMessage>
 ): Promise<boolean> {
   try {
     const response = await fetch("https://api.line.me/v2/bot/message/push", {
