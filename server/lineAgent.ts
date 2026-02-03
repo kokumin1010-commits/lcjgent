@@ -1741,27 +1741,8 @@ async function processMultipleImagesOcr(userId: string): Promise<void> {
           ],
         },
       ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "tiktok_shop_order",
-          strict: true,
-          schema: {
-            type: "object",
-            properties: {
-              isTikTokShop: { type: "boolean" },
-              isDelivered: { type: "boolean" },
-              orderNumber: { type: ["string", "null"] },
-              totalAmount: { type: ["number", "null"] },
-              orderDate: { type: ["string", "null"] },
-              shopName: { type: ["string", "null"] },
-              productName: { type: ["string", "null"] },
-            },
-            required: ["isTikTokShop", "isDelivered", "orderNumber", "totalAmount", "orderDate", "shopName", "productName"],
-            additionalProperties: false,
-          },
-        },
-      },
+      // Note: response_format removed due to compatibility issues with LLM
+      // LLM will return JSON naturally based on the system prompt
     });
     
     console.log(`[LINE Agent] LLM response received for multi-image OCR`);
@@ -1775,7 +1756,27 @@ async function processMultipleImagesOcr(userId: string): Promise<void> {
     console.log(`[LINE Agent] LLM message content type:`, typeof messageContent);
     console.log(`[LINE Agent] LLM raw message content:`, messageContent);
     
-    const ocrData = JSON.parse(typeof messageContent === "string" ? messageContent : "{}");
+    // Parse JSON from LLM response, handling potential markdown code blocks
+    let jsonString = typeof messageContent === "string" ? messageContent : "{}";
+    // Remove markdown code block if present
+    const jsonMatch = jsonString.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (jsonMatch) {
+      jsonString = jsonMatch[1].trim();
+    }
+    // Also try to extract JSON object from the response
+    const jsonObjectMatch = jsonString.match(/\{[\s\S]*\}/);
+    if (jsonObjectMatch) {
+      jsonString = jsonObjectMatch[0];
+    }
+    
+    let ocrData;
+    try {
+      ocrData = JSON.parse(jsonString);
+    } catch (parseError) {
+      console.error(`[LINE Agent] Failed to parse JSON from LLM response:`, parseError);
+      console.error(`[LINE Agent] Raw response:`, messageContent);
+      throw new Error(`Failed to parse OCR result JSON: ${parseError}`);
+    }
     
     console.log(`[LINE Agent] Multi-image OCR result:`, ocrData);
     
@@ -2078,31 +2079,33 @@ async function processReceiptOcr(
           ],
         },
       ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "tiktok_shop_order",
-          strict: true,
-          schema: {
-            type: "object",
-            properties: {
-              isTikTokShop: { type: "boolean" },
-              isDelivered: { type: "boolean" },
-              orderNumber: { type: ["string", "null"] },
-              totalAmount: { type: ["number", "null"] },
-              orderDate: { type: ["string", "null"] },
-              shopName: { type: ["string", "null"] },
-              productName: { type: ["string", "null"] },
-            },
-            required: ["isTikTokShop", "isDelivered", "orderNumber", "totalAmount", "orderDate", "shopName", "productName"],
-            additionalProperties: false,
-          },
-        },
-      },
+      // Note: response_format removed due to compatibility issues with LLM
+      // LLM will return JSON naturally based on the system prompt
     });
     
     const messageContent = ocrResult.choices[0].message.content;
-    const ocrData = JSON.parse(typeof messageContent === "string" ? messageContent : "{}");
+    
+    // Parse JSON from LLM response, handling potential markdown code blocks
+    let jsonString = typeof messageContent === "string" ? messageContent : "{}";
+    // Remove markdown code block if present
+    const jsonMatch = jsonString.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (jsonMatch) {
+      jsonString = jsonMatch[1].trim();
+    }
+    // Also try to extract JSON object from the response
+    const jsonObjectMatch = jsonString.match(/\{[\s\S]*\}/);
+    if (jsonObjectMatch) {
+      jsonString = jsonObjectMatch[0];
+    }
+    
+    let ocrData;
+    try {
+      ocrData = JSON.parse(jsonString);
+    } catch (parseError) {
+      console.error(`[LINE Agent] Failed to parse JSON from LLM response:`, parseError);
+      console.error(`[LINE Agent] Raw response:`, messageContent);
+      throw new Error(`Failed to parse OCR result JSON: ${parseError}`);
+    }
     
     // TikTok Shop注文詳細画面の検証
     const { pushMessage } = await import("./line");
