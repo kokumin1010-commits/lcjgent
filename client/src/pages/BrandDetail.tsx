@@ -166,6 +166,14 @@ const translations = {
     avgCpc: "平均CPC",
     optimalAllocation: "最適配分",
     totalRecordsCount: "総レコード数",
+    // Liver GMV Stats
+    liverGmvStats: "ライバー別GMV実績",
+    liverName: "ライバー名",
+    totalGmvByLiver: "総GMV",
+    livestreamCount: "配信回数",
+    avgGmvPerLivestream: "平均GMV/配信",
+    noLiverStats: "ライバー別の売上データはありません",
+    gmvShare: "GMVシェア",
   },
   zh: {
     title: "品牌详情",
@@ -292,6 +300,14 @@ const translations = {
     avgCpc: "平均CPC",
     optimalAllocation: "最优分配",
     totalRecordsCount: "总记录数",
+    // Liver GMV Stats
+    liverGmvStats: "主播别GMV实绩",
+    liverName: "主播名",
+    totalGmvByLiver: "总GMV",
+    livestreamCount: "直播次数",
+    avgGmvPerLivestream: "平均GMV/直播",
+    noLiverStats: "没有主播别的销售数据",
+    gmvShare: "GMV占比",
   },
 };
 
@@ -827,6 +843,7 @@ export default function BrandDetail() {
   const { data: adInvestmentRecords = [], refetch: refetchInvestmentRecords } = trpc.brand.getAdInvestmentRecords.useQuery({ brandId }, { enabled: brandId > 0 });
   const { data: brandAdStats } = trpc.brand.getBrandAdPerformanceStats.useQuery({ brandId }, { enabled: brandId > 0 });
   const { data: allLivers = [] } = trpc.liverManagement.list.useQuery();
+  const { data: liverSalesStats = [] } = trpc.brand.getLiverSalesStats.useQuery({ brandId }, { enabled: brandId > 0 });
 
   // 同じ日の配信は1回としてカウント（ユニークな日付の数）
   const uniqueLivestreamDays = useMemo(() => {
@@ -2583,6 +2600,125 @@ ${proposal.proposalContent}
               </table>
             </div>
           </div>
+        </div>
+
+        {/* Liver GMV Stats Section */}
+        <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,0,0,0.1)] mb-6">
+          <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-3">
+            <div className="w-1 h-6 bg-gradient-to-b from-purple-400 to-purple-600 rounded-full" />
+            {t.liverGmvStats}
+          </h2>
+          
+          {liverSalesStats.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">{t.noLiverStats}</p>
+          ) : (
+            <div className="space-y-4">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="bg-gradient-to-br from-purple-900/40 to-purple-800/20 rounded-lg p-4 border border-purple-500/20">
+                  <p className="text-gray-400 text-sm">総GMV</p>
+                  <p className="text-2xl font-bold text-purple-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                    {formatCurrency(liverSalesStats.reduce((sum, s) => sum + (s.totalGmv || 0), 0))}
+                  </p>
+                </div>
+                <div className="bg-gradient-to-br from-cyan-900/40 to-cyan-800/20 rounded-lg p-4 border border-cyan-500/20">
+                  <p className="text-gray-400 text-sm">ライバー数</p>
+                  <p className="text-2xl font-bold text-cyan-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                    {liverSalesStats.length}名
+                  </p>
+                </div>
+                <div className="bg-gradient-to-br from-green-900/40 to-green-800/20 rounded-lg p-4 border border-green-500/20">
+                  <p className="text-gray-400 text-sm">総配信回数</p>
+                  <p className="text-2xl font-bold text-green-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                    {liverSalesStats.reduce((sum, s) => sum + (s.livestreamCount || 0), 0)}回
+                  </p>
+                </div>
+                <div className="bg-gradient-to-br from-yellow-900/40 to-yellow-800/20 rounded-lg p-4 border border-yellow-500/20">
+                  <p className="text-gray-400 text-sm">平均GMV/配信</p>
+                  <p className="text-2xl font-bold text-yellow-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                    {formatCurrency(
+                      liverSalesStats.reduce((sum, s) => sum + (s.totalGmv || 0), 0) /
+                      Math.max(liverSalesStats.reduce((sum, s) => sum + (s.livestreamCount || 0), 0), 1)
+                    )}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Liver Rankings Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-red-900/30">
+                      <th className="py-3 px-2 text-left text-gray-400 font-medium">#</th>
+                      <th className="py-3 px-2 text-left text-gray-400 font-medium">{t.liverName}</th>
+                      <th className="py-3 px-2 text-right text-gray-400 font-medium">{t.totalGmvByLiver}</th>
+                      <th className="py-3 px-2 text-right text-gray-400 font-medium">{t.livestreamCount}</th>
+                      <th className="py-3 px-2 text-right text-gray-400 font-medium">{t.avgGmvPerLivestream}</th>
+                      <th className="py-3 px-2 text-right text-gray-400 font-medium">{t.gmvShare}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...liverSalesStats]
+                      .sort((a, b) => (b.totalGmv || 0) - (a.totalGmv || 0))
+                      .map((stat, index) => {
+                        const totalGmv = liverSalesStats.reduce((sum, s) => sum + (s.totalGmv || 0), 0);
+                        const share = totalGmv > 0 ? ((stat.totalGmv || 0) / totalGmv) * 100 : 0;
+                        const avgGmv = stat.livestreamCount > 0 ? (stat.totalGmv || 0) / stat.livestreamCount : 0;
+                        
+                        return (
+                          <tr key={stat.id} className="border-b border-red-900/20 hover:bg-red-900/10 transition-colors">
+                            <td className="py-3 px-2">
+                              <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-sm font-bold ${
+                                index === 0 ? 'bg-yellow-500 text-black' :
+                                index === 1 ? 'bg-gray-400 text-black' :
+                                index === 2 ? 'bg-amber-700 text-white' :
+                                'bg-gray-800 text-gray-400'
+                              }`}>
+                                {index + 1}
+                              </span>
+                            </td>
+                            <td className="py-3 px-2">
+                              <div className="flex items-center gap-3">
+                                {stat.avatarUrl ? (
+                                  <img src={stat.avatarUrl} alt={stat.name} className="w-8 h-8 rounded-full object-cover" />
+                                ) : (
+                                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-sm font-bold">
+                                    {stat.name?.charAt(0) || '?'}
+                                  </div>
+                                )}
+                                <span className="text-white font-medium">{stat.name}</span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-2 text-right text-purple-400 font-bold" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                              {formatCurrency(stat.totalGmv || 0)}
+                            </td>
+                            <td className="py-3 px-2 text-right text-cyan-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                              {stat.livestreamCount || 0}回
+                            </td>
+                            <td className="py-3 px-2 text-right text-yellow-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                              {formatCurrency(avgGmv)}
+                            </td>
+                            <td className="py-3 px-2 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <div className="w-16 h-2 bg-gray-800 rounded-full overflow-hidden">
+                                  <div 
+                                    className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"
+                                    style={{ width: `${Math.min(share, 100)}%` }}
+                                  />
+                                </div>
+                                <span className="text-gray-400 text-sm" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                                  {share.toFixed(1)}%
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Activity Memos - Timeline */}
