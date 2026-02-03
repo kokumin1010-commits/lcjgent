@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { ENV } from "./_core/env";
-import { getDb, verifyAndUseLinkCode, linkLineAccountToEmailUser, getLineUserById } from "./db";
+import { getDb, verifyAndUseLinkCode, linkLineAccountToEmailUser, getLineUserById, getLineReceiptsByUser, getLinePointBalance } from "./db";
 import { livers } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { sendLinePushMessage } from "./_core/lineMessaging";
@@ -306,10 +306,17 @@ async function handleTextMessage(
   const lineUserId = event.source.userId;
   if (!lineUserId) return;
 
-  const trimmedText = text.trim().toUpperCase();
+  const trimmedText = text.trim();
+  const upperText = trimmedText.toUpperCase();
+  
+  // 「ポイント履歴」コマンドのチェック
+  if (trimmedText === 'ポイント履歴' || trimmedText === '履歴' || upperText === 'HISTORY' || upperText === 'POINTS') {
+    await handlePointHistoryCommand(lineUserId);
+    return;
+  }
   
   // プレフィックス付きコードの形式をチェック (L-XXXXXX または M-XXXXXX)
-  const codeMatch = trimmedText.match(/^([LM])-?(\d{6})$/);
+  const codeMatch = upperText.match(/^([LM])-?(\d{6})$/);
   
   if (!codeMatch) {
     // 連携コードではない場合は案内メッセージを送信
@@ -453,4 +460,90 @@ async function handlePostback(
 ): Promise<void> {
   // 将来的な拡張用（ボタン操作など）
   console.log(`[LINE Webhook] Postback received: ${data}`);
+}
+
+
+/**
+ * Handle "ポイント履歴" command
+ * Shows user's point balance and recent receipt submissions
+ */
+async function handlePointHistoryCommand(lineUserId: string): Promise<void> {
+  try {
+    // Get point balance
+    const balance = await getLinePointBalance(lineUserId);
+    
+    // Get recent receipts (last 10)
+    const receipts = await getLineReceiptsByUser(lineUserId);
+    const recentReceipts = receipts.slice(0, 10);
+    
+    if (!balance && recentReceipts.length === 0) {
+      // User has no history
+      await sendLinePushMessage(lineUserId, [
+        {
+          type: "text",
+          text: "📊 ポイント履歴\n\nまだポイント申請の履歴がありません。\n\nTikTok Shopで商品を購入したら、注文詳細のスクリーンショットを送信してポイントを獲得しましょう！",
+        },
+      ]);
+      return;
+    }
+    
+    // Build Flex Message
+    const currentBalance = balance?.balance || 0;
+    const totalEarned = balance?.totalEarned || 0;
+    const totalUsed = balance?.totalUsed || 0;
+    
+    // Status emoji mapping
+    const statusEmoji: Record<string, string> = {
+      pending: "⏳",
+      approved: "✅",
+      rejected: "❌",
+      on_hold: "⚠️",
+    };
+    
+    const statusText: Record<string, string> = {
+      pending: "審査中",
+      approved: "承認済",
+      rejected: "却下",
+      on_hold: "保留中",
+    };
+    
+    // Build receipt history text
+    let historyText = "";
+    if (recentReceipts.length > 0) {
+      historyText = "\n\n📋 最近の申請:\n";
+      for (const receipt of recentReceipts) {
+        const date = new Date(receipt.submittedAt).toLocaleDateString("ja-JP", {
+          month: "numeric",
+          day: "numeric",
+        });
+        const emoji = statusEmoji[receipt.status] || "❓";
+        const status = statusText[receipt.status] || receipt.status;
+        const amount = receipt.totalAmount?.toLocaleString() || "-";
+        const points = receipt.status === "approved" 
+          ? `+${receipt.pointsAwarded || 0}pt`
+          : receipt.status === "pending"
+            ? `(${receipt.pointsCalculated || 0}pt予定)`
+            : "";
+        
+        historyText += `${emoji} ${date} ¥${amount} ${status} ${points}\n`;
+      }
+    }
+    
+    // Send summary message
+    await sendLinePushMessage(lineUserId, [
+      {
+        type: "text",
+        text: `📊 ポイント履歴\n\n💰 現在のポイント: ${currentBalance.toLocaleString()}pt\n📈 累計獲得: ${totalEarned.toLocaleString()}pt\n📉 累計使用: ${totalUsed.toLocaleString()}pt${historyText}\n\n※ 審査中の申請は承認後にポイントが付与されます`,
+      },
+    ]);
+    
+  } catch (error) {
+    console.error("[Point History] Error:", error);
+    await sendLinePushMessage(lineUserId, [
+      {
+        type: "text",
+        text: "申し訳ありません。ポイント履歴の取得中にエラーが発生しました。しばらくしてから再度お試しください。",
+      },
+    ]);
+  }
 }
