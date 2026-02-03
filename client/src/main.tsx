@@ -10,7 +10,18 @@ import { getLoginUrl } from "./const";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import "./index.css";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Prevent automatic refetching on window focus
+      refetchOnWindowFocus: false,
+      // Retry only once on failure
+      retry: 1,
+      // Keep data fresh for 5 minutes
+      staleTime: 5 * 60 * 1000,
+    },
+  },
+});
 
 const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!(error instanceof TRPCClientError)) return;
@@ -22,7 +33,7 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
 
   // Check if we're on a liver page - if so, redirect to liver login instead of Manus OAuth
   const currentPath = window.location.pathname;
-  if (currentPath.startsWith("/liver/")) {
+  if (currentPath.startsWith("/liver/") || currentPath.startsWith("/livers")) {
     // Don't redirect if already on login or register page
     if (currentPath === "/liver/login" || currentPath === "/liver/register") {
       return;
@@ -74,15 +85,21 @@ const trpcClient = trpc.createClient({
                               currentPath === '/' ||
                               currentPath.startsWith('/products') ||
                               currentPath.startsWith('/mall');
-        const isLiverPage = currentPath.startsWith('/liver/') || currentPath === '/s';
+        // Include /livers (without trailing slash) in liver pages
+        const isLiverPage = currentPath.startsWith('/liver/') || 
+                           currentPath.startsWith('/livers') || 
+                           currentPath === '/s';
         
-        if (isLiverPage && liverToken) {
+        // IMPORTANT: Always send liver token if it exists and we're on a liver page
+        // This ensures the token is sent even during page transitions
+        if (liverToken && (isLiverPage || !isLcjMallPage)) {
+          // Prioritize liver token for liver pages and non-LCJ pages
           headers.set("Authorization", `Bearer ${liverToken}`);
-        } else if (isLcjMallPage && lcjSessionToken) {
-          // Use LCJ session token for LINE/email login pages
+        } else if (lcjSessionToken && isLcjMallPage) {
+          // Use LCJ session token for LCJ MALL pages
           headers.set("Authorization", `Bearer ${lcjSessionToken}`);
         } else if (liverToken) {
-          // Fallback to liver token for other pages
+          // Fallback to liver token
           headers.set("Authorization", `Bearer ${liverToken}`);
         } else if (lcjSessionToken) {
           // Fallback to LCJ session token

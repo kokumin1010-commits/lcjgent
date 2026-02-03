@@ -161,7 +161,11 @@ export default function LiverProfile() {
   const [, navigate] = useLocation();
   const utils = trpc.useUtils();
   
-  const { data: liverInfo, isLoading } = trpc.liver.me.useQuery();
+  const { data: liverInfo, isLoading, isError: isLiverError } = trpc.liver.me.useQuery(undefined, {
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
   
   const [name, setName] = useState("");
   const [color, setColor] = useState("#FF69B4");
@@ -218,16 +222,26 @@ export default function LiverProfile() {
     );
   }
   
+  // Only show login prompt if there's an error after loading is complete
   if (!liverInfo) {
+    // If there was an error, show login prompt
+    if (isLiverError) {
+      return (
+        <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4 p-4">
+          <p className="text-white text-center">ログインが必要です</p>
+          <Button
+            onClick={() => navigate("/liver/login")}
+            className="bg-red-600 hover:bg-red-700"
+          >
+            ログインページへ
+          </Button>
+        </div>
+      );
+    }
+    // No error but no liverInfo - show loading
     return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4 p-4">
-        <p className="text-white text-center">ログインが必要です</p>
-        <Button
-          onClick={() => navigate("/liver/login")}
-          className="bg-red-600 hover:bg-red-700"
-        >
-          ログインページへ
-        </Button>
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }

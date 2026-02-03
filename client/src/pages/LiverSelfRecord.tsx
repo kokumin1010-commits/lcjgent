@@ -17,8 +17,12 @@ export default function LiverSelfRecord() {
   const scheduleIdParam = searchParams.get("scheduleId");
   const dateParam = searchParams.get("date");
   
-  // Get current liver info
-  const { data: liverInfo, isLoading: isLoadingLiver } = trpc.liver.me.useQuery();
+  // Get current liver info with caching to prevent unnecessary refetches
+  const { data: liverInfo, isLoading: isLoadingLiver, isError: isLiverError } = trpc.liver.me.useQuery(undefined, {
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
   
   // Get brands for selection
   const { data: brands } = trpc.brand.list.useQuery();
@@ -473,7 +477,10 @@ export default function LiverSelfRecord() {
     );
   }
 
+  // Only show login prompt if there's an error or no liverInfo after loading is complete
   if (!liverInfo) {
+    // If there was an error OR liverInfo is null (not authenticated), show login prompt
+    // Note: liverInfo being null means the server returned null, which indicates no valid session
     return (
       <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4 p-4">
         <p className="text-white text-center">{tr.loginRequired}</p>

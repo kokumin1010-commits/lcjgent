@@ -3268,3 +3268,19 @@
 - [x] 修正を実装（タイムアウト追加、isCheckingAuth状態管理改善、meQuery.isError処理追加）
 - [x] test@gmail.comでログインしてテスト
 - [x] 全ページの動作確認（ログイン、マイページ、プロフィール編集、スケジュール、配信記録）
+
+
+## 根本的バグ修正: ライバーページで操作後すぐにマイページに戻る問題
+- [ ] 全ライバー関連ファイルを徹底的に調査
+- [ ] 認証チェックロジックの問題を特定
+- [ ] 根本原因を修正
+- [ ] 本番環境でtest@gmail.comでテスト
+- [ ] 全ページ・全操作の動作確認
+
+
+## ライバー認証の401エラー修正
+- [x] 401エラーの原因を特定（protectedProcedureがManus OAuth認証を要求）
+- [x] brand.listをpublicProcedureに変更
+- [x] schedule.getByIdをpublicProcedureに変更
+- [x] csvImportルーター（importLivestreams, getImported, getImportHistory, deleteImportHistory）をpublicProcedureに変更
+- [x] マイページ、プロフィール編集ページの動作確認

@@ -10,7 +10,17 @@ export function getLiverToken(): string | null {
 
 // Set liver token in localStorage
 export function setLiverToken(token: string): void {
-  localStorage.setItem(LIVER_TOKEN_KEY, token);
+  console.log('[liverAuth] setLiverToken called with token:', token ? token.substring(0, 20) + '...' : 'null');
+  try {
+    localStorage.setItem(LIVER_TOKEN_KEY, token);
+    const savedToken = localStorage.getItem(LIVER_TOKEN_KEY);
+    console.log('[liverAuth] Token saved to localStorage:', savedToken ? 'Yes' : 'No');
+    if (!savedToken) {
+      console.error('[liverAuth] CRITICAL: Token was not saved to localStorage!');
+    }
+  } catch (error) {
+    console.error('[liverAuth] Error saving token to localStorage:', error);
+  }
 }
 
 // Clear liver token from localStorage

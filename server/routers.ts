@@ -2413,7 +2413,8 @@ ${JSON.stringify(teamSummary, null, 2)}`;
         return brand;
       }),
 
-    list: protectedProcedure
+    // Public list for liver pages (no auth required)
+    list: publicProcedure
       .input(
         z.object({
           status: z.string().optional(),
@@ -6679,8 +6680,8 @@ ${conversationText}
         return await getSchedulesByLiverName(input.liverName, startDate, endDate);
       }),
 
-    // Get schedule by ID
-    getById: protectedProcedure
+    // Get schedule by ID (public - for liver pages)
+    getById: publicProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
         return await getScheduleById(input.id);
@@ -8255,7 +8256,7 @@ ${metricsDescription}${historicalContext}`,
   // CSV Import Router (TikTok配信パフォーマンスCSVインポート)
   csvImport: router({
     // Parse and import CSV data
-    importLivestreams: protectedProcedure
+    importLivestreams: publicProcedure
       .input(z.object({
         brandId: z.number(),
         liverId: z.number(),
@@ -8347,7 +8348,7 @@ ${metricsDescription}${historicalContext}`,
               ctr: row.ctr,
               ctor: row.ctor,
               platform: "TikTok",
-              createdBy: ctx.user.id,
+              createdBy: input.liverId, // Use liverId instead of ctx.user.id for liver auth
             };
 
             if (existing) {
@@ -8382,8 +8383,8 @@ ${metricsDescription}${historicalContext}`,
             totalGmv,
             dateRangeStart,
             dateRangeEnd,
-            importedBy: ctx.user.id,
-            importedByName: ctx.user.name || ctx.user.email,
+            importedBy: input.liverId, // Use liverId for liver auth
+            importedByName: "Liver Import", // Generic name for liver imports
           });
         }
 
@@ -8391,21 +8392,21 @@ ${metricsDescription}${historicalContext}`,
       }),
 
     // Get CSV imported livestreams
-    getImported: protectedProcedure
+    getImported: publicProcedure
       .input(z.object({ brandId: z.number() }))
       .query(async ({ input }) => {
         return await getCsvImportedLivestreams(input.brandId);
       }),
       
     // Get import history for a liver
-    getImportHistory: protectedProcedure
+    getImportHistory: publicProcedure
       .input(z.object({ liverId: z.number() }))
       .query(async ({ input }) => {
         return await getLivestreamCsvImportHistoryByLiver(input.liverId);
       }),
       
     // Delete import history and associated livestreams
-    deleteImportHistory: protectedProcedure
+    deleteImportHistory: publicProcedure
       .input(z.object({ historyId: z.number() }))
       .mutation(async ({ input }) => {
         return await deleteLivestreamCsvImportHistory(input.historyId);

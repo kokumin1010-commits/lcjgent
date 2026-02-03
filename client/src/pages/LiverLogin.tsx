@@ -47,10 +47,9 @@ export default function LiverLogin() {
       // Valid session - redirect to mypage
       navigate("/liver/mypage");
     } else {
-      // Invalid or expired token - clear it and show login form
-      if (meQuery.isError || meQuery.data === null) {
-        clearLiverToken();
-      }
+      // Do NOT clear token here - let the user try to login again
+      // The token might still be valid, just a temporary network issue
+      // If the token is truly invalid, the server will return 401 on protected routes
       setIsCheckingAuth(false);
     }
   }, [meQuery.isLoading, meQuery.data, meQuery.isError, navigate, isLoggingIn]);
