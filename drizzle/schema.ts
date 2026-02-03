@@ -1416,10 +1416,12 @@ export const lineReceipts = mysqlTable("line_receipts", {
   lineUserId: varchar("lineUserId", { length: 64 }).notNull(), // LINE User ID
   lineMessageId: varchar("lineMessageId", { length: 64 }), // Original LINE message ID
   
-  // Receipt image
-  imageUrl: text("imageUrl").notNull(), // S3 URL
-  imageKey: varchar("imageKey", { length: 512 }).notNull(), // S3 key
+  // Receipt image (supports multiple images)
+  imageUrl: text("imageUrl").notNull(), // Primary S3 URL (first image)
+  imageKey: varchar("imageKey", { length: 512 }).notNull(), // Primary S3 key
   imageHash: varchar("imageHash", { length: 64 }), // SHA-256 hash for duplicate detection
+  imageUrls: json("imageUrls").$type<string[]>(), // Array of S3 URLs for multiple images
+  imageKeys: json("imageKeys").$type<string[]>(), // Array of S3 keys for multiple images
   
   // OCR extracted data
   storeName: varchar("storeName", { length: 255 }), // Store/shop name

@@ -5344,6 +5344,8 @@ export async function updateLineReceiptOcr(
     ocrConfidence?: string;
     pointsCalculated?: number;
     imageHash?: string;
+    imageUrls?: string[];
+    imageKeys?: string[];
   }
 ) {
   const db = await getDb();

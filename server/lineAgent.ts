@@ -99,6 +99,63 @@ function startOrRefreshSession(groupId: string, userId: string): void {
   }
 }
 
+// ============================================
+// Multiple Image Buffering for TikTok Shop OCR
+// ============================================
+// Users may need to send 2-3 screenshots to capture all required info
+// (delivery status + order number + amount may not fit in one screenshot)
+
+interface PendingImageSession {
+  userId: string;
+  images: Array<{
+    data: Buffer;
+    contentType: string;
+    url: string;
+    key: string;
+    hash: string;
+    messageId: string;
+  }>;
+  startedAt: number;
+  lastImageAt: number;
+  receiptId: number | null;
+  processingTimeout: ReturnType<typeof setTimeout> | null;
+}
+
+// In-memory pending image storage (key: lineUserId)
+const pendingImageSessions = new Map<string, PendingImageSession>();
+
+// Image collection timeout in milliseconds (10 seconds - wait for more images)
+const IMAGE_COLLECTION_TIMEOUT_MS = 10 * 1000;
+
+// Maximum images per session
+const MAX_IMAGES_PER_SESSION = 3;
+
+// Get or create pending image session
+function getOrCreatePendingImageSession(userId: string): PendingImageSession {
+  let session = pendingImageSessions.get(userId);
+  if (!session) {
+    session = {
+      userId,
+      images: [],
+      startedAt: Date.now(),
+      lastImageAt: Date.now(),
+      receiptId: null,
+      processingTimeout: null,
+    };
+    pendingImageSessions.set(userId, session);
+  }
+  return session;
+}
+
+// Clear pending image session
+function clearPendingImageSession(userId: string): void {
+  const session = pendingImageSessions.get(userId);
+  if (session?.processingTimeout) {
+    clearTimeout(session.processingTimeout);
+  }
+  pendingImageSessions.delete(userId);
+}
+
 // Clean up expired sessions periodically
 setInterval(() => {
   const now = Date.now();
@@ -1416,6 +1473,8 @@ async function handlePointBalanceInquiry(lineUserId: string, replyToken: string)
 /**
  * Process receipt image message from LINE
  * LINEから送信されたレシート画像を処理してポイント申請を行う
+ * TikTok Shopの注文詳細は複数枚のスクリーンショットが必要な場合があるため、
+ * 10秒間画像をバッファリングしてから統合解析を行う
  */
 export async function processReceiptImageMessage(event: LineWebhookEvent): Promise<void> {
   // Check if this is an image message
@@ -1474,26 +1533,25 @@ export async function processReceiptImageMessage(event: LineWebhookEvent): Promi
       return;
     }
     
-    if (!event.replyToken) {
-      console.log(`[LINE Agent] No reply token for image message`);
-      return;
-    }
-    
     // Check submission frequency (max 10 per 24 hours)
     const recentCount = await getRecentLineReceiptsCount(userId, 24);
     if (recentCount >= 10) {
-      await replyMessage(event.replyToken, [
-        { type: "text", text: "⚠️ 24時間以内の申請上限（10件）に達しています。\n\n明日以降に再度お試しください。" },
-      ]);
+      if (event.replyToken) {
+        await replyMessage(event.replyToken, [
+          { type: "text", text: "⚠️ 24時間以内の申請上限（10件）に達しています。\n\n明日以降に再度お試しください。" },
+        ]);
+      }
       return;
     }
     
     // Get image content
     const imageContent = await getMessageContent(messageId);
     if (!imageContent) {
-      await replyMessage(event.replyToken, [
-        { type: "text", text: "画像の取得に失敗しました。もう一度お送りください。" },
-      ]);
+      if (event.replyToken) {
+        await replyMessage(event.replyToken, [
+          { type: "text", text: "画像の取得に失敗しました。もう一度お送りください。" },
+        ]);
+      }
       return;
     }
     
@@ -1503,9 +1561,11 @@ export async function processReceiptImageMessage(event: LineWebhookEvent): Promi
     // Check for duplicate image
     const duplicateByHash = await checkDuplicateLineReceiptByHash(imageHash);
     if (duplicateByHash) {
-      await replyMessage(event.replyToken, [
-        { type: "text", text: "⚠️ このレシート画像は既に登録されています。\n\n別のレシートをお送りください。" },
-      ]);
+      if (event.replyToken) {
+        await replyMessage(event.replyToken, [
+          { type: "text", text: "⚠️ この画像は既に登録されています。\n\n別の画像をお送りください。" },
+        ]);
+      }
       return;
     }
     
@@ -1515,25 +1575,67 @@ export async function processReceiptImageMessage(event: LineWebhookEvent): Promi
     const fileKey = `line-receipts/${userId}/${timestamp}-${messageId}.${ext}`;
     const { url: imageUrl } = await storagePut(fileKey, imageContent.data, imageContent.contentType);
     
-    // Create receipt record
-    const receiptId = await createLineReceipt({
-      lineUserId: userId,
-      lineMessageId: messageId,
-      imageUrl,
-      imageKey: fileKey,
-      imageHash,
-      status: "pending",
-    });
+    // Get or create pending image session for this user
+    const session = getOrCreatePendingImageSession(userId);
     
-    // Send initial response
-    await replyMessage(event.replyToken, [
-      { type: "text", text: "📷 レシートを受け付けました！\n\n解析中です。しばらくお待ちください..." },
-    ]);
-    
-    // Run OCR analysis (async, don't block reply)
-    processReceiptOcr(receiptId, imageContent.data, imageContent.contentType, userId).catch(error => {
-      console.error("[LINE Agent] OCR processing failed:", error);
+    // Add image to session
+    session.images.push({
+      data: imageContent.data,
+      contentType: imageContent.contentType,
+      url: imageUrl,
+      key: fileKey,
+      hash: imageHash,
+      messageId,
     });
+    session.lastImageAt = Date.now();
+    
+    console.log(`[LINE Agent] Image ${session.images.length}/${MAX_IMAGES_PER_SESSION} added to session for ${userId}`);
+    
+    // Clear any existing processing timeout
+    if (session.processingTimeout) {
+      clearTimeout(session.processingTimeout);
+      session.processingTimeout = null;
+    }
+    
+    // If this is the first image, create the receipt record and send initial response
+    if (session.images.length === 1) {
+      // Create receipt record with first image
+      const receiptId = await createLineReceipt({
+        lineUserId: userId,
+        lineMessageId: messageId,
+        imageUrl,
+        imageKey: fileKey,
+        imageHash,
+        status: "pending",
+      });
+      session.receiptId = receiptId;
+      
+      // Send initial response
+      if (event.replyToken) {
+        await replyMessage(event.replyToken, [
+          { type: "text", text: "📷 画像を受け付けました！\n\n複数枚のスクリーンショットを送信する場合は、10秒以内に続けて送信してください。\n\n※ 配達ステータス、注文番号、合計金額が見えるように撮影してください" },
+        ]);
+      }
+    } else {
+      // Additional image - send confirmation
+      const { pushMessage } = await import("./line");
+      await pushMessage(userId, [
+        { type: "text", text: `📷 ${session.images.length}枚目の画像を受け付けました。\n\nさらに追加する場合は10秒以内に送信してください。` },
+      ]);
+    }
+    
+    // If we've reached max images, process immediately
+    if (session.images.length >= MAX_IMAGES_PER_SESSION) {
+      console.log(`[LINE Agent] Max images reached for ${userId}, processing now`);
+      await processMultipleImagesOcr(userId);
+      return;
+    }
+    
+    // Set timeout to process after IMAGE_COLLECTION_TIMEOUT_MS
+    session.processingTimeout = setTimeout(async () => {
+      console.log(`[LINE Agent] Image collection timeout for ${userId}, processing ${session.images.length} images`);
+      await processMultipleImagesOcr(userId);
+    }, IMAGE_COLLECTION_TIMEOUT_MS);
     
   } catch (error) {
     console.error("[LINE Agent] Error processing receipt image:", error);
@@ -1547,7 +1649,343 @@ export async function processReceiptImageMessage(event: LineWebhookEvent): Promi
 }
 
 /**
- * Process receipt OCR analysis (runs asynchronously)
+ * Process multiple images OCR analysis
+ * 複数のスクリーンショットを統合してTikTok Shop注文情報を抽出
+ */
+async function processMultipleImagesOcr(userId: string): Promise<void> {
+  const session = pendingImageSessions.get(userId);
+  if (!session || session.images.length === 0 || !session.receiptId) {
+    console.log(`[LINE Agent] No pending images for ${userId}`);
+    clearPendingImageSession(userId);
+    return;
+  }
+  
+  const receiptId = session.receiptId;
+  const images = [...session.images];
+  
+  // Clear the session immediately to prevent duplicate processing
+  clearPendingImageSession(userId);
+  
+  console.log(`[LINE Agent] Processing ${images.length} images for receipt ${receiptId}`);
+  
+  try {
+    const { pushMessage } = await import("./line");
+    
+    // Notify user that processing has started
+    await pushMessage(userId, [
+      { type: "text", text: `🔍 ${images.length}枚の画像を解析中です...しばらくお待ちください。` },
+    ]);
+    
+    // Build image content array for LLM
+    const imageContents = images.map((img, index) => ({
+      type: "image_url" as const,
+      image_url: {
+        url: `data:${img.contentType};base64,${img.data.toString("base64")}`,
+      },
+    }));
+    
+    // Run OCR analysis with LLM - Multiple images
+    const ocrResult = await invokeLLM({
+      messages: [
+        {
+          role: "system",
+          content: `あなたはTikTok Shopの注文詳細画面の複数のスクリーンショットを解析するAIです。
+ユーザーは同じ注文の異なる部分を撮影した複数のスクリーンショットを送信しています。
+すべての画像から情報を統合して、以下の情報を抽出してJSON形式で返してください。
+
+1. isTikTokShop: これがTikTok Shopの注文詳細画面かどうか（true/false）
+   - TikTok Shop、注文詳細、注文番号、商品価格の小計、合計金額などの表記があれはtrue
+2. isDelivered: 商品が配達済みかどうか（true/false）
+   重要：いずれかの画像で以下のいずれかが見つかればtrueを返す：
+   - 「X月X日に配達」（例：「1月28日に配達」）
+   - 「お荷物が最終目的地に到着しました」
+   - 「配達済み」ステータス（プログレスバーの最後のステップ）
+   - 「已签收」「Delivered」
+   - 配達ステータスのプログレスバーで「配達済み」がハイライトされている
+3. orderNumber: 注文番号（17桁程度の数字）
+4. totalAmount: 合計金額（数値のみ、通貨記号なし）
+   - 「合計金額（税込）」の値を探す
+5. orderDate: 注文日時（YYYY-MM-DD HH:mm形式）
+6. shopName: ショップ名（例: KYOGOKU JAPAN）
+7. productName: 商品名
+
+重要：複数の画像から情報を統合してください。
+例えば、1枚目に配達ステータスがあり、2枚目に注文番号と金額がある場合、
+両方の情報を統合して返してください。
+
+抽出できない項目はnullを返してください。`,
+        },
+        {
+          role: "user",
+          content: [
+            ...imageContents,
+            {
+              type: "text" as const,
+              text: `これら${images.length}枚の画像は同じTikTok Shop注文の異なる部分のスクリーンショットです。すべての画像から情報を統合して、注文情報を抽出してください。`,
+            },
+          ],
+        },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "tiktok_shop_order",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              isTikTokShop: { type: "boolean" },
+              isDelivered: { type: "boolean" },
+              orderNumber: { type: ["string", "null"] },
+              totalAmount: { type: ["number", "null"] },
+              orderDate: { type: ["string", "null"] },
+              shopName: { type: ["string", "null"] },
+              productName: { type: ["string", "null"] },
+            },
+            required: ["isTikTokShop", "isDelivered", "orderNumber", "totalAmount", "orderDate", "shopName", "productName"],
+            additionalProperties: false,
+          },
+        },
+      },
+    });
+    
+    const messageContent = ocrResult.choices[0].message.content;
+    const ocrData = JSON.parse(typeof messageContent === "string" ? messageContent : "{}");
+    
+    console.log(`[LINE Agent] Multi-image OCR result:`, ocrData);
+    
+    // Update receipt with all image URLs
+    await updateLineReceiptOcr(receiptId, {
+      imageUrls: images.map(img => img.url),
+      imageKeys: images.map(img => img.key),
+    });
+    
+    // Process the OCR result (same logic as single image)
+    await processOcrResult(receiptId, ocrData, userId, images.map(img => img.url));
+    
+  } catch (error) {
+    console.error("[LINE Agent] Multi-image OCR analysis failed:", error);
+    
+    try {
+      const { pushMessage } = await import("./line");
+      await pushMessage(userId, [
+        {
+          type: "text",
+          text: `❌ 画像の解析に失敗しました。\n\nもう一度画像を送信してください。\n問題が続く場合はサポートまでお問い合わせください。`,
+        },
+      ]);
+    } catch (notifyError) {
+      console.error("[LINE Agent] Failed to send error notification:", notifyError);
+    }
+  }
+}
+
+/**
+ * Process OCR result and handle validation, fraud detection, and notifications
+ * OCR結果を処理し、検証、不正検知、通知を行う
+ */
+async function processOcrResult(
+  receiptId: number,
+  ocrData: {
+    isTikTokShop: boolean;
+    isDelivered: boolean;
+    orderNumber: string | null;
+    totalAmount: number | null;
+    orderDate: string | null;
+    shopName: string | null;
+    productName: string | null;
+  },
+  lineUserId: string,
+  imageUrls: string[]
+): Promise<void> {
+  const { pushMessage } = await import("./line");
+  
+  // 1. TikTok Shopの注文詳細画面かどうか確認
+  if (!ocrData.isTikTokShop) {
+    await pushMessage(lineUserId, [
+      {
+        type: "text",
+        text: `❌ この画像はTikTok Shopの注文詳細画面ではありません。\n\nTikTok Shopアプリの注文履歴から、注文詳細画面のスクリーンショットを送信してください。`,
+      },
+    ]);
+    await updateLineReceiptStatus(receiptId, "rejected", 0, "自動拒否: TikTok Shopの注文詳細画面ではない");
+    return;
+  }
+  
+  // 2. 配達済みステータスの確認（必須）
+  if (!ocrData.isDelivered) {
+    await pushMessage(lineUserId, [
+      {
+        type: "text",
+        text: `❌ この注文はまだ「配達済み」になっていません。\n\nポイント申請は商品が配達された後に行ってください。\n\nℹ️ スクリーンショットの撮り方：\n・「X月X日に配達」の表示が見えるように撮影\n・配達ステータスのプログレスバーが見えるように撮影\n・注文番号と合計金額も見えるように撮影`,
+      },
+    ]);
+    await updateLineReceiptStatus(receiptId, "rejected", 0, "自動拒否: 配達済みステータスではない");
+    return;
+  }
+  
+  // 3. 注文番号と金額の確認
+  if (!ocrData.orderNumber || !ocrData.totalAmount) {
+    await pushMessage(lineUserId, [
+      {
+        type: "text",
+        text: `⚠️ 注文情報を読み取れませんでした。\n\n以下を確認して再送信してください：\n・注文番号が見えるか\n・合計金額が見えるか\n・画像が鮮明か`,
+      },
+    ]);
+    return;
+  }
+  
+  // Calculate points (1% return)
+  const pointsCalculated = Math.floor(ocrData.totalAmount * 0.01);
+  
+  // Update receipt with OCR data
+  await updateLineReceiptOcr(receiptId, {
+    storeName: ocrData.shopName || "TikTok Shop",
+    purchaseDate: ocrData.orderDate ? new Date(ocrData.orderDate) : undefined,
+    totalAmount: ocrData.totalAmount,
+    currency: "JPY",
+    ocrRawText: JSON.stringify({
+      orderNumber: ocrData.orderNumber,
+      shopName: ocrData.shopName,
+      productName: ocrData.productName,
+      isDelivered: ocrData.isDelivered,
+      imageCount: imageUrls.length,
+    }),
+    ocrConfidence: "high",
+    pointsCalculated,
+  });
+  
+  // Run fraud detection
+  const fraudFlags: string[] = [];
+  let fraudScore = 0;
+  
+  // Check for expired order (older than 30 days for TikTok Shop)
+  if (ocrData.orderDate) {
+    const orderDate = new Date(ocrData.orderDate);
+    const daysSinceOrder = (Date.now() - orderDate.getTime()) / (1000 * 60 * 60 * 24);
+    if (daysSinceOrder > 30) {
+      fraudFlags.push("expired_order");
+      fraudScore += 50;
+      await createLineFraudDetectionLog({
+        receiptId,
+        lineUserId,
+        checkType: "expired_receipt",
+        detected: true,
+        severity: "high",
+        details: `注文日から${Math.floor(daysSinceOrder)}日経過（30日以内のみ有効）`,
+      });
+    }
+  }
+  
+  // Check for duplicate order number across ALL users (global check)
+  if (ocrData.orderNumber) {
+    const duplicateOrder = await checkDuplicateOrderNumberGlobal(
+      ocrData.orderNumber,
+      receiptId
+    );
+    if (duplicateOrder) {
+      // 全ユーザー間で重複が見つかった
+      const isSameUser = duplicateOrder.lineUserId === lineUserId;
+      fraudFlags.push("duplicate_order");
+      fraudScore += 100; // 同じ注文番号は完全に重複
+      await createLineFraudDetectionLog({
+        receiptId,
+        lineUserId,
+        checkType: "duplicate_receipt",
+        detected: true,
+        severity: "high",
+        details: isSameUser 
+          ? `あなたは既にこの注文でポイント申請済みです: ${ocrData.orderNumber}`
+          : `この注文番号は他のユーザーが既に申請済みです: ${ocrData.orderNumber}`,
+        relatedReceiptId: duplicateOrder.id,
+      });
+      
+      // 即座に拒否してユーザーに通知
+      await updateLineReceiptStatus(receiptId, "rejected", 0, 
+        isSameUser 
+          ? "自動拒否: 同じ注文番号での重複申請"
+          : "自動拒否: 他ユーザーが既に申請済みの注文番号"
+      );
+      
+      await pushMessage(lineUserId, [
+        {
+          type: "text",
+          text: isSameUser
+            ? `❌ この注文は既にポイント申請済みです。\n\n注文番号: ${ocrData.orderNumber}\n\n同じ注文での重複申請はできません。`
+            : `❌ この注文番号は既に他の方が申請済みです。\n\n注文番号: ${ocrData.orderNumber}\n\n同じ注文での重複申請はできません。\nご自身の注文詳細画面を送信してください。`,
+        },
+      ]);
+      return; // 重複の場合はここで終了
+    }
+  }
+  
+  // Check for unusually high amount (over 100,000 JPY)
+  if (ocrData.totalAmount > 100000) {
+    fraudFlags.push("high_amount");
+    fraudScore += 20;
+    await createLineFraudDetectionLog({
+      receiptId,
+      lineUserId,
+      checkType: "high_amount",
+      detected: true,
+      severity: "low",
+      details: `高額購入: ￥${ocrData.totalAmount.toLocaleString()}`,
+    });
+  }
+  
+  // Update fraud flags
+  if (fraudFlags.length > 0) {
+    await updateLineReceiptFraudFlags(receiptId, fraudFlags, fraudScore);
+    
+    // Auto-hold if fraud score is high
+    if (fraudScore >= 50) {
+      await updateLineReceiptStatus(receiptId, "on_hold", 0, "自動保留: 不正検知スコアが高いため");
+    }
+  }
+  
+  console.log(`[LINE Agent] TikTok Shop OCR completed for ${receiptId}:`, {
+    orderNumber: ocrData.orderNumber,
+    shopName: ocrData.shopName,
+    totalAmount: ocrData.totalAmount,
+    pointsCalculated,
+    fraudScore,
+    imageCount: imageUrls.length,
+  });
+  
+  // Send OCR completion notification to user
+  try {
+    if (fraudScore >= 100) {
+      // Duplicate order - already handled above
+    } else if (fraudScore >= 50) {
+      // High fraud score - notify user about hold status
+      const holdReasons: string[] = [];
+      if (fraudFlags.includes("expired_order")) {
+        holdReasons.push("・注文日から30日以上経過しています");
+      }
+      await pushMessage(lineUserId, [
+        {
+          type: "text",
+          text: `⚠️ 注文を確認中です\n\n以下の理由で保留となりました：\n${holdReasons.join("\n")}\n\nスタッフが確認後、結果をお知らせします。`,
+        },
+      ]);
+    } else {
+      // Successful OCR - notify user with extracted info
+      const imageCountText = imageUrls.length > 1 ? `（${imageUrls.length}枚の画像から統合）` : "";
+      await pushMessage(lineUserId, [
+        {
+          type: "text",
+          text: `✅ 注文の確認が完了しました！${imageCountText}\n\n📝 注文番号: ${ocrData.orderNumber}\n🏪 ショップ: ${ocrData.shopName || "TikTok Shop"}\n📦 商品: ${ocrData.productName || "不明"}\n💰 購入金額: ￥${ocrData.totalAmount.toLocaleString()}\n⭐ 獲得予定ポイント: ${pointsCalculated}pt\n\nスタッフが確認後、ポイントが付与されます。`,
+        },
+      ]);
+    }
+  } catch (notifyError) {
+    console.error("[LINE Agent] Failed to send OCR completion notification:", notifyError);
+  }
+}
+
+/**
+ * Process receipt OCR analysis (runs asynchronously) - Single image version
+ * @deprecated Use processMultipleImagesOcr instead
  */
 async function processReceiptOcr(
   receiptId: number,

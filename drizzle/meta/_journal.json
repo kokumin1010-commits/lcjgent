@@ -533,6 +533,13 @@
       "when": 1770120064262,
       "tag": "0075_handy_lady_ursula",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "5",
+      "when": 1770136882598,
+      "tag": "0076_wonderful_shadowcat",
+      "breakpoints": true
     }
   ]
 }
