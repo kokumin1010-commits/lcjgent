@@ -516,13 +516,13 @@ export const lineLoginRouter = router({
         displayName: profile.displayName,
         pictureUrl: profile.pictureUrl,
         createdAt: Date.now(),
-        expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
+        expiresAt: Date.now() + 3650 * 24 * 60 * 60 * 1000, // 10 years for persistent login
       };
       
-      // Set session cookie
+      // Set session cookie (10 years for persistent login)
       ctx.res.cookie("line_session", JSON.stringify(sessionData), {
         ...getSessionCookieOptions(ctx.req),
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        maxAge: 3650 * 24 * 60 * 60 * 1000, // 10 years for persistent login
       });
       
       return {
@@ -653,16 +653,16 @@ export const lineLoginRouter = router({
         displayName: profile.displayName,
         pictureUrl: profile.pictureUrl,
         createdAt: Date.now(),
-        expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
+        expiresAt: Date.now() + 3650 * 24 * 60 * 60 * 1000, // 10 years for persistent login
       };
       
       // Create session token for localStorage fallback
       const sessionToken = Buffer.from(JSON.stringify(sessionData)).toString('base64');
       
-      // Set session cookie
+      // Set session cookie (10 years for persistent login)
       ctx.res.cookie("line_session", JSON.stringify(sessionData), {
         ...getSessionCookieOptions(ctx.req),
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        maxAge: 3650 * 24 * 60 * 60 * 1000, // 10 years for persistent login
       });
       
       return {
@@ -744,7 +744,7 @@ export const lineLoginRouter = router({
         pictureUrl: user.pictureUrl,
         email: user.email,
         createdAt: Date.now(),
-        expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
+        expiresAt: Date.now() + 3650 * 24 * 60 * 60 * 1000, // 10 years for persistent login
       };
       
       // Create session token for localStorage fallback
@@ -752,7 +752,7 @@ export const lineLoginRouter = router({
       
       ctx.res.cookie("line_session", JSON.stringify(sessionData), {
         ...getSessionCookieOptions(ctx.req),
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        maxAge: 3650 * 24 * 60 * 60 * 1000, // 10 years for persistent login
       });
       
       return {

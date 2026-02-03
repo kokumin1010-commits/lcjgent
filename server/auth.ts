@@ -67,19 +67,19 @@ export const authRouter = router({
 
       await updateUserLastSignedIn(user.id);
 
-      // Create JWT token
+      // Create JWT token (10 years expiration for persistent login)
       const secret = new TextEncoder().encode(ENV.cookieSecret);
       const token = await new SignJWT({ userId: user.id })
         .setProtectedHeader({ alg: "HS256" })
         .setIssuedAt()
-        .setExpirationTime("30d") // 30 days session
+        .setExpirationTime("3650d") // 10 years session for persistent login
         .sign(secret);
 
       // Set cookie
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.cookie(COOKIE_NAME, token, {
         ...cookieOptions,
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days in milliseconds
+        maxAge: 3650 * 24 * 60 * 60 * 1000, // 10 years in milliseconds
       });
 
       return {
