@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Video, Calendar, DollarSign, Clock, X, Link as LinkIcon, Camera, Sparkles, Loader2, Lightbulb, Users, MousePointer, ShoppingCart } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { ArrowLeft, Video, Calendar, DollarSign, Clock, X, Link as LinkIcon, Camera, Sparkles, Loader2, Lightbulb, Users, MousePointer, ShoppingCart, CheckCircle, Eye } from "lucide-react";
 import { toast } from "sonner";
 
 export default function LiverSelfRecord() {
@@ -72,6 +73,7 @@ export default function LiverSelfRecord() {
   const [isGeneratingAdvice, setIsGeneratingAdvice] = useState(false);
   const [advice, setAdvice] = useState<string | null>(null);
   const [analysisConfidence, setAnalysisConfidence] = useState<string | null>(null);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   
   const [analyzedData, setAnalyzedData] = useState<{
     salesAmount?: number | null;
@@ -186,6 +188,12 @@ export default function LiverSelfRecord() {
     saveError: "保存に失敗しました",
     scheduleLink: "スケジュールから記録",
     editableHint: "解析データは編集可能です",
+    confirmTitle: "保存内容の確認",
+    confirmDescription: "以下の内容で配信記録を保存します。よろしいですか？",
+    confirmSave: "保存する",
+    confirmCancel: "キャンセル",
+    previewButton: "内容を確認して保存",
+    notSet: "未設定",
   };
 
   const handleScreenshotChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -919,22 +927,205 @@ export default function LiverSelfRecord() {
             </CardContent>
           </Card>
 
-          {/* Submit Button */}
+          {/* Submit Button - Opens Confirmation Dialog */}
           <Button
-            type="submit"
+            type="button"
+            onClick={() => {
+              // Validate before showing dialog
+              if (!formData.brandId) {
+                toast.error(tr.selectBrandError);
+                return;
+              }
+              if (!formData.livestreamDate || !formData.livestreamStartTime) {
+                toast.error(tr.enterDateTimeError);
+                return;
+              }
+              setShowConfirmDialog(true);
+            }}
             disabled={isSubmitting}
             className="w-full bg-red-600 hover:bg-red-700 text-white py-6 text-lg font-bold"
           >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                {tr.saving}
-              </>
-            ) : (
-              tr.save
-            )}
+            <Eye className="w-5 h-5 mr-2" />
+            {tr.previewButton}
           </Button>
         </form>
+
+        {/* Confirmation Dialog */}
+        <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+          <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-md max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-yellow-500 flex items-center gap-2">
+                <CheckCircle className="w-5 h-5" />
+                {tr.confirmTitle}
+              </DialogTitle>
+              <DialogDescription className="text-gray-400">
+                {tr.confirmDescription}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4 py-4">
+              {/* Brand */}
+              <div className="flex justify-between items-center py-2 border-b border-gray-700">
+                <span className="text-gray-400">{tr.selectBrand}</span>
+                <span className="text-white font-medium">
+                  {brands?.find(b => b.id.toString() === formData.brandId)?.name || tr.notSet}
+                </span>
+              </div>
+              
+              {/* Date & Time */}
+              <div className="flex justify-between items-center py-2 border-b border-gray-700">
+                <span className="text-gray-400">{tr.livestreamDate}</span>
+                <span className="text-white font-medium">
+                  {formData.livestreamDate || tr.notSet}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-gray-700">
+                <span className="text-gray-400">{tr.startTime}</span>
+                <span className="text-white font-medium">
+                  {formData.livestreamStartTime || tr.notSet}
+                </span>
+              </div>
+              {formData.livestreamEndTime && (
+                <div className="flex justify-between items-center py-2 border-b border-gray-700">
+                  <span className="text-gray-400">{tr.endTime}</span>
+                  <span className="text-white font-medium">
+                    {formData.livestreamEndTime}
+                  </span>
+                </div>
+              )}
+              
+              {/* AI Analysis Data */}
+              {formData.salesAmount && (
+                <div className="flex justify-between items-center py-2 border-b border-gray-700">
+                  <span className="text-gray-400 flex items-center gap-2">
+                    <DollarSign className="w-4 h-4 text-green-500" />
+                    {tr.salesAmount}
+                  </span>
+                  <span className="text-green-400 font-bold">
+                    ¥{parseInt(formData.salesAmount).toLocaleString()}
+                  </span>
+                </div>
+              )}
+              {formData.viewerCount && (
+                <div className="flex justify-between items-center py-2 border-b border-gray-700">
+                  <span className="text-gray-400 flex items-center gap-2">
+                    <Users className="w-4 h-4 text-blue-500" />
+                    {tr.viewerCount}
+                  </span>
+                  <span className="text-white font-medium">
+                    {parseInt(formData.viewerCount).toLocaleString()}
+                  </span>
+                </div>
+              )}
+              {formData.peakViewerCount && (
+                <div className="flex justify-between items-center py-2 border-b border-gray-700">
+                  <span className="text-gray-400 flex items-center gap-2">
+                    <Users className="w-4 h-4 text-cyan-500" />
+                    {tr.peakViewerCount}
+                  </span>
+                  <span className="text-white font-medium">
+                    {parseInt(formData.peakViewerCount).toLocaleString()}
+                  </span>
+                </div>
+              )}
+              {formData.durationMinutes && (
+                <div className="flex justify-between items-center py-2 border-b border-gray-700">
+                  <span className="text-gray-400 flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-orange-500" />
+                    {tr.durationMinutes}
+                  </span>
+                  <span className="text-white font-medium">
+                    {formData.durationMinutes} {tr.minutes}
+                  </span>
+                </div>
+              )}
+              {formData.productClicks && (
+                <div className="flex justify-between items-center py-2 border-b border-gray-700">
+                  <span className="text-gray-400 flex items-center gap-2">
+                    <MousePointer className="w-4 h-4 text-yellow-500" />
+                    {tr.productClicks}
+                  </span>
+                  <span className="text-white font-medium">
+                    {parseInt(formData.productClicks).toLocaleString()}
+                  </span>
+                </div>
+              )}
+              {formData.orderCount && (
+                <div className="flex justify-between items-center py-2 border-b border-gray-700">
+                  <span className="text-gray-400 flex items-center gap-2">
+                    <ShoppingCart className="w-4 h-4 text-pink-500" />
+                    {tr.orderCount}
+                  </span>
+                  <span className="text-white font-medium">
+                    {parseInt(formData.orderCount).toLocaleString()}
+                  </span>
+                </div>
+              )}
+              
+              {/* Result */}
+              {formData.result && (
+                <div className="flex justify-between items-center py-2 border-b border-gray-700">
+                  <span className="text-gray-400">{tr.result}</span>
+                  <span className={`font-medium ${formData.result === '成功' ? 'text-green-400' : 'text-red-400'}`}>
+                    {formData.result}
+                  </span>
+                </div>
+              )}
+              
+              {/* Impact Factor */}
+              {formData.impactFactor && (
+                <div className="flex justify-between items-center py-2 border-b border-gray-700">
+                  <span className="text-gray-400">{tr.impactFactor}</span>
+                  <span className="text-white font-medium">
+                    {formData.impactFactor}
+                  </span>
+                </div>
+              )}
+              
+              {/* Reason Memo */}
+              {formData.resultReason && (
+                <div className="py-2 border-b border-gray-700">
+                  <span className="text-gray-400 block mb-1">{tr.reasonMemo}</span>
+                  <p className="text-white text-sm bg-gray-800 p-2 rounded">
+                    {formData.resultReason}
+                  </p>
+                </div>
+              )}
+            </div>
+            
+            <DialogFooter className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowConfirmDialog(false)}
+                className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-800"
+              >
+                {tr.confirmCancel}
+              </Button>
+              <Button
+                type="button"
+                onClick={(e) => {
+                  setShowConfirmDialog(false);
+                  handleSubmit(e as unknown as React.FormEvent);
+                }}
+                disabled={isSubmitting}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    {tr.saving}
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    {tr.confirmSave}
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

@@ -161,11 +161,23 @@ export default function LiverProfile() {
   const [, navigate] = useLocation();
   const utils = trpc.useUtils();
   
-  const { data: liverInfo, isLoading, isError: isLiverError } = trpc.liver.me.useQuery(undefined, {
-    staleTime: 5 * 60 * 1000, // 5 minutes
+  const { data: liverInfo, isLoading, isError: isLiverError, isFetching } = trpc.liver.me.useQuery(undefined, {
+    staleTime: 30 * 60 * 1000, // 30 minutes - longer cache to prevent refetch during operations
+    gcTime: 60 * 60 * 1000, // 1 hour - keep in cache longer
     refetchOnWindowFocus: false,
+    refetchOnMount: false, // Don't refetch when component mounts if data exists
+    refetchOnReconnect: false, // Don't refetch on reconnect
     retry: 1,
   });
+  
+  // Track if we've successfully loaded liver info at least once
+  const [hasLoadedLiver, setHasLoadedLiver] = useState(false);
+  
+  useEffect(() => {
+    if (liverInfo && !hasLoadedLiver) {
+      setHasLoadedLiver(true);
+    }
+  }, [liverInfo, hasLoadedLiver]);
   
   const [name, setName] = useState("");
   const [color, setColor] = useState("#FF69B4");
@@ -214,7 +226,8 @@ export default function LiverProfile() {
     });
   };
   
-  if (isLoading) {
+  // Only show loading on initial load, not during refetches
+  if (isLoading && !hasLoadedLiver) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" />
@@ -222,30 +235,33 @@ export default function LiverProfile() {
     );
   }
   
-  // Only show login prompt if there's an error after loading is complete
+  // Only show login prompt if we've never loaded liver info and current data is null
+  // This prevents redirecting during background refetches
+  if (!liverInfo && !hasLoadedLiver && !isLoading && !isFetching) {
+    // If there was an error OR liverInfo is null (not authenticated), show login prompt
+    return (
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4 p-4">
+        <p className="text-white text-center">ログインが必要です</p>
+        <Button
+          onClick={() => navigate("/liver/login")}
+          className="bg-red-600 hover:bg-red-700"
+        >
+          ログインページへ
+        </Button>
+      </div>
+    );
+  }
+  
+  // If liverInfo is null at this point, show a loading spinner
+  // This handles the edge case where hasLoadedLiver is true but liverInfo became null
   if (!liverInfo) {
-    // If there was an error, show login prompt
-    if (isLiverError) {
-      return (
-        <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4 p-4">
-          <p className="text-white text-center">ログインが必要です</p>
-          <Button
-            onClick={() => navigate("/liver/login")}
-            className="bg-red-600 hover:bg-red-700"
-          >
-            ログインページへ
-          </Button>
-        </div>
-      );
-    }
-    // No error but no liverInfo - show loading
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
-  
+
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Header */}
