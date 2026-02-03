@@ -5381,6 +5381,21 @@ export async function updateLineReceiptStatus(
 }
 
 /**
+ * Delete a LINE receipt record
+ * Used when OCR analysis fails to clean up incomplete records
+ */
+export async function deleteLineReceipt(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db
+    .delete(lineReceipts)
+    .where(eq(lineReceipts.id, id));
+  
+  console.log(`[DB] Deleted LINE receipt ${id}`);
+}
+
+/**
  * Award points for an approved LINE receipt
  */
 export async function awardPointsForLineReceipt(receiptId: number, points: number) {

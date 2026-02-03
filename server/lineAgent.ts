@@ -1685,6 +1685,12 @@ async function processMultipleImagesOcr(userId: string): Promise<void> {
     ]);
     
     // Build image content array for LLM
+    // Log image sizes for debugging
+    images.forEach((img, index) => {
+      const base64Size = Math.ceil(img.data.length * 4 / 3);
+      console.log(`[LINE Agent] Image ${index + 1}: ${img.contentType}, original size: ${(img.data.length / 1024).toFixed(2)}KB, base64 size: ${(base64Size / 1024).toFixed(2)}KB`);
+    });
+    
     const imageContents = images.map((img, index) => ({
       type: "image_url" as const,
       image_url: {
@@ -1693,6 +1699,7 @@ async function processMultipleImagesOcr(userId: string): Promise<void> {
     }));
     
     // Run OCR analysis with LLM - Multiple images
+    console.log(`[LINE Agent] Calling LLM for OCR analysis with ${images.length} images...`);
     const ocrResult = await invokeLLM({
       messages: [
         {
@@ -1757,7 +1764,17 @@ async function processMultipleImagesOcr(userId: string): Promise<void> {
       },
     });
     
+    console.log(`[LINE Agent] LLM response received for multi-image OCR`);
+    console.log(`[LINE Agent] LLM response choices count:`, ocrResult.choices?.length || 0);
+    
+    if (!ocrResult.choices || ocrResult.choices.length === 0) {
+      throw new Error("LLM returned no choices for multi-image OCR");
+    }
+    
     const messageContent = ocrResult.choices[0].message.content;
+    console.log(`[LINE Agent] LLM message content type:`, typeof messageContent);
+    console.log(`[LINE Agent] LLM raw message content:`, messageContent);
+    
     const ocrData = JSON.parse(typeof messageContent === "string" ? messageContent : "{}");
     
     console.log(`[LINE Agent] Multi-image OCR result:`, ocrData);
@@ -1773,6 +1790,19 @@ async function processMultipleImagesOcr(userId: string): Promise<void> {
     
   } catch (error) {
     console.error("[LINE Agent] Multi-image OCR analysis failed:", error);
+    console.error("[LINE Agent] Error details:", error instanceof Error ? error.message : String(error));
+    console.error("[LINE Agent] Error stack:", error instanceof Error ? error.stack : "No stack trace");
+    
+    // Delete the failed receipt record to allow re-submission
+    if (receiptId) {
+      try {
+        const { deleteLineReceipt } = await import("./db");
+        await deleteLineReceipt(receiptId);
+        console.log(`[LINE Agent] Deleted failed receipt record ${receiptId}`);
+      } catch (deleteError) {
+        console.error("[LINE Agent] Failed to delete receipt record:", deleteError);
+      }
+    }
     
     try {
       const { pushMessage } = await import("./line");

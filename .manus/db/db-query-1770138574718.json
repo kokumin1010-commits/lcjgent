@@ -1,0 +1,58 @@
+{
+  "query": "SELECT id, status, ocrRawText, createdAt FROM line_receipts WHERE status = 'pending' ORDER BY id DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, status, ocrRawText, createdAt FROM line_receipts WHERE status = 'pending' ORDER BY id DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "60004",
+      "status": "pending",
+      "ocrRawText": "NULL",
+      "createdAt": "2026-02-03 17:07:56"
+    },
+    {
+      "id": "60003",
+      "status": "pending",
+      "ocrRawText": "NULL",
+      "createdAt": "2026-02-03 17:01:02"
+    },
+    {
+      "id": "60001",
+      "status": "pending",
+      "ocrRawText": "NULL",
+      "createdAt": "2026-02-03 15:47:55"
+    },
+    {
+      "id": "30002",
+      "status": "pending",
+      "ocrRawText": "NULL",
+      "createdAt": "2026-02-02 04:42:55"
+    },
+    {
+      "id": "30001",
+      "status": "pending",
+      "ocrRawText": "NULL",
+      "createdAt": "2026-02-02 04:42:54"
+    },
+    {
+      "id": "3",
+      "status": "pending",
+      "ocrRawText": "NULL",
+      "createdAt": "2026-02-01 08:29:00"
+    },
+    {
+      "id": "2",
+      "status": "pending",
+      "ocrRawText": "NULL",
+      "createdAt": "2026-02-01 08:26:52"
+    },
+    {
+      "id": "1",
+      "status": "pending",
+      "ocrRawText": "NULL",
+      "createdAt": "2026-02-01 08:25:48"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tstatus\tocrRawText\tcreatedAt\n60004\tpending\tNULL\t2026-02-03 17:07:56\n60003\tpending\tNULL\t2026-02-03 17:01:02\n60001\tpending\tNULL\t2026-02-03 15:47:55\n30002\tpending\tNULL\t2026-02-02 04:42:55\n30001\tpending\tNULL\t2026-02-02 04:42:54\n3\tpending\tNULL\t2026-02-01 08:29:00\n2\tpending\tNULL\t2026-02-01 08:26:52\n1\tpending\tNULL\t2026-02-01 08:25:48\n",
+  "stderr": "",
+  "execution_time_ms": 1542
+}
