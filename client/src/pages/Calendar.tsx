@@ -31,7 +31,9 @@ import {
   User,
   Trash2,
   Edit,
+  Settings,
 } from "lucide-react";
+import { useLocation } from "wouter";
 
 type Schedule = {
   id: number;
@@ -81,6 +83,7 @@ const categoryLabels: Record<string, string> = {
 };
 
 export default function CalendarPage() {
+  const [, navigate] = useLocation();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -286,13 +289,18 @@ export default function CalendarPage() {
             <h1 className="text-2xl font-bold">カレンダー</h1>
             <p className="text-muted-foreground">スケジュール管理</p>
           </div>
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={() => { resetForm(); setSelectedDate(null); }}>
-                <Plus className="mr-2 h-4 w-4" />
-                予定を追加
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate("/master/schedule-groups")}>
+              <Settings className="mr-2 h-4 w-4" />
+              グループ管理
+            </Button>
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={() => { resetForm(); setSelectedDate(null); }}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  予定を追加
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader>
                 <DialogTitle>
@@ -418,7 +426,8 @@ export default function CalendarPage() {
                 </div>
               </form>
             </DialogContent>
-          </Dialog>
+            </Dialog>
+          </div>
         </div>
 
         {/* Calendar Navigation */}

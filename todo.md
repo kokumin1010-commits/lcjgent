@@ -3284,3 +3284,9 @@
 - [x] schedule.getByIdをpublicProcedureに変更
 - [x] csvImportルーター（importLivestreams, getImported, getImportHistory, deleteImportHistory）をpublicProcedureに変更
 - [x] マイページ、プロフィール編集ページの動作確認
+
+
+## 管理画面からスケジュールグループ管理へのアクセス
+- [x] カレンダーページにスケジュールグループ管理へのリンクを追加
+- [x] 管理画面からスケジュールグループの名前変更・追加機能を確認
+- [x] 動作確認テスト
