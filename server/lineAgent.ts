@@ -1695,6 +1695,7 @@ async function processMultipleImagesOcr(userId: string): Promise<void> {
       type: "image_url" as const,
       image_url: {
         url: `data:${img.contentType};base64,${img.data.toString("base64")}`,
+        detail: "high" as const,
       },
     }));
     
@@ -1706,29 +1707,39 @@ async function processMultipleImagesOcr(userId: string): Promise<void> {
           role: "system",
           content: `あなたはTikTok Shopの注文詳細画面の複数のスクリーンショットを解析するAIです。
 ユーザーは同じ注文の異なる部分を撮影した複数のスクリーンショットを送信しています。
-すべての画像から情報を統合して、以下の情報を抽出してJSON形式で返してください。
+すべての画像を注意深く確認し、情報を統合してJSON形式で返してください。
 
-1. isTikTokShop: これがTikTok Shopの注文詳細画面かどうか（true/false）
-   - TikTok Shop、注文詳細、注文番号、商品価格の小計、合計金額などの表記があれはtrue
-2. isDelivered: 商品が配達済みかどうか（true/false）
-   重要：いずれかの画像で以下のいずれかが見つかればtrueを返す：
-   - 「X月X日に配達」（例：「1月28日に配達」）
+## 抽出する情報
+
+1. **isTikTokShop** (true/false): TikTok Shopの注文詳細画面かどうか
+   - 「注文詳細」「注文番号」「合計金額」「配達済み」などの表記があればtrue
+
+2. **isDelivered** (true/false): 商品が配達済みかどうか
+   ※これが最も重要です。以下のいずれかが見つかれば必ずtrueを返してください：
+   - 「○月○日に配達」というテキスト（例：「1月28日に配達」）
    - 「お荷物が最終目的地に到着しました」
-   - 「配達済み」ステータス（プログレスバーの最後のステップ）
-   - 「已签收」「Delivered」
-   - 配達ステータスのプログレスバーで「配達済み」がハイライトされている
-3. orderNumber: 注文番号（17桁程度の数字）
-4. totalAmount: 合計金額（数値のみ、通貨記号なし）
+   - プログレスバーで「配達済み」がアクティブ（ハイライトされている）
+   - 「配達済み」「Delivered」「已签收」のテキスト
+   - 配達ステータスのプログレスバーが最後まで進んでいる
+
+3. **orderNumber**: 注文番号（17-18桁の数字）
+   - 「注文番号」の横に表示されている数字
+
+4. **totalAmount**: 合計金額（数値のみ、円記号なし）
    - 「合計金額（税込）」の値を探す
-5. orderDate: 注文日時（YYYY-MM-DD HH:mm形式）
-6. shopName: ショップ名（例: KYOGOKU JAPAN）
-7. productName: 商品名
+   - 例: "6,864円" → 6864
 
-重要：複数の画像から情報を統合してください。
-例えば、1枚目に配達ステータスがあり、2枚目に注文番号と金額がある場合、
-両方の情報を統合して返してください。
+5. **orderDate**: 注文日時（YYYY-MM-DD HH:mm形式、不明ならnull）
 
-抽出できない項目はnullを返してください。`,
+6. **shopName**: ショップ名（例: "KYOGOKU JAPAN"）
+
+7. **productName**: 商品名
+
+## 重要な注意事項
+- 複数の画像から情報を統合してください
+- 1枚目に配達ステータス、2枚目に注文番号と金額がある場合、両方を統合
+- 抽出できない項目はnullを返す
+- JSONのみを返してください（説明文は不要）`,
         },
         {
           role: "user",
