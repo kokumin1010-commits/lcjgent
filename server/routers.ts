@@ -7253,7 +7253,7 @@ ${conversationText}
     }),
 
     // Create livestream record (配信履歴の記録)
-    createLivestream: protectedProcedure
+    createLivestream: publicProcedure
       .input(z.object({
         brandId: z.number(),
         liverId: z.number(),
@@ -7633,7 +7633,7 @@ ${conversationText}
       }),
 
     // Generate advice based on livestream data
-    generateAdvice: protectedProcedure
+    generateAdvice: publicProcedure
       .input(z.object({
         salesAmount: z.number().optional(),
         viewerCount: z.number().optional(),

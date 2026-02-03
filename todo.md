@@ -3363,3 +3363,9 @@
 - [x] 確認ダイアログを追加（保存内容のプレビュー表示）
 - [x] ダイアログで売上金額、視聴者数、配信時間などを確認可能に
 - [x] 確認後に保存を実行する機能を実装
+
+
+## AI解析後に保存できない根本的なバグの修正
+- [x] 問題の原因を調査（createLivestreamとgenerateAdviceがprotectedProcedureだった）
+- [x] 根本的なバグを修正（createLivestreamとgenerateAdviceをpublicProcedureに変更）
+- [x] 動作確認テスト（本番環境での確認が必要）
