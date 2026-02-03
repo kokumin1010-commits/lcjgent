@@ -826,6 +826,7 @@ export default function BrandDetail() {
   const [aiImagePreview, setAiImagePreview] = useState<string | null>(null);
   const [isAiProcessing, setIsAiProcessing] = useState(false);
   const [extractedProductData, setExtractedProductData] = useState<any>(null);
+  const [aiSelectedLiverIds, setAiSelectedLiverIds] = useState<number[]>([]);
   const aiImageInputRef = useRef<HTMLInputElement>(null);
 
   const brandId = parseInt(id || "0");
@@ -4559,6 +4560,7 @@ ${proposal.proposalContent}
           setAiImageFile(null);
           setAiImagePreview(null);
           setExtractedProductData(null);
+          setAiSelectedLiverIds([]);
         }
       }}>
         <DialogContent className="bg-black/95 border-red-900/50 text-white backdrop-blur-xl max-w-2xl">
@@ -4862,6 +4864,50 @@ ${proposal.proposalContent}
                         rows={3}
                       />
                     </div>
+                    
+                    {/* 担当ライバー選択 */}
+                    <div>
+                      <Label className="text-gray-400">{language === 'ja' ? '担当ライバー' : '负责主播'}</Label>
+                      <div className="mt-2 max-h-40 overflow-y-auto border border-purple-500/30 rounded-lg p-3 bg-black/40">
+                        {allLivers.length === 0 ? (
+                          <p className="text-gray-500 text-sm">{language === 'ja' ? 'ライバーが登録されていません' : '没有注册的主播'}</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {allLivers.map((liver) => (
+                              <label key={liver.id} className="flex items-center gap-3 cursor-pointer hover:bg-purple-900/20 p-2 rounded-lg transition-colors">
+                                <input
+                                  type="checkbox"
+                                  checked={aiSelectedLiverIds.includes(liver.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setAiSelectedLiverIds([...aiSelectedLiverIds, liver.id]);
+                                    } else {
+                                      setAiSelectedLiverIds(aiSelectedLiverIds.filter(id => id !== liver.id));
+                                    }
+                                  }}
+                                  className="w-4 h-4 rounded border-purple-500/50 bg-black/60 text-purple-500 focus:ring-purple-500"
+                                />
+                                <div className="flex items-center gap-2">
+                                  {liver.avatarUrl ? (
+                                    <img src={liver.avatarUrl} alt={liver.name} className="w-6 h-6 rounded-full object-cover" />
+                                  ) : (
+                                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold">
+                                      {liver.name?.charAt(0) || '?'}
+                                    </div>
+                                  )}
+                                  <span className="text-white text-sm">{liver.name}</span>
+                                </div>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {aiSelectedLiverIds.length > 0 && (
+                        <p className="text-purple-400 text-xs mt-1">
+                          {aiSelectedLiverIds.length}{language === 'ja' ? '名選択中' : '人已选择'}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -4875,6 +4921,7 @@ ${proposal.proposalContent}
                 setAiImageFile(null);
                 setAiImagePreview(null);
                 setExtractedProductData(null);
+                setAiSelectedLiverIds([]);
               }}
               className="border-red-500/50 bg-red-950/50 text-gray-200 hover:bg-red-900/40 hover:text-white hover:border-red-400/70"
             >
@@ -4901,11 +4948,13 @@ ${proposal.proposalContent}
                       targetAudience: extractedProductData.targetAudience || '',
                       usageMethod: extractedProductData.usageMethod || '',
                       imageUrls: extractedProductData.imageUrl ? [extractedProductData.imageUrl] : [],
+                      liverIds: aiSelectedLiverIds,
                     });
                     setAiImageAddDialogOpen(false);
                     setAiImageFile(null);
                     setAiImagePreview(null);
                     setExtractedProductData(null);
+                    setAiSelectedLiverIds([]);
                   }
                 }}
                 disabled={!extractedProductData.productName}
