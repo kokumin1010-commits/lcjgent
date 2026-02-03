@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar, ArrowLeft, Sparkles } from "lucide-react";
-import { setLiverToken, getLiverToken } from "@/lib/liverAuth";
+import { setLiverToken, getLiverToken, clearLiverToken } from "@/lib/liverAuth";
 
 export default function LiverLogin() {
   const [, navigate] = useLocation();
@@ -17,30 +17,55 @@ export default function LiverLogin() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Check if already logged in
+  const hasToken = !!getLiverToken();
   const meQuery = trpc.liver.me.useQuery(undefined, {
-    enabled: !!getLiverToken() && !isLoggingIn,
+    enabled: hasToken && !isLoggingIn,
     retry: false,
+    staleTime: 0,
   });
 
+  // Handle auth check completion
   useEffect(() => {
-    // Don't redirect if we're in the middle of logging in
+    // Don't process if we're in the middle of logging in
     if (isLoggingIn) return;
     
     const token = getLiverToken();
-    if (token && meQuery.data) {
-      // Already logged in, redirect to mypage
+    
+    // No token - stop checking immediately
+    if (!token) {
+      setIsCheckingAuth(false);
+      return;
+    }
+    
+    // Token exists - wait for query to complete
+    if (meQuery.isLoading) {
+      return; // Still loading, keep checking
+    }
+    
+    // Query completed
+    if (meQuery.data) {
+      // Valid session - redirect to mypage
       navigate("/liver/mypage");
-    } else if (!token || meQuery.isError) {
+    } else {
+      // Invalid or expired token - clear it and show login form
+      if (meQuery.isError || meQuery.data === null) {
+        clearLiverToken();
+      }
       setIsCheckingAuth(false);
     }
-  }, [meQuery.data, meQuery.isError, navigate, isLoggingIn]);
+  }, [meQuery.isLoading, meQuery.data, meQuery.isError, navigate, isLoggingIn]);
 
+  // Timeout fallback - if checking takes too long, show login form
   useEffect(() => {
-    // If no token, stop checking immediately
-    if (!getLiverToken()) {
-      setIsCheckingAuth(false);
-    }
-  }, []);
+    const timeout = setTimeout(() => {
+      if (isCheckingAuth && !isLoggingIn) {
+        console.log('Auth check timeout - showing login form');
+        setIsCheckingAuth(false);
+      }
+    }, 3000); // 3 second timeout
+    
+    return () => clearTimeout(timeout);
+  }, [isCheckingAuth, isLoggingIn]);
 
   const loginMutation = trpc.liver.login.useMutation();
 
