@@ -89,12 +89,12 @@ export const liverRouter = router({
         });
       }
 
-      // Generate JWT token
+      // Generate JWT token (10 years expiration for persistent login)
       const secret = new TextEncoder().encode(ENV.cookieSecret);
       const token = await new SignJWT({ liverId: liver.id, type: "liver" })
         .setProtectedHeader({ alg: "HS256" })
         .setIssuedAt()
-        .setExpirationTime("365d")
+        .setExpirationTime("3650d")
         .sign(secret);
 
       // Update last login
@@ -146,12 +146,12 @@ export const liverRouter = router({
         });
       }
 
-      // Generate JWT token
+      // Generate JWT token (10 years expiration for persistent login)
       const secret = new TextEncoder().encode(ENV.cookieSecret);
       const token = await new SignJWT({ liverId: liver.id, type: "liver" })
         .setProtectedHeader({ alg: "HS256" })
         .setIssuedAt()
-        .setExpirationTime("365d")
+        .setExpirationTime("3650d")
         .sign(secret);
 
       // Update last login
