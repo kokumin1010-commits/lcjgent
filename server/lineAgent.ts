@@ -1557,16 +1557,25 @@ async function processReceiptOcr(
   try {
     const base64Image = imageData.toString("base64");
     
-    // Run OCR analysis with LLM
+    // Run OCR analysis with LLM - TikTok Shop注文詳細画面専用
     const ocrResult = await invokeLLM({
       messages: [
         {
           role: "system",
-          content: `あなたはレシート画像を解析するAIです。以下の情報を抽出してJSON形式で返してください：
-- storeName: 店舗名
-- purchaseDate: 購入日時（YYYY-MM-DD HH:mm形式）
-- totalAmount: 合計金額（数値のみ、通貨記号なし）
-- currency: 通貨コード（JPY, CNY, USD等）
+          content: `あなたはTikTok Shopの注文詳細画面のスクリーンショットを解析するAIです。
+
+以下の情報を抽出してJSON形式で返してください：
+
+1. isTikTokShop: これがTikTok Shopの注文詳細画面かどうか（true/false）
+2. isDelivered: 「配達済み」ステータスが表示されているか（true/false）
+   - 「配達済み」「已签收」「Delivered」などの表記を探す
+   - 配達ステータスのプログレスバーで最後のステップが完了しているか確認
+3. orderNumber: 注文番号（17桁程度の数字）
+4. totalAmount: 合計金額（数値のみ、通貨記号なし）
+   - 「合計金額（税込）」の値を探す
+5. orderDate: 注文日時（YYYY-MM-DD HH:mm形式）
+6. shopName: ショップ名（例: KYOGOKU JAPAN）
+7. productName: 商品名
 
 抽出できない項目はnullを返してください。`,
         },
@@ -1581,7 +1590,7 @@ async function processReceiptOcr(
             },
             {
               type: "text",
-              text: "このレシート画像から情報を抽出してください。",
+              text: "この画像からTikTok Shopの注文情報を抽出してください。",
             },
           ],
         },
@@ -1589,19 +1598,20 @@ async function processReceiptOcr(
       response_format: {
         type: "json_schema",
         json_schema: {
-          name: "receipt_ocr",
+          name: "tiktok_shop_order",
           strict: true,
           schema: {
             type: "object",
             properties: {
-              storeName: { type: ["string", "null"] },
-              purchaseDate: { type: ["string", "null"] },
+              isTikTokShop: { type: "boolean" },
+              isDelivered: { type: "boolean" },
+              orderNumber: { type: ["string", "null"] },
               totalAmount: { type: ["number", "null"] },
-              currency: { type: ["string", "null"] },
-              rawText: { type: ["string", "null"] },
-              confidence: { type: ["number", "null"] },
+              orderDate: { type: ["string", "null"] },
+              shopName: { type: ["string", "null"] },
+              productName: { type: ["string", "null"] },
             },
-            required: ["storeName", "purchaseDate", "totalAmount", "currency", "rawText", "confidence"],
+            required: ["isTikTokShop", "isDelivered", "orderNumber", "totalAmount", "orderDate", "shopName", "productName"],
             additionalProperties: false,
           },
         },
@@ -1611,17 +1621,60 @@ async function processReceiptOcr(
     const messageContent = ocrResult.choices[0].message.content;
     const ocrData = JSON.parse(typeof messageContent === "string" ? messageContent : "{}");
     
+    // TikTok Shop注文詳細画面の検証
+    const { pushMessage } = await import("./line");
+    
+    // 1. TikTok Shopの注文詳細画面かどうか確認
+    if (!ocrData.isTikTokShop) {
+      await pushMessage(lineUserId, [
+        {
+          type: "text",
+          text: `❌ この画像はTikTok Shopの注文詳細画面ではありません。\n\nTikTok Shopアプリの注文履歴から、注文詳細画面のスクリーンショットを送信してください。`,
+        },
+      ]);
+      await updateLineReceiptStatus(receiptId, "rejected", 0, "自動拒否: TikTok Shopの注文詳細画面ではない");
+      return;
+    }
+    
+    // 2. 配達済みステータスの確認（必須）
+    if (!ocrData.isDelivered) {
+      await pushMessage(lineUserId, [
+        {
+          type: "text",
+          text: `❌ この注文はまだ「配達済み」になっていません。\n\nポイント申請は商品が配達された後に行ってください。\n配達完了後、再度スクリーンショットを送信してください。`,
+        },
+      ]);
+      await updateLineReceiptStatus(receiptId, "rejected", 0, "自動拒否: 配達済みステータスではない");
+      return;
+    }
+    
+    // 3. 注文番号と金額の確認
+    if (!ocrData.orderNumber || !ocrData.totalAmount) {
+      await pushMessage(lineUserId, [
+        {
+          type: "text",
+          text: `⚠️ 注文情報を読み取れませんでした。\n\n以下を確認して再送信してください：\n・注文番号が見えるか\n・合計金額が見えるか\n・画像が鮮明か`,
+        },
+      ]);
+      return;
+    }
+    
     // Calculate points (1% return)
-    const pointsCalculated = ocrData.totalAmount ? Math.floor(ocrData.totalAmount * 0.01) : undefined;
+    const pointsCalculated = Math.floor(ocrData.totalAmount * 0.01);
     
     // Update receipt with OCR data
     await updateLineReceiptOcr(receiptId, {
-      storeName: ocrData.storeName,
-      purchaseDate: ocrData.purchaseDate ? new Date(ocrData.purchaseDate) : undefined,
+      storeName: ocrData.shopName || "TikTok Shop",
+      purchaseDate: ocrData.orderDate ? new Date(ocrData.orderDate) : undefined,
       totalAmount: ocrData.totalAmount,
-      currency: ocrData.currency || "JPY",
-      ocrRawText: ocrData.rawText,
-      ocrConfidence: ocrData.confidence?.toString(),
+      currency: "JPY",
+      ocrRawText: JSON.stringify({
+        orderNumber: ocrData.orderNumber,
+        shopName: ocrData.shopName,
+        productName: ocrData.productName,
+        isDelivered: ocrData.isDelivered,
+      }),
+      ocrConfidence: "high",
       pointsCalculated,
     });
     
@@ -1629,12 +1682,12 @@ async function processReceiptOcr(
     const fraudFlags: string[] = [];
     let fraudScore = 0;
     
-    // Check for expired receipt (older than 7 days)
-    if (ocrData.purchaseDate) {
-      const purchaseDate = new Date(ocrData.purchaseDate);
-      const daysSincePurchase = (Date.now() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24);
-      if (daysSincePurchase > 7) {
-        fraudFlags.push("expired_receipt");
+    // Check for expired order (older than 30 days for TikTok Shop)
+    if (ocrData.orderDate) {
+      const orderDate = new Date(ocrData.orderDate);
+      const daysSinceOrder = (Date.now() - orderDate.getTime()) / (1000 * 60 * 60 * 24);
+      if (daysSinceOrder > 30) {
+        fraudFlags.push("expired_order");
         fraudScore += 50;
         await createLineFraudDetectionLog({
           receiptId,
@@ -1642,37 +1695,37 @@ async function processReceiptOcr(
           checkType: "expired_receipt",
           detected: true,
           severity: "high",
-          details: `購入日から${Math.floor(daysSincePurchase)}日経過（7日以内のみ有効）`,
+          details: `注文日から${Math.floor(daysSinceOrder)}日経過（30日以内のみ有効）`,
         });
       }
     }
     
-    // Check for duplicate receipt by details
-    if (ocrData.storeName && ocrData.purchaseDate && ocrData.totalAmount) {
+    // Check for duplicate order number
+    if (ocrData.orderNumber) {
       const duplicateByDetails = await checkDuplicateLineReceiptByDetails(
         lineUserId,
-        ocrData.storeName,
-        new Date(ocrData.purchaseDate),
+        ocrData.orderNumber,
+        ocrData.orderDate ? new Date(ocrData.orderDate) : new Date(),
         ocrData.totalAmount,
         receiptId
       );
       if (duplicateByDetails) {
-        fraudFlags.push("duplicate_receipt");
-        fraudScore += 40;
+        fraudFlags.push("duplicate_order");
+        fraudScore += 100; // 同じ注文番号は完全に重複
         await createLineFraudDetectionLog({
           receiptId,
           lineUserId,
           checkType: "duplicate_receipt",
           detected: true,
-          severity: "medium",
-          details: `同じ店舗・日付・金額のレシートが既に存在します`,
+          severity: "high",
+          details: `同じ注文番号が既に登録されています: ${ocrData.orderNumber}`,
           relatedReceiptId: duplicateByDetails.id,
         });
       }
     }
     
     // Check for unusually high amount (over 100,000 JPY)
-    if (ocrData.totalAmount && ocrData.totalAmount > 100000) {
+    if (ocrData.totalAmount > 100000) {
       fraudFlags.push("high_amount");
       fraudScore += 20;
       await createLineFraudDetectionLog({
@@ -1695,15 +1748,65 @@ async function processReceiptOcr(
       }
     }
     
-    console.log(`[LINE Agent] Receipt OCR completed for ${receiptId}:`, {
-      storeName: ocrData.storeName,
+    console.log(`[LINE Agent] TikTok Shop OCR completed for ${receiptId}:`, {
+      orderNumber: ocrData.orderNumber,
+      shopName: ocrData.shopName,
       totalAmount: ocrData.totalAmount,
       pointsCalculated,
       fraudScore,
     });
     
+    // Send OCR completion notification to user
+    try {
+      if (fraudScore >= 100) {
+        // Duplicate order - reject
+        await pushMessage(lineUserId, [
+          {
+            type: "text",
+            text: `❌ この注文は既にポイント申請済みです。\n\n注文番号: ${ocrData.orderNumber}\n\n同じ注文での重複申請はできません。`,
+          },
+        ]);
+      } else if (fraudScore >= 50) {
+        // High fraud score - notify user about hold status
+        const holdReasons: string[] = [];
+        if (fraudFlags.includes("expired_order")) {
+          holdReasons.push("・注文日から30日以上経過しています");
+        }
+        
+        await pushMessage(lineUserId, [
+          {
+            type: "text",
+            text: `⚠️ 注文を確認中です\n\n以下の理由で保留となりました：\n${holdReasons.join("\n")}\n\nスタッフが確認後、結果をお知らせします。`,
+          },
+        ]);
+      } else {
+        // Successful OCR - notify user with extracted info
+        await pushMessage(lineUserId, [
+          {
+            type: "text",
+            text: `✅ 注文の確認が完了しました！\n\n📝 注文番号: ${ocrData.orderNumber}\n🏪 ショップ: ${ocrData.shopName || "TikTok Shop"}\n📦 商品: ${ocrData.productName || "不明"}\n💰 購入金額: ¥${ocrData.totalAmount.toLocaleString()}\n⭐ 獲得予定ポイント: ${pointsCalculated}pt\n\nスタッフが確認後、ポイントが付与されます。`,
+          },
+        ]);
+      }
+    } catch (notifyError) {
+      console.error("[LINE Agent] Failed to send OCR completion notification:", notifyError);
+    }
+    
   } catch (error) {
     console.error("[LINE Agent] OCR analysis failed:", error);
+    
+    // Notify user about the error
+    try {
+      const { pushMessage } = await import("./line");
+      await pushMessage(lineUserId, [
+        {
+          type: "text",
+          text: `❌ レシートの解析に失敗しました。\n\nもう一度レシート画像を送信してください。\n問題が続く場合はサポートまでお問い合わせください。`,
+        },
+      ]);
+    } catch (notifyError) {
+      console.error("[LINE Agent] Failed to send error notification:", notifyError);
+    }
   }
 }
 
