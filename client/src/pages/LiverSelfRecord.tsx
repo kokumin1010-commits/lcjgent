@@ -18,11 +18,23 @@ export default function LiverSelfRecord() {
   const dateParam = searchParams.get("date");
   
   // Get current liver info with caching to prevent unnecessary refetches
-  const { data: liverInfo, isLoading: isLoadingLiver, isError: isLiverError } = trpc.liver.me.useQuery(undefined, {
-    staleTime: 5 * 60 * 1000, // 5 minutes
+  const { data: liverInfo, isLoading: isLoadingLiver, isError: isLiverError, isFetching: isLiverFetching } = trpc.liver.me.useQuery(undefined, {
+    staleTime: 30 * 60 * 1000, // 30 minutes - longer cache to prevent refetch during analysis
+    gcTime: 60 * 60 * 1000, // 1 hour - keep in cache longer
     refetchOnWindowFocus: false,
+    refetchOnMount: false, // Don't refetch when component mounts if data exists
+    refetchOnReconnect: false, // Don't refetch on reconnect
     retry: 1,
   });
+  
+  // Track if we've successfully loaded liver info at least once
+  const [hasLoadedLiver, setHasLoadedLiver] = useState(false);
+  
+  useEffect(() => {
+    if (liverInfo && !hasLoadedLiver) {
+      setHasLoadedLiver(true);
+    }
+  }, [liverInfo, hasLoadedLiver]);
   
   // Get brands for selection
   const { data: brands } = trpc.brand.list.useQuery();
@@ -469,7 +481,8 @@ export default function LiverSelfRecord() {
     }
   };
 
-  if (isLoadingLiver) {
+  // Only show loading on initial load, not during refetches
+  if (isLoadingLiver && !hasLoadedLiver) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" />
@@ -477,8 +490,9 @@ export default function LiverSelfRecord() {
     );
   }
 
-  // Only show login prompt if there's an error or no liverInfo after loading is complete
-  if (!liverInfo) {
+  // Only show login prompt if we've never loaded liver info and current data is null
+  // This prevents redirecting during background refetches
+  if (!liverInfo && !hasLoadedLiver && !isLoadingLiver && !isLiverFetching) {
     // If there was an error OR liverInfo is null (not authenticated), show login prompt
     // Note: liverInfo being null means the server returned null, which indicates no valid session
     return (
