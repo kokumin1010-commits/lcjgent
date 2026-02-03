@@ -7408,7 +7408,7 @@ ${conversationText}
       }),
 
     // Delete livestream (配信履歴の削除)
-    deleteLivestream: protectedProcedure
+    deleteLivestream: publicProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         await deleteBrandLivestream(input.id);
