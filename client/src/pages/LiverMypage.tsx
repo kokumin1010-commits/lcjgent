@@ -531,58 +531,70 @@ export default function LiverMypage() {
         </div>
 
         {/* Monthly Stats Grid */}
-        <div className="grid grid-cols-2 gap-3">
-          <Card className="bg-gradient-to-br from-red-600/20 to-red-800/20 border-red-500/30">
-            <CardContent className="p-3">
-              <div className="flex items-center gap-2 text-red-400 mb-1">
-                <DollarSign className="h-4 w-4" />
-                <span className="text-xs">月間売上</span>
-              </div>
-              <p className="text-2xl font-bold text-white">¥{monthlyStats.sales.toLocaleString()}</p>
+        {monthlyStats.count === 0 ? (
+          <Card className="bg-gray-800/30 border-gray-700 border-dashed">
+            <CardContent className="p-6 text-center">
+              <Video className="h-8 w-8 mx-auto text-gray-600 mb-2" />
+              <p className="text-gray-400 text-sm">この月の配信記録はありません</p>
+              <p className="text-gray-500 text-xs mt-1">右上の「+」ボタンから配信記録を追加できます</p>
             </CardContent>
           </Card>
-          <Card className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border-blue-500/30">
-            <CardContent className="p-3">
-              <div className="flex items-center gap-2 text-blue-400 mb-1">
-                <Clock className="h-4 w-4" />
-                <span className="text-xs">配信時間</span>
-              </div>
-              <p className="text-2xl font-bold text-white">{monthlyStats.hours}h</p>
-            </CardContent>
-          </Card>
-        </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <Card className="bg-gradient-to-br from-red-600/20 to-red-800/20 border-red-500/30">
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2 text-red-400 mb-1">
+                    <DollarSign className="h-4 w-4" />
+                    <span className="text-xs">月間売上</span>
+                  </div>
+                  <p className="text-2xl font-bold text-white">¥{monthlyStats.sales.toLocaleString()}</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border-blue-500/30">
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2 text-blue-400 mb-1">
+                    <Clock className="h-4 w-4" />
+                    <span className="text-xs">配信時間</span>
+                  </div>
+                  <p className="text-2xl font-bold text-white">{monthlyStats.hours}h</p>
+                </CardContent>
+              </Card>
+            </div>
 
-        {/* Additional Stats */}
-        <div className="grid grid-cols-4 gap-2">
-          <Card className="bg-gray-800/50 border-gray-700">
-            <CardContent className="p-2 text-center">
-              <Video className="h-3 w-3 mx-auto text-gray-400 mb-1" />
-              <p className="text-lg font-bold text-white">{monthlyStats.count}</p>
-              <p className="text-[10px] text-gray-500">配信数</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-gray-800/50 border-gray-700">
-            <CardContent className="p-2 text-center">
-              <DollarSign className="h-3 w-3 mx-auto text-gray-400 mb-1" />
-              <p className="text-lg font-bold text-white">¥{Math.round(monthlyStats.avgSales / 1000)}k</p>
-              <p className="text-[10px] text-gray-500">平均</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-gray-800/50 border-gray-700">
-            <CardContent className="p-2 text-center">
-              <Eye className="h-3 w-3 mx-auto text-gray-400 mb-1" />
-              <p className="text-lg font-bold text-white">{monthlyStats.viewerCount.toLocaleString()}</p>
-              <p className="text-[10px] text-gray-500">視聴者</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-gray-800/50 border-gray-700">
-            <CardContent className="p-2 text-center">
-              <ShoppingCart className="h-3 w-3 mx-auto text-gray-400 mb-1" />
-              <p className="text-lg font-bold text-white">{monthlyStats.orderCount.toLocaleString()}</p>
-              <p className="text-[10px] text-gray-500">注文</p>
-            </CardContent>
-          </Card>
-        </div>
+            {/* Additional Stats */}
+            <div className="grid grid-cols-4 gap-2">
+              <Card className="bg-gray-800/50 border-gray-700">
+                <CardContent className="p-2 text-center">
+                  <Video className="h-3 w-3 mx-auto text-gray-400 mb-1" />
+                  <p className="text-lg font-bold text-white">{monthlyStats.count}</p>
+                  <p className="text-[10px] text-gray-500">配信数</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-gray-800/50 border-gray-700">
+                <CardContent className="p-2 text-center">
+                  <DollarSign className="h-3 w-3 mx-auto text-gray-400 mb-1" />
+                  <p className="text-lg font-bold text-white">¥{Math.round(monthlyStats.avgSales / 1000)}k</p>
+                  <p className="text-[10px] text-gray-500">平均</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-gray-800/50 border-gray-700">
+                <CardContent className="p-2 text-center">
+                  <Eye className="h-3 w-3 mx-auto text-gray-400 mb-1" />
+                  <p className="text-lg font-bold text-white">{monthlyStats.viewerCount.toLocaleString()}</p>
+                  <p className="text-[10px] text-gray-500">視聴者</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-gray-800/50 border-gray-700">
+                <CardContent className="p-2 text-center">
+                  <ShoppingCart className="h-3 w-3 mx-auto text-gray-400 mb-1" />
+                  <p className="text-lg font-bold text-white">{monthlyStats.orderCount.toLocaleString()}</p>
+                  <p className="text-[10px] text-gray-500">注文</p>
+                </CardContent>
+              </Card>
+            </div>
+          </>
+        )}
 
         {/* All-time Stats */}
         <Card className="bg-gray-800/30 border-gray-700">

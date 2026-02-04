@@ -691,8 +691,10 @@ export async function processReceiptImageMessage(event: LineWebhookEvent): Promi
     }
     
     // Get image content
+    console.log(`[LINE Agent] Fetching image content for message ${messageId}`);
     const imageContent = await getMessageContent(messageId);
     if (!imageContent) {
+      console.error(`[LINE Agent] Failed to get image content for message ${messageId}`);
       if (event.replyToken) {
         await replyMessage(event.replyToken, [
           { type: "text", text: "画像の取得に失敗しました。もう一度お送りください。" },
@@ -700,6 +702,7 @@ export async function processReceiptImageMessage(event: LineWebhookEvent): Promi
       }
       return;
     }
+    console.log(`[LINE Agent] Image content fetched: ${(imageContent.data.length / 1024).toFixed(1)}KB, type: ${imageContent.contentType}`);
     
     // Generate image hash for duplicate detection
     const imageHash = crypto.createHash("sha256").update(imageContent.data).digest("hex");
@@ -774,8 +777,13 @@ export async function processReceiptImageMessage(event: LineWebhookEvent): Promi
       try {
         // Process all images together
         await processMultipleImagesOcr(session.images, userId);
-      } catch (error) {
+      } catch (error: any) {
         console.error("[LINE Agent] Multi-image OCR processing failed:", error);
+        console.error("[LINE Agent] Error details:", {
+          name: error?.name,
+          message: error?.message,
+          stack: error?.stack?.split('\n').slice(0, 5).join('\n'),
+        });
         
         // Delete all receipt records on failure
         for (const img of session.images) {
@@ -848,6 +856,26 @@ async function processMultipleImagesOcr(
   });
   
   try {
+    console.log(`[LINE Agent] Calling LLM for OCR analysis with ${images.length} images`);
+    console.log(`[LINE Agent] Image sizes: ${images.map(img => `${(img.imageData.length / 1024).toFixed(1)}KB`).join(', ')}`);
+    console.log(`[LINE Agent] Image content types: ${images.map(img => img.contentType).join(', ')}`);
+    console.log(`[LINE Agent] Image URLs: ${images.map(img => img.imageUrl).join(', ')}`);
+    
+    // Validate image data before sending to LLM
+    for (const img of images) {
+      if (!img.imageData || img.imageData.length === 0) {
+        console.error(`[LINE Agent] Empty image data for message ${img.messageId}`);
+        throw new Error(`Empty image data for message ${img.messageId}`);
+      }
+      if (img.imageData.length > 10 * 1024 * 1024) {
+        console.error(`[LINE Agent] Image too large: ${(img.imageData.length / 1024 / 1024).toFixed(2)}MB`);
+        throw new Error(`Image too large: ${(img.imageData.length / 1024 / 1024).toFixed(2)}MB`);
+      }
+    }
+    
+    console.log(`[LINE Agent] Starting LLM invocation...`);
+    const llmStartTime = Date.now();
+    
     // Run OCR analysis with LLM - NO response_format to avoid compatibility issues
     const ocrResult = await invokeLLM({
       messages: [
@@ -889,8 +917,17 @@ async function processMultipleImagesOcr(
       // NO response_format - use natural JSON parsing instead
     });
     
+    const llmEndTime = Date.now();
+    console.log(`[LINE Agent] LLM invocation completed in ${llmEndTime - llmStartTime}ms`);
+    console.log(`[LINE Agent] LLM response structure:`, {
+      hasChoices: !!ocrResult.choices,
+      choicesLength: ocrResult.choices?.length,
+      hasMessage: !!ocrResult.choices?.[0]?.message,
+      contentType: typeof ocrResult.choices?.[0]?.message?.content,
+    });
+    
     const messageContent = ocrResult.choices[0].message.content;
-    console.log(`[LINE Agent] LLM raw response: ${messageContent}`);
+    console.log(`[LINE Agent] LLM raw response (first 500 chars): ${typeof messageContent === 'string' ? messageContent.substring(0, 500) : JSON.stringify(messageContent).substring(0, 500)}`);
     
     // Parse JSON from response (handle markdown code blocks)
     let ocrData: any;
@@ -909,10 +946,14 @@ async function processMultipleImagesOcr(
       
       ocrData = JSON.parse(jsonStr);
       console.log(`[LINE Agent] Parsed OCR data:`, ocrData);
-    } catch (parseError) {
-      console.error("[LINE Agent] Failed to parse LLM response as JSON:", parseError);
-      console.error("[LINE Agent] Raw response:", messageContent);
-      throw new Error("LLM response is not valid JSON");
+    } catch (parseError: any) {
+      console.error("[LINE Agent] Failed to parse LLM response as JSON:", {
+        error: parseError?.message,
+        rawResponseLength: typeof messageContent === 'string' ? messageContent.length : 0,
+        rawResponsePreview: typeof messageContent === 'string' ? messageContent.substring(0, 200) : JSON.stringify(messageContent).substring(0, 200),
+      });
+      console.error("[LINE Agent] Full raw response:", messageContent);
+      throw new Error(`LLM response is not valid JSON: ${parseError?.message}`);
     }
     
     // Use the first receipt ID as the primary record
@@ -1108,8 +1149,15 @@ async function processMultipleImagesOcr(
       ]);
     }
     
-  } catch (error) {
+  } catch (error: any) {
     console.error("[LINE Agent] Multi-image OCR analysis failed:", error);
+    console.error("[LINE Agent] Error name:", error?.name);
+    console.error("[LINE Agent] Error message:", error?.message);
+    console.error("[LINE Agent] Error stack:", error?.stack);
+    if (error?.response) {
+      console.error("[LINE Agent] API response status:", error.response?.status);
+      console.error("[LINE Agent] API response data:", JSON.stringify(error.response?.data, null, 2));
+    }
     throw error; // Re-throw to be handled by caller
   }
 }
