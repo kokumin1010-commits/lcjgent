@@ -65,9 +65,15 @@ export default function LiverSelfRecord() {
     scheduleId: scheduleIdParam || "",
   });
   
+  // 配信後スクリーンショット（メイン）
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
+  
+  // 配信前スクリーンショット（任意）
+  const [beforeScreenshotFile, setBeforeScreenshotFile] = useState<File | null>(null);
+  const [beforeScreenshotPreview, setBeforeScreenshotPreview] = useState<string | null>(null);
+  const [beforeScreenshotUrl, setBeforeScreenshotUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGeneratingAdvice, setIsGeneratingAdvice] = useState(false);
@@ -194,6 +200,12 @@ export default function LiverSelfRecord() {
     confirmCancel: "キャンセル",
     previewButton: "内容を確認して保存",
     notSet: "未設定",
+    beforeScreenshot: "配信前スクショ",
+    afterScreenshot: "配信後スクショ",
+    beforeScreenshotHint: "配信前の状態を記録（任意）",
+    afterScreenshotHint: "配信後の結果を記録（AI解析対象）",
+    tapToUploadBefore: "配信前スクショをアップロード",
+    optional: "任意",
   };
 
   const handleScreenshotChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -230,6 +242,25 @@ export default function LiverSelfRecord() {
       orderCount: "",
       durationMinutes: "",
     }));
+  };
+
+  // 配信前スクショのハンドラ
+  const handleBeforeScreenshotChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setBeforeScreenshotFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setBeforeScreenshotPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeBeforeScreenshot = () => {
+    setBeforeScreenshotFile(null);
+    setBeforeScreenshotPreview(null);
+    setBeforeScreenshotUrl(null);
   };
 
   const handleAnalyzeScreenshot = async (file?: File) => {
@@ -399,7 +430,7 @@ export default function LiverSelfRecord() {
     setIsSubmitting(true);
 
     try {
-      // Upload screenshot if exists and not already uploaded
+      // Upload after screenshot if exists and not already uploaded
       let finalScreenshotUrl = screenshotUrl;
       if (screenshotFile && !screenshotUrl) {
         const reader = new FileReader();
@@ -419,6 +450,28 @@ export default function LiverSelfRecord() {
           liverId: liverInfo.id,
         });
         finalScreenshotUrl = uploadResult.url;
+      }
+
+      // Upload before screenshot if exists and not already uploaded
+      let finalBeforeScreenshotUrl = beforeScreenshotUrl;
+      if (beforeScreenshotFile && !beforeScreenshotUrl) {
+        const reader = new FileReader();
+        const base64Promise = new Promise<string>((resolve) => {
+          reader.onloadend = () => {
+            const result = reader.result as string;
+            const base64 = result.split(",")[1];
+            resolve(base64);
+          };
+          reader.readAsDataURL(beforeScreenshotFile);
+        });
+        const base64 = await base64Promise;
+
+        const uploadResult = await uploadScreenshotMutation.mutateAsync({
+          base64,
+          filename: `before_${beforeScreenshotFile.name}`,
+          liverId: liverInfo.id,
+        });
+        finalBeforeScreenshotUrl = uploadResult.url;
       }
 
       const livestreamDateTime = new Date(`${formData.livestreamDate}T${formData.livestreamStartTime}`);
@@ -479,6 +532,7 @@ export default function LiverSelfRecord() {
         resultReason: formData.resultReason || undefined,
         remarks: formData.remarks || undefined,
         screenshotUrl: finalScreenshotUrl || undefined,
+        beforeScreenshotUrl: finalBeforeScreenshotUrl || undefined,
         scheduleId: formData.scheduleId ? parseInt(formData.scheduleId) : undefined,
         aiAdvice: advice || undefined,
       });
@@ -559,49 +613,104 @@ export default function LiverSelfRecord() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Screenshot Upload Section */}
-          <Card className="bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700 overflow-hidden">
-            <CardContent className="p-0">
-              {screenshotPreview ? (
-                <div className="relative">
-                  <img 
-                    src={screenshotPreview} 
-                    alt="Screenshot"
-                    className="w-full h-auto"
-                  />
-                  <button
-                    type="button"
-                    onClick={removeScreenshot}
-                    className="absolute top-3 right-3 bg-red-600 rounded-full p-2 hover:bg-red-700 shadow-lg"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                  {isAnalyzing && (
-                    <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center">
-                      <Loader2 className="w-12 h-12 animate-spin text-purple-500 mb-3" />
-                      <p className="text-white font-medium">{tr.analyzing}</p>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <label className="flex flex-col items-center justify-center w-full h-48 cursor-pointer hover:bg-gray-800/50 transition-colors">
-                  <div className="flex flex-col items-center">
-                    <div className="w-16 h-16 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center mb-3">
-                      <Camera className="w-8 h-8 text-white" />
-                    </div>
-                    <span className="text-white font-medium">{tr.tapToUpload}</span>
-                    <span className="text-sm text-gray-400 mt-1">{tr.aiAnalysis}</span>
+          {/* Screenshot Upload Section - 2 Column Layout */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Before Screenshot (配信前) */}
+            <Card className="bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700 overflow-hidden">
+              <CardHeader className="py-2 px-3">
+                <CardTitle className="text-xs text-orange-400 flex items-center gap-1">
+                  <Camera className="w-3 h-3" />
+                  {tr.beforeScreenshot}
+                  <span className="text-gray-500 text-[10px] ml-1">({tr.optional})</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {beforeScreenshotPreview ? (
+                  <div className="relative">
+                    <img 
+                      src={beforeScreenshotPreview} 
+                      alt="Before Screenshot"
+                      className="w-full h-auto"
+                    />
+                    <button
+                      type="button"
+                      onClick={removeBeforeScreenshot}
+                      className="absolute top-2 right-2 bg-red-600 rounded-full p-1.5 hover:bg-red-700 shadow-lg"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleScreenshotChange}
-                    className="hidden"
-                  />
-                </label>
-              )}
-            </CardContent>
-          </Card>
+                ) : (
+                  <label className="flex flex-col items-center justify-center w-full h-32 cursor-pointer hover:bg-gray-800/50 transition-colors">
+                    <div className="flex flex-col items-center">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-r from-orange-600 to-yellow-600 flex items-center justify-center mb-2">
+                        <Camera className="w-5 h-5 text-white" />
+                      </div>
+                      <span className="text-white text-xs font-medium text-center px-2">{tr.tapToUploadBefore}</span>
+                      <span className="text-[10px] text-gray-500 mt-1">{tr.beforeScreenshotHint}</span>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleBeforeScreenshotChange}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* After Screenshot (配信後) - Main */}
+            <Card className="bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700 overflow-hidden border-2 border-purple-600/50">
+              <CardHeader className="py-2 px-3">
+                <CardTitle className="text-xs text-purple-400 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3" />
+                  {tr.afterScreenshot}
+                  <span className="text-purple-300 text-[10px] ml-1">(AI解析)</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {screenshotPreview ? (
+                  <div className="relative">
+                    <img 
+                      src={screenshotPreview} 
+                      alt="After Screenshot"
+                      className="w-full h-auto"
+                    />
+                    <button
+                      type="button"
+                      onClick={removeScreenshot}
+                      className="absolute top-2 right-2 bg-red-600 rounded-full p-1.5 hover:bg-red-700 shadow-lg"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                    {isAnalyzing && (
+                      <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center">
+                        <Loader2 className="w-8 h-8 animate-spin text-purple-500 mb-2" />
+                        <p className="text-white text-xs font-medium">{tr.analyzing}</p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center w-full h-32 cursor-pointer hover:bg-gray-800/50 transition-colors">
+                    <div className="flex flex-col items-center">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center mb-2">
+                        <Camera className="w-5 h-5 text-white" />
+                      </div>
+                      <span className="text-white text-xs font-medium text-center px-2">{tr.tapToUpload}</span>
+                      <span className="text-[10px] text-gray-500 mt-1">{tr.afterScreenshotHint}</span>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleScreenshotChange}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+              </CardContent>
+            </Card>
+          </div>
 
           {/* AI Advice Section */}
           {advice && (
