@@ -1,0 +1,28 @@
+{
+  "query": "SELECT id, name, email, isActive FROM livers WHERE isActive = true LIMIT 3",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, name, email, isActive FROM livers WHERE isActive = true LIMIT 3",
+  "rows": [
+    {
+      "id": "120005",
+      "name": "Ryu kyogoku Test",
+      "email": "test@gmail.com",
+      "isActive": "1"
+    },
+    {
+      "id": "360009",
+      "name": "はづき",
+      "email": "sayaka.arowz@gmail.com",
+      "isActive": "1"
+    },
+    {
+      "id": "360012",
+      "name": "三宅あゆみ",
+      "email": "ayuaki0615@gmail.com",
+      "isActive": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\tisActive\n120005\tRyu kyogoku Test\ttest@gmail.com\t1\n360009\tはづき\tsayaka.arowz@gmail.com\t1\n360012\t三宅あゆみ\tayuaki0615@gmail.com\t1\n",
+  "stderr": "",
+  "execution_time_ms": 1584
+}

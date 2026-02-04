@@ -952,7 +952,7 @@ export default function LiverSelfRecord() {
 
         {/* Confirmation Dialog */}
         <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-          <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-md max-h-[90vh] overflow-y-auto touch-manipulation" style={{ WebkitTapHighlightColor: 'transparent' }}>
             <DialogHeader>
               <DialogTitle className="text-yellow-500 flex items-center gap-2">
                 <CheckCircle className="w-5 h-5" />
@@ -1097,19 +1097,32 @@ export default function LiverSelfRecord() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setShowConfirmDialog(false)}
-                className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-800"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowConfirmDialog(false);
+                }}
+                onTouchEnd={(e) => {
+                  e.stopPropagation();
+                  setShowConfirmDialog(false);
+                }}
+                className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-800 touch-manipulation"
               >
                 {tr.confirmCancel}
               </Button>
               <Button
                 type="button"
                 onClick={(e) => {
+                  e.stopPropagation();
+                  setShowConfirmDialog(false);
+                  handleSubmit(e as unknown as React.FormEvent);
+                }}
+                onTouchEnd={(e) => {
+                  e.stopPropagation();
                   setShowConfirmDialog(false);
                   handleSubmit(e as unknown as React.FormEvent);
                 }}
                 disabled={isSubmitting}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white touch-manipulation"
               >
                 {isSubmitting ? (
                   <>

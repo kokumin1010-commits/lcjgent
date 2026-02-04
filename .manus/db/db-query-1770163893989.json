@@ -1,0 +1,35 @@
+{
+  "query": "SELECT id, name, email FROM livers LIMIT 5",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, name, email FROM livers LIMIT 5",
+  "rows": [
+    {
+      "id": "120005",
+      "name": "Ryu kyogoku Test",
+      "email": "test@gmail.com"
+    },
+    {
+      "id": "360009",
+      "name": "はづき",
+      "email": "sayaka.arowz@gmail.com"
+    },
+    {
+      "id": "360012",
+      "name": "三宅あゆみ",
+      "email": "ayuaki0615@gmail.com"
+    },
+    {
+      "id": "360013",
+      "name": "NANA",
+      "email": "nana.k1210@icloud.com"
+    },
+    {
+      "id": "360029",
+      "name": "しいほ",
+      "email": "shihomi208@gmail.com"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\n120005\tRyu kyogoku Test\ttest@gmail.com\n360009\tはづき\tsayaka.arowz@gmail.com\n360012\t三宅あゆみ\tayuaki0615@gmail.com\n360013\tNANA\tnana.k1210@icloud.com\n360029\tしいほ\tshihomi208@gmail.com\n",
+  "stderr": "",
+  "execution_time_ms": 1900
+}

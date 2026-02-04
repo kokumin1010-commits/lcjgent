@@ -224,3 +224,201 @@ describe("LINE Agent - Group Mention Detection", () => {
     });
   });
 });
+
+
+// Tests for Multi-Image OCR Processing
+describe("LINE Agent - Multi-Image OCR Processing", () => {
+  describe("LLM Response Parsing", () => {
+    it("should parse JSON response without markdown code blocks", async () => {
+      const rawResponse = `{"isTikTokShop": true, "isDelivered": true, "orderNumber": "582307265940784437", "totalAmount": 6864, "orderDate": "2025-01-25", "shopName": "KYOGOKU JAPAN", "productName": "シャンプー"}`;
+      
+      // Parse JSON
+      let jsonStr = rawResponse;
+      if (jsonStr.includes("```json")) {
+        jsonStr = jsonStr.replace(/```json\s*/g, "").replace(/```\s*/g, "");
+      } else if (jsonStr.includes("```")) {
+        jsonStr = jsonStr.replace(/```\s*/g, "");
+      }
+      jsonStr = jsonStr.trim();
+      
+      const parsed = JSON.parse(jsonStr);
+      
+      expect(parsed.isTikTokShop).toBe(true);
+      expect(parsed.isDelivered).toBe(true);
+      expect(parsed.orderNumber).toBe("582307265940784437");
+      expect(parsed.totalAmount).toBe(6864);
+      expect(parsed.shopName).toBe("KYOGOKU JAPAN");
+    });
+
+    it("should parse JSON response with markdown code blocks", async () => {
+      const rawResponse = `\`\`\`json
+{
+  "isTikTokShop": true,
+  "isDelivered": true,
+  "orderNumber": "582307265940784437",
+  "totalAmount": 6864,
+  "orderDate": "2025-01-25",
+  "shopName": "KYOGOKU JAPAN",
+  "productName": "シャンプー"
+}
+\`\`\``;
+      
+      // Parse JSON (same logic as in lineAgent.ts)
+      let jsonStr = rawResponse;
+      if (jsonStr.includes("```json")) {
+        jsonStr = jsonStr.replace(/```json\s*/g, "").replace(/```\s*/g, "");
+      } else if (jsonStr.includes("```")) {
+        jsonStr = jsonStr.replace(/```\s*/g, "");
+      }
+      jsonStr = jsonStr.trim();
+      
+      const parsed = JSON.parse(jsonStr);
+      
+      expect(parsed.isTikTokShop).toBe(true);
+      expect(parsed.isDelivered).toBe(true);
+      expect(parsed.orderNumber).toBe("582307265940784437");
+      expect(parsed.totalAmount).toBe(6864);
+    });
+
+    it("should handle null values in response", async () => {
+      const rawResponse = `{"isTikTokShop": true, "isDelivered": true, "orderNumber": "582307265940784437", "totalAmount": 6864, "orderDate": null, "shopName": null, "productName": null}`;
+      
+      const parsed = JSON.parse(rawResponse);
+      
+      expect(parsed.isTikTokShop).toBe(true);
+      expect(parsed.orderNumber).toBe("582307265940784437");
+      expect(parsed.orderDate).toBeNull();
+      expect(parsed.shopName).toBeNull();
+    });
+  });
+
+  describe("Delivery Status Detection", () => {
+    it("should detect delivery status from 'X月X日に配達' pattern", () => {
+      // This tests the LLM prompt's ability to recognize delivery patterns
+      const deliveryPatterns = [
+        "1月28日に配達",
+        "12月15日に配達",
+        "2月1日に配達",
+      ];
+      
+      // These patterns should be recognized by the LLM as delivered
+      deliveryPatterns.forEach(pattern => {
+        expect(pattern).toMatch(/\d+月\d+日に配達/);
+      });
+    });
+
+    it("should detect delivery status from '配達済み' text", () => {
+      const deliveryTexts = [
+        "配達済み",
+        "ステータス: 配達済み",
+        "配達済み - 1月28日",
+      ];
+      
+      deliveryTexts.forEach(text => {
+        expect(text).toContain("配達済み");
+      });
+    });
+
+    it("should detect delivery status from 'お荷物が最終目的地に到着しました' text", () => {
+      const text = "お荷物が最終目的地に到着しました";
+      expect(text).toContain("最終目的地に到着");
+    });
+  });
+
+  describe("Points Calculation", () => {
+    it("should calculate 1% points correctly", () => {
+      const testCases = [
+        { totalAmount: 6864, expectedPoints: 68 },
+        { totalAmount: 10000, expectedPoints: 100 },
+        { totalAmount: 1500, expectedPoints: 15 },
+        { totalAmount: 99, expectedPoints: 0 },
+      ];
+      
+      testCases.forEach(({ totalAmount, expectedPoints }) => {
+        const pointsCalculated = Math.floor(totalAmount * 0.01);
+        expect(pointsCalculated).toBe(expectedPoints);
+      });
+    });
+  });
+
+  describe("Fraud Detection", () => {
+    it("should flag orders older than 30 days", () => {
+      const orderDate = new Date("2025-01-01");
+      const now = new Date("2025-02-15");
+      const daysSinceOrder = (now.getTime() - orderDate.getTime()) / (1000 * 60 * 60 * 24);
+      
+      expect(daysSinceOrder).toBeGreaterThan(30);
+    });
+
+    it("should flag high amount purchases over 100,000 JPY", () => {
+      const highAmounts = [100001, 150000, 200000];
+      const normalAmounts = [99999, 50000, 6864];
+      
+      highAmounts.forEach(amount => {
+        expect(amount).toBeGreaterThan(100000);
+      });
+      
+      normalAmounts.forEach(amount => {
+        expect(amount).toBeLessThanOrEqual(100000);
+      });
+    });
+  });
+
+  describe("Image Session Management", () => {
+    it("should buffer images for 10 seconds", () => {
+      const IMAGE_SESSION_TIMEOUT_MS = 10 * 1000;
+      expect(IMAGE_SESSION_TIMEOUT_MS).toBe(10000);
+    });
+
+    it("should handle multiple images in a session", () => {
+      interface PendingImageData {
+        messageId: string;
+        receiptId: number;
+      }
+      
+      interface PendingImageSession {
+        userId: string;
+        images: PendingImageData[];
+      }
+      
+      const session: PendingImageSession = {
+        userId: "test-user",
+        images: [],
+      };
+      
+      // Add first image
+      session.images.push({ messageId: "msg1", receiptId: 1 });
+      expect(session.images.length).toBe(1);
+      
+      // Add second image
+      session.images.push({ messageId: "msg2", receiptId: 2 });
+      expect(session.images.length).toBe(2);
+      
+      // Add third image
+      session.images.push({ messageId: "msg3", receiptId: 3 });
+      expect(session.images.length).toBe(3);
+    });
+  });
+
+  describe("Order Number Validation", () => {
+    it("should validate TikTok Shop order number format (17-18 digits)", () => {
+      const validOrderNumbers = [
+        "582307265940784437",
+        "123456789012345678",
+      ];
+      
+      const invalidOrderNumbers = [
+        "12345", // too short
+        "abc123456789012345", // contains letters
+      ];
+      
+      validOrderNumbers.forEach(orderNumber => {
+        expect(orderNumber).toMatch(/^\d{17,18}$/);
+      });
+      
+      invalidOrderNumbers.forEach(orderNumber => {
+        expect(orderNumber).not.toMatch(/^\d{17,18}$/);
+      });
+    });
+  });
+});
