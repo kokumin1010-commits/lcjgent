@@ -13,6 +13,7 @@ import { checkAndSendReminders } from "../reminderScheduler";
 import { startGroupFollowUpScheduler } from "../groupFollowUpScheduler";
 import { startResponseReminderScheduler } from "../responseReminderScheduler";
 import { startScheduleReminderScheduler } from "../scheduleReminderScheduler";
+import { startLineReminderScheduler } from "../lineReminderScheduler";
 import { trackingRouter } from "../tracking";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -564,6 +565,9 @@ async function startServer() {
     
     // Start schedule reminder scheduler (sends reminders for upcoming schedules every 5 minutes)
     startScheduleReminderScheduler();
+    
+    // Start LINE reminder scheduler (sends LINE reminders every 1 minute)
+    startLineReminderScheduler();
   });
 }
 

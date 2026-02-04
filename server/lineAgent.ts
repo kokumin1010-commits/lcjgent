@@ -1,4 +1,5 @@
 import { invokeLLM } from "./_core/llm";
+import { containsReminderKeyword, createReminderFromMessage, getReminderListMessage } from "./lineReminder";
 import { storagePut } from "./storage";
 import crypto from "crypto";
 import {
@@ -408,6 +409,30 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
       if (event.replyToken) {
         await replyMessage(event.replyToken, [
           { type: "text", text: historyMessage },
+        ]);
+      }
+      return;
+    }
+
+    // Check for reminder request
+    if (containsReminderKeyword(messageText)) {
+      // Check if it's a reminder list request
+      const lowerText = messageText.toLowerCase();
+      if (lowerText.includes("一覧") || lowerText.includes("確認") || lowerText.includes("リスト")) {
+        const listMessage = await getReminderListMessage(userId);
+        if (event.replyToken) {
+          await replyMessage(event.replyToken, [
+            { type: "text", text: listMessage },
+          ]);
+        }
+        return;
+      }
+
+      // Try to create a reminder
+      const result = await createReminderFromMessage(userId, messageText);
+      if (event.replyToken) {
+        await replyMessage(event.replyToken, [
+          { type: "text", text: result.message },
         ]);
       }
       return;

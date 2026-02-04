@@ -1956,3 +1956,42 @@ export const productLivers = mysqlTable("product_livers", {
 
 export type ProductLiver = typeof productLivers.$inferSelect;
 export type InsertProductLiver = typeof productLivers.$inferInsert;
+
+
+
+/**
+ * LINE Reminders table for user-requested reminders via LINE
+ * LINEからのリマインダー設定テーブル
+ */
+export const lineReminders = mysqlTable("line_reminders", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // ユーザー情報
+  lineUserId: varchar("lineUserId", { length: 64 }).notNull(), // LINE User ID
+  
+  // リマインダー内容
+  message: text("message").notNull(), // リマインダーメッセージ
+  originalRequest: text("originalRequest"), // 元のリクエストメッセージ
+  
+  // スケジュール情報
+  scheduledAt: bigint("scheduledAt", { mode: "number" }).notNull(), // 実行予定時刻（UTC timestamp in milliseconds）
+  timezone: varchar("timezone", { length: 64 }).default("Asia/Tokyo").notNull(), // タイムゾーン
+  
+  // 繰り返し設定（将来の拡張用）
+  repeatType: mysqlEnum("repeatType", ["none", "daily", "weekly", "monthly"]).default("none").notNull(),
+  repeatEndAt: bigint("repeatEndAt", { mode: "number" }), // 繰り返し終了日時
+  
+  // ステータス
+  status: mysqlEnum("status", ["pending", "sent", "cancelled", "failed"]).default("pending").notNull(),
+  
+  // 実行情報
+  sentAt: bigint("sentAt", { mode: "number" }), // 実際に送信された時刻
+  errorMessage: text("errorMessage"), // エラーメッセージ（失敗時）
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type LineReminder = typeof lineReminders.$inferSelect;
+export type InsertLineReminder = typeof lineReminders.$inferInsert;

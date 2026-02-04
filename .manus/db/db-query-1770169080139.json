@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `line_reminders` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `lineUserId` varchar(64) NOT NULL,\n  `message` text NOT NULL,\n  `originalRequest` text,\n  `scheduledAt` bigint NOT NULL,\n  `timezone` varchar(64) NOT NULL DEFAULT 'Asia/Tokyo',\n  `repeatType` enum('none', 'daily', 'weekly', 'monthly') NOT NULL DEFAULT 'none',\n  `repeatEndAt` bigint,\n  `status` enum('pending', 'sent', 'cancelled', 'failed') NOT NULL DEFAULT 'pending',\n  `sentAt` bigint,\n  `errorMessage` text,\n  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  CONSTRAINT `line_reminders_id` PRIMARY KEY(`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute CREATE TABLE IF NOT EXISTS `line_reminders` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `lineUserId` varchar(64) NOT NULL,\n  `message` text NOT NULL,\n  `originalRequest` text,\n  `scheduledAt` bigint NOT NULL,\n  `timezone` varchar(64) NOT NULL DEFAULT 'Asia/Tokyo',\n  `repeatType` enum('none', 'daily', 'weekly', 'monthly') NOT NULL DEFAULT 'none',\n  `repeatEndAt` bigint,\n  `status` enum('pending', 'sent', 'cancelled', 'failed') NOT NULL DEFAULT 'pending',\n  `sentAt` bigint,\n  `errorMessage` text,\n  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  CONSTRAINT `line_reminders_id` PRIMARY KEY(`id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1843
+}
