@@ -547,6 +547,13 @@
       "when": 1770168956639,
       "tag": "0077_petite_doctor_faustus",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "5",
+      "when": 1770240900523,
+      "tag": "0078_acoustic_thaddeus_ross",
+      "breakpoints": true
     }
   ]
 }

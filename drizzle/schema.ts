@@ -291,6 +291,9 @@ export const brandLivestreams = mysqlTable("brand_livestreams", {
   resultReason: text("resultReason"), // 理由メモ
   screenshotUrl: text("screenshotUrl"), // 配信後スクリーンショットURL
   screenshotKey: varchar("screenshotKey", { length: 512 }), // S3キー
+  beforeScreenshotUrl: text("beforeScreenshotUrl"), // 配信前スクリーンショットURL（任意）
+  beforeScreenshotKey: varchar("beforeScreenshotKey", { length: 512 }), // 配信前スクリーンショットS3キー
+  manualSalesAmount: bigint("manualSalesAmount", { mode: "number" }), // 手入力売上金額（任意）
   aiAdvice: text("aiAdvice"), // AIによるワンポイントアドバイス
   aiStructuredAdvice: json("aiStructuredAdvice").$type<{
     summary: string;

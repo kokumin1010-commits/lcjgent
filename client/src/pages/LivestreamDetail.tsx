@@ -1233,7 +1233,21 @@ export default function LivestreamDetail() {
                   <p className="text-gray-300">{livestream.remarks || "-"}</p>
                 </div>
                 
-                {/* Screenshot */}
+                {/* 配信前スクリーンショット */}
+                {(livestream as any).beforeScreenshotUrl && (
+                  <div className="space-y-2">
+                    <span className="text-gray-400 font-medium">配信前スクリーンショット</span>
+                    <div className="border border-gray-700 rounded-lg overflow-hidden">
+                      <img 
+                        src={(livestream as any).beforeScreenshotUrl} 
+                        alt="配信前スクリーンショット"
+                        className="w-full h-auto"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* 配信後スクリーンショット */}
                 <div className="space-y-2">
                   <span className="text-red-500 font-medium">配信後スクリーンショット</span>
                   {livestream.screenshotUrl ? (

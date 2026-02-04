@@ -98,7 +98,7 @@ export default function LiverRecord() {
   const [impactFactor, setImpactFactor] = useState<"構成" | "商品" | "ライバー" | "広告" | "その他" | "">("");
   const [resultReason, setResultReason] = useState("");
   const [remarks, setRemarks] = useState("");
-  // Multiple screenshots support (up to 4)
+  // Multiple screenshots support (up to 4) - 配信後スクリーンショット（AI分析対象）
   const [screenshotFiles, setScreenshotFiles] = useState<File[]>([]);
   const [screenshotPreviews, setScreenshotPreviews] = useState<string[]>([]);
   const [screenshotUrls, setScreenshotUrls] = useState<string[]>([]);
@@ -106,6 +106,12 @@ export default function LiverRecord() {
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
+  // 配信前スクリーンショット（任意、AI分析なし）
+  const [beforeScreenshotFile, setBeforeScreenshotFile] = useState<File | null>(null);
+  const [beforeScreenshotPreview, setBeforeScreenshotPreview] = useState<string | null>(null);
+  const [beforeScreenshotUrl, setBeforeScreenshotUrl] = useState<string | null>(null);
+  // 手入力売上金額（任意）
+  const [manualSalesAmount, setManualSalesAmount] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGeneratingAdvice, setIsGeneratingAdvice] = useState(false);
@@ -235,6 +241,13 @@ export default function LiverRecord() {
       analyzingMultiple: "複数画像を解析中...",
       mergedResults: "統合結果",
       imageCount: "枚",
+      beforeScreenshot: "配信前スクリーンショット",
+      beforeScreenshotHint: "任意：配信前のダッシュボードを記録したい場合",
+      afterScreenshot: "配信後スクリーンショット",
+      afterScreenshotHint: "AIが自動でデータを解析しアドバイスを生成します",
+      manualSalesAmount: "手入力売上金額",
+      manualSalesAmountHint: "任意：スクショから読み取れない場合に入力",
+      noAnalysis: "AI分析なし（記録のみ）",
     },
     zh: {
       title: "记录直播内容",
@@ -292,6 +305,13 @@ export default function LiverRecord() {
       minutes: "分钟",
       editableHint: "分析数据可编辑",
       multipleScreenshots: "上传多张截图（最多4张）",
+      beforeScreenshot: "直播前截图",
+      beforeScreenshotHint: "可选：记录直播前的仪表盘",
+      afterScreenshot: "直播后截图",
+      afterScreenshotHint: "AI将自动分析数据并生成建议",
+      manualSalesAmount: "手动输入销售额",
+      manualSalesAmountHint: "可选：截图无法识别时输入",
+      noAnalysis: "无AI分析（仅记录）",
       addMore: "添加",
       analyzingMultiple: "正在分析多张图片...",
       mergedResults: "合并结果",
@@ -755,6 +775,8 @@ export default function LiverRecord() {
         resultReason: resultReason || undefined,
         remarks: remarks || undefined,
         screenshotUrl: finalScreenshotUrl || undefined,
+        beforeScreenshotUrl: beforeScreenshotUrl || undefined,
+        manualSalesAmount: manualSalesAmount ? parseInt(manualSalesAmount) : undefined,
         scheduleId: scheduleId || undefined,
         aiAdvice: advice || undefined,
         // LINE通知用の構造化データ
@@ -797,17 +819,86 @@ export default function LiverRecord() {
           </div>
         </div>
         
-        {/* Screenshot Upload Section - Multiple Images Support */}
+        {/* 配信前スクリーンショット（任意、AI分析なし） */}
+        <Card className="bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 overflow-hidden">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-gray-300 flex items-center gap-2">
+              <Camera className="w-4 h-4 text-gray-400" />
+              {tr.beforeScreenshot}
+              <span className="text-xs text-gray-500 bg-gray-700 px-2 py-0.5 rounded">{tr.noAnalysis}</span>
+            </CardTitle>
+            <p className="text-xs text-gray-500">{tr.beforeScreenshotHint}</p>
+          </CardHeader>
+          <CardContent className="p-3">
+            {beforeScreenshotPreview ? (
+              <div className="space-y-3">
+                <div className="relative aspect-video bg-gray-800 rounded-lg overflow-hidden">
+                  <img 
+                    src={beforeScreenshotPreview} 
+                    alt="配信前スクリーンショット"
+                    className="w-full h-full object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBeforeScreenshotFile(null);
+                      setBeforeScreenshotPreview(null);
+                      setBeforeScreenshotUrl(null);
+                    }}
+                    className="absolute top-2 right-2 bg-red-600 rounded-full p-1.5 hover:bg-red-700 shadow-lg"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center w-full h-24 cursor-pointer hover:bg-gray-800/50 transition-colors rounded-lg border-2 border-dashed border-gray-600">
+                <div className="flex flex-col items-center">
+                  <Camera className="w-8 h-8 text-gray-500 mb-1" />
+                  <span className="text-gray-400 text-sm">タップして配信前のスクショをアップロード</span>
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setBeforeScreenshotFile(file);
+                    const reader = new FileReader();
+                    reader.onloadend = () => setBeforeScreenshotPreview(reader.result as string);
+                    reader.readAsDataURL(file);
+                    // アップロード（AI分析なし）
+                    try {
+                      const compressed = await compressImage(file, 1920, 1080, 0.8);
+                      const uploadResult = await uploadScreenshotMutation.mutateAsync({
+                        base64: compressed.base64,
+                        filename: `before_${file.name}`,
+                        liverId,
+                      });
+                      setBeforeScreenshotUrl(uploadResult.url);
+                    } catch (error) {
+                      console.error('Failed to upload before screenshot:', error);
+                    }
+                  }}
+                  className="hidden"
+                />
+              </label>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* 配信後スクリーンショット（AI分析対象） */}
         <Card className="bg-gradient-to-br from-gray-900 to-gray-800 border-gray-700 overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-gray-300 flex items-center gap-2">
-              <Camera className="w-4 h-4" />
-              {tr.screenshot}
+              <Camera className="w-4 h-4 text-purple-400" />
+              {tr.afterScreenshot}
               {screenshotPreviews.length > 0 && (
                 <span className="text-xs text-gray-500">({screenshotPreviews.length}/4{tr.imageCount})</span>
               )}
+              <span className="text-xs text-purple-400 bg-purple-900/30 px-2 py-0.5 rounded">AI分析</span>
             </CardTitle>
-            <p className="text-xs text-gray-500">{tr.multipleScreenshots}</p>
+            <p className="text-xs text-gray-500">{tr.afterScreenshotHint}</p>
           </CardHeader>
           <CardContent className="p-3">
             {screenshotPreviews.length > 0 ? (

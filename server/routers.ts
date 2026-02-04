@@ -7358,6 +7358,8 @@ ${conversationText}
         resultReason: z.string().optional(),
         remarks: z.string().optional(),
         screenshotUrl: z.string().optional(),
+        beforeScreenshotUrl: z.string().optional(), // 配信前スクリーンショットURL（任意）
+        manualSalesAmount: z.number().optional(), // 手入力売上金額（任意）
         aiAdvice: z.string().optional(), // AIアドバイスを保存
         // LINE通知用の構造化アドバイス
         structuredAdvice: z.object({
@@ -7414,6 +7416,8 @@ ${conversationText}
           resultReason: input.resultReason,
           remarks: input.remarks,
           screenshotUrl: input.screenshotUrl,
+          beforeScreenshotUrl: input.beforeScreenshotUrl, // 配信前スクリーンショットURL
+          manualSalesAmount: input.manualSalesAmount, // 手入力売上金額
           aiAdvice: input.aiAdvice, // AIアドバイスを保存
           aiStructuredAdvice, // 構造化アドバイスを永続保存
           streamerName,
