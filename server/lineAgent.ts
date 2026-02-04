@@ -371,7 +371,15 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
 
     if (isGroupChat && groupId) {
       // Check for bot mention or trigger keywords
-      const isMentioned = messageText.includes("@") || messageText.includes("エージェント");
+      // Only respond to LCJ-specific mentions, not any @ mention
+      const lcjMentionPatterns = [
+        /@LCJ/i,           // @LCJ (case insensitive)
+        /@lcj/i,           // @lcj (case insensitive)
+        /@714isnih/i,      // LINE bot ID
+        /LCJエージェント/i, // LCJエージェント
+        /エージェントさん/i, // エージェントさん
+      ];
+      const isMentioned = lcjMentionPatterns.some(pattern => pattern.test(messageText));
       const hasTrigger = containsTriggerKeyword(messageText);
       const hasGreeting = containsGreetingKeyword(messageText);
       const hasEnd = containsEndKeyword(messageText);
