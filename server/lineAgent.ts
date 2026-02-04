@@ -372,40 +372,25 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
     let shouldRespond = !isGroupChat; // Always respond in DM
 
     if (isGroupChat && groupId) {
-      // Check for bot mention or trigger keywords
-      // IMPORTANT: Only respond to LCJ-specific mentions, NOT @All or other mentions
-      // Trigger keywords and greetings should ONLY work when combined with @LCJ mention
+      // CRITICAL: In group chats, ONLY respond when explicitly mentioned @LCJ
+      // Do NOT use session-based continuation - this causes unwanted responses
+      // Each message must have an explicit @LCJ mention to get a response
       const lcjMentionPatterns = [
         /@LCJ/i,           // @LCJ (case insensitive)
-        /@lcj/i,           // @lcj (case insensitive)
         /@714isnih/i,      // LINE bot ID
         /LCJエージェント/i, // LCJエージェント
         /エージェントさん/i, // エージェントさん
       ];
       const isMentioned = lcjMentionPatterns.some(pattern => pattern.test(messageText));
-      const hasEnd = containsEndKeyword(messageText);
-      const hasSession = hasActiveSession(groupId, userId);
 
-      // CRITICAL FIX: Only start new session if explicitly mentioned @LCJ
-      // Do NOT respond to trigger keywords or greetings alone in group chats
+      // ONLY respond if explicitly mentioned - NO session continuation
       if (isMentioned) {
-        // Start or refresh session only when explicitly mentioned
-        startOrRefreshSession(groupId, userId);
         shouldRespond = true;
-        console.log(`[LINE Agent] Starting/refreshing session for ${userId} in group ${groupId} (mentioned)`);
-      } else if (hasSession) {
-        // Continue existing session
-        startOrRefreshSession(groupId, userId);
-        shouldRespond = true;
-
-        if (hasEnd) {
-          // End session if user says goodbye
-          endSession(groupId, userId);
-          console.log(`[LINE Agent] Ending session for ${userId} in group ${groupId}`);
-        }
+        console.log(`[LINE Agent] Responding to mention in group ${groupId}`);
       } else {
-        // No session and no trigger - ignore
-        console.log(`[LINE Agent] Ignoring message in group without session`);
+        // Not mentioned - ignore completely
+        console.log(`[LINE Agent] Ignoring message in group (no @LCJ mention): ${messageText.substring(0, 30)}...`);
+        shouldRespond = false;
       }
     }
 
@@ -530,19 +515,15 @@ export async function processVideoMessage(event: LineWebhookEvent): Promise<void
     // Update last message timestamp
     await updateLineUserLastMessage(userId);
 
-    // For group chats, check if we should respond
-    let shouldRespond = !isGroupChat; // Always respond in DM
+    // For group chats, NEVER process videos automatically
+    // Videos in groups should only be processed via explicit @LCJ mention in a text message
+    let shouldRespond = !isGroupChat; // Always respond in DM, never in groups
 
     if (isGroupChat && groupId) {
-      const hasSession = hasActiveSession(groupId, userId);
-      if (hasSession) {
-        startOrRefreshSession(groupId, userId);
-        shouldRespond = true;
-        console.log(`[LINE Agent] User has active session, processing video`);
-      } else {
-        // For video messages in groups without session, skip
-        console.log(`[LINE Agent] Group video message without active session, skipping`);
-      }
+      // CRITICAL: Do NOT process videos in group chats
+      // This prevents unwanted responses to random videos shared in groups
+      console.log(`[LINE Agent] Ignoring video in group chat (videos only processed in DM)`);
+      shouldRespond = false;
     }
 
     if (!shouldRespond) {
@@ -663,19 +644,15 @@ export async function processReceiptImageMessage(event: LineWebhookEvent): Promi
     // Update last message timestamp
     await updateLineUserLastMessage(userId);
     
-    // For group chats, check if we should respond
-    let shouldRespond = !isGroupChat; // Always respond in DM
+    // For group chats, NEVER process images automatically
+    // Images in groups should only be processed via explicit @LCJ mention in a text message
+    let shouldRespond = !isGroupChat; // Always respond in DM, never in groups
     
     if (isGroupChat && groupId) {
-      const hasSession = hasActiveSession(groupId, userId);
-      if (hasSession) {
-        startOrRefreshSession(groupId, userId);
-        shouldRespond = true;
-        console.log(`[LINE Agent] User has active session, processing receipt image`);
-      } else {
-        // For image messages in groups without session, skip
-        console.log(`[LINE Agent] Group image message without active session, skipping`);
-      }
+      // CRITICAL: Do NOT process images in group chats
+      // This prevents unwanted responses to random images shared in groups
+      console.log(`[LINE Agent] Ignoring image in group chat (images only processed in DM)`);
+      shouldRespond = false;
     }
     
     if (!shouldRespond) {
