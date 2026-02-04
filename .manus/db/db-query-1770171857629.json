@@ -1,0 +1,33 @@
+{
+  "query": "SELECT * FROM livers WHERE email = 'ayuaki0615@gmail.com' LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT * FROM livers WHERE email = 'ayuaki0615@gmail.com' LIMIT 1;",
+  "rows": [
+    {
+      "id": "360012",
+      "name": "三宅あゆみ",
+      "email": "ayuaki0615@gmail.com",
+      "password": "$2b$10$hrmhrlmtspqNpLLpVkVGb.L5gcBef.PNaxOpVgQQH83cduLPKfeGy",
+      "avatarUrl": "NULL",
+      "avatarKey": "NULL",
+      "bio": "",
+      "color": "#F1C40F",
+      "isActive": "1",
+      "role": "liver",
+      "lastLoginAt": "2026-02-03 18:12:39",
+      "createdAt": "2026-01-30 04:45:41",
+      "updatedAt": "2026-02-03 18:12:39",
+      "tiktokAccount": "NULL",
+      "instagramAccount": "NULL",
+      "youtubeAccount": "NULL",
+      "otherAccount": "NULL",
+      "lineUserId": "NULL",
+      "lineNotificationEnabled": "1",
+      "lineLinkCode": "NULL",
+      "lineLinkCodeExpiresAt": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\tpassword\tavatarUrl\tavatarKey\tbio\tcolor\tisActive\trole\tlastLoginAt\tcreatedAt\tupdatedAt\ttiktokAccount\tinstagramAccount\tyoutubeAccount\totherAccount\tlineUserId\tlineNotificationEnabled\tlineLinkCode\tlineLinkCodeExpiresAt\n360012\t三宅あゆみ\tayuaki0615@gmail.com\t$2b$10$hrmhrlmtspqNpLLpVkVGb.L5gcBef.PNaxOpVgQQH83cduLPKfeGy\tNULL\tNULL\t\t#F1C40F\t1\tliver\t2026-02-03 18:12:39\t2026-01-30 04:45:41\t2026-02-03 18:12:39\tNULL\tNULL\tNULL\tNULL\tNULL\t1\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1582
+}

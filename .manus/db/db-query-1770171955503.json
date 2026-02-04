@@ -1,0 +1,90 @@
+{
+  "query": "SELECT id, liverId, streamerName, livestreamDate, salesAmount, gmv, duration, createdAt FROM brand_livestreams WHERE livestreamDate >= '2026-02-01' ORDER BY createdAt DESC LIMIT 30;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, liverId, streamerName, livestreamDate, salesAmount, gmv, duration, createdAt FROM brand_livestreams WHERE livestreamDate >= '2026-02-01' ORDER BY createdAt DESC LIMIT 30;",
+  "rows": [
+    {
+      "id": "780364",
+      "liverId": "540001",
+      "streamerName": "けい",
+      "livestreamDate": "2026-02-02 15:00:00",
+      "salesAmount": "7900",
+      "gmv": "7900",
+      "duration": "0",
+      "createdAt": "2026-02-03 10:56:31"
+    },
+    {
+      "id": "780363",
+      "liverId": "540001",
+      "streamerName": "けい",
+      "livestreamDate": "2026-02-03 10:48:00",
+      "salesAmount": "7900",
+      "gmv": "7900",
+      "duration": "0",
+      "createdAt": "2026-02-03 10:50:33"
+    },
+    {
+      "id": "780360",
+      "liverId": "360013",
+      "streamerName": "NANA",
+      "livestreamDate": "2026-02-01 10:00:00",
+      "salesAmount": "8169",
+      "gmv": "8169",
+      "duration": "NULL",
+      "createdAt": "2026-02-03 10:00:44"
+    },
+    {
+      "id": "780357",
+      "liverId": "540002",
+      "streamerName": "みぃ",
+      "livestreamDate": "2026-02-01 10:00:00",
+      "salesAmount": "19304",
+      "gmv": "19304",
+      "duration": "NULL",
+      "createdAt": "2026-02-03 08:56:34"
+    },
+    {
+      "id": "390001",
+      "liverId": "NULL",
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2027-01-27 00:00:00",
+      "salesAmount": "NULL",
+      "gmv": "0",
+      "duration": "60",
+      "createdAt": "2026-01-29 10:38:51"
+    },
+    {
+      "id": "360012",
+      "liverId": "NULL",
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2027-01-28 00:00:00",
+      "salesAmount": "NULL",
+      "gmv": "349468",
+      "duration": "60",
+      "createdAt": "2026-01-29 02:41:39"
+    },
+    {
+      "id": "360011",
+      "liverId": "NULL",
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2027-01-28 00:00:00",
+      "salesAmount": "NULL",
+      "gmv": "430759",
+      "duration": "60",
+      "createdAt": "2026-01-29 02:38:31"
+    },
+    {
+      "id": "360008",
+      "liverId": "NULL",
+      "streamerName": "@ryukyogoku",
+      "livestreamDate": "2027-01-27 00:00:00",
+      "salesAmount": "NULL",
+      "gmv": "53560",
+      "duration": "60",
+      "createdAt": "2026-01-29 02:25:49"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tliverId\tstreamerName\tlivestreamDate\tsalesAmount\tgmv\tduration\tcreatedAt\n780364\t540001\tけい\t2026-02-02 15:00:00\t7900\t7900\t0\t2026-02-03 10:56:31\n780363\t540001\tけい\t2026-02-03 10:48:00\t7900\t7900\t0\t2026-02-03 10:50:33\n780360\t360013\tNANA\t2026-02-01 10:00:00\t8169\t8169\tNULL\t2026-02-03 10:00:44\n780357\t540002\tみぃ\t2026-02-01 10:00:00\t19304\t19304\tNULL\t2026-02-03 08:56:34\n390001\tNULL\t@ryukyogoku\t2027-01-27 00:00:00\tNULL\t0\t60\t2026-01-29 10:38:51\n360012\tNULL\t@ryukyogoku\t2027-01-28 00:00:00\tNULL\t349468\t60\t2026-01-29 02:41:39\n360011\tNULL\t@ryukyogoku\t2027-01-28 00:00:00\tNULL\t430759\t60\t2026-01-29 02:38:31\n360008\tNULL\t@ryukyogoku\t2027-01-27 00:00:00\tNULL\t53560\t60\t2026-01-29 02:25:49\n",
+  "stderr": "",
+  "execution_time_ms": 1585
+}

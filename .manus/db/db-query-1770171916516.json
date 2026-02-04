@@ -1,0 +1,26 @@
+{
+  "query": "SELECT id, liverId, streamerName, livestreamDate, salesAmount, gmv FROM brand_livestreams WHERE streamerName LIKE '%三宅%' OR streamerName LIKE '%あゆみ%' OR streamerName LIKE '%Sannana%' ORDER BY livestreamDate DESC LIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, liverId, streamerName, livestreamDate, salesAmount, gmv FROM brand_livestreams WHERE streamerName LIKE '%三宅%' OR streamerName LIKE '%あゆみ%' OR streamerName LIKE '%Sannana%' ORDER BY livestreamDate DESC LIMIT 20;",
+  "rows": [
+    {
+      "id": "780356",
+      "liverId": "360012",
+      "streamerName": "三宅あゆみ",
+      "livestreamDate": "2025-02-01 12:10:00",
+      "salesAmount": "251689",
+      "gmv": "251689"
+    },
+    {
+      "id": "810006",
+      "liverId": "360012",
+      "streamerName": "三宅あゆみ",
+      "livestreamDate": "2023-02-02 14:00:00",
+      "salesAmount": "92807",
+      "gmv": "92807"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tliverId\tstreamerName\tlivestreamDate\tsalesAmount\tgmv\n780356\t360012\t三宅あゆみ\t2025-02-01 12:10:00\t251689\t251689\n810006\t360012\t三宅あゆみ\t2023-02-02 14:00:00\t92807\t92807\n",
+  "stderr": "",
+  "execution_time_ms": 1586
+}

@@ -927,11 +927,11 @@ export default function LiverSelfRecord() {
             </CardContent>
           </Card>
 
-          {/* Submit Button - Opens Confirmation Dialog */}
+          {/* Submit Button - Direct save with native confirm */}
           <Button
             type="button"
-            onClick={() => {
-              // Validate before showing dialog
+            onClick={(e) => {
+              // Validate before saving
               if (!formData.brandId) {
                 toast.error(tr.selectBrandError);
                 return;
@@ -940,13 +940,28 @@ export default function LiverSelfRecord() {
                 toast.error(tr.enterDateTimeError);
                 return;
               }
-              setShowConfirmDialog(true);
+              // Use native confirm for better LINE browser compatibility
+              const brandName = brands?.find(b => b.id.toString() === formData.brandId)?.name || '';
+              const confirmMessage = `${tr.confirmTitle}\n\n${tr.selectBrand}: ${brandName}\n${tr.livestreamDate}: ${formData.livestreamDate}\n${tr.startTime}: ${formData.livestreamStartTime}\n${formData.salesAmount ? `${tr.salesAmount}: ¥${parseInt(formData.salesAmount).toLocaleString()}` : ''}\n\n${tr.confirmDescription}`;
+              if (window.confirm(confirmMessage)) {
+                handleSubmit(e as unknown as React.FormEvent);
+              }
             }}
             disabled={isSubmitting}
-            className="w-full bg-red-600 hover:bg-red-700 text-white py-6 text-lg font-bold"
+            className="w-full bg-red-600 hover:bg-red-700 text-white py-6 text-lg font-bold touch-manipulation"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
           >
-            <Eye className="w-5 h-5 mr-2" />
-            {tr.previewButton}
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                {tr.saving}
+              </>
+            ) : (
+              <>
+                <CheckCircle className="w-5 h-5 mr-2" />
+                {tr.confirmSave}
+              </>
+            )}
           </Button>
         </form>
 

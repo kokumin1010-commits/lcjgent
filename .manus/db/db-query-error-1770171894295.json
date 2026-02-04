@@ -1,0 +1,8 @@
+{
+  "query": "SELECT id, liverId, livestream_date, sales_amount, gmv, duration, viewer_count, order_count FROM brand_livestreams WHERE liverId = 38 ORDER BY livestream_date DESC LIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, liverId, livestream_date, sales_amount, gmv, duration, viewer_count, order_count FROM brand_livestreams WHERE liverId = 38 ORDER BY livestream_date DESC LIMIT 20;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'livestream_date' in 'field list'"
+  ]
+}
