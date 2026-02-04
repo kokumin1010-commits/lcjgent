@@ -21,6 +21,9 @@ import {
   getLiverPasswordResetToken,
   markLiverPasswordResetTokenUsed,
   updateLiverPassword,
+  getLiverGoal,
+  upsertLiverGoal,
+  getLiverDashboardStats,
 } from "./db";
 import { nanoid } from "nanoid";
 import nodemailer from "nodemailer";
@@ -565,5 +568,74 @@ export const liverRouter = router({
       await markLiverPasswordResetTokenUsed(resetToken.id);
       
       return { success: true };
+    }),
+
+  // ===== Goal Management =====
+  
+  getGoal: publicProcedure
+    .input(z.object({
+      yearMonth: z.string().regex(/^\d{4}-\d{2}$/),
+    }))
+    .query(async ({ ctx, input }) => {
+      const token = getLiverToken(ctx);
+      if (!token) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+      }
+      
+      const payload = await verifyLiverToken(token);
+      if (!payload) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "セッションが無効です" });
+      }
+      
+      const goal = await getLiverGoal(payload.liverId, input.yearMonth);
+      return goal;
+    }),
+
+  setGoal: publicProcedure
+    .input(z.object({
+      yearMonth: z.string().regex(/^\d{4}-\d{2}$/),
+      salesGoal: z.number().min(0),
+      streamCountGoal: z.number().min(0).optional(),
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const token = getLiverToken(ctx);
+      if (!token) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+      }
+      
+      const payload = await verifyLiverToken(token);
+      if (!payload) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "セッションが無効です" });
+      }
+      
+      const goal = await upsertLiverGoal({
+        liverId: payload.liverId,
+        yearMonth: input.yearMonth,
+        salesGoal: input.salesGoal,
+        streamCountGoal: input.streamCountGoal || 0,
+        notes: input.notes,
+      });
+      
+      return goal;
+    }),
+
+  getDashboardStats: publicProcedure
+    .input(z.object({
+      yearMonth: z.string().regex(/^\d{4}-\d{2}$/),
+    }))
+    .query(async ({ ctx, input }) => {
+      const token = getLiverToken(ctx);
+      if (!token) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+      }
+      
+      const payload = await verifyLiverToken(token);
+      if (!payload) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "セッションが無効です" });
+      }
+      
+      const stats = await getLiverDashboardStats(payload.liverId, input.yearMonth);
+      return stats;
     }),
 });

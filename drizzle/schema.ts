@@ -1998,3 +1998,23 @@ export const lineReminders = mysqlTable("line_reminders", {
 
 export type LineReminder = typeof lineReminders.$inferSelect;
 export type InsertLineReminder = typeof lineReminders.$inferInsert;
+
+
+
+/**
+ * Liver Goals table for storing monthly sales goals
+ * ライバーの月間売上目標を保存するテーブル
+ */
+export const liverGoals = mysqlTable("liver_goals", {
+  id: int("id").autoincrement().primaryKey(),
+  liverId: int("liverId").notNull(), // References livers.id
+  yearMonth: varchar("yearMonth", { length: 7 }).notNull(), // YYYY-MM format
+  salesGoal: bigint("salesGoal", { mode: "number" }).default(0).notNull(), // 売上目標（円）
+  streamCountGoal: int("streamCountGoal").default(0), // 配信回数目標
+  notes: text("notes"), // メモ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type LiverGoal = typeof liverGoals.$inferSelect;
+export type InsertLiverGoal = typeof liverGoals.$inferInsert;

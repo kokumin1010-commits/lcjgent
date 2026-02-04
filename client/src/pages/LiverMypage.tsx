@@ -27,7 +27,8 @@ import {
   AlertTriangle,
   X,
   Trash2,
-  History
+  History,
+  Zap
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {
@@ -595,6 +596,24 @@ export default function LiverMypage() {
             </div>
           </>
         )}
+
+        {/* Power Dashboard Link */}
+        <Link href="/liver/dashboard">
+          <Card className="bg-gradient-to-r from-yellow-600/20 via-orange-600/20 to-red-600/20 border-yellow-500/30 hover:border-yellow-400/50 transition-all cursor-pointer">
+            <CardContent className="p-3 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center">
+                  <Zap className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white">パワーダッシュボード</p>
+                  <p className="text-xs text-gray-400">目標設定・成長分析・勝ちパターン発見</p>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 text-gray-400" />
+            </CardContent>
+          </Card>
+        </Link>
 
         {/* All-time Stats */}
         <Card className="bg-gray-800/30 border-gray-700">

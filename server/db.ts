@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -7479,4 +7479,231 @@ export async function getPendingLineRemindersCount(lineUserId: string) {
     );
   
   return result[0]?.count || 0;
+}
+
+
+// ===== Liver Goals Functions =====
+
+export async function getLiverGoal(liverId: number, yearMonth: string) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select()
+    .from(liverGoals)
+    .where(and(
+      eq(liverGoals.liverId, liverId),
+      eq(liverGoals.yearMonth, yearMonth)
+    ))
+    .limit(1);
+  
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function upsertLiverGoal(data: InsertLiverGoal) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Check if goal exists
+  const existing = await getLiverGoal(data.liverId, data.yearMonth);
+  
+  if (existing) {
+    // Update existing goal
+    await db.update(liverGoals)
+      .set({
+        salesGoal: data.salesGoal,
+        streamCountGoal: data.streamCountGoal,
+        notes: data.notes,
+      })
+      .where(eq(liverGoals.id, existing.id));
+    return { ...existing, ...data };
+  } else {
+    // Create new goal
+    const result = await db.insert(liverGoals).values(data);
+    return { id: result[0].insertId, ...data };
+  }
+}
+
+export async function getLiverDashboardStats(liverId: number, yearMonth: string) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  // Get current month's goal
+  const goal = await getLiverGoal(liverId, yearMonth);
+  
+  // Parse yearMonth to get date range
+  const [year, month] = yearMonth.split("-").map(Number);
+  const startDate = new Date(year, month - 1, 1);
+  const endDate = new Date(year, month, 0, 23, 59, 59);
+  
+  // Get current month's livestreams
+  const currentMonthStreams = await db.select()
+    .from(brandLivestreams)
+    .where(and(
+      eq(brandLivestreams.liverId, liverId),
+      gte(brandLivestreams.livestreamDate, startDate),
+      lte(brandLivestreams.livestreamDate, endDate)
+    ))
+    .orderBy(desc(brandLivestreams.livestreamDate));
+  
+  // Calculate current month stats
+  const currentMonthSales = currentMonthStreams.reduce((sum, s) => sum + (s.salesAmount || 0), 0);
+  const currentMonthStreamCount = currentMonthStreams.length;
+  const currentMonthDuration = currentMonthStreams.reduce((sum, s) => sum + (s.duration || 0), 0);
+  
+  // Get previous month's stats for comparison
+  const prevMonth = month === 1 ? 12 : month - 1;
+  const prevYear = month === 1 ? year - 1 : year;
+  const prevStartDate = new Date(prevYear, prevMonth - 1, 1);
+  const prevEndDate = new Date(prevYear, prevMonth, 0, 23, 59, 59);
+  
+  const prevMonthStreams = await db.select()
+    .from(brandLivestreams)
+    .where(and(
+      eq(brandLivestreams.liverId, liverId),
+      gte(brandLivestreams.livestreamDate, prevStartDate),
+      lte(brandLivestreams.livestreamDate, prevEndDate)
+    ));
+  
+  const prevMonthSales = prevMonthStreams.reduce((sum, s) => sum + (s.salesAmount || 0), 0);
+  const prevMonthStreamCount = prevMonthStreams.length;
+  
+  // Get past 6 months data for chart
+  const past6Months: { yearMonth: string; sales: number; streamCount: number }[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const m = new Date(year, month - 1 - i, 1);
+    const mYear = m.getFullYear();
+    const mMonth = m.getMonth() + 1;
+    const mStartDate = new Date(mYear, mMonth - 1, 1);
+    const mEndDate = new Date(mYear, mMonth, 0, 23, 59, 59);
+    
+    const monthStreams = await db.select()
+      .from(brandLivestreams)
+      .where(and(
+        eq(brandLivestreams.liverId, liverId),
+        gte(brandLivestreams.livestreamDate, mStartDate),
+        lte(brandLivestreams.livestreamDate, mEndDate)
+      ));
+    
+    const monthSales = monthStreams.reduce((sum, s) => sum + (s.salesAmount || 0), 0);
+    past6Months.push({
+      yearMonth: `${mYear}-${String(mMonth).padStart(2, "0")}`,
+      sales: monthSales,
+      streamCount: monthStreams.length,
+    });
+  }
+  
+  // Get top products (from livestream products)
+  const productSales = await db.select({
+    productName: livestreamProducts.productName,
+    totalSales: sql<number>`SUM(${livestreamProducts.grossRevenue})`.as("totalSales"),
+  })
+    .from(livestreamProducts)
+    .innerJoin(brandLivestreams, eq(livestreamProducts.livestreamId, brandLivestreams.id))
+    .where(and(
+      eq(brandLivestreams.liverId, liverId),
+      gte(brandLivestreams.livestreamDate, startDate),
+      lte(brandLivestreams.livestreamDate, endDate)
+    ))
+    .groupBy(livestreamProducts.productName)
+    .orderBy(desc(sql`totalSales`))
+    .limit(5);
+  
+  // Get best streaming time (hour with highest sales)
+  const hourlyStats: { hour: number; sales: number; count: number }[] = [];
+  for (let h = 0; h < 24; h++) {
+    const hourStreams = currentMonthStreams.filter(s => {
+      const streamHour = new Date(s.livestreamDate).getHours();
+      return streamHour === h;
+    });
+    const hourSales = hourStreams.reduce((sum, s) => sum + (s.salesAmount || 0), 0);
+    hourlyStats.push({ hour: h, sales: hourSales, count: hourStreams.length });
+  }
+  
+  // Find best hour
+  const bestHour = hourlyStats.reduce((best, curr) => 
+    curr.sales > best.sales ? curr : best, 
+    { hour: 0, sales: 0, count: 0 }
+  );
+  
+  // Get today's date for remaining days calculation
+  const today = new Date();
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const currentDay = today.getMonth() + 1 === month && today.getFullYear() === year 
+    ? today.getDate() 
+    : daysInMonth;
+  const remainingDays = daysInMonth - currentDay;
+  
+  // Calculate daily pace needed to reach goal
+  const salesGoal = goal?.salesGoal || 0;
+  const remainingSales = Math.max(0, salesGoal - currentMonthSales);
+  const dailyPaceNeeded = remainingDays > 0 ? Math.ceil(remainingSales / remainingDays) : 0;
+  
+  // Get best stream of the month
+  const bestStream = currentMonthStreams.length > 0 
+    ? currentMonthStreams.reduce((best, curr) => 
+        (curr.salesAmount || 0) > (best.salesAmount || 0) ? curr : best
+      )
+    : null;
+  
+  // Calculate consecutive streaming days
+  let consecutiveDays = 0;
+  const sortedDates = currentMonthStreams
+    .map(s => new Date(s.livestreamDate).toDateString())
+    .filter((v, i, a) => a.indexOf(v) === i)
+    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+  
+  if (sortedDates.length > 0) {
+    consecutiveDays = 1;
+    for (let i = 1; i < sortedDates.length; i++) {
+      const prev = new Date(sortedDates[i - 1]);
+      const curr = new Date(sortedDates[i]);
+      const diffDays = (prev.getTime() - curr.getTime()) / (1000 * 60 * 60 * 24);
+      if (diffDays === 1) {
+        consecutiveDays++;
+      } else {
+        break;
+      }
+    }
+  }
+  
+  return {
+    goal: {
+      salesGoal,
+      streamCountGoal: goal?.streamCountGoal || 0,
+    },
+    currentMonth: {
+      sales: currentMonthSales,
+      streamCount: currentMonthStreamCount,
+      duration: currentMonthDuration,
+    },
+    previousMonth: {
+      sales: prevMonthSales,
+      streamCount: prevMonthStreamCount,
+    },
+    growth: {
+      salesGrowth: prevMonthSales > 0 
+        ? Math.round(((currentMonthSales - prevMonthSales) / prevMonthSales) * 100) 
+        : 0,
+      streamCountGrowth: prevMonthStreamCount > 0 
+        ? Math.round(((currentMonthStreamCount - prevMonthStreamCount) / prevMonthStreamCount) * 100) 
+        : 0,
+    },
+    progress: {
+      salesProgress: salesGoal > 0 ? Math.round((currentMonthSales / salesGoal) * 100) : 0,
+      remainingSales,
+      remainingDays,
+      dailyPaceNeeded,
+    },
+    past6Months,
+    topProducts: productSales,
+    bestHour: bestHour.sales > 0 ? bestHour : null,
+    hourlyStats: hourlyStats.filter(h => h.count > 0),
+    highlights: {
+      bestStream: bestStream ? {
+        date: bestStream.livestreamDate,
+        sales: bestStream.salesAmount,
+      } : null,
+      consecutiveDays,
+    },
+  };
 }

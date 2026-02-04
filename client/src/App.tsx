@@ -62,6 +62,7 @@ import ScheduleGroupManagement from "./pages/ScheduleGroupManagement";
 import LiverByName from "./pages/LiverByName";
 import LiverForgotPassword from "./pages/LiverForgotPassword";
 import LiverResetPassword from "./pages/LiverResetPassword";
+import LiverDashboard from "./pages/LiverDashboard";
 
 function Router() {
   return (
@@ -271,6 +272,7 @@ function Router() {
       <Route path={"/liver/register"} component={LiverRegister} />
       <Route path={"/liver/login"} component={LiverLogin} />
       <Route path={"/liver/mypage"} component={LiverMypage} />
+      <Route path={"/liver/dashboard"} component={LiverDashboard} />
       <Route path={"/liver/profile"} component={LiverProfile} />
       <Route path={"/liver/edit"} component={LiverProfile} />
       <Route path={"/liver/record"} component={LiverSelfRecord} />
