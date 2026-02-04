@@ -233,6 +233,8 @@ async function getMessageContent(messageId: string): Promise<{
 }
 
 // Keywords that trigger the agent
+// TRIGGER_KEYWORDS and GREETING_KEYWORDS are now ONLY used in combination with @LCJ mention
+// They should NOT trigger responses on their own in group chats
 const TRIGGER_KEYWORDS = ["タスク", "指示", "依頼", "お願い", "確認", "報告", "完了", "進捗"];
 const GREETING_KEYWORDS = ["こんにちは", "おはよう", "こんばんは", "ハロー", "hello", "hi"];
 const END_KEYWORDS = ["終了", "おわり", "バイバイ", "さようなら", "ありがとう"];
@@ -371,7 +373,8 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
 
     if (isGroupChat && groupId) {
       // Check for bot mention or trigger keywords
-      // Only respond to LCJ-specific mentions, not any @ mention
+      // IMPORTANT: Only respond to LCJ-specific mentions, NOT @All or other mentions
+      // Trigger keywords and greetings should ONLY work when combined with @LCJ mention
       const lcjMentionPatterns = [
         /@LCJ/i,           // @LCJ (case insensitive)
         /@lcj/i,           // @lcj (case insensitive)
@@ -380,16 +383,16 @@ export async function processLineMessage(event: LineWebhookEvent): Promise<void>
         /エージェントさん/i, // エージェントさん
       ];
       const isMentioned = lcjMentionPatterns.some(pattern => pattern.test(messageText));
-      const hasTrigger = containsTriggerKeyword(messageText);
-      const hasGreeting = containsGreetingKeyword(messageText);
       const hasEnd = containsEndKeyword(messageText);
       const hasSession = hasActiveSession(groupId, userId);
 
-      if (isMentioned || hasTrigger || hasGreeting) {
-        // Start or refresh session
+      // CRITICAL FIX: Only start new session if explicitly mentioned @LCJ
+      // Do NOT respond to trigger keywords or greetings alone in group chats
+      if (isMentioned) {
+        // Start or refresh session only when explicitly mentioned
         startOrRefreshSession(groupId, userId);
         shouldRespond = true;
-        console.log(`[LINE Agent] Starting/refreshing session for ${userId} in group ${groupId}`);
+        console.log(`[LINE Agent] Starting/refreshing session for ${userId} in group ${groupId} (mentioned)`);
       } else if (hasSession) {
         // Continue existing session
         startOrRefreshSession(groupId, userId);
