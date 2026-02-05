@@ -1,0 +1,45 @@
+{
+  "query": "SELECT bl.id, bl.liverId, bl.livestreamDate, l.name, l.email FROM brand_livestreams bl LEFT JOIN livers l ON bl.liverId = l.id WHERE l.email = 'shihomi208@gmail.com' ORDER BY bl.id DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT bl.id, bl.liverId, bl.livestreamDate, l.name, l.email FROM brand_livestreams bl LEFT JOIN livers l ON bl.liverId = l.id WHERE l.email = 'shihomi208@gmail.com' ORDER BY bl.id DESC LIMIT 5;",
+  "rows": [
+    {
+      "id": "840234",
+      "liverId": "360029",
+      "livestreamDate": "2026-02-03 19:30:00",
+      "name": "しいほ",
+      "email": "shihomi208@gmail.com"
+    },
+    {
+      "id": "840233",
+      "liverId": "360029",
+      "livestreamDate": "2026-02-01 19:01:00",
+      "name": "しいほ",
+      "email": "shihomi208@gmail.com"
+    },
+    {
+      "id": "840232",
+      "liverId": "360029",
+      "livestreamDate": "2026-02-02 19:36:00",
+      "name": "しいほ",
+      "email": "shihomi208@gmail.com"
+    },
+    {
+      "id": "780373",
+      "liverId": "360029",
+      "livestreamDate": "2026-02-01 19:01:00",
+      "name": "しいほ",
+      "email": "shihomi208@gmail.com"
+    },
+    {
+      "id": "780372",
+      "liverId": "360029",
+      "livestreamDate": "2026-02-01 19:01:00",
+      "name": "しいほ",
+      "email": "shihomi208@gmail.com"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tliverId\tlivestreamDate\tname\temail\n840234\t360029\t2026-02-03 19:30:00\tしいほ\tshihomi208@gmail.com\n840233\t360029\t2026-02-01 19:01:00\tしいほ\tshihomi208@gmail.com\n840232\t360029\t2026-02-02 19:36:00\tしいほ\tshihomi208@gmail.com\n780373\t360029\t2026-02-01 19:01:00\tしいほ\tshihomi208@gmail.com\n780372\t360029\t2026-02-01 19:01:00\tしいほ\tshihomi208@gmail.com\n",
+  "stderr": "",
+  "execution_time_ms": 1594
+}

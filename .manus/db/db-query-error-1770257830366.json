@@ -1,0 +1,8 @@
+{
+  "query": "SELECT id, liver_id, livestream_date FROM brand_livestream WHERE liver_id = (SELECT id FROM livers WHERE email = 'shihomi208@gmail.com' LIMIT 1) ORDER BY id DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, liver_id, livestream_date FROM brand_livestream WHERE liver_id = (SELECT id FROM livers WHERE email = 'shihomi208@gmail.com' LIMIT 1) ORDER BY id DESC LIMIT 5;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1146 (42S02) at line 1: Table 'gga9wvtbczmf6mjymmwacw.brand_livestream' doesn't exist"
+  ]
+}

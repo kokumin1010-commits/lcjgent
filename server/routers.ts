@@ -5079,7 +5079,7 @@ ${hasLearningData ? '- 過去の広告実績データ: ' + learningDataRecords +
         return await createLivestreamProduct(input);
       }),
 
-    listProducts: protectedProcedure
+    listProducts: publicProcedure
       .input(z.object({ livestreamId: z.number() }))
       .query(async ({ input }) => {
         return await getLivestreamProductsByLivestreamId(input.livestreamId);
@@ -5170,7 +5170,7 @@ ${hasLearningData ? '- 過去の広告実績データ: ' + learningDataRecords +
       }),
     
     // Get CSV import history for a livestream
-    getImportHistory: protectedProcedure
+    getImportHistory: publicProcedure
       .input(z.object({ livestreamId: z.number() }))
       .query(async ({ input }) => {
         return await getCsvImportHistoryByLivestream(input.livestreamId);

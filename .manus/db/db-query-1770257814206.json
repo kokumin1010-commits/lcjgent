@@ -1,0 +1,22 @@
+{
+  "query": "SHOW TABLES LIKE '%livestream%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SHOW TABLES LIKE '%livestream%';",
+  "rows": [
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (%livestream%)": "brand_livestreams"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (%livestream%)": "contract_livestream_links"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (%livestream%)": "livestream_csv_import_history"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (%livestream%)": "livestream_products"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_GgA9WvTBCZMf6mjyMMwACw (%livestream%)\nbrand_livestreams\ncontract_livestream_links\nlivestream_csv_import_history\nlivestream_products\n",
+  "stderr": "",
+  "execution_time_ms": 1593
+}

@@ -1,0 +1,15 @@
+{
+  "query": "SELECT id, name, email FROM livers WHERE email = 'shihomi208@gmail.com' LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, name, email FROM livers WHERE email = 'shihomi208@gmail.com' LIMIT 1;",
+  "rows": [
+    {
+      "id": "360029",
+      "name": "しいほ",
+      "email": "shihomi208@gmail.com"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\n360029\tしいほ\tshihomi208@gmail.com\n",
+  "stderr": "",
+  "execution_time_ms": 1807
+}

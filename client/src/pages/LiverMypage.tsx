@@ -851,11 +851,10 @@ export default function LiverMypage() {
                 };
 
                 return (
-                  <Card 
-                    key={ls.id} 
-                    className="bg-gray-800/50 border-gray-700 hover:bg-gray-700/50 transition-colors cursor-pointer active:scale-[0.99]"
-                    onClick={() => navigate(`/livestreams/${ls.id}`)}
-                  >
+                  <Link key={ls.id} href={`/livestreams/${ls.id}`} className="block">
+                    <Card 
+                      className="bg-gray-800/50 border-gray-700 hover:bg-gray-700/50 transition-colors cursor-pointer active:scale-[0.99]"
+                    >
                     <CardContent className="p-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -924,7 +923,8 @@ export default function LiverMypage() {
                         </p>
                       )}
                     </CardContent>
-                  </Card>
+                    </Card>
+                  </Link>
                 );
               })}
             </div>

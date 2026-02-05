@@ -3683,3 +3683,16 @@
 ## バグ修正: パワーダッシュボードカードがタップできない
 - [x] パワーダッシュボードカードをLinkコンポーネントでラップ
 - [x] LiverDashboardのトークンキーを正しいものに修正（liver_token → liver_session_token）
+
+
+## バグ修正: 配信履歴編集ページで自動的にページが戻る
+- [ ] 配信履歴編集ページの認証チェックを調査
+- [ ] ライバーページのリダイレクト処理を確認・修正
+- [ ] 根本的な原因を特定して修正
+
+
+## バグ修正：配信履歴編集ページで自動的にページが戻る
+- [x] 配信履歴編集ページの認証チェックを調査
+- [x] brandLivestream.listProductsをpublicProcedureに変更
+- [x] brandLivestream.getImportHistoryをpublicProcedureに変更
+- [x] 根本的な原因を特定して修正（認証が必要なAPIがライバーログイン時に401エラーを返していた）

@@ -1,0 +1,40 @@
+{
+  "query": "SELECT bl.id, bl.livestreamDate, bl.salesAmount, liv.name as liverName \nFROM brand_livestreams bl \nJOIN livers liv ON bl.liverId = liv.id \nWHERE liv.email = 'shihomi208@gmail.com' \nORDER BY bl.livestreamDate DESC \nLIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT bl.id, bl.livestreamDate, bl.salesAmount, liv.name as liverName \nFROM brand_livestreams bl \nJOIN livers liv ON bl.liverId = liv.id \nWHERE liv.email = 'shihomi208@gmail.com' \nORDER BY bl.livestreamDate DESC \nLIMIT 5;",
+  "rows": [
+    {
+      "id": "840234",
+      "livestreamDate": "2026-02-03 19:30:00",
+      "salesAmount": "99682",
+      "liverName": "しいほ"
+    },
+    {
+      "id": "840232",
+      "livestreamDate": "2026-02-02 19:36:00",
+      "salesAmount": "71511",
+      "liverName": "しいほ"
+    },
+    {
+      "id": "840233",
+      "livestreamDate": "2026-02-01 19:01:00",
+      "salesAmount": "70057",
+      "liverName": "しいほ"
+    },
+    {
+      "id": "780373",
+      "livestreamDate": "2026-02-01 19:01:00",
+      "salesAmount": "70057",
+      "liverName": "しいほ"
+    },
+    {
+      "id": "780372",
+      "livestreamDate": "2026-02-01 19:01:00",
+      "salesAmount": "70057",
+      "liverName": "しいほ"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tlivestreamDate\tsalesAmount\tliverName\n840234\t2026-02-03 19:30:00\t99682\tしいほ\n840232\t2026-02-02 19:36:00\t71511\tしいほ\n840233\t2026-02-01 19:01:00\t70057\tしいほ\n780373\t2026-02-01 19:01:00\t70057\tしいほ\n780372\t2026-02-01 19:01:00\t70057\tしいほ\n",
+  "stderr": "",
+  "execution_time_ms": 1675
+}

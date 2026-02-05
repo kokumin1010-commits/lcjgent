@@ -1,0 +1,8 @@
+{
+  "query": "SELECT bl.id, bl.liver_id, bl.livestream_date, l.name, l.email FROM brand_livestreams bl LEFT JOIN livers l ON bl.liver_id = l.id WHERE l.email = 'shihomi208@gmail.com' ORDER BY bl.id DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT bl.id, bl.liver_id, bl.livestream_date, l.name, l.email FROM brand_livestreams bl LEFT JOIN livers l ON bl.liver_id = l.id WHERE l.email = 'shihomi208@gmail.com' ORDER BY bl.id DESC LIMIT 5;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'bl.liver_id' in 'on clause'"
+  ]
+}
