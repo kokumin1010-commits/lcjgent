@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Crown, Clock, TrendingUp, ChevronDown, ChevronUp, Users } from "lucide-react";
+import { Crown, Clock, TrendingUp, ChevronDown, ChevronUp, Users, DollarSign, Activity, Zap, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function LiverList() {
@@ -43,10 +43,24 @@ export default function LiverList() {
     month: selectedMonth,
   });
   
+  // Total LCJ Liver Sales Summary
+  const { data: totalSummary } = trpc.liverManagement.totalSalesSummary.useQuery({
+    month: selectedMonth,
+  });
+  
+  // Monthly Sales Trend
+  const { data: salesTrend } = trpc.liverManagement.monthlySalesTrend.useQuery();
+  
   const translations = {
     ja: {
       title: "ライバーリスト",
       monthLabel: "月選択",
+      totalSales: "トータル売上",
+      totalDuration: "総配信時間",
+      totalLivestreams: "総配信数",
+      activeLivers: "アクティブライバー",
+      vsLastMonth: "前月比",
+      lcjLiverSummary: "LCJライバー全体実績",
       salesRanking: "月間売上ランキング",
       durationRanking: "累計配信時間ランキング",
       sales: "売上",
@@ -60,6 +74,12 @@ export default function LiverList() {
     zh: {
       title: "主播列表",
       monthLabel: "选择月份",
+      totalSales: "总销售额",
+      totalDuration: "总直播时长",
+      totalLivestreams: "总直播数",
+      activeLivers: "活跃主播",
+      vsLastMonth: "环比",
+      lcjLiverSummary: "LCJ主播整体业绩",
       salesRanking: "月间销售排行榜",
       durationRanking: "累计直播时长排行榜",
       sales: "销售额",
@@ -142,6 +162,116 @@ export default function LiverList() {
           <span>{monthOptions.find(m => m.value === selectedMonth)?.label}</span>
           <span>{selectedMonth.replace("-", "年")}月▼</span>
         </div>
+        
+        {/* LCJ Liver Total Summary */}
+        {totalSummary && (
+          <Card className="bg-gradient-to-br from-purple-900/50 to-pink-900/50 border-purple-500/30">
+            <CardContent className="p-6">
+              <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-white">
+                <Zap className="w-6 h-6 text-yellow-400" />
+                {tr.lcjLiverSummary}（{monthOptions.find(m => m.value === selectedMonth)?.label}）
+              </h2>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {/* Total Sales */}
+                <div className="bg-black/30 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <DollarSign className="w-5 h-5 text-yellow-400" />
+                    <span className="text-white/70 text-sm">{tr.totalSales}</span>
+                  </div>
+                  <p className="text-2xl font-bold text-yellow-400">
+                    ¥{totalSummary.totalSales.toLocaleString()}
+                  </p>
+                  <div className={`flex items-center gap-1 mt-1 text-sm ${totalSummary.salesGrowth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {totalSummary.salesGrowth >= 0 ? (
+                      <ArrowUpRight className="w-4 h-4" />
+                    ) : (
+                      <ArrowDownRight className="w-4 h-4" />
+                    )}
+                    <span>{totalSummary.salesGrowth >= 0 ? '+' : ''}{totalSummary.salesGrowth}%</span>
+                    <span className="text-white/50">{tr.vsLastMonth}</span>
+                  </div>
+                </div>
+                
+                {/* Total Duration */}
+                <div className="bg-black/30 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Clock className="w-5 h-5 text-blue-400" />
+                    <span className="text-white/70 text-sm">{tr.totalDuration}</span>
+                  </div>
+                  <p className="text-2xl font-bold text-blue-400">
+                    {(totalSummary.totalDuration / 60).toFixed(1)}h
+                  </p>
+                  <div className={`flex items-center gap-1 mt-1 text-sm ${totalSummary.durationGrowth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {totalSummary.durationGrowth >= 0 ? (
+                      <ArrowUpRight className="w-4 h-4" />
+                    ) : (
+                      <ArrowDownRight className="w-4 h-4" />
+                    )}
+                    <span>{totalSummary.durationGrowth >= 0 ? '+' : ''}{totalSummary.durationGrowth}%</span>
+                    <span className="text-white/50">{tr.vsLastMonth}</span>
+                  </div>
+                </div>
+                
+                {/* Total Livestreams */}
+                <div className="bg-black/30 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Activity className="w-5 h-5 text-green-400" />
+                    <span className="text-white/70 text-sm">{tr.totalLivestreams}</span>
+                  </div>
+                  <p className="text-2xl font-bold text-green-400">
+                    {totalSummary.totalLivestreams}回
+                  </p>
+                  <div className={`flex items-center gap-1 mt-1 text-sm ${totalSummary.livestreamGrowth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {totalSummary.livestreamGrowth >= 0 ? (
+                      <ArrowUpRight className="w-4 h-4" />
+                    ) : (
+                      <ArrowDownRight className="w-4 h-4" />
+                    )}
+                    <span>{totalSummary.livestreamGrowth >= 0 ? '+' : ''}{totalSummary.livestreamGrowth}%</span>
+                    <span className="text-white/50">{tr.vsLastMonth}</span>
+                  </div>
+                </div>
+                
+                {/* Active Livers */}
+                <div className="bg-black/30 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Users className="w-5 h-5 text-pink-400" />
+                    <span className="text-white/70 text-sm">{tr.activeLivers}</span>
+                  </div>
+                  <p className="text-2xl font-bold text-pink-400">
+                    {totalSummary.activeLivers}人
+                  </p>
+                  <div className="flex items-center gap-1 mt-1 text-sm text-white/50">
+                    <span>前月: {totalSummary.prevActiveLivers}人</span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Monthly Trend Mini Chart */}
+              {salesTrend && salesTrend.length > 0 && (
+                <div className="mt-6 pt-4 border-t border-white/10">
+                  <h3 className="text-sm text-white/70 mb-3">売上推移（過去6ヶ月）</h3>
+                  <div className="flex items-end gap-2 h-16">
+                    {salesTrend.map((month, index) => {
+                      const maxSales = Math.max(...salesTrend.map(m => m.totalSales));
+                      const height = maxSales > 0 ? (month.totalSales / maxSales) * 100 : 0;
+                      return (
+                        <div key={month.month} className="flex-1 flex flex-col items-center gap-1">
+                          <div 
+                            className="w-full bg-gradient-to-t from-yellow-500 to-yellow-300 rounded-t"
+                            style={{ height: `${Math.max(height, 4)}%` }}
+                          />
+                          <span className="text-xs text-white/50">{month.label}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
         
         {/* Sales Ranking */}
         <Card className="bg-gray-900/50 border-gray-800">

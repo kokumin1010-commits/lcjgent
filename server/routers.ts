@@ -190,6 +190,8 @@ import {
   getLivestreamsByLiverId,
   getLiverStatistics,
   getLiverRankings,
+  getTotalLiverSalesSummary,
+  getLiverMonthlySalesTrend,
   getLivestreamById,
   updateLivestreamResult,
   getLiversWithStats,
@@ -7332,6 +7334,19 @@ ${conversationText}
     listAll: publicProcedure.query(async () => {
       return await getAllLivers();
     }),
+
+    // Get total LCJ liver sales summary (public - ログイン不要)
+    totalSalesSummary: publicProcedure
+      .input(z.object({ month: z.string() }))
+      .query(async ({ input }) => {
+        return await getTotalLiverSalesSummary(input.month);
+      }),
+
+    // Get monthly sales trend for all livers (public - ログイン不要)
+    monthlySalesTrend: publicProcedure
+      .query(async () => {
+        return await getLiverMonthlySalesTrend();
+      }),
 
     // Create livestream record (配信履歴の記録)
     createLivestream: publicProcedure

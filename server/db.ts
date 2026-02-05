@@ -7723,3 +7723,128 @@ export async function getLiverDashboardStats(liverId: number, yearMonth: string)
     },
   };
 }
+
+
+// --- Liver Total Statistics Functions ---
+
+/**
+ * Get total LCJ liver sales summary for a given month
+ * Returns total sales, total duration, total livestream count, and growth rates
+ */
+export async function getTotalLiverSalesSummary(month: string) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const [year, monthNum] = month.split('-').map(Number);
+  const startDate = new Date(year, monthNum - 1, 1);
+  const endDate = new Date(year, monthNum, 0, 23, 59, 59);
+  
+  // Previous month for growth calculation
+  const prevStartDate = new Date(year, monthNum - 2, 1);
+  const prevEndDate = new Date(year, monthNum - 1, 0, 23, 59, 59);
+  
+  // Current month totals
+  const currentMonth = await db
+    .select({
+      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.gmv}), 0)`,
+      totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
+      totalLivestreams: sql<number>`COUNT(*)`,
+      activeLivers: sql<number>`COUNT(DISTINCT ${brandLivestreams.liverId})`,
+    })
+    .from(brandLivestreams)
+    .where(
+      and(
+        sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
+        sql`${brandLivestreams.livestreamDate} <= ${endDate}`
+      )
+    );
+  
+  // Previous month totals
+  const prevMonth = await db
+    .select({
+      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.gmv}), 0)`,
+      totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
+      totalLivestreams: sql<number>`COUNT(*)`,
+      activeLivers: sql<number>`COUNT(DISTINCT ${brandLivestreams.liverId})`,
+    })
+    .from(brandLivestreams)
+    .where(
+      and(
+        sql`${brandLivestreams.livestreamDate} >= ${prevStartDate}`,
+        sql`${brandLivestreams.livestreamDate} <= ${prevEndDate}`
+      )
+    );
+  
+  const current = currentMonth[0];
+  const prev = prevMonth[0];
+  
+  // Calculate growth rates
+  const salesGrowth = prev.totalSales > 0 
+    ? Math.round(((current.totalSales - prev.totalSales) / prev.totalSales) * 100)
+    : current.totalSales > 0 ? 100 : 0;
+    
+  const durationGrowth = prev.totalDuration > 0
+    ? Math.round(((current.totalDuration - prev.totalDuration) / prev.totalDuration) * 100)
+    : current.totalDuration > 0 ? 100 : 0;
+    
+  const livestreamGrowth = prev.totalLivestreams > 0
+    ? Math.round(((current.totalLivestreams - prev.totalLivestreams) / prev.totalLivestreams) * 100)
+    : current.totalLivestreams > 0 ? 100 : 0;
+  
+  return {
+    totalSales: Number(current.totalSales),
+    totalDuration: Number(current.totalDuration),
+    totalLivestreams: Number(current.totalLivestreams),
+    activeLivers: Number(current.activeLivers),
+    prevTotalSales: Number(prev.totalSales),
+    prevTotalDuration: Number(prev.totalDuration),
+    prevTotalLivestreams: Number(prev.totalLivestreams),
+    prevActiveLivers: Number(prev.activeLivers),
+    salesGrowth,
+    durationGrowth,
+    livestreamGrowth,
+  };
+}
+
+/**
+ * Get monthly sales trend for all livers (past 6 months)
+ */
+export async function getLiverMonthlySalesTrend() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const months = [];
+  const now = new Date();
+  
+  for (let i = 5; i >= 0; i--) {
+    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0, 23, 59, 59);
+    
+    const result = await db
+      .select({
+        totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.gmv}), 0)`,
+        totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
+        totalLivestreams: sql<number>`COUNT(*)`,
+      })
+      .from(brandLivestreams)
+      .where(
+        and(
+          sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
+          sql`${brandLivestreams.livestreamDate} <= ${endDate}`
+        )
+      );
+    
+    months.push({
+      month: `${year}-${String(month).padStart(2, '0')}`,
+      label: `${month}月`,
+      totalSales: Number(result[0]?.totalSales || 0),
+      totalDuration: Number(result[0]?.totalDuration || 0),
+      totalLivestreams: Number(result[0]?.totalLivestreams || 0),
+    });
+  }
+  
+  return months;
+}
