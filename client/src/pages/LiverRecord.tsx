@@ -170,7 +170,14 @@ export default function LiverRecord() {
       setLocation(`/livers/${liverId}`);
     },
     onError: (error) => {
-      toast.error(error.message);
+      // 「Invalid time value」エラーを日本語/中国語に翻訳
+      let errorMessage = error.message;
+      if (error.message.includes("Invalid time value") || error.message.includes("Invalid Date")) {
+        errorMessage = language === "ja" 
+          ? "時間の形式が正しくありません。開始時刻と終了時刻を確認してください。" 
+          : "时间格式不正确。请检查开始和结束时间。";
+      }
+      toast.error(errorMessage);
       setIsSubmitting(false);
     },
   });
@@ -674,13 +681,50 @@ export default function LiverRecord() {
       console.log("[handleGenerateAdvice] No data provided, skipping");
       return;
     }
+    
+    // 開始時刻・終了時刻から配信時間を計算（AI解析結果より優先）
+    let calculatedDuration = data.durationMinutes;
+    
+    // まずフォームの開始時刻・終了時刻から計算を試みる
+    if (startDate && startTime && endDate && endTime) {
+      try {
+        const startDt = new Date(`${startDate}T${startTime}:00`);
+        const endDt = new Date(`${endDate}T${endTime}:00`);
+        if (!isNaN(startDt.getTime()) && !isNaN(endDt.getTime())) {
+          const diffMs = endDt.getTime() - startDt.getTime();
+          if (diffMs > 0) {
+            calculatedDuration = Math.round(diffMs / (1000 * 60));
+            console.log(`[handleGenerateAdvice] Calculated duration from form times: ${calculatedDuration} minutes (AI said: ${data.durationMinutes})`);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to calculate duration from form times:", e);
+      }
+    }
+    // フォームに時刻がない場合、AI解析結果の時刻から計算
+    else if (data.startDateTime && data.endDateTime && !calculatedDuration) {
+      try {
+        const startDt = new Date(data.startDateTime.replace(' ', 'T') + ':00');
+        const endDt = new Date(data.endDateTime.replace(' ', 'T') + ':00');
+        if (!isNaN(startDt.getTime()) && !isNaN(endDt.getTime())) {
+          const diffMs = endDt.getTime() - startDt.getTime();
+          if (diffMs > 0) {
+            calculatedDuration = Math.round(diffMs / (1000 * 60));
+            console.log(`[handleGenerateAdvice] Calculated duration from AI times: ${calculatedDuration} minutes (AI said: ${data.durationMinutes})`);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to calculate duration from AI times:", e);
+      }
+    }
+    
     const dataToUse = {
       salesAmount: data.salesAmount ?? (salesAmount ? parseInt(salesAmount) : undefined),
       viewerCount: data.viewerCount ?? (viewerCount ? parseInt(viewerCount) : undefined),
       peakViewerCount: data.peakViewerCount ?? (peakViewerCount ? parseInt(peakViewerCount) : undefined),
       productClicks: data.productClicks ?? (productClicks ? parseInt(productClicks) : undefined),
       orderCount: data.orderCount ?? (orderCount ? parseInt(orderCount) : undefined),
-      durationMinutes: data.durationMinutes ?? (durationMinutes ? parseInt(durationMinutes) : undefined),
+      durationMinutes: calculatedDuration ?? (durationMinutes ? parseInt(durationMinutes) : undefined),
     };
     
     setIsGeneratingAdvice(true);
