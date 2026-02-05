@@ -716,7 +716,7 @@ export default function LiverMypage() {
         )}
 
         {/* Power Dashboard Link */}
-        <Link href="/liver/dashboard">
+        <Link href="/liver/dashboard" className="block">
           <Card className="bg-gradient-to-r from-yellow-600/20 via-orange-600/20 to-red-600/20 border-yellow-500/30 hover:border-yellow-400/50 transition-all cursor-pointer">
             <CardContent className="p-3 flex items-center justify-between">
               <div className="flex items-center gap-3">

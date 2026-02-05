@@ -59,7 +59,7 @@ export default function LiverDashboard() {
   
   // Check authentication
   useEffect(() => {
-    const token = localStorage.getItem("liver_token");
+    const token = localStorage.getItem("liver_session_token");
     if (!token) {
       navigate("/liver/login");
       return;
