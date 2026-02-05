@@ -8071,7 +8071,10 @@ export async function getTopSellingProducts(month: string, limit: number = 10) {
   
   // Get all livestreams for the month that have a liverId
   const livestreamsInMonth = await db
-    .select({ id: brandLivestreams.id })
+    .select({ 
+      id: brandLivestreams.id,
+      liverId: brandLivestreams.liverId,
+    })
     .from(brandLivestreams)
     .where(
       and(
@@ -8084,6 +8087,20 @@ export async function getTopSellingProducts(month: string, limit: number = 10) {
   if (livestreamsInMonth.length === 0) return [];
   
   const livestreamIds = livestreamsInMonth.map(l => l.id);
+  
+  // Get unique liver IDs and fetch their names
+  const liverIds = Array.from(new Set(livestreamsInMonth.map(l => l.liverId).filter((id): id is number => id !== null)));
+  const liversData = liverIds.length > 0 ? await db
+    .select({
+      id: livers.id,
+      name: livers.name,
+    })
+    .from(livers)
+    .where(sql`${livers.id} IN (${sql.join(liverIds.map(id => sql`${id}`), sql`, `)})`) : [];
+  const liverNameMap = new Map(liversData.map(l => [l.id, l.name]));
+  
+  // Create livestream to liver mapping
+  const livestreamToLiver = new Map(livestreamsInMonth.map(l => [l.id, l.liverId]));
   
   // Aggregate products by name
   const products = await db
@@ -8100,16 +8117,61 @@ export async function getTopSellingProducts(month: string, limit: number = 10) {
     .orderBy(sql`SUM(COALESCE(${livestreamProducts.directGmv}, ${livestreamProducts.gmv}, 0)) DESC`)
     .limit(limit);
   
-  return products.map((p, index) => ({
-    rank: index + 1,
-    productName: p.productName,
-    totalGmv: Number(p.totalGmv),
-    totalItemsSold: Number(p.totalItemsSold),
-    totalOrders: Number(p.totalOrders),
-    avgPrice: p.totalItemsSold > 0 ? Math.round(Number(p.totalGmv) / Number(p.totalItemsSold)) : 0,
-    livestreamCount: Number(p.livestreamCount),
-    soldCount: Number(p.totalItemsSold),
-  }));
+  // Get product-liver sales breakdown for each product
+  const productNames = products.map(p => p.productName);
+  const productLiverSales = productNames.length > 0 ? await db
+    .select({
+      productName: livestreamProducts.productName,
+      livestreamId: livestreamProducts.livestreamId,
+      gmv: sql<number>`COALESCE(SUM(COALESCE(${livestreamProducts.directGmv}, ${livestreamProducts.gmv}, 0)), 0)`,
+    })
+    .from(livestreamProducts)
+    .where(
+      and(
+        sql`${livestreamProducts.livestreamId} IN (${sql.join(livestreamIds.map(id => sql`${id}`), sql`, `)})`,
+        sql`${livestreamProducts.productName} IN (${sql.join(productNames.map(name => sql`${name}`), sql`, `)})`
+      )
+    )
+    .groupBy(livestreamProducts.productName, livestreamProducts.livestreamId) : [];
+  
+  // Build product to livers mapping with sales
+  const productLiversMap = new Map<string, Map<number, number>>();
+  productLiverSales.forEach(sale => {
+    const liverId = livestreamToLiver.get(sale.livestreamId);
+    if (liverId) {
+      if (!productLiversMap.has(sale.productName)) {
+        productLiversMap.set(sale.productName, new Map());
+      }
+      const liverSales = productLiversMap.get(sale.productName)!;
+      liverSales.set(liverId, (liverSales.get(liverId) || 0) + Number(sale.gmv));
+    }
+  });
+  
+  return products.map((p, index) => {
+    // Get livers who sold this product, sorted by sales
+    const liverSalesForProduct = productLiversMap.get(p.productName);
+    const sellingLivers = liverSalesForProduct 
+      ? Array.from(liverSalesForProduct.entries())
+          .sort((a, b) => b[1] - a[1])
+          .map(([liverId, sales]) => ({
+            liverId,
+            liverName: liverNameMap.get(liverId) || `Liver ${liverId}`,
+            sales,
+          }))
+      : [];
+    
+    return {
+      rank: index + 1,
+      productName: p.productName,
+      totalGmv: Number(p.totalGmv),
+      totalItemsSold: Number(p.totalItemsSold),
+      totalOrders: Number(p.totalOrders),
+      avgPrice: p.totalItemsSold > 0 ? Math.round(Number(p.totalGmv) / Number(p.totalItemsSold)) : 0,
+      livestreamCount: Number(p.livestreamCount),
+      soldCount: Number(p.totalItemsSold),
+      sellingLivers, // New: list of livers who sold this product
+    };
+  });
 }
 
 // Alias for getTopSellingProducts
@@ -8167,15 +8229,24 @@ export async function getLiverProductMatrix(month: string, topProductsLimit: num
     return { products: [], livers: [], matrix: [] };
   }
   
-  // Get unique livers
-  const liverMap = new Map<number, string>();
-  livestreamsInMonth.forEach(l => {
-    if (l.liverId && !liverMap.has(l.liverId)) {
-      liverMap.set(l.liverId, l.streamerName);
-    }
-  });
+  // Get unique liver IDs
+  const liverIds = Array.from(new Set(livestreamsInMonth.map(l => l.liverId).filter((id): id is number => id !== null)));
   
-  const livers = Array.from(liverMap.entries()).map(([id, name]) => ({ id, name }));
+  if (liverIds.length === 0) {
+    return { products: [], livers: [], matrix: [] };
+  }
+  
+  // Get liver names from livers table
+  const liversData = await db
+    .select({
+      id: livers.id,
+      name: livers.name,
+    })
+    .from(livers)
+    .where(sql`${livers.id} IN (${sql.join(liverIds.map(id => sql`${id}`), sql`, `)})`);
+  
+  const liverNameMap = new Map(liversData.map(l => [l.id, l.name]));
+  const liversList = liverIds.map(id => ({ id, name: liverNameMap.get(id) || `Liver ${id}` }));
   
   // Build matrix: for each liver, get their sales per product
   const matrix: Array<{
@@ -8185,7 +8256,7 @@ export async function getLiverProductMatrix(month: string, topProductsLimit: num
     totalGmv: number;
   }> = [];
   
-  for (const liver of livers) {
+  for (const liver of liversList) {
     // Get livestreams for this liver
     const liverLivestreamIds = livestreamsInMonth
       .filter(l => l.liverId === liver.id)
@@ -8232,7 +8303,7 @@ export async function getLiverProductMatrix(month: string, topProductsLimit: num
   
   return {
     products: productNames,
-    livers: livers.map(l => l.name),
+    livers: liversList.map(l => l.name),
     matrix,
   };
 }

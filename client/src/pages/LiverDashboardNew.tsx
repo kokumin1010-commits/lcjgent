@@ -526,6 +526,7 @@ export default function LiverDashboardNew() {
                     <tr className="border-b border-cyan-500/20">
                       <th className="text-left py-3 px-2 text-cyan-400 text-sm font-medium">#</th>
                       <th className="text-left py-3 px-2 text-cyan-400 text-sm font-medium">{tr.productName}</th>
+                      <th className="text-left py-3 px-2 text-cyan-400 text-sm font-medium">販売ライバー</th>
                       <th className="text-right py-3 px-2 text-cyan-400 text-sm font-medium">{tr.totalGmv}</th>
                       <th className="text-right py-3 px-2 text-cyan-400 text-sm font-medium">{tr.soldCount}</th>
                       <th className="text-right py-3 px-2 text-cyan-400 text-sm font-medium">{tr.avgPrice}</th>
@@ -548,6 +549,26 @@ export default function LiverDashboardNew() {
                         </td>
                         <td className="py-3 px-2 text-cyan-100 font-medium max-w-[200px] truncate">
                           {product.productName}
+                        </td>
+                        <td className="py-3 px-2">
+                          <div className="flex flex-wrap gap-1 max-w-[200px]">
+                            {(product as any).sellingLivers?.slice(0, 3).map((liver: { liverId: number; liverName: string; sales: number }, idx: number) => (
+                              <span 
+                                key={liver.liverId}
+                                className={`text-xs px-2 py-0.5 rounded-full ${
+                                  idx === 0 
+                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
+                                    : 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/20'
+                                }`}
+                                title={`¥${liver.sales.toLocaleString()}`}
+                              >
+                                {liver.liverName}
+                              </span>
+                            ))}
+                            {(product as any).sellingLivers?.length > 3 && (
+                              <span className="text-xs text-cyan-500/50">+{(product as any).sellingLivers.length - 3}</span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3 px-2 text-right">
                           <span className="text-emerald-400 font-mono font-bold">
