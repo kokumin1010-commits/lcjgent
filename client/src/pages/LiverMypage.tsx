@@ -28,9 +28,14 @@ import {
   X,
   Trash2,
   History,
-  Zap
+  Zap,
+  Target,
+  Edit
 } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,6 +61,9 @@ export default function LiverMypage() {
   const [csvImportResult, setCsvImportResult] = useState<{ created: number; updated: number; errors: string[] } | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [showImportHistoryDialog, setShowImportHistoryDialog] = useState(false);
+  const [showGoalDialog, setShowGoalDialog] = useState(false);
+  const [goalSalesInput, setGoalSalesInput] = useState('');
+  const [goalStreamCountInput, setGoalStreamCountInput] = useState('');
 
   // Get current liver info with caching to prevent unnecessary refetches
   const { data: liverInfo, isLoading: isLoadingLiver, isError: isLiverError, isFetching: isLiverFetching } = trpc.liver.me.useQuery(undefined, {
@@ -86,6 +94,20 @@ export default function LiverMypage() {
     onSuccess: () => {
       clearLiverToken();
       navigate("/liver/login");
+    },
+  });
+
+  // Get goal for current month
+  const { data: currentGoal, refetch: refetchGoal } = trpc.liver.getGoal.useQuery(
+    { yearMonth: selectedMonth },
+    { enabled: !!liverInfo?.id }
+  );
+
+  // Set goal mutation
+  const setGoalMutation = trpc.liver.setGoal.useMutation({
+    onSuccess: () => {
+      refetchGoal();
+      setShowGoalDialog(false);
     },
   });
 
@@ -506,6 +528,94 @@ export default function LiverMypage() {
                 </Button>
               </Link>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Goal Progress Card - マイページトップに目標設定 */}
+        <Card className="bg-gradient-to-r from-purple-600/20 via-pink-600/20 to-red-600/20 border-purple-500/30">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Target className="h-5 w-5 text-purple-400" />
+                <span className="text-sm font-bold text-white">今月の目標</span>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setGoalSalesInput(currentGoal?.salesGoal?.toString() || '');
+                  setGoalStreamCountInput(currentGoal?.streamCountGoal?.toString() || '');
+                  setShowGoalDialog(true);
+                }}
+                className="text-purple-400 hover:text-purple-300 h-7 px-2"
+              >
+                <Edit className="h-3 w-3 mr-1" />
+                {currentGoal?.salesGoal ? '編集' : '設定'}
+              </Button>
+            </div>
+            
+            {currentGoal?.salesGoal ? (
+              <>
+                {/* 売上目標 */}
+                <div className="mb-3">
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="text-gray-400">売上目標</span>
+                    <span className="text-white">
+                      ¥{monthlyStats.sales.toLocaleString()} / ¥{currentGoal.salesGoal.toLocaleString()}
+                    </span>
+                  </div>
+                  <Progress 
+                    value={Math.min(100, (monthlyStats.sales / currentGoal.salesGoal) * 100)} 
+                    className="h-2 bg-gray-700"
+                  />
+                  <div className="flex justify-between text-[10px] mt-1">
+                    <span className={monthlyStats.sales >= currentGoal.salesGoal ? 'text-green-400' : 'text-purple-400'}>
+                      {Math.round((monthlyStats.sales / currentGoal.salesGoal) * 100)}% 達成
+                    </span>
+                    {monthlyStats.sales >= currentGoal.salesGoal ? (
+                      <span className="text-green-400">🎉 目標達成！</span>
+                    ) : (
+                      <span className="text-gray-500">
+                        残り ¥{(currentGoal.salesGoal - monthlyStats.sales).toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                
+                {/* 配信回数目標 */}
+                {currentGoal.streamCountGoal && currentGoal.streamCountGoal > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="text-gray-400">配信回数</span>
+                      <span className="text-white">
+                        {monthlyStats.count} / {currentGoal.streamCountGoal}回
+                      </span>
+                    </div>
+                    <Progress 
+                      value={Math.min(100, (monthlyStats.count / currentGoal.streamCountGoal) * 100)} 
+                      className="h-2 bg-gray-700"
+                    />
+                    <div className="flex justify-between text-[10px] mt-1">
+                      <span className={monthlyStats.count >= currentGoal.streamCountGoal ? 'text-green-400' : 'text-blue-400'}>
+                        {Math.round((monthlyStats.count / currentGoal.streamCountGoal) * 100)}% 達成
+                      </span>
+                      {monthlyStats.count >= currentGoal.streamCountGoal ? (
+                        <span className="text-green-400">🎉 目標達成！</span>
+                      ) : (
+                        <span className="text-gray-500">
+                          残り {currentGoal.streamCountGoal - monthlyStats.count}回
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-2">
+                <p className="text-gray-400 text-sm">目標を設定してモチベーションアップ！</p>
+                <p className="text-gray-500 text-xs mt-1">右上の「設定」ボタンから目標を設定できます</p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -1022,6 +1132,79 @@ export default function LiverMypage() {
         </DialogContent>
       </Dialog>
 
+      {/* Goal Setting Dialog */}
+      <Dialog open={showGoalDialog} onOpenChange={setShowGoalDialog}>
+        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Target className="h-5 w-5 text-purple-400" />
+              目標設定
+            </DialogTitle>
+            <DialogDescription className="text-gray-400">
+              今月の目標を設定して、モチベーションをアップしましょう！
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-4">
+            <div>
+              <Label htmlFor="salesGoal" className="text-gray-300">売上目標（円）</Label>
+              <Input
+                id="salesGoal"
+                type="number"
+                placeholder="例: 1000000"
+                value={goalSalesInput}
+                onChange={(e) => setGoalSalesInput(e.target.value)}
+                className="bg-gray-800 border-gray-600 text-white mt-1"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                現在の売上: ¥{monthlyStats.sales.toLocaleString()}
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="streamCountGoal" className="text-gray-300">配信回数目標（任意）</Label>
+              <Input
+                id="streamCountGoal"
+                type="number"
+                placeholder="例: 20"
+                value={goalStreamCountInput}
+                onChange={(e) => setGoalStreamCountInput(e.target.value)}
+                className="bg-gray-800 border-gray-600 text-white mt-1"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                現在の配信数: {monthlyStats.count}回
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="mt-6">
+            <Button
+              variant="ghost"
+              onClick={() => setShowGoalDialog(false)}
+              className="text-gray-400"
+            >
+              キャンセル
+            </Button>
+            <Button
+              onClick={() => {
+                const salesGoal = parseInt(goalSalesInput) || 0;
+                const streamCountGoal = parseInt(goalStreamCountInput) || 0;
+                if (salesGoal > 0) {
+                  setGoalMutation.mutate({
+                    yearMonth: selectedMonth,
+                    salesGoal,
+                    streamCountGoal,
+                  });
+                }
+              }}
+              disabled={!goalSalesInput || parseInt(goalSalesInput) <= 0 || setGoalMutation.isPending}
+              className="bg-purple-600 hover:bg-purple-700 text-white"
+            >
+              {setGoalMutation.isPending ? '保存中...' : '目標を設定'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );
