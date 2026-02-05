@@ -3696,3 +3696,10 @@
 - [x] brandLivestream.listProductsをpublicProcedureに変更
 - [x] brandLivestream.getImportHistoryをpublicProcedureに変更
 - [x] 根本的な原因を特定して修正（認証が必要なAPIがライバーログイン時に401エラーを返していた）
+
+
+## バグ修正：目標設定ダイアログの「目標を設定」ボタンが押せない
+- [x] 目標設定ダイアログのボタン問題を調査
+- [x] drizzleスキーマと実際のDBスキーマの不一致を修正（yearMonth→year+month）
+- [x] db.tsのgetLiverGoalとupsertLiverGoal関数を新スキーマに対応
+- [x] ボタンが押せるように修正完了

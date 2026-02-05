@@ -1,0 +1,34 @@
+{
+  "query": "SHOW CREATE TABLE liver_goals;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SHOW CREATE TABLE liver_goals;",
+  "rows": [
+    {
+      "Table": "liver_goals",
+      "Create Table": "CREATE TABLE `liver_goals` ("
+    }
+  ],
+  "messages": [
+    "  `id` int(11) NOT NULL AUTO_INCREMENT,",
+    "  `liverId` int(11) NOT NULL,",
+    "  `year` int(11) NOT NULL,",
+    "  `month` int(11) NOT NULL,",
+    "  `salesGoal` bigint(20) DEFAULT NULL,",
+    "  `streamCountGoal` int(11) DEFAULT NULL,",
+    "  `streamHoursGoal` int(11) DEFAULT NULL,",
+    "  `currentSales` bigint(20) DEFAULT '0',",
+    "  `currentStreamCount` int(11) DEFAULT '0',",
+    "  `currentStreamHours` int(11) DEFAULT '0',",
+    "  `salesGoalAchieved` tinyint(1) DEFAULT '0',",
+    "  `streamCountGoalAchieved` tinyint(1) DEFAULT '0',",
+    "  `streamHoursGoalAchieved` tinyint(1) DEFAULT '0',",
+    "  `salesGoalAchievedAt` bigint(20) DEFAULT NULL,",
+    "  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,",
+    "  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,",
+    "  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,",
+    "  UNIQUE KEY `unique_liver_year_month` (`liverId`,`year`,`month`)",
+    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin"
+  ],
+  "stdout": "Table\tCreate Table\nliver_goals\tCREATE TABLE `liver_goals` (\n  `id` int(11) NOT NULL AUTO_INCREMENT,\n  `liverId` int(11) NOT NULL,\n  `year` int(11) NOT NULL,\n  `month` int(11) NOT NULL,\n  `salesGoal` bigint(20) DEFAULT NULL,\n  `streamCountGoal` int(11) DEFAULT NULL,\n  `streamHoursGoal` int(11) DEFAULT NULL,\n  `currentSales` bigint(20) DEFAULT '0',\n  `currentStreamCount` int(11) DEFAULT '0',\n  `currentStreamHours` int(11) DEFAULT '0',\n  `salesGoalAchieved` tinyint(1) DEFAULT '0',\n  `streamCountGoalAchieved` tinyint(1) DEFAULT '0',\n  `streamHoursGoalAchieved` tinyint(1) DEFAULT '0',\n  `salesGoalAchievedAt` bigint(20) DEFAULT NULL,\n  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,\n  UNIQUE KEY `unique_liver_year_month` (`liverId`,`year`,`month`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin\n",
+  "stderr": "",
+  "execution_time_ms": 1597
+}

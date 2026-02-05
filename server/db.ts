@@ -7488,20 +7488,31 @@ export async function getLiverGoal(liverId: number, yearMonth: string) {
   const db = await getDb();
   if (!db) return null;
   
+  // Parse yearMonth (YYYY-MM) into year and month
+  const [yearStr, monthStr] = yearMonth.split('-');
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10);
+  
   const result = await db.select()
     .from(liverGoals)
     .where(and(
       eq(liverGoals.liverId, liverId),
-      eq(liverGoals.yearMonth, yearMonth)
+      eq(liverGoals.year, year),
+      eq(liverGoals.month, month)
     ))
     .limit(1);
   
   return result.length > 0 ? result[0] : null;
 }
 
-export async function upsertLiverGoal(data: InsertLiverGoal) {
+export async function upsertLiverGoal(data: { liverId: number; yearMonth: string; salesGoal: number; streamCountGoal?: number; notes?: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  
+  // Parse yearMonth (YYYY-MM) into year and month
+  const [yearStr, monthStr] = data.yearMonth.split('-');
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10);
   
   // Check if goal exists
   const existing = await getLiverGoal(data.liverId, data.yearMonth);
@@ -7511,15 +7522,20 @@ export async function upsertLiverGoal(data: InsertLiverGoal) {
     await db.update(liverGoals)
       .set({
         salesGoal: data.salesGoal,
-        streamCountGoal: data.streamCountGoal,
-        notes: data.notes,
+        streamCountGoal: data.streamCountGoal || 0,
       })
       .where(eq(liverGoals.id, existing.id));
-    return { ...existing, ...data };
+    return { ...existing, salesGoal: data.salesGoal, streamCountGoal: data.streamCountGoal || 0 };
   } else {
     // Create new goal
-    const result = await db.insert(liverGoals).values(data);
-    return { id: result[0].insertId, ...data };
+    const result = await db.insert(liverGoals).values({
+      liverId: data.liverId,
+      year,
+      month,
+      salesGoal: data.salesGoal,
+      streamCountGoal: data.streamCountGoal || 0,
+    });
+    return { id: result[0].insertId, liverId: data.liverId, year, month, salesGoal: data.salesGoal, streamCountGoal: data.streamCountGoal || 0 };
   }
 }
 

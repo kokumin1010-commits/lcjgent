@@ -2008,10 +2008,18 @@ export type InsertLineReminder = typeof lineReminders.$inferInsert;
 export const liverGoals = mysqlTable("liver_goals", {
   id: int("id").autoincrement().primaryKey(),
   liverId: int("liverId").notNull(), // References livers.id
-  yearMonth: varchar("yearMonth", { length: 7 }).notNull(), // YYYY-MM format
-  salesGoal: bigint("salesGoal", { mode: "number" }).default(0).notNull(), // 売上目標（円）
-  streamCountGoal: int("streamCountGoal").default(0), // 配信回数目標
-  notes: text("notes"), // メモ
+  year: int("year").notNull(), // Year (e.g., 2026)
+  month: int("month").notNull(), // Month (1-12)
+  salesGoal: bigint("salesGoal", { mode: "number" }), // 売上目標（円）
+  streamCountGoal: int("streamCountGoal"), // 配信回数目標
+  streamHoursGoal: int("streamHoursGoal"), // 配信時間目標
+  currentSales: bigint("currentSales", { mode: "number" }).default(0), // 現在の売上
+  currentStreamCount: int("currentStreamCount").default(0), // 現在の配信回数
+  currentStreamHours: int("currentStreamHours").default(0), // 現在の配信時間
+  salesGoalAchieved: boolean("salesGoalAchieved").default(false), // 売上目標達成フラグ
+  streamCountGoalAchieved: boolean("streamCountGoalAchieved").default(false), // 配信回数目標達成フラグ
+  streamHoursGoalAchieved: boolean("streamHoursGoalAchieved").default(false), // 配信時間目標達成フラグ
+  salesGoalAchievedAt: bigint("salesGoalAchievedAt", { mode: "number" }), // 売上目標達成日時
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

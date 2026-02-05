@@ -1,0 +1,138 @@
+{
+  "query": "SHOW COLUMNS FROM liver_goals;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SHOW COLUMNS FROM liver_goals;",
+  "rows": [
+    {
+      "Field": "id",
+      "Type": "int(11)",
+      "Null": "NO",
+      "Key": "PRI",
+      "Default": "NULL",
+      "Extra": "auto_increment"
+    },
+    {
+      "Field": "liverId",
+      "Type": "int(11)",
+      "Null": "NO",
+      "Key": "MUL",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "year",
+      "Type": "int(11)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "month",
+      "Type": "int(11)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "salesGoal",
+      "Type": "bigint(20)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "streamCountGoal",
+      "Type": "int(11)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "streamHoursGoal",
+      "Type": "int(11)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "currentSales",
+      "Type": "bigint(20)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "currentStreamCount",
+      "Type": "int(11)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "currentStreamHours",
+      "Type": "int(11)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "salesGoalAchieved",
+      "Type": "tinyint(1)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "streamCountGoalAchieved",
+      "Type": "tinyint(1)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "streamHoursGoalAchieved",
+      "Type": "tinyint(1)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "salesGoalAchievedAt",
+      "Type": "bigint(20)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "createdAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": ""
+    },
+    {
+      "Field": "updatedAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nid\tint(11)\tNO\tPRI\tNULL\tauto_increment\nliverId\tint(11)\tNO\tMUL\tNULL\t\nyear\tint(11)\tNO\t\tNULL\t\nmonth\tint(11)\tNO\t\tNULL\t\nsalesGoal\tbigint(20)\tYES\t\tNULL\t\nstreamCountGoal\tint(11)\tYES\t\tNULL\t\nstreamHoursGoal\tint(11)\tYES\t\tNULL\t\ncurrentSales\tbigint(20)\tYES\t\t0\t\ncurrentStreamCount\tint(11)\tYES\t\t0\t\ncurrentStreamHours\tint(11)\tYES\t\t0\t\nsalesGoalAchieved\ttinyint(1)\tYES\t\t0\t\nstreamCountGoalAchieved\ttinyint(1)\tYES\t\t0\t\nstreamHoursGoalAchieved\ttinyint(1)\tYES\t\t0\t\nsalesGoalAchievedAt\tbigint(20)\tYES\t\tNULL\t\ncreatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\t\nupdatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\tDEFAULT_GENERATED on update CURRENT_TIMESTAMP\n",
+  "stderr": "",
+  "execution_time_ms": 1493
+}
