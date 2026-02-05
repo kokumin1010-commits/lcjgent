@@ -63,6 +63,8 @@ import LiverByName from "./pages/LiverByName";
 import LiverForgotPassword from "./pages/LiverForgotPassword";
 import LiverResetPassword from "./pages/LiverResetPassword";
 import LiverDashboard from "./pages/LiverDashboard";
+import LiverDashboardNew from "./pages/LiverDashboardNew";
+import LiverDetailNew from "./pages/LiverDetailNew";
 
 function Router() {
   return (
@@ -209,6 +211,8 @@ function Router() {
           <Calendar />
         </DashboardLayout>
       </Route>
+      <Route path={"/master/livers-dashboard"} component={LiverDashboardNew} />
+      <Route path={"/master/livers-dashboard/:id"} component={LiverDetailNew} />
       <Route path={"/master/livers"} component={LiverList} />
       <Route path={"/master/livers/:id"} component={LiverDetail} />
       <Route path={"/master/livestreams/:id"} component={LivestreamDetail} />
