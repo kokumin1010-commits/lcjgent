@@ -218,7 +218,7 @@ export default function LiverDashboard() {
         <Card className="bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 overflow-hidden">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-lg flex items-center gap-2">
+              <CardTitle className="text-lg flex items-center gap-2 text-white">
                 <Target className="w-5 h-5 text-red-400" />
                 今月のゴール進捗
               </CardTitle>
@@ -344,7 +344,7 @@ export default function LiverDashboard() {
           <Card className="bg-gray-800 border-gray-700">
             <CardContent className="pt-4">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-400">売上</span>
+                <span className="text-sm text-white/70">売上</span>
                 {(stats?.growth?.salesGrowth || 0) >= 0 ? (
                   <ChevronUp className="w-5 h-5 text-green-400" />
                 ) : (
@@ -354,14 +354,14 @@ export default function LiverDashboard() {
               <div className={`text-2xl font-bold ${(stats?.growth?.salesGrowth || 0) >= 0 ? "text-green-400" : "text-red-400"}`}>
                 {(stats?.growth?.salesGrowth || 0) >= 0 ? "+" : ""}{stats?.growth?.salesGrowth || 0}%
               </div>
-              <div className="text-xs text-gray-500">前月比</div>
+              <div className="text-xs text-white/50">前月比</div>
             </CardContent>
           </Card>
           
           <Card className="bg-gray-800 border-gray-700">
             <CardContent className="pt-4">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-400">配信数</span>
+                <span className="text-sm text-white/70">配信数</span>
                 {(stats?.growth?.streamCountGrowth || 0) >= 0 ? (
                   <ChevronUp className="w-5 h-5 text-green-400" />
                 ) : (
@@ -371,7 +371,7 @@ export default function LiverDashboard() {
               <div className={`text-2xl font-bold ${(stats?.growth?.streamCountGrowth || 0) >= 0 ? "text-green-400" : "text-red-400"}`}>
                 {(stats?.growth?.streamCountGrowth || 0) >= 0 ? "+" : ""}{stats?.growth?.streamCountGrowth || 0}%
               </div>
-              <div className="text-xs text-gray-500">前月比</div>
+              <div className="text-xs text-white/50">前月比</div>
             </CardContent>
           </Card>
         </div>
@@ -379,7 +379,7 @@ export default function LiverDashboard() {
         {/* Sales Trend Chart */}
         <Card className="bg-gray-800 border-gray-700">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
+            <CardTitle className="text-lg flex items-center gap-2 text-white">
               <TrendingUp className="w-5 h-5 text-red-400" />
               売上推移（過去6ヶ月）
             </CardTitle>
@@ -394,7 +394,7 @@ export default function LiverDashboard() {
         {/* Top Products */}
         <Card className="bg-gray-800 border-gray-700">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
+            <CardTitle className="text-lg flex items-center gap-2 text-white">
               <Trophy className="w-5 h-5 text-yellow-400" />
               売れ筋TOP5
             </CardTitle>
@@ -413,7 +413,7 @@ export default function LiverDashboard() {
                       {index + 1}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{product.productName}</div>
+                      <div className="text-sm font-medium truncate text-white">{product.productName}</div>
                     </div>
                     <div className="text-sm font-bold text-red-400">
                       {formatCurrency(product.totalSales || 0)}
@@ -433,10 +433,10 @@ export default function LiverDashboard() {
         {stats?.bestHour && (
           <Card className="bg-gradient-to-br from-green-900/50 to-gray-800 border-green-700/50">
             <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Clock className="w-5 h-5 text-green-400" />
-                ゴールデンタイム発見！
-              </CardTitle>
+            <CardTitle className="text-lg flex items-center gap-2 text-white">
+              <Clock className="w-5 h-5 text-green-400" />
+              ゴールデンタイム発見！
+            </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-center">
@@ -458,10 +458,10 @@ export default function LiverDashboard() {
         {stats?.hourlyStats && stats.hourlyStats.length > 0 && (
           <Card className="bg-gray-800 border-gray-700">
             <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Clock className="w-5 h-5 text-green-400" />
-                時間帯別売上効率
-              </CardTitle>
+            <CardTitle className="text-lg flex items-center gap-2 text-white">
+              <Clock className="w-5 h-5 text-green-400" />
+              時間帯別売上効率
+            </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-48">
@@ -484,7 +484,7 @@ export default function LiverDashboard() {
         {/* Highlights */}
         <Card className="bg-gradient-to-br from-yellow-900/30 to-gray-800 border-yellow-700/50">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
+            <CardTitle className="text-lg flex items-center gap-2 text-white">
               <Star className="w-5 h-5 text-yellow-400" />
               今月のハイライト
             </CardTitle>
@@ -496,9 +496,9 @@ export default function LiverDashboard() {
                   <Trophy className="w-5 h-5 text-yellow-400" />
                 </div>
                 <div>
-                  <div className="text-sm text-gray-400">最高売上配信</div>
+                  <div className="text-sm text-white/70">最高売上配信</div>
                   <div className="font-bold">
-                    {new Date(stats.highlights.bestStream.date).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })} - {formatCurrency(stats.highlights.bestStream.sales || 0)}
+                    <span className="text-white">{new Date(stats.highlights.bestStream.date).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })} - {formatCurrency(stats.highlights.bestStream.sales || 0)}</span>
                   </div>
                 </div>
               </div>
@@ -510,8 +510,8 @@ export default function LiverDashboard() {
                   <Flame className="w-5 h-5 text-orange-400" />
                 </div>
                 <div>
-                  <div className="text-sm text-gray-400">連続配信記録</div>
-                  <div className="font-bold">{stats.highlights.consecutiveDays}日連続！</div>
+                  <div className="text-sm text-white/70">連続配信記録</div>
+                  <div className="font-bold text-white">{stats.highlights.consecutiveDays}日連続！</div>
                 </div>
               </div>
             )}
@@ -521,8 +521,8 @@ export default function LiverDashboard() {
                 <Calendar className="w-5 h-5 text-blue-400" />
               </div>
               <div>
-                <div className="text-sm text-gray-400">今月の配信回数</div>
-                <div className="font-bold">{stats?.currentMonth?.streamCount || 0}回</div>
+                <div className="text-sm text-white/70">今月の配信回数</div>
+                <div className="font-bold text-white">{stats?.currentMonth?.streamCount || 0}回</div>
               </div>
             </div>
             
@@ -531,8 +531,8 @@ export default function LiverDashboard() {
                 <Clock className="w-5 h-5 text-purple-400" />
               </div>
               <div>
-                <div className="text-sm text-gray-400">今月の配信時間</div>
-                <div className="font-bold">{((stats?.currentMonth?.duration || 0) / 60).toFixed(1)}時間</div>
+                <div className="text-sm text-white/70">今月の配信時間</div>
+                <div className="font-bold text-white">{((stats?.currentMonth?.duration || 0) / 60).toFixed(1)}時間</div>
               </div>
             </div>
           </CardContent>
