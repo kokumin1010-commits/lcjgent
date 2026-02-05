@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE brand_livestreams SET livestreamEndTime = DATE_ADD(livestreamEndTime, INTERVAL 1 YEAR) WHERE id = 780359;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute UPDATE brand_livestreams SET livestreamEndTime = DATE_ADD(livestreamEndTime, INTERVAL 1 YEAR) WHERE id = 780359;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1594
+}

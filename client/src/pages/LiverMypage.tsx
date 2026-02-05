@@ -886,13 +886,25 @@ export default function LiverMypage() {
                 // JST（日本時間）で表示
                 // データベースはUTCで保存されているので、そのまま使用
                 // toLocaleTimeString("ja-JP")が自動的にJSTに変換する
-                const startDate = new Date(ls.livestreamDate);
-                const endDate = ls.livestreamEndTime ? new Date(ls.livestreamEndTime) : null;
+                // 無効な日時データの場合はエラーを防ぐ
+                const parseDate = (dateValue: string | Date | null | undefined): Date | null => {
+                  if (!dateValue) return null;
+                  try {
+                    const date = new Date(dateValue);
+                    // Invalid Dateのチェック
+                    if (isNaN(date.getTime())) return null;
+                    return date;
+                  } catch {
+                    return null;
+                  }
+                };
+                const startDate = parseDate(ls.livestreamDate);
+                const endDate = parseDate(ls.livestreamEndTime);
                 const rawStartDate = startDate;
                 const rawEndDate = endDate;
                 const durationRaw = ls.duration 
                   ? Math.round(ls.duration / 60 * 10) / 10
-                  : rawEndDate
+                  : (rawEndDate && rawStartDate)
                     ? Math.round((rawEndDate.getTime() - rawStartDate.getTime()) / (1000 * 60 * 60) * 10) / 10
                     : 0;
                 // マイナス値は0として表示（データ入力ミスの可能性）
@@ -923,16 +935,16 @@ export default function LiverMypage() {
                         <div className="flex items-center gap-3">
                           <div className="text-center bg-gray-700/50 rounded px-2 py-1">
                             <p className="text-xs font-bold text-white">
-                              {startDate.getMonth() + 1}/{startDate.getDate()}
+                              {startDate ? `${startDate.getMonth() + 1}/${startDate.getDate()}` : "-/-"}
                             </p>
                             <p className="text-[10px] text-gray-400">
-                              {startDate.toLocaleDateString("ja-JP", { weekday: "short" })}
+                              {startDate ? startDate.toLocaleDateString("ja-JP", { weekday: "short" }) : "-"}
                             </p>
                           </div>
                           <div>
                             <div className="flex items-center gap-1">
                               <p className="text-xs text-gray-300">
-                                {startDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
+                                {startDate ? startDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }) : "--:--"}
                                 {endDate && ` - ${endDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}`}
                               </p>
                               {hasAiAdvice && (

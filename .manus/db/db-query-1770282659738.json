@@ -1,0 +1,33 @@
+{
+  "query": "SELECT * FROM livers WHERE name LIKE '%NANA%' OR name LIKE '%nana%' OR name LIKE '%ナナ%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT * FROM livers WHERE name LIKE '%NANA%' OR name LIKE '%nana%' OR name LIKE '%ナナ%';",
+  "rows": [
+    {
+      "id": "360013",
+      "name": "NANA",
+      "email": "nana.k1210@icloud.com",
+      "password": "$2b$10$/kBFbIQoyzX1BQwOIz39HOyJvdICAs9ZFfEaY0jLBxVWJ5CBLuwFy",
+      "avatarUrl": "NULL",
+      "avatarKey": "NULL",
+      "bio": "",
+      "color": "#FF69B4",
+      "isActive": "1",
+      "role": "liver",
+      "lastLoginAt": "2026-02-05 07:38:36",
+      "createdAt": "2026-01-30 04:50:44",
+      "updatedAt": "2026-02-05 07:38:36",
+      "tiktokAccount": "https://www.tiktok.com/@nana.tokyoselect.no1?_r=1&_t=ZS-93UiWSIVxAH",
+      "instagramAccount": "https://www.instagram.com/nana_tokyoselect.no1?igsh=MTZzMTdkYXpqa3BmYQ%3D%3D&utm_source=qr",
+      "youtubeAccount": "NULL",
+      "otherAccount": "NULL",
+      "lineUserId": "U1dfbc41f2a69109c018e222c9275105f",
+      "lineNotificationEnabled": "1",
+      "lineLinkCode": "NULL",
+      "lineLinkCodeExpiresAt": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\tpassword\tavatarUrl\tavatarKey\tbio\tcolor\tisActive\trole\tlastLoginAt\tcreatedAt\tupdatedAt\ttiktokAccount\tinstagramAccount\tyoutubeAccount\totherAccount\tlineUserId\tlineNotificationEnabled\tlineLinkCode\tlineLinkCodeExpiresAt\n360013\tNANA\tnana.k1210@icloud.com\t$2b$10$/kBFbIQoyzX1BQwOIz39HOyJvdICAs9ZFfEaY0jLBxVWJ5CBLuwFy\tNULL\tNULL\t\t#FF69B4\t1\tliver\t2026-02-05 07:38:36\t2026-01-30 04:50:44\t2026-02-05 07:38:36\thttps://www.tiktok.com/@nana.tokyoselect.no1?_r=1&_t=ZS-93UiWSIVxAH\thttps://www.instagram.com/nana_tokyoselect.no1?igsh=MTZzMTdkYXpqa3BmYQ%3D%3D&utm_source=qr\tNULL\tNULL\tU1dfbc41f2a69109c018e222c9275105f\t1\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1598
+}

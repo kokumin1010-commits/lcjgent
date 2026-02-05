@@ -1,0 +1,15 @@
+{
+  "query": "SELECT id, name, email FROM livers WHERE name LIKE '%NANA%' OR name LIKE '%nana%' OR name LIKE '%ナナ%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, name, email FROM livers WHERE name LIKE '%NANA%' OR name LIKE '%nana%' OR name LIKE '%ナナ%';",
+  "rows": [
+    {
+      "id": "360013",
+      "name": "NANA",
+      "email": "nana.k1210@icloud.com"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\n360013\tNANA\tnana.k1210@icloud.com\n",
+  "stderr": "",
+  "execution_time_ms": 1591
+}
