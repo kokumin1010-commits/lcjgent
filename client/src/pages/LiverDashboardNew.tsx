@@ -344,17 +344,27 @@ export default function LiverDashboardNew() {
                     <BarChart3 className="w-4 h-4" />
                     売上推移（過去6ヶ月）
                   </h3>
-                  <div className="flex items-end gap-3 h-24">
+                  <div className="flex items-end gap-3 h-40">
                     {salesTrend.map((month, index) => {
                       const maxSales = Math.max(...salesTrend.map(m => m.totalSales));
-                      const height = maxSales > 0 ? (month.totalSales / maxSales) * 100 : 0;
+                      const heightPercent = maxSales > 0 ? (month.totalSales / maxSales) * 100 : 0;
+                      const displayHeight = Math.max(heightPercent, 5);
                       return (
-                        <div key={month.month} className="flex-1 flex flex-col items-center gap-2">
-                          <div 
-                            className="w-full bg-gradient-to-t from-cyan-500 to-cyan-300 rounded-t shadow-[0_0_15px_rgba(0,255,255,0.3)]"
-                            style={{ height: `${Math.max(height, 8)}%` }}
-                          />
-                          <span className="text-xs text-cyan-500/60 font-mono">{month.label}</span>
+                        <div key={month.month} className="flex-1 flex flex-col items-center gap-2 group">
+                          <div className="relative w-full flex flex-col items-center" style={{ height: '120px' }}>
+                            {/* Sales value tooltip */}
+                            <div className="absolute -top-6 opacity-0 group-hover:opacity-100 transition-opacity text-xs text-yellow-400 font-mono whitespace-nowrap">
+                              ¥{(month.totalSales / 1000000).toFixed(1)}M
+                            </div>
+                            {/* Bar */}
+                            <div className="w-full flex-1 flex items-end">
+                              <div 
+                                className="w-full bg-gradient-to-t from-cyan-600 via-cyan-400 to-cyan-300 rounded-t shadow-[0_0_15px_rgba(0,255,255,0.4)] transition-all duration-300 group-hover:shadow-[0_0_25px_rgba(0,255,255,0.6)] group-hover:from-cyan-500 group-hover:to-cyan-200"
+                                style={{ height: `${displayHeight}%`, minHeight: '8px' }}
+                              />
+                            </div>
+                          </div>
+                          <span className="text-xs text-cyan-500/70 font-mono">{month.label}</span>
                         </div>
                       );
                     })}
