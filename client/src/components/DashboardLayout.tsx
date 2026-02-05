@@ -22,7 +22,7 @@ import {
 import { useLanguage, Language } from "@/contexts/LanguageContext";
 
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, Coins, Receipt, MessageCircle, Package, ShoppingCart, UserCheck } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, Coins, Receipt, MessageCircle, Package, ShoppingCart, UserCheck, Zap } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -102,6 +102,7 @@ function DashboardLayoutContent({
     { icon: AlertCircle, label: t("nav.pendingResponses"), path: "/master/line/pending" },
     { icon: Calendar, label: t("nav.calendar"), path: "/master/calendar" },
     { icon: Video, label: t("nav.livers"), path: "/master/livers" },
+    { icon: Zap, label: t("nav.liverCommand") || "ライバー司令塔", path: "/livers" },
     { icon: Coins, label: t("nav.points"), path: "/master/points" },
     { icon: Receipt, label: t("nav.receipts"), path: "/master/receipts", adminOnly: true },
     { icon: MessageCircle, label: t("nav.lineReceipts"), path: "/master/line-receipts", adminOnly: true },
