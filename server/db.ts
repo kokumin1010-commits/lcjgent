@@ -7848,3 +7848,202 @@ export async function getLiverMonthlySalesTrend() {
   
   return months;
 }
+
+
+/**
+ * Get detailed liver information with statistics
+ */
+export async function getLiverDetailWithStats(liverId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  // Get liver basic info
+  const liver = await db
+    .select()
+    .from(livers)
+    .where(eq(livers.id, liverId))
+    .limit(1);
+  
+  if (liver.length === 0) return null;
+  
+  // Get all-time statistics
+  const allTimeStats = await db
+    .select({
+      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.gmv}), 0)`,
+      totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
+      totalLivestreams: sql<number>`COUNT(*)`,
+    })
+    .from(brandLivestreams)
+    .where(eq(brandLivestreams.liverId, liverId));
+  
+  // Get current month statistics
+  const now = new Date();
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+  
+  const currentMonthStats = await db
+    .select({
+      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.gmv}), 0)`,
+      totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
+      totalLivestreams: sql<number>`COUNT(*)`,
+    })
+    .from(brandLivestreams)
+    .where(and(
+      eq(brandLivestreams.liverId, liverId),
+      sql`${brandLivestreams.livestreamDate} >= ${currentMonthStart}`,
+      sql`${brandLivestreams.livestreamDate} <= ${currentMonthEnd}`
+    ));
+  
+  // Get previous month statistics for growth calculation
+  const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+  
+  const prevMonthStats = await db
+    .select({
+      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.gmv}), 0)`,
+      totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
+      totalLivestreams: sql<number>`COUNT(*)`,
+    })
+    .from(brandLivestreams)
+    .where(and(
+      eq(brandLivestreams.liverId, liverId),
+      sql`${brandLivestreams.livestreamDate} >= ${prevMonthStart}`,
+      sql`${brandLivestreams.livestreamDate} <= ${prevMonthEnd}`
+    ));
+  
+  // Calculate growth rates
+  const prevSales = Number(prevMonthStats[0]?.totalSales || 0);
+  const currentSales = Number(currentMonthStats[0]?.totalSales || 0);
+  const salesGrowth = prevSales > 0 ? ((currentSales - prevSales) / prevSales) * 100 : (currentSales > 0 ? 100 : 0);
+  
+  const prevLivestreams = Number(prevMonthStats[0]?.totalLivestreams || 0);
+  const currentLivestreams = Number(currentMonthStats[0]?.totalLivestreams || 0);
+  const livestreamGrowth = prevLivestreams > 0 ? ((currentLivestreams - prevLivestreams) / prevLivestreams) * 100 : (currentLivestreams > 0 ? 100 : 0);
+  
+  return {
+    ...liver[0],
+    allTimeStats: {
+      totalSales: Number(allTimeStats[0]?.totalSales || 0),
+      totalDuration: Number(allTimeStats[0]?.totalDuration || 0),
+      totalLivestreams: Number(allTimeStats[0]?.totalLivestreams || 0),
+    },
+    currentMonthStats: {
+      totalSales: currentSales,
+      totalDuration: Number(currentMonthStats[0]?.totalDuration || 0),
+      totalLivestreams: currentLivestreams,
+    },
+    prevMonthStats: {
+      totalSales: prevSales,
+      totalDuration: Number(prevMonthStats[0]?.totalDuration || 0),
+      totalLivestreams: prevLivestreams,
+    },
+    growth: {
+      salesGrowth: Math.round(salesGrowth * 10) / 10,
+      livestreamGrowth: Math.round(livestreamGrowth * 10) / 10,
+    },
+  };
+}
+
+/**
+ * Get liver's monthly sales trend (past 12 months)
+ */
+export async function getLiverMonthlySalesTrendById(liverId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const months = [];
+  const now = new Date();
+  
+  for (let i = 11; i >= 0; i--) {
+    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0, 23, 59, 59);
+    
+    const result = await db
+      .select({
+        totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.gmv}), 0)`,
+        totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
+        totalLivestreams: sql<number>`COUNT(*)`,
+      })
+      .from(brandLivestreams)
+      .where(and(
+        eq(brandLivestreams.liverId, liverId),
+        sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
+        sql`${brandLivestreams.livestreamDate} <= ${endDate}`
+      ));
+    
+    months.push({
+      month: `${year}-${String(month).padStart(2, '0')}`,
+      label: `${month}月`,
+      year,
+      totalSales: Number(result[0]?.totalSales || 0),
+      totalDuration: Number(result[0]?.totalDuration || 0),
+      totalLivestreams: Number(result[0]?.totalLivestreams || 0),
+    });
+  }
+  
+  return months;
+}
+
+/**
+ * Get liver's recent livestreams with details
+ */
+export async function getLiverRecentLivestreams(liverId: number, limit: number = 20) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const livestreams = await db
+    .select({
+      id: brandLivestreams.id,
+      brandId: brandLivestreams.brandId,
+      livestreamDate: brandLivestreams.livestreamDate,
+      livestreamEndTime: brandLivestreams.livestreamEndTime,
+      duration: brandLivestreams.duration,
+      gmv: brandLivestreams.gmv,
+      viewerCount: brandLivestreams.viewerCount,
+      remarks: brandLivestreams.remarks,
+      beforeScreenshotUrl: brandLivestreams.beforeScreenshotUrl,
+      screenshotUrl: brandLivestreams.screenshotUrl,
+      brandName: brands.name,
+    })
+    .from(brandLivestreams)
+    .leftJoin(brands, eq(brandLivestreams.brandId, brands.id))
+    .where(eq(brandLivestreams.liverId, liverId))
+    .orderBy(desc(brandLivestreams.livestreamDate))
+    .limit(limit);
+  
+  return livestreams;
+}
+
+/**
+ * Get liver's brand performance breakdown
+ */
+export async function getLiverBrandPerformance(liverId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const performance = await db
+    .select({
+      brandId: brandLivestreams.brandId,
+      brandName: brands.name,
+      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.gmv}), 0)`,
+      totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
+      totalLivestreams: sql<number>`COUNT(*)`,
+      avgSalesPerStream: sql<number>`COALESCE(AVG(${brandLivestreams.gmv}), 0)`,
+    })
+    .from(brandLivestreams)
+    .leftJoin(brands, eq(brandLivestreams.brandId, brands.id))
+    .where(eq(brandLivestreams.liverId, liverId))
+    .groupBy(brandLivestreams.brandId, brands.name)
+    .orderBy(sql`SUM(${brandLivestreams.gmv}) DESC`);
+  
+  return performance.map(p => ({
+    ...p,
+    totalSales: Number(p.totalSales),
+    totalDuration: Number(p.totalDuration),
+    totalLivestreams: Number(p.totalLivestreams),
+    avgSalesPerStream: Math.round(Number(p.avgSalesPerStream)),
+  }));
+}

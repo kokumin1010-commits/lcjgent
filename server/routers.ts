@@ -192,6 +192,10 @@ import {
   getLiverRankings,
   getTotalLiverSalesSummary,
   getLiverMonthlySalesTrend,
+  getLiverDetailWithStats,
+  getLiverMonthlySalesTrendById,
+  getLiverRecentLivestreams,
+  getLiverBrandPerformance,
   getLivestreamById,
   updateLivestreamResult,
   getLiversWithStats,
@@ -7346,6 +7350,43 @@ ${conversationText}
     monthlySalesTrend: publicProcedure
       .query(async () => {
         return await getLiverMonthlySalesTrend();
+      }),
+
+    // Get liver detail with stats (ライバー詳細情報)
+    getLiverDetail: publicProcedure
+      .input(z.object({
+        liverId: z.number(),
+      }))
+      .query(async ({ input }) => {
+        return await getLiverDetailWithStats(input.liverId);
+      }),
+
+    // Get liver monthly sales trend (ライバーの月別売上推移)
+    getLiverSalesTrend: publicProcedure
+      .input(z.object({
+        liverId: z.number(),
+      }))
+      .query(async ({ input }) => {
+        return await getLiverMonthlySalesTrendById(input.liverId);
+      }),
+
+    // Get liver recent livestreams (ライバーの最近の配信履歴)
+    getLiverLivestreams: publicProcedure
+      .input(z.object({
+        liverId: z.number(),
+        limit: z.number().optional().default(20),
+      }))
+      .query(async ({ input }) => {
+        return await getLiverRecentLivestreams(input.liverId, input.limit);
+      }),
+
+    // Get liver brand performance (ライバーのブランド別パフォーマンス)
+    getLiverBrandPerformance: publicProcedure
+      .input(z.object({
+        liverId: z.number(),
+      }))
+      .query(async ({ input }) => {
+        return await getLiverBrandPerformance(input.liverId);
       }),
 
     // Create livestream record (配信履歴の記録)
