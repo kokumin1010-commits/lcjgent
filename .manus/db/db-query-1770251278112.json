@@ -1,0 +1,16 @@
+{
+  "query": "SELECT id, name, email, lineUserId FROM livers WHERE email = '0203kuwa1213@gmail.com' OR name LIKE '%kumama%' OR name LIKE '%くま%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, name, email, lineUserId FROM livers WHERE email = '0203kuwa1213@gmail.com' OR name LIKE '%kumama%' OR name LIKE '%くま%';",
+  "rows": [
+    {
+      "id": "540003",
+      "name": "yae",
+      "email": "0203kuwa1213@gmail.com",
+      "lineUserId": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\tlineUserId\n540003\tyae\t0203kuwa1213@gmail.com\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1641
+}

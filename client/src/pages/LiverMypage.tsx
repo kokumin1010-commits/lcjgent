@@ -269,13 +269,16 @@ export default function LiverMypage() {
     const orderCount = filtered.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.orderCount || 0), 0);
     
     const hours = filtered.reduce((sum: number, ls: LivestreamRecord) => {
-      if (ls.duration) {
+      if (ls.duration && ls.duration > 0) {
         return sum + (ls.duration / 60);
       }
       if (ls.livestreamDate && ls.livestreamEndTime) {
         const start = new Date(ls.livestreamDate).getTime();
         const end = new Date(ls.livestreamEndTime).getTime();
-        return sum + (end - start) / (1000 * 60 * 60);
+        const diff = (end - start) / (1000 * 60 * 60);
+        // マイナス値は無視（データ入力ミスの可能性）
+        if (diff > 0) return sum + diff;
+        return sum;
       }
       return sum;
     }, 0);
@@ -285,7 +288,8 @@ export default function LiverMypage() {
     return { 
       sales, 
       gmv,
-      hours: Math.round(hours * 10) / 10, 
+      // マイナス値は0として表示
+      hours: Math.max(0, Math.round(hours * 10) / 10), 
       count: filtered.length,
       avgSales,
       viewerCount,
@@ -351,20 +355,24 @@ export default function LiverMypage() {
     
     const totalSales = livestreams.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.salesAmount || 0), 0);
     const totalHours = livestreams.reduce((sum: number, ls: LivestreamRecord) => {
-      if (ls.duration) {
+      if (ls.duration && ls.duration > 0) {
         return sum + (ls.duration / 60);
       }
       if (ls.livestreamDate && ls.livestreamEndTime) {
         const start = new Date(ls.livestreamDate).getTime();
         const end = new Date(ls.livestreamEndTime).getTime();
-        return sum + (end - start) / (1000 * 60 * 60);
+        const diff = (end - start) / (1000 * 60 * 60);
+        // マイナス値は無視（データ入力ミスの可能性）
+        if (diff > 0) return sum + diff;
+        return sum;
       }
       return sum;
     }, 0);
 
     return { 
       totalSales, 
-      totalHours: Math.round(totalHours * 10) / 10, 
+      // マイナス値は0として表示
+      totalHours: Math.max(0, Math.round(totalHours * 10) / 10), 
       totalCount: livestreams.length 
     };
   }, [livestreams]);
@@ -447,7 +455,7 @@ export default function LiverMypage() {
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <h2 className="text-lg font-bold truncate">{liverInfo.name}</h2>
+                <h2 className="text-lg font-bold truncate text-white">{liverInfo.name}</h2>
                 {/* SNS Links */}
                 <div className="flex items-center gap-3 mt-2">
                   {liverInfo.tiktokAccount && (
@@ -709,11 +717,13 @@ export default function LiverMypage() {
                 const endDate = ls.livestreamEndTime ? new Date(ls.livestreamEndTime) : null;
                 const rawStartDate = startDate;
                 const rawEndDate = endDate;
-                const duration = ls.duration 
+                const durationRaw = ls.duration 
                   ? Math.round(ls.duration / 60 * 10) / 10
                   : rawEndDate
                     ? Math.round((rawEndDate.getTime() - rawStartDate.getTime()) / (1000 * 60 * 60) * 10) / 10
                     : 0;
+                // マイナス値は0として表示（データ入力ミスの可能性）
+                const duration = Math.max(0, durationRaw);
                 const hasAiAdvice = ls.aiStructuredAdvice || ls.aiAdvice;
 
                 // 前回比較を計算
