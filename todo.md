@@ -3703,3 +3703,14 @@
 - [x] drizzleスキーマと実際のDBスキーマの不一致を修正（yearMonth→year+month）
 - [x] db.tsのgetLiverGoalとupsertLiverGoal関数を新スキーマに対応
 - [x] ボタンが押せるように修正完了
+
+
+## 目標達成時のお祝いアニメーション（紙吹雪confetti）
+- [x] confettiライブラリ（canvas-confetti）のインストール
+- [x] Confettiコンポーネントの作成（金色・銀色・カラフルな紙吹雪）
+- [x] 目標達成判定ロジックの実装
+- [x] 売上目標達成時のアニメーショントリガー
+- [x] 配信回数目標達成時のアニメーショントリガー
+- [x] LiverMypageに統合
+- [x] localStorageでお祝い済みフラグを管理（同じ目標は1回だけお祝い）
+- [x] テストと動作確認完了

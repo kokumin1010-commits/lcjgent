@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import { SiTiktok, SiInstagram, SiYoutube } from "react-icons/si";
+import { GoalAchievedConfetti } from "@/components/Confetti";
 
 export default function LiverMypage() {
   const [, navigate] = useLocation();
@@ -64,6 +65,12 @@ export default function LiverMypage() {
   const [showGoalDialog, setShowGoalDialog] = useState(false);
   const [goalSalesInput, setGoalSalesInput] = useState('');
   const [goalStreamCountInput, setGoalStreamCountInput] = useState('');
+  
+  // 目標達成お祝いアニメーション用のstate
+  const [showSalesConfetti, setShowSalesConfetti] = useState(false);
+  const [showStreamCountConfetti, setShowStreamCountConfetti] = useState(false);
+  const [celebratedSalesGoal, setCelebratedSalesGoal] = useState<string | null>(null);
+  const [celebratedStreamCountGoal, setCelebratedStreamCountGoal] = useState<string | null>(null);
 
   // Get current liver info with caching to prevent unnecessary refetches
   const { data: liverInfo, isLoading: isLoadingLiver, isError: isLiverError, isFetching: isLiverFetching } = trpc.liver.me.useQuery(undefined, {
@@ -319,6 +326,51 @@ export default function LiverMypage() {
     };
   }, [livestreams, selectedMonth]);
 
+  // 目標達成時にお祝いアニメーションをトリガー
+  useEffect(() => {
+    if (!currentGoal || !monthlyStats) return;
+    
+    const goalKey = `${selectedMonth}-${currentGoal.salesGoal}-${currentGoal.streamCountGoal}`;
+    
+    // 売上目標達成チェック
+    if (currentGoal.salesGoal && currentGoal.salesGoal > 0) {
+      const salesAchieved = monthlyStats.sales >= currentGoal.salesGoal;
+      const salesGoalKey = `sales-${selectedMonth}-${currentGoal.salesGoal}`;
+      
+      if (salesAchieved && celebratedSalesGoal !== salesGoalKey) {
+        // ローカルストレージで既にお祝い済みかチェック
+        const celebratedKey = `celebrated_${salesGoalKey}`;
+        if (!localStorage.getItem(celebratedKey)) {
+          setShowSalesConfetti(true);
+          setCelebratedSalesGoal(salesGoalKey);
+          localStorage.setItem(celebratedKey, 'true');
+        } else {
+          setCelebratedSalesGoal(salesGoalKey);
+        }
+      }
+    }
+    
+    // 配信回数目標達成チェック
+    if (currentGoal.streamCountGoal && currentGoal.streamCountGoal > 0) {
+      const streamCountAchieved = monthlyStats.count >= currentGoal.streamCountGoal;
+      const streamCountGoalKey = `stream-${selectedMonth}-${currentGoal.streamCountGoal}`;
+      
+      if (streamCountAchieved && celebratedStreamCountGoal !== streamCountGoalKey) {
+        const celebratedKey = `celebrated_${streamCountGoalKey}`;
+        if (!localStorage.getItem(celebratedKey)) {
+          // 売上目標と同時に達成した場合は少し遅らせる
+          setTimeout(() => {
+            setShowStreamCountConfetti(true);
+          }, showSalesConfetti ? 2000 : 0);
+          setCelebratedStreamCountGoal(streamCountGoalKey);
+          localStorage.setItem(celebratedKey, 'true');
+        } else {
+          setCelebratedStreamCountGoal(streamCountGoalKey);
+        }
+      }
+    }
+  }, [currentGoal, monthlyStats, selectedMonth, celebratedSalesGoal, celebratedStreamCountGoal, showSalesConfetti]);
+
   // Filter livestreams by selected month
   const filteredLivestreams = useMemo(() => {
     if (!livestreams) return [];
@@ -439,6 +491,16 @@ export default function LiverMypage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black text-white">
+      {/* 目標達成お祝いアニメーション */}
+      <GoalAchievedConfetti 
+        trigger={showSalesConfetti} 
+        onComplete={() => setShowSalesConfetti(false)} 
+      />
+      <GoalAchievedConfetti 
+        trigger={showStreamCountConfetti} 
+        onComplete={() => setShowStreamCountConfetti(false)} 
+      />
+      
       {/* Header */}
       <header className="sticky top-0 z-10 bg-gray-900/95 backdrop-blur border-b border-gray-800 px-4 py-3">
         <div className="flex items-center justify-between max-w-lg mx-auto">
