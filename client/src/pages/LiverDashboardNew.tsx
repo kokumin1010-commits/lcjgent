@@ -107,6 +107,7 @@ export default function LiverDashboardNew() {
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].value);
   const [showAllSales, setShowAllSales] = useState(false);
   const [showAllDuration, setShowAllDuration] = useState(false);
+  const [showAllProducts, setShowAllProducts] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
   const [showAiSuggestion, setShowAiSuggestion] = useState(false);
   
@@ -126,10 +127,10 @@ export default function LiverDashboardNew() {
   // Monthly Sales Trend
   const { data: salesTrend } = trpc.liverManagement.monthlySalesTrend.useQuery();
   
-  // Product Ranking
+  // Product Ranking (全商品取得、表示はshowAllProductsで制御)
   const { data: productRanking } = trpc.liverManagement.getProductRanking.useQuery({
     month: selectedMonth,
-    limit: 10,
+    limit: 50, // 最大50件取得
   });
   
   // Liver x Product Matrix
@@ -516,76 +517,100 @@ export default function LiverDashboardNew() {
             <h2 className="text-lg font-bold mb-6 flex items-center gap-3">
               <Package className="w-6 h-6 text-emerald-400" />
               <span className="text-cyan-100">{tr.productRanking}</span>
-              <span className="text-cyan-500/50 text-sm">TOP10（{monthOptions.find(m => m.value === selectedMonth)?.label}）</span>
+              <span className="text-cyan-500/50 text-sm">
+                {showAllProducts ? `全${productRanking?.length || 0}件` : 'TOP10'}（{monthOptions.find(m => m.value === selectedMonth)?.label}）
+              </span>
             </h2>
             
             {productRanking && productRanking.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-cyan-500/20">
-                      <th className="text-left py-3 px-2 text-cyan-400 text-sm font-medium">#</th>
-                      <th className="text-left py-3 px-2 text-cyan-400 text-sm font-medium">{tr.productName}</th>
-                      <th className="text-left py-3 px-2 text-cyan-400 text-sm font-medium">販売ライバー</th>
-                      <th className="text-right py-3 px-2 text-cyan-400 text-sm font-medium">{tr.totalGmv}</th>
-                      <th className="text-right py-3 px-2 text-cyan-400 text-sm font-medium">{tr.soldCount}</th>
-                      <th className="text-right py-3 px-2 text-cyan-400 text-sm font-medium">{tr.avgPrice}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {productRanking.map((product, index) => (
-                      <tr 
-                        key={product.productName} 
-                        className="border-b border-cyan-500/10 hover:bg-cyan-900/20 transition-colors"
-                      >
-                        <td className="py-3 px-2">
-                          <span className={`font-bold ${
-                            index === 0 ? 'text-yellow-400' : 
-                            index === 1 ? 'text-gray-300' : 
-                            index === 2 ? 'text-amber-600' : 'text-cyan-400'
-                          }`}>
-                            {index + 1}
-                          </span>
-                        </td>
-                        <td className="py-3 px-2 text-cyan-100 font-medium max-w-[200px] truncate">
-                          {product.productName}
-                        </td>
-                        <td className="py-3 px-2">
-                          <div className="flex flex-wrap gap-1 max-w-[200px]">
-                            {(product as any).sellingLivers?.slice(0, 3).map((liver: { liverId: number; liverName: string; sales: number }, idx: number) => (
-                              <span 
-                                key={liver.liverId}
-                                className={`text-xs px-2 py-0.5 rounded-full ${
-                                  idx === 0 
-                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
-                                    : 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/20'
-                                }`}
-                                title={`¥${liver.sales.toLocaleString()}`}
-                              >
-                                {liver.liverName}
-                              </span>
-                            ))}
-                            {(product as any).sellingLivers?.length > 3 && (
-                              <span className="text-xs text-cyan-500/50">+{(product as any).sellingLivers.length - 3}</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-3 px-2 text-right">
-                          <span className="text-emerald-400 font-mono font-bold">
-                            {formatCurrency(product.totalGmv)}
-                          </span>
-                        </td>
-                        <td className="py-3 px-2 text-right text-cyan-300">
-                          {product.soldCount.toLocaleString()}個
-                        </td>
-                        <td className="py-3 px-2 text-right text-cyan-400">
-                          {formatCurrency(Math.round(product.avgPrice))}
-                        </td>
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-cyan-500/20">
+                        <th className="text-left py-3 px-2 text-cyan-400 text-sm font-medium">#</th>
+                        <th className="text-left py-3 px-2 text-cyan-400 text-sm font-medium">{tr.productName}</th>
+                        <th className="text-left py-3 px-2 text-cyan-400 text-sm font-medium">販売ライバー</th>
+                        <th className="text-right py-3 px-2 text-cyan-400 text-sm font-medium">{tr.totalGmv}</th>
+                        <th className="text-right py-3 px-2 text-cyan-400 text-sm font-medium">{tr.soldCount}</th>
+                        <th className="text-right py-3 px-2 text-cyan-400 text-sm font-medium">{tr.avgPrice}</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {(showAllProducts ? productRanking : productRanking.slice(0, 10)).map((product, index) => (
+                        <tr 
+                          key={product.productName} 
+                          className="border-b border-cyan-500/10 hover:bg-cyan-900/20 transition-colors"
+                        >
+                          <td className="py-3 px-2">
+                            <span className={`font-bold ${
+                              index === 0 ? 'text-yellow-400' : 
+                              index === 1 ? 'text-gray-300' : 
+                              index === 2 ? 'text-amber-600' : 'text-cyan-400'
+                            }`}>
+                              {index + 1}
+                            </span>
+                          </td>
+                          <td className="py-3 px-2 text-cyan-100 font-medium max-w-[200px] truncate">
+                            {product.productName}
+                          </td>
+                          <td className="py-3 px-2">
+                            <div className="flex flex-wrap gap-1 max-w-[200px]">
+                              {(product as any).sellingLivers?.slice(0, 3).map((liver: { liverId: number; liverName: string; sales: number }, idx: number) => (
+                                <span 
+                                  key={liver.liverId}
+                                  className={`text-xs px-2 py-0.5 rounded-full ${
+                                    idx === 0 
+                                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
+                                      : 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/20'
+                                  }`}
+                                  title={`¥${liver.sales.toLocaleString()}`}
+                                >
+                                  {liver.liverName}
+                                </span>
+                              ))}
+                              {(product as any).sellingLivers?.length > 3 && (
+                                <span className="text-xs text-cyan-500/50">+{(product as any).sellingLivers.length - 3}</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3 px-2 text-right">
+                            <span className="text-emerald-400 font-mono font-bold">
+                              {formatCurrency(product.totalGmv)}
+                            </span>
+                          </td>
+                          <td className="py-3 px-2 text-right text-cyan-300">
+                            {product.soldCount.toLocaleString()}個
+                          </td>
+                          <td className="py-3 px-2 text-right text-cyan-400">
+                            {formatCurrency(Math.round(product.avgPrice))}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {productRanking.length > 10 && (
+                  <div className="mt-4 text-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowAllProducts(!showAllProducts)}
+                      className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:border-emerald-400/50"
+                    >
+                      {showAllProducts ? (
+                        <>
+                          {tr.viewLess} <ChevronUp className="w-4 h-4 ml-1" />
+                        </>
+                      ) : (
+                        <>
+                          さらに見る（+{productRanking.length - 10}件） <ChevronDown className="w-4 h-4 ml-1" />
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </>
             ) : (
               <p className="text-cyan-500/50 text-center py-8">{tr.noData}</p>
             )}
