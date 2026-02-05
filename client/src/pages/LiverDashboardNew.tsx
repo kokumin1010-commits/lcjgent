@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Crown, Clock, TrendingUp, ChevronDown, ChevronUp, Users, DollarSign, Activity, Zap, ArrowUpRight, ArrowDownRight, Sparkles, Radio, BarChart3 } from "lucide-react";
+import { Crown, Clock, TrendingUp, ChevronDown, ChevronUp, Users, DollarSign, Activity, Zap, ArrowUpRight, ArrowDownRight, Sparkles, Radio, BarChart3, Package, Grid3X3 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 // Matrix rain effect component
@@ -124,6 +124,18 @@ export default function LiverDashboardNew() {
   // Monthly Sales Trend
   const { data: salesTrend } = trpc.liverManagement.monthlySalesTrend.useQuery();
   
+  // Product Ranking
+  const { data: productRanking } = trpc.liverManagement.getProductRanking.useQuery({
+    month: selectedMonth,
+    limit: 10,
+  });
+  
+  // Liver x Product Matrix
+  const { data: liverProductMatrix } = trpc.liverManagement.getLiverProductMatrix.useQuery({
+    month: selectedMonth,
+    limit: 10,
+  });
+  
   const translations = {
     ja: {
       title: "ライバー司令塔",
@@ -146,6 +158,15 @@ export default function LiverDashboardNew() {
       liverList: "ライバー一覧",
       streams: "配信",
       noStreams: "配信なし",
+      productRanking: "売れ筋商品ランキング",
+      liverProductMatrix: "ライバー×商品マトリックス",
+      productName: "商品名",
+      totalGmv: "総売上",
+      soldCount: "販売数",
+      avgPrice: "平均単価",
+      liverName: "ライバー名",
+      topProduct: "得意商品",
+      productGmv: "商品売上",
     },
     zh: {
       title: "主播指挥中心",
@@ -168,6 +189,15 @@ export default function LiverDashboardNew() {
       liverList: "主播一览",
       streams: "直播",
       noStreams: "无直播",
+      productRanking: "热销商品排行榜",
+      liverProductMatrix: "主播×商品矩阵",
+      productName: "商品名",
+      totalGmv: "总销售额",
+      soldCount: "销量",
+      avgPrice: "平均单价",
+      liverName: "主播名",
+      topProduct: "擅长商品",
+      productGmv: "商品销售额",
     },
   };
   
@@ -455,6 +485,129 @@ export default function LiverDashboardNew() {
                   )}
                 </Button>
               </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Product Ranking */}
+        <Card className="bg-[#0a1a2a]/80 border-cyan-500/20 backdrop-blur-sm">
+          <CardContent className="p-6">
+            <h2 className="text-lg font-bold mb-6 flex items-center gap-3">
+              <Package className="w-6 h-6 text-emerald-400" />
+              <span className="text-cyan-100">{tr.productRanking}</span>
+              <span className="text-cyan-500/50 text-sm">TOP10（{monthOptions.find(m => m.value === selectedMonth)?.label}）</span>
+            </h2>
+            
+            {productRanking && productRanking.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-cyan-500/20">
+                      <th className="text-left py-3 px-2 text-cyan-400 text-sm font-medium">#</th>
+                      <th className="text-left py-3 px-2 text-cyan-400 text-sm font-medium">{tr.productName}</th>
+                      <th className="text-right py-3 px-2 text-cyan-400 text-sm font-medium">{tr.totalGmv}</th>
+                      <th className="text-right py-3 px-2 text-cyan-400 text-sm font-medium">{tr.soldCount}</th>
+                      <th className="text-right py-3 px-2 text-cyan-400 text-sm font-medium">{tr.avgPrice}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {productRanking.map((product, index) => (
+                      <tr 
+                        key={product.productName} 
+                        className="border-b border-cyan-500/10 hover:bg-cyan-900/20 transition-colors"
+                      >
+                        <td className="py-3 px-2">
+                          <span className={`font-bold ${
+                            index === 0 ? 'text-yellow-400' : 
+                            index === 1 ? 'text-gray-300' : 
+                            index === 2 ? 'text-amber-600' : 'text-cyan-400'
+                          }`}>
+                            {index + 1}
+                          </span>
+                        </td>
+                        <td className="py-3 px-2 text-cyan-100 font-medium max-w-[200px] truncate">
+                          {product.productName}
+                        </td>
+                        <td className="py-3 px-2 text-right">
+                          <span className="text-emerald-400 font-mono font-bold">
+                            {formatCurrency(product.totalGmv)}
+                          </span>
+                        </td>
+                        <td className="py-3 px-2 text-right text-cyan-300">
+                          {product.soldCount.toLocaleString()}個
+                        </td>
+                        <td className="py-3 px-2 text-right text-cyan-400">
+                          {formatCurrency(Math.round(product.avgPrice))}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-cyan-500/50 text-center py-8">{tr.noData}</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Liver x Product Matrix */}
+        <Card className="bg-[#0a1a2a]/80 border-cyan-500/20 backdrop-blur-sm">
+          <CardContent className="p-6">
+            <h2 className="text-lg font-bold mb-6 flex items-center gap-3">
+              <Grid3X3 className="w-6 h-6 text-purple-400" />
+              <span className="text-cyan-100">{tr.liverProductMatrix}</span>
+              <span className="text-cyan-500/50 text-sm">（{monthOptions.find(m => m.value === selectedMonth)?.label}）</span>
+            </h2>
+            
+            {liverProductMatrix && liverProductMatrix.matrix && liverProductMatrix.matrix.length > 0 ? (
+              <div className="space-y-4">
+                {liverProductMatrix.matrix.map((liver, index) => (
+                  <div 
+                    key={liver.liverName}
+                    className="p-4 rounded-xl bg-[#0a1520]/40 border border-cyan-500/10 hover:border-cyan-400/30 transition-all"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <span className={`font-bold text-lg ${
+                          index === 0 ? 'text-yellow-400' : 
+                          index === 1 ? 'text-gray-300' : 
+                          index === 2 ? 'text-amber-600' : 'text-cyan-400'
+                        }`}>
+                          #{index + 1}
+                        </span>
+                        <span className="text-cyan-100 font-semibold">{liver.liverName}</span>
+                      </div>
+                      <span className="text-emerald-400 font-mono font-bold">
+                        {formatCurrency(liver.totalGmv)}
+                      </span>
+                    </div>
+                    
+                    {/* Top Products for this Liver */}
+                    <div className="flex flex-wrap gap-2">
+                      {liver.products
+                        .filter((p) => p.gmv > 0)
+                        .slice(0, 5)
+                        .map((product, pIndex) => (
+                          <div 
+                            key={product.productName}
+                            className={`px-3 py-1.5 rounded-lg text-sm ${
+                              pIndex === 0 
+                                ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-300' 
+                                : 'bg-cyan-500/10 border border-cyan-500/20 text-cyan-300'
+                            }`}
+                          >
+                            <span className="font-medium">{product.productName}</span>
+                            <span className="ml-2 text-xs opacity-70">
+                              {formatCurrency(product.gmv)}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-cyan-500/50 text-center py-8">{tr.noData}</p>
             )}
           </CardContent>
         </Card>

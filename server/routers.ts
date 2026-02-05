@@ -314,6 +314,8 @@ import {
   bulkAddProductLivers,
   updateProductLivers,
   getLiverSalesStatsByBrand,
+  getProductSalesRanking,
+  getLiverProductMatrix,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -8256,6 +8258,28 @@ ${metricsDescription}${historicalContext}`,
       }))
       .query(async ({ input }) => {
         return await getLivestreamsByStreamerName(input.streamerName, input.month);
+      }),
+
+    // Get top selling products ranking (売れ筋商品ランキング)
+    getProductRanking: publicProcedure
+      .input(z.object({ 
+        month: z.string().optional(), // format: "YYYY-MM"
+        limit: z.number().optional().default(10)
+      }))
+      .query(async ({ input }) => {
+        const month = input.month || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+        return await getProductSalesRanking(month, input.limit);
+      }),
+
+    // Get liver x product matrix (ライバー×商品マトリックス)
+    getLiverProductMatrix: publicProcedure
+      .input(z.object({ 
+        month: z.string().optional(), // format: "YYYY-MM"
+        limit: z.number().optional().default(10) // top N products
+      }))
+      .query(async ({ input }) => {
+        const month = input.month || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+        return await getLiverProductMatrix(month, input.limit);
       }),
   }),
 

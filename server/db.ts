@@ -8050,3 +8050,189 @@ export async function getLiverBrandPerformance(liverId: number) {
     avgSalesPerStream: Math.round(Number(p.avgSalesPerStream)),
   }));
 }
+
+
+// ========================================
+// Product Ranking & Liver-Product Matrix
+// ========================================
+
+/**
+ * Get top selling products across all livers for a given month
+ * 売れ筋商品ランキング（全ライバー合計）
+ */
+export async function getTopSellingProducts(month: string, limit: number = 10) {
+  // Alias: getProductSalesRanking
+  const db = await getDb();
+  if (!db) return [];
+  
+  const [year, monthNum] = month.split('-').map(Number);
+  const startDate = new Date(year, monthNum - 1, 1);
+  const endDate = new Date(year, monthNum, 0, 23, 59, 59);
+  
+  // Get all livestreams for the month that have a liverId
+  const livestreamsInMonth = await db
+    .select({ id: brandLivestreams.id })
+    .from(brandLivestreams)
+    .where(
+      and(
+        sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
+        sql`${brandLivestreams.livestreamDate} <= ${endDate}`,
+        isNotNull(brandLivestreams.liverId)
+      )
+    );
+  
+  if (livestreamsInMonth.length === 0) return [];
+  
+  const livestreamIds = livestreamsInMonth.map(l => l.id);
+  
+  // Aggregate products by name
+  const products = await db
+    .select({
+      productName: livestreamProducts.productName,
+      totalGmv: sql<number>`COALESCE(SUM(COALESCE(${livestreamProducts.directGmv}, ${livestreamProducts.gmv}, 0)), 0)`,
+      totalItemsSold: sql<number>`COALESCE(SUM(${livestreamProducts.itemsSold}), 0)`,
+      totalOrders: sql<number>`COALESCE(SUM(${livestreamProducts.orders}), 0)`,
+      livestreamCount: sql<number>`COUNT(DISTINCT ${livestreamProducts.livestreamId})`,
+    })
+    .from(livestreamProducts)
+    .where(sql`${livestreamProducts.livestreamId} IN (${sql.join(livestreamIds.map(id => sql`${id}`), sql`, `)})`)
+    .groupBy(livestreamProducts.productName)
+    .orderBy(sql`SUM(COALESCE(${livestreamProducts.directGmv}, ${livestreamProducts.gmv}, 0)) DESC`)
+    .limit(limit);
+  
+  return products.map((p, index) => ({
+    rank: index + 1,
+    productName: p.productName,
+    totalGmv: Number(p.totalGmv),
+    totalItemsSold: Number(p.totalItemsSold),
+    totalOrders: Number(p.totalOrders),
+    avgPrice: p.totalItemsSold > 0 ? Math.round(Number(p.totalGmv) / Number(p.totalItemsSold)) : 0,
+    livestreamCount: Number(p.livestreamCount),
+    soldCount: Number(p.totalItemsSold),
+  }));
+}
+
+// Alias for getTopSellingProducts
+export const getProductSalesRanking = getTopSellingProducts;
+
+/**
+ * Get liver-product matrix showing which livers sell which products best
+ * ライバー×商品マトリックス
+ */
+export async function getLiverProductMatrix(month: string, topProductsLimit: number = 10) {
+  const db = await getDb();
+  if (!db) return { products: [], livers: [], matrix: [] };
+  
+  const [year, monthNum] = month.split('-').map(Number);
+  const startDate = new Date(year, monthNum - 1, 1);
+  const endDate = new Date(year, monthNum, 0, 23, 59, 59);
+  
+  // Get all livestreams for the month with liverId
+  const livestreamsInMonth = await db
+    .select({
+      id: brandLivestreams.id,
+      liverId: brandLivestreams.liverId,
+      streamerName: brandLivestreams.streamerName,
+    })
+    .from(brandLivestreams)
+    .where(
+      and(
+        sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
+        sql`${brandLivestreams.livestreamDate} <= ${endDate}`,
+        isNotNull(brandLivestreams.liverId)
+      )
+    );
+  
+  if (livestreamsInMonth.length === 0) {
+    return { products: [], livers: [], matrix: [] };
+  }
+  
+  const livestreamIds = livestreamsInMonth.map(l => l.id);
+  
+  // Get top products first
+  const topProducts = await db
+    .select({
+      productName: livestreamProducts.productName,
+      totalGmv: sql<number>`COALESCE(SUM(COALESCE(${livestreamProducts.directGmv}, ${livestreamProducts.gmv}, 0)), 0)`,
+    })
+    .from(livestreamProducts)
+    .where(sql`${livestreamProducts.livestreamId} IN (${sql.join(livestreamIds.map(id => sql`${id}`), sql`, `)})`)
+    .groupBy(livestreamProducts.productName)
+    .orderBy(sql`SUM(COALESCE(${livestreamProducts.directGmv}, ${livestreamProducts.gmv}, 0)) DESC`)
+    .limit(topProductsLimit);
+  
+  const productNames = topProducts.map(p => p.productName);
+  
+  if (productNames.length === 0) {
+    return { products: [], livers: [], matrix: [] };
+  }
+  
+  // Get unique livers
+  const liverMap = new Map<number, string>();
+  livestreamsInMonth.forEach(l => {
+    if (l.liverId && !liverMap.has(l.liverId)) {
+      liverMap.set(l.liverId, l.streamerName);
+    }
+  });
+  
+  const livers = Array.from(liverMap.entries()).map(([id, name]) => ({ id, name }));
+  
+  // Build matrix: for each liver, get their sales per product
+  const matrix: Array<{
+    liverId: number;
+    liverName: string;
+    products: Array<{ productName: string; gmv: number; itemsSold: number }>;
+    totalGmv: number;
+  }> = [];
+  
+  for (const liver of livers) {
+    // Get livestreams for this liver
+    const liverLivestreamIds = livestreamsInMonth
+      .filter(l => l.liverId === liver.id)
+      .map(l => l.id);
+    
+    if (liverLivestreamIds.length === 0) continue;
+    
+    // Get product sales for this liver
+    const liverProducts = await db
+      .select({
+        productName: livestreamProducts.productName,
+        gmv: sql<number>`COALESCE(SUM(COALESCE(${livestreamProducts.directGmv}, ${livestreamProducts.gmv}, 0)), 0)`,
+        itemsSold: sql<number>`COALESCE(SUM(${livestreamProducts.itemsSold}), 0)`,
+      })
+      .from(livestreamProducts)
+      .where(
+        and(
+          sql`${livestreamProducts.livestreamId} IN (${sql.join(liverLivestreamIds.map(id => sql`${id}`), sql`, `)})`,
+          sql`${livestreamProducts.productName} IN (${sql.join(productNames.map(name => sql`${name}`), sql`, `)})`
+        )
+      )
+      .groupBy(livestreamProducts.productName);
+    
+    const productMap = new Map(liverProducts.map(p => [p.productName, { gmv: Number(p.gmv), itemsSold: Number(p.itemsSold) }]));
+    
+    const productsData = productNames.map(name => ({
+      productName: name,
+      gmv: productMap.get(name)?.gmv || 0,
+      itemsSold: productMap.get(name)?.itemsSold || 0,
+    }));
+    
+    const totalGmv = productsData.reduce((sum, p) => sum + p.gmv, 0);
+    
+    matrix.push({
+      liverId: liver.id,
+      liverName: liver.name,
+      products: productsData,
+      totalGmv,
+    });
+  }
+  
+  // Sort matrix by total GMV
+  matrix.sort((a, b) => b.totalGmv - a.totalGmv);
+  
+  return {
+    products: productNames,
+    livers: livers.map(l => l.name),
+    matrix,
+  };
+}

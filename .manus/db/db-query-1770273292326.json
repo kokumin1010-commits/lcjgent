@@ -1,0 +1,220 @@
+{
+  "query": "SELECT id, livestreamDate, livestreamEndTime, streamerName, liverId\nFROM brand_livestreams \nWHERE liverId IS NOT NULL\nORDER BY livestreamDate DESC \nLIMIT 30;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, livestreamDate, livestreamEndTime, streamerName, liverId\nFROM brand_livestreams \nWHERE liverId IS NOT NULL\nORDER BY livestreamDate DESC \nLIMIT 30;",
+  "rows": [
+    {
+      "id": "840239",
+      "livestreamDate": "2026-02-04 21:00:00",
+      "livestreamEndTime": "2025-12-04 23:42:00",
+      "streamerName": "yae",
+      "liverId": "540003"
+    },
+    {
+      "id": "840236",
+      "livestreamDate": "2026-02-04 15:00:00",
+      "livestreamEndTime": "2026-02-04 15:00:00",
+      "streamerName": "けい",
+      "liverId": "540001"
+    },
+    {
+      "id": "840218",
+      "livestreamDate": "2026-02-04 10:00:00",
+      "livestreamEndTime": "2025-02-04 12:00:00",
+      "streamerName": "みぃ",
+      "liverId": "540002"
+    },
+    {
+      "id": "840238",
+      "livestreamDate": "2026-02-04 00:01:00",
+      "livestreamEndTime": "2026-02-04 05:02:00",
+      "streamerName": "yae",
+      "liverId": "540003"
+    },
+    {
+      "id": "840234",
+      "livestreamDate": "2026-02-03 19:30:00",
+      "livestreamEndTime": "2025-02-03 21:46:00",
+      "streamerName": "しいほ",
+      "liverId": "360029"
+    },
+    {
+      "id": "840316",
+      "livestreamDate": "2026-02-03 13:10:00",
+      "livestreamEndTime": "2026-02-03 17:27:00",
+      "streamerName": "三宅あゆみ",
+      "liverId": "360012"
+    },
+    {
+      "id": "810001",
+      "livestreamDate": "2026-02-03 11:00:00",
+      "livestreamEndTime": "2025-02-03 13:00:00",
+      "streamerName": "みぃ",
+      "liverId": "540002"
+    },
+    {
+      "id": "780363",
+      "livestreamDate": "2026-02-03 10:48:00",
+      "livestreamEndTime": "2026-02-03 10:48:00",
+      "streamerName": "けい",
+      "liverId": "540001"
+    },
+    {
+      "id": "810005",
+      "livestreamDate": "2026-02-03 08:42:00",
+      "livestreamEndTime": "2025-02-03 11:04:00",
+      "streamerName": "はづき",
+      "liverId": "360009"
+    },
+    {
+      "id": "840237",
+      "livestreamDate": "2026-02-03 08:32:00",
+      "livestreamEndTime": "2026-02-03 11:15:00",
+      "streamerName": "yae",
+      "liverId": "540003"
+    },
+    {
+      "id": "840235",
+      "livestreamDate": "2026-02-03 08:00:00",
+      "livestreamEndTime": "2026-02-03 08:31:00",
+      "streamerName": "yae",
+      "liverId": "540003"
+    },
+    {
+      "id": "840232",
+      "livestreamDate": "2026-02-02 19:36:00",
+      "livestreamEndTime": "2025-02-02 21:07:00",
+      "streamerName": "しいほ",
+      "liverId": "360029"
+    },
+    {
+      "id": "840314",
+      "livestreamDate": "2026-02-02 14:00:00",
+      "livestreamEndTime": "2023-02-02 17:04:00",
+      "streamerName": "三宅あゆみ",
+      "liverId": "360012"
+    },
+    {
+      "id": "780359",
+      "livestreamDate": "2026-02-02 11:04:00",
+      "livestreamEndTime": "2025-02-02 15:25:00",
+      "streamerName": "NANA",
+      "liverId": "360013"
+    },
+    {
+      "id": "780358",
+      "livestreamDate": "2026-02-02 10:00:00",
+      "livestreamEndTime": "2025-02-02 12:00:00",
+      "streamerName": "みぃ",
+      "liverId": "540002"
+    },
+    {
+      "id": "780354",
+      "livestreamDate": "2026-02-02 10:00:00",
+      "livestreamEndTime": "2025-02-02 12:00:00",
+      "streamerName": "みぃ",
+      "liverId": "540002"
+    },
+    {
+      "id": "840223",
+      "livestreamDate": "2026-02-02 10:00:00",
+      "livestreamEndTime": "2026-02-02 13:07:00",
+      "streamerName": "yae",
+      "liverId": "540003"
+    },
+    {
+      "id": "780355",
+      "livestreamDate": "2026-02-02 10:00:00",
+      "livestreamEndTime": "2025-02-02 12:00:00",
+      "streamerName": "みぃ",
+      "liverId": "540002"
+    },
+    {
+      "id": "810004",
+      "livestreamDate": "2026-02-02 08:57:00",
+      "livestreamEndTime": "2025-02-02 11:01:00",
+      "streamerName": "はづき",
+      "liverId": "360009"
+    },
+    {
+      "id": "780372",
+      "livestreamDate": "2026-02-02 04:01:00",
+      "livestreamEndTime": "2025-02-02 06:02:00",
+      "streamerName": "しいほ",
+      "liverId": "360029"
+    },
+    {
+      "id": "810003",
+      "livestreamDate": "2026-02-02 03:15:00",
+      "livestreamEndTime": "2025-02-02 04:24:00",
+      "streamerName": "はづき",
+      "liverId": "360009"
+    },
+    {
+      "id": "810002",
+      "livestreamDate": "2026-02-01 13:03:00",
+      "livestreamEndTime": "2025-02-01 14:11:00",
+      "streamerName": "はづき",
+      "liverId": "360009"
+    },
+    {
+      "id": "780356",
+      "livestreamDate": "2026-02-01 12:10:00",
+      "livestreamEndTime": "2025-02-01 16:16:00",
+      "streamerName": "三宅あゆみ",
+      "liverId": "360012"
+    },
+    {
+      "id": "780360",
+      "livestreamDate": "2026-02-01 10:00:00",
+      "livestreamEndTime": "2026-02-01 10:00:00",
+      "streamerName": "NANA",
+      "liverId": "360013"
+    },
+    {
+      "id": "780357",
+      "livestreamDate": "2026-02-01 10:00:00",
+      "livestreamEndTime": "2026-02-01 12:00:00",
+      "streamerName": "みぃ",
+      "liverId": "540002"
+    },
+    {
+      "id": "780353",
+      "livestreamDate": "2026-02-01 10:00:00",
+      "livestreamEndTime": "2025-02-01 12:00:00",
+      "streamerName": "みぃ",
+      "liverId": "540002"
+    },
+    {
+      "id": "840315",
+      "livestreamDate": "2026-01-31 15:00:00",
+      "livestreamEndTime": "2026-01-31 23:00:00",
+      "streamerName": "yae",
+      "liverId": "540003"
+    },
+    {
+      "id": "840160",
+      "livestreamDate": "2026-01-31 10:06:00",
+      "livestreamEndTime": "2026-01-31 15:20:22",
+      "streamerName": "KYOGOKU",
+      "liverId": "360013"
+    },
+    {
+      "id": "780371",
+      "livestreamDate": "2026-01-31 07:00:00",
+      "livestreamEndTime": "2026-01-31 15:05:00",
+      "streamerName": "yae",
+      "liverId": "540003"
+    },
+    {
+      "id": "840342",
+      "livestreamDate": "2026-01-31 03:34:00",
+      "livestreamEndTime": "2026-01-31 05:04:52",
+      "streamerName": "KYOGOKU",
+      "liverId": "360029"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tlivestreamDate\tlivestreamEndTime\tstreamerName\tliverId\n840239\t2026-02-04 21:00:00\t2025-12-04 23:42:00\tyae\t540003\n840236\t2026-02-04 15:00:00\t2026-02-04 15:00:00\tけい\t540001\n840218\t2026-02-04 10:00:00\t2025-02-04 12:00:00\tみぃ\t540002\n840238\t2026-02-04 00:01:00\t2026-02-04 05:02:00\tyae\t540003\n840234\t2026-02-03 19:30:00\t2025-02-03 21:46:00\tしいほ\t360029\n840316\t2026-02-03 13:10:00\t2026-02-03 17:27:00\t三宅あゆみ\t360012\n810001\t2026-02-03 11:00:00\t2025-02-03 13:00:00\tみぃ\t540002\n780363\t2026-02-03 10:48:00\t2026-02-03 10:48:00\tけい\t540001\n810005\t2026-02-03 08:42:00\t2025-02-03 11:04:00\tはづき\t360009\n840237\t2026-02-03 08:32:00\t2026-02-03 11:15:00\tyae\t540003\n840235\t2026-02-03 08:00:00\t2026-02-03 08:31:00\tyae\t540003\n840232\t2026-02-02 19:36:00\t2025-02-02 21:07:00\tしいほ\t360029\n840314\t2026-02-02 14:00:00\t2023-02-02 17:04:00\t三宅あゆみ\t360012\n780359\t2026-02-02 11:04:00\t2025-02-02 15:25:00\tNANA\t360013\n780358\t2026-02-02 10:00:00\t2025-02-02 12:00:00\tみぃ\t540002\n780354\t2026-02-02 10:00:00\t2025-02-02 12:00:00\tみぃ\t540002\n840223\t2026-02-02 10:00:00\t2026-02-02 13:07:00\tyae\t540003\n780355\t2026-02-02 10:00:00\t2025-02-02 12:00:00\tみぃ\t540002\n810004\t2026-02-02 08:57:00\t2025-02-02 11:01:00\tはづき\t360009\n780372\t2026-02-02 04:01:00\t2025-02-02 06:02:00\tしいほ\t360029\n810003\t2026-02-02 03:15:00\t2025-02-02 04:24:00\tはづき\t360009\n810002\t2026-02-01 13:03:00\t2025-02-01 14:11:00\tはづき\t360009\n780356\t2026-02-01 12:10:00\t2025-02-01 16:16:00\t三宅あゆみ\t360012\n780360\t2026-02-01 10:00:00\t2026-02-01 10:00:00\tNANA\t360013\n780357\t2026-02-01 10:00:00\t2026-02-01 12:00:00\tみぃ\t540002\n780353\t2026-02-01 10:00:00\t2025-02-01 12:00:00\tみぃ\t540002\n840315\t2026-01-31 15:00:00\t2026-01-31 23:00:00\tyae\t540003\n840160\t2026-01-31 10:06:00\t2026-01-31 15:20:22\tKYOGOKU\t360013\n780371\t2026-01-31 07:00:00\t2026-01-31 15:05:00\tyae\t540003\n840342\t2026-01-31 03:34:00\t2026-01-31 05:04:52\tKYOGOKU\t360029\n",
+  "stderr": "",
+  "execution_time_ms": 1602
+}
