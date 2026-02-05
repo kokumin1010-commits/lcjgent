@@ -316,6 +316,9 @@ import {
   getLiverSalesStatsByBrand,
   getProductSalesRanking,
   getLiverProductMatrix,
+  getLiverPerformanceForMatching,
+  getProductPerformanceForMatching,
+  getLiverProductPerformanceMatrix,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -8280,6 +8283,132 @@ ${metricsDescription}${historicalContext}`,
       .query(async ({ input }) => {
         const month = input.month || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
         return await getLiverProductMatrix(month, input.limit);
+      }),
+
+    // AI-powered liver-product matching suggestions (AIマッチング提案)
+    getAiMatchingSuggestions: publicProcedure
+      .input(z.object({ 
+        month: z.string().optional(), // format: "YYYY-MM"
+        language: z.enum(["ja", "zh"]).optional().default("ja")
+      }))
+      .mutation(async ({ input }) => {
+        const month = input.month || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+        
+        // Get performance data for AI analysis
+        const [liverPerformance, productPerformance, liverProductMatrix] = await Promise.all([
+          getLiverPerformanceForMatching(month),
+          getProductPerformanceForMatching(month),
+          getLiverProductPerformanceMatrix(month),
+        ]);
+
+        // Build context for AI
+        const liverSummary = liverPerformance.map(l => ({
+          name: l.liverName,
+          livestreamCount: Number(l.livestreamCount),
+          totalDuration: Number(l.totalDuration),
+          totalSales: Number(l.totalSales),
+          avgViewers: Number(l.avgViewers),
+        }));
+
+        const productSummary = productPerformance.map(p => ({
+          name: p.productName,
+          totalGmv: Number(p.totalGmv),
+          totalItemsSold: Number(p.totalItemsSold),
+          avgUnitPrice: Number(p.avgUnitPrice),
+          livestreamCount: Number(p.livestreamCount),
+        }));
+
+        // Group matrix by liver
+        const liverProductMap = new Map<number, { liverName: string; products: { name: string; gmv: number; itemsSold: number }[] }>();
+        for (const row of liverProductMatrix) {
+          if (!row.liverId) continue;
+          if (!liverProductMap.has(row.liverId)) {
+            liverProductMap.set(row.liverId, { liverName: row.liverName, products: [] });
+          }
+          liverProductMap.get(row.liverId)!.products.push({
+            name: row.productName,
+            gmv: Number(row.totalGmv),
+            itemsSold: Number(row.totalItemsSold),
+          });
+        }
+
+        const liverProductSummary = Array.from(liverProductMap.values()).map(l => ({
+          liverName: l.liverName,
+          topProducts: l.products.sort((a, b) => b.gmv - a.gmv).slice(0, 5),
+        }));
+
+        // Build prompt
+        const promptJa = `あなたはTikTokライブコマースのマッチングAIです。以下のデータを分析し、各ライバーに最適な商品を提案してください。
+
+## ライバー実績データ（${month}）
+${liverSummary.map(l => `- ${l.name}: 配信${l.livestreamCount}回、売上¥${l.totalSales.toLocaleString()}、平均視聴者${Math.round(l.avgViewers)}人`).join('\n')}
+
+## 商品実績データ（売上TOP10）
+${productSummary.slice(0, 10).map((p, i) => `${i + 1}. ${p.name}: ¥${p.totalGmv.toLocaleString()}（${p.totalItemsSold}個販売、平均単価¥${Math.round(p.avgUnitPrice).toLocaleString()}）`).join('\n')}
+
+## ライバー×商品実績
+${liverProductSummary.map(l => `### ${l.liverName}の得意商品\n${l.topProducts.map((p, i) => `  ${i + 1}. ${p.name}: ¥${p.gmv.toLocaleString()}`).join('\n')}`).join('\n\n')}
+
+---
+
+上記のデータを分析し、以下の形式でマッチング提案を作成してください：
+
+各ライバーについて：
+1. **推奨商品TOP3**（理由付き）
+2. **避けるべき商品**（もしあれば）
+3. **配信戦略のアドバイス**
+
+最後に、全体的な商品×ライバーの最適配置マトリックスを提案してください。
+
+日本語で回答してください。具体的な数字を含めてください。`;
+
+        const promptZh = `你是TikTok直播电商的匹配AI。请分析以下数据，为每位主播推荐最适合的商品。
+
+## 主播业绩数据（${month}）
+${liverSummary.map(l => `- ${l.name}: 直播${l.livestreamCount}次、销售额¥${l.totalSales.toLocaleString()}、平均观众${Math.round(l.avgViewers)}人`).join('\n')}
+
+## 商品业绩数据（销售额TOP10）
+${productSummary.slice(0, 10).map((p, i) => `${i + 1}. ${p.name}: ¥${p.totalGmv.toLocaleString()}（${p.totalItemsSold}个销售、平均单价¥${Math.round(p.avgUnitPrice).toLocaleString()}）`).join('\n')}
+
+## 主播×商品业绩
+${liverProductSummary.map(l => `### ${l.liverName}的擅长商品\n${l.topProducts.map((p, i) => `  ${i + 1}. ${p.name}: ¥${p.gmv.toLocaleString()}`).join('\n')}`).join('\n\n')}
+
+---
+
+请分析以上数据，按以下格式制定匹配提案：
+
+对于每位主播：
+1. **推荐商品TOP3**（附理由）
+2. **应避免的商品**（如有）
+3. **直播策略建议**
+
+最后，请提出整体的商品×主播最优配置矩阵。
+
+请用中文回答。请包含具体数字。`;
+
+        const prompt = input.language === "zh" ? promptZh : promptJa;
+
+        // Call LLM
+        const response = await invokeLLM({
+          messages: [
+            { role: "system", content: input.language === "zh" ? "你是专业的TikTok直播电商顾问。" : "あなたはプロのTikTokライブコマースコンサルタントです。" },
+            { role: "user", content: prompt },
+          ],
+        });
+
+        const suggestion = response.choices[0]?.message?.content || "";
+
+        return {
+          month,
+          liverCount: liverSummary.length,
+          productCount: productSummary.length,
+          suggestion,
+          rawData: {
+            liverSummary,
+            productSummary: productSummary.slice(0, 10),
+            liverProductSummary,
+          },
+        };
       }),
   }),
 

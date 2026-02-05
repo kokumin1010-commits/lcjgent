@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Crown, Clock, TrendingUp, ChevronDown, ChevronUp, Users, DollarSign, Activity, Zap, ArrowUpRight, ArrowDownRight, Sparkles, Radio, BarChart3, Package, Grid3X3 } from "lucide-react";
+import { Crown, Clock, TrendingUp, ChevronDown, ChevronUp, Users, DollarSign, Activity, Zap, ArrowUpRight, ArrowDownRight, Sparkles, Radio, BarChart3, Package, Grid3X3, Brain, Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 // Matrix rain effect component
@@ -107,6 +107,8 @@ export default function LiverDashboardNew() {
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].value);
   const [showAllSales, setShowAllSales] = useState(false);
   const [showAllDuration, setShowAllDuration] = useState(false);
+  const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
+  const [showAiSuggestion, setShowAiSuggestion] = useState(false);
   
   const { data: rankings, isLoading } = trpc.liverManagement.rankings.useQuery({
     month: selectedMonth,
@@ -134,6 +136,15 @@ export default function LiverDashboardNew() {
   const { data: liverProductMatrix } = trpc.liverManagement.getLiverProductMatrix.useQuery({
     month: selectedMonth,
     limit: 10,
+  });
+  
+  // AI Matching Suggestions
+  const aiMatchingMutation = trpc.liverManagement.getAiMatchingSuggestions.useMutation({
+    onSuccess: (data) => {
+      const suggestion = typeof data.suggestion === 'string' ? data.suggestion : '';
+      setAiSuggestion(suggestion);
+      setShowAiSuggestion(true);
+    },
   });
   
   const translations = {
@@ -167,6 +178,11 @@ export default function LiverDashboardNew() {
       liverName: "ライバー名",
       topProduct: "得意商品",
       productGmv: "商品売上",
+      aiMatching: "AIマッチング提案",
+      aiMatchingDesc: "過去の実績から最適なライバー×商品の組み合わせをAIが提案",
+      generateSuggestion: "AI提案を生成",
+      generating: "生成中...",
+      suggestionResult: "AI提案結果",
     },
     zh: {
       title: "主播指挥中心",
@@ -198,6 +214,11 @@ export default function LiverDashboardNew() {
       liverName: "主播名",
       topProduct: "擅长商品",
       productGmv: "商品销售额",
+      aiMatching: "AI匹配提案",
+      aiMatchingDesc: "根据过往业绩，AI推荐最佳主播×商品组合",
+      generateSuggestion: "生成AI提案",
+      generating: "生成中...",
+      suggestionResult: "AI提案结果",
     },
   };
   
@@ -608,6 +629,52 @@ export default function LiverDashboardNew() {
               </div>
             ) : (
               <p className="text-cyan-500/50 text-center py-8">{tr.noData}</p>
+            )}
+          </CardContent>
+        </Card>
+        
+        {/* AI Matching Suggestions */}
+        <Card className="bg-[#0a1a2a]/80 border-purple-500/20 backdrop-blur-sm">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <Brain className="w-6 h-6 text-purple-400" />
+                <div>
+                  <h2 className="text-lg font-bold text-cyan-100">{tr.aiMatching}</h2>
+                  <p className="text-sm text-cyan-500/50">{tr.aiMatchingDesc}</p>
+                </div>
+              </div>
+              <Button
+                onClick={() => aiMatchingMutation.mutate({ month: selectedMonth, language: language as "ja" | "zh" })}
+                disabled={aiMatchingMutation.isPending}
+                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white border-0"
+              >
+                {aiMatchingMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    {tr.generating}
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    {tr.generateSuggestion}
+                  </>
+                )}
+              </Button>
+            </div>
+            
+            {showAiSuggestion && aiSuggestion && (
+              <div className="mt-4 p-4 rounded-xl bg-[#0a1520]/60 border border-purple-500/20">
+                <h3 className="text-sm font-bold text-purple-300 mb-3 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4" />
+                  {tr.suggestionResult}
+                </h3>
+                <div className="prose prose-invert prose-sm max-w-none">
+                  <div className="text-cyan-100/90 whitespace-pre-wrap text-sm leading-relaxed">
+                    {aiSuggestion}
+                  </div>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>

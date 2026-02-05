@@ -8236,3 +8236,122 @@ export async function getLiverProductMatrix(month: string, topProductsLimit: num
     matrix,
   };
 }
+
+
+
+// ============================================
+// AI Product Matching Functions (AI商品マッチング)
+// ============================================
+
+// Get liver performance data for AI matching analysis
+export async function getLiverPerformanceForMatching(month?: string) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // Build date filter
+  let dateFilter;
+  if (month) {
+    const [year, monthNum] = month.split("-").map(Number);
+    const startDate = new Date(year, monthNum - 1, 1);
+    const endDate = new Date(year, monthNum, 0, 23, 59, 59);
+    dateFilter = and(
+      gte(brandLivestreams.livestreamDate, startDate),
+      lte(brandLivestreams.livestreamDate, endDate)
+    );
+  }
+  
+  // Get all livers with their livestream performance
+  const liversData = await db
+    .select({
+      liverId: livers.id,
+      liverName: livers.name,
+      livestreamCount: sql<number>`COUNT(DISTINCT ${brandLivestreams.id})`,
+      totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
+      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
+      avgViewers: sql<number>`COALESCE(AVG(${brandLivestreams.viewerCount}), 0)`,
+    })
+    .from(livers)
+    .leftJoin(brandLivestreams, and(
+      eq(brandLivestreams.liverId, livers.id),
+      dateFilter ? dateFilter : sql`1=1`
+    ))
+    .where(eq(livers.isActive, true))
+    .groupBy(livers.id, livers.name);
+  
+  return liversData;
+}
+
+// Get product performance data for AI matching analysis
+export async function getProductPerformanceForMatching(month?: string) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // Build date filter
+  let dateFilter;
+  if (month) {
+    const [year, monthNum] = month.split("-").map(Number);
+    const startDate = new Date(year, monthNum - 1, 1);
+    const endDate = new Date(year, monthNum, 0, 23, 59, 59);
+    dateFilter = and(
+      gte(brandLivestreams.livestreamDate, startDate),
+      lte(brandLivestreams.livestreamDate, endDate)
+    );
+  }
+  
+  // Get all products with their performance metrics
+  const productsData = await db
+    .select({
+      productName: livestreamProducts.productName,
+      totalGmv: sql<number>`COALESCE(SUM(${livestreamProducts.gmv}), 0) + COALESCE(SUM(${livestreamProducts.grossRevenue}), 0)`,
+      totalItemsSold: sql<number>`COALESCE(SUM(${livestreamProducts.itemsSold}), 0)`,
+      avgUnitPrice: sql<number>`COALESCE(AVG(${livestreamProducts.unitPrice}), 0)`,
+      livestreamCount: sql<number>`COUNT(DISTINCT ${livestreamProducts.livestreamId})`,
+    })
+    .from(livestreamProducts)
+    .innerJoin(brandLivestreams, eq(brandLivestreams.id, livestreamProducts.livestreamId))
+    .where(dateFilter ? dateFilter : sql`1=1`)
+    .groupBy(livestreamProducts.productName)
+    .orderBy(desc(sql`COALESCE(SUM(${livestreamProducts.gmv}), 0) + COALESCE(SUM(${livestreamProducts.grossRevenue}), 0)`))
+    .limit(50);
+  
+  return productsData;
+}
+
+// Get liver-product performance matrix for AI analysis
+export async function getLiverProductPerformanceMatrix(month?: string) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // Build date filter
+  let dateFilter;
+  if (month) {
+    const [year, monthNum] = month.split("-").map(Number);
+    const startDate = new Date(year, monthNum - 1, 1);
+    const endDate = new Date(year, monthNum, 0, 23, 59, 59);
+    dateFilter = and(
+      gte(brandLivestreams.livestreamDate, startDate),
+      lte(brandLivestreams.livestreamDate, endDate)
+    );
+  }
+  
+  // Get liver-product combinations with performance
+  const matrixData = await db
+    .select({
+      liverId: brandLivestreams.liverId,
+      liverName: livers.name,
+      productName: livestreamProducts.productName,
+      totalGmv: sql<number>`COALESCE(SUM(${livestreamProducts.gmv}), 0) + COALESCE(SUM(${livestreamProducts.grossRevenue}), 0)`,
+      totalItemsSold: sql<number>`COALESCE(SUM(${livestreamProducts.itemsSold}), 0)`,
+      livestreamCount: sql<number>`COUNT(DISTINCT ${brandLivestreams.id})`,
+    })
+    .from(livestreamProducts)
+    .innerJoin(brandLivestreams, eq(brandLivestreams.id, livestreamProducts.livestreamId))
+    .innerJoin(livers, eq(livers.id, brandLivestreams.liverId))
+    .where(and(
+      isNotNull(brandLivestreams.liverId),
+      dateFilter ? dateFilter : sql`1=1`
+    ))
+    .groupBy(brandLivestreams.liverId, livers.name, livestreamProducts.productName);
+  
+  return matrixData;
+}
