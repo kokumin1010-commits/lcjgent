@@ -33,7 +33,7 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
 
   // Check if we're on a liver page - if so, redirect to liver login instead of Manus OAuth
   const currentPath = window.location.pathname;
-  if (currentPath.startsWith("/liver/") || currentPath.startsWith("/livers")) {
+  if (currentPath.startsWith("/liver/") || currentPath.startsWith("/livers") || currentPath.startsWith("/livestreams")) {
     // Don't redirect if already on login or register page
     if (currentPath === "/liver/login" || currentPath === "/liver/register") {
       return;
