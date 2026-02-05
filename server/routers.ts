@@ -7450,12 +7450,20 @@ ${conversationText}
           calculatedMetrics: input.calculatedMetrics || {},
         } : undefined;
         
+        // Helper function to convert JST datetime-local string to UTC Date
+        // datetime-local format: "2025-02-05T04:00" (user enters in JST)
+        const parseJstToUtc = (dateStr: string): Date => {
+          // Append JST timezone offset (+09:00) to treat input as JST
+          const isoFormat = dateStr + ':00+09:00';
+          return new Date(isoFormat);
+        };
+        
         const id = await createBrandLivestream({
           brandId: input.brandId,
           liverId: input.liverId,
           scheduleId: input.scheduleId,
-          livestreamDate: new Date(input.livestreamDate),
-          livestreamEndTime: input.livestreamEndTime ? new Date(input.livestreamEndTime) : undefined,
+          livestreamDate: parseJstToUtc(input.livestreamDate),
+          livestreamEndTime: input.livestreamEndTime ? parseJstToUtc(input.livestreamEndTime) : undefined,
           salesAmount: input.salesAmount,
           // AI解析データを保存
           viewerCount: input.viewerCount,
@@ -7527,10 +7535,22 @@ ${conversationText}
         const { id, ...data } = input;
         const updateData: Record<string, unknown> = {};
         
+        // Helper function to convert JST datetime-local string to UTC Date
+        // datetime-local format: "2025-02-05T04:00" (user enters in JST)
+        const parseJstToUtc = (dateStr: string): Date => {
+          // Append JST timezone offset (+09:00) to treat input as JST
+          const isoFormat = dateStr + ':00+09:00';
+          return new Date(isoFormat);
+        };
+        
         if (data.brandId !== undefined) updateData.brandId = data.brandId;
-        if (data.livestreamDate !== undefined) updateData.livestreamDate = new Date(data.livestreamDate);
+        if (data.livestreamDate !== undefined) {
+          updateData.livestreamDate = parseJstToUtc(data.livestreamDate);
+          console.log('[updateLivestream] Input JST:', data.livestreamDate, '-> UTC:', updateData.livestreamDate);
+        }
         if (data.livestreamEndTime !== undefined) {
-          updateData.livestreamEndTime = data.livestreamEndTime ? new Date(data.livestreamEndTime) : null;
+          updateData.livestreamEndTime = data.livestreamEndTime ? parseJstToUtc(data.livestreamEndTime) : null;
+          console.log('[updateLivestream] End Input JST:', data.livestreamEndTime, '-> UTC:', updateData.livestreamEndTime);
         }
         if (data.salesAmount !== undefined) updateData.salesAmount = data.salesAmount;
         if (data.viewerCount !== undefined) updateData.viewerCount = data.viewerCount;
