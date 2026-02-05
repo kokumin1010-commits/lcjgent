@@ -7448,8 +7448,8 @@ ${conversationText}
         return { id, lineNotificationSent };
       }),
 
-    // Update livestream (配信履歴の編集)
-    updateLivestream: protectedProcedure
+    // Update livestream (配信履歴の編集) - public for liver self-service
+    updateLivestream: publicProcedure
       .input(z.object({
         id: z.number(),
         brandId: z.number().optional(),

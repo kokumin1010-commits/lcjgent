@@ -85,9 +85,10 @@ const trpcClient = trpc.createClient({
                               currentPath === '/' ||
                               currentPath.startsWith('/products') ||
                               currentPath.startsWith('/mall');
-        // Include /livers (without trailing slash) in liver pages
+        // Include /livers and /livestreams (without trailing slash) in liver pages
         const isLiverPage = currentPath.startsWith('/liver/') || 
                            currentPath.startsWith('/livers') || 
+                           currentPath.startsWith('/livestreams') || 
                            currentPath === '/s';
         
         // IMPORTANT: Always send liver token if it exists and we're on a liver page
