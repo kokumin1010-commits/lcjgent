@@ -12,7 +12,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Crown, Clock, TrendingUp, ChevronDown, ChevronUp, Users, DollarSign, Activity, Zap, ArrowUpRight, ArrowDownRight, Sparkles, Radio, BarChart3, Package, Grid3X3, Brain, Loader2 } from "lucide-react";
+import { Crown, Clock, TrendingUp, ChevronDown, ChevronUp, Users, DollarSign, Activity, Zap, ArrowUpRight, ArrowDownRight, Sparkles, Radio, BarChart3, Package, Grid3X3, Brain, Loader2, Plus, Link2, X, Check, AlertCircle } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 
 // Matrix rain effect component
@@ -111,6 +114,13 @@ export default function LiverDashboardNew() {
   const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
   const [showAiSuggestion, setShowAiSuggestion] = useState(false);
   
+  // Product Master Management state
+  const [activeTab, setActiveTab] = useState("overview");
+  const [showNewMasterDialog, setShowNewMasterDialog] = useState(false);
+  const [newMasterName, setNewMasterName] = useState("");
+  const [selectedProductForLink, setSelectedProductForLink] = useState<string | null>(null);
+  const [selectedMasterForLink, setSelectedMasterForLink] = useState<number | null>(null);
+  
   const { data: rankings, isLoading } = trpc.liverManagement.rankings.useQuery({
     month: selectedMonth,
   });
@@ -145,6 +155,57 @@ export default function LiverDashboardNew() {
       const suggestion = typeof data.suggestion === 'string' ? data.suggestion : '';
       setAiSuggestion(suggestion);
       setShowAiSuggestion(true);
+    },
+  });
+  
+  // Product Master queries and mutations
+  const { data: productMasters, refetch: refetchMasters } = trpc.productMaster.list.useQuery(undefined, {
+    enabled: activeTab === "productMaster",
+  });
+  
+  const { data: unlinkedProducts, refetch: refetchUnlinked } = trpc.productMaster.getUnlinked.useQuery(
+    { limit: 1000 },
+    { enabled: activeTab === "productMaster" }
+  );
+  
+  const { data: pendingSuggestions, refetch: refetchSuggestions } = trpc.productMaster.getPendingSuggestions.useQuery(undefined, {
+    enabled: activeTab === "productMaster",
+  });
+  
+  const createMasterMutation = trpc.productMaster.create.useMutation({
+    onSuccess: () => {
+      refetchMasters();
+      setShowNewMasterDialog(false);
+      setNewMasterName("");
+    },
+  });
+  
+  const addAliasMutation = trpc.productMaster.addAlias.useMutation({
+    onSuccess: () => {
+      refetchMasters();
+      refetchUnlinked();
+      setSelectedProductForLink(null);
+      setSelectedMasterForLink(null);
+    },
+  });
+  
+  const aiMatchMutation = trpc.productMaster.aiMatch.useMutation({
+    onSuccess: () => {
+      refetchSuggestions();
+    },
+  });
+  
+  const approveSuggestionMutation = trpc.productMaster.approveSuggestion.useMutation({
+    onSuccess: () => {
+      refetchSuggestions();
+      refetchMasters();
+      refetchUnlinked();
+    },
+  });
+  
+  const rejectSuggestionMutation = trpc.productMaster.rejectSuggestion.useMutation({
+    onSuccess: () => {
+      refetchSuggestions();
     },
   });
   
@@ -300,6 +361,27 @@ export default function LiverDashboardNew() {
             </SelectContent>
           </Select>
         </div>
+        
+        {/* Tab Navigation */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="bg-cyan-900/20 border border-cyan-500/30 p-1">
+            <TabsTrigger 
+              value="overview" 
+              className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-100 text-cyan-400/70"
+            >
+              <BarChart3 className="w-4 h-4 mr-2" />
+              概要
+            </TabsTrigger>
+            <TabsTrigger 
+              value="productMaster" 
+              className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-100 text-cyan-400/70"
+            >
+              <Package className="w-4 h-4 mr-2" />
+              商品マスター管理
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="overview" className="mt-6 space-y-8">
         
         {/* LCJ Liver Total Summary - Cyberpunk Style */}
         {totalSummary && (
@@ -846,6 +928,218 @@ export default function LiverDashboardNew() {
             )}
           </CardContent>
         </Card>
+          </TabsContent>
+          
+          <TabsContent value="productMaster" className="mt-6">
+            {/* Product Master Management Content */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Left: Product Masters List */}
+              <Card className="bg-gradient-to-br from-[#0a1a2a]/90 to-[#0a2a3a]/90 border-cyan-500/30 backdrop-blur-sm">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-bold flex items-center gap-3 text-cyan-100">
+                      <Package className="w-6 h-6 text-cyan-400" />
+                      商品マスター一覧
+                    </h2>
+                    <Button
+                      size="sm"
+                      onClick={() => setShowNewMasterDialog(true)}
+                      className="bg-cyan-600 hover:bg-cyan-500 text-white"
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      新規商品マスター
+                    </Button>
+                  </div>
+                  
+                  <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                    {productMasters && productMasters.length > 0 ? (
+                      productMasters.map((master: { id: number; canonicalName: string; aliasCount: number }) => (
+                        <div
+                          key={master.id}
+                          className={`p-4 rounded-lg border transition-all cursor-pointer ${
+                            selectedMasterForLink === master.id
+                              ? "bg-cyan-500/20 border-cyan-400"
+                              : "bg-[#0a1520]/60 border-cyan-500/20 hover:border-cyan-400/40"
+                          }`}
+                          onClick={() => setSelectedMasterForLink(selectedMasterForLink === master.id ? null : master.id)}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-cyan-100 font-medium">{master.canonicalName}</span>
+                            <span className="text-xs text-cyan-500/70 bg-cyan-900/30 px-2 py-1 rounded">
+                              {master.aliasCount}件の紐付け
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-cyan-500/50 text-center py-8">商品マスターがまだありません</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+              
+              {/* Right: Unlinked Products */}
+              <Card className="bg-gradient-to-br from-[#0a1a2a]/90 to-[#0a2a3a]/90 border-cyan-500/30 backdrop-blur-sm">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-bold flex items-center gap-3 text-cyan-100">
+                      <AlertCircle className="w-6 h-6 text-yellow-400" />
+                      未紐付け商品
+                    </h2>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        const names = unlinkedProducts?.slice(0, 20).map((p: { productName: string }) => p.productName) || [];
+                        if (names.length > 0) {
+                          aiMatchMutation.mutate({ productNames: names });
+                        }
+                      }}
+                      disabled={aiMatchMutation.isPending}
+                      className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white border-0"
+                    >
+                      {aiMatchMutation.isPending ? (
+                        <><Loader2 className="w-4 h-4 mr-1 animate-spin" />分析中...</>
+                      ) : (
+                        <><Brain className="w-4 h-4 mr-1" />AI自動紐付け</>
+                      )}
+                    </Button>
+                  </div>
+                  
+                  {selectedMasterForLink && (
+                    <div className="mb-4 p-3 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">
+                      <p className="text-sm text-cyan-300">
+                        <Check className="w-4 h-4 inline mr-1" />
+                        商品をクリックして紐付け
+                      </p>
+                    </div>
+                  )}
+                  
+                  <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                    {unlinkedProducts && unlinkedProducts.length > 0 ? (
+                      unlinkedProducts.slice(0, 50).map((product: { productName: string; totalSales: number; totalQuantity: number }, index: number) => (
+                        <div
+                          key={index}
+                          className={`p-3 rounded-lg border transition-all cursor-pointer ${
+                            selectedProductForLink === product.productName
+                              ? "bg-yellow-500/20 border-yellow-400"
+                              : "bg-[#0a1520]/60 border-cyan-500/20 hover:border-cyan-400/40"
+                          }`}
+                          onClick={() => {
+                            if (selectedMasterForLink) {
+                              addAliasMutation.mutate({
+                                productMasterId: selectedMasterForLink,
+                                aliasName: product.productName,
+                                matchMethod: "manual",
+                              });
+                            } else {
+                              setSelectedProductForLink(selectedProductForLink === product.productName ? null : product.productName);
+                            }
+                          }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-cyan-100 text-sm truncate flex-1 mr-2">{product.productName}</span>
+                            <div className="text-right">
+                              <span className="text-yellow-400 text-sm font-mono">¥{product.totalSales.toLocaleString()}</span>
+                              <span className="text-cyan-500/50 text-xs ml-2">/ {product.totalQuantity}個</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-cyan-500/50 text-center py-8">未紐付け商品はありません</p>
+                    )}
+                    {unlinkedProducts && unlinkedProducts.length > 50 && (
+                      <p className="text-center text-cyan-500/50 text-sm py-2">
+                        他{unlinkedProducts.length - 50}件の未紐付け商品があります
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+            
+            {/* AI Suggestions */}
+            {pendingSuggestions && pendingSuggestions.length > 0 && (
+              <Card className="mt-6 bg-gradient-to-br from-[#0a1a2a]/90 to-[#0a2a3a]/90 border-purple-500/30 backdrop-blur-sm">
+                <CardContent className="p-6">
+                  <h2 className="text-xl font-bold flex items-center gap-3 text-cyan-100 mb-6">
+                    <Brain className="w-6 h-6 text-purple-400" />
+                    AI紐付け提案
+                  </h2>
+                  <div className="space-y-3">
+                    {pendingSuggestions.map((suggestion: { id: number; aliasName: string; suggestedCanonicalName: string | null; confidence: string; reasoning: string | null }) => (
+                      <div key={suggestion.id} className="p-4 bg-[#0a1520]/60 border border-purple-500/20 rounded-lg">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-cyan-100">{suggestion.aliasName}</span>
+                              <span className="text-cyan-500/50">→</span>
+                              <span className="text-purple-400 font-medium">{suggestion.suggestedCanonicalName || '不明'}</span>
+                            </div>
+                            <p className="text-sm text-cyan-500/70">{suggestion.reasoning || ''}</p>
+                            <p className="text-xs text-cyan-500/50 mt-1">信頼度: {(parseFloat(suggestion.confidence) * 100).toFixed(0)}%</p>
+                          </div>
+                          <div className="flex gap-2 ml-4">
+                            <Button
+                              size="sm"
+                              onClick={() => approveSuggestionMutation.mutate({ suggestionId: suggestion.id })}
+                              disabled={approveSuggestionMutation.isPending}
+                              className="bg-emerald-600 hover:bg-emerald-500 text-white"
+                            >
+                              <Check className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => rejectSuggestionMutation.mutate({ suggestionId: suggestion.id })}
+                              disabled={rejectSuggestionMutation.isPending}
+                              className="border-red-500/50 text-red-400 hover:bg-red-500/20"
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+        </Tabs>
+        
+        {/* New Master Dialog */}
+        <Dialog open={showNewMasterDialog} onOpenChange={setShowNewMasterDialog}>
+          <DialogContent className="bg-[#0a1a2a] border-cyan-500/30">
+            <DialogHeader>
+              <DialogTitle className="text-cyan-100">新規商品マスター作成</DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <Input
+                value={newMasterName}
+                onChange={(e) => setNewMasterName(e.target.value)}
+                placeholder="商品名を入力"
+                className="bg-cyan-900/20 border-cyan-500/30 text-cyan-100"
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setShowNewMasterDialog(false)}
+                className="border-cyan-500/30 text-cyan-300"
+              >
+                キャンセル
+              </Button>
+              <Button
+                onClick={() => createMasterMutation.mutate({ canonicalName: newMasterName })}
+                disabled={!newMasterName || createMasterMutation.isPending}
+                className="bg-cyan-600 hover:bg-cyan-500 text-white"
+              >
+                作成
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

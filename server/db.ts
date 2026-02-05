@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -8425,4 +8425,272 @@ export async function getLiverProductPerformanceMatrix(month?: string) {
     .groupBy(brandLivestreams.liverId, livers.name, livestreamProducts.productName);
   
   return matrixData;
+}
+
+
+// ========== Product Master Management Functions ==========
+
+// Get all product masters
+export async function getProductMasters() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const masters = await db
+    .select()
+    .from(productMaster)
+    .orderBy(asc(productMaster.canonicalName));
+  
+  // Get alias counts for each master
+  const aliases = await db
+    .select()
+    .from(productNameAliases);
+  
+  const aliasCountByMaster: Record<number, number> = {};
+  aliases.forEach((alias: { productMasterId: number }) => {
+    aliasCountByMaster[alias.productMasterId] = (aliasCountByMaster[alias.productMasterId] || 0) + 1;
+  });
+  
+  return masters.map((master: { id: number; canonicalName: string }) => ({
+    ...master,
+    aliasCount: aliasCountByMaster[master.id] || 0,
+  }));
+}
+
+// Get product master by ID
+export async function getProductMasterById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  
+  const result = await db
+    .select()
+    .from(productMaster)
+    .where(eq(productMaster.id, id))
+    .limit(1);
+  
+  return result.length > 0 ? result[0] : undefined;
+}
+
+// Create a new product master
+export async function createProductMaster(data: InsertProductMaster) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(productMaster).values(data);
+  return result;
+}
+
+// Update a product master
+export async function updateProductMaster(id: number, data: Partial<InsertProductMaster>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db
+    .update(productMaster)
+    .set(data)
+    .where(eq(productMaster.id, id));
+  
+  return result;
+}
+
+// Delete a product master
+export async function deleteProductMaster(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // First delete all aliases
+  await db.delete(productNameAliases).where(eq(productNameAliases.productMasterId, id));
+  
+  // Then delete the master
+  const result = await db.delete(productMaster).where(eq(productMaster.id, id));
+  return result;
+}
+
+// Add an alias to a product master
+export async function addProductAlias(data: InsertProductNameAlias) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(productNameAliases).values(data);
+  return result;
+}
+
+// Remove an alias
+export async function removeProductAlias(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.delete(productNameAliases).where(eq(productNameAliases.id, id));
+  return result;
+}
+
+// Get aliases for a product master
+export async function getProductAliases(productMasterId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const result = await db
+    .select()
+    .from(productNameAliases)
+    .where(eq(productNameAliases.productMasterId, productMasterId))
+    .orderBy(asc(productNameAliases.aliasName));
+  
+  return result;
+}
+
+// Get unlinked product names (products in livestream data not linked to any master)
+export async function getUnlinkedProductNames(limit: number = 100) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // Get all linked alias names
+  const linkedAliases = await db
+    .select({ aliasName: productNameAliases.aliasName })
+    .from(productNameAliases);
+  
+  const linkedNames = new Set(linkedAliases.map((a: { aliasName: string }) => a.aliasName));
+  
+  // Get all product names from livestream data with their sales
+  const allProducts = await db
+    .select({
+      productName: livestreamProducts.productName,
+      totalGmv: sql<number>`COALESCE(SUM(${livestreamProducts.gmv}), 0) + COALESCE(SUM(${livestreamProducts.grossRevenue}), 0)`,
+      totalItemsSold: sql<number>`COALESCE(SUM(${livestreamProducts.itemsSold}), 0)`,
+    })
+    .from(livestreamProducts)
+    .groupBy(livestreamProducts.productName)
+    .orderBy(desc(sql`COALESCE(SUM(${livestreamProducts.gmv}), 0) + COALESCE(SUM(${livestreamProducts.grossRevenue}), 0)`));
+  
+  // Filter out linked products
+  const unlinkedProducts = allProducts.filter((p: { productName: string }) => !linkedNames.has(p.productName));
+  
+  // Map to expected format
+  return unlinkedProducts.slice(0, limit).map((p: { productName: string; totalGmv: number; totalItemsSold: number }) => ({
+    productName: p.productName,
+    totalSales: p.totalGmv,
+    totalQuantity: p.totalItemsSold,
+  }));
+}
+
+// Get product masters for matching (with their aliases)
+export async function getProductMastersForMatching() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const masters = await db
+    .select()
+    .from(productMaster)
+    .orderBy(asc(productMaster.canonicalName));
+  
+  const aliases = await db
+    .select()
+    .from(productNameAliases);
+  
+  // Group aliases by master ID
+  const aliasesByMaster: Record<number, string[]> = {};
+  aliases.forEach((alias: { productMasterId: number; aliasName: string }) => {
+    if (!aliasesByMaster[alias.productMasterId]) {
+      aliasesByMaster[alias.productMasterId] = [];
+    }
+    aliasesByMaster[alias.productMasterId].push(alias.aliasName);
+  });
+  
+  return masters.map((master: { id: number; canonicalName: string }) => ({
+    ...master,
+    aliases: aliasesByMaster[master.id] || [],
+  }));
+}
+
+// Create alias suggestion
+export async function createAliasSuggestion(data: InsertProductAliasSuggestion) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(productAliasSuggestions).values(data);
+  return result;
+}
+
+// Get pending alias suggestions
+export async function getPendingAliasSuggestions() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const suggestions = await db
+    .select()
+    .from(productAliasSuggestions)
+    .where(eq(productAliasSuggestions.status, "pending"))
+    .orderBy(desc(productAliasSuggestions.confidence));
+  
+  return suggestions;
+}
+
+// Approve alias suggestion
+export async function approveAliasSuggestion(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Get the suggestion
+  const suggestion = await db
+    .select()
+    .from(productAliasSuggestions)
+    .where(eq(productAliasSuggestions.id, id))
+    .limit(1);
+  
+  if (suggestion.length === 0) {
+    throw new Error("Suggestion not found");
+  }
+  
+  const sug = suggestion[0];
+  
+  // If suggesting a new master, create it first
+  let masterId = sug.suggestedProductMasterId;
+  if (!masterId && sug.suggestedCanonicalName) {
+    const newMaster = await db.insert(productMaster).values({
+      canonicalName: sug.suggestedCanonicalName,
+    });
+    masterId = Number(newMaster[0].insertId);
+  }
+  
+  if (!masterId) {
+    throw new Error("No master ID available");
+  }
+  
+  // Create the alias
+  await db.insert(productNameAliases).values({
+    productMasterId: masterId,
+    aliasName: sug.aliasName,
+    matchMethod: "ai_suggested",
+    confidence: sug.confidence,
+    isConfirmed: true,
+    confirmedBy: userId,
+    confirmedAt: new Date(),
+  });
+  
+  // Update suggestion status
+  await db
+    .update(productAliasSuggestions)
+    .set({
+      status: "approved",
+      reviewedBy: userId,
+      reviewedAt: new Date(),
+    })
+    .where(eq(productAliasSuggestions.id, id));
+  
+  return { success: true };
+}
+
+// Reject alias suggestion
+export async function rejectAliasSuggestion(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db
+    .update(productAliasSuggestions)
+    .set({
+      status: "rejected",
+      reviewedBy: userId,
+      reviewedAt: new Date(),
+    })
+    .where(eq(productAliasSuggestions.id, id));
+  
+  return { success: true };
 }

@@ -2026,3 +2026,86 @@ export const liverGoals = mysqlTable("liver_goals", {
 
 export type LiverGoal = typeof liverGoals.$inferSelect;
 export type InsertLiverGoal = typeof liverGoals.$inferInsert;
+
+
+/**
+ * Product Master table for managing canonical product names
+ * 正式な商品名を管理するマスターテーブル
+ */
+export const productMaster = mysqlTable("product_master", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // 正式商品名
+  canonicalName: varchar("canonicalName", { length: 500 }).notNull().unique(),
+  
+  // ブランド紐付け（オプション）
+  brandId: int("brandId"), // References brands.id
+  
+  // メタ情報
+  category: varchar("category", { length: 255 }), // 商品カテゴリ
+  description: text("description"), // 商品説明
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ProductMaster = typeof productMaster.$inferSelect;
+export type InsertProductMaster = typeof productMaster.$inferInsert;
+
+
+/**
+ * Product Name Aliases table for mapping variant names to canonical names
+ * 表記ゆれの商品名を正式名に紐付けるテーブル
+ */
+export const productNameAliases = mysqlTable("product_name_aliases", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // 紐付け情報
+  productMasterId: int("productMasterId").notNull(), // References productMaster.id
+  aliasName: varchar("aliasName", { length: 500 }).notNull(), // 表記ゆれの商品名
+  
+  // 紐付け方法
+  matchMethod: mysqlEnum("matchMethod", ["manual", "ai_suggested", "auto"]).default("manual").notNull(),
+  confidence: decimal("confidence", { precision: 5, scale: 2 }), // AI紐付けの場合の信頼度
+  
+  // 確認状態
+  isConfirmed: boolean("isConfirmed").default(true).notNull(), // 手動確認済みかどうか
+  confirmedBy: int("confirmedBy"), // 確認者のユーザーID
+  confirmedAt: timestamp("confirmedAt"), // 確認日時
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ProductNameAlias = typeof productNameAliases.$inferSelect;
+export type InsertProductNameAlias = typeof productNameAliases.$inferInsert;
+
+
+/**
+ * Product Alias Suggestions table for AI-generated matching suggestions
+ * AIが提案した商品名紐付けを保存するテーブル
+ */
+export const productAliasSuggestions = mysqlTable("product_alias_suggestions", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // 提案内容
+  aliasName: varchar("aliasName", { length: 500 }).notNull(), // 表記ゆれの商品名
+  suggestedProductMasterId: int("suggestedProductMasterId"), // 提案された正式商品ID（新規の場合はnull）
+  suggestedCanonicalName: varchar("suggestedCanonicalName", { length: 500 }), // 新規の場合の提案正式名
+  
+  // AI分析情報
+  confidence: decimal("confidence", { precision: 5, scale: 2 }).notNull(), // 信頼度
+  reasoning: text("reasoning"), // AIの判断理由
+  
+  // ステータス
+  status: mysqlEnum("status", ["pending", "approved", "rejected"]).default("pending").notNull(),
+  reviewedBy: int("reviewedBy"), // レビュー者
+  reviewedAt: timestamp("reviewedAt"), // レビュー日時
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ProductAliasSuggestion = typeof productAliasSuggestions.$inferSelect;
+export type InsertProductAliasSuggestion = typeof productAliasSuggestions.$inferInsert;

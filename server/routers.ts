@@ -319,6 +319,20 @@ import {
   getLiverPerformanceForMatching,
   getProductPerformanceForMatching,
   getLiverProductPerformanceMatrix,
+  getProductMasters,
+  getProductMasterById,
+  createProductMaster,
+  updateProductMaster,
+  deleteProductMaster,
+  addProductAlias,
+  removeProductAlias,
+  getProductAliases,
+  getUnlinkedProductNames,
+  getProductMastersForMatching,
+  createAliasSuggestion,
+  getPendingAliasSuggestions,
+  approveAliasSuggestion,
+  rejectAliasSuggestion,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -8572,6 +8586,214 @@ ${liverProductSummary.map(l => `### ${l.liverName}的擅长商品\n${l.topProduc
           );
         }
 
+        return result;
+      }),
+  }),
+
+  // Product Master Router (商品マスター管理)
+  productMaster: router({
+    // Get all product masters
+    list: protectedProcedure
+      .query(async () => {
+        return await getProductMasters();
+      }),
+
+    // Get product master by ID with aliases
+    get: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const master = await getProductMasterById(input.id);
+        if (!master) return null;
+        const aliases = await getProductAliases(input.id);
+        return { ...master, aliases };
+      }),
+
+    // Create a new product master
+    create: protectedProcedure
+      .input(z.object({
+        canonicalName: z.string().min(1, "商品名を入力してください"),
+        brandId: z.number().optional(),
+        category: z.string().optional(),
+        description: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        return await createProductMaster(input);
+      }),
+
+    // Update a product master
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        canonicalName: z.string().min(1).optional(),
+        brandId: z.number().optional(),
+        category: z.string().optional(),
+        description: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        return await updateProductMaster(id, data);
+      }),
+
+    // Delete a product master
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return await deleteProductMaster(input.id);
+      }),
+
+    // Add an alias to a product master
+    addAlias: protectedProcedure
+      .input(z.object({
+        productMasterId: z.number(),
+        aliasName: z.string().min(1),
+        matchMethod: z.enum(["manual", "ai_suggested", "auto"]).default("manual"),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return await addProductAlias({
+          productMasterId: input.productMasterId,
+          aliasName: input.aliasName,
+          matchMethod: input.matchMethod,
+          isConfirmed: true,
+          confirmedBy: ctx.user.id,
+          confirmedAt: new Date(),
+        });
+      }),
+
+    // Remove an alias
+    removeAlias: protectedProcedure
+      .input(z.object({ aliasId: z.number() }))
+      .mutation(async ({ input }) => {
+        return await removeProductAlias(input.aliasId);
+      }),
+
+    // Get unlinked product names
+    getUnlinked: protectedProcedure
+      .input(z.object({ limit: z.number().default(100) }).optional())
+      .query(async ({ input }) => {
+        return await getUnlinkedProductNames(input?.limit || 100);
+      }),
+
+    // Get product masters for matching
+    getForMatching: protectedProcedure
+      .query(async () => {
+        return await getProductMastersForMatching();
+      }),
+
+    // Get pending alias suggestions
+    getPendingSuggestions: protectedProcedure
+      .query(async () => {
+        return await getPendingAliasSuggestions();
+      }),
+
+    // Approve alias suggestion
+    approveSuggestion: protectedProcedure
+      .input(z.object({ suggestionId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        return await approveAliasSuggestion(input.suggestionId, ctx.user.id);
+      }),
+
+    // Reject alias suggestion
+    rejectSuggestion: protectedProcedure
+      .input(z.object({ suggestionId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        return await rejectAliasSuggestion(input.suggestionId, ctx.user.id);
+      }),
+
+    // AI auto-matching
+    aiMatch: protectedProcedure
+      .input(z.object({
+        productNames: z.array(z.string()),
+      }))
+      .mutation(async ({ input }) => {
+        // Get existing masters for context
+        const masters = await getProductMastersForMatching();
+        
+        // Build prompt for AI
+        const existingProducts = masters.map((m: { canonicalName: string; aliases: string[] }) => 
+          `- ${m.canonicalName}${m.aliases.length > 0 ? ` (別名: ${m.aliases.join(", ")})` : ""}`
+        ).join("\n");
+        
+        const prompt = `以下の商品名の表記ゆれを分析し、既存の商品マスターとの紐付けを提案してください。
+
+既存の商品マスター:
+${existingProducts || "(なし)"}
+
+分析対象の商品名:
+${input.productNames.map((n: string) => `- ${n}`).join("\n")}
+
+各商品名について、以下の形式でJSONを返してください:
+{
+  "suggestions": [
+    {
+      "aliasName": "分析対象の商品名",
+      "matchType": "existing" | "new",
+      "suggestedCanonicalName": "紐付け先の正式商品名（既存または新規）",
+      "confidence": 0.0-1.0,
+      "reasoning": "判断理由"
+    }
+  ]
+}`;
+        
+        const response = await invokeLLM({
+          messages: [
+            { role: "system", content: "あなたは商品名の表記ゆれを分析する専門家です。同じ商品の異なる表記を識別し、適切に紐付けてください。" },
+            { role: "user", content: prompt },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "product_matching",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  suggestions: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        aliasName: { type: "string" },
+                        matchType: { type: "string", enum: ["existing", "new"] },
+                        suggestedCanonicalName: { type: "string" },
+                        confidence: { type: "number" },
+                        reasoning: { type: "string" },
+                      },
+                      required: ["aliasName", "matchType", "suggestedCanonicalName", "confidence", "reasoning"],
+                      additionalProperties: false,
+                    },
+                  },
+                },
+                required: ["suggestions"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+        
+        const content = response.choices[0].message.content;
+        const result = JSON.parse(typeof content === 'string' ? content : "{}");
+        
+        // Save suggestions to database
+        for (const suggestion of result.suggestions || []) {
+          // Find master ID if matching existing
+          let masterId = null;
+          if (suggestion.matchType === "existing") {
+            const existingMaster = masters.find((m: { canonicalName: string }) => 
+              m.canonicalName === suggestion.suggestedCanonicalName
+            );
+            masterId = existingMaster?.id || null;
+          }
+          
+          await createAliasSuggestion({
+            aliasName: suggestion.aliasName,
+            suggestedProductMasterId: masterId,
+            suggestedCanonicalName: suggestion.suggestedCanonicalName,
+            confidence: String(suggestion.confidence),
+            reasoning: suggestion.reasoning,
+            status: "pending",
+          });
+        }
+        
         return result;
       }),
   }),

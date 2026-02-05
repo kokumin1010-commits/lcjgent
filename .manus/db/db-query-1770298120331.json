@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS product_name_aliases (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  productMasterId INT NOT NULL,\n  aliasName VARCHAR(500) NOT NULL,\n  matchMethod ENUM('manual', 'ai_suggested', 'auto') DEFAULT 'manual' NOT NULL,\n  confidence DECIMAL(5, 2),\n  isConfirmed BOOLEAN DEFAULT TRUE NOT NULL,\n  confirmedBy INT,\n  confirmedAt TIMESTAMP,\n  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute CREATE TABLE IF NOT EXISTS product_name_aliases (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  productMasterId INT NOT NULL,\n  aliasName VARCHAR(500) NOT NULL,\n  matchMethod ENUM('manual', 'ai_suggested', 'auto') DEFAULT 'manual' NOT NULL,\n  confidence DECIMAL(5, 2),\n  isConfirmed BOOLEAN DEFAULT TRUE NOT NULL,\n  confirmedBy INT,\n  confirmedAt TIMESTAMP,\n  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1525
+}
