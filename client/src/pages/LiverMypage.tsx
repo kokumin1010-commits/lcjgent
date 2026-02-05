@@ -540,6 +540,7 @@ export default function LiverMypage() {
               </Avatar>
               <div className="flex-1 min-w-0">
                 <h2 className="text-lg font-bold truncate text-white">{liverInfo.name}</h2>
+                <p className="text-xs text-gray-400 mt-0.5">ID: {liverInfo.id}</p>
                 {/* SNS Links */}
                 <div className="flex items-center gap-3 mt-2">
                   {liverInfo.tiktokAccount && (

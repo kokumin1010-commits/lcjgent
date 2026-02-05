@@ -298,6 +298,7 @@ export default function LiverProfile() {
               </AvatarFallback>
             </Avatar>
             <p className="mt-2 text-sm text-gray-400">プレビュー</p>
+            <p className="mt-1 text-xs text-gray-500">ライバーID: {liverInfo.id}</p>
           </div>
           
           {/* Basic Info */}
