@@ -1,0 +1,80 @@
+{
+  "query": "SELECT \n  id,\n  livestreamDate,\n  salesAmount,\n  gmv,\n  duration\nFROM brand_livestreams \nWHERE liverId = 120005 \n  AND livestreamDate >= '2025-12-01' \n  AND livestreamDate <= '2025-12-31 23:59:59'\nORDER BY livestreamDate DESC\nLIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT \n  id,\n  livestreamDate,\n  salesAmount,\n  gmv,\n  duration\nFROM brand_livestreams \nWHERE liverId = 120005 \n  AND livestreamDate >= '2025-12-01' \n  AND livestreamDate <= '2025-12-31 23:59:59'\nORDER BY livestreamDate DESC\nLIMIT 10;",
+  "rows": [
+    {
+      "id": "780166",
+      "livestreamDate": "2025-12-31 14:35:00",
+      "salesAmount": "678280",
+      "gmv": "584641",
+      "duration": "56"
+    },
+    {
+      "id": "780167",
+      "livestreamDate": "2025-12-29 07:00:00",
+      "salesAmount": "9372179",
+      "gmv": "8814883",
+      "duration": "490"
+    },
+    {
+      "id": "780168",
+      "livestreamDate": "2025-12-28 23:00:00",
+      "salesAmount": "1367262",
+      "gmv": "1312435",
+      "duration": "262"
+    },
+    {
+      "id": "780169",
+      "livestreamDate": "2025-12-28 07:01:00",
+      "salesAmount": "12071163",
+      "gmv": "11423367",
+      "duration": "483"
+    },
+    {
+      "id": "780170",
+      "livestreamDate": "2025-12-27 23:31:00",
+      "salesAmount": "925970",
+      "gmv": "830039",
+      "duration": "242"
+    },
+    {
+      "id": "780172",
+      "livestreamDate": "2025-12-27 04:42:00",
+      "salesAmount": "1964084",
+      "gmv": "1822528",
+      "duration": "103"
+    },
+    {
+      "id": "780173",
+      "livestreamDate": "2025-12-26 11:24:00",
+      "salesAmount": "1552955",
+      "gmv": "1345401",
+      "duration": "219"
+    },
+    {
+      "id": "780174",
+      "livestreamDate": "2025-12-26 08:00:00",
+      "salesAmount": "301839",
+      "gmv": "245271",
+      "duration": "158"
+    },
+    {
+      "id": "780175",
+      "livestreamDate": "2025-12-26 00:51:00",
+      "salesAmount": "1488470",
+      "gmv": "1291609",
+      "duration": "312"
+    },
+    {
+      "id": "780176",
+      "livestreamDate": "2025-12-25 20:06:00",
+      "salesAmount": "296177",
+      "gmv": "230510",
+      "duration": "186"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tlivestreamDate\tsalesAmount\tgmv\tduration\n780166\t2025-12-31 14:35:00\t678280\t584641\t56\n780167\t2025-12-29 07:00:00\t9372179\t8814883\t490\n780168\t2025-12-28 23:00:00\t1367262\t1312435\t262\n780169\t2025-12-28 07:01:00\t12071163\t11423367\t483\n780170\t2025-12-27 23:31:00\t925970\t830039\t242\n780172\t2025-12-27 04:42:00\t1964084\t1822528\t103\n780173\t2025-12-26 11:24:00\t1552955\t1345401\t219\n780174\t2025-12-26 08:00:00\t301839\t245271\t158\n780175\t2025-12-26 00:51:00\t1488470\t1291609\t312\n780176\t2025-12-25 20:06:00\t296177\t230510\t186\n",
+  "stderr": "",
+  "execution_time_ms": 1543
+}

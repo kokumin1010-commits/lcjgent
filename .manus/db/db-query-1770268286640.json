@@ -1,0 +1,18 @@
+{
+  "query": "SELECT \n  liverId,\n  streamerName,\n  SUM(salesAmount) as total_salesAmount,\n  SUM(gmv) as total_gmv,\n  COUNT(*) as stream_count,\n  SUM(duration) as total_duration\nFROM brand_livestreams \nWHERE liverId = 120005 \n  AND livestreamDate >= '2025-12-01' \n  AND livestreamDate <= '2025-12-31 23:59:59'\nGROUP BY liverId, streamerName;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT \n  liverId,\n  streamerName,\n  SUM(salesAmount) as total_salesAmount,\n  SUM(gmv) as total_gmv,\n  COUNT(*) as stream_count,\n  SUM(duration) as total_duration\nFROM brand_livestreams \nWHERE liverId = 120005 \n  AND livestreamDate >= '2025-12-01' \n  AND livestreamDate <= '2025-12-31 23:59:59'\nGROUP BY liverId, streamerName;",
+  "rows": [
+    {
+      "liverId": "120005",
+      "streamerName": "KYOGOKU",
+      "total_salesAmount": "90024866",
+      "total_gmv": "81816787",
+      "stream_count": "62",
+      "total_duration": "12389"
+    }
+  ],
+  "messages": [],
+  "stdout": "liverId\tstreamerName\ttotal_salesAmount\ttotal_gmv\tstream_count\ttotal_duration\n120005\tKYOGOKU\t90024866\t81816787\t62\t12389\n",
+  "stderr": "",
+  "execution_time_ms": 1747
+}

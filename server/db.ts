@@ -3708,7 +3708,7 @@ export async function getLiverStatistics(liverId: number, month?: string) {
   
   const result = await db
     .select({
-      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.gmv}), 0)`,
+      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
       totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
       livestreamCount: sql<number>`COUNT(*)`,
     })
@@ -3733,7 +3733,7 @@ export async function getLiverRankings(month: string) {
     .select({
       liverId: brandLivestreams.liverId,
       streamerName: sql<string>`MAX(${brandLivestreams.streamerName})`,
-      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.gmv}), 0)`,
+      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
       totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
     })
     .from(brandLivestreams)
@@ -3745,7 +3745,7 @@ export async function getLiverRankings(month: string) {
       )
     )
     .groupBy(brandLivestreams.liverId)
-    .orderBy(sql`SUM(${brandLivestreams.gmv}) DESC`)
+    .orderBy(sql`SUM(${brandLivestreams.salesAmount}) DESC`)
     .limit(10);
   
   // Duration ranking - group by liverId only, use MAX for streamerName
@@ -3753,7 +3753,7 @@ export async function getLiverRankings(month: string) {
     .select({
       liverId: brandLivestreams.liverId,
       streamerName: sql<string>`MAX(${brandLivestreams.streamerName})`,
-      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.gmv}), 0)`,
+      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
       totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
     })
     .from(brandLivestreams)
@@ -3823,7 +3823,7 @@ export async function getLiversWithStats(month: string) {
     allLivers.map(async (liver) => {
       const stats = await db
         .select({
-          totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.gmv}), 0)`,
+          totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
           totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
           livestreamCount: sql<number>`COUNT(*)`,
         })
@@ -7749,7 +7749,7 @@ export async function getTotalLiverSalesSummary(month: string) {
   // Current month totals
   const currentMonth = await db
     .select({
-      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.gmv}), 0)`,
+      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
       totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
       totalLivestreams: sql<number>`COUNT(*)`,
       activeLivers: sql<number>`COUNT(DISTINCT ${brandLivestreams.liverId})`,
@@ -7765,7 +7765,7 @@ export async function getTotalLiverSalesSummary(month: string) {
   // Previous month totals
   const prevMonth = await db
     .select({
-      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.gmv}), 0)`,
+      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
       totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
       totalLivestreams: sql<number>`COUNT(*)`,
       activeLivers: sql<number>`COUNT(DISTINCT ${brandLivestreams.liverId})`,
@@ -7828,7 +7828,7 @@ export async function getLiverMonthlySalesTrend() {
     
     const result = await db
       .select({
-        totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.gmv}), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
         totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
         totalLivestreams: sql<number>`COUNT(*)`,
       })
@@ -7872,7 +7872,7 @@ export async function getLiverDetailWithStats(liverId: number) {
   // Get all-time statistics
   const allTimeStats = await db
     .select({
-      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.gmv}), 0)`,
+      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
       totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
       totalLivestreams: sql<number>`COUNT(*)`,
     })
@@ -7886,7 +7886,7 @@ export async function getLiverDetailWithStats(liverId: number) {
   
   const currentMonthStats = await db
     .select({
-      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.gmv}), 0)`,
+      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
       totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
       totalLivestreams: sql<number>`COUNT(*)`,
     })
@@ -7903,7 +7903,7 @@ export async function getLiverDetailWithStats(liverId: number) {
   
   const prevMonthStats = await db
     .select({
-      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.gmv}), 0)`,
+      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
       totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
       totalLivestreams: sql<number>`COUNT(*)`,
     })
@@ -7966,7 +7966,7 @@ export async function getLiverMonthlySalesTrendById(liverId: number) {
     
     const result = await db
       .select({
-        totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.gmv}), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
         totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
         totalLivestreams: sql<number>`COUNT(*)`,
       })
@@ -8031,16 +8031,16 @@ export async function getLiverBrandPerformance(liverId: number) {
     .select({
       brandId: brandLivestreams.brandId,
       brandName: brands.name,
-      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.gmv}), 0)`,
+      totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
       totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
       totalLivestreams: sql<number>`COUNT(*)`,
-      avgSalesPerStream: sql<number>`COALESCE(AVG(${brandLivestreams.gmv}), 0)`,
+      avgSalesPerStream: sql<number>`COALESCE(AVG(${brandLivestreams.salesAmount}), 0)`,
     })
     .from(brandLivestreams)
     .leftJoin(brands, eq(brandLivestreams.brandId, brands.id))
     .where(eq(brandLivestreams.liverId, liverId))
     .groupBy(brandLivestreams.brandId, brands.name)
-    .orderBy(sql`SUM(${brandLivestreams.gmv}) DESC`);
+    .orderBy(sql`SUM(${brandLivestreams.salesAmount}) DESC`);
   
   return performance.map(p => ({
     ...p,
