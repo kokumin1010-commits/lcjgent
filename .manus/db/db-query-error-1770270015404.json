@@ -1,0 +1,8 @@
+{
+  "query": "SELECT id, name, streamerName, accountName FROM livers WHERE name LIKE '%Ryu%' OR name LIKE '%kyogoku%' OR name LIKE '%KYOGOKU%' OR streamerName LIKE '%Ryu%' OR streamerName LIKE '%kyogoku%' OR streamerName LIKE '%KYOGOKU%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, name, streamerName, accountName FROM livers WHERE name LIKE '%Ryu%' OR name LIKE '%kyogoku%' OR name LIKE '%KYOGOKU%' OR streamerName LIKE '%Ryu%' OR streamerName LIKE '%kyogoku%' OR streamerName LIKE '%KYOGOKU%';",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'streamername' in 'where clause'"
+  ]
+}

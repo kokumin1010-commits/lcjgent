@@ -1,0 +1,18 @@
+{
+  "query": "SELECT \n  l.id as liver_id,\n  l.name as liver_name,\n  SUM(b.duration) as total_duration_minutes,\n  ROUND(SUM(b.duration) / 60, 1) as total_duration_hours,\n  SUM(b.salesAmount) as total_sales,\n  COUNT(*) as stream_count\nFROM brand_livestreams b\nJOIN livers l ON b.liverId = l.id\nWHERE l.name LIKE '%Ryu kyogoku%'\nAND b.livestreamDate >= '2025-12-01' \nAND b.livestreamDate < '2026-01-01'\nGROUP BY l.id, l.name;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT \n  l.id as liver_id,\n  l.name as liver_name,\n  SUM(b.duration) as total_duration_minutes,\n  ROUND(SUM(b.duration) / 60, 1) as total_duration_hours,\n  SUM(b.salesAmount) as total_sales,\n  COUNT(*) as stream_count\nFROM brand_livestreams b\nJOIN livers l ON b.liverId = l.id\nWHERE l.name LIKE '%Ryu kyogoku%'\nAND b.livestreamDate >= '2025-12-01' \nAND b.livestreamDate < '2026-01-01'\nGROUP BY l.id, l.name;",
+  "rows": [
+    {
+      "liver_id": "120005",
+      "liver_name": "Ryu kyogoku Test",
+      "total_duration_minutes": "11799",
+      "total_duration_hours": "196.7",
+      "total_sales": "83742294",
+      "stream_count": "58"
+    }
+  ],
+  "messages": [],
+  "stdout": "liver_id\tliver_name\ttotal_duration_minutes\ttotal_duration_hours\ttotal_sales\tstream_count\n120005\tRyu kyogoku Test\t11799\t196.7\t83742294\t58\n",
+  "stderr": "",
+  "execution_time_ms": 1595
+}

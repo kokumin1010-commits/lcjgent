@@ -1,0 +1,8 @@
+{
+  "query": "SELECT \n  SUM(duration) as total_duration_minutes,\n  SUM(duration) / 60 as total_duration_hours,\n  COUNT(*) as stream_count\nFROM brand_livestreams \nWHERE liver_id = (SELECT id FROM livers WHERE name LIKE '%Ryu kyogoku%' LIMIT 1)\nAND livestream_date >= '2025-12-01' \nAND livestream_date < '2026-01-01';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT \n  SUM(duration) as total_duration_minutes,\n  SUM(duration) / 60 as total_duration_hours,\n  COUNT(*) as stream_count\nFROM brand_livestreams \nWHERE liver_id = (SELECT id FROM livers WHERE name LIKE '%Ryu kyogoku%' LIMIT 1)\nAND livestream_date >= '2025-12-01' \nAND livestream_date < '2026-01-01';",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'liver_id' in 'where clause'"
+  ]
+}

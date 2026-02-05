@@ -1,0 +1,17 @@
+{
+  "query": "SELECT \n  COUNT(*) as stream_count,\n  SUM(duration) as total_duration_minutes,\n  ROUND(SUM(duration) / 60, 1) as total_duration_hours,\n  SUM(salesAmount) as total_sales_amount,\n  SUM(gmv) as total_gmv\nFROM brand_livestreams \nWHERE liverId = 120005\nAND livestreamDate >= '2025-12-01' \nAND livestreamDate < '2026-01-01';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT \n  COUNT(*) as stream_count,\n  SUM(duration) as total_duration_minutes,\n  ROUND(SUM(duration) / 60, 1) as total_duration_hours,\n  SUM(salesAmount) as total_sales_amount,\n  SUM(gmv) as total_gmv\nFROM brand_livestreams \nWHERE liverId = 120005\nAND livestreamDate >= '2025-12-01' \nAND livestreamDate < '2026-01-01';",
+  "rows": [
+    {
+      "stream_count": "58",
+      "total_duration_minutes": "11799",
+      "total_duration_hours": "196.7",
+      "total_sales_amount": "83742294",
+      "total_gmv": "75972642"
+    }
+  ],
+  "messages": [],
+  "stdout": "stream_count\ttotal_duration_minutes\ttotal_duration_hours\ttotal_sales_amount\ttotal_gmv\n58\t11799\t196.7\t83742294\t75972642\n",
+  "stderr": "",
+  "execution_time_ms": 1591
+}

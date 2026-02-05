@@ -1,0 +1,15 @@
+{
+  "query": "SELECT \n  SUM(duration) as total_duration_minutes,\n  ROUND(SUM(duration) / 60, 1) as total_duration_hours,\n  COUNT(*) as stream_count\nFROM brand_livestreams \nWHERE liverId = (SELECT id FROM livers WHERE name LIKE '%Ryu kyogoku%' LIMIT 1)\nAND livestreamDate >= '2025-12-01' \nAND livestreamDate < '2026-01-01';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT \n  SUM(duration) as total_duration_minutes,\n  ROUND(SUM(duration) / 60, 1) as total_duration_hours,\n  COUNT(*) as stream_count\nFROM brand_livestreams \nWHERE liverId = (SELECT id FROM livers WHERE name LIKE '%Ryu kyogoku%' LIMIT 1)\nAND livestreamDate >= '2025-12-01' \nAND livestreamDate < '2026-01-01';",
+  "rows": [
+    {
+      "total_duration_minutes": "12389",
+      "total_duration_hours": "206.5",
+      "stream_count": "62"
+    }
+  ],
+  "messages": [],
+  "stdout": "total_duration_minutes\ttotal_duration_hours\tstream_count\n12389\t206.5\t62\n",
+  "stderr": "",
+  "execution_time_ms": 1580
+}
