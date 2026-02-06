@@ -737,17 +737,18 @@ export default function LiverDashboardNew() {
             {hourlySales && hourlySales.length > 0 ? (
               <div className="space-y-4">
                 {/* Hourly Bar Chart */}
-                <div className="flex items-end gap-1 h-48 px-2">
+                <div className="flex items-end gap-1 px-2" style={{ height: '192px' }}>
                   {hourlySales.map((hourData) => {
                     const maxSales = Math.max(...hourlySales.map(h => h.avgSales));
                     const heightPercent = maxSales > 0 ? (hourData.avgSales / maxSales) * 100 : 0;
                     const isHighPerformance = heightPercent > 70;
                     const isMediumPerformance = heightPercent > 40;
+                    const barHeight = Math.max(heightPercent * 1.6, 4); // 160px max height for bars
                     
                     return (
                       <Tooltip key={hourData.hour}>
                         <TooltipTrigger asChild>
-                          <div className="flex-1 flex flex-col items-center cursor-pointer group">
+                          <div className="flex-1 flex flex-col items-center justify-end cursor-pointer group" style={{ height: '100%' }}>
                             <div 
                               className={`w-full rounded-t transition-all ${
                                 isHighPerformance 
@@ -756,9 +757,9 @@ export default function LiverDashboardNew() {
                                     ? 'bg-gradient-to-t from-cyan-600 to-cyan-400'
                                     : 'bg-cyan-700/50'
                               } group-hover:opacity-80`}
-                              style={{ height: `${Math.max(heightPercent, 2)}%` }}
+                              style={{ height: `${barHeight}px`, minHeight: '4px' }}
                             />
-                            <span className={`text-xs mt-2 ${
+                            <span className={`text-xs mt-2 flex-shrink-0 ${
                               isHighPerformance ? 'text-orange-400 font-bold' : 'text-cyan-500/70'
                             }`}>
                               {hourData.hour}時
@@ -829,43 +830,56 @@ export default function LiverDashboardNew() {
                   };
                   
                   return (
-                    <Tooltip key={dayData.dayOfWeek}>
-                      <TooltipTrigger asChild>
-                        <div 
-                          className={`p-4 rounded-xl text-center cursor-pointer transition-all ${
-                            isHighPerformance 
-                              ? 'bg-gradient-to-br from-pink-500/30 to-purple-500/30 border-2 border-pink-400/50 shadow-[0_0_20px_rgba(236,72,153,0.3)]' 
-                              : isMediumPerformance
-                                ? 'bg-cyan-500/10 border border-cyan-500/30'
-                                : 'bg-[#0a1520]/40 border border-cyan-500/10'
-                          } hover:scale-105`}
-                        >
-                          <div className={`text-lg font-bold mb-1 ${
-                            dayData.dayOfWeek === 0 ? 'text-red-400' :
-                            dayData.dayOfWeek === 6 ? 'text-blue-400' :
-                            'text-cyan-100'
-                          }`}>
-                            {dayNames[dayData.dayOfWeek]?.short || dayData.dayOfWeek}
-                          </div>
-                          <div className={`text-sm font-mono ${
-                            isHighPerformance ? 'text-pink-300' : 'text-cyan-400'
-                          }`}>
-                            ¥{(dayData.avgSales / 1000).toFixed(0)}k
-                          </div>
-                          <div className="text-xs text-cyan-500/50 mt-1">
-                            {dayData.livestreamCount}回
-                          </div>
+                    <div 
+                      key={dayData.dayOfWeek}
+                      className={`p-3 rounded-xl text-center transition-all ${
+                        isHighPerformance 
+                          ? 'bg-gradient-to-br from-pink-500/30 to-purple-500/30 border-2 border-pink-400/50 shadow-[0_0_20px_rgba(236,72,153,0.3)]' 
+                          : isMediumPerformance
+                            ? 'bg-cyan-500/10 border border-cyan-500/30'
+                            : 'bg-[#0a1520]/40 border border-cyan-500/10'
+                      }`}
+                    >
+                      {/* 曜日名 */}
+                      <div className={`text-lg font-bold mb-2 ${
+                        dayData.dayOfWeek === 0 ? 'text-red-400' :
+                        dayData.dayOfWeek === 6 ? 'text-blue-400' :
+                        'text-cyan-100'
+                      }`}>
+                        {dayNames[dayData.dayOfWeek]?.short || dayData.dayOfWeek}
+                      </div>
+                      
+                      {/* 平均売上 */}
+                      <div className="mb-2">
+                        <div className="text-[10px] text-cyan-500/60 uppercase tracking-wide">{tr.avgSales}</div>
+                        <div className={`text-sm font-mono font-bold ${
+                          isHighPerformance ? 'text-pink-300' : 'text-yellow-400'
+                        }`}>
+                          ¥{dayData.avgSales >= 10000 
+                            ? `${(dayData.avgSales / 10000).toFixed(1)}万`
+                            : dayData.avgSales.toLocaleString()
+                          }
                         </div>
-                      </TooltipTrigger>
-                      <TooltipContent className="bg-[#0a1a2a] border-cyan-500/30">
-                        <div className="text-sm">
-                          <p className="font-bold text-cyan-100">{dayNames[dayData.dayOfWeek]?.ja}</p>
-                          <p className="text-yellow-400">{tr.avgSales}: ¥{dayData.avgSales.toLocaleString()}</p>
-                          <p className="text-cyan-300">{tr.avgViewers}: {dayData.avgViewers.toLocaleString()}人</p>
-                          <p className="text-cyan-500/70">{tr.livestreamCount}: {dayData.livestreamCount}回</p>
+                      </div>
+                      
+                      {/* 平均視聴者 */}
+                      <div className="mb-2">
+                        <div className="text-[10px] text-cyan-500/60 uppercase tracking-wide">{tr.avgViewers}</div>
+                        <div className="text-sm font-mono text-cyan-300">
+                          {dayData.avgViewers >= 1000 
+                            ? `${(dayData.avgViewers / 1000).toFixed(1)}k`
+                            : dayData.avgViewers.toLocaleString()
+                          }人
                         </div>
-                      </TooltipContent>
-                    </Tooltip>
+                      </div>
+                      
+                      {/* 配信数 */}
+                      <div className="pt-1 border-t border-cyan-500/20">
+                        <div className="text-xs text-cyan-500/50">
+                          {dayData.livestreamCount}回配信
+                        </div>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
