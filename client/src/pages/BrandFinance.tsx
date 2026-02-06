@@ -124,16 +124,18 @@ export default function BrandFinance() {
       const base64 = btoa(
         new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
       );
-      uploadMutation.mutate({
+      await uploadMutation.mutateAsync({
         brandId,
         fileName: file.name,
         csvContent: base64,
       });
     } catch (error: any) {
-      toast.error(`ファイル読み込みエラー: ${error.message}`);
+      console.error("CSV upload error:", error);
+      toast.error(error?.message || `ファイル読み込みエラー`);
+    } finally {
       setCsvUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
-    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   // Calculate max values for bar charts

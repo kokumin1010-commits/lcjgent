@@ -110,7 +110,7 @@ function DashboardLayoutContent({
     { icon: ShoppingCart, label: t("nav.orders") || "注文管理", path: "/master/orders", adminOnly: true },
     { icon: UserCheck, label: t("nav.mallMembers") || "LCJ MALL会員様", path: "/master/mall-members", adminOnly: true },
     { icon: Users, label: t("nav.staff"), path: "/master/staff" },
-    { icon: Wallet, label: t("nav.finance") || "ファイナンス管理", path: "/master/finance", adminOnly: true },
+    { icon: Wallet, label: t("nav.finance") || "ファイナンス管理", path: "/master/finance" },
     { icon: Settings, label: t("nav.masterControl"), path: "/master/control" },
   ];
 

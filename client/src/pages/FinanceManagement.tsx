@@ -131,21 +131,34 @@ export default function FinanceManagement() {
 
     setCsvUploading(true);
     try {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const base64 = (event.target?.result as string).split(",")[1];
-        await uploadMutation.mutateAsync({
-          brandId: activeBrandId,
-          fileName: file.name,
-          csvContent: base64,
-        });
-        setCsvUploading(false);
-      };
-      reader.readAsDataURL(file);
-    } catch {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const result = event.target?.result as string;
+            const b64 = result.split(",")[1];
+            if (!b64) reject(new Error("ファイルの読み込みに失敗しました"));
+            else resolve(b64);
+          } catch (err) {
+            reject(err);
+          }
+        };
+        reader.onerror = () => reject(new Error("ファイルの読み込みに失敗しました"));
+        reader.readAsDataURL(file);
+      });
+
+      await uploadMutation.mutateAsync({
+        brandId: activeBrandId,
+        fileName: file.name,
+        csvContent: base64,
+      });
+    } catch (err: any) {
+      console.error("CSV upload error:", err);
+      toast.error(err?.message || "CSVアップロードに失敗しました");
+    } finally {
       setCsvUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
-    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const summary = summaryQuery.data;

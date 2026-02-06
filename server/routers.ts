@@ -6,6 +6,8 @@ import { z } from "zod";
 import { nanoid } from "nanoid";
 import { storagePut } from "./storage";
 import { invokeLLM } from "./_core/llm";
+import * as iconv from "iconv-lite";
+import * as chardet from "chardet";
 import { sendCoachingToLiver } from "./_core/lineMessaging";
 import {
   createStaff,
@@ -10598,17 +10600,38 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         });
 
         try {
-          // 2. Decode CSV content
+          // 2. Decode CSV content with auto encoding detection
           const csvBuffer = Buffer.from(input.csvContent, "base64");
-          const csvText = csvBuffer.toString("utf-8");
+          let csvText: string;
+          
+          // Auto-detect encoding (TikTok CSVs may be Shift-JIS, UTF-8-BOM, or UTF-8)
+          const detected = chardet.detect(csvBuffer);
+          const encoding = detected || "utf-8";
+          console.log(`[CSV Upload] Detected encoding: ${encoding}`);
+          
+          if (encoding.toLowerCase().includes("shift") || encoding.toLowerCase().includes("sjis") || encoding.toLowerCase() === "iso-2022-jp" || encoding.toLowerCase().includes("euc")) {
+            csvText = iconv.decode(csvBuffer, "Shift_JIS");
+          } else if (encoding.toLowerCase().includes("utf-16")) {
+            csvText = iconv.decode(csvBuffer, encoding);
+          } else {
+            // UTF-8 (remove BOM if present)
+            csvText = csvBuffer.toString("utf-8");
+            if (csvText.charCodeAt(0) === 0xFEFF) {
+              csvText = csvText.slice(1);
+            }
+          }
+          
+          // Normalize line endings
+          csvText = csvText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
           const lines = csvText.split("\n").filter(l => l.trim());
           
           if (lines.length < 2) {
             throw new Error("CSVファイルにデータがありません");
           }
 
-          // 3. Parse header
-          const headers = parseCSVLine(lines[0]);
+          // 3. Parse header (trim BOM and whitespace from each header)
+          const headers = parseCSVLine(lines[0]).map(h => h.replace(/^\uFEFF/, '').trim());
+          console.log(`[CSV Upload] Parsed ${headers.length} headers. First 5: ${headers.slice(0, 5).join(', ')}`);
           
           // 4. Parse all rows
           const orders: any[] = [];
@@ -10899,11 +10922,38 @@ function parseFloatSafe(val: string | undefined | null): number | null {
 
 function parseDateDDMMYYYY(val: string | undefined | null): Date | null {
   if (!val || val === "" || val === "-") return null;
-  // Format: DD/MM/YYYY HH:mm:ss
-  const match = val.match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})/);
-  if (!match) return null;
-  const [, day, month, year, hour, minute, second] = match;
-  return new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute), parseInt(second));
+  
+  // Format 1: DD/MM/YYYY HH:mm:ss
+  let match = val.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})/);
+  if (match) {
+    const [, day, month, year, hour, minute, second] = match;
+    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute), parseInt(second));
+  }
+  
+  // Format 2: YYYY-MM-DD HH:mm:ss (ISO-like)
+  match = val.match(/(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2}):(\d{2})/);
+  if (match) {
+    const [, year, month, day, hour, minute, second] = match;
+    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute), parseInt(second));
+  }
+  
+  // Format 3: YYYY/MM/DD HH:mm:ss
+  match = val.match(/(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2}):(\d{2})/);
+  if (match) {
+    const [, year, month, day, hour, minute, second] = match;
+    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute), parseInt(second));
+  }
+  
+  // Format 4: YYYY-MM-DDTHH:mm:ss.sss (ISO with T)
+  match = val.match(/(\d{4})-(\d{1,2})-(\d{1,2})T(\d{1,2}):(\d{2}):(\d{2})/);
+  if (match) {
+    const [, year, month, day, hour, minute, second] = match;
+    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute), parseInt(second));
+  }
+  
+  // Fallback: try native Date parse
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? null : d;
 }
 
 // Helper function to update brand ad performance stats based on historical data
