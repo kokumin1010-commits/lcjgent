@@ -351,11 +351,25 @@ import {
   getAdReportFileById,
   updateAdReportFileAnalysis,
   deleteAdReportFile,
+  createTiktokCsvImportHistory,
+  updateTiktokCsvImportHistory,
+  getTiktokCsvImportHistoryByBrand,
+  bulkInsertTiktokOrders,
+  getTiktokOrdersByBrand,
+  getTiktokFinanceSummary,
+  getTiktokCreatorSummary,
+  getTiktokShopSummary,
+  getTiktokProductSummary,
+  getTiktokDailySummary,
+  getTiktokContentTypeSummary,
+  deleteTiktokOrdersByImportId,
+  deleteTiktokImportHistory,
+  getExistingSubOrderIds,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
-import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats } from "../drizzle/schema";
+import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders } from "../drizzle/schema";
 import { eq, and, not, isNotNull, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
@@ -10509,9 +10523,334 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         return request;
       }),
   }),
+
+  // ===== TikTok Commission Finance Router =====
+  tiktokFinance: router({
+    // CSVアップロード・解析
+    uploadCsv: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+        fileName: z.string(),
+        csvContent: z.string(), // Base64 encoded CSV content
+      }))
+      .mutation(async ({ ctx, input }) => {
+        // 1. Create import history record
+        const importId = await createTiktokCsvImportHistory({
+          brandId: input.brandId,
+          fileName: input.fileName,
+          uploadedBy: ctx.user.id,
+          uploadedByName: ctx.user.name || ctx.user.email,
+          status: "processing",
+        });
+
+        try {
+          // 2. Decode CSV content
+          const csvBuffer = Buffer.from(input.csvContent, "base64");
+          const csvText = csvBuffer.toString("utf-8");
+          const lines = csvText.split("\n").filter(l => l.trim());
+          
+          if (lines.length < 2) {
+            throw new Error("CSVファイルにデータがありません");
+          }
+
+          // 3. Parse header
+          const headers = parseCSVLine(lines[0]);
+          
+          // 4. Parse all rows
+          const orders: any[] = [];
+          const subOrderIds: string[] = [];
+          let errorCount = 0;
+
+          for (let i = 1; i < lines.length; i++) {
+            try {
+              const values = parseCSVLine(lines[i]);
+              if (values.length < 10) continue; // Skip incomplete rows
+              
+              const row = mapHeadersToValues(headers, values);
+              subOrderIds.push(String(row["サブ注文ID"] || ""));
+              orders.push(row);
+            } catch (e) {
+              errorCount++;
+            }
+          }
+
+          // 5. Check for duplicates
+          const existingIds = await getExistingSubOrderIds(input.brandId, subOrderIds);
+          const existingSet = new Set(existingIds);
+
+          // 6. Filter out duplicates and prepare insert data
+          const newOrders: any[] = [];
+          let skippedCount = 0;
+
+          for (let i = 0; i < orders.length; i++) {
+            const subOrderId = subOrderIds[i];
+            if (existingSet.has(subOrderId)) {
+              skippedCount++;
+              continue;
+            }
+            
+            const row = orders[i];
+            newOrders.push({
+              brandId: input.brandId,
+              importHistoryId: importId,
+              orderId: String(row["注文ID"] || ""),
+              subOrderId: String(row["サブ注文ID"] || ""),
+              orderStatus: row["注文状況"] || null,
+              creatorUsername: row["クリエイターのユーザー名"] || "",
+              productName: row["商品名"] || "",
+              sku: row["SKU"] || null,
+              productId: String(row["商品ID"] || ""),
+              price: parseIntSafe(row["価格"]),
+              quantity: parseIntSafe(row["数量"]) || 1,
+              shopName: row["ショップ名"] || null,
+              shopCode: row["ショップコード"] || null,
+              contentType: row["コンテンツタイプ"] || null,
+              contentId: String(row["コンテンツID"] || ""),
+              partnerCommissionRate: parseFloatSafe(row["アフィリエイトパートナー成果報酬率"]) !== null ? String(parseFloatSafe(row["アフィリエイトパートナー成果報酬率"])) : null,
+              creatorCommissionRate: parseFloatSafe(row["クリエイター成果報酬率"]) !== null ? String(parseFloatSafe(row["クリエイター成果報酬率"])) : null,
+              partnerRewardRate: parseIntSafe(row["パートナー成果報酬リワード率"]),
+              creatorRewardRate: parseIntSafe(row["クリエイターの手数料リワード率"]),
+              partnerShopAdRate: parseIntSafe(row["アフィリエイトパートナーのショップ広告成果報酬率"]),
+              creatorShopAdRate: parseIntSafe(row["クリエイターのショップ広告成果報酬率"]),
+              estimatedCommissionBase: parseIntSafe(row["推定成果報酬ベース"]),
+              estimatedPartnerCommission: parseFloatSafe(row["推定アフィリエイトパートナー手数料額"]) !== null ? String(parseFloatSafe(row["推定アフィリエイトパートナー手数料額"])) : null,
+              estimatedCreatorCommission: parseFloatSafe(row["推定クリエイター手数料額"]) !== null ? String(parseFloatSafe(row["推定クリエイター手数料額"])) : null,
+              estimatedPartnerReward: parseIntSafe(row["パートナーの推定成果報酬リワード料"]),
+              estimatedCreatorReward: parseIntSafe(row["クリエイターの推定成果報酬リワード料"]),
+              estimatedCreatorShopAdPay: parseIntSafe(row["クリエイターのショップ広告成果報酬支払額（推定）"]),
+              estimatedPartnerShopAdPay: parseIntSafe(row["アフィリエイトパートナーのショップ広告成果報酬支払額（推定）"]),
+              actualCommissionBase: parseFloatSafe(row["実際の手数料ベース"]) !== null ? String(parseFloatSafe(row["実際の手数料ベース"])) : null,
+              actualPartnerCommission: parseFloatSafe(row["実際のアフィリエイトパートナー手数料額"]) !== null ? String(parseFloatSafe(row["実際のアフィリエイトパートナー手数料額"])) : null,
+              actualCreatorCommission: parseFloatSafe(row["クリエイターの実際の手数料額"]) !== null ? String(parseFloatSafe(row["クリエイターの実際の手数料額"])) : null,
+              actualPartnerReward: parseFloatSafe(row["パートナーの実際の手数料リワード料"]) !== null ? String(parseFloatSafe(row["パートナーの実際の手数料リワード料"])) : null,
+              actualCreatorReward: parseFloatSafe(row["クリエイターの実際の手数料リワード料"]) !== null ? String(parseFloatSafe(row["クリエイターの実際の手数料リワード料"])) : null,
+              actualPartnerShopAdPay: parseFloatSafe(row["アフィリエイトパートナーのショップ広告成果報酬支払額（実際）"]) !== null ? String(parseFloatSafe(row["アフィリエイトパートナーのショップ広告成果報酬支払額（実際）"])) : null,
+              actualCreatorShopAdPay: parseFloatSafe(row["クリエイターのショップ広告成果報酬支払額（実際）"]) !== null ? String(parseFloatSafe(row["クリエイターのショップ広告成果報酬支払額（実際）"])) : null,
+              returnQuantity: parseIntSafe(row["返品される商品の数量"]) || 0,
+              refundQuantity: parseIntSafe(row["返金される商品の数量"]) || 0,
+              orderCreatedAt: parseDateDDMMYYYY(row["作成日時"]),
+              orderDeliveredAt: parseDateDDMMYYYY(row["注文配達日時"]),
+              commissionSettledAt: parseDateDDMMYYYY(row["手数料決済日時"]),
+              paymentId: String(row["支払いID"] || ""),
+              paymentMethod: row["支払い方法"] || null,
+              paymentAccount: row["支払い口座"] || null,
+              iva: parseIntSafe(row["IVA"]) || 0,
+              isr: parseIntSafe(row["ISR"]) || 0,
+              platform: row["プラットフォーム"] || null,
+              factorType: row["要因のタイプ"] || null,
+            });
+          }
+
+          // 7. Bulk insert
+          let insertedCount = 0;
+          if (newOrders.length > 0) {
+            insertedCount = await bulkInsertTiktokOrders(newOrders);
+          }
+
+          // 8. Calculate summary
+          let totalSales = 0;
+          let totalPartnerComm = 0;
+          let totalCreatorComm = 0;
+          let minDate: Date | null = null;
+          let maxDate: Date | null = null;
+
+          for (const o of newOrders) {
+            totalSales += o.price || 0;
+            totalPartnerComm += parseFloat(o.actualPartnerCommission || "0");
+            totalCreatorComm += parseFloat(o.actualCreatorCommission || "0");
+            if (o.orderCreatedAt) {
+              if (!minDate || o.orderCreatedAt < minDate) minDate = o.orderCreatedAt;
+              if (!maxDate || o.orderCreatedAt > maxDate) maxDate = o.orderCreatedAt;
+            }
+          }
+
+          // 9. Update import history
+          await updateTiktokCsvImportHistory(importId, {
+            totalRows: orders.length,
+            importedRows: insertedCount,
+            skippedRows: skippedCount,
+            errorRows: errorCount,
+            totalSales: Math.round(totalSales),
+            totalPartnerCommission: Math.round(totalPartnerComm),
+            totalCreatorCommission: Math.round(totalCreatorComm),
+            dateRangeStart: minDate,
+            dateRangeEnd: maxDate,
+            status: "completed",
+          });
+
+          return {
+            importId,
+            totalRows: orders.length,
+            importedRows: insertedCount,
+            skippedRows: skippedCount,
+            errorRows: errorCount,
+          };
+        } catch (error: any) {
+          await updateTiktokCsvImportHistory(importId, {
+            status: "failed",
+            errorMessage: error.message || "Unknown error",
+          });
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `CSVインポートに失敗しました: ${error.message}`,
+          });
+        }
+      }),
+
+    // インポート履歴取得
+    getImportHistory: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        return getTiktokCsvImportHistoryByBrand(input.brandId);
+      }),
+
+    // インポート削除（関連注文も削除）
+    deleteImport: protectedProcedure
+      .input(z.object({ importId: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteTiktokOrdersByImportId(input.importId);
+        await deleteTiktokImportHistory(input.importId);
+        return { success: true };
+      }),
+
+    // 全体サマリー
+    getSummary: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        return getTiktokFinanceSummary(input.brandId);
+      }),
+
+    // クリエイター別サマリー
+    getCreatorSummary: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        return getTiktokCreatorSummary(input.brandId);
+      }),
+
+    // ショップ別サマリー
+    getShopSummary: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        return getTiktokShopSummary(input.brandId);
+      }),
+
+    // 商品別サマリー
+    getProductSummary: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        return getTiktokProductSummary(input.brandId);
+      }),
+
+    // 日別推移
+    getDailySummary: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        return getTiktokDailySummary(input.brandId);
+      }),
+
+    // コンテンツタイプ別
+    getContentTypeSummary: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        return getTiktokContentTypeSummary(input.brandId);
+      }),
+
+    // 注文明細一覧（ページネーション付き）
+    getOrders: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+        limit: z.number().optional().default(50),
+        offset: z.number().optional().default(0),
+        search: z.string().optional(),
+        creatorUsername: z.string().optional(),
+        shopName: z.string().optional(),
+        contentType: z.string().optional(),
+        orderStatus: z.string().optional(),
+        dateFrom: z.string().optional(),
+        dateTo: z.string().optional(),
+      }))
+      .query(async ({ input }) => {
+        return getTiktokOrdersByBrand(input.brandId, {
+          limit: input.limit,
+          offset: input.offset,
+          search: input.search,
+          creatorUsername: input.creatorUsername,
+          shopName: input.shopName,
+          contentType: input.contentType,
+          orderStatus: input.orderStatus,
+          dateFrom: input.dateFrom ? new Date(input.dateFrom) : undefined,
+          dateTo: input.dateTo ? new Date(input.dateTo) : undefined,
+        });
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;
+
+// CSV parsing helper functions
+function parseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (inQuotes) {
+      if (char === '"') {
+        if (i + 1 < line.length && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        current += char;
+      }
+    } else {
+      if (char === '"') {
+        inQuotes = true;
+      } else if (char === ',') {
+        result.push(current.trim());
+        current = "";
+      } else {
+        current += char;
+      }
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
+function mapHeadersToValues(headers: string[], values: string[]): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (let i = 0; i < headers.length && i < values.length; i++) {
+    result[headers[i]] = values[i];
+  }
+  return result;
+}
+
+function parseIntSafe(val: string | undefined | null): number | null {
+  if (!val || val === "" || val === "-") return null;
+  const cleaned = val.replace(/,/g, "").replace(/\s/g, "");
+  const num = parseInt(cleaned, 10);
+  return isNaN(num) ? null : num;
+}
+
+function parseFloatSafe(val: string | undefined | null): number | null {
+  if (!val || val === "" || val === "-") return null;
+  const cleaned = val.replace(/,/g, "").replace(/\s/g, "");
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? null : num;
+}
+
+function parseDateDDMMYYYY(val: string | undefined | null): Date | null {
+  if (!val || val === "" || val === "-") return null;
+  // Format: DD/MM/YYYY HH:mm:ss
+  const match = val.match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})/);
+  if (!match) return null;
+  const [, day, month, year, hour, minute, second] = match;
+  return new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute), parseInt(second));
+}
 
 // Helper function to update brand ad performance stats based on historical data
 async function updateBrandAdPerformanceStats(db: any, brandId: number) {

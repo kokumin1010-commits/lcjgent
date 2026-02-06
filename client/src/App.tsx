@@ -21,6 +21,7 @@ import ReportAnalysis from "./pages/ReportAnalysis";
 import BrandList from "./pages/BrandList";
 import BrandForm from "./pages/BrandForm";
 import BrandDetail from "./pages/BrandDetail";
+import BrandFinance from "./pages/BrandFinance";
 import BusinessCards from "./pages/BusinessCards";
 import ChatReport from "./pages/ChatReport";
 import LineManagement from "./pages/LineManagement";
@@ -179,6 +180,11 @@ function Router() {
           <DashboardLayout>
             <BrandForm />
           </DashboardLayout>
+        )}
+      </Route>
+      <Route path={"/master/brands/:id/finance"}>
+        {(params) => (
+          <BrandFinance />
         )}
       </Route>
       <Route path={"/master/brands/:id"}>

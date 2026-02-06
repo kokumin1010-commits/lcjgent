@@ -1,0 +1,16 @@
+{
+  "query": "SELECT * FROM line_reminders ORDER BY id DESC LIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT * FROM line_reminders ORDER BY id DESC LIMIT 20;",
+  "rows": [],
+  "messages": [
+    "1\tU4eeca6887f21c03c970e3cc420dadb30\t1500001 東京都渋谷区神宮前6-18-6 SRビル3階 PELE渋谷 送る\t@LCJ エージェント  2月10にち朝にちリマインド",
+    "1500001",
+    "東京都渋谷区神宮前6-18-6",
+    "SRビル3階",
+    "PELE渋谷",
+    "送るように\t1770681600000\tAsia/Tokyo\tnone\tNULL\tpending\tNULL\tNULL\t2026-02-06 12:15:14\t2026-02-06 12:15:14"
+  ],
+  "stdout": "id\tlineUserId\tmessage\toriginalRequest\tscheduledAt\ttimezone\trepeatType\trepeatEndAt\tstatus\tsentAt\terrorMessage\tcreatedAt\tupdatedAt\n1\tU4eeca6887f21c03c970e3cc420dadb30\t1500001 東京都渋谷区神宮前6-18-6 SRビル3階 PELE渋谷 送る\t@LCJ エージェント  2月10にち朝にちリマインド\n\n1500001\n東京都渋谷区神宮前6-18-6\nSRビル3階\n\nPELE渋谷\n送るように\t1770681600000\tAsia/Tokyo\tnone\tNULL\tpending\tNULL\tNULL\t2026-02-06 12:15:14\t2026-02-06 12:15:14\n",
+  "stderr": "",
+  "execution_time_ms": 1619
+}

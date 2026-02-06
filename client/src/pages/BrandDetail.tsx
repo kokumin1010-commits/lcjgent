@@ -1965,6 +1965,13 @@ ${proposal.proposalContent}
                 {language === 'ja' ? '広告アラート' : '广告警报'}
               </Button>
               <Button
+                onClick={() => window.location.href = `/master/brands/${brandId}/finance`}
+                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-lg shadow-purple-500/30"
+              >
+                <DollarSign className="h-4 w-4 mr-2" />
+                {language === 'ja' ? 'ファイナンス管理' : '财务管理'}
+              </Button>
+              <Button
                 onClick={() => setAdCampaignDialogOpen(true)}
                 className="bg-gradient-to-r from-green-600 to-cyan-600 hover:from-green-500 hover:to-cyan-500 text-white shadow-lg shadow-green-500/30"
               >

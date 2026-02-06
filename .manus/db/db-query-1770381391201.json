@@ -1,0 +1,9 @@
+{
+  "query": "\nCREATE INDEX idx_tiktok_orders_brand ON tiktok_commission_orders(brandId);\nCREATE INDEX idx_tiktok_orders_sub_order ON tiktok_commission_orders(subOrderId);\nCREATE INDEX idx_tiktok_orders_creator ON tiktok_commission_orders(creatorUsername);\nCREATE INDEX idx_tiktok_orders_shop ON tiktok_commission_orders(shopName);\nCREATE INDEX idx_tiktok_orders_created ON tiktok_commission_orders(orderCreatedAt);\nCREATE INDEX idx_tiktok_import_brand ON tiktok_csv_import_history(brandId);\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute \nCREATE INDEX idx_tiktok_orders_brand ON tiktok_commission_orders(brandId);\nCREATE INDEX idx_tiktok_orders_sub_order ON tiktok_commission_orders(subOrderId);\nCREATE INDEX idx_tiktok_orders_creator ON tiktok_commission_orders(creatorUsername);\nCREATE INDEX idx_tiktok_orders_shop ON tiktok_commission_orders(shopName);\nCREATE INDEX idx_tiktok_orders_created ON tiktok_commission_orders(orderCreatedAt);\nCREATE INDEX idx_tiktok_import_brand ON tiktok_csv_import_history(brandId);\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 5829
+}

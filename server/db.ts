@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -9094,4 +9094,257 @@ export async function deleteAdReportFile(id: number) {
   if (!db) throw new Error("Database not available");
   
   return await db.delete(adReportFiles).where(eq(adReportFiles.id, id));
+}
+
+
+// ===== TikTok Commission Finance Functions =====
+
+export async function createTiktokCsvImportHistory(data: InsertTiktokCsvImportHistory) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(tiktokCsvImportHistory).values(data).$returningId();
+  return result[0].id;
+}
+
+export async function updateTiktokCsvImportHistory(id: number, data: Partial<InsertTiktokCsvImportHistory>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(tiktokCsvImportHistory).set(data).where(eq(tiktokCsvImportHistory.id, id));
+}
+
+export async function getTiktokCsvImportHistoryByBrand(brandId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(tiktokCsvImportHistory).where(eq(tiktokCsvImportHistory.brandId, brandId)).orderBy(desc(tiktokCsvImportHistory.createdAt));
+}
+
+export async function bulkInsertTiktokOrders(orders: InsertTiktokCommissionOrder[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Insert in batches of 100
+  const batchSize = 100;
+  let inserted = 0;
+  for (let i = 0; i < orders.length; i += batchSize) {
+    const batch = orders.slice(i, i + batchSize);
+    await db.insert(tiktokCommissionOrders).values(batch);
+    inserted += batch.length;
+  }
+  return inserted;
+}
+
+export async function getTiktokOrdersByBrand(brandId: number, options?: {
+  limit?: number;
+  offset?: number;
+  search?: string;
+  creatorUsername?: string;
+  shopName?: string;
+  contentType?: string;
+  orderStatus?: string;
+  dateFrom?: Date;
+  dateTo?: Date;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const conditions = [eq(tiktokCommissionOrders.brandId, brandId)];
+  
+  if (options?.creatorUsername) {
+    conditions.push(eq(tiktokCommissionOrders.creatorUsername, options.creatorUsername));
+  }
+  if (options?.shopName) {
+    conditions.push(eq(tiktokCommissionOrders.shopName, options.shopName));
+  }
+  if (options?.contentType) {
+    conditions.push(eq(tiktokCommissionOrders.contentType, options.contentType));
+  }
+  if (options?.orderStatus) {
+    conditions.push(eq(tiktokCommissionOrders.orderStatus, options.orderStatus));
+  }
+  if (options?.search) {
+    conditions.push(
+      or(
+        like(tiktokCommissionOrders.productName, `%${options.search}%`),
+        like(tiktokCommissionOrders.shopName, `%${options.search}%`),
+        like(tiktokCommissionOrders.creatorUsername, `%${options.search}%`),
+        like(tiktokCommissionOrders.orderId, `%${options.search}%`)
+      )!
+    );
+  }
+  if (options?.dateFrom) {
+    conditions.push(gte(tiktokCommissionOrders.orderCreatedAt, options.dateFrom));
+  }
+  if (options?.dateTo) {
+    conditions.push(lte(tiktokCommissionOrders.orderCreatedAt, options.dateTo));
+  }
+  
+  const whereClause = conditions.length > 1 ? and(...conditions) : conditions[0];
+  
+  const [rows, countResult] = await Promise.all([
+    db.select()
+      .from(tiktokCommissionOrders)
+      .where(whereClause)
+      .orderBy(desc(tiktokCommissionOrders.orderCreatedAt))
+      .limit(options?.limit || 50)
+      .offset(options?.offset || 0),
+    db.select({ count: sql<number>`count(*)` })
+      .from(tiktokCommissionOrders)
+      .where(whereClause)
+  ]);
+  
+  return { rows, total: countResult[0].count };
+}
+
+export async function getTiktokFinanceSummary(brandId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.select({
+    totalOrders: sql<number>`count(*)`,
+    totalQuantity: sql<number>`COALESCE(sum(${tiktokCommissionOrders.quantity}), 0)`,
+    totalSales: sql<number>`COALESCE(sum(${tiktokCommissionOrders.price}), 0)`,
+    avgPrice: sql<number>`COALESCE(avg(${tiktokCommissionOrders.price}), 0)`,
+    totalEstPartnerCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.estimatedPartnerCommission}), 0)`,
+    totalEstCreatorCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.estimatedCreatorCommission}), 0)`,
+    totalActPartnerCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualPartnerCommission}), 0)`,
+    totalActCreatorCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCreatorCommission}), 0)`,
+    totalEstPartnerReward: sql<number>`COALESCE(sum(${tiktokCommissionOrders.estimatedPartnerReward}), 0)`,
+    totalEstCreatorReward: sql<number>`COALESCE(sum(${tiktokCommissionOrders.estimatedCreatorReward}), 0)`,
+    totalActPartnerReward: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualPartnerReward}), 0)`,
+    totalActCreatorReward: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCreatorReward}), 0)`,
+    totalActPartnerShopAd: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualPartnerShopAdPay}), 0)`,
+    totalActCreatorShopAd: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCreatorShopAdPay}), 0)`,
+    totalReturnQty: sql<number>`COALESCE(sum(${tiktokCommissionOrders.returnQuantity}), 0)`,
+    totalRefundQty: sql<number>`COALESCE(sum(${tiktokCommissionOrders.refundQuantity}), 0)`,
+    completedOrders: sql<number>`sum(case when ${tiktokCommissionOrders.orderStatus} = '完了' then 1 else 0 end)`,
+    processingOrders: sql<number>`sum(case when ${tiktokCommissionOrders.orderStatus} = '処理中' then 1 else 0 end)`,
+    minDate: sql<string>`min(${tiktokCommissionOrders.orderCreatedAt})`,
+    maxDate: sql<string>`max(${tiktokCommissionOrders.orderCreatedAt})`,
+  })
+  .from(tiktokCommissionOrders)
+  .where(eq(tiktokCommissionOrders.brandId, brandId));
+  
+  return result[0];
+}
+
+export async function getTiktokCreatorSummary(brandId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return db.select({
+    creatorUsername: tiktokCommissionOrders.creatorUsername,
+    orderCount: sql<number>`count(*)`,
+    totalSales: sql<number>`COALESCE(sum(${tiktokCommissionOrders.price}), 0)`,
+    totalQuantity: sql<number>`COALESCE(sum(${tiktokCommissionOrders.quantity}), 0)`,
+    totalActPartnerCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualPartnerCommission}), 0)`,
+    totalActCreatorCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCreatorCommission}), 0)`,
+  })
+  .from(tiktokCommissionOrders)
+  .where(eq(tiktokCommissionOrders.brandId, brandId))
+  .groupBy(tiktokCommissionOrders.creatorUsername)
+  .orderBy(desc(sql`sum(${tiktokCommissionOrders.price})`));
+}
+
+export async function getTiktokShopSummary(brandId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return db.select({
+    shopName: tiktokCommissionOrders.shopName,
+    shopCode: tiktokCommissionOrders.shopCode,
+    orderCount: sql<number>`count(*)`,
+    totalSales: sql<number>`COALESCE(sum(${tiktokCommissionOrders.price}), 0)`,
+    totalQuantity: sql<number>`COALESCE(sum(${tiktokCommissionOrders.quantity}), 0)`,
+    totalActPartnerCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualPartnerCommission}), 0)`,
+    totalActCreatorCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCreatorCommission}), 0)`,
+  })
+  .from(tiktokCommissionOrders)
+  .where(eq(tiktokCommissionOrders.brandId, brandId))
+  .groupBy(tiktokCommissionOrders.shopName, tiktokCommissionOrders.shopCode)
+  .orderBy(desc(sql`sum(${tiktokCommissionOrders.price})`));
+}
+
+export async function getTiktokProductSummary(brandId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return db.select({
+    productName: tiktokCommissionOrders.productName,
+    productId: tiktokCommissionOrders.productId,
+    orderCount: sql<number>`count(*)`,
+    totalSales: sql<number>`COALESCE(sum(${tiktokCommissionOrders.price}), 0)`,
+    totalQuantity: sql<number>`COALESCE(sum(${tiktokCommissionOrders.quantity}), 0)`,
+    totalActPartnerCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualPartnerCommission}), 0)`,
+    totalActCreatorCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCreatorCommission}), 0)`,
+    avgPrice: sql<number>`COALESCE(avg(${tiktokCommissionOrders.price}), 0)`,
+  })
+  .from(tiktokCommissionOrders)
+  .where(eq(tiktokCommissionOrders.brandId, brandId))
+  .groupBy(tiktokCommissionOrders.productName, tiktokCommissionOrders.productId)
+  .orderBy(desc(sql`sum(${tiktokCommissionOrders.price})`));
+}
+
+export async function getTiktokDailySummary(brandId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return db.select({
+    date: sql<string>`DATE(${tiktokCommissionOrders.orderCreatedAt})`.as('date'),
+    orderCount: sql<number>`count(*)`,
+    totalSales: sql<number>`COALESCE(sum(${tiktokCommissionOrders.price}), 0)`,
+    totalQuantity: sql<number>`COALESCE(sum(${tiktokCommissionOrders.quantity}), 0)`,
+    totalActPartnerCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualPartnerCommission}), 0)`,
+    totalActCreatorCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCreatorCommission}), 0)`,
+  })
+  .from(tiktokCommissionOrders)
+  .where(eq(tiktokCommissionOrders.brandId, brandId))
+  .groupBy(sql`DATE(${tiktokCommissionOrders.orderCreatedAt})`)
+  .orderBy(asc(sql`DATE(${tiktokCommissionOrders.orderCreatedAt})`));
+}
+
+export async function getTiktokContentTypeSummary(brandId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return db.select({
+    contentType: tiktokCommissionOrders.contentType,
+    orderCount: sql<number>`count(*)`,
+    totalSales: sql<number>`COALESCE(sum(${tiktokCommissionOrders.price}), 0)`,
+  })
+  .from(tiktokCommissionOrders)
+  .where(eq(tiktokCommissionOrders.brandId, brandId))
+  .groupBy(tiktokCommissionOrders.contentType)
+  .orderBy(desc(sql`count(*)`));
+}
+
+export async function deleteTiktokOrdersByImportId(importHistoryId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(tiktokCommissionOrders).where(eq(tiktokCommissionOrders.importHistoryId, importHistoryId));
+}
+
+export async function deleteTiktokImportHistory(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(tiktokCsvImportHistory).where(eq(tiktokCsvImportHistory.id, id));
+}
+
+export async function getExistingSubOrderIds(brandId: number, subOrderIds: string[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (subOrderIds.length === 0) return [];
+  
+  // Check in batches of 500
+  const batchSize = 500;
+  const existing: string[] = [];
+  for (let i = 0; i < subOrderIds.length; i += batchSize) {
+    const batch = subOrderIds.slice(i, i + batchSize);
+    const result = await db.select({ subOrderId: tiktokCommissionOrders.subOrderId })
+      .from(tiktokCommissionOrders)
+      .where(and(
+        eq(tiktokCommissionOrders.brandId, brandId),
+        inArray(tiktokCommissionOrders.subOrderId, batch)
+      ));
+    existing.push(...result.map(r => r.subOrderId));
+  }
+  return existing;
 }

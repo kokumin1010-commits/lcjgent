@@ -2256,3 +2256,131 @@ export const adReportFiles = mysqlTable("ad_report_files", {
 
 export type AdReportFile = typeof adReportFiles.$inferSelect;
 export type InsertAdReportFile = typeof adReportFiles.$inferInsert;
+
+
+/**
+ * TikTok Affiliate Commission Orders table
+ * TikTok成果報酬注文データテーブル（CSVインポートデータ）
+ */
+export const tiktokCommissionOrders = mysqlTable("tiktok_commission_orders", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(), // References brands.id
+  importHistoryId: int("importHistoryId"), // References tiktokCsvImportHistory.id
+  
+  // 注文基本情報
+  orderId: varchar("orderId", { length: 64 }).notNull(), // 注文ID
+  subOrderId: varchar("subOrderId", { length: 64 }).notNull(), // サブ注文ID（ユニーク）
+  orderStatus: varchar("orderStatus", { length: 50 }), // 注文状況（完了/処理中）
+  
+  // クリエイター情報
+  creatorUsername: varchar("creatorUsername", { length: 255 }).notNull(), // クリエイターのユーザー名
+  
+  // 商品情報
+  productName: text("productName").notNull(), // 商品名
+  sku: text("sku"), // SKU
+  productId: varchar("productId", { length: 64 }), // 商品ID
+  price: int("price").notNull(), // 価格（円）
+  quantity: int("quantity").notNull(), // 数量
+  
+  // ショップ情報
+  shopName: varchar("shopName", { length: 255 }), // ショップ名
+  shopCode: varchar("shopCode", { length: 64 }), // ショップコード
+  
+  // コンテンツ情報
+  contentType: varchar("contentType", { length: 50 }), // コンテンツタイプ（LIVE/ショーケース/動画）
+  contentId: varchar("contentId", { length: 64 }), // コンテンツID
+  
+  // 成果報酬率
+  partnerCommissionRate: decimal("partnerCommissionRate", { precision: 5, scale: 2 }), // アフィリエイトパートナー成果報酬率
+  creatorCommissionRate: decimal("creatorCommissionRate", { precision: 5, scale: 2 }), // クリエイター成果報酬率
+  partnerRewardRate: int("partnerRewardRate"), // パートナー成果報酬リワード率
+  creatorRewardRate: int("creatorRewardRate"), // クリエイターの手数料リワード率
+  partnerShopAdRate: int("partnerShopAdRate"), // パートナーのショップ広告成果報酬率
+  creatorShopAdRate: int("creatorShopAdRate"), // クリエイターのショップ広告成果報酬率
+  
+  // 推定手数料
+  estimatedCommissionBase: int("estimatedCommissionBase"), // 推定成果報酬ベース
+  estimatedPartnerCommission: decimal("estimatedPartnerCommission", { precision: 12, scale: 2 }), // 推定パートナー手数料額
+  estimatedCreatorCommission: decimal("estimatedCreatorCommission", { precision: 12, scale: 2 }), // 推定クリエイター手数料額
+  estimatedPartnerReward: int("estimatedPartnerReward"), // パートナーの推定成果報酬リワード料
+  estimatedCreatorReward: int("estimatedCreatorReward"), // クリエイターの推定成果報酬リワード料
+  estimatedCreatorShopAdPay: int("estimatedCreatorShopAdPay"), // クリエイターのショップ広告成果報酬支払額（推定）
+  estimatedPartnerShopAdPay: int("estimatedPartnerShopAdPay"), // パートナーのショップ広告成果報酬支払額（推定）
+  
+  // 実際の手数料
+  actualCommissionBase: decimal("actualCommissionBase", { precision: 12, scale: 2 }), // 実際の手数料ベース
+  actualPartnerCommission: decimal("actualPartnerCommission", { precision: 12, scale: 2 }), // 実際のパートナー手数料額
+  actualCreatorCommission: decimal("actualCreatorCommission", { precision: 12, scale: 2 }), // 実際のクリエイター手数料額
+  actualPartnerReward: decimal("actualPartnerReward", { precision: 12, scale: 2 }), // パートナーの実際の手数料リワード料
+  actualCreatorReward: decimal("actualCreatorReward", { precision: 12, scale: 2 }), // クリエイターの実際の手数料リワード料
+  actualPartnerShopAdPay: decimal("actualPartnerShopAdPay", { precision: 12, scale: 2 }), // パートナーのショップ広告成果報酬支払額（実際）
+  actualCreatorShopAdPay: decimal("actualCreatorShopAdPay", { precision: 12, scale: 2 }), // クリエイターのショップ広告成果報酬支払額（実際）
+  
+  // 返品・返金
+  returnQuantity: int("returnQuantity").default(0), // 返品される商品の数量
+  refundQuantity: int("refundQuantity").default(0), // 返金される商品の数量
+  
+  // 日時情報
+  orderCreatedAt: timestamp("orderCreatedAt"), // 注文作成日時
+  orderDeliveredAt: timestamp("orderDeliveredAt"), // 注文配達日時
+  commissionSettledAt: timestamp("commissionSettledAt"), // 手数料決済日時
+  
+  // 支払い情報
+  paymentId: varchar("paymentId", { length: 64 }), // 支払いID
+  paymentMethod: varchar("paymentMethod", { length: 50 }), // 支払い方法
+  paymentAccount: varchar("paymentAccount", { length: 50 }), // 支払い口座
+  
+  // その他
+  iva: int("iva").default(0), // IVA
+  isr: int("isr").default(0), // ISR
+  platform: varchar("platform", { length: 20 }), // プラットフォーム（TTS/TT_PRO）
+  factorType: varchar("factorType", { length: 20 }), // 要因のタイプ
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type TiktokCommissionOrder = typeof tiktokCommissionOrders.$inferSelect;
+export type InsertTiktokCommissionOrder = typeof tiktokCommissionOrders.$inferInsert;
+
+/**
+ * TikTok CSV Import History table
+ * TikTok CSVインポート履歴テーブル
+ */
+export const tiktokCsvImportHistory = mysqlTable("tiktok_csv_import_history", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(), // References brands.id
+  
+  // ファイル情報
+  fileName: varchar("fileName", { length: 512 }).notNull(), // 元のファイル名
+  fileUrl: text("fileUrl"), // S3 URL
+  fileKey: varchar("fileKey", { length: 512 }), // S3 key
+  
+  // インポート結果
+  totalRows: int("totalRows").default(0), // 総行数
+  importedRows: int("importedRows").default(0), // インポート成功行数
+  skippedRows: int("skippedRows").default(0), // スキップ行数（重複等）
+  errorRows: int("errorRows").default(0), // エラー行数
+  
+  // 集計サマリー
+  totalSales: bigint("totalSales", { mode: "number" }).default(0), // 総売上
+  totalPartnerCommission: bigint("totalPartnerCommission", { mode: "number" }).default(0), // パートナー手数料合計
+  totalCreatorCommission: bigint("totalCreatorCommission", { mode: "number" }).default(0), // クリエイター手数料合計
+  dateRangeStart: timestamp("dateRangeStart"), // データ期間（開始）
+  dateRangeEnd: timestamp("dateRangeEnd"), // データ期間（終了）
+  
+  // ステータス
+  status: mysqlEnum("status", ["processing", "completed", "failed"]).default("processing").notNull(),
+  errorMessage: text("errorMessage"), // エラーメッセージ
+  
+  // 作成者情報
+  uploadedBy: int("uploadedBy").notNull(),
+  uploadedByName: varchar("uploadedByName", { length: 255 }).notNull(),
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type TiktokCsvImportHistory = typeof tiktokCsvImportHistory.$inferSelect;
+export type InsertTiktokCsvImportHistory = typeof tiktokCsvImportHistory.$inferInsert;
