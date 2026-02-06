@@ -858,6 +858,8 @@ export default function BrandDetail() {
   const { data: liverSalesStats = [] } = trpc.brand.getLiverSalesStats.useQuery({ brandId }, { enabled: brandId > 0 });
   const { data: adCampaigns = [], refetch: refetchAdCampaigns } = trpc.brand.getAdCampaigns.useQuery({ brandId }, { enabled: brandId > 0 });
   const { data: adCampaignStats } = trpc.brand.getAdCampaignStats.useQuery({ brandId }, { enabled: brandId > 0 });
+  const { data: reportFileHistory = [], refetch: refetchReportFileHistory } = trpc.brand.getReportFileHistory.useQuery({ brandId }, { enabled: brandId > 0 });
+  const deleteReportFileMutation = trpc.brand.deleteReportFile.useMutation();
 
   // 同じ日の配信は1回としてカウント（ユニークな日付の数）
   const uniqueLivestreamDays = useMemo(() => {
@@ -1963,26 +1965,14 @@ ${proposal.proposalContent}
                 {language === 'ja' ? '広告アラート' : '广告警报'}
               </Button>
               <Button
-                onClick={() => setAdInvestmentDialogOpen(true)}
-                className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white shadow-lg shadow-green-500/30"
-              >
-                <DollarSign className="h-4 w-4 mr-2" />
-                {language === 'ja' ? '広告実績' : '广告实绩'}
-                {adInvestmentRecords.length > 0 && (
-                  <Badge className="ml-2 bg-green-500/30 text-green-300 border border-green-400/50 text-xs">
-                    {adInvestmentRecords.length}
-                  </Badge>
-                )}
-              </Button>
-              <Button
                 onClick={() => setAdCampaignDialogOpen(true)}
-                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white shadow-lg shadow-blue-500/30"
+                className="bg-gradient-to-r from-green-600 to-cyan-600 hover:from-green-500 hover:to-cyan-500 text-white shadow-lg shadow-green-500/30"
               >
                 <TrendingUp className="h-4 w-4 mr-2" />
-                {language === 'ja' ? '広告キャンペーン分析' : '广告投放分析'}
-                {adCampaigns.length > 0 && (
-                  <Badge className="ml-2 bg-blue-500/30 text-blue-300 border border-blue-400/50 text-xs">
-                    {adCampaigns.length}
+                {language === 'ja' ? '広告実績・分析' : '广告实绩・分析'}
+                {(adInvestmentRecords.length + adCampaigns.length) > 0 && (
+                  <Badge className="ml-2 bg-green-500/30 text-green-300 border border-green-400/50 text-xs">
+                    {adInvestmentRecords.length + adCampaigns.length}
                   </Badge>
                 )}
               </Button>
@@ -7127,7 +7117,7 @@ ${proposal.proposalContent}
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold flex items-center gap-3">
               <TrendingUp className="h-6 w-6 text-blue-400" />
-              {language === 'ja' ? '広告キャンペーン分析' : '广告投放分析'}
+              {language === 'ja' ? '広告実績・分析' : '广告实绩・分析'}
             </DialogTitle>
           </DialogHeader>
 
@@ -7317,13 +7307,31 @@ ${proposal.proposalContent}
                         <div className="text-xs text-green-300">{language === 'ja' ? '視聴数' : '观看数'}</div>
                         <div className="text-lg font-bold text-white">{(adCampaignAnalysisResult.metrics.views || 0).toLocaleString()}</div>
                       </div>
+                      <div className="bg-cyan-950/30 rounded-lg p-3 text-center">
+                        <div className="text-xs text-cyan-300">{language === 'ja' ? '6秒視聴' : '6秒观看'}</div>
+                        <div className="text-lg font-bold text-white">{(adCampaignAnalysisResult.metrics.views6s || 0).toLocaleString()}</div>
+                      </div>
                       <div className="bg-purple-950/30 rounded-lg p-3 text-center">
                         <div className="text-xs text-purple-300">{language === 'ja' ? 'クリック' : '点击'}</div>
                         <div className="text-lg font-bold text-white">{(adCampaignAnalysisResult.metrics.clicks || 0).toLocaleString()}</div>
                       </div>
+                    </div>
+                    <div className="grid grid-cols-4 gap-3 mt-3">
                       <div className="bg-amber-950/30 rounded-lg p-3 text-center">
                         <div className="text-xs text-amber-300">GMV</div>
                         <div className="text-lg font-bold text-white">¥{(adCampaignAnalysisResult.metrics.gmv || 0).toLocaleString()}</div>
+                      </div>
+                      <div className="bg-orange-950/30 rounded-lg p-3 text-center">
+                        <div className="text-xs text-orange-300">{language === 'ja' ? 'コンバージョン' : '转化'}</div>
+                        <div className="text-lg font-bold text-white">{(adCampaignAnalysisResult.metrics.conversions || 0).toLocaleString()}</div>
+                      </div>
+                      <div className="bg-pink-950/30 rounded-lg p-3 text-center">
+                        <div className="text-xs text-pink-300">{language === 'ja' ? '注文数' : '订单数'}</div>
+                        <div className="text-lg font-bold text-white">{(adCampaignAnalysisResult.metrics.orderCount || 0).toLocaleString()}</div>
+                      </div>
+                      <div className="bg-rose-950/30 rounded-lg p-3 text-center">
+                        <div className="text-xs text-rose-300">{language === 'ja' ? 'カート追加' : '加购物车'}</div>
+                        <div className="text-lg font-bold text-white">{(adCampaignAnalysisResult.metrics.cartAdds || 0).toLocaleString()}</div>
                       </div>
                     </div>
                   </div>
@@ -7334,30 +7342,53 @@ ${proposal.proposalContent}
                   <div className="bg-gray-900/50 rounded-lg p-4">
                     <h4 className="text-sm font-medium text-gray-400 mb-3">{language === 'ja' ? '国別パフォーマンス' : '国家分布'}</h4>
                     <div className="space-y-2">
-                      {adCampaignAnalysisResult.countryBreakdown.map((country: any, index: number) => (
-                        <div key={index} className="flex items-center justify-between bg-gray-800/50 rounded-lg p-3">
-                          <div className="flex items-center gap-3">
-                            <span className="text-2xl">
-                              {country.countryCode === 'ID' ? '🇮🇩' :
-                               country.countryCode === 'TH' ? '🇹🇭' :
-                               country.countryCode === 'PH' ? '🇵🇭' :
-                               country.countryCode === 'VN' ? '🇻🇳' :
-                               country.countryCode === 'MY' ? '🇲🇾' :
-                               country.countryCode === 'KH' ? '🇰🇭' : '🌏'}
-                            </span>
-                            <span className="text-white">{country.countryName}</span>
-                          </div>
-                          <div className="flex items-center gap-4">
-                            <div className="w-32 bg-gray-700 rounded-full h-2">
-                              <div
-                                className="bg-blue-500 h-2 rounded-full"
-                                style={{ width: `${country.percentage}%` }}
-                              />
+                      {adCampaignAnalysisResult.countryBreakdown.map((country: any, index: number) => {
+                        const totalImpressions = adCampaignAnalysisResult.metrics?.impressions || 0;
+                        const totalClicks = adCampaignAnalysisResult.metrics?.clicks || 0;
+                        const totalGmv = adCampaignAnalysisResult.metrics?.gmv || 0;
+                        const countryImpressions = Math.round(totalImpressions * (country.percentage / 100));
+                        const countryClicks = Math.round(totalClicks * (country.percentage / 100));
+                        const countryGmv = Math.round(totalGmv * (country.percentage / 100));
+                        return (
+                        <div key={index} className="bg-gray-800/50 rounded-lg p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-3">
+                              <span className="text-2xl">
+                                {country.countryCode === 'ID' ? '🇮🇩' :
+                                 country.countryCode === 'TH' ? '🇹🇭' :
+                                 country.countryCode === 'PH' ? '🇵🇭' :
+                                 country.countryCode === 'VN' ? '🇻🇳' :
+                                 country.countryCode === 'MY' ? '🇲🇾' :
+                                 country.countryCode === 'KH' ? '🇰🇭' : '🌏'}
+                              </span>
+                              <span className="text-white font-medium">{country.countryName}</span>
                             </div>
-                            <span className="text-blue-300 font-medium w-12 text-right">{country.percentage}%</span>
+                            <div className="flex items-center gap-4">
+                              <div className="w-32 bg-gray-700 rounded-full h-2">
+                                <div
+                                  className="bg-blue-500 h-2 rounded-full"
+                                  style={{ width: `${country.percentage}%` }}
+                                />
+                              </div>
+                              <span className="text-blue-300 font-bold w-12 text-right">{country.percentage}%</span>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2 ml-10">
+                            <div className="text-xs">
+                              <span className="text-gray-500">{language === 'ja' ? 'インプレッション' : '曝光'}: </span>
+                              <span className="text-blue-300">{countryImpressions.toLocaleString()}</span>
+                            </div>
+                            <div className="text-xs">
+                              <span className="text-gray-500">{language === 'ja' ? 'クリック' : '点击'}: </span>
+                              <span className="text-green-300">{countryClicks.toLocaleString()}</span>
+                            </div>
+                            <div className="text-xs">
+                              <span className="text-gray-500">GMV: </span>
+                              <span className="text-amber-300">¥{countryGmv.toLocaleString()}</span>
+                            </div>
                           </div>
                         </div>
-                      ))}
+                      );})}
                     </div>
                   </div>
                 )}
@@ -7451,6 +7482,74 @@ ${proposal.proposalContent}
                               if (confirm(language === 'ja' ? 'このキャンペーンを削除しますか？' : '确定删除此投放？')) {
                                 await deleteAdCampaignMutation.mutateAsync({ id: campaign.id });
                                 refetchAdCampaigns();
+                                toast.success(language === 'ja' ? '削除しました' : '已删除');
+                              }
+                            }}
+                            className="text-red-400 hover:text-red-300 hover:bg-red-950/50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* File Upload History */}
+            {reportFileHistory.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-gray-400" />
+                  {language === 'ja' ? 'アップロード履歴' : '上传历史'}
+                  <Badge className="bg-gray-700 text-gray-300 text-xs">{reportFileHistory.length}</Badge>
+                </h3>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {reportFileHistory.map((file: any) => (
+                    <div key={file.id} className="bg-gray-900/50 border border-gray-700 rounded-lg p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
+                            file.fileType === 'pdf' ? 'bg-red-500/20 text-red-400' :
+                            file.fileType === 'xlsx' || file.fileType === 'xls' ? 'bg-green-500/20 text-green-400' :
+                            'bg-blue-500/20 text-blue-400'
+                          }`}>
+                            {file.fileType?.toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-white truncate">{file.fileName}</p>
+                            <div className="flex items-center gap-2 text-xs text-gray-500">
+                              <span>{new Date(file.createdAt).toLocaleDateString('ja-JP')}</span>
+                              <span>・</span>
+                              <span>{file.uploadedByName}</span>
+                              {file.analysisStatus === 'completed' && (
+                                <Badge className="bg-green-500/20 text-green-400 text-xs">分析済み</Badge>
+                              )}
+                              {file.analysisStatus === 'failed' && (
+                                <Badge className="bg-red-500/20 text-red-400 text-xs">失敗</Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {file.fileUrl && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => window.open(file.fileUrl, '_blank')}
+                              className="text-blue-400 hover:text-blue-300"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={async () => {
+                              if (confirm(language === 'ja' ? 'このファイル履歴を削除しますか？' : '确定删除此文件记录？')) {
+                                await deleteReportFileMutation.mutateAsync({ id: file.id });
+                                refetchReportFileHistory();
                                 toast.success(language === 'ja' ? '削除しました' : '已删除');
                               }
                             }}

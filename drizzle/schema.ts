@@ -2220,3 +2220,39 @@ export const adCountryBreakdown = mysqlTable("ad_country_breakdown", {
 
 export type AdCountryBreakdown = typeof adCountryBreakdown.$inferSelect;
 export type InsertAdCountryBreakdown = typeof adCountryBreakdown.$inferInsert;
+
+
+/**
+ * Ad Report Files table for storing uploaded report file history
+ * 広告レポートファイル履歴テーブル
+ */
+export const adReportFiles = mysqlTable("ad_report_files", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(), // References brands.id
+  
+  // ファイル情報
+  fileName: varchar("fileName", { length: 512 }).notNull(), // 元のファイル名
+  fileUrl: text("fileUrl").notNull(), // S3 URL
+  fileKey: varchar("fileKey", { length: 512 }).notNull(), // S3 key
+  fileType: varchar("fileType", { length: 50 }).notNull(), // pdf, xlsx, csv
+  fileSize: int("fileSize"), // ファイルサイズ（バイト）
+  
+  // AI分析結果
+  analysisStatus: mysqlEnum("analysisStatus", ["pending", "processing", "completed", "failed"]).default("pending").notNull(),
+  analysisResult: json("analysisResult").$type<Record<string, unknown>>(), // AI分析結果
+  detectedLanguage: varchar("detectedLanguage", { length: 10 }), // ja, zh, en
+  
+  // 関連キャンペーン
+  campaignId: int("campaignId"), // References adCampaigns.id（分析後に紐付け）
+  
+  // 作成者情報
+  uploadedBy: int("uploadedBy").notNull(),
+  uploadedByName: varchar("uploadedByName", { length: 255 }).notNull(),
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AdReportFile = typeof adReportFiles.$inferSelect;
+export type InsertAdReportFile = typeof adReportFiles.$inferInsert;

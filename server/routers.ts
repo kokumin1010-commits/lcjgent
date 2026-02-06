@@ -346,6 +346,11 @@ import {
   createAdCountryBreakdown,
   getAdCountryBreakdownByCampaignId,
   getAdCampaignStatsByBrandId,
+  createAdReportFile,
+  getAdReportFilesByBrandId,
+  getAdReportFileById,
+  updateAdReportFileAnalysis,
+  deleteAdReportFile,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -4707,6 +4712,27 @@ Country code mapping:
         
         console.log('[analyzeAdReport] Analysis successful:', analysis.campaignName);
         
+        // ファイル履歴をデータベースに保存
+        try {
+          const fileExt = input.fileName.split('.').pop()?.toLowerCase() || 'pdf';
+          await createAdReportFile({
+            brandId: input.brandId,
+            fileName: input.fileName,
+            fileUrl: input.fileUrl,
+            fileKey: input.fileKey || '',
+            fileType: fileExt,
+            analysisStatus: 'completed',
+            analysisResult: analysis as Record<string, unknown>,
+            detectedLanguage: analysis.detectedLanguage,
+            uploadedBy: ctx.user.id,
+            uploadedByName: ctx.user.name || ctx.user.email || 'Unknown',
+          });
+          console.log('[analyzeAdReport] File history saved to database');
+        } catch (saveError) {
+          console.error('[analyzeAdReport] Failed to save file history:', saveError);
+          // 履歴保存が失敗しても分析結果は返す
+        }
+        
         // Map the analysis result to the expected frontend format
         return {
           campaignName: analysis.campaignName || '',
@@ -4735,6 +4761,21 @@ Country code mapping:
           console.error('[analyzeAdReport] Error:', error);
           throw error;
         }
+      }),
+
+    // 広告レポートファイル履歴を取得
+    getReportFileHistory: protectedProcedure
+      .input(z.object({ brandId: z.number(), limit: z.number().optional() }))
+      .query(async ({ input }) => {
+        return await getAdReportFilesByBrandId(input.brandId, input.limit || 50);
+      }),
+
+    // 広告レポートファイルを削除
+    deleteReportFile: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteAdReportFile(input.id);
+        return { success: true };
       }),
   }),
 
