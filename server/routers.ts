@@ -333,6 +333,8 @@ import {
   getPendingAliasSuggestions,
   approveAliasSuggestion,
   rejectAliasSuggestion,
+  getHourlySalesAnalysis,
+  getDayOfWeekPerformance,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -8297,6 +8299,24 @@ ${metricsDescription}${historicalContext}`,
       .query(async ({ input }) => {
         const month = input.month || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
         return await getLiverProductMatrix(month, input.limit);
+      }),
+
+    // Get hourly sales analysis (時間帯別売上分析)
+    getHourlySalesAnalysis: publicProcedure
+      .input(z.object({ 
+        month: z.string().optional() // format: "YYYY-MM"
+      }))
+      .query(async ({ input }) => {
+        return await getHourlySalesAnalysis(input.month);
+      }),
+
+    // Get day of week performance (曜日別パフォーマンス)
+    getDayOfWeekPerformance: publicProcedure
+      .input(z.object({ 
+        month: z.string().optional() // format: "YYYY-MM"
+      }))
+      .query(async ({ input }) => {
+        return await getDayOfWeekPerformance(input.month);
       }),
 
     // AI-powered liver-product matching suggestions (AIマッチング提案)

@@ -8694,3 +8694,164 @@ export async function rejectAliasSuggestion(id: number, userId: number) {
   
   return { success: true };
 }
+
+
+// ========== Analytics Functions for Liver Dashboard ==========
+
+/**
+ * Get hourly sales analysis
+ * 時間帯別売上分析
+ */
+export async function getHourlySalesAnalysis(month?: string) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  let dateFilter = sql`1=1`;
+  if (month) {
+    const [year, monthNum] = month.split('-').map(Number);
+    const startDate = new Date(year, monthNum - 1, 1);
+    const endDate = new Date(year, monthNum, 0, 23, 59, 59);
+    dateFilter = and(
+      gte(brandLivestreams.livestreamDate, startDate),
+      lte(brandLivestreams.livestreamDate, endDate)
+    ) as any;
+  }
+  
+  // Get all livestreams with their start times and sales
+  const livestreams = await db
+    .select({
+      id: brandLivestreams.id,
+      livestreamDate: brandLivestreams.livestreamDate,
+      salesAmount: brandLivestreams.salesAmount,
+      gmv: brandLivestreams.gmv,
+      viewerCount: brandLivestreams.viewerCount,
+      duration: brandLivestreams.duration,
+    })
+    .from(brandLivestreams)
+    .where(and(
+      isNotNull(brandLivestreams.liverId),
+      dateFilter
+    ));
+  
+  // Aggregate by hour (JST)
+  const hourlyData: Record<number, { 
+    hour: number; 
+    totalSales: number; 
+    livestreamCount: number;
+    totalViewers: number;
+    totalDuration: number;
+  }> = {};
+  
+  for (let i = 0; i < 24; i++) {
+    hourlyData[i] = { hour: i, totalSales: 0, livestreamCount: 0, totalViewers: 0, totalDuration: 0 };
+  }
+  
+  for (const ls of livestreams) {
+    if (!ls.livestreamDate) continue;
+    // Convert to JST (UTC+9)
+    const jstDate = new Date(ls.livestreamDate.getTime() + 9 * 60 * 60 * 1000);
+    const hour = jstDate.getUTCHours();
+    
+    hourlyData[hour].totalSales += Number(ls.gmv || ls.salesAmount || 0);
+    hourlyData[hour].livestreamCount += 1;
+    hourlyData[hour].totalViewers += Number(ls.viewerCount || 0);
+    hourlyData[hour].totalDuration += Number(ls.duration || 0);
+  }
+  
+  return Object.values(hourlyData).map(h => ({
+    hour: h.hour,
+    totalSales: h.totalSales,
+    livestreamCount: h.livestreamCount,
+    avgSales: h.livestreamCount > 0 ? Math.round(h.totalSales / h.livestreamCount) : 0,
+    avgViewers: h.livestreamCount > 0 ? Math.round(h.totalViewers / h.livestreamCount) : 0,
+    avgDuration: h.livestreamCount > 0 ? Math.round(h.totalDuration / h.livestreamCount) : 0,
+  }));
+}
+
+/**
+ * Get day of week performance analysis
+ * 曜日別パフォーマンス分析
+ */
+export async function getDayOfWeekPerformance(month?: string) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  let dateFilter = sql`1=1`;
+  if (month) {
+    const [year, monthNum] = month.split('-').map(Number);
+    const startDate = new Date(year, monthNum - 1, 1);
+    const endDate = new Date(year, monthNum, 0, 23, 59, 59);
+    dateFilter = and(
+      gte(brandLivestreams.livestreamDate, startDate),
+      lte(brandLivestreams.livestreamDate, endDate)
+    ) as any;
+  }
+  
+  // Get all livestreams
+  const livestreams = await db
+    .select({
+      id: brandLivestreams.id,
+      livestreamDate: brandLivestreams.livestreamDate,
+      salesAmount: brandLivestreams.salesAmount,
+      gmv: brandLivestreams.gmv,
+      viewerCount: brandLivestreams.viewerCount,
+      duration: brandLivestreams.duration,
+      orderCount: brandLivestreams.orderCount,
+    })
+    .from(brandLivestreams)
+    .where(and(
+      isNotNull(brandLivestreams.liverId),
+      dateFilter
+    ));
+  
+  // Day names in Japanese
+  const dayNames = ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日'];
+  
+  // Aggregate by day of week (JST)
+  const dayData: Record<number, { 
+    dayOfWeek: number;
+    dayName: string;
+    totalSales: number; 
+    livestreamCount: number;
+    totalViewers: number;
+    totalDuration: number;
+    totalOrders: number;
+  }> = {};
+  
+  for (let i = 0; i < 7; i++) {
+    dayData[i] = { 
+      dayOfWeek: i, 
+      dayName: dayNames[i],
+      totalSales: 0, 
+      livestreamCount: 0, 
+      totalViewers: 0, 
+      totalDuration: 0,
+      totalOrders: 0,
+    };
+  }
+  
+  for (const ls of livestreams) {
+    if (!ls.livestreamDate) continue;
+    // Convert to JST (UTC+9)
+    const jstDate = new Date(ls.livestreamDate.getTime() + 9 * 60 * 60 * 1000);
+    const dayOfWeek = jstDate.getUTCDay();
+    
+    dayData[dayOfWeek].totalSales += Number(ls.gmv || ls.salesAmount || 0);
+    dayData[dayOfWeek].livestreamCount += 1;
+    dayData[dayOfWeek].totalViewers += Number(ls.viewerCount || 0);
+    dayData[dayOfWeek].totalDuration += Number(ls.duration || 0);
+    dayData[dayOfWeek].totalOrders += Number(ls.orderCount || 0);
+  }
+  
+  return Object.values(dayData).map(d => ({
+    dayOfWeek: d.dayOfWeek,
+    dayName: d.dayName,
+    totalSales: d.totalSales,
+    livestreamCount: d.livestreamCount,
+    avgSales: d.livestreamCount > 0 ? Math.round(d.totalSales / d.livestreamCount) : 0,
+    avgViewers: d.livestreamCount > 0 ? Math.round(d.totalViewers / d.livestreamCount) : 0,
+    avgDuration: d.livestreamCount > 0 ? Math.round(d.totalDuration / d.livestreamCount) : 0,
+    avgOrders: d.livestreamCount > 0 ? Math.round(d.totalOrders / d.livestreamCount) : 0,
+    conversionRate: d.totalViewers > 0 ? ((d.totalOrders / d.totalViewers) * 100).toFixed(2) : '0.00',
+  }));
+}

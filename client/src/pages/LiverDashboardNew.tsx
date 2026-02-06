@@ -150,6 +150,16 @@ export default function LiverDashboardNew() {
     limit: 10,
   });
   
+  // Hourly Sales Analysis (時間帯別売上分析)
+  const { data: hourlySales } = trpc.liverManagement.getHourlySalesAnalysis.useQuery({
+    month: selectedMonth,
+  });
+  
+  // Day of Week Performance (曜日別パフォーマンス)
+  const { data: dayOfWeekPerformance } = trpc.liverManagement.getDayOfWeekPerformance.useQuery({
+    month: selectedMonth,
+  });
+  
   // AI Matching Suggestions
   const aiMatchingMutation = trpc.liverManagement.getAiMatchingSuggestions.useMutation({
     onSuccess: (data) => {
@@ -246,6 +256,13 @@ export default function LiverDashboardNew() {
       generateSuggestion: "AI提案を生成",
       generating: "生成中...",
       suggestionResult: "AI提案結果",
+      hourlySalesAnalysis: "時間帯別売上分析",
+      hourlySalesDesc: "どの時間帯の配信が最も効果的かを可視化",
+      dayOfWeekPerformance: "曜日別パフォーマンス",
+      dayOfWeekDesc: "曜日ごとの売上傾向を分析",
+      avgSales: "平均売上",
+      avgViewers: "平均視聴者",
+      livestreamCount: "配信数",
     },
     zh: {
       title: "主播指挥中心",
@@ -282,6 +299,13 @@ export default function LiverDashboardNew() {
       generateSuggestion: "生成AI提案",
       generating: "生成中...",
       suggestionResult: "AI提案结果",
+      hourlySalesAnalysis: "时段销售分析",
+      hourlySalesDesc: "可视化哪个时段的直播最有效",
+      dayOfWeekPerformance: "星期业绩分析",
+      dayOfWeekDesc: "分析每周的销售趋势",
+      avgSales: "平均销售额",
+      avgViewers: "平均观众",
+      livestreamCount: "直播数",
     },
   };
   
@@ -694,6 +718,157 @@ export default function LiverDashboardNew() {
                   </div>
                 )}
               </>
+            ) : (
+              <p className="text-cyan-500/50 text-center py-8">{tr.noData}</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Hourly Sales Analysis (時間帯別売上分析) */}
+        <Card className="bg-[#0a1a2a]/80 border-cyan-500/20 backdrop-blur-sm">
+          <CardContent className="p-6">
+            <h2 className="text-lg font-bold mb-4 flex items-center gap-3">
+              <Clock className="w-6 h-6 text-orange-400" />
+              <span className="text-cyan-100">{tr.hourlySalesAnalysis}</span>
+              <span className="text-cyan-500/50 text-sm">（{monthOptions.find(m => m.value === selectedMonth)?.label}）</span>
+            </h2>
+            <p className="text-sm text-cyan-500/60 mb-6">{tr.hourlySalesDesc}</p>
+            
+            {hourlySales && hourlySales.length > 0 ? (
+              <div className="space-y-4">
+                {/* Hourly Bar Chart */}
+                <div className="flex items-end gap-1 h-48 px-2">
+                  {hourlySales.map((hourData) => {
+                    const maxSales = Math.max(...hourlySales.map(h => h.avgSales));
+                    const heightPercent = maxSales > 0 ? (hourData.avgSales / maxSales) * 100 : 0;
+                    const isHighPerformance = heightPercent > 70;
+                    const isMediumPerformance = heightPercent > 40;
+                    
+                    return (
+                      <Tooltip key={hourData.hour}>
+                        <TooltipTrigger asChild>
+                          <div className="flex-1 flex flex-col items-center cursor-pointer group">
+                            <div 
+                              className={`w-full rounded-t transition-all ${
+                                isHighPerformance 
+                                  ? 'bg-gradient-to-t from-orange-500 to-yellow-400 shadow-[0_0_15px_rgba(251,146,60,0.5)]' 
+                                  : isMediumPerformance
+                                    ? 'bg-gradient-to-t from-cyan-600 to-cyan-400'
+                                    : 'bg-cyan-700/50'
+                              } group-hover:opacity-80`}
+                              style={{ height: `${Math.max(heightPercent, 2)}%` }}
+                            />
+                            <span className={`text-xs mt-2 ${
+                              isHighPerformance ? 'text-orange-400 font-bold' : 'text-cyan-500/70'
+                            }`}>
+                              {hourData.hour}時
+                            </span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-[#0a1a2a] border-cyan-500/30">
+                          <div className="text-sm">
+                            <p className="font-bold text-cyan-100">{hourData.hour}:00 - {hourData.hour}:59</p>
+                            <p className="text-yellow-400">{tr.avgSales}: ¥{hourData.avgSales.toLocaleString()}</p>
+                            <p className="text-cyan-300">{tr.avgViewers}: {hourData.avgViewers.toLocaleString()}人</p>
+                            <p className="text-cyan-500/70">{tr.livestreamCount}: {hourData.livestreamCount}回</p>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    );
+                  })}
+                </div>
+                
+                {/* Legend */}
+                <div className="flex justify-center gap-6 mt-4 text-xs">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded bg-gradient-to-t from-orange-500 to-yellow-400" />
+                    <span className="text-cyan-400">高パフォーマンス</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded bg-gradient-to-t from-cyan-600 to-cyan-400" />
+                    <span className="text-cyan-400">中パフォーマンス</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded bg-cyan-700/50" />
+                    <span className="text-cyan-400">低パフォーマンス</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-cyan-500/50 text-center py-8">{tr.noData}</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Day of Week Performance (曜日別パフォーマンス) */}
+        <Card className="bg-[#0a1a2a]/80 border-cyan-500/20 backdrop-blur-sm">
+          <CardContent className="p-6">
+            <h2 className="text-lg font-bold mb-4 flex items-center gap-3">
+              <Activity className="w-6 h-6 text-pink-400" />
+              <span className="text-cyan-100">{tr.dayOfWeekPerformance}</span>
+              <span className="text-cyan-500/50 text-sm">（{monthOptions.find(m => m.value === selectedMonth)?.label}）</span>
+            </h2>
+            <p className="text-sm text-cyan-500/60 mb-6">{tr.dayOfWeekDesc}</p>
+            
+            {dayOfWeekPerformance && dayOfWeekPerformance.length > 0 ? (
+              <div className="grid grid-cols-7 gap-2">
+                {dayOfWeekPerformance.map((dayData) => {
+                  const maxSales = Math.max(...dayOfWeekPerformance.map(d => d.avgSales));
+                  const performancePercent = maxSales > 0 ? (dayData.avgSales / maxSales) * 100 : 0;
+                  const isHighPerformance = performancePercent > 70;
+                  const isMediumPerformance = performancePercent > 40;
+                  
+                  const dayNames: Record<number, { ja: string; short: string }> = {
+                    0: { ja: '日曜日', short: '日' },
+                    1: { ja: '月曜日', short: '月' },
+                    2: { ja: '火曜日', short: '火' },
+                    3: { ja: '水曜日', short: '水' },
+                    4: { ja: '木曜日', short: '木' },
+                    5: { ja: '金曜日', short: '金' },
+                    6: { ja: '土曜日', short: '土' },
+                  };
+                  
+                  return (
+                    <Tooltip key={dayData.dayOfWeek}>
+                      <TooltipTrigger asChild>
+                        <div 
+                          className={`p-4 rounded-xl text-center cursor-pointer transition-all ${
+                            isHighPerformance 
+                              ? 'bg-gradient-to-br from-pink-500/30 to-purple-500/30 border-2 border-pink-400/50 shadow-[0_0_20px_rgba(236,72,153,0.3)]' 
+                              : isMediumPerformance
+                                ? 'bg-cyan-500/10 border border-cyan-500/30'
+                                : 'bg-[#0a1520]/40 border border-cyan-500/10'
+                          } hover:scale-105`}
+                        >
+                          <div className={`text-lg font-bold mb-1 ${
+                            dayData.dayOfWeek === 0 ? 'text-red-400' :
+                            dayData.dayOfWeek === 6 ? 'text-blue-400' :
+                            'text-cyan-100'
+                          }`}>
+                            {dayNames[dayData.dayOfWeek]?.short || dayData.dayOfWeek}
+                          </div>
+                          <div className={`text-sm font-mono ${
+                            isHighPerformance ? 'text-pink-300' : 'text-cyan-400'
+                          }`}>
+                            ¥{(dayData.avgSales / 1000).toFixed(0)}k
+                          </div>
+                          <div className="text-xs text-cyan-500/50 mt-1">
+                            {dayData.livestreamCount}回
+                          </div>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent className="bg-[#0a1a2a] border-cyan-500/30">
+                        <div className="text-sm">
+                          <p className="font-bold text-cyan-100">{dayNames[dayData.dayOfWeek]?.ja}</p>
+                          <p className="text-yellow-400">{tr.avgSales}: ¥{dayData.avgSales.toLocaleString()}</p>
+                          <p className="text-cyan-300">{tr.avgViewers}: {dayData.avgViewers.toLocaleString()}人</p>
+                          <p className="text-cyan-500/70">{tr.livestreamCount}: {dayData.livestreamCount}回</p>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  );
+                })}
+              </div>
             ) : (
               <p className="text-cyan-500/50 text-center py-8">{tr.noData}</p>
             )}
