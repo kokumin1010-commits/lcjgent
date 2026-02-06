@@ -6759,7 +6759,8 @@ ${proposal.proposalContent}
                     // Upload file to S3
                     const formData = new FormData();
                     formData.append('file', file);
-                    const uploadResponse = await fetch('/api/upload', {
+                    formData.append('brandId', String(brandId));
+                    const uploadResponse = await fetch('/api/brand-file-upload', {
                       method: 'POST',
                       body: formData,
                     });
@@ -7167,7 +7168,8 @@ ${proposal.proposalContent}
                     // Upload file first
                     const formData = new FormData();
                     formData.append('file', file);
-                    const uploadResponse = await fetch('/api/upload', {
+                    formData.append('brandId', String(brandId));
+                    const uploadResponse = await fetch('/api/brand-file-upload', {
                       method: 'POST',
                       body: formData,
                     });
