@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Matrix rain effect component
 function MatrixRain() {
@@ -964,8 +965,15 @@ export default function LiverDashboardNew() {
                           onClick={() => setSelectedMasterForLink(selectedMasterForLink === master.id ? null : master.id)}
                         >
                           <div className="flex items-center justify-between">
-                            <span className="text-cyan-100 font-medium">{master.canonicalName}</span>
-                            <span className="text-xs text-cyan-500/70 bg-cyan-900/30 px-2 py-1 rounded">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-cyan-100 font-medium truncate flex-1 mr-2 cursor-help">{master.canonicalName}</span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-md bg-[#0a1a2a] border border-cyan-500/50 text-cyan-100">
+                                <p className="break-words">{master.canonicalName}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                            <span className="text-xs text-cyan-500/70 bg-cyan-900/30 px-2 py-1 rounded flex-shrink-0">
                               {master.aliasCount}件の紐付け
                             </span>
                           </div>
@@ -1037,8 +1045,15 @@ export default function LiverDashboardNew() {
                           }}
                         >
                           <div className="flex items-center justify-between">
-                            <span className="text-cyan-100 text-sm truncate flex-1 mr-2">{product.productName}</span>
-                            <div className="text-right">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-cyan-100 text-sm truncate flex-1 mr-2 cursor-help">{product.productName}</span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-md bg-[#0a1a2a] border border-cyan-500/50 text-cyan-100">
+                                <p className="break-words">{product.productName}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                            <div className="text-right flex-shrink-0">
                               <span className="text-yellow-400 text-sm font-mono">¥{product.totalSales.toLocaleString()}</span>
                               <span className="text-cyan-500/50 text-xs ml-2">/ {product.totalQuantity}個</span>
                             </div>
@@ -1071,10 +1086,24 @@ export default function LiverDashboardNew() {
                       <div key={suggestion.id} className="p-4 bg-[#0a1520]/60 border border-purple-500/20 rounded-lg">
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="text-cyan-100">{suggestion.aliasName}</span>
+                            <div className="flex items-center gap-2 mb-2 flex-wrap">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="text-cyan-100 truncate max-w-[200px] cursor-help">{suggestion.aliasName}</span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-md bg-[#0a1a2a] border border-cyan-500/50 text-cyan-100">
+                                  <p className="break-words">{suggestion.aliasName}</p>
+                                </TooltipContent>
+                              </Tooltip>
                               <span className="text-cyan-500/50">→</span>
-                              <span className="text-purple-400 font-medium">{suggestion.suggestedCanonicalName || '不明'}</span>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="text-purple-400 font-medium truncate max-w-[200px] cursor-help">{suggestion.suggestedCanonicalName || '不明'}</span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-md bg-[#0a1a2a] border border-purple-500/50 text-purple-100">
+                                  <p className="break-words">{suggestion.suggestedCanonicalName || '不明'}</p>
+                                </TooltipContent>
+                              </Tooltip>
                             </div>
                             <p className="text-sm text-cyan-500/70">{suggestion.reasoning || ''}</p>
                             <p className="text-xs text-cyan-500/50 mt-1">信頼度: {(parseFloat(suggestion.confidence) * 100).toFixed(0)}%</p>
