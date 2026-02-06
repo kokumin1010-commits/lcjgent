@@ -7219,18 +7219,87 @@ ${proposal.proposalContent}
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
                     <Sparkles className="h-5 w-5 text-yellow-400" />
-                    {language === 'ja' ? 'AI分析結果' : 'AI分析结果'}
+                    {language === 'ja' ? 'AI分析結果（確認・編集）' : 'AI分析结果（确认・编辑）'}
                   </h3>
                   <Badge className={`${adCampaignAnalysisResult.detectedLanguage === 'ja' ? 'bg-red-500/30 text-red-300' : adCampaignAnalysisResult.detectedLanguage === 'zh' ? 'bg-yellow-500/30 text-yellow-300' : 'bg-blue-500/30 text-blue-300'}`}>
                     {adCampaignAnalysisResult.detectedLanguage === 'ja' ? '日本語' : adCampaignAnalysisResult.detectedLanguage === 'zh' ? '中文' : 'English'}
                   </Badge>
                 </div>
 
+                {/* Source Texts - AI読み取り原文 */}
+                {adCampaignAnalysisResult.sourceTexts && adCampaignAnalysisResult.sourceTexts.length > 0 && (
+                  <div className="bg-yellow-950/20 border border-yellow-800/30 rounded-lg p-3">
+                    <h4 className="text-xs font-medium text-yellow-400 mb-2 flex items-center gap-1">
+                      <Info className="h-3 w-3" />
+                      {language === 'ja' ? 'AIがレポートから読み取った原文' : 'AI从报告中读取的原文'}
+                    </h4>
+                    <div className="space-y-1">
+                      {adCampaignAnalysisResult.sourceTexts.map((text: string, i: number) => (
+                        <p key={i} className="text-xs text-yellow-200/70 font-mono">• {text}</p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Core Metrics - 核心指標（大きく表示） */}
+                <div className="bg-gradient-to-br from-blue-950/40 to-purple-950/40 border border-blue-800/30 rounded-lg p-4">
+                  <h4 className="text-sm font-medium text-blue-300 mb-3 flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4" />
+                    {language === 'ja' ? '核心指標' : '核心指标'}
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-blue-950/50 rounded-lg p-3">
+                      <div className="text-xs text-blue-300 mb-1">{language === 'ja' ? '動画露出回数（インプレッション）' : '视频曝光次数'}</div>
+                      <Input
+                        type="number"
+                        value={adCampaignAnalysisResult.impressions || 0}
+                        onChange={(e) => setAdCampaignAnalysisResult({...adCampaignAnalysisResult, impressions: Number(e.target.value)})}
+                        className="bg-transparent border-blue-700/50 text-white text-xl font-bold h-10"
+                      />
+                    </div>
+                    <div className="bg-green-950/50 rounded-lg p-3">
+                      <div className="text-xs text-green-300 mb-1">{language === 'ja' ? '広告費（実費）' : '广告费（实际）'}</div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-green-300 text-xl">¥</span>
+                        <Input
+                          type="number"
+                          value={adCampaignAnalysisResult.actualSpend || 0}
+                          onChange={(e) => setAdCampaignAnalysisResult({...adCampaignAnalysisResult, actualSpend: Number(e.target.value)})}
+                          className="bg-transparent border-green-700/50 text-white text-xl font-bold h-10"
+                        />
+                      </div>
+                    </div>
+                    <div className="bg-cyan-950/50 rounded-lg p-3">
+                      <div className="text-xs text-cyan-300 mb-1">{language === 'ja' ? '集中視聴数（6秒以上）' : '集中观看数（6秒以上）'}</div>
+                      <Input
+                        type="number"
+                        value={adCampaignAnalysisResult.views6s || 0}
+                        onChange={(e) => setAdCampaignAnalysisResult({...adCampaignAnalysisResult, views6s: Number(e.target.value)})}
+                        className="bg-transparent border-cyan-700/50 text-white text-xl font-bold h-10"
+                      />
+                    </div>
+                    <div className="bg-purple-950/50 rounded-lg p-3">
+                      <div className="text-xs text-purple-300 mb-1">{language === 'ja' ? '単回露出コスト（CPM）' : '单次曝光成本'}</div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-purple-300 text-xl">¥</span>
+                        <Input
+                          type="number"
+                          step="0.001"
+                          value={adCampaignAnalysisResult.costPerUnit || (adCampaignAnalysisResult.impressions > 0 ? (adCampaignAnalysisResult.actualSpend / adCampaignAnalysisResult.impressions).toFixed(3) : 0)}
+                          onChange={(e) => setAdCampaignAnalysisResult({...adCampaignAnalysisResult, costPerUnit: Number(e.target.value)})}
+                          className="bg-transparent border-purple-700/50 text-white text-xl font-bold h-10"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Campaign Info */}
                 <div className="bg-gray-900/50 rounded-lg p-4 space-y-3">
+                  <h4 className="text-sm font-medium text-gray-400 mb-2">{language === 'ja' ? 'キャンペーン情報' : '投放信息'}</h4>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label className="text-gray-400">{language === 'ja' ? 'キャンペーン名' : '投放名称'}</Label>
+                      <Label className="text-gray-400 text-xs">{language === 'ja' ? 'キャンペーン名' : '投放名称'}</Label>
                       <Input
                         value={adCampaignAnalysisResult.campaignName || ''}
                         onChange={(e) => setAdCampaignAnalysisResult({...adCampaignAnalysisResult, campaignName: e.target.value})}
@@ -7238,7 +7307,7 @@ ${proposal.proposalContent}
                       />
                     </div>
                     <div>
-                      <Label className="text-gray-400">{language === 'ja' ? 'プラットフォーム' : '平台'}</Label>
+                      <Label className="text-gray-400 text-xs">{language === 'ja' ? 'プラットフォーム' : '平台'}</Label>
                       <Select
                         value={adCampaignAnalysisResult.platform || 'tiktok'}
                         onValueChange={(value) => setAdCampaignAnalysisResult({...adCampaignAnalysisResult, platform: value})}
@@ -7257,10 +7326,9 @@ ${proposal.proposalContent}
                       </Select>
                     </div>
                   </div>
-
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label className="text-gray-400">
+                      <Label className="text-gray-400 text-xs">
                         {language === 'ja' ? '広告目的' : '广告目标'}
                         <span className="ml-2 text-xs text-blue-400">
                           (AI信頼度: {adCampaignAnalysisResult.objectiveConfidence || 0}%)
@@ -7283,59 +7351,44 @@ ${proposal.proposalContent}
                       </Select>
                     </div>
                     <div>
-                      <Label className="text-gray-400">{language === 'ja' ? '広告費' : '广告费'}</Label>
-                      <Input
-                        type="number"
-                        value={adCampaignAnalysisResult.actualSpend || 0}
-                        onChange={(e) => setAdCampaignAnalysisResult({...adCampaignAnalysisResult, actualSpend: Number(e.target.value)})}
-                        className="bg-gray-800/50 border-gray-700 text-white"
-                      />
+                      <Label className="text-gray-400 text-xs">{language === 'ja' ? '期間' : '期间'}</Label>
+                      <div className="text-sm text-white bg-gray-800/50 border border-gray-700 rounded-md px-3 py-2">
+                        {adCampaignAnalysisResult.startDate || '?'} ~ {adCampaignAnalysisResult.endDate || '?'}
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Metrics */}
-                {adCampaignAnalysisResult.metrics && (
-                  <div className="bg-gray-900/50 rounded-lg p-4">
-                    <h4 className="text-sm font-medium text-gray-400 mb-3">{language === 'ja' ? 'パフォーマンス指標' : '性能指标'}</h4>
-                    <div className="grid grid-cols-4 gap-3">
-                      <div className="bg-blue-950/30 rounded-lg p-3 text-center">
-                        <div className="text-xs text-blue-300">{language === 'ja' ? 'インプレッション' : '曝光'}</div>
-                        <div className="text-lg font-bold text-white">{(adCampaignAnalysisResult.metrics.impressions || 0).toLocaleString()}</div>
-                      </div>
-                      <div className="bg-green-950/30 rounded-lg p-3 text-center">
-                        <div className="text-xs text-green-300">{language === 'ja' ? '視聴数' : '观看数'}</div>
-                        <div className="text-lg font-bold text-white">{(adCampaignAnalysisResult.metrics.views || 0).toLocaleString()}</div>
-                      </div>
-                      <div className="bg-cyan-950/30 rounded-lg p-3 text-center">
-                        <div className="text-xs text-cyan-300">{language === 'ja' ? '6秒視聴' : '6秒观看'}</div>
-                        <div className="text-lg font-bold text-white">{(adCampaignAnalysisResult.metrics.views6s || 0).toLocaleString()}</div>
-                      </div>
-                      <div className="bg-purple-950/30 rounded-lg p-3 text-center">
-                        <div className="text-xs text-purple-300">{language === 'ja' ? 'クリック' : '点击'}</div>
-                        <div className="text-lg font-bold text-white">{(adCampaignAnalysisResult.metrics.clicks || 0).toLocaleString()}</div>
-                      </div>
+                {/* Detailed Metrics - 詳細指標（編集可能） */}
+                <div className="bg-gray-900/50 rounded-lg p-4">
+                  <h4 className="text-sm font-medium text-gray-400 mb-3">{language === 'ja' ? '詳細パフォーマンス指標（編集可能）' : '详细性能指标（可编辑）'}</h4>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-gray-800/50 rounded-lg p-2">
+                      <Label className="text-xs text-blue-300">{language === 'ja' ? '視聴数' : '观看数'}</Label>
+                      <Input type="number" value={adCampaignAnalysisResult.views || 0} onChange={(e) => setAdCampaignAnalysisResult({...adCampaignAnalysisResult, views: Number(e.target.value)})} className="bg-transparent border-gray-700 text-white text-sm h-8" />
                     </div>
-                    <div className="grid grid-cols-4 gap-3 mt-3">
-                      <div className="bg-amber-950/30 rounded-lg p-3 text-center">
-                        <div className="text-xs text-amber-300">GMV</div>
-                        <div className="text-lg font-bold text-white">¥{(adCampaignAnalysisResult.metrics.gmv || 0).toLocaleString()}</div>
-                      </div>
-                      <div className="bg-orange-950/30 rounded-lg p-3 text-center">
-                        <div className="text-xs text-orange-300">{language === 'ja' ? 'コンバージョン' : '转化'}</div>
-                        <div className="text-lg font-bold text-white">{(adCampaignAnalysisResult.metrics.conversions || 0).toLocaleString()}</div>
-                      </div>
-                      <div className="bg-pink-950/30 rounded-lg p-3 text-center">
-                        <div className="text-xs text-pink-300">{language === 'ja' ? '注文数' : '订单数'}</div>
-                        <div className="text-lg font-bold text-white">{(adCampaignAnalysisResult.metrics.orderCount || 0).toLocaleString()}</div>
-                      </div>
-                      <div className="bg-rose-950/30 rounded-lg p-3 text-center">
-                        <div className="text-xs text-rose-300">{language === 'ja' ? 'カート追加' : '加购物车'}</div>
-                        <div className="text-lg font-bold text-white">{(adCampaignAnalysisResult.metrics.cartAdds || 0).toLocaleString()}</div>
-                      </div>
+                    <div className="bg-gray-800/50 rounded-lg p-2">
+                      <Label className="text-xs text-green-300">{language === 'ja' ? 'クリック' : '点击'}</Label>
+                      <Input type="number" value={adCampaignAnalysisResult.clicks || 0} onChange={(e) => setAdCampaignAnalysisResult({...adCampaignAnalysisResult, clicks: Number(e.target.value)})} className="bg-transparent border-gray-700 text-white text-sm h-8" />
+                    </div>
+                    <div className="bg-gray-800/50 rounded-lg p-2">
+                      <Label className="text-xs text-amber-300">GMV</Label>
+                      <Input type="number" value={adCampaignAnalysisResult.gmv || 0} onChange={(e) => setAdCampaignAnalysisResult({...adCampaignAnalysisResult, gmv: Number(e.target.value)})} className="bg-transparent border-gray-700 text-white text-sm h-8" />
+                    </div>
+                    <div className="bg-gray-800/50 rounded-lg p-2">
+                      <Label className="text-xs text-orange-300">{language === 'ja' ? 'コンバージョン' : '转化'}</Label>
+                      <Input type="number" value={adCampaignAnalysisResult.conversions || 0} onChange={(e) => setAdCampaignAnalysisResult({...adCampaignAnalysisResult, conversions: Number(e.target.value)})} className="bg-transparent border-gray-700 text-white text-sm h-8" />
+                    </div>
+                    <div className="bg-gray-800/50 rounded-lg p-2">
+                      <Label className="text-xs text-pink-300">{language === 'ja' ? '注文数' : '订单数'}</Label>
+                      <Input type="number" value={adCampaignAnalysisResult.orderCount || 0} onChange={(e) => setAdCampaignAnalysisResult({...adCampaignAnalysisResult, orderCount: Number(e.target.value)})} className="bg-transparent border-gray-700 text-white text-sm h-8" />
+                    </div>
+                    <div className="bg-gray-800/50 rounded-lg p-2">
+                      <Label className="text-xs text-rose-300">{language === 'ja' ? 'カート追加' : '加购物车'}</Label>
+                      <Input type="number" value={adCampaignAnalysisResult.cartAdds || 0} onChange={(e) => setAdCampaignAnalysisResult({...adCampaignAnalysisResult, cartAdds: Number(e.target.value)})} className="bg-transparent border-gray-700 text-white text-sm h-8" />
                     </div>
                   </div>
-                )}
+                </div>
 
                 {/* Country Breakdown */}
                 {adCampaignAnalysisResult.countryBreakdown && adCampaignAnalysisResult.countryBreakdown.length > 0 && (
@@ -7343,17 +7396,17 @@ ${proposal.proposalContent}
                     <h4 className="text-sm font-medium text-gray-400 mb-3">{language === 'ja' ? '国別パフォーマンス' : '国家分布'}</h4>
                     <div className="space-y-2">
                       {adCampaignAnalysisResult.countryBreakdown.map((country: any, index: number) => {
-                        const totalImpressions = adCampaignAnalysisResult.metrics?.impressions || 0;
-                        const totalClicks = adCampaignAnalysisResult.metrics?.clicks || 0;
-                        const totalGmv = adCampaignAnalysisResult.metrics?.gmv || 0;
+                        const totalImpressions = adCampaignAnalysisResult.impressions || 0;
+                        const totalClicks = adCampaignAnalysisResult.clicks || 0;
+                        const totalGmv = adCampaignAnalysisResult.gmv || 0;
                         const countryImpressions = Math.round(totalImpressions * (country.percentage / 100));
                         const countryClicks = Math.round(totalClicks * (country.percentage / 100));
                         const countryGmv = Math.round(totalGmv * (country.percentage / 100));
                         return (
                         <div key={index} className="bg-gray-800/50 rounded-lg p-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-3">
-                              <span className="text-2xl">
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg">
                                 {country.countryCode === 'ID' ? '🇮🇩' :
                                  country.countryCode === 'TH' ? '🇹🇭' :
                                  country.countryCode === 'PH' ? '🇵🇭' :
@@ -7361,31 +7414,19 @@ ${proposal.proposalContent}
                                  country.countryCode === 'MY' ? '🇲🇾' :
                                  country.countryCode === 'KH' ? '🇰🇭' : '🌏'}
                               </span>
-                              <span className="text-white font-medium">{country.countryName}</span>
+                              <span className="text-white text-sm font-medium">{country.countryName}</span>
                             </div>
-                            <div className="flex items-center gap-4">
-                              <div className="w-32 bg-gray-700 rounded-full h-2">
-                                <div
-                                  className="bg-blue-500 h-2 rounded-full"
-                                  style={{ width: `${country.percentage}%` }}
-                                />
+                            <div className="flex items-center gap-3">
+                              <div className="w-24 bg-gray-700 rounded-full h-1.5">
+                                <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${country.percentage}%` }} />
                               </div>
-                              <span className="text-blue-300 font-bold w-12 text-right">{country.percentage}%</span>
+                              <span className="text-blue-300 font-bold text-sm w-10 text-right">{country.percentage}%</span>
                             </div>
                           </div>
-                          <div className="grid grid-cols-3 gap-2 ml-10">
-                            <div className="text-xs">
-                              <span className="text-gray-500">{language === 'ja' ? 'インプレッション' : '曝光'}: </span>
-                              <span className="text-blue-300">{countryImpressions.toLocaleString()}</span>
-                            </div>
-                            <div className="text-xs">
-                              <span className="text-gray-500">{language === 'ja' ? 'クリック' : '点击'}: </span>
-                              <span className="text-green-300">{countryClicks.toLocaleString()}</span>
-                            </div>
-                            <div className="text-xs">
-                              <span className="text-gray-500">GMV: </span>
-                              <span className="text-amber-300">¥{countryGmv.toLocaleString()}</span>
-                            </div>
+                          <div className="grid grid-cols-3 gap-2 ml-7 text-xs">
+                            <span className="text-gray-500">{language === 'ja' ? '露出' : '曝光'}: <span className="text-blue-300">{countryImpressions.toLocaleString()}</span></span>
+                            <span className="text-gray-500">{language === 'ja' ? 'クリック' : '点击'}: <span className="text-green-300">{countryClicks.toLocaleString()}</span></span>
+                            <span className="text-gray-500">GMV: <span className="text-amber-300">¥{countryGmv.toLocaleString()}</span></span>
                           </div>
                         </div>
                       );})}
@@ -7399,17 +7440,16 @@ ${proposal.proposalContent}
                   <Button
                     onClick={() => {
                       const r = adCampaignAnalysisResult;
-                      const m = r?.metrics || {};
                       setNewInvestment(prev => ({
                         ...prev,
                         investmentDate: r?.startDate ? new Date(r.startDate).toISOString().split('T')[0] : prev.investmentDate,
                         totalBudget: r?.actualSpend || r?.budget || prev.totalBudget,
                         campaignName: r?.campaignName || prev.campaignName,
-                        actualGmv: m.gmv || prev.actualGmv,
-                        actualImpressions: m.impressions || prev.actualImpressions,
-                        actualClicks: m.clicks || prev.actualClicks,
-                        actualConversions: m.conversions || prev.actualConversions,
-                        predictedRoas: (m.gmv && (r?.actualSpend || r?.budget)) ? Math.round((m.gmv / (r?.actualSpend || r?.budget)) * 100) / 100 : prev.predictedRoas,
+                        actualGmv: r?.gmv || prev.actualGmv,
+                        actualImpressions: r?.impressions || prev.actualImpressions,
+                        actualClicks: r?.clicks || prev.actualClicks,
+                        actualConversions: r?.conversions || prev.actualConversions,
+                        predictedRoas: (r?.gmv && (r?.actualSpend || r?.budget)) ? Math.round((r.gmv / (r?.actualSpend || r?.budget)) * 100) / 100 : prev.predictedRoas,
                         notes: `${r?.campaignName || ''} (${r?.platform || ''}) ${r?.startDate || ''} ~ ${r?.endDate || ''}`.trim(),
                       }));
                       setAdCampaignDialogOpen(false);

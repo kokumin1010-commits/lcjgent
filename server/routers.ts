@@ -4573,68 +4573,61 @@ ${hasLearningData ? '- 過去の広告実績データ: ' + learningDataRecords +
         console.log('[analyzeAdReport] Starting analysis for file:', input.fileName, 'URL:', input.fileUrl);
         try {
           // Use LLM to analyze the PDF/file content
+          // Determine mime type from file extension
+          const fileExtension = input.fileName.split('.').pop()?.toLowerCase() || 'pdf';
+          const mimeTypeMap: Record<string, string> = {
+            'pdf': 'application/pdf',
+            'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'xls': 'application/vnd.ms-excel',
+            'csv': 'text/csv',
+          };
+          const fileMimeType = mimeTypeMap[fileExtension] || 'application/pdf';
+          
           const response = await invokeLLM({
           messages: [
             {
               role: "system",
-              content: `You are an expert at analyzing advertising performance reports. Extract key metrics from the provided report.
+              content: `You are an expert at analyzing advertising performance reports from platforms like TikTok, Facebook, Google, etc.
 
-You MUST respond with a valid JSON object containing:
-{
-  "campaignName": "string - extracted campaign name or generated from context",
-  "platform": "tiktok|facebook|instagram|google|youtube|other",
-  "objective": "impressions|clicks|conversions|awareness|engagement",
-  "objectiveConfidence": number (0-100),
-  "detectedLanguage": "ja|zh|en",
-  "startDate": "YYYY-MM-DD or null",
-  "endDate": "YYYY-MM-DD or null",
-  "budget": number or null,
-  "actualSpend": number or null,
-  "metrics": {
-    "impressions": number,
-    "views": number,
-    "views6s": number,
-    "clicks": number,
-    "conversions": number,
-    "gmv": number,
-    "orderCount": number,
-    "cartAdds": number
-  },
-  "countryBreakdown": [
-    { "countryCode": "ID", "countryName": "Indonesia", "percentage": 30 }
-  ]
-}
+Your task is to extract ALL numerical data from the report as accurately as possible.
 
-Language detection rules:
-- Japanese: Contains 円, 回, 数, hiragana/katakana
-- Chinese: Contains 元, 次, simplified Chinese characters
-- English: Default if no Asian characters
+CRITICAL RULES:
+1. Extract EXACT numbers from the report. Do NOT return 0 for metrics that have values in the report.
+2. For each metric you extract, also include the original text/label from the report in "sourceTexts" so the user can verify.
+3. Common metric labels in Japanese reports:
+   - 動画露出回数 / インプレッション / 表示回数 → impressions
+   - 動画再生数 / 視聴数 / 再生回数 → views  
+   - 集中視聴数(6秒以上) / 6秒視聴 → views6s
+   - クリック数 / リンククリック → clicks
+   - 単回露出コスト / CPM / CPC → costPerUnit
+   - コンバージョン / CV / 購入数 → conversions
+   - GMV / 売上 / 売上金額 → gmv
+   - 注文数 / オーダー数 → orderCount
+   - カート追加 / カートに追加 → cartAdds
+   - 広告費 / 予算 / 消化金額 / 費用 → budget/actualSpend
+4. Common metric labels in Chinese reports:
+   - 曝光次数 / 展示次数 → impressions
+   - 视频播放数 → views
+   - 6秒播放数 → views6s
+   - 点击数 → clicks
+   - 单次曝光成本 → costPerUnit
+5. If a metric is not found in the report, set it to 0.
+6. For costPerUnit: extract the cost per single impression/click/view (e.g., 0.033円 means costPerUnit = 0.033)
 
-Objective detection rules:
-- "impressions": Keywords like 露出, 曝光, impression, インプレッション
-- "clicks": Keywords like クリック, 点击, click, CPC
-- "conversions": Keywords like コンバージョン, 转化, conversion, GMV, 購入
-
-Country code mapping:
-- インドネシア/印度尼西亚/Indonesia: ID
-- タイ/泰国/Thailand: TH
-- フィリピン/菲律宾/Philippines: PH
-- ベトナム/越南/Vietnam: VN
-- マレーシア/马来西亚/Malaysia: MY
-- カンボジア/柬埔寨/Cambodia: KH`,
+Respond with a JSON object.`,
             },
             {
               role: "user",
               content: [
                 {
                   type: "text",
-                  text: `Analyze this advertising report file: ${input.fileName}`,
+                  text: `Analyze this advertising report file and extract ALL metrics with their exact values: ${input.fileName}`,
                 },
                 {
                   type: "file_url",
                   file_url: {
                     url: input.fileUrl,
-                    mime_type: "application/pdf",
+                    mime_type: fileMimeType as any,
                   },
                 },
               ],
@@ -4648,29 +4641,44 @@ Country code mapping:
               schema: {
                 type: "object",
                 properties: {
-                  campaignName: { type: "string" },
+                  campaignName: { type: "string", description: "Campaign name extracted from the report" },
                   platform: { type: "string", enum: ["tiktok", "facebook", "instagram", "google", "youtube", "other"] },
                   objective: { type: "string", enum: ["impressions", "clicks", "conversions", "awareness", "engagement"] },
                   objectiveConfidence: { type: "integer" },
                   detectedLanguage: { type: "string", enum: ["ja", "zh", "en"] },
                   startDate: { type: ["string", "null"] },
                   endDate: { type: ["string", "null"] },
-                  budget: { type: ["number", "null"] },
-                  actualSpend: { type: ["number", "null"] },
+                  budget: { type: ["number", "null"], description: "Total budget or ad spend amount" },
+                  actualSpend: { type: ["number", "null"], description: "Actual amount spent" },
+                  costPerUnit: { type: ["number", "null"], description: "Cost per single impression/click/view (e.g. 0.033)" },
                   metrics: {
                     type: "object",
                     properties: {
-                      impressions: { type: "integer" },
-                      views: { type: "integer" },
-                      views6s: { type: "integer" },
-                      clicks: { type: "integer" },
-                      conversions: { type: "integer" },
-                      gmv: { type: "integer" },
-                      orderCount: { type: "integer" },
-                      cartAdds: { type: "integer" },
+                      impressions: { type: "integer", description: "Total impressions/views/exposure count (動画露出回数/曝光次数)" },
+                      views: { type: "integer", description: "Total video views/play count (動画再生数/视频播放数)" },
+                      views6s: { type: "integer", description: "6-second views (集中視聴数6秒以上/6秒播放数)" },
+                      clicks: { type: "integer", description: "Total clicks (クリック数/点击数)" },
+                      conversions: { type: "integer", description: "Conversions (コンバージョン/转化)" },
+                      gmv: { type: "integer", description: "GMV/Sales amount (売上/GMV)" },
+                      orderCount: { type: "integer", description: "Order count (注文数/订单数)" },
+                      cartAdds: { type: "integer", description: "Cart additions (カート追加/加购)" },
                     },
                     required: ["impressions", "views", "views6s", "clicks", "conversions", "gmv", "orderCount", "cartAdds"],
                     additionalProperties: false,
+                  },
+                  sourceTexts: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        label: { type: "string", description: "Original label text from the report (e.g. 動画露出回数)" },
+                        value: { type: "string", description: "Original value text from the report (e.g. 1,044,662回)" },
+                        mappedTo: { type: "string", description: "Which field this maps to (e.g. impressions, views6s, budget, costPerUnit)" },
+                      },
+                      required: ["label", "value", "mappedTo"],
+                      additionalProperties: false,
+                    },
+                    description: "Array of original text labels and values extracted from the report for user verification",
                   },
                   countryBreakdown: {
                     type: "array",
@@ -4686,7 +4694,7 @@ Country code mapping:
                     },
                   },
                 },
-                required: ["campaignName", "platform", "objective", "objectiveConfidence", "detectedLanguage", "startDate", "endDate", "budget", "actualSpend", "metrics", "countryBreakdown"],
+                required: ["campaignName", "platform", "objective", "objectiveConfidence", "detectedLanguage", "startDate", "endDate", "budget", "actualSpend", "costPerUnit", "metrics", "sourceTexts", "countryBreakdown"],
                 additionalProperties: false,
               },
             },
@@ -4744,6 +4752,7 @@ Country code mapping:
           endDate: analysis.endDate,
           budget: analysis.budget || analysis.actualSpend || 0,
           actualSpend: analysis.actualSpend || analysis.budget || 0,
+          costPerUnit: analysis.costPerUnit || 0,
           impressions: analysis.metrics?.impressions || 0,
           views: analysis.metrics?.views || 0,
           views6s: analysis.metrics?.views6s || 0,
@@ -4753,6 +4762,7 @@ Country code mapping:
           orderCount: analysis.metrics?.orderCount || 0,
           cartAdds: analysis.metrics?.cartAdds || 0,
           countryBreakdown: analysis.countryBreakdown || [],
+          sourceTexts: analysis.sourceTexts || [],
           sourceFileUrl: input.fileUrl,
           sourceFileKey: input.fileKey,
           brandId: input.brandId,
