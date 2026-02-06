@@ -22,7 +22,7 @@ import {
 import { useLanguage, Language } from "@/contexts/LanguageContext";
 
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, Coins, Receipt, MessageCircle, Package, ShoppingCart, UserCheck, Zap } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, Coins, Receipt, MessageCircle, Package, ShoppingCart, UserCheck, Zap, Wallet } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -110,6 +110,7 @@ function DashboardLayoutContent({
     { icon: ShoppingCart, label: t("nav.orders") || "注文管理", path: "/master/orders", adminOnly: true },
     { icon: UserCheck, label: t("nav.mallMembers") || "LCJ MALL会員様", path: "/master/mall-members", adminOnly: true },
     { icon: Users, label: t("nav.staff"), path: "/master/staff" },
+    { icon: Wallet, label: t("nav.finance") || "ファイナンス管理", path: "/master/finance", adminOnly: true },
     { icon: Settings, label: t("nav.masterControl"), path: "/master/control" },
   ];
 

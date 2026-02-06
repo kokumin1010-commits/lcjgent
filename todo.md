@@ -4072,3 +4072,10 @@
 - [x] normalizeTime/safeCreateDateヘルパー関数をLiverSelfRecord.tsxに追加
 - [x] バックエンドparseJstToUtc関数を堅牢に修正（2箇所）
 - [x] テスト作成・全20件パス
+
+## サイドバーにファイナンス管理リンク追加
+- [x] DashboardLayoutのサイドバーにファイナンス管理ナビゲーションを追加
+- [x] 全ブランド横断のファイナンス管理ページ（FinanceManagement.tsx）を作成
+- [x] App.tsxに/master/financeルートを追加
+- [x] 翻訳（日本語・中国語）を追加
+- [x] TypeScriptエラー解消
