@@ -4079,3 +4079,7 @@
 - [x] App.tsxに/master/financeルートを追加
 - [x] 翻訳（日本語・中国語）を追加
 - [x] TypeScriptエラー解消
+
+## 広告実績・分析ボタンReact Error #31修正
+- [x] エラー原因特定（sourceTextsが{label,value,mappedTo}オブジェクト配列なのにstringとしてレンダリング）
+- [x] 修正実装（typeofチェックでオブジェクト/文字列両方に対応）・動作確認済み

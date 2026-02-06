@@ -7241,8 +7241,8 @@ ${proposal.proposalContent}
                       {language === 'ja' ? 'AIがレポートから読み取った原文' : 'AI从报告中读取的原文'}
                     </h4>
                     <div className="space-y-1">
-                      {adCampaignAnalysisResult.sourceTexts.map((text: string, i: number) => (
-                        <p key={i} className="text-xs text-yellow-200/70 font-mono">• {text}</p>
+                      {adCampaignAnalysisResult.sourceTexts.map((text: any, i: number) => (
+                        <p key={i} className="text-xs text-yellow-200/70 font-mono">• {typeof text === 'string' ? text : `${text.label}: ${text.value}${text.mappedTo ? ` → ${text.mappedTo}` : ''}`}</p>
                       ))}
                     </div>
                   </div>
