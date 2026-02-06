@@ -4565,8 +4565,10 @@ ${hasLearningData ? '- 過去の広告実績データ: ' + learningDataRecords +
         fileName: z.string(),
       }))
       .mutation(async ({ ctx, input }) => {
-        // Use LLM to analyze the PDF/file content
-        const response = await invokeLLM({
+        console.log('[analyzeAdReport] Starting analysis for file:', input.fileName, 'URL:', input.fileUrl);
+        try {
+          // Use LLM to analyze the PDF/file content
+          const response = await invokeLLM({
           messages: [
             {
               role: "system",
@@ -4686,19 +4688,53 @@ Country code mapping:
           },
         });
         
+        console.log('[analyzeAdReport] LLM response received');
         const content = response.choices[0]?.message?.content;
+        console.log('[analyzeAdReport] Content type:', typeof content, 'Content preview:', content ? String(content).substring(0, 200) : 'null');
+        
         if (!content || typeof content !== 'string') {
-          throw new Error("Failed to analyze report");
+          console.error('[analyzeAdReport] Invalid content type or empty content');
+          throw new Error("Failed to analyze report - invalid response");
         }
         
-        const analysis = JSON.parse(content);
+        let analysis;
+        try {
+          analysis = JSON.parse(content);
+        } catch (parseError) {
+          console.error('[analyzeAdReport] JSON parse error:', parseError, 'Content:', content.substring(0, 500));
+          throw new Error("Failed to parse analysis result");
+        }
         
+        console.log('[analyzeAdReport] Analysis successful:', analysis.campaignName);
+        
+        // Map the analysis result to the expected frontend format
         return {
-          ...analysis,
+          campaignName: analysis.campaignName || '',
+          platform: analysis.platform || 'tiktok',
+          objective: analysis.objective || 'impressions',
+          objectiveConfidence: analysis.objectiveConfidence || 0,
+          detectedLanguage: analysis.detectedLanguage || 'ja',
+          startDate: analysis.startDate,
+          endDate: analysis.endDate,
+          budget: analysis.budget || analysis.actualSpend || 0,
+          actualSpend: analysis.actualSpend || analysis.budget || 0,
+          impressions: analysis.metrics?.impressions || 0,
+          views: analysis.metrics?.views || 0,
+          views6s: analysis.metrics?.views6s || 0,
+          clicks: analysis.metrics?.clicks || 0,
+          conversions: analysis.metrics?.conversions || 0,
+          gmv: analysis.metrics?.gmv || 0,
+          orderCount: analysis.metrics?.orderCount || 0,
+          cartAdds: analysis.metrics?.cartAdds || 0,
+          countryBreakdown: analysis.countryBreakdown || [],
           sourceFileUrl: input.fileUrl,
           sourceFileKey: input.fileKey,
           brandId: input.brandId,
         };
+        } catch (error) {
+          console.error('[analyzeAdReport] Error:', error);
+          throw error;
+        }
       }),
   }),
 
