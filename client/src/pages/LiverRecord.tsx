@@ -18,6 +18,27 @@ import { ArrowLeft, X, Sparkles, Loader2, Lightbulb, Camera, DollarSign, Users, 
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 
+// 時刻文字列を正規化するヘルパー（"1:22" → "01:22", "21:10" → "21:10"）
+const normalizeTime = (time: string): string => {
+  if (!time) return time;
+  const parts = time.split(':');
+  if (parts.length >= 2) {
+    const h = parts[0].padStart(2, '0');
+    const m = parts[1].padStart(2, '0');
+    return `${h}:${m}`;
+  }
+  return time;
+};
+
+// 安全にDateオブジェクトを生成するヘルパー
+const safeCreateDate = (date: string, time: string): Date | null => {
+  if (!date || !time) return null;
+  const normalizedTime = normalizeTime(time);
+  const dateStr = `${date}T${normalizedTime}:00`;
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? null : d;
+};
+
 // 画像圧縮ユーティリティ関数
 const compressImage = async (file: File, maxWidth: number = 1920, maxHeight: number = 1080, quality: number = 0.8): Promise<{ base64: string; mimeType: string }> => {
   return new Promise((resolve, reject) => {
@@ -132,11 +153,11 @@ export default function LiverRecord() {
     // 開始日時と終了日時が両方設定されている場合のみ計算
     if (startDate && startTime && endDate && endTime) {
       try {
-        const startDateTime = new Date(`${startDate}T${startTime}:00`);
-        const endDateTime = new Date(`${endDate}T${endTime}:00`);
+        const startDateTime = safeCreateDate(startDate, startTime);
+        const endDateTime = safeCreateDate(endDate, endTime);
         
         // 有効な日時かチェック
-        if (!isNaN(startDateTime.getTime()) && !isNaN(endDateTime.getTime())) {
+        if (startDateTime && endDateTime) {
           const diffMs = endDateTime.getTime() - startDateTime.getTime();
           
           // 終了時間が開始時間より後の場合のみ計算
@@ -688,9 +709,9 @@ export default function LiverRecord() {
     // まずフォームの開始時刻・終了時刻から計算を試みる
     if (startDate && startTime && endDate && endTime) {
       try {
-        const startDt = new Date(`${startDate}T${startTime}:00`);
-        const endDt = new Date(`${endDate}T${endTime}:00`);
-        if (!isNaN(startDt.getTime()) && !isNaN(endDt.getTime())) {
+        const startDt = safeCreateDate(startDate, startTime);
+        const endDt = safeCreateDate(endDate, endTime);
+        if (startDt && endDt) {
           const diffMs = endDt.getTime() - startDt.getTime();
           if (diffMs > 0) {
             calculatedDuration = Math.round(diffMs / (1000 * 60));
@@ -803,9 +824,14 @@ export default function LiverRecord() {
         ? screenshotUrls[0] 
         : screenshotUrl;
       
-      const livestreamDateTime = new Date(`${startDate}T${startTime}`);
+      const livestreamDateTime = safeCreateDate(startDate, startTime);
+      if (!livestreamDateTime) {
+        toast.error(language === "ja" ? "開始日時の形式が正しくありません" : "开始时间格式不正确");
+        setIsSubmitting(false);
+        return;
+      }
       const endDateTime = endDate && endTime 
-        ? new Date(`${endDate}T${endTime}`)
+        ? safeCreateDate(endDate, endTime)
         : undefined;
       
       createLivestreamMutation.mutate({

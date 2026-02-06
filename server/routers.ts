@@ -7878,11 +7878,38 @@ ${conversationText}
         } : undefined;
         
         // Helper function to convert JST datetime-local string to UTC Date
-        // datetime-local format: "2025-02-05T04:00" (user enters in JST)
+        // datetime-local format: "2025-02-05T04:00" or ISO string (user enters in JST)
         const parseJstToUtc = (dateStr: string): Date => {
+          // If already an ISO string with timezone, parse directly
+          if (dateStr.includes('+') || dateStr.includes('Z')) {
+            return new Date(dateStr);
+          }
+          // Normalize time parts (e.g. "1:22" -> "01:22")
+          let normalized = dateStr;
+          const tIdx = normalized.indexOf('T');
+          if (tIdx !== -1) {
+            const timePart = normalized.substring(tIdx + 1);
+            const timeParts = timePart.split(':');
+            if (timeParts.length >= 2) {
+              const h = timeParts[0].padStart(2, '0');
+              const m = timeParts[1].padStart(2, '0');
+              const s = timeParts.length >= 3 ? timeParts[2] : '00';
+              normalized = normalized.substring(0, tIdx + 1) + `${h}:${m}:${s}`;
+            }
+          }
+          // Ensure seconds are present
+          const colonCount = (normalized.match(/:/g) || []).length;
+          if (colonCount === 1) {
+            normalized += ':00';
+          }
           // Append JST timezone offset (+09:00) to treat input as JST
-          const isoFormat = dateStr + ':00+09:00';
-          return new Date(isoFormat);
+          const isoFormat = normalized + '+09:00';
+          const result = new Date(isoFormat);
+          if (isNaN(result.getTime())) {
+            console.error('[parseJstToUtc] Invalid date:', dateStr, '-> normalized:', isoFormat);
+            throw new Error(`Invalid time value: ${dateStr}`);
+          }
+          return result;
         };
         
         const id = await createBrandLivestream({
@@ -7963,11 +7990,38 @@ ${conversationText}
         const updateData: Record<string, unknown> = {};
         
         // Helper function to convert JST datetime-local string to UTC Date
-        // datetime-local format: "2025-02-05T04:00" (user enters in JST)
+        // datetime-local format: "2025-02-05T04:00" or ISO string (user enters in JST)
         const parseJstToUtc = (dateStr: string): Date => {
+          // If already an ISO string with timezone, parse directly
+          if (dateStr.includes('+') || dateStr.includes('Z')) {
+            return new Date(dateStr);
+          }
+          // Normalize time parts (e.g. "1:22" -> "01:22")
+          let normalized = dateStr;
+          const tIdx = normalized.indexOf('T');
+          if (tIdx !== -1) {
+            const timePart = normalized.substring(tIdx + 1);
+            const timeParts = timePart.split(':');
+            if (timeParts.length >= 2) {
+              const h = timeParts[0].padStart(2, '0');
+              const m = timeParts[1].padStart(2, '0');
+              const s = timeParts.length >= 3 ? timeParts[2] : '00';
+              normalized = normalized.substring(0, tIdx + 1) + `${h}:${m}:${s}`;
+            }
+          }
+          // Ensure seconds are present
+          const colonCount = (normalized.match(/:/g) || []).length;
+          if (colonCount === 1) {
+            normalized += ':00';
+          }
           // Append JST timezone offset (+09:00) to treat input as JST
-          const isoFormat = dateStr + ':00+09:00';
-          return new Date(isoFormat);
+          const isoFormat = normalized + '+09:00';
+          const result = new Date(isoFormat);
+          if (isNaN(result.getTime())) {
+            console.error('[parseJstToUtc] Invalid date:', dateStr, '-> normalized:', isoFormat);
+            throw new Error(`Invalid time value: ${dateStr}`);
+          }
+          return result;
         };
         
         if (data.brandId !== undefined) updateData.brandId = data.brandId;

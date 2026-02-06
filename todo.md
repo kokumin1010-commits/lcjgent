@@ -4064,3 +4064,11 @@
 - [x] BrandDetail.tsxにファイナンス管理ボタンを追加
 - [x] App.tsxにルーティングを追加
 - [x] テスト作成・動作確認
+
+## 配信記録「Invalid time value」バグ修正
+- [x] 関連ファイルの徹底調査（LiverRecord.tsx, LiverSelfRecord.tsx, routers.ts）
+- [x] 日付をまたぐ配信（開始21:10→終了1:22）での時刻バリデーションエラー修正
+- [x] normalizeTime/safeCreateDateヘルパー関数をLiverRecord.tsxに追加
+- [x] normalizeTime/safeCreateDateヘルパー関数をLiverSelfRecord.tsxに追加
+- [x] バックエンドparseJstToUtc関数を堅牢に修正（2箇所）
+- [x] テスト作成・全20件パス

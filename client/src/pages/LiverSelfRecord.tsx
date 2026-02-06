@@ -11,6 +11,27 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { ArrowLeft, Video, Calendar, DollarSign, Clock, X, Link as LinkIcon, Camera, Sparkles, Loader2, Lightbulb, Users, MousePointer, ShoppingCart, CheckCircle, Eye } from "lucide-react";
 import { toast } from "sonner";
 
+// 時刻文字列を正規化するヘルパー（"1:22" → "01:22", "21:10" → "21:10"）
+const normalizeTime = (time: string): string => {
+  if (!time) return time;
+  const parts = time.split(':');
+  if (parts.length >= 2) {
+    const h = parts[0].padStart(2, '0');
+    const m = parts[1].padStart(2, '0');
+    return `${h}:${m}`;
+  }
+  return time;
+};
+
+// 安全にDateオブジェクトを生成するヘルパー
+const safeCreateDate = (date: string, time: string): Date | null => {
+  if (!date || !time) return null;
+  const normalizedTime = normalizeTime(time);
+  const dateStr = `${date}T${normalizedTime}:00`;
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? null : d;
+};
+
 export default function LiverSelfRecord() {
   const [, navigate] = useLocation();
   const searchString = useSearch();
@@ -474,11 +495,15 @@ export default function LiverSelfRecord() {
         finalBeforeScreenshotUrl = uploadResult.url;
       }
 
-      const livestreamDateTime = new Date(`${formData.livestreamDate}T${formData.livestreamStartTime}`);
+      const livestreamDateTime = safeCreateDate(formData.livestreamDate, formData.livestreamStartTime);
+      if (!livestreamDateTime) {
+        toast.error("開始日時の形式が正しくありません");
+        return;
+      }
       // 終了日が設定されている場合はそれを使用、そうでなければ配信日を使用
       const endDateToUse = formData.livestreamEndDate || formData.livestreamDate;
       const endDateTime = formData.livestreamEndTime 
-        ? new Date(`${endDateToUse}T${formData.livestreamEndTime}`)
+        ? safeCreateDate(endDateToUse, formData.livestreamEndTime)
         : undefined;
 
       // impactFactorが空の場合はundefinedを送信
