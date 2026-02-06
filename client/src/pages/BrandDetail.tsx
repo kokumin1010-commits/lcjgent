@@ -7393,62 +7393,91 @@ ${proposal.proposalContent}
                   </div>
                 )}
 
-                {/* Save Button */}
-                <div className="flex justify-end gap-3">
+                {/* Action Buttons */}
+                <div className="flex flex-col gap-3">
+                  {/* Auto-fill to Ad Investment Form Button */}
                   <Button
-                    variant="outline"
                     onClick={() => {
-                      setAdCampaignAnalysisResult(null);
-                      setAdCampaignFile(null);
+                      const r = adCampaignAnalysisResult;
+                      const m = r?.metrics || {};
+                      setNewInvestment(prev => ({
+                        ...prev,
+                        investmentDate: r?.startDate ? new Date(r.startDate).toISOString().split('T')[0] : prev.investmentDate,
+                        totalBudget: r?.actualSpend || r?.budget || prev.totalBudget,
+                        campaignName: r?.campaignName || prev.campaignName,
+                        actualGmv: m.gmv || prev.actualGmv,
+                        actualImpressions: m.impressions || prev.actualImpressions,
+                        actualClicks: m.clicks || prev.actualClicks,
+                        actualConversions: m.conversions || prev.actualConversions,
+                        predictedRoas: (m.gmv && (r?.actualSpend || r?.budget)) ? Math.round((m.gmv / (r?.actualSpend || r?.budget)) * 100) / 100 : prev.predictedRoas,
+                        notes: `${r?.campaignName || ''} (${r?.platform || ''}) ${r?.startDate || ''} ~ ${r?.endDate || ''}`.trim(),
+                      }));
+                      setAdCampaignDialogOpen(false);
+                      setAddInvestmentDialogOpen(true);
+                      toast.success(language === 'ja' ? 'AI分析結果を広告実績フォームに自動入力しました' : 'AI分析结果已自动填写到广告实绩表单');
                     }}
-                    className="border-gray-600"
+                    className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-medium py-3"
                   >
-                    {language === 'ja' ? 'クリア' : '清除'}
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    {language === 'ja' ? '広告実績フォームに自動入力' : '自动填写到广告实绩表单'}
                   </Button>
-                  <Button
-                    onClick={async () => {
-                      try {
-                        await createAdCampaignMutation.mutateAsync({
-                          brandId,
-                          name: adCampaignAnalysisResult.campaignName,
-                          platform: adCampaignAnalysisResult.platform,
-                          objective: adCampaignAnalysisResult.objective,
-                          objectiveConfidence: adCampaignAnalysisResult.objectiveConfidence,
-                          startDate: adCampaignAnalysisResult.startDate,
-                          endDate: adCampaignAnalysisResult.endDate,
-                          budget: adCampaignAnalysisResult.budget,
-                          actualSpend: adCampaignAnalysisResult.actualSpend,
-                          status: 'completed',
-                          detectedLanguage: adCampaignAnalysisResult.detectedLanguage,
-                          sourceFileUrl: adCampaignAnalysisResult.sourceFileUrl,
-                          sourceFileKey: adCampaignAnalysisResult.sourceFileKey,
-                          impressions: adCampaignAnalysisResult.metrics?.impressions,
-                          views: adCampaignAnalysisResult.metrics?.views,
-                          views6s: adCampaignAnalysisResult.metrics?.views6s,
-                          clicks: adCampaignAnalysisResult.metrics?.clicks,
-                          conversions: adCampaignAnalysisResult.metrics?.conversions,
-                          gmv: adCampaignAnalysisResult.metrics?.gmv,
-                          orderCount: adCampaignAnalysisResult.metrics?.orderCount,
-                          cartAdds: adCampaignAnalysisResult.metrics?.cartAdds,
-                          countryBreakdown: adCampaignAnalysisResult.countryBreakdown,
-                        });
-                        toast.success(language === 'ja' ? 'キャンペーンを保存しました' : '已保存投放');
+
+                  <div className="flex justify-end gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
                         setAdCampaignAnalysisResult(null);
                         setAdCampaignFile(null);
-                        refetchAdCampaigns();
-                      } catch (error) {
-                        toast.error(language === 'ja' ? '保存に失敗しました' : '保存失败');
-                      }
-                    }}
-                    disabled={createAdCampaignMutation.isPending}
-                    className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500"
-                  >
-                    {createAdCampaignMutation.isPending ? (
-                      <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{language === 'ja' ? '保存中...' : '保存中...'}</>
-                    ) : (
-                      <><Save className="h-4 w-4 mr-2" />{language === 'ja' ? 'キャンペーンを保存' : '保存投放'}</>
-                    )}
-                  </Button>
+                      }}
+                      className="border-gray-600"
+                    >
+                      {language === 'ja' ? 'クリア' : '清除'}
+                    </Button>
+                    <Button
+                      onClick={async () => {
+                        try {
+                          await createAdCampaignMutation.mutateAsync({
+                            brandId,
+                            name: adCampaignAnalysisResult.campaignName,
+                            platform: adCampaignAnalysisResult.platform,
+                            objective: adCampaignAnalysisResult.objective,
+                            objectiveConfidence: adCampaignAnalysisResult.objectiveConfidence,
+                            startDate: adCampaignAnalysisResult.startDate,
+                            endDate: adCampaignAnalysisResult.endDate,
+                            budget: adCampaignAnalysisResult.budget,
+                            actualSpend: adCampaignAnalysisResult.actualSpend,
+                            status: 'completed',
+                            detectedLanguage: adCampaignAnalysisResult.detectedLanguage,
+                            sourceFileUrl: adCampaignAnalysisResult.sourceFileUrl,
+                            sourceFileKey: adCampaignAnalysisResult.sourceFileKey,
+                            impressions: adCampaignAnalysisResult.metrics?.impressions,
+                            views: adCampaignAnalysisResult.metrics?.views,
+                            views6s: adCampaignAnalysisResult.metrics?.views6s,
+                            clicks: adCampaignAnalysisResult.metrics?.clicks,
+                            conversions: adCampaignAnalysisResult.metrics?.conversions,
+                            gmv: adCampaignAnalysisResult.metrics?.gmv,
+                            orderCount: adCampaignAnalysisResult.metrics?.orderCount,
+                            cartAdds: adCampaignAnalysisResult.metrics?.cartAdds,
+                            countryBreakdown: adCampaignAnalysisResult.countryBreakdown,
+                          });
+                          toast.success(language === 'ja' ? 'キャンペーンを保存しました' : '已保存投放');
+                          setAdCampaignAnalysisResult(null);
+                          setAdCampaignFile(null);
+                          refetchAdCampaigns();
+                        } catch (error) {
+                          toast.error(language === 'ja' ? '保存に失敗しました' : '保存失败');
+                        }
+                      }}
+                      disabled={createAdCampaignMutation.isPending}
+                      className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500"
+                    >
+                      {createAdCampaignMutation.isPending ? (
+                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{language === 'ja' ? '保存中...' : '保存中...'}</>
+                      ) : (
+                        <><Save className="h-4 w-4 mr-2" />{language === 'ja' ? 'キャンペーンを保存' : '保存投放'}</>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
