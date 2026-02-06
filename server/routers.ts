@@ -335,6 +335,17 @@ import {
   rejectAliasSuggestion,
   getHourlySalesAnalysis,
   getDayOfWeekPerformance,
+  createAdCampaign,
+  getAdCampaignsByBrandId,
+  getAdCampaignById,
+  updateAdCampaign,
+  deleteAdCampaign,
+  createAdMetrics,
+  getAdMetricsByCampaignId,
+  updateAdMetrics,
+  createAdCountryBreakdown,
+  getAdCountryBreakdownByCampaignId,
+  getAdCampaignStatsByBrandId,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -4394,6 +4405,300 @@ ${hasLearningData ? '- 過去の広告実績データ: ' + learningDataRecords +
       .input(z.object({ brandId: z.number() }))
       .query(async ({ input }) => {
         return await getLiverSalesStatsByBrand(input.brandId);
+      }),
+
+    // ========== Ad Campaign Management ==========
+    
+    // Get ad campaigns for a brand
+    getAdCampaigns: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        return await getAdCampaignsByBrandId(input.brandId);
+      }),
+
+    // Get ad campaign by ID with metrics and country breakdown
+    getAdCampaignDetail: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const campaign = await getAdCampaignById(input.id);
+        if (!campaign) return null;
+        
+        const metrics = await getAdMetricsByCampaignId(input.id);
+        const countryBreakdown = await getAdCountryBreakdownByCampaignId(input.id);
+        
+        return {
+          ...campaign,
+          metrics: metrics[0] || null,
+          countryBreakdown,
+        };
+      }),
+
+    // Get ad campaign stats for a brand
+    getAdCampaignStats: protectedProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        return await getAdCampaignStatsByBrandId(input.brandId);
+      }),
+
+    // Create ad campaign (manual or from AI analysis)
+    createAdCampaign: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+        name: z.string().min(1),
+        platform: z.enum(["tiktok", "facebook", "instagram", "google", "youtube", "other"]).default("tiktok"),
+        objective: z.enum(["impressions", "clicks", "conversions", "awareness", "engagement"]).default("impressions"),
+        objectiveConfidence: z.number().optional(),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+        budget: z.number().optional(),
+        actualSpend: z.number().optional(),
+        status: z.enum(["draft", "active", "paused", "completed"]).default("draft"),
+        detectedLanguage: z.string().optional(),
+        sourceFileUrl: z.string().optional(),
+        sourceFileKey: z.string().optional(),
+        rawData: z.record(z.string(), z.unknown()).optional(),
+        // Metrics
+        impressions: z.number().optional(),
+        views: z.number().optional(),
+        views6s: z.number().optional(),
+        clicks: z.number().optional(),
+        conversions: z.number().optional(),
+        gmv: z.number().optional(),
+        orderCount: z.number().optional(),
+        cartAdds: z.number().optional(),
+        // Country breakdown
+        countryBreakdown: z.array(z.object({
+          countryCode: z.string(),
+          countryName: z.string(),
+          percentage: z.number(),
+          impressions: z.number().optional(),
+          clicks: z.number().optional(),
+          gmv: z.number().optional(),
+        })).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { countryBreakdown, impressions, views, views6s, clicks, conversions, gmv, orderCount, cartAdds, ...campaignData } = input;
+        
+        // Create campaign
+        const result = await createAdCampaign({
+          ...campaignData,
+          startDate: campaignData.startDate ? new Date(campaignData.startDate) : undefined,
+          endDate: campaignData.endDate ? new Date(campaignData.endDate) : undefined,
+          rawData: campaignData.rawData as Record<string, unknown> | undefined,
+          createdBy: ctx.user.id,
+          createdByName: ctx.user.name || ctx.user.email,
+        });
+        
+        const campaignId = (result as any)[0]?.insertId;
+        
+        // Create metrics if provided
+        if (impressions || views || clicks || gmv) {
+          await createAdMetrics({
+            campaignId,
+            impressions: impressions || 0,
+            views: views || 0,
+            views6s: views6s || 0,
+            clicks: clicks || 0,
+            conversions: conversions || 0,
+            gmv: gmv || 0,
+            orderCount: orderCount || 0,
+            cartAdds: cartAdds || 0,
+          });
+        }
+        
+        // Create country breakdown if provided
+        if (countryBreakdown && countryBreakdown.length > 0) {
+          for (const country of countryBreakdown) {
+            await createAdCountryBreakdown({
+              campaignId,
+              countryCode: country.countryCode,
+              countryName: country.countryName,
+              percentage: String(country.percentage),
+              impressions: country.impressions || 0,
+              clicks: country.clicks || 0,
+              gmv: country.gmv || 0,
+            });
+          }
+        }
+        
+        return { id: campaignId };
+      }),
+
+    // Update ad campaign
+    updateAdCampaign: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        platform: z.enum(["tiktok", "facebook", "instagram", "google", "youtube", "other"]).optional(),
+        objective: z.enum(["impressions", "clicks", "conversions", "awareness", "engagement"]).optional(),
+        objectiveConfidence: z.number().optional(),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+        budget: z.number().optional(),
+        actualSpend: z.number().optional(),
+        status: z.enum(["draft", "active", "paused", "completed"]).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, startDate, endDate, ...updateData } = input;
+        await updateAdCampaign(id, {
+          ...updateData,
+          startDate: startDate ? new Date(startDate) : undefined,
+          endDate: endDate ? new Date(endDate) : undefined,
+        });
+        return { success: true };
+      }),
+
+    // Delete ad campaign
+    deleteAdCampaign: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteAdCampaign(input.id);
+        return { success: true };
+      }),
+
+    // Analyze ad report file with AI
+    analyzeAdReport: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+        fileUrl: z.string(),
+        fileKey: z.string().optional(),
+        fileName: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        // Use LLM to analyze the PDF/file content
+        const response = await invokeLLM({
+          messages: [
+            {
+              role: "system",
+              content: `You are an expert at analyzing advertising performance reports. Extract key metrics from the provided report.
+
+You MUST respond with a valid JSON object containing:
+{
+  "campaignName": "string - extracted campaign name or generated from context",
+  "platform": "tiktok|facebook|instagram|google|youtube|other",
+  "objective": "impressions|clicks|conversions|awareness|engagement",
+  "objectiveConfidence": number (0-100),
+  "detectedLanguage": "ja|zh|en",
+  "startDate": "YYYY-MM-DD or null",
+  "endDate": "YYYY-MM-DD or null",
+  "budget": number or null,
+  "actualSpend": number or null,
+  "metrics": {
+    "impressions": number,
+    "views": number,
+    "views6s": number,
+    "clicks": number,
+    "conversions": number,
+    "gmv": number,
+    "orderCount": number,
+    "cartAdds": number
+  },
+  "countryBreakdown": [
+    { "countryCode": "ID", "countryName": "Indonesia", "percentage": 30 }
+  ]
+}
+
+Language detection rules:
+- Japanese: Contains 円, 回, 数, hiragana/katakana
+- Chinese: Contains 元, 次, simplified Chinese characters
+- English: Default if no Asian characters
+
+Objective detection rules:
+- "impressions": Keywords like 露出, 曝光, impression, インプレッション
+- "clicks": Keywords like クリック, 点击, click, CPC
+- "conversions": Keywords like コンバージョン, 转化, conversion, GMV, 購入
+
+Country code mapping:
+- インドネシア/印度尼西亚/Indonesia: ID
+- タイ/泰国/Thailand: TH
+- フィリピン/菲律宾/Philippines: PH
+- ベトナム/越南/Vietnam: VN
+- マレーシア/马来西亚/Malaysia: MY
+- カンボジア/柬埔寨/Cambodia: KH`,
+            },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: `Analyze this advertising report file: ${input.fileName}`,
+                },
+                {
+                  type: "file_url",
+                  file_url: {
+                    url: input.fileUrl,
+                    mime_type: "application/pdf",
+                  },
+                },
+              ],
+            },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "ad_report_analysis",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  campaignName: { type: "string" },
+                  platform: { type: "string", enum: ["tiktok", "facebook", "instagram", "google", "youtube", "other"] },
+                  objective: { type: "string", enum: ["impressions", "clicks", "conversions", "awareness", "engagement"] },
+                  objectiveConfidence: { type: "integer" },
+                  detectedLanguage: { type: "string", enum: ["ja", "zh", "en"] },
+                  startDate: { type: ["string", "null"] },
+                  endDate: { type: ["string", "null"] },
+                  budget: { type: ["number", "null"] },
+                  actualSpend: { type: ["number", "null"] },
+                  metrics: {
+                    type: "object",
+                    properties: {
+                      impressions: { type: "integer" },
+                      views: { type: "integer" },
+                      views6s: { type: "integer" },
+                      clicks: { type: "integer" },
+                      conversions: { type: "integer" },
+                      gmv: { type: "integer" },
+                      orderCount: { type: "integer" },
+                      cartAdds: { type: "integer" },
+                    },
+                    required: ["impressions", "views", "views6s", "clicks", "conversions", "gmv", "orderCount", "cartAdds"],
+                    additionalProperties: false,
+                  },
+                  countryBreakdown: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        countryCode: { type: "string" },
+                        countryName: { type: "string" },
+                        percentage: { type: "number" },
+                      },
+                      required: ["countryCode", "countryName", "percentage"],
+                      additionalProperties: false,
+                    },
+                  },
+                },
+                required: ["campaignName", "platform", "objective", "objectiveConfidence", "detectedLanguage", "startDate", "endDate", "budget", "actualSpend", "metrics", "countryBreakdown"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+        
+        const content = response.choices[0]?.message?.content;
+        if (!content || typeof content !== 'string') {
+          throw new Error("Failed to analyze report");
+        }
+        
+        const analysis = JSON.parse(content);
+        
+        return {
+          ...analysis,
+          sourceFileUrl: input.fileUrl,
+          sourceFileKey: input.fileKey,
+          brandId: input.brandId,
+        };
       }),
   }),
 

@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS ad_metrics (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  campaignId INT NOT NULL,\n  impressions BIGINT DEFAULT 0,\n  views BIGINT DEFAULT 0,\n  views6s BIGINT DEFAULT 0,\n  clicks BIGINT DEFAULT 0,\n  conversions INT DEFAULT 0,\n  gmv BIGINT DEFAULT 0,\n  orderCount INT DEFAULT 0,\n  cartAdds INT DEFAULT 0,\n  cpm DECIMAL(10, 4),\n  cpc DECIMAL(10, 4),\n  cpa DECIMAL(10, 4),\n  roas DECIMAL(10, 4),\n  recordedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,\n  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute CREATE TABLE IF NOT EXISTS ad_metrics (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  campaignId INT NOT NULL,\n  impressions BIGINT DEFAULT 0,\n  views BIGINT DEFAULT 0,\n  views6s BIGINT DEFAULT 0,\n  clicks BIGINT DEFAULT 0,\n  conversions INT DEFAULT 0,\n  gmv BIGINT DEFAULT 0,\n  orderCount INT DEFAULT 0,\n  cartAdds INT DEFAULT 0,\n  cpm DECIMAL(10, 4),\n  cpc DECIMAL(10, 4),\n  cpa DECIMAL(10, 4),\n  roas DECIMAL(10, 4),\n  recordedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,\n  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1679
+}

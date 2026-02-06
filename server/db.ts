@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -8854,4 +8854,163 @@ export async function getDayOfWeekPerformance(month?: string) {
     avgOrders: d.livestreamCount > 0 ? Math.round(d.totalOrders / d.livestreamCount) : 0,
     conversionRate: d.totalViewers > 0 ? ((d.totalOrders / d.totalViewers) * 100).toFixed(2) : '0.00',
   }));
+}
+
+
+// ============================================
+// 広告キャンペーン管理関数
+// ============================================
+
+/**
+ * 広告キャンペーンを作成
+ */
+export async function createAdCampaign(data: InsertAdCampaign) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(adCampaigns).values(data);
+  return result;
+}
+
+/**
+ * ブランドIDで広告キャンペーン一覧を取得
+ */
+export async function getAdCampaignsByBrandId(brandId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(adCampaigns)
+    .where(eq(adCampaigns.brandId, brandId))
+    .orderBy(desc(adCampaigns.createdAt));
+}
+
+/**
+ * 広告キャンペーンをIDで取得
+ */
+export async function getAdCampaignById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  
+  const result = await db
+    .select()
+    .from(adCampaigns)
+    .where(eq(adCampaigns.id, id))
+    .limit(1);
+  
+  return result.length > 0 ? result[0] : undefined;
+}
+
+/**
+ * 広告キャンペーンを更新
+ */
+export async function updateAdCampaign(id: number, data: Partial<InsertAdCampaign>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(adCampaigns).set(data).where(eq(adCampaigns.id, id));
+}
+
+/**
+ * 広告キャンペーンを削除
+ */
+export async function deleteAdCampaign(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // 関連するメトリクスと国別データも削除
+  await db.delete(adMetrics).where(eq(adMetrics.campaignId, id));
+  await db.delete(adCountryBreakdown).where(eq(adCountryBreakdown.campaignId, id));
+  await db.delete(adCampaigns).where(eq(adCampaigns.id, id));
+}
+
+/**
+ * 広告指標を作成
+ */
+export async function createAdMetrics(data: InsertAdMetric) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return await db.insert(adMetrics).values(data);
+}
+
+/**
+ * キャンペーンIDで広告指標を取得
+ */
+export async function getAdMetricsByCampaignId(campaignId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(adMetrics)
+    .where(eq(adMetrics.campaignId, campaignId))
+    .orderBy(desc(adMetrics.recordedAt));
+}
+
+/**
+ * 広告指標を更新
+ */
+export async function updateAdMetrics(id: number, data: Partial<InsertAdMetric>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(adMetrics).set(data).where(eq(adMetrics.id, id));
+}
+
+/**
+ * 国別広告パフォーマンスを作成
+ */
+export async function createAdCountryBreakdown(data: InsertAdCountryBreakdown) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return await db.insert(adCountryBreakdown).values(data);
+}
+
+/**
+ * キャンペーンIDで国別パフォーマンスを取得
+ */
+export async function getAdCountryBreakdownByCampaignId(campaignId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(adCountryBreakdown)
+    .where(eq(adCountryBreakdown.campaignId, campaignId))
+    .orderBy(desc(adCountryBreakdown.percentage));
+}
+
+/**
+ * ブランドの広告キャンペーン統計を取得
+ */
+export async function getAdCampaignStatsByBrandId(brandId: number) {
+  const db = await getDb();
+  if (!db) return { campaignCount: 0, totalBudget: 0, totalSpend: 0, totalImpressions: 0, totalClicks: 0, totalGmv: 0 };
+  
+  const campaigns = await db
+    .select()
+    .from(adCampaigns)
+    .where(eq(adCampaigns.brandId, brandId));
+  
+  if (campaigns.length === 0) {
+    return { campaignCount: 0, totalBudget: 0, totalSpend: 0, totalImpressions: 0, totalClicks: 0, totalGmv: 0 };
+  }
+  
+  const campaignIds = campaigns.map(c => c.id);
+  const metrics = await db
+    .select()
+    .from(adMetrics)
+    .where(inArray(adMetrics.campaignId, campaignIds));
+  
+  return {
+    campaignCount: campaigns.length,
+    totalBudget: campaigns.reduce((sum, c) => sum + (c.budget || 0), 0),
+    totalSpend: campaigns.reduce((sum, c) => sum + (c.actualSpend || 0), 0),
+    totalImpressions: metrics.reduce((sum, m) => sum + (m.impressions || 0), 0),
+    totalClicks: metrics.reduce((sum, m) => sum + (m.clicks || 0), 0),
+    totalGmv: metrics.reduce((sum, m) => sum + (m.gmv || 0), 0),
+  };
 }

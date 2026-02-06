@@ -1,0 +1,16 @@
+{
+  "query": "SELECT id, email, name, role FROM users WHERE email = 'ryuhairartist@gmail.com';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, email, name, role FROM users WHERE email = 'ryuhairartist@gmail.com';",
+  "rows": [
+    {
+      "id": "1",
+      "email": "ryuhairartist@gmail.com",
+      "name": "Ryu Hair Artist",
+      "role": "admin"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\temail\tname\trole\n1\tryuhairartist@gmail.com\tRyu Hair Artist\tadmin\n",
+  "stderr": "",
+  "execution_time_ms": 1610
+}

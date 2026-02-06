@@ -2109,3 +2109,114 @@ export const productAliasSuggestions = mysqlTable("product_alias_suggestions", {
 
 export type ProductAliasSuggestion = typeof productAliasSuggestions.$inferSelect;
 export type InsertProductAliasSuggestion = typeof productAliasSuggestions.$inferInsert;
+
+
+// ============================================
+// 広告キャンペーン管理
+// ============================================
+
+/**
+ * Ad Campaigns table for tracking advertising campaigns
+ * 広告キャンペーン管理テーブル
+ */
+export const adCampaigns = mysqlTable("ad_campaigns", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(), // References brands.id
+  
+  // キャンペーン基本情報
+  name: varchar("name", { length: 255 }).notNull(), // キャンペーン名
+  platform: mysqlEnum("platform", ["tiktok", "facebook", "instagram", "google", "youtube", "other"]).default("tiktok").notNull(),
+  
+  // 目的（AI判定 + 手動修正可能）
+  objective: mysqlEnum("objective", ["impressions", "clicks", "conversions", "awareness", "engagement"]).default("impressions").notNull(),
+  objectiveConfidence: int("objectiveConfidence"), // AI判定の信頼度（0-100）
+  
+  // 期間
+  startDate: timestamp("startDate"),
+  endDate: timestamp("endDate"),
+  
+  // 予算・費用
+  budget: bigint("budget", { mode: "number" }), // 予算（円）
+  actualSpend: bigint("actualSpend", { mode: "number" }), // 実際の支出
+  
+  // ステータス
+  status: mysqlEnum("status", ["draft", "active", "paused", "completed"]).default("draft").notNull(),
+  
+  // 言語検出
+  detectedLanguage: varchar("detectedLanguage", { length: 10 }), // ja, zh, en
+  
+  // 元データ
+  sourceFileUrl: text("sourceFileUrl"), // アップロードされたPDF/ファイルのURL
+  sourceFileKey: varchar("sourceFileKey", { length: 512 }), // S3 key
+  rawData: json("rawData").$type<Record<string, unknown>>(), // AIが抽出した生データ
+  
+  // 作成者情報
+  createdBy: int("createdBy").notNull(),
+  createdByName: varchar("createdByName", { length: 255 }).notNull(),
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AdCampaign = typeof adCampaigns.$inferSelect;
+export type InsertAdCampaign = typeof adCampaigns.$inferInsert;
+
+/**
+ * Ad Metrics table for storing campaign performance metrics
+ * 広告指標テーブル
+ */
+export const adMetrics = mysqlTable("ad_metrics", {
+  id: int("id").autoincrement().primaryKey(),
+  campaignId: int("campaignId").notNull(), // References adCampaigns.id
+  
+  // 基本指標
+  impressions: bigint("impressions", { mode: "number" }).default(0), // インプレッション数
+  views: bigint("views", { mode: "number" }).default(0), // 視聴数
+  views6s: bigint("views6s", { mode: "number" }).default(0), // 6秒以上視聴数
+  clicks: bigint("clicks", { mode: "number" }).default(0), // クリック数
+  conversions: int("conversions").default(0), // コンバージョン数
+  
+  // 売上関連
+  gmv: bigint("gmv", { mode: "number" }).default(0), // GMV
+  orderCount: int("orderCount").default(0), // 注文数
+  cartAdds: int("cartAdds").default(0), // カート追加数
+  
+  // コスト指標
+  cpm: decimal("cpm", { precision: 10, scale: 4 }), // Cost per 1000 impressions
+  cpc: decimal("cpc", { precision: 10, scale: 4 }), // Cost per click
+  cpa: decimal("cpa", { precision: 10, scale: 4 }), // Cost per acquisition
+  roas: decimal("roas", { precision: 10, scale: 4 }), // Return on ad spend
+  
+  // タイムスタンプ
+  recordedAt: timestamp("recordedAt").defaultNow().notNull(), // データ記録日時
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AdMetric = typeof adMetrics.$inferSelect;
+export type InsertAdMetric = typeof adMetrics.$inferInsert;
+
+/**
+ * Ad Country Breakdown table for storing country-level performance
+ * 国別広告パフォーマンステーブル
+ */
+export const adCountryBreakdown = mysqlTable("ad_country_breakdown", {
+  id: int("id").autoincrement().primaryKey(),
+  campaignId: int("campaignId").notNull(), // References adCampaigns.id
+  
+  // 国情報
+  countryCode: varchar("countryCode", { length: 10 }).notNull(), // ISO country code (e.g., ID, TH, PH)
+  countryName: varchar("countryName", { length: 100 }).notNull(), // 国名（表示言語に依存）
+  
+  // パフォーマンス
+  percentage: decimal("percentage", { precision: 5, scale: 2 }).notNull(), // 割合（%）
+  impressions: bigint("impressions", { mode: "number" }).default(0),
+  clicks: bigint("clicks", { mode: "number" }).default(0),
+  gmv: bigint("gmv", { mode: "number" }).default(0),
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AdCountryBreakdown = typeof adCountryBreakdown.$inferSelect;
+export type InsertAdCountryBreakdown = typeof adCountryBreakdown.$inferInsert;

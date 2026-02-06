@@ -819,6 +819,17 @@ export default function BrandDetail() {
     campaignName: '',
     notes: '',
   });
+  const [investmentPdfFile, setInvestmentPdfFile] = useState<File | null>(null);
+  const [investmentAnalyzing, setInvestmentAnalyzing] = useState(false);
+  const [investmentAnalysisResult, setInvestmentAnalysisResult] = useState<any>(null);
+  const investmentFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Ad Campaign Analysis states
+  const [adCampaignDialogOpen, setAdCampaignDialogOpen] = useState(false);
+  const [adCampaignAnalyzing, setAdCampaignAnalyzing] = useState(false);
+  const [adCampaignFile, setAdCampaignFile] = useState<File | null>(null);
+  const [adCampaignAnalysisResult, setAdCampaignAnalysisResult] = useState<any>(null);
+  const adCampaignFileInputRef = useRef<HTMLInputElement>(null);
 
   // AI Image Add states
   const [aiImageAddDialogOpen, setAiImageAddDialogOpen] = useState(false);
@@ -845,6 +856,8 @@ export default function BrandDetail() {
   const { data: brandAdStats } = trpc.brand.getBrandAdPerformanceStats.useQuery({ brandId }, { enabled: brandId > 0 });
   const { data: allLivers = [] } = trpc.liverManagement.list.useQuery();
   const { data: liverSalesStats = [] } = trpc.brand.getLiverSalesStats.useQuery({ brandId }, { enabled: brandId > 0 });
+  const { data: adCampaigns = [], refetch: refetchAdCampaigns } = trpc.brand.getAdCampaigns.useQuery({ brandId }, { enabled: brandId > 0 });
+  const { data: adCampaignStats } = trpc.brand.getAdCampaignStats.useQuery({ brandId }, { enabled: brandId > 0 });
 
   // 同じ日の配信は1回としてカウント（ユニークな日付の数）
   const uniqueLivestreamDays = useMemo(() => {
@@ -1090,6 +1103,21 @@ export default function BrandDetail() {
     },
     onError: () => {
       toast.error(language === 'ja' ? "削除に失敗しました" : "删除失败");
+    },
+  });
+
+  // Ad Campaign mutations
+  const analyzeAdReportMutation = trpc.brand.analyzeAdReport.useMutation();
+  
+  const createAdCampaignMutation = trpc.brand.createAdCampaign.useMutation({
+    onSuccess: () => {
+      refetchAdCampaigns();
+    },
+  });
+  
+  const deleteAdCampaignMutation = trpc.brand.deleteAdCampaign.useMutation({
+    onSuccess: () => {
+      refetchAdCampaigns();
     },
   });
 
@@ -1943,6 +1971,18 @@ ${proposal.proposalContent}
                 {adInvestmentRecords.length > 0 && (
                   <Badge className="ml-2 bg-green-500/30 text-green-300 border border-green-400/50 text-xs">
                     {adInvestmentRecords.length}
+                  </Badge>
+                )}
+              </Button>
+              <Button
+                onClick={() => setAdCampaignDialogOpen(true)}
+                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white shadow-lg shadow-blue-500/30"
+              >
+                <TrendingUp className="h-4 w-4 mr-2" />
+                {language === 'ja' ? '広告キャンペーン分析' : '广告投放分析'}
+                {adCampaigns.length > 0 && (
+                  <Badge className="ml-2 bg-blue-500/30 text-blue-300 border border-blue-400/50 text-xs">
+                    {adCampaigns.length}
                   </Badge>
                 )}
               </Button>
@@ -6698,6 +6738,130 @@ ${proposal.proposalContent}
           </DialogHeader>
 
           <div className="space-y-4">
+            {/* PDF Upload Section */}
+            <div className="bg-gradient-to-r from-blue-900/30 to-purple-900/30 rounded-lg p-4 border border-blue-500/30">
+              <div className="flex items-center gap-2 mb-3">
+                <Upload className="h-5 w-5 text-blue-400" />
+                <span className="text-sm font-medium text-blue-300">
+                  {language === 'ja' ? 'PDF/Excelで自動入力' : '通过PDF/Excel自动输入'}
+                </span>
+              </div>
+              <input
+                ref={investmentFileInputRef}
+                type="file"
+                accept=".pdf,.xlsx,.xls,.csv"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setInvestmentPdfFile(file);
+                  setInvestmentAnalyzing(true);
+                  try {
+                    // Upload file to S3
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    const uploadResponse = await fetch('/api/upload', {
+                      method: 'POST',
+                      body: formData,
+                    });
+                    if (!uploadResponse.ok) throw new Error('Upload failed');
+                    const uploadResult = await uploadResponse.json();
+                    
+                    // Analyze with AI
+                    const result = await analyzeAdReportMutation.mutateAsync({
+                      brandId,
+                      fileUrl: uploadResult.url,
+                      fileKey: uploadResult.key,
+                      fileName: file.name,
+                    });
+                    
+                    setInvestmentAnalysisResult(result);
+                    
+                    // Auto-fill form with analysis result
+                    if (result) {
+                      setNewInvestment(prev => ({
+                        ...prev,
+                        campaignName: result.campaignName || prev.campaignName,
+                        totalBudget: result.budget || prev.totalBudget,
+                        actualImpressions: result.impressions || prev.actualImpressions,
+                        actualClicks: result.clicks || prev.actualClicks,
+                        actualGmv: result.gmv || prev.actualGmv,
+                        actualConversions: result.conversions || prev.actualConversions,
+                      }));
+                      toast.success(language === 'ja' ? 'AI分析完了！フォームに自動入力しました' : 'AI分析完成！已自动填写表单');
+                    }
+                  } catch (error) {
+                    console.error('Analysis error:', error);
+                    toast.error(language === 'ja' ? '分析に失敗しました' : '分析失败');
+                  } finally {
+                    setInvestmentAnalyzing(false);
+                  }
+                }}
+                className="hidden"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => investmentFileInputRef.current?.click()}
+                disabled={investmentAnalyzing}
+                className="w-full border-blue-500/50 text-blue-300 hover:bg-blue-500/20"
+              >
+                {investmentAnalyzing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {language === 'ja' ? 'AI分析中...' : 'AI分析中...'}
+                  </>
+                ) : (
+                  <>
+                    <FileText className="h-4 w-4 mr-2" />
+                    {language === 'ja' ? 'ファイルを選択' : '选择文件'}
+                  </>
+                )}
+              </Button>
+              {investmentPdfFile && (
+                <div className="mt-2 text-xs text-gray-400">
+                  {investmentPdfFile.name}
+                </div>
+              )}
+              {investmentAnalysisResult && (
+                <div className="mt-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-400">{language === 'ja' ? '検出言語:' : '检测语言:'}</span>
+                    <span className="text-xs text-white bg-gray-700 px-2 py-0.5 rounded">
+                      {investmentAnalysisResult.detectedLanguage === 'ja' ? '日本語' : 
+                       investmentAnalysisResult.detectedLanguage === 'zh' ? '中文' : 
+                       investmentAnalysisResult.detectedLanguage === 'en' ? 'English' : 
+                       investmentAnalysisResult.detectedLanguage}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-400">{language === 'ja' ? '広告目的:' : '广告目的:'}</span>
+                    <span className="text-xs text-white bg-purple-700/50 px-2 py-0.5 rounded">
+                      {investmentAnalysisResult.objective === 'impression' ? (language === 'ja' ? 'インプレッション' : '曝光') :
+                       investmentAnalysisResult.objective === 'click' ? (language === 'ja' ? 'クリック' : '点击') :
+                       investmentAnalysisResult.objective === 'conversion' ? (language === 'ja' ? 'コンバージョン' : '转化') :
+                       investmentAnalysisResult.objective}
+                    </span>
+                    {investmentAnalysisResult.objectiveConfidence && (
+                      <span className="text-xs text-gray-500">
+                        ({Math.round(investmentAnalysisResult.objectiveConfidence * 100)}%)
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-gray-700" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-black px-2 text-gray-500">
+                  {language === 'ja' ? 'または手動入力' : '或手动输入'}
+                </span>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label className="text-gray-300">{t.investmentDate}</Label>
@@ -6951,6 +7115,363 @@ ${proposal.proposalContent}
               className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white"
             >
               {updateInvestmentMutation.isPending ? (language === 'ja' ? '更新中...' : '更新中...') : t.save}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Ad Campaign Analysis Dialog */}
+      <Dialog open={adCampaignDialogOpen} onOpenChange={setAdCampaignDialogOpen}>
+        <DialogContent className="bg-black/95 border-blue-900/50 text-white max-w-4xl backdrop-blur-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold flex items-center gap-3">
+              <TrendingUp className="h-6 w-6 text-blue-400" />
+              {language === 'ja' ? '広告キャンペーン分析' : '广告投放分析'}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {/* Stats Summary */}
+            {adCampaignStats && (
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-blue-950/30 border border-blue-500/30 rounded-lg p-4">
+                  <div className="text-blue-300 text-sm">{language === 'ja' ? 'キャンペーン数' : '投放数'}</div>
+                  <div className="text-2xl font-bold text-white">{adCampaignStats.campaignCount}</div>
+                </div>
+                <div className="bg-green-950/30 border border-green-500/30 rounded-lg p-4">
+                  <div className="text-green-300 text-sm">{language === 'ja' ? '総広告費' : '总广告费'}</div>
+                  <div className="text-2xl font-bold text-white">¥{(adCampaignStats.totalSpend || 0).toLocaleString()}</div>
+                </div>
+                <div className="bg-purple-950/30 border border-purple-500/30 rounded-lg p-4">
+                  <div className="text-purple-300 text-sm">{language === 'ja' ? '総インプレッション' : '总曝光'}</div>
+                  <div className="text-2xl font-bold text-white">{(adCampaignStats.totalImpressions || 0).toLocaleString()}</div>
+                </div>
+              </div>
+            )}
+
+            {/* File Upload Section */}
+            <div className="border-2 border-dashed border-blue-500/50 rounded-xl p-6 text-center hover:border-blue-400/70 transition-colors">
+              <input
+                ref={adCampaignFileInputRef}
+                type="file"
+                accept=".pdf,.xlsx,.xls,.csv"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setAdCampaignFile(file);
+                  setAdCampaignAnalyzing(true);
+                  setAdCampaignAnalysisResult(null);
+                  
+                  try {
+                    // Upload file first
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    const uploadResponse = await fetch('/api/upload', {
+                      method: 'POST',
+                      body: formData,
+                    });
+                    const uploadResult = await uploadResponse.json();
+                    
+                    if (!uploadResult.url) {
+                      throw new Error('File upload failed');
+                    }
+                    
+                    // Analyze with AI
+                    const result = await analyzeAdReportMutation.mutateAsync({
+                      brandId,
+                      fileUrl: uploadResult.url,
+                      fileKey: uploadResult.key,
+                      fileName: file.name,
+                    });
+                    
+                    setAdCampaignAnalysisResult(result);
+                    toast.success(language === 'ja' ? '分析完了' : '分析完成');
+                  } catch (error) {
+                    console.error('Analysis error:', error);
+                    toast.error(language === 'ja' ? '分析に失敗しました' : '分析失败');
+                  } finally {
+                    setAdCampaignAnalyzing(false);
+                  }
+                }}
+              />
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center">
+                  <Upload className="h-8 w-8 text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-lg font-medium text-white">
+                    {language === 'ja' ? '広告レポートをアップロード' : '上传广告报告'}
+                  </p>
+                  <p className="text-sm text-gray-400">
+                    {language === 'ja' ? 'PDF, Excel, CSV対応（日本語・中国語・英語）' : '支持PDF, Excel, CSV（日语・中文・英语）'}
+                  </p>
+                </div>
+                <Button
+                  onClick={() => adCampaignFileInputRef.current?.click()}
+                  disabled={adCampaignAnalyzing}
+                  className="bg-blue-600 hover:bg-blue-500"
+                >
+                  {adCampaignAnalyzing ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{language === 'ja' ? '分析中...' : '分析中...'}</>
+                  ) : (
+                    <><Upload className="h-4 w-4 mr-2" />{language === 'ja' ? 'ファイルを選択' : '选择文件'}</>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {/* Analysis Result */}
+            {adCampaignAnalysisResult && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-yellow-400" />
+                    {language === 'ja' ? 'AI分析結果' : 'AI分析结果'}
+                  </h3>
+                  <Badge className={`${adCampaignAnalysisResult.detectedLanguage === 'ja' ? 'bg-red-500/30 text-red-300' : adCampaignAnalysisResult.detectedLanguage === 'zh' ? 'bg-yellow-500/30 text-yellow-300' : 'bg-blue-500/30 text-blue-300'}`}>
+                    {adCampaignAnalysisResult.detectedLanguage === 'ja' ? '日本語' : adCampaignAnalysisResult.detectedLanguage === 'zh' ? '中文' : 'English'}
+                  </Badge>
+                </div>
+
+                {/* Campaign Info */}
+                <div className="bg-gray-900/50 rounded-lg p-4 space-y-3">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-gray-400">{language === 'ja' ? 'キャンペーン名' : '投放名称'}</Label>
+                      <Input
+                        value={adCampaignAnalysisResult.campaignName || ''}
+                        onChange={(e) => setAdCampaignAnalysisResult({...adCampaignAnalysisResult, campaignName: e.target.value})}
+                        className="bg-gray-800/50 border-gray-700 text-white"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-gray-400">{language === 'ja' ? 'プラットフォーム' : '平台'}</Label>
+                      <Select
+                        value={adCampaignAnalysisResult.platform || 'tiktok'}
+                        onValueChange={(value) => setAdCampaignAnalysisResult({...adCampaignAnalysisResult, platform: value})}
+                      >
+                        <SelectTrigger className="bg-gray-800/50 border-gray-700 text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="tiktok">TikTok</SelectItem>
+                          <SelectItem value="facebook">Facebook</SelectItem>
+                          <SelectItem value="instagram">Instagram</SelectItem>
+                          <SelectItem value="google">Google</SelectItem>
+                          <SelectItem value="youtube">YouTube</SelectItem>
+                          <SelectItem value="other">{language === 'ja' ? 'その他' : '其他'}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-gray-400">
+                        {language === 'ja' ? '広告目的' : '广告目标'}
+                        <span className="ml-2 text-xs text-blue-400">
+                          (AI信頼度: {adCampaignAnalysisResult.objectiveConfidence || 0}%)
+                        </span>
+                      </Label>
+                      <Select
+                        value={adCampaignAnalysisResult.objective || 'impressions'}
+                        onValueChange={(value) => setAdCampaignAnalysisResult({...adCampaignAnalysisResult, objective: value})}
+                      >
+                        <SelectTrigger className="bg-gray-800/50 border-gray-700 text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="impressions">{language === 'ja' ? 'インプレッション（認知拡大）' : '曝光（认知扩大）'}</SelectItem>
+                          <SelectItem value="clicks">{language === 'ja' ? 'クリック（サイト誘導）' : '点击（网站引流）'}</SelectItem>
+                          <SelectItem value="conversions">{language === 'ja' ? 'コンバージョン（購入促進）' : '转化（购买促进）'}</SelectItem>
+                          <SelectItem value="awareness">{language === 'ja' ? 'ブランド認知' : '品牌认知'}</SelectItem>
+                          <SelectItem value="engagement">{language === 'ja' ? 'エンゲージメント' : '互动'}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-gray-400">{language === 'ja' ? '広告費' : '广告费'}</Label>
+                      <Input
+                        type="number"
+                        value={adCampaignAnalysisResult.actualSpend || 0}
+                        onChange={(e) => setAdCampaignAnalysisResult({...adCampaignAnalysisResult, actualSpend: Number(e.target.value)})}
+                        className="bg-gray-800/50 border-gray-700 text-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Metrics */}
+                {adCampaignAnalysisResult.metrics && (
+                  <div className="bg-gray-900/50 rounded-lg p-4">
+                    <h4 className="text-sm font-medium text-gray-400 mb-3">{language === 'ja' ? 'パフォーマンス指標' : '性能指标'}</h4>
+                    <div className="grid grid-cols-4 gap-3">
+                      <div className="bg-blue-950/30 rounded-lg p-3 text-center">
+                        <div className="text-xs text-blue-300">{language === 'ja' ? 'インプレッション' : '曝光'}</div>
+                        <div className="text-lg font-bold text-white">{(adCampaignAnalysisResult.metrics.impressions || 0).toLocaleString()}</div>
+                      </div>
+                      <div className="bg-green-950/30 rounded-lg p-3 text-center">
+                        <div className="text-xs text-green-300">{language === 'ja' ? '視聴数' : '观看数'}</div>
+                        <div className="text-lg font-bold text-white">{(adCampaignAnalysisResult.metrics.views || 0).toLocaleString()}</div>
+                      </div>
+                      <div className="bg-purple-950/30 rounded-lg p-3 text-center">
+                        <div className="text-xs text-purple-300">{language === 'ja' ? 'クリック' : '点击'}</div>
+                        <div className="text-lg font-bold text-white">{(adCampaignAnalysisResult.metrics.clicks || 0).toLocaleString()}</div>
+                      </div>
+                      <div className="bg-amber-950/30 rounded-lg p-3 text-center">
+                        <div className="text-xs text-amber-300">GMV</div>
+                        <div className="text-lg font-bold text-white">¥{(adCampaignAnalysisResult.metrics.gmv || 0).toLocaleString()}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Country Breakdown */}
+                {adCampaignAnalysisResult.countryBreakdown && adCampaignAnalysisResult.countryBreakdown.length > 0 && (
+                  <div className="bg-gray-900/50 rounded-lg p-4">
+                    <h4 className="text-sm font-medium text-gray-400 mb-3">{language === 'ja' ? '国別パフォーマンス' : '国家分布'}</h4>
+                    <div className="space-y-2">
+                      {adCampaignAnalysisResult.countryBreakdown.map((country: any, index: number) => (
+                        <div key={index} className="flex items-center justify-between bg-gray-800/50 rounded-lg p-3">
+                          <div className="flex items-center gap-3">
+                            <span className="text-2xl">
+                              {country.countryCode === 'ID' ? '🇮🇩' :
+                               country.countryCode === 'TH' ? '🇹🇭' :
+                               country.countryCode === 'PH' ? '🇵🇭' :
+                               country.countryCode === 'VN' ? '🇻🇳' :
+                               country.countryCode === 'MY' ? '🇲🇾' :
+                               country.countryCode === 'KH' ? '🇰🇭' : '🌏'}
+                            </span>
+                            <span className="text-white">{country.countryName}</span>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <div className="w-32 bg-gray-700 rounded-full h-2">
+                              <div
+                                className="bg-blue-500 h-2 rounded-full"
+                                style={{ width: `${country.percentage}%` }}
+                              />
+                            </div>
+                            <span className="text-blue-300 font-medium w-12 text-right">{country.percentage}%</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Save Button */}
+                <div className="flex justify-end gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setAdCampaignAnalysisResult(null);
+                      setAdCampaignFile(null);
+                    }}
+                    className="border-gray-600"
+                  >
+                    {language === 'ja' ? 'クリア' : '清除'}
+                  </Button>
+                  <Button
+                    onClick={async () => {
+                      try {
+                        await createAdCampaignMutation.mutateAsync({
+                          brandId,
+                          name: adCampaignAnalysisResult.campaignName,
+                          platform: adCampaignAnalysisResult.platform,
+                          objective: adCampaignAnalysisResult.objective,
+                          objectiveConfidence: adCampaignAnalysisResult.objectiveConfidence,
+                          startDate: adCampaignAnalysisResult.startDate,
+                          endDate: adCampaignAnalysisResult.endDate,
+                          budget: adCampaignAnalysisResult.budget,
+                          actualSpend: adCampaignAnalysisResult.actualSpend,
+                          status: 'completed',
+                          detectedLanguage: adCampaignAnalysisResult.detectedLanguage,
+                          sourceFileUrl: adCampaignAnalysisResult.sourceFileUrl,
+                          sourceFileKey: adCampaignAnalysisResult.sourceFileKey,
+                          impressions: adCampaignAnalysisResult.metrics?.impressions,
+                          views: adCampaignAnalysisResult.metrics?.views,
+                          views6s: adCampaignAnalysisResult.metrics?.views6s,
+                          clicks: adCampaignAnalysisResult.metrics?.clicks,
+                          conversions: adCampaignAnalysisResult.metrics?.conversions,
+                          gmv: adCampaignAnalysisResult.metrics?.gmv,
+                          orderCount: adCampaignAnalysisResult.metrics?.orderCount,
+                          cartAdds: adCampaignAnalysisResult.metrics?.cartAdds,
+                          countryBreakdown: adCampaignAnalysisResult.countryBreakdown,
+                        });
+                        toast.success(language === 'ja' ? 'キャンペーンを保存しました' : '已保存投放');
+                        setAdCampaignAnalysisResult(null);
+                        setAdCampaignFile(null);
+                        refetchAdCampaigns();
+                      } catch (error) {
+                        toast.error(language === 'ja' ? '保存に失敗しました' : '保存失败');
+                      }
+                    }}
+                    disabled={createAdCampaignMutation.isPending}
+                    className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500"
+                  >
+                    {createAdCampaignMutation.isPending ? (
+                      <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{language === 'ja' ? '保存中...' : '保存中...'}</>
+                    ) : (
+                      <><Save className="h-4 w-4 mr-2" />{language === 'ja' ? 'キャンペーンを保存' : '保存投放'}</>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Existing Campaigns List */}
+            {adCampaigns.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-lg font-bold text-white">{language === 'ja' ? '保存済みキャンペーン' : '已保存的投放'}</h3>
+                <div className="space-y-2">
+                  {adCampaigns.map((campaign: any) => (
+                    <div key={campaign.id} className="bg-gray-900/50 border border-gray-700 rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Badge className={`${campaign.platform === 'tiktok' ? 'bg-pink-500/30 text-pink-300' : 'bg-blue-500/30 text-blue-300'}`}>
+                            {campaign.platform.toUpperCase()}
+                          </Badge>
+                          <span className="font-medium text-white">{campaign.name}</span>
+                          <Badge className={`${campaign.objective === 'impressions' ? 'bg-blue-500/20 text-blue-300' : campaign.objective === 'clicks' ? 'bg-green-500/20 text-green-300' : 'bg-purple-500/20 text-purple-300'}`}>
+                            {campaign.objective === 'impressions' ? (language === 'ja' ? 'インプレッション' : '曝光') :
+                             campaign.objective === 'clicks' ? (language === 'ja' ? 'クリック' : '点击') :
+                             campaign.objective === 'conversions' ? (language === 'ja' ? 'コンバージョン' : '转化') :
+                             campaign.objective}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span className="text-green-400 font-medium">¥{(campaign.actualSpend || 0).toLocaleString()}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={async () => {
+                              if (confirm(language === 'ja' ? 'このキャンペーンを削除しますか？' : '确定删除此投放？')) {
+                                await deleteAdCampaignMutation.mutateAsync({ id: campaign.id });
+                                refetchAdCampaigns();
+                                toast.success(language === 'ja' ? '削除しました' : '已删除');
+                              }
+                            }}
+                            className="text-red-400 hover:text-red-300 hover:bg-red-950/50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setAdCampaignDialogOpen(false)}
+              className="border-blue-500/50 bg-blue-950/50 text-gray-200 hover:bg-blue-900/40 hover:text-white"
+            >
+              {language === 'ja' ? '閉じる' : '关闭'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS ad_country_breakdown (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  campaignId INT NOT NULL,\n  countryCode VARCHAR(10) NOT NULL,\n  countryName VARCHAR(100) NOT NULL,\n  percentage DECIMAL(5, 2) NOT NULL,\n  impressions BIGINT DEFAULT 0,\n  clicks BIGINT DEFAULT 0,\n  gmv BIGINT DEFAULT 0,\n  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute CREATE TABLE IF NOT EXISTS ad_country_breakdown (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  campaignId INT NOT NULL,\n  countryCode VARCHAR(10) NOT NULL,\n  countryName VARCHAR(100) NOT NULL,\n  percentage DECIMAL(5, 2) NOT NULL,\n  impressions BIGINT DEFAULT 0,\n  clicks BIGINT DEFAULT 0,\n  gmv BIGINT DEFAULT 0,\n  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1602
+}
