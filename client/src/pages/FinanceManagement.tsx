@@ -171,7 +171,8 @@ export default function FinanceManagement() {
       if (activeTab === 'daily') dailyQuery.refetch();
     } catch (err: any) {
       console.error("CSV upload error:", err);
-      toast.error(err?.message || "CSVアップロードに失敗しました");
+      const errMsg = err?.message || "CSVアップロードに失敗しました";
+      toast.error(errMsg.length > 100 ? errMsg.substring(0, 100) + "..." : errMsg);
     } finally {
       setCsvUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";

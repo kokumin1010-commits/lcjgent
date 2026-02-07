@@ -140,7 +140,8 @@ export default function BrandFinance() {
       refetchAll();
     } catch (error: any) {
       console.error("CSV upload error:", error);
-      toast.error(error?.message || "ファイル読み込みエラー");
+      const errMsg = error?.message || "ファイル読み込みエラー";
+      toast.error(errMsg.length > 100 ? errMsg.substring(0, 100) + "..." : errMsg);
     } finally {
       setCsvUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";

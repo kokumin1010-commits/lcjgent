@@ -493,7 +493,19 @@ async function startServer() {
   });
 
   // CSV Upload REST API endpoint (avoids tRPC Base64 size issues)
-  app.post("/api/csv-upload", upload.single("file"), async (req: any, res) => {
+  // Wrap multer in error handler to prevent raw error responses
+  app.post("/api/csv-upload", (req: any, res: any, next: any) => {
+    upload.single("file")(req, res, (err: any) => {
+      if (err) {
+        console.error("[CSV Upload REST] Multer error:", err.message);
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ error: "ファイルサイズが大きすぎます（16MB以下にしてください）" });
+        }
+        return res.status(400).json({ error: `ファイルアップロードエラー: ${err.message?.substring(0, 100) || '不明なエラー'}` });
+      }
+      next();
+    });
+  }, async (req: any, res) => {
     try {
       // Authenticate user
       let user;
@@ -705,16 +717,33 @@ async function startServer() {
       } catch (error: any) {
         const safeMsg = csvSanitizeErrorMessage(error.message || "Unknown error");
         console.error("[CSV Upload REST] Import error:", safeMsg);
-        await updateTiktokCsvImportHistory(importId, {
-          status: "failed",
-          errorMessage: safeMsg,
-        });
-        res.status(500).json({ error: `CSVインポートに失敗しました: ${safeMsg}` });
+        // Try to update import history, but don't let this fail the response
+        try {
+          await updateTiktokCsvImportHistory(importId, {
+            status: "failed",
+            errorMessage: safeMsg.substring(0, 500),
+          });
+        } catch (updateErr) {
+          console.error("[CSV Upload REST] Failed to update import history:", updateErr);
+        }
+        if (!res.headersSent) {
+          res.status(500).json({ error: `CSVインポートに失敗しました: ${safeMsg}` });
+        }
       }
     } catch (error: any) {
       const safeMsg = csvSanitizeErrorMessage(error.message || "CSVアップロードに失敗しました");
       console.error("[CSV Upload REST] Error:", safeMsg);
-      res.status(500).json({ error: safeMsg });
+      if (!res.headersSent) {
+        res.status(500).json({ error: safeMsg });
+      }
+    }
+  });
+
+  // Global Express error handler to prevent raw error text responses
+  app.use((err: any, _req: any, res: any, _next: any) => {
+    console.error("[Express Error Handler]", err.message?.substring(0, 200));
+    if (!res.headersSent) {
+      res.status(500).json({ error: "サーバーエラーが発生しました。再度お試しください。" });
     }
   });
 
@@ -896,15 +925,21 @@ function csvSanitizeErrorMessage(msg: string): string {
   // Remove SQL parameter dumps from error messages (they can be huge)
   // Truncate to max 200 chars to prevent leaking sensitive data
   if (!msg) return "不明なエラーが発生しました";
-  // Remove everything after "params:" or "values:" or SQL query dumps
-  const cutPatterns = [/\s*params:.*$/i, /\s*values\s*\(.*$/i, /\s*\[.*\]$/];
   let cleaned = msg;
-  for (const pattern of cutPatterns) {
-    cleaned = cleaned.replace(pattern, "");
+  // Remove everything after "params:" or "values (" or SQL query dumps
+  // Use [\s\S] instead of . to match across newlines
+  const cutPoints = ['params:', 'values (', 'values(', 'Failed query:', 'insert into', 'update `'];
+  for (const cutPoint of cutPoints) {
+    const idx = cleaned.toLowerCase().indexOf(cutPoint.toLowerCase());
+    if (idx >= 0 && idx < 150) {
+      cleaned = cleaned.substring(0, idx).trim();
+    }
   }
-  // Also truncate if still too long
+  // Remove any remaining SQL-like content
+  cleaned = cleaned.replace(/`[^`]*`/g, '[table]');
+  // Hard truncate to 200 chars
   if (cleaned.length > 200) {
     cleaned = cleaned.substring(0, 200) + "...";
   }
-  return cleaned || "不明なエラーが発生しました";
+  return cleaned || "CSVインポート中にエラーが発生しました";
 }
