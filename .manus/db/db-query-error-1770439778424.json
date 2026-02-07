@@ -1,0 +1,8 @@
+{
+  "query": "ALTER TABLE livestream_sets MODIFY COLUMN discountRate int(11) DEFAULT 0;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute ALTER TABLE livestream_sets MODIFY COLUMN discountRate int(11) DEFAULT 0;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1292 (22007) at line 1: Truncated incorrect DOUBLE value: '?'"
+  ]
+}

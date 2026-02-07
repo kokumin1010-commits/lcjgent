@@ -1,0 +1,18 @@
+{
+  "query": "SELECT id, discountRate FROM livestream_sets LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, discountRate FROM livestream_sets LIMIT 10;",
+  "rows": [
+    {
+      "id": "1",
+      "discountRate": "33%"
+    },
+    {
+      "id": "2",
+      "discountRate": "33%"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tdiscountRate\n1\t33%\n2\t33%\n",
+  "stderr": "",
+  "execution_time_ms": 1668
+}

@@ -2400,13 +2400,16 @@ export const livestreamSets = mysqlTable("livestream_sets", {
   
   // セット情報
   setName: varchar("setName", { length: 255 }).notNull(), // セット名（例：「美容3点セット」）
-  setPrice: int("setPrice").notNull(), // セット売値（円）
+  setPrice: bigint("setPrice", { mode: "number" }).notNull(), // セット売値（円）
   quantitySold: int("quantitySold").default(1).notNull(), // 販売数量
   
   // 自動計算フィールド
-  totalOriginalPrice: int("totalOriginalPrice").default(0), // 元値合計（商品の元値を合算）
+  totalOriginalPrice: bigint("totalOriginalPrice", { mode: "number" }).default(0), // 元値合計（商品の元値を合算）
   discountRate: int("discountRate").default(0), // お得率（%）
-  totalRevenue: int("totalRevenue").default(0), // セット売上合計（売値 × 販売数量）
+  totalRevenue: bigint("totalRevenue", { mode: "number" }).default(0), // セット売上合計（売値 × 販売数量）
+  
+  // 作成者
+  createdBy: int("createdBy").notNull().default(0),
   
   // 並び順
   sortOrder: int("sortOrder").default(0),
@@ -2429,7 +2432,7 @@ export const livestreamSetItems = mysqlTable("livestream_set_items", {
   
   // 商品情報
   productName: varchar("productName", { length: 255 }).notNull(), // 商品名（自由入力）
-  originalPrice: int("originalPrice").notNull(), // 元値（定価）
+  originalPrice: bigint("originalPrice", { mode: "number" }).notNull(), // 元値（定価）
   
   // 並び順
   sortOrder: int("sortOrder").default(0),

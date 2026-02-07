@@ -1,0 +1,20 @@
+{
+  "query": "SELECT id, discountRate, HEX(discountRate) as hex_val FROM livestream_sets;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, discountRate, HEX(discountRate) as hex_val FROM livestream_sets;",
+  "rows": [
+    {
+      "id": "1",
+      "discountRate": "33%",
+      "hex_val": "333325"
+    },
+    {
+      "id": "2",
+      "discountRate": "33%",
+      "hex_val": "333325"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tdiscountRate\thex_val\n1\t33%\t333325\n2\t33%\t333325\n",
+  "stderr": "",
+  "execution_time_ms": 1606
+}

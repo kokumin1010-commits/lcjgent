@@ -1,0 +1,23 @@
+{
+  "query": "SHOW CREATE TABLE livestream_set_items;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SHOW CREATE TABLE livestream_set_items;",
+  "rows": [
+    {
+      "Table": "livestream_set_items",
+      "Create Table": "CREATE TABLE `livestream_set_items` ("
+    }
+  ],
+  "messages": [
+    "  `id` int(11) NOT NULL AUTO_INCREMENT,",
+    "  `setId` int(11) NOT NULL,",
+    "  `productName` varchar(255) NOT NULL,",
+    "  `originalPrice` bigint(20) NOT NULL,",
+    "  `sortOrder` int(11) NOT NULL DEFAULT '0',",
+    "  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,",
+    "  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */",
+    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin AUTO_INCREMENT=30001"
+  ],
+  "stdout": "Table\tCreate Table\nlivestream_set_items\tCREATE TABLE `livestream_set_items` (\n  `id` int(11) NOT NULL AUTO_INCREMENT,\n  `setId` int(11) NOT NULL,\n  `productName` varchar(255) NOT NULL,\n  `originalPrice` bigint(20) NOT NULL,\n  `sortOrder` int(11) NOT NULL DEFAULT '0',\n  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin AUTO_INCREMENT=30001\n",
+  "stderr": "",
+  "execution_time_ms": 1572
+}
