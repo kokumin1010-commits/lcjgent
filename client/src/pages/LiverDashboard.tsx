@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,8 @@ import {
   Star,
   ChevronUp,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Edit2,
   Check,
   X
@@ -46,6 +48,27 @@ ChartJS.register(
   Legend
 );
 
+function getYearMonth(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function formatYearMonthLabel(ym: string): string {
+  const [year, month] = ym.split("-");
+  return `${year}年${parseInt(month)}月`;
+}
+
+function prevYearMonth(ym: string): string {
+  const [year, month] = ym.split("-").map(Number);
+  const d = new Date(year, month - 2, 1);
+  return getYearMonth(d);
+}
+
+function nextYearMonth(ym: string): string {
+  const [year, month] = ym.split("-").map(Number);
+  const d = new Date(year, month, 1);
+  return getYearMonth(d);
+}
+
 export default function LiverDashboard() {
   const [, navigate] = useLocation();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -53,9 +76,13 @@ export default function LiverDashboard() {
   const [goalInput, setGoalInput] = useState("");
   const [streamCountGoalInput, setStreamCountGoalInput] = useState("");
   
-  // Get current year-month
-  const now = new Date();
-  const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  // Month selection state
+  const now = useMemo(() => new Date(), []);
+  const currentYearMonthStr = useMemo(() => getYearMonth(now), [now]);
+  const [selectedYearMonth, setSelectedYearMonth] = useState(currentYearMonthStr);
+  
+  const isCurrentMonth = selectedYearMonth === currentYearMonthStr;
+  const isFutureMonth = selectedYearMonth > currentYearMonthStr;
   
   // Check authentication
   useEffect(() => {
@@ -67,9 +94,9 @@ export default function LiverDashboard() {
     setIsAuthenticated(true);
   }, [navigate]);
   
-  // Fetch dashboard stats
+  // Fetch dashboard stats for selected month
   const { data: stats, isLoading, refetch } = trpc.liver.getDashboardStats.useQuery(
-    { yearMonth: currentYearMonth },
+    { yearMonth: selectedYearMonth },
     { enabled: isAuthenticated }
   );
   
@@ -86,10 +113,25 @@ export default function LiverDashboard() {
     const streamCountGoal = parseInt(streamCountGoalInput) || 0;
     
     setGoalMutation.mutate({
-      yearMonth: currentYearMonth,
+      yearMonth: selectedYearMonth,
       salesGoal,
       streamCountGoal,
     });
+  };
+  
+  const handlePrevMonth = () => {
+    setSelectedYearMonth(prevYearMonth(selectedYearMonth));
+  };
+  
+  const handleNextMonth = () => {
+    const next = nextYearMonth(selectedYearMonth);
+    if (next <= currentYearMonthStr) {
+      setSelectedYearMonth(next);
+    }
+  };
+  
+  const handleGoToCurrentMonth = () => {
+    setSelectedYearMonth(currentYearMonthStr);
   };
   
   const formatCurrency = (amount: number) => {
@@ -122,15 +164,23 @@ export default function LiverDashboard() {
   // Chart data for past 6 months
   const chartData = {
     labels: stats?.past6Months?.map(m => {
-      const [year, month] = m.yearMonth.split("-");
-      return `${month}月`;
+      const [, month] = m.yearMonth.split("-");
+      return `${parseInt(month)}月`;
     }) || [],
     datasets: [
       {
         label: "売上",
         data: stats?.past6Months?.map(m => m.sales) || [],
-        backgroundColor: "rgba(239, 68, 68, 0.5)",
-        borderColor: "rgb(239, 68, 68)",
+        backgroundColor: stats?.past6Months?.map(m => 
+          m.yearMonth === selectedYearMonth 
+            ? "rgba(239, 68, 68, 0.8)" 
+            : "rgba(239, 68, 68, 0.4)"
+        ) || [],
+        borderColor: stats?.past6Months?.map(m => 
+          m.yearMonth === selectedYearMonth 
+            ? "rgb(239, 68, 68)" 
+            : "rgba(239, 68, 68, 0.6)"
+        ) || [],
         borderWidth: 2,
         borderRadius: 8,
       },
@@ -214,13 +264,55 @@ export default function LiverDashboard() {
       </header>
       
       <main className="container mx-auto px-4 py-6 space-y-6">
+        {/* Month Selector */}
+        <div className="flex items-center justify-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handlePrevMonth}
+            className="text-gray-400 hover:text-white hover:bg-gray-800 rounded-full"
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </Button>
+          
+          <button
+            onClick={handleGoToCurrentMonth}
+            className="min-w-[180px] text-center"
+          >
+            <div className="text-2xl font-bold text-white">
+              {formatYearMonthLabel(selectedYearMonth)}
+            </div>
+            {!isCurrentMonth && (
+              <div className="text-xs text-blue-400 mt-1">
+                タップで今月に戻る
+              </div>
+            )}
+            {isCurrentMonth && (
+              <div className="text-xs text-green-400 mt-1 flex items-center justify-center gap-1">
+                <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                今月
+              </div>
+            )}
+          </button>
+          
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleNextMonth}
+            disabled={isCurrentMonth || isFutureMonth}
+            className="text-gray-400 hover:text-white hover:bg-gray-800 rounded-full disabled:opacity-30"
+          >
+            <ChevronRight className="w-6 h-6" />
+          </Button>
+        </div>
+        
         {/* Goal Progress Card */}
         <Card className="bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 overflow-hidden">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg flex items-center gap-2 text-white">
                 <Target className="w-5 h-5 text-red-400" />
-                今月のゴール進捗
+                {formatYearMonthLabel(selectedYearMonth)}のゴール進捗
               </CardTitle>
               {!isEditingGoal ? (
                 <Button
@@ -312,26 +404,37 @@ export default function LiverDashboard() {
                       </div>
                     </div>
                     
-                    <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-700">
-                      <div className="text-center">
-                        <div className="text-sm text-gray-400 flex items-center justify-center gap-1">
-                          <Flame className="w-4 h-4 text-orange-400" />
-                          あと
+                    {isCurrentMonth && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="text-center">
+                          <div className="text-sm text-gray-400 flex items-center justify-center gap-1">
+                            <Flame className="w-4 h-4 text-orange-400" />
+                            あと
+                          </div>
+                          <div className="text-lg font-bold text-orange-400">
+                            {formatCurrency(remainingSales)}
+                          </div>
                         </div>
-                        <div className="text-lg font-bold text-orange-400">
-                          {formatCurrency(remainingSales)}
+                        <div className="text-center">
+                          <div className="text-sm text-gray-400 flex items-center justify-center gap-1">
+                            <Calendar className="w-4 h-4 text-blue-400" />
+                            残り{remainingDays}日
+                          </div>
+                          <div className="text-lg font-bold text-blue-400">
+                            {formatCurrency(dailyPaceNeeded)}/日
+                          </div>
                         </div>
                       </div>
+                    )}
+                    
+                    {!isCurrentMonth && salesGoal > 0 && (
                       <div className="text-center">
-                        <div className="text-sm text-gray-400 flex items-center justify-center gap-1">
-                          <Calendar className="w-4 h-4 text-blue-400" />
-                          残り{remainingDays}日
-                        </div>
-                        <div className="text-lg font-bold text-blue-400">
-                          {formatCurrency(dailyPaceNeeded)}/日
+                        <div className="text-sm text-gray-400">達成率</div>
+                        <div className={`text-2xl font-bold ${salesProgress >= 100 ? "text-green-400" : "text-orange-400"}`}>
+                          {salesProgress >= 100 ? "🎉 目標達成！" : `${salesProgress}% (残り ${formatCurrency(remainingSales)})`}
                         </div>
                       </div>
-                    </div>
+                    )}
                   </>
                 )}
               </>
@@ -339,7 +442,7 @@ export default function LiverDashboard() {
           </CardContent>
         </Card>
         
-        {/* Growth Tracker */}
+        {/* Growth Tracker - with month label */}
         <div className="grid grid-cols-2 gap-4">
           <Card className="bg-gray-800 border-gray-700">
             <CardContent className="pt-4">
@@ -355,6 +458,12 @@ export default function LiverDashboard() {
                 {(stats?.growth?.salesGrowth || 0) >= 0 ? "+" : ""}{stats?.growth?.salesGrowth || 0}%
               </div>
               <div className="text-xs text-white/50">前月比</div>
+              <div className="text-xs text-white/40 mt-1">
+                {formatYearMonthLabel(selectedYearMonth)}: {formatCurrency(currentSales)}
+              </div>
+              <div className="text-xs text-white/30">
+                {formatYearMonthLabel(prevYearMonth(selectedYearMonth))}: {formatCurrency(stats?.previousMonth?.sales || 0)}
+              </div>
             </CardContent>
           </Card>
           
@@ -372,6 +481,12 @@ export default function LiverDashboard() {
                 {(stats?.growth?.streamCountGrowth || 0) >= 0 ? "+" : ""}{stats?.growth?.streamCountGrowth || 0}%
               </div>
               <div className="text-xs text-white/50">前月比</div>
+              <div className="text-xs text-white/40 mt-1">
+                {formatYearMonthLabel(selectedYearMonth)}: {stats?.currentMonth?.streamCount || 0}回
+              </div>
+              <div className="text-xs text-white/30">
+                {formatYearMonthLabel(prevYearMonth(selectedYearMonth))}: {stats?.previousMonth?.streamCount || 0}回
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -381,7 +496,7 @@ export default function LiverDashboard() {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2 text-white">
               <TrendingUp className="w-5 h-5 text-red-400" />
-              売上推移（過去6ヶ月）
+              売上推移（{formatYearMonthLabel(selectedYearMonth)}を含む過去6ヶ月）
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -396,7 +511,7 @@ export default function LiverDashboard() {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2 text-white">
               <Trophy className="w-5 h-5 text-yellow-400" />
-              売れ筋TOP5
+              売れ筋TOP5（{formatYearMonthLabel(selectedYearMonth)}）
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -423,7 +538,7 @@ export default function LiverDashboard() {
               </div>
             ) : (
               <div className="text-center text-gray-500 py-4">
-                データがありません
+                {formatYearMonthLabel(selectedYearMonth)}のデータがありません
               </div>
             )}
           </CardContent>
@@ -435,7 +550,7 @@ export default function LiverDashboard() {
             <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2 text-white">
               <Clock className="w-5 h-5 text-green-400" />
-              ゴールデンタイム発見！
+              ゴールデンタイム発見！（{formatYearMonthLabel(selectedYearMonth)}）
             </CardTitle>
             </CardHeader>
             <CardContent>
@@ -460,7 +575,7 @@ export default function LiverDashboard() {
             <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2 text-white">
               <Clock className="w-5 h-5 text-green-400" />
-              時間帯別売上効率
+              時間帯別売上効率（{formatYearMonthLabel(selectedYearMonth)}）
             </CardTitle>
             </CardHeader>
             <CardContent>
@@ -486,7 +601,7 @@ export default function LiverDashboard() {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2 text-white">
               <Star className="w-5 h-5 text-yellow-400" />
-              今月のハイライト
+              {formatYearMonthLabel(selectedYearMonth)}のハイライト
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -521,7 +636,7 @@ export default function LiverDashboard() {
                 <Calendar className="w-5 h-5 text-blue-400" />
               </div>
               <div>
-                <div className="text-sm text-white/70">今月の配信回数</div>
+                <div className="text-sm text-white/70">{formatYearMonthLabel(selectedYearMonth)}の配信回数</div>
                 <div className="font-bold text-white">{stats?.currentMonth?.streamCount || 0}回</div>
               </div>
             </div>
@@ -531,7 +646,7 @@ export default function LiverDashboard() {
                 <Clock className="w-5 h-5 text-purple-400" />
               </div>
               <div>
-                <div className="text-sm text-white/70">今月の配信時間</div>
+                <div className="text-sm text-white/70">{formatYearMonthLabel(selectedYearMonth)}の配信時間</div>
                 <div className="font-bold text-white">{((stats?.currentMonth?.duration || 0) / 60).toFixed(1)}時間</div>
               </div>
             </div>

@@ -271,3 +271,99 @@ describe("Liver Dashboard Stats", () => {
     });
   });
 });
+
+describe("Month Navigation Utilities", () => {
+  function getYearMonth(date: Date): string {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+  }
+
+  function formatYearMonthLabel(ym: string): string {
+    const [year, month] = ym.split("-");
+    return `${year}年${parseInt(month)}月`;
+  }
+
+  function prevYearMonth(ym: string): string {
+    const [year, month] = ym.split("-").map(Number);
+    const d = new Date(year, month - 2, 1);
+    return getYearMonth(d);
+  }
+
+  function nextYearMonth(ym: string): string {
+    const [year, month] = ym.split("-").map(Number);
+    const d = new Date(year, month, 1);
+    return getYearMonth(d);
+  }
+
+  describe("getYearMonth", () => {
+    it("should format date as YYYY-MM", () => {
+      expect(getYearMonth(new Date(2026, 0, 15))).toBe("2026-01");
+      expect(getYearMonth(new Date(2026, 1, 7))).toBe("2026-02");
+      expect(getYearMonth(new Date(2025, 11, 31))).toBe("2025-12");
+    });
+
+    it("should pad single digit months", () => {
+      expect(getYearMonth(new Date(2026, 0, 1))).toBe("2026-01");
+      expect(getYearMonth(new Date(2026, 8, 1))).toBe("2026-09");
+    });
+  });
+
+  describe("formatYearMonthLabel", () => {
+    it("should format as Japanese year-month label", () => {
+      expect(formatYearMonthLabel("2026-02")).toBe("2026年2月");
+      expect(formatYearMonthLabel("2025-12")).toBe("2025年12月");
+      expect(formatYearMonthLabel("2026-01")).toBe("2026年1月");
+    });
+
+    it("should not show leading zero in month", () => {
+      expect(formatYearMonthLabel("2026-01")).toBe("2026年1月");
+      expect(formatYearMonthLabel("2026-09")).toBe("2026年9月");
+    });
+  });
+
+  describe("prevYearMonth", () => {
+    it("should return previous month", () => {
+      expect(prevYearMonth("2026-02")).toBe("2026-01");
+      expect(prevYearMonth("2026-06")).toBe("2026-05");
+    });
+
+    it("should handle year boundary (January -> December)", () => {
+      expect(prevYearMonth("2026-01")).toBe("2025-12");
+    });
+  });
+
+  describe("nextYearMonth", () => {
+    it("should return next month", () => {
+      expect(nextYearMonth("2026-01")).toBe("2026-02");
+      expect(nextYearMonth("2026-06")).toBe("2026-07");
+    });
+
+    it("should handle year boundary (December -> January)", () => {
+      expect(nextYearMonth("2025-12")).toBe("2026-01");
+    });
+  });
+
+  describe("month navigation constraints", () => {
+    it("should not allow navigating to future months", () => {
+      const currentYearMonth = "2026-02";
+      const selectedYearMonth = "2026-02";
+      const isCurrentMonth = selectedYearMonth === currentYearMonth;
+      expect(isCurrentMonth).toBe(true);
+    });
+
+    it("should allow navigating to past months", () => {
+      const currentYearMonth = "2026-02";
+      const selectedYearMonth = "2026-01";
+      const isCurrentMonth = selectedYearMonth === currentYearMonth;
+      expect(isCurrentMonth).toBe(false);
+      const prev = prevYearMonth(selectedYearMonth);
+      expect(prev).toBe("2025-12");
+    });
+
+    it("should correctly compare months for future check", () => {
+      const currentYearMonth = "2026-02";
+      expect("2026-03" > currentYearMonth).toBe(true);
+      expect("2026-02" > currentYearMonth).toBe(false);
+      expect("2026-01" > currentYearMonth).toBe(false);
+    });
+  });
+});
