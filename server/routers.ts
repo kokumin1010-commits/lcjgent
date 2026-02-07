@@ -367,11 +367,15 @@ import {
   deleteTiktokOrdersByImportId,
   deleteTiktokImportHistory,
   getExistingSubOrderIds,
+  createLivestreamSet,
+  createLivestreamSetItem,
+  getLivestreamSetsByLivestreamId,
+  deleteLivestreamSetsByLivestreamId,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
-import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders } from "../drizzle/schema";
+import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems } from "../drizzle/schema";
 import { eq, and, not, isNotNull, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
@@ -7859,6 +7863,16 @@ ${conversationText}
           targetForNextTime: z.string().optional(),
         }).optional(),
         calculatedMetrics: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
+        // セット組みデータ（任意）
+        sets: z.array(z.object({
+          setName: z.string().min(1),
+          setPrice: z.number().min(0),
+          quantitySold: z.number().min(1),
+          items: z.array(z.object({
+            productName: z.string().min(1),
+            originalPrice: z.number().min(0),
+          })).min(1),
+        })).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         // Get liver info for streamerName and LINE notification
@@ -7914,7 +7928,7 @@ ${conversationText}
           return result;
         };
         
-        const id = await createBrandLivestream({
+        const livestreamResult = await createBrandLivestream({
           brandId: input.brandId,
           liverId: input.liverId,
           scheduleId: input.scheduleId,
@@ -7943,6 +7957,7 @@ ${conversationText}
           streamerName,
           createdBy: ctx.user?.id || 0,
         });
+        const id = livestreamResult.id;
         
         // Send LINE notification if liver has LINE connected and notifications enabled
         let lineNotificationSent = false;
@@ -7962,6 +7977,41 @@ ${conversationText}
             }
           } catch (error) {
             console.error("[LINE Coaching] Exception:", error);
+          }
+        }
+        
+        // セット組みデータの保存
+        if (input.sets && input.sets.length > 0) {
+          for (let i = 0; i < input.sets.length; i++) {
+            const set = input.sets[i];
+            const totalOriginalPrice = set.items.reduce((sum, item) => sum + item.originalPrice, 0);
+            const discountRate = totalOriginalPrice > 0
+              ? Math.round(((totalOriginalPrice - set.setPrice) / totalOriginalPrice) * 100)
+              : 0;
+            const totalRevenue = set.setPrice * set.quantitySold;
+            
+            const setResult = await createLivestreamSet({
+              livestreamId: id,
+              setName: set.setName,
+              setPrice: set.setPrice,
+              quantitySold: set.quantitySold,
+              totalOriginalPrice,
+              discountRate,
+              totalRevenue,
+              sortOrder: i,
+            });
+            
+            const setId = (setResult as any)[0]?.insertId;
+            if (setId) {
+              for (let j = 0; j < set.items.length; j++) {
+                await createLivestreamSetItem({
+                  setId,
+                  productName: set.items[j].productName,
+                  originalPrice: set.items[j].originalPrice,
+                  sortOrder: j,
+                });
+              }
+            }
           }
         }
         
@@ -10858,6 +10908,75 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           dateFrom: input.dateFrom ? new Date(input.dateFrom) : undefined,
           dateTo: input.dateTo ? new Date(input.dateTo) : undefined,
         });
+      }),
+  }),
+
+  // セット組み管理
+  livestreamSets: router({
+    bulkCreate: publicProcedure
+      .input(z.object({
+        livestreamId: z.number(),
+        sets: z.array(z.object({
+          setName: z.string().min(1),
+          setPrice: z.number().min(0),
+          quantitySold: z.number().min(1),
+          items: z.array(z.object({
+            productName: z.string().min(1),
+            originalPrice: z.number().min(0),
+          })).min(1),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        // Delete existing sets for this livestream first
+        await deleteLivestreamSetsByLivestreamId(input.livestreamId);
+        
+        // Create new sets
+        for (let i = 0; i < input.sets.length; i++) {
+          const set = input.sets[i];
+          const totalOriginalPrice = set.items.reduce((sum, item) => sum + item.originalPrice, 0);
+          const discountRate = totalOriginalPrice > 0
+            ? Math.round(((totalOriginalPrice - set.setPrice) / totalOriginalPrice) * 100)
+            : 0;
+          const totalRevenue = set.setPrice * set.quantitySold;
+          
+          const setResult = await createLivestreamSet({
+            livestreamId: input.livestreamId,
+            setName: set.setName,
+            setPrice: set.setPrice,
+            quantitySold: set.quantitySold,
+            totalOriginalPrice,
+            discountRate,
+            totalRevenue,
+            sortOrder: i,
+          });
+          
+          const setId = (setResult as any)[0]?.insertId;
+          if (setId) {
+            for (let j = 0; j < set.items.length; j++) {
+              await createLivestreamSetItem({
+                setId,
+                productName: set.items[j].productName,
+                originalPrice: set.items[j].originalPrice,
+                sortOrder: j,
+              });
+            }
+          }
+        }
+        
+        return { success: true };
+      }),
+
+    listByLivestream: publicProcedure
+      .input(z.object({ livestreamId: z.number() }))
+      .query(async ({ input }) => {
+        return await getLivestreamSetsByLivestreamId(input.livestreamId);
+      }),
+
+    deleteAllByLivestream: publicProcedure
+      .input(z.object({ livestreamId: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteLivestreamSetsByLivestreamId(input.livestreamId);
+        return { success: true };
       }),
   }),
 });

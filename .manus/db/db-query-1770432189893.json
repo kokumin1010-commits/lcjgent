@@ -1,0 +1,9 @@
+{
+  "query": "\nCREATE TABLE IF NOT EXISTS `livestream_sets` (\n  `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY,\n  `livestreamId` int NOT NULL,\n  `setName` varchar(255) NOT NULL,\n  `setPrice` int NOT NULL,\n  `quantitySold` int NOT NULL DEFAULT 1,\n  `totalOriginalPrice` int DEFAULT 0,\n  `discountRate` int DEFAULT 0,\n  `totalRevenue` int DEFAULT 0,\n  `sortOrder` int DEFAULT 0,\n  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP\n);\n\nCREATE TABLE IF NOT EXISTS `livestream_set_items` (\n  `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY,\n  `setId` int NOT NULL,\n  `productName` varchar(255) NOT NULL,\n  `originalPrice` int NOT NULL,\n  `sortOrder` int DEFAULT 0,\n  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP\n);\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute \nCREATE TABLE IF NOT EXISTS `livestream_sets` (\n  `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY,\n  `livestreamId` int NOT NULL,\n  `setName` varchar(255) NOT NULL,\n  `setPrice` int NOT NULL,\n  `quantitySold` int NOT NULL DEFAULT 1,\n  `totalOriginalPrice` int DEFAULT 0,\n  `discountRate` int DEFAULT 0,\n  `totalRevenue` int DEFAULT 0,\n  `sortOrder` int DEFAULT 0,\n  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP\n);\n\nCREATE TABLE IF NOT EXISTS `livestream_set_items` (\n  `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY,\n  `setId` int NOT NULL,\n  `productName` varchar(255) NOT NULL,\n  `originalPrice` int NOT NULL,\n  `sortOrder` int DEFAULT 0,\n  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP\n);\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 2340
+}

@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { ArrowLeft, Video, Calendar, DollarSign, Clock, X, Link as LinkIcon, Camera, Sparkles, Loader2, Lightbulb, Users, MousePointer, ShoppingCart, CheckCircle, Eye } from "lucide-react";
+import { ArrowLeft, Video, Calendar, DollarSign, Clock, X, Link as LinkIcon, Camera, Sparkles, Loader2, Lightbulb, Users, MousePointer, ShoppingCart, CheckCircle, Eye, Package, Plus, Trash2, Tag } from "lucide-react";
 import { toast } from "sonner";
 
 // 時刻文字列を正規化するヘルパー（"1:22" → "01:22", "21:10" → "21:10"）
@@ -101,6 +101,11 @@ export default function LiverSelfRecord() {
   const [advice, setAdvice] = useState<string | null>(null);
   const [analysisConfidence, setAnalysisConfidence] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  
+  // セット組みデータ
+  type SetItem = { productName: string; originalPrice: string };
+  type SetData = { setName: string; setPrice: string; quantitySold: string; items: SetItem[] };
+  const [sets, setSets] = useState<SetData[]>([]);
   
   const [analyzedData, setAnalyzedData] = useState<{
     salesAmount?: number | null;
@@ -560,6 +565,16 @@ export default function LiverSelfRecord() {
         beforeScreenshotUrl: finalBeforeScreenshotUrl || undefined,
         scheduleId: formData.scheduleId ? parseInt(formData.scheduleId) : undefined,
         aiAdvice: advice || undefined,
+        // セット組みデータ
+        sets: sets.length > 0 ? sets.map(s => ({
+          setName: s.setName,
+          setPrice: parseInt(s.setPrice) || 0,
+          quantitySold: parseInt(s.quantitySold) || 1,
+          items: s.items.map(item => ({
+            productName: item.productName,
+            originalPrice: parseInt(item.originalPrice) || 0,
+          })),
+        })) : undefined,
       });
     } catch (error) {
       console.error("Failed to save livestream:", error);
@@ -993,6 +1008,182 @@ export default function LiverSelfRecord() {
                     {tr.endDateWarning}
                   </p>
                 )}
+              </div>
+
+              {/* セット組みセクション */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-gray-400 text-sm flex items-center gap-2">
+                    <Package className="h-4 w-4 text-purple-500" />
+                    セット組み（任意）
+                  </Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSets([...sets, { setName: '', setPrice: '', quantitySold: '1', items: [{ productName: '', originalPrice: '' }] }])}
+                    className="text-purple-400 border-purple-500/30 hover:bg-purple-500/10 text-xs h-7"
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    セット追加
+                  </Button>
+                </div>
+
+                {sets.map((set, setIndex) => {
+                  const totalOriginalPrice = set.items.reduce((sum, item) => sum + (parseInt(item.originalPrice) || 0), 0);
+                  const setPrice = parseInt(set.setPrice) || 0;
+                  const discountRate = totalOriginalPrice > 0 ? Math.round(((totalOriginalPrice - setPrice) / totalOriginalPrice) * 100) : 0;
+                  const quantitySold = parseInt(set.quantitySold) || 1;
+                  const totalRevenue = setPrice * quantitySold;
+
+                  return (
+                    <Card key={setIndex} className="bg-purple-500/5 border-purple-500/20">
+                      <CardContent className="p-3 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-purple-400 text-xs font-medium">セット {setIndex + 1}</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSets(sets.filter((_, i) => i !== setIndex))}
+                            className="text-red-400 hover:text-red-300 h-6 w-6 p-0"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+
+                        {/* セット名 */}
+                        <Input
+                          placeholder="セット名（例：美容3点セット）"
+                          value={set.setName}
+                          onChange={(e) => {
+                            const newSets = [...sets];
+                            newSets[setIndex].setName = e.target.value;
+                            setSets(newSets);
+                          }}
+                          className="bg-gray-800 border-gray-700 text-white text-sm"
+                        />
+
+                        {/* 売値と販売数量 */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <Label className="text-gray-500 text-xs">売値（円）</Label>
+                            <Input
+                              type="number"
+                              placeholder="5000"
+                              value={set.setPrice}
+                              onChange={(e) => {
+                                const newSets = [...sets];
+                                newSets[setIndex].setPrice = e.target.value;
+                                setSets(newSets);
+                              }}
+                              className="bg-gray-800 border-gray-700 text-white text-sm"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-gray-500 text-xs">販売数量</Label>
+                            <Input
+                              type="number"
+                              placeholder="1"
+                              value={set.quantitySold}
+                              onChange={(e) => {
+                                const newSets = [...sets];
+                                newSets[setIndex].quantitySold = e.target.value;
+                                setSets(newSets);
+                              }}
+                              className="bg-gray-800 border-gray-700 text-white text-sm"
+                            />
+                          </div>
+                        </div>
+
+                        {/* セット内商品 */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-gray-500 text-xs flex items-center gap-1">
+                              <Tag className="h-3 w-3" />
+                              セット内商品
+                            </Label>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                const newSets = [...sets];
+                                newSets[setIndex].items.push({ productName: '', originalPrice: '' });
+                                setSets(newSets);
+                              }}
+                              className="text-gray-400 hover:text-white text-xs h-6 px-2"
+                            >
+                              <Plus className="h-3 w-3 mr-1" />
+                              商品追加
+                            </Button>
+                          </div>
+
+                          {set.items.map((item, itemIndex) => (
+                            <div key={itemIndex} className="flex gap-2 items-center">
+                              <Input
+                                placeholder="商品名"
+                                value={item.productName}
+                                onChange={(e) => {
+                                  const newSets = [...sets];
+                                  newSets[setIndex].items[itemIndex].productName = e.target.value;
+                                  setSets(newSets);
+                                }}
+                                className="bg-gray-800 border-gray-700 text-white text-sm flex-1"
+                              />
+                              <Input
+                                type="number"
+                                placeholder="元値"
+                                value={item.originalPrice}
+                                onChange={(e) => {
+                                  const newSets = [...sets];
+                                  newSets[setIndex].items[itemIndex].originalPrice = e.target.value;
+                                  setSets(newSets);
+                                }}
+                                className="bg-gray-800 border-gray-700 text-white text-sm w-24"
+                              />
+                              {set.items.length > 1 && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    const newSets = [...sets];
+                                    newSets[setIndex].items = newSets[setIndex].items.filter((_, i) => i !== itemIndex);
+                                    setSets(newSets);
+                                  }}
+                                  className="text-red-400 hover:text-red-300 h-8 w-8 p-0 shrink-0"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* 自動計算表示 */}
+                        {setPrice > 0 && totalOriginalPrice > 0 && (
+                          <div className="bg-gray-800/50 rounded-lg p-2 space-y-1">
+                            <div className="flex justify-between text-xs">
+                              <span className="text-gray-400">元値合計</span>
+                              <span className="text-white">¥{totalOriginalPrice.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-gray-400">お得率</span>
+                              <span className={discountRate > 0 ? "text-green-400 font-medium" : "text-white"}>
+                                {discountRate > 0 ? `${discountRate}% OFF` : '-'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-gray-400">セット売上合計</span>
+                              <span className="text-yellow-400 font-medium">¥{totalRevenue.toLocaleString()}</span>
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
 
               {/* Result */}
