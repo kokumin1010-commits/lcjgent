@@ -74,18 +74,7 @@ export default function BrandFinance() {
     orderStatus: orderStatus || undefined,
   }, { enabled: brandId > 0 && activeTab === 'orders' });
 
-  const uploadMutation = trpc.tiktokFinance.uploadCsv.useMutation({
-    onSuccess: (result) => {
-      toast.success(`CSVインポート完了: ${result.importedRows}件追加, ${result.skippedRows}件スキップ`);
-      setCsvUploading(false);
-      setUploadDialogOpen(false);
-      refetchAll();
-    },
-    onError: (error) => {
-      toast.error(`インポートエラー: ${error.message}`);
-      setCsvUploading(false);
-    },
-  });
+
 
   const deleteMutation = trpc.tiktokFinance.deleteImport.useMutation({
     onSuccess: () => {
@@ -117,21 +106,41 @@ export default function BrandFinance() {
       toast.error("CSVファイルを選択してください");
       return;
     }
+    if (file.size > 16 * 1024 * 1024) {
+      toast.error("ファイルサイズが16MBを超えています");
+      return;
+    }
 
     setCsvUploading(true);
     try {
-      const buffer = await file.arrayBuffer();
-      const base64 = btoa(
-        new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
-      );
-      await uploadMutation.mutateAsync({
-        brandId,
-        fileName: file.name,
-        csvContent: base64,
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("brandId", String(brandId));
+
+      const response = await fetch("/api/csv-upload", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
       });
+
+      // Check Content-Type to avoid parsing non-JSON responses
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        throw new Error("サーバーから不正なレスポンスが返されました");
+      }
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "CSVインポートに失敗しました");
+      }
+
+      toast.success(`CSVインポート完了: ${result.importedRows}件追加, ${result.skippedRows}件スキップ`);
+      setUploadDialogOpen(false);
+      refetchAll();
     } catch (error: any) {
       console.error("CSV upload error:", error);
-      toast.error(error?.message || `ファイル読み込みエラー`);
+      toast.error(error?.message || "ファイル読み込みエラー");
     } finally {
       setCsvUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
