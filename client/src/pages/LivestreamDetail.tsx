@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, CheckCircle, XCircle, Sparkles, Package, User, Megaphone, HelpCircle, Pencil, Trash2, Save, Upload, X, Calendar, Clock, DollarSign, Eye, ShoppingCart, MousePointer, Heart, MessageCircle, Share2, UserPlus, Timer, Users, TrendingUp, FileSpreadsheet, AlertTriangle } from "lucide-react";
+import { ArrowLeft, CheckCircle, XCircle, Sparkles, Package, User, Megaphone, HelpCircle, Pencil, Trash2, Save, Upload, X, Calendar, Clock, DollarSign, Eye, ShoppingCart, MousePointer, Heart, MessageCircle, Share2, UserPlus, Timer, Users, TrendingUp, FileSpreadsheet, AlertTriangle, Gift, Tag, Percent, Layers } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -61,6 +61,12 @@ export default function LivestreamDetail() {
   // 商品CSVインポート用state
   const [showProductCsvImport, setShowProductCsvImport] = useState(false);
   const [isImportingProductCsv, setIsImportingProductCsv] = useState(false);
+
+  // セット組みデータ取得
+  const { data: livestreamSets } = trpc.livestreamSets.listByLivestream.useQuery(
+    { livestreamId },
+    { enabled: !!livestreamId }
+  );
 
   const { data: livestream, isLoading, refetch } = trpc.liverManagement.getLivestreamDetail.useQuery({
     id: livestreamId,
@@ -972,6 +978,76 @@ export default function LivestreamDetail() {
                     </div>
                   )}
                 </div>
+
+                {/* セット組み情報 */}
+                {livestreamSets && livestreamSets.length > 0 && (() => {
+                  const totalSetRevenue = livestreamSets.reduce((sum: number, s: any) => sum + (s.totalRevenue || 0), 0);
+                  const totalSetsSold = livestreamSets.reduce((sum: number, s: any) => sum + (s.quantitySold || 0), 0);
+                  return (
+                    <div className="bg-gradient-to-r from-violet-900/20 to-fuchsia-900/20 border border-violet-600/30 rounded-lg p-4">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-sm font-medium text-violet-400 flex items-center gap-2">
+                          <Gift className="w-4 h-4" />
+                          セット組み
+                        </h3>
+                        <div className="flex items-center gap-3 text-xs">
+                          <span className="text-gray-400">{livestreamSets.length}セット</span>
+                          <span className="text-violet-300 font-medium">合計 ¥{totalSetRevenue.toLocaleString()}</span>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-gray-500 mb-3">※ セット売上は配信全体の売上の内訳参考です。売上金額には加算されません。</p>
+                      <div className="space-y-3">
+                        {livestreamSets.map((set: any, idx: number) => (
+                          <div key={set.id || idx} className="bg-gray-900/60 rounded-lg p-3 border border-gray-700/50">
+                            <div className="flex justify-between items-start mb-2">
+                              <div className="flex items-center gap-2">
+                                <Layers className="w-4 h-4 text-violet-400" />
+                                <span className="text-white font-medium text-sm">{set.setName}</span>
+                              </div>
+                              {set.discountRate > 0 && (
+                                <Badge className="bg-fuchsia-600/80 text-white text-[10px] px-1.5 py-0.5">
+                                  <Percent className="w-3 h-3 mr-0.5" />
+                                  {set.discountRate}%OFF
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 mb-2">
+                              <div className="text-center">
+                                <p className="text-[10px] text-gray-400">売値</p>
+                                <p className="text-yellow-400 font-bold text-sm">¥{(set.setPrice || 0).toLocaleString()}</p>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-[10px] text-gray-400">販売数</p>
+                                <p className="text-white font-bold text-sm">{set.quantitySold || 0}<span className="text-[10px] text-gray-400">セット</span></p>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-[10px] text-gray-400">セット売上</p>
+                                <p className="text-emerald-400 font-bold text-sm">¥{(set.totalRevenue || 0).toLocaleString()}</p>
+                              </div>
+                            </div>
+                            {/* セット内商品 */}
+                            {set.items && set.items.length > 0 && (
+                              <div className="border-t border-gray-700/50 pt-2 mt-2">
+                                <p className="text-[10px] text-gray-500 mb-1 flex items-center gap-1">
+                                  <Tag className="w-3 h-3" />
+                                  セット内容（元値合計: ¥{(set.totalOriginalPrice || 0).toLocaleString()}）
+                                </p>
+                                <div className="space-y-1">
+                                  {set.items.map((item: any, iIdx: number) => (
+                                    <div key={item.id || iIdx} className="flex justify-between items-center text-xs">
+                                      <span className="text-gray-300">{item.productName}</span>
+                                      <span className="text-gray-400">¥{(item.originalPrice || 0).toLocaleString()}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Performance Metrics Grid */}
                 <div className="bg-gray-800/50 rounded-lg p-4">
