@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Edit, Home, ChevronDown, ChevronUp, ExternalLink, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Edit, Home, ChevronDown, ChevronUp, ExternalLink, AlertTriangle, Camera, Loader2 } from "lucide-react";
 import { SiTiktok, SiInstagram, SiYoutube } from "react-icons/si";
 import { Link2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -45,6 +45,51 @@ export default function LiverDetail() {
   
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].value);
   const [showAllHistory, setShowAllHistory] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const utils = trpc.useUtils();
+
+  // Handle avatar upload (admin side)
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("画像ファイルのみアップロードできます");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("ファイルサイズは5MB以下にしてください");
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("liverId", String(liverId));
+
+      const response = await fetch("/api/liver-avatar-upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "アップロードに失敗しました");
+      }
+
+      utils.liverManagement.getById.invalidate({ id: liverId });
+    } catch (error: any) {
+      alert(error.message || "アップロードに失敗しました");
+    } finally {
+      setIsUploadingAvatar(false);
+      if (avatarInputRef.current) {
+        avatarInputRef.current.value = "";
+      }
+    }
+  };
   
   const { data: liver, isLoading: liverLoading } = trpc.liverManagement.getById.useQuery({
     id: liverId,
@@ -189,17 +234,45 @@ export default function LiverDetail() {
         
         {/* Profile Section */}
         <div className="flex flex-col items-center space-y-4">
-          <div className="relative">
+          <div className="relative group">
             <Avatar className="w-32 h-32 border-4 border-gray-700">
               <AvatarImage src={liver.avatarUrl || undefined} />
               <AvatarFallback className="bg-gray-700 text-white text-4xl">
                 {liver.name?.charAt(0) || "?"}
               </AvatarFallback>
             </Avatar>
+            {/* Upload overlay */}
+            <button
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={isUploadingAvatar}
+              className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+            >
+              {isUploadingAvatar ? (
+                <Loader2 className="w-8 h-8 text-white animate-spin" />
+              ) : (
+                <Camera className="w-8 h-8 text-white" />
+              )}
+            </button>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleAvatarUpload}
+              className="hidden"
+            />
             <div className="absolute bottom-0 right-0 bg-red-600 rounded-full p-2">
               <Home className="w-4 h-4" />
             </div>
           </div>
+          <button
+            type="button"
+            onClick={() => avatarInputRef.current?.click()}
+            disabled={isUploadingAvatar}
+            className="text-sm text-cyan-400 hover:text-cyan-300 transition-colors cursor-pointer"
+          >
+            {isUploadingAvatar ? "アップロード中..." : "写真を変更"}
+          </button>
           
           <div className="flex items-center gap-2">
             <h2 className="text-xl font-bold">{liver.name}</h2>

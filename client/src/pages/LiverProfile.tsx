@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,9 @@ import {
   Link as LinkIcon,
   MessageCircle,
   Bell,
-  BellOff
+  BellOff,
+  Camera,
+  Loader2
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
@@ -187,6 +189,9 @@ export default function LiverProfile() {
   const [youtubeAccount, setYoutubeAccount] = useState("");
   const [otherAccount, setOtherAccount] = useState("");
   const [lineNotificationEnabled, setLineNotificationEnabled] = useState(true);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   
   // Initialize form with current data
   useEffect(() => {
@@ -199,8 +204,57 @@ export default function LiverProfile() {
       setYoutubeAccount(liverInfo.youtubeAccount || "");
       setOtherAccount(liverInfo.otherAccount || "");
       setLineNotificationEnabled(liverInfo.lineNotificationEnabled !== false);
+      setAvatarUrl(liverInfo.avatarUrl || null);
     }
   }, [liverInfo]);
+
+  // Handle avatar upload
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !liverInfo) return;
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      toast.error("画像ファイルのみアップロードできます");
+      return;
+    }
+
+    // Validate file size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("ファイルサイズは5MB以下にしてください");
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("liverId", String(liverInfo.id));
+
+      const response = await fetch("/api/liver-avatar-upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "アップロードに失敗しました");
+      }
+
+      const result = await response.json();
+      setAvatarUrl(result.url);
+      toast.success("プロフィール写真を更新しました");
+      utils.liver.me.invalidate();
+    } catch (error: any) {
+      toast.error(error.message || "アップロードに失敗しました");
+    } finally {
+      setIsUploadingAvatar(false);
+      // Reset input so same file can be selected again
+      if (avatarInputRef.current) {
+        avatarInputRef.current.value = "";
+      }
+    }
+  };
   
   const updateProfileMutation = trpc.liver.updateProfile.useMutation({
     onSuccess: () => {
@@ -286,18 +340,47 @@ export default function LiverProfile() {
       
       <div className="container max-w-2xl mx-auto px-4 py-6">
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Avatar Preview */}
+          {/* Avatar Preview with Upload */}
           <div className="flex flex-col items-center">
-            <Avatar className="w-24 h-24 border-4 border-red-600">
-              <AvatarImage src={liverInfo.avatarUrl || undefined} />
-              <AvatarFallback 
-                className="text-2xl font-bold text-white"
-                style={{ backgroundColor: color }}
+            <div className="relative group">
+              <Avatar className="w-24 h-24 border-4 border-red-600">
+                <AvatarImage src={avatarUrl || liverInfo.avatarUrl || undefined} />
+                <AvatarFallback 
+                  className="text-2xl font-bold text-white"
+                  style={{ backgroundColor: color }}
+                >
+                  {name?.charAt(0) || "?"}
+                </AvatarFallback>
+              </Avatar>
+              {/* Upload overlay */}
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={isUploadingAvatar}
+                className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
               >
-                {name?.charAt(0) || "?"}
-              </AvatarFallback>
-            </Avatar>
-            <p className="mt-2 text-sm text-gray-400">プレビュー</p>
+                {isUploadingAvatar ? (
+                  <Loader2 className="w-6 h-6 text-white animate-spin" />
+                ) : (
+                  <Camera className="w-6 h-6 text-white" />
+                )}
+              </button>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarUpload}
+                className="hidden"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={isUploadingAvatar}
+              className="mt-2 text-sm text-yellow-500 hover:text-yellow-400 transition-colors cursor-pointer"
+            >
+              {isUploadingAvatar ? "アップロード中..." : "写真を変更"}
+            </button>
             <p className="mt-1 text-xs text-gray-500">ライバーID: {liverInfo.id}</p>
           </div>
           

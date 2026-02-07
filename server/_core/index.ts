@@ -456,6 +456,53 @@ async function startServer() {
     }
   });
 
+  // Liver avatar upload endpoint
+  app.post("/api/liver-avatar-upload", upload.single("file"), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+      
+      const file = req.file as Express.Multer.File;
+      const liverId = req.body.liverId;
+      
+      if (!liverId) {
+        return res.status(400).json({ error: "Liver ID is required" });
+      }
+      
+      // Validate file type (images only)
+      if (!file.mimetype.startsWith("image/")) {
+        return res.status(400).json({ error: "Only image files are allowed" });
+      }
+      
+      // Validate file size (5MB max)
+      if (file.size > 5 * 1024 * 1024) {
+        return res.status(400).json({ error: "File size must be less than 5MB" });
+      }
+      
+      // Generate unique file key
+      const fileExtension = file.originalname.split(".").pop() || "jpg";
+      const fileKey = `liver-avatars/${liverId}/${nanoid()}.${fileExtension}`;
+      
+      const result = await storagePut(fileKey, file.buffer, file.mimetype);
+      
+      // Update liver record with new avatar URL
+      const { updateLiver } = await import("../db");
+      await updateLiver(parseInt(liverId, 10), {
+        avatarUrl: result.url,
+        avatarKey: fileKey,
+      });
+      
+      res.json({
+        url: result.url,
+        key: fileKey,
+      });
+    } catch (error) {
+      console.error("[Liver Avatar Upload] Error:", error);
+      res.status(500).json({ error: "Failed to upload avatar" });
+    }
+  });
+
   // Brand file upload endpoint
   app.post("/api/brand-file-upload", upload.single("file"), async (req, res) => {
     try {
