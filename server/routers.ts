@@ -4504,45 +4504,70 @@ ${hasLearningData ? '- 過去の広告実績データ: ' + learningDataRecords +
       .mutation(async ({ ctx, input }) => {
         const { countryBreakdown, impressions, views, views6s, clicks, conversions, gmv, orderCount, cartAdds, ...campaignData } = input;
         
+        // Safe date parsing helper
+        const safeParseDate = (dateStr?: string): Date | undefined => {
+          if (!dateStr) return undefined;
+          try {
+            const d = new Date(dateStr);
+            if (isNaN(d.getTime())) return undefined;
+            return d;
+          } catch {
+            return undefined;
+          }
+        };
+        
         // Create campaign
         const result = await createAdCampaign({
           ...campaignData,
-          startDate: campaignData.startDate ? new Date(campaignData.startDate) : undefined,
-          endDate: campaignData.endDate ? new Date(campaignData.endDate) : undefined,
+          startDate: safeParseDate(campaignData.startDate),
+          endDate: safeParseDate(campaignData.endDate),
           rawData: campaignData.rawData as Record<string, unknown> | undefined,
           createdBy: ctx.user.id,
           createdByName: ctx.user.name || ctx.user.email,
         });
         
         const campaignId = (result as any)[0]?.insertId;
+        if (!campaignId) {
+          throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to create campaign' });
+        }
         
         // Create metrics if provided
-        if (impressions || views || clicks || gmv) {
-          await createAdMetrics({
-            campaignId,
-            impressions: impressions || 0,
-            views: views || 0,
-            views6s: views6s || 0,
-            clicks: clicks || 0,
-            conversions: conversions || 0,
-            gmv: gmv || 0,
-            orderCount: orderCount || 0,
-            cartAdds: cartAdds || 0,
-          });
+        if (impressions || views || views6s || clicks || gmv) {
+          try {
+            await createAdMetrics({
+              campaignId,
+              impressions: impressions || 0,
+              views: views || 0,
+              views6s: views6s || 0,
+              clicks: clicks || 0,
+              conversions: conversions || 0,
+              gmv: gmv || 0,
+              orderCount: orderCount || 0,
+              cartAdds: cartAdds || 0,
+            });
+          } catch (metricsError) {
+            console.error('[createAdCampaign] Failed to create metrics:', metricsError);
+            // Campaign was created successfully, metrics failure is non-fatal
+          }
         }
         
         // Create country breakdown if provided
         if (countryBreakdown && countryBreakdown.length > 0) {
-          for (const country of countryBreakdown) {
-            await createAdCountryBreakdown({
-              campaignId,
-              countryCode: country.countryCode,
-              countryName: country.countryName,
-              percentage: String(country.percentage),
-              impressions: country.impressions || 0,
-              clicks: country.clicks || 0,
-              gmv: country.gmv || 0,
-            });
+          try {
+            for (const country of countryBreakdown) {
+              await createAdCountryBreakdown({
+                campaignId,
+                countryCode: country.countryCode,
+                countryName: country.countryName,
+                percentage: String(country.percentage),
+                impressions: country.impressions || 0,
+                clicks: country.clicks || 0,
+                gmv: country.gmv || 0,
+              });
+            }
+          } catch (countryError) {
+            console.error('[createAdCampaign] Failed to create country breakdown:', countryError);
+            // Campaign was created successfully, country breakdown failure is non-fatal
           }
         }
         

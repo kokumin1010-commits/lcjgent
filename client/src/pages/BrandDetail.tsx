@@ -1115,6 +1115,9 @@ export default function BrandDetail() {
     onSuccess: () => {
       refetchAdCampaigns();
     },
+    onError: (error) => {
+      console.error('createAdCampaign error:', error);
+    },
   });
   
   const deleteAdCampaignMutation = trpc.brand.deleteAdCampaign.useMutation({
@@ -7485,26 +7488,26 @@ ${proposal.proposalContent}
                         try {
                           await createAdCampaignMutation.mutateAsync({
                             brandId,
-                            name: adCampaignAnalysisResult.campaignName,
-                            platform: adCampaignAnalysisResult.platform,
-                            objective: adCampaignAnalysisResult.objective,
+                            name: adCampaignAnalysisResult.campaignName || adCampaignAnalysisResult.name || 'キャンペーン',
+                            platform: adCampaignAnalysisResult.platform || 'tiktok',
+                            objective: adCampaignAnalysisResult.objective || 'impressions',
                             objectiveConfidence: adCampaignAnalysisResult.objectiveConfidence,
                             startDate: adCampaignAnalysisResult.startDate,
                             endDate: adCampaignAnalysisResult.endDate,
-                            budget: adCampaignAnalysisResult.budget,
-                            actualSpend: adCampaignAnalysisResult.actualSpend,
+                            budget: Number(adCampaignAnalysisResult.budget) || undefined,
+                            actualSpend: Number(adCampaignAnalysisResult.actualSpend) || undefined,
                             status: 'completed',
                             detectedLanguage: adCampaignAnalysisResult.detectedLanguage,
                             sourceFileUrl: adCampaignAnalysisResult.sourceFileUrl,
                             sourceFileKey: adCampaignAnalysisResult.sourceFileKey,
-                            impressions: adCampaignAnalysisResult.metrics?.impressions,
-                            views: adCampaignAnalysisResult.metrics?.views,
-                            views6s: adCampaignAnalysisResult.metrics?.views6s,
-                            clicks: adCampaignAnalysisResult.metrics?.clicks,
-                            conversions: adCampaignAnalysisResult.metrics?.conversions,
-                            gmv: adCampaignAnalysisResult.metrics?.gmv,
-                            orderCount: adCampaignAnalysisResult.metrics?.orderCount,
-                            cartAdds: adCampaignAnalysisResult.metrics?.cartAdds,
+                            impressions: Number(adCampaignAnalysisResult.impressions) || undefined,
+                            views: Number(adCampaignAnalysisResult.views) || undefined,
+                            views6s: Number(adCampaignAnalysisResult.views6s) || undefined,
+                            clicks: Number(adCampaignAnalysisResult.clicks) || undefined,
+                            conversions: Number(adCampaignAnalysisResult.conversions) || undefined,
+                            gmv: Number(adCampaignAnalysisResult.gmv) || undefined,
+                            orderCount: Number(adCampaignAnalysisResult.orderCount) || undefined,
+                            cartAdds: Number(adCampaignAnalysisResult.cartAdds) || undefined,
                             countryBreakdown: adCampaignAnalysisResult.countryBreakdown,
                           });
                           toast.success(language === 'ja' ? 'キャンペーンを保存しました' : '已保存投放');
