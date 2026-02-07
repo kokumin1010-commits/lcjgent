@@ -118,6 +118,18 @@ export default function FinanceManagement() {
     const file = e.target.files?.[0];
     if (!file || activeBrandId <= 0) return;
 
+    // Validate file size (max 16MB)
+    if (file.size > 16 * 1024 * 1024) {
+      toast.error("ファイルサイズが大きすぎます（最大16MB）");
+      return;
+    }
+
+    // Validate file type
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      toast.error("CSVファイルのみアップロードできます");
+      return;
+    }
+
     setCsvUploading(true);
     try {
       const formData = new FormData();
@@ -130,15 +142,33 @@ export default function FinanceManagement() {
         credentials: "include",
       });
 
-      const data = await response.json();
+      // Check Content-Type to avoid parsing non-JSON responses
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        throw new Error("サーバーからの応答が不正です。再度お試しください。");
+      }
+
+      let data: any;
+      try {
+        data = await response.json();
+      } catch (parseErr) {
+        throw new Error("サーバーからの応答を解析できませんでした。再度お試しください。");
+      }
+
       if (!response.ok) {
         throw new Error(data.error || "CSVアップロードに失敗しました");
       }
 
       toast.success(`CSVインポート完了: ${data.importedRows}件追加、${data.skippedRows}件スキップ`);
       setUploadDialogOpen(false);
+      // Refetch all relevant queries
       summaryQuery.refetch();
       importsQuery.refetch();
+      if (activeTab === 'orders') ordersQuery.refetch();
+      if (activeTab === 'creators') creatorsQuery.refetch();
+      if (activeTab === 'shops') shopsQuery.refetch();
+      if (activeTab === 'products') productsQuery.refetch();
+      if (activeTab === 'daily') dailyQuery.refetch();
     } catch (err: any) {
       console.error("CSV upload error:", err);
       toast.error(err?.message || "CSVアップロードに失敗しました");
@@ -688,8 +718,8 @@ export default function FinanceManagement() {
       )}
 
       {/* Upload Dialog */}
-      <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
-        <DialogContent>
+      <Dialog open={uploadDialogOpen} onOpenChange={(open) => { if (!csvUploading) setUploadDialogOpen(open); }}>
+        <DialogContent className={csvUploading ? "[&>button]:hidden" : ""}>
           <DialogHeader>
             <DialogTitle>CSVファイルをアップロード</DialogTitle>
             <DialogDescription>TikTok成果報酬のCSVファイルを選択してください。重複データは自動的にスキップされます。</DialogDescription>
@@ -705,9 +735,15 @@ export default function FinanceManagement() {
             />
           </div>
           {csvUploading && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              インポート中...
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                CSVデータをインポート中です。しばらくお待ちください...
+              </div>
+              <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                <div className="bg-primary h-full rounded-full animate-pulse" style={{ width: '60%' }} />
+              </div>
+              <p className="text-xs text-muted-foreground">※ 大きなファイルの場合、数分かかることがあります</p>
             </div>
           )}
         </DialogContent>
