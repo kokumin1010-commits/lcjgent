@@ -7,6 +7,7 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { sdk } from "./sdk";
 import { getTaskByCompletionToken, updateTask } from "../db";
 import { notifyOwner } from "./notification";
 import { checkAndSendReminders } from "../reminderScheduler";
@@ -491,6 +492,218 @@ async function startServer() {
     }
   });
 
+  // CSV Upload REST API endpoint (avoids tRPC Base64 size issues)
+  app.post("/api/csv-upload", upload.single("file"), async (req: any, res) => {
+    try {
+      // Authenticate user
+      let user;
+      try {
+        user = await sdk.authenticateRequest(req);
+      } catch (e) {
+        return res.status(401).json({ error: "認証が必要です" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: "ファイルがアップロードされていません" });
+      }
+
+      const file = req.file as Express.Multer.File;
+      const brandId = parseInt(req.body.brandId, 10);
+      if (!brandId || isNaN(brandId)) {
+        return res.status(400).json({ error: "ブランドIDが必要です" });
+      }
+
+      // Decode filename from latin1 to UTF-8
+      const decodedFileName = Buffer.from(file.originalname, 'latin1').toString('utf-8');
+
+      // Import required modules
+      const iconv = await import("iconv-lite");
+      const chardet = await import("chardet");
+      const {
+        createTiktokCsvImportHistory,
+        updateTiktokCsvImportHistory,
+        bulkInsertTiktokOrders,
+        getExistingSubOrderIds,
+      } = await import("../db");
+
+      // 1. Create import history record
+      const importId = await createTiktokCsvImportHistory({
+        brandId,
+        fileName: decodedFileName,
+        uploadedBy: user.id,
+        uploadedByName: user.name || user.email,
+        status: "processing",
+      });
+
+      try {
+        // 2. Decode CSV content with auto encoding detection
+        const csvBuffer = file.buffer;
+        let csvText: string;
+
+        const detected = chardet.detect(csvBuffer);
+        const encoding = detected || "utf-8";
+        console.log(`[CSV Upload REST] Detected encoding: ${encoding}, file size: ${file.size}`);
+
+        if (encoding.toLowerCase().includes("shift") || encoding.toLowerCase().includes("sjis") || encoding.toLowerCase() === "iso-2022-jp" || encoding.toLowerCase().includes("euc")) {
+          csvText = iconv.decode(csvBuffer, "Shift_JIS");
+        } else if (encoding.toLowerCase().includes("utf-16")) {
+          csvText = iconv.decode(csvBuffer, encoding);
+        } else {
+          csvText = csvBuffer.toString("utf-8");
+          if (csvText.charCodeAt(0) === 0xFEFF) {
+            csvText = csvText.slice(1);
+          }
+        }
+
+        // Normalize line endings
+        csvText = csvText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+        const lines = csvText.split("\n").filter((l: string) => l.trim());
+
+        if (lines.length < 2) {
+          throw new Error("CSVファイルにデータがありません");
+        }
+
+        // 3. Parse header
+        const headers = csvParseCSVLine(lines[0]).map((h: string) => h.replace(/^\uFEFF/, '').trim());
+        console.log(`[CSV Upload REST] Parsed ${headers.length} headers. First 5: ${headers.slice(0, 5).join(', ')}`);
+
+        // 4. Parse all rows
+        const orders: any[] = [];
+        const subOrderIds: string[] = [];
+        let errorCount = 0;
+        for (let i = 1; i < lines.length; i++) {
+          try {
+            const values = csvParseCSVLine(lines[i]);
+            if (values.length < 10) continue;
+            const row = csvMapHeadersToValues(headers, values);
+            subOrderIds.push(String(row["サブ注文ID"] || ""));
+            orders.push(row);
+          } catch (e) {
+            errorCount++;
+          }
+        }
+
+        // 5. Check for duplicates
+        const existingIds = await getExistingSubOrderIds(brandId, subOrderIds);
+        const existingSet = new Set(existingIds);
+
+        // 6. Filter out duplicates and prepare insert data
+        const newOrders: any[] = [];
+        let skippedCount = 0;
+        for (let i = 0; i < orders.length; i++) {
+          const subOrderId = subOrderIds[i];
+          if (existingSet.has(subOrderId)) {
+            skippedCount++;
+            continue;
+          }
+          const row = orders[i];
+          newOrders.push({
+            brandId,
+            importHistoryId: importId,
+            orderId: String(row["注文ID"] || ""),
+            subOrderId: String(row["サブ注文ID"] || ""),
+            orderStatus: row["注文状況"] || null,
+            creatorUsername: row["クリエイターのユーザー名"] || "",
+            productName: row["商品名"] || "",
+            sku: row["SKU"] || null,
+            productId: String(row["商品ID"] || ""),
+            price: csvParseIntSafe(row["価格"]),
+            quantity: csvParseIntSafe(row["数量"]) || 1,
+            shopName: row["ショップ名"] || null,
+            shopCode: row["ショップコード"] || null,
+            contentType: row["コンテンツタイプ"] || null,
+            contentId: String(row["コンテンツID"] || ""),
+            partnerCommissionRate: csvParseFloatSafe(row["アフィリエイトパートナー成果報酬率"]) !== null ? String(csvParseFloatSafe(row["アフィリエイトパートナー成果報酬率"])) : null,
+            creatorCommissionRate: csvParseFloatSafe(row["クリエイター成果報酬率"]) !== null ? String(csvParseFloatSafe(row["クリエイター成果報酬率"])) : null,
+            partnerRewardRate: csvParseIntSafe(row["パートナー成果報酬リワード率"]),
+            creatorRewardRate: csvParseIntSafe(row["クリエイターの手数料リワード率"]),
+            partnerShopAdRate: csvParseIntSafe(row["アフィリエイトパートナーのショップ広告成果報酬率"]),
+            creatorShopAdRate: csvParseIntSafe(row["クリエイターのショップ広告成果報酬率"]),
+            estimatedCommissionBase: csvParseIntSafe(row["推定成果報酬ベース"]),
+            estimatedPartnerCommission: csvParseFloatSafe(row["推定アフィリエイトパートナー手数料額"]) !== null ? String(csvParseFloatSafe(row["推定アフィリエイトパートナー手数料額"])) : null,
+            estimatedCreatorCommission: csvParseFloatSafe(row["推定クリエイター手数料額"]) !== null ? String(csvParseFloatSafe(row["推定クリエイター手数料額"])) : null,
+            estimatedPartnerReward: csvParseIntSafe(row["パートナーの推定成果報酬リワード料"]),
+            estimatedCreatorReward: csvParseIntSafe(row["クリエイターの推定成果報酬リワード料"]),
+            estimatedCreatorShopAdPay: csvParseIntSafe(row["クリエイターのショップ広告成果報酬支払額（推定）"]),
+            estimatedPartnerShopAdPay: csvParseIntSafe(row["アフィリエイトパートナーのショップ広告成果報酬支払額（推定）"]),
+            actualCommissionBase: csvParseFloatSafe(row["実際の手数料ベース"]) !== null ? String(csvParseFloatSafe(row["実際の手数料ベース"])) : null,
+            actualPartnerCommission: csvParseFloatSafe(row["実際のアフィリエイトパートナー手数料額"]) !== null ? String(csvParseFloatSafe(row["実際のアフィリエイトパートナー手数料額"])) : null,
+            actualCreatorCommission: csvParseFloatSafe(row["クリエイターの実際の手数料額"]) !== null ? String(csvParseFloatSafe(row["クリエイターの実際の手数料額"])) : null,
+            actualPartnerReward: csvParseFloatSafe(row["パートナーの実際の手数料リワード料"]) !== null ? String(csvParseFloatSafe(row["パートナーの実際の手数料リワード料"])) : null,
+            actualCreatorReward: csvParseFloatSafe(row["クリエイターの実際の手数料リワード料"]) !== null ? String(csvParseFloatSafe(row["クリエイターの実際の手数料リワード料"])) : null,
+            actualPartnerShopAdPay: csvParseFloatSafe(row["アフィリエイトパートナーのショップ広告成果報酬支払額（実際）"]) !== null ? String(csvParseFloatSafe(row["アフィリエイトパートナーのショップ広告成果報酬支払額（実際）"])) : null,
+            actualCreatorShopAdPay: csvParseFloatSafe(row["クリエイターのショップ広告成果報酬支払額（実際）"]) !== null ? String(csvParseFloatSafe(row["クリエイターのショップ広告成果報酬支払額（実際）"])) : null,
+            returnQuantity: csvParseIntSafe(row["返品される商品の数量"]) || 0,
+            refundQuantity: csvParseIntSafe(row["返金される商品の数量"]) || 0,
+            orderCreatedAt: csvParseDateDDMMYYYY(row["作成日時"]),
+            orderDeliveredAt: csvParseDateDDMMYYYY(row["注文配達日時"]),
+            commissionSettledAt: csvParseDateDDMMYYYY(row["手数料決済日時"]),
+            paymentId: String(row["支払いID"] || ""),
+            paymentMethod: row["支払い方法"] || null,
+            paymentAccount: row["支払い口座"] || null,
+            iva: csvParseIntSafe(row["IVA"]) || 0,
+            isr: csvParseIntSafe(row["ISR"]) || 0,
+            platform: row["プラットフォーム"] || null,
+            factorType: row["要因のタイプ"] || null,
+          });
+        }
+
+        // 7. Bulk insert
+        let insertedCount = 0;
+        if (newOrders.length > 0) {
+          insertedCount = await bulkInsertTiktokOrders(newOrders);
+        }
+
+        // 8. Calculate summary
+        let totalSales = 0;
+        let totalPartnerComm = 0;
+        let totalCreatorComm = 0;
+        let minDate: Date | null = null;
+        let maxDate: Date | null = null;
+        for (const o of newOrders) {
+          totalSales += o.price || 0;
+          totalPartnerComm += parseFloat(o.actualPartnerCommission || "0");
+          totalCreatorComm += parseFloat(o.actualCreatorCommission || "0");
+          if (o.orderCreatedAt) {
+            if (!minDate || o.orderCreatedAt < minDate) minDate = o.orderCreatedAt;
+            if (!maxDate || o.orderCreatedAt > maxDate) maxDate = o.orderCreatedAt;
+          }
+        }
+
+        // 9. Update import history
+        await updateTiktokCsvImportHistory(importId, {
+          totalRows: orders.length,
+          importedRows: insertedCount,
+          skippedRows: skippedCount,
+          errorRows: errorCount,
+          totalSales: Math.round(totalSales),
+          totalPartnerCommission: Math.round(totalPartnerComm),
+          totalCreatorCommission: Math.round(totalCreatorComm),
+          dateRangeStart: minDate,
+          dateRangeEnd: maxDate,
+          status: "completed",
+        });
+
+        res.json({
+          importId,
+          totalRows: orders.length,
+          importedRows: insertedCount,
+          skippedRows: skippedCount,
+          errorRows: errorCount,
+        });
+      } catch (error: any) {
+        await updateTiktokCsvImportHistory(importId, {
+          status: "failed",
+          errorMessage: error.message || "Unknown error",
+        });
+        res.status(500).json({ error: `CSVインポートに失敗しました: ${error.message}` });
+      }
+    } catch (error: any) {
+      console.error("[CSV Upload REST] Error:", error);
+      res.status(500).json({ error: error.message || "CSVアップロードに失敗しました" });
+    }
+  });
+
   // Image proxy endpoint for PDF generation (to avoid CORS issues)
   app.get("/api/image-proxy", async (req, res) => {
     try {
@@ -572,3 +785,89 @@ async function startServer() {
 }
 
 startServer().catch(console.error);
+
+// CSV Helper functions for REST API endpoint
+function csvParseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (inQuotes) {
+      if (char === '"') {
+        if (i + 1 < line.length && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        current += char;
+      }
+    } else {
+      if (char === '"') {
+        inQuotes = true;
+      } else if (char === ',') {
+        result.push(current.trim());
+        current = "";
+      } else {
+        current += char;
+      }
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
+function csvMapHeadersToValues(headers: string[], values: string[]): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (let i = 0; i < headers.length && i < values.length; i++) {
+    result[headers[i]] = values[i];
+  }
+  return result;
+}
+
+function csvParseIntSafe(val: string | undefined | null): number | null {
+  if (!val || val === "" || val === "-") return null;
+  const cleaned = val.replace(/,/g, "").replace(/\s/g, "");
+  const num = parseInt(cleaned, 10);
+  return isNaN(num) ? null : num;
+}
+
+function csvParseFloatSafe(val: string | undefined | null): number | null {
+  if (!val || val === "" || val === "-") return null;
+  const cleaned = val.replace(/,/g, "").replace(/\s/g, "");
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? null : num;
+}
+
+function csvParseDateDDMMYYYY(val: string | undefined | null): Date | null {
+  if (!val || val === "" || val === "-") return null;
+  // Format 1: DD/MM/YYYY HH:mm:ss
+  let match = val.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})/);
+  if (match) {
+    const [, day, month, year, hour, minute, second] = match;
+    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute), parseInt(second));
+  }
+  // Format 2: YYYY-MM-DD HH:mm:ss
+  match = val.match(/(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2}):(\d{2})/);
+  if (match) {
+    const [, year, month, day, hour, minute, second] = match;
+    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute), parseInt(second));
+  }
+  // Format 3: YYYY/MM/DD HH:mm:ss
+  match = val.match(/(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2}):(\d{2})/);
+  if (match) {
+    const [, year, month, day, hour, minute, second] = match;
+    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute), parseInt(second));
+  }
+  // Format 4: YYYY-MM-DDTHH:mm:ss
+  match = val.match(/(\d{4})-(\d{1,2})-(\d{1,2})T(\d{1,2}):(\d{2}):(\d{2})/);
+  if (match) {
+    const [, year, month, day, hour, minute, second] = match;
+    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute), parseInt(second));
+  }
+  // Fallback
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? null : d;
+}

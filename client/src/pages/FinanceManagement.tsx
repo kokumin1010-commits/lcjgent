@@ -98,17 +98,6 @@ export default function FinanceManagement() {
     { enabled: activeBrandId > 0 && activeTab === 'imports' }
   );
 
-  const uploadMutation = trpc.tiktokFinance.uploadCsv.useMutation({
-    onSuccess: (data) => {
-      toast.success(`CSVインポート完了: ${data.importedRows}件追加、${data.skippedRows}件スキップ`);
-      setUploadDialogOpen(false);
-      summaryQuery.refetch();
-      importsQuery.refetch();
-    },
-    onError: (error) => {
-      toast.error(error.message);
-    },
-  });
 
   const deleteMutation = trpc.tiktokFinance.deleteImport.useMutation({
     onSuccess: () => {
@@ -131,27 +120,25 @@ export default function FinanceManagement() {
 
     setCsvUploading(true);
     try {
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          try {
-            const result = event.target?.result as string;
-            const b64 = result.split(",")[1];
-            if (!b64) reject(new Error("ファイルの読み込みに失敗しました"));
-            else resolve(b64);
-          } catch (err) {
-            reject(err);
-          }
-        };
-        reader.onerror = () => reject(new Error("ファイルの読み込みに失敗しました"));
-        reader.readAsDataURL(file);
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("brandId", String(activeBrandId));
+
+      const response = await fetch("/api/csv-upload", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
       });
 
-      await uploadMutation.mutateAsync({
-        brandId: activeBrandId,
-        fileName: file.name,
-        csvContent: base64,
-      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "CSVアップロードに失敗しました");
+      }
+
+      toast.success(`CSVインポート完了: ${data.importedRows}件追加、${data.skippedRows}件スキップ`);
+      setUploadDialogOpen(false);
+      summaryQuery.refetch();
+      importsQuery.refetch();
     } catch (err: any) {
       console.error("CSV upload error:", err);
       toast.error(err?.message || "CSVアップロードに失敗しました");
