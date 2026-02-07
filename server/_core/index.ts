@@ -567,7 +567,7 @@ async function startServer() {
         const headers = csvParseCSVLine(lines[0]).map((h: string) => h.replace(/^\uFEFF/, '').trim());
         console.log(`[CSV Upload REST] Parsed ${headers.length} headers. First 5: ${headers.slice(0, 5).join(', ')}`);
 
-        // 4. Parse all rows
+        // 4. Parse all rows — handle multi-subOrderId rows by splitting
         const orders: any[] = [];
         const subOrderIds: string[] = [];
         let errorCount = 0;
@@ -576,8 +576,19 @@ async function startServer() {
             const values = csvParseCSVLine(lines[i]);
             if (values.length < 10) continue;
             const row = csvMapHeadersToValues(headers, values);
-            subOrderIds.push(String(row["サブ注文ID"] || ""));
-            orders.push(row);
+            const rawSubOrderId = String(row["サブ注文ID"] || "");
+            // Handle multi-subOrderId (comma-separated within quotes, e.g. "id1,id2,id3")
+            if (rawSubOrderId.includes(",")) {
+              const subIds = rawSubOrderId.split(",").map((s: string) => s.trim()).filter((s: string) => s);
+              for (const subId of subIds) {
+                const clonedRow = { ...row, "サブ注文ID": subId };
+                subOrderIds.push(subId);
+                orders.push(clonedRow);
+              }
+            } else {
+              subOrderIds.push(rawSubOrderId);
+              orders.push(row);
+            }
           } catch (e) {
             errorCount++;
           }
@@ -600,19 +611,19 @@ async function startServer() {
           newOrders.push({
             brandId,
             importHistoryId: importId,
-            orderId: String(row["注文ID"] || ""),
-            subOrderId: String(row["サブ注文ID"] || ""),
-            orderStatus: row["注文状況"] || null,
-            creatorUsername: row["クリエイターのユーザー名"] || "",
+            orderId: csvTruncate(String(row["注文ID"] || ""), 64),
+            subOrderId: csvTruncate(String(row["サブ注文ID"] || ""), 64),
+            orderStatus: csvTruncate(row["注文状況"] || null, 50),
+            creatorUsername: csvTruncate(row["クリエイターのユーザー名"] || "", 255),
             productName: row["商品名"] || "",
             sku: row["SKU"] || null,
-            productId: String(row["商品ID"] || ""),
+            productId: csvTruncate(String(row["商品ID"] || ""), 64),
             price: csvParseIntSafe(row["価格"]),
             quantity: csvParseIntSafe(row["数量"]) || 1,
-            shopName: row["ショップ名"] || null,
-            shopCode: row["ショップコード"] || null,
-            contentType: row["コンテンツタイプ"] || null,
-            contentId: String(row["コンテンツID"] || ""),
+            shopName: csvTruncate(row["ショップ名"] || null, 255),
+            shopCode: csvTruncate(row["ショップコード"] || null, 64),
+            contentType: csvTruncate(row["コンテンツタイプ"] || null, 50),
+            contentId: csvTruncate(String(row["コンテンツID"] || ""), 64),
             partnerCommissionRate: csvParseFloatSafe(row["アフィリエイトパートナー成果報酬率"]) !== null ? String(csvParseFloatSafe(row["アフィリエイトパートナー成果報酬率"])) : null,
             creatorCommissionRate: csvParseFloatSafe(row["クリエイター成果報酬率"]) !== null ? String(csvParseFloatSafe(row["クリエイター成果報酬率"])) : null,
             partnerRewardRate: csvParseIntSafe(row["パートナー成果報酬リワード率"]),
@@ -638,13 +649,13 @@ async function startServer() {
             orderCreatedAt: csvParseDateDDMMYYYY(row["作成日時"]),
             orderDeliveredAt: csvParseDateDDMMYYYY(row["注文配達日時"]),
             commissionSettledAt: csvParseDateDDMMYYYY(row["手数料決済日時"]),
-            paymentId: String(row["支払いID"] || ""),
-            paymentMethod: row["支払い方法"] || null,
-            paymentAccount: row["支払い口座"] || null,
+            paymentId: csvTruncate(String(row["支払いID"] || ""), 64),
+            paymentMethod: csvTruncate(row["支払い方法"] || null, 50),
+            paymentAccount: csvTruncate(row["支払い口座"] || null, 50),
             iva: csvParseIntSafe(row["IVA"]) || 0,
             isr: csvParseIntSafe(row["ISR"]) || 0,
-            platform: row["プラットフォーム"] || null,
-            factorType: row["要因のタイプ"] || null,
+            platform: csvTruncate(row["プラットフォーム"] || null, 20),
+            factorType: csvTruncate(row["要因のタイプ"] || null, 20),
           });
         }
 
@@ -692,15 +703,18 @@ async function startServer() {
           errorRows: errorCount,
         });
       } catch (error: any) {
+        const safeMsg = csvSanitizeErrorMessage(error.message || "Unknown error");
+        console.error("[CSV Upload REST] Import error:", safeMsg);
         await updateTiktokCsvImportHistory(importId, {
           status: "failed",
-          errorMessage: error.message || "Unknown error",
+          errorMessage: safeMsg,
         });
-        res.status(500).json({ error: `CSVインポートに失敗しました: ${error.message}` });
+        res.status(500).json({ error: `CSVインポートに失敗しました: ${safeMsg}` });
       }
     } catch (error: any) {
-      console.error("[CSV Upload REST] Error:", error);
-      res.status(500).json({ error: error.message || "CSVアップロードに失敗しました" });
+      const safeMsg = csvSanitizeErrorMessage(error.message || "CSVアップロードに失敗しました");
+      console.error("[CSV Upload REST] Error:", safeMsg);
+      res.status(500).json({ error: safeMsg });
     }
   });
 
@@ -870,4 +884,27 @@ function csvParseDateDDMMYYYY(val: string | undefined | null): Date | null {
   // Fallback
   const d = new Date(val);
   return isNaN(d.getTime()) ? null : d;
+}
+
+function csvTruncate(val: string | null, maxLen: number): string | null {
+  if (val === null || val === undefined) return null;
+  if (val.length <= maxLen) return val;
+  return val.substring(0, maxLen);
+}
+
+function csvSanitizeErrorMessage(msg: string): string {
+  // Remove SQL parameter dumps from error messages (they can be huge)
+  // Truncate to max 200 chars to prevent leaking sensitive data
+  if (!msg) return "不明なエラーが発生しました";
+  // Remove everything after "params:" or "values:" or SQL query dumps
+  const cutPatterns = [/\s*params:.*$/i, /\s*values\s*\(.*$/i, /\s*\[.*\]$/];
+  let cleaned = msg;
+  for (const pattern of cutPatterns) {
+    cleaned = cleaned.replace(pattern, "");
+  }
+  // Also truncate if still too long
+  if (cleaned.length > 200) {
+    cleaned = cleaned.substring(0, 200) + "...";
+  }
+  return cleaned || "不明なエラーが発生しました";
 }

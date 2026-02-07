@@ -9121,13 +9121,33 @@ export async function getTiktokCsvImportHistoryByBrand(brandId: number) {
 export async function bulkInsertTiktokOrders(orders: InsertTiktokCommissionOrder[]) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  // Insert in batches of 100
-  const batchSize = 100;
+  // Insert in batches of 50 (smaller batches for better error isolation)
+  const batchSize = 50;
   let inserted = 0;
+  let batchErrors: string[] = [];
   for (let i = 0; i < orders.length; i += batchSize) {
     const batch = orders.slice(i, i + batchSize);
-    await db.insert(tiktokCommissionOrders).values(batch);
-    inserted += batch.length;
+    try {
+      await db.insert(tiktokCommissionOrders).values(batch);
+      inserted += batch.length;
+    } catch (batchError: any) {
+      // If batch fails, try inserting records one by one
+      console.error(`[bulkInsert] Batch ${i}-${i + batch.length} failed, trying individual inserts...`);
+      for (let j = 0; j < batch.length; j++) {
+        try {
+          await db.insert(tiktokCommissionOrders).values([batch[j]]);
+          inserted++;
+        } catch (singleError: any) {
+          // Log but continue - don't let one bad record kill the whole import
+          const subOrderId = batch[j]?.subOrderId || 'unknown';
+          console.error(`[bulkInsert] Failed to insert record subOrderId=${subOrderId}: ${(singleError.message || '').substring(0, 100)}`);
+          batchErrors.push(`Row ${i + j}: subOrderId=${subOrderId}`);
+        }
+      }
+    }
+  }
+  if (batchErrors.length > 0) {
+    console.warn(`[bulkInsert] Completed with ${batchErrors.length} failed records out of ${orders.length} total`);
   }
   return inserted;
 }
