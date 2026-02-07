@@ -1029,6 +1029,8 @@ export default function LiverSelfRecord() {
                   </Button>
                 </div>
 
+                <p className="text-xs text-gray-500 -mt-1">※ セット売上は配信全体の売上の内訳参考です。売上金額には加算されません。</p>
+
                 {sets.map((set, setIndex) => {
                   const totalOriginalPrice = set.items.reduce((sum, item) => sum + (parseInt(item.originalPrice) || 0), 0);
                   const setPrice = parseInt(set.setPrice) || 0;
