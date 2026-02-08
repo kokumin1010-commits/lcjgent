@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -9653,4 +9653,248 @@ export async function getDistinctMappingCategories() {
   if (!db) return [];
   const results = await db.selectDistinct({ category: productCategoryMappings.category }).from(productCategoryMappings).orderBy(asc(productCategoryMappings.category));
   return results.map(r => r.category);
+}
+
+
+// ============================================================
+// Simulation functions
+// ============================================================
+
+/**
+ * Get liver's historical performance stats for simulation
+ * ライバーの過去実績統計を取得（シミュレーション計算用）
+ */
+export async function getLiverPerformanceStats(liverId: number, options?: { category?: string; priceRange?: { min: number; max: number } }) {
+  const db = await getDb();
+  if (!db) return null;
+
+  // Get all livestreams for this liver
+  const liver = await db.select().from(livers).where(eq(livers.id, liverId)).limit(1);
+  if (!liver.length) return null;
+
+  const liverName = liver[0].name;
+
+  // Get all livestreams by this liver
+  const allStreams = await db.select().from(brandLivestreams)
+    .where(eq(brandLivestreams.streamerName, liverName))
+    .orderBy(desc(brandLivestreams.livestreamDate));
+
+  if (!allStreams.length) return null;
+
+  // Calculate stats
+  const validStreams = allStreams.filter(s => s.gmv && s.gmv > 0);
+  const totalGmv = validStreams.reduce((sum, s) => sum + (Number(s.gmv) || 0), 0);
+  const totalDuration = validStreams.reduce((sum, s) => sum + (s.duration || 0), 0);
+  const totalSalesCount = validStreams.reduce((sum, s) => sum + (s.itemsSold || s.salesCount || 0), 0);
+  const totalViewers = validStreams.reduce((sum, s) => sum + (s.viewerCount || 0), 0);
+  const totalOrders = validStreams.reduce((sum, s) => sum + (s.orderCount || 0), 0);
+
+  const streamCount = validStreams.length;
+  const avgGmvPerStream = streamCount > 0 ? totalGmv / streamCount : 0;
+  const avgGmvPerHour = totalDuration > 0 ? totalGmv / (totalDuration / 60) : 0;
+  const avgViewers = streamCount > 0 ? totalViewers / streamCount : 0;
+  const avgSalesPerStream = streamCount > 0 ? totalSalesCount / streamCount : 0;
+  const avgOrdersPerStream = streamCount > 0 ? totalOrders / streamCount : 0;
+
+  // CVR calculation
+  const streamsWithCvr = validStreams.filter(s => s.cvr);
+  const avgCvr = streamsWithCvr.length > 0
+    ? streamsWithCvr.reduce((sum, s) => sum + parseFloat(String(s.cvr || '0').replace('%', '')), 0) / streamsWithCvr.length
+    : 0;
+
+  // Get product-level data for price range filtering
+  let filteredGmv = totalGmv;
+  let filteredCount = streamCount;
+  if (options?.priceRange) {
+    const streamIds = validStreams.map(s => s.id);
+    if (streamIds.length > 0) {
+      const products = await db.select().from(livestreamProducts)
+        .where(inArray(livestreamProducts.livestreamId, streamIds));
+      
+      const matchingProducts = products.filter(p => {
+        const price = Number(p.unitPrice) || 0;
+        return price >= (options.priceRange?.min || 0) && price <= (options.priceRange?.max || Infinity);
+      });
+      
+      if (matchingProducts.length > 0) {
+        filteredGmv = matchingProducts.reduce((sum, p) => sum + (Number(p.gmv) || Number(p.grossRevenue) || Number(p.directGmv) || 0), 0);
+        filteredCount = matchingProducts.length;
+      }
+    }
+  }
+
+  // Time slot analysis
+  const timeSlotStats: Record<string, { count: number; totalGmv: number }> = {};
+  validStreams.forEach(s => {
+    const slot = s.livestreamStartTime || 'unknown';
+    if (!timeSlotStats[slot]) timeSlotStats[slot] = { count: 0, totalGmv: 0 };
+    timeSlotStats[slot].count++;
+    timeSlotStats[slot].totalGmv += Number(s.gmv) || 0;
+  });
+
+  // Best time slot
+  const bestTimeSlot = Object.entries(timeSlotStats)
+    .sort((a, b) => (b[1].totalGmv / b[1].count) - (a[1].totalGmv / a[1].count))[0];
+
+  return {
+    liverName,
+    liverId,
+    streamCount,
+    totalGmv,
+    avgGmvPerStream: Math.round(avgGmvPerStream),
+    avgGmvPerHour: Math.round(avgGmvPerHour),
+    avgViewers: Math.round(avgViewers),
+    avgSalesPerStream: Math.round(avgSalesPerStream),
+    avgOrdersPerStream: Math.round(avgOrdersPerStream),
+    avgCvr,
+    filteredGmv,
+    filteredCount,
+    bestTimeSlot: bestTimeSlot ? { slot: bestTimeSlot[0], avgGmv: Math.round(bestTimeSlot[1].totalGmv / bestTimeSlot[1].count) } : null,
+    recentStreams: validStreams.slice(0, 10).map(s => ({
+      id: s.id,
+      date: s.livestreamDate,
+      gmv: Number(s.gmv) || 0,
+      duration: s.duration || 0,
+      viewers: s.viewerCount || 0,
+      salesCount: s.itemsSold || s.salesCount || 0,
+    })),
+  };
+}
+
+/**
+ * Find similar past cases for simulation comparison
+ * 類似案件を検索（同価格帯×同ライバー or 同カテゴリ）
+ */
+export async function findSimilarCases(params: {
+  liverId: number;
+  unitPrice: number;
+  streamDuration: number;
+  limit?: number;
+}) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const liver = await db.select().from(livers).where(eq(livers.id, params.liverId)).limit(1);
+  if (!liver.length) return [];
+
+  const liverName = liver[0].name;
+  const priceMin = params.unitPrice * 0.5;
+  const priceMax = params.unitPrice * 2;
+
+  // Get livestreams by this liver
+  const streams = await db.select().from(brandLivestreams)
+    .where(and(
+      eq(brandLivestreams.streamerName, liverName),
+      isNotNull(brandLivestreams.gmv),
+    ))
+    .orderBy(desc(brandLivestreams.livestreamDate))
+    .limit(params.limit || 20);
+
+  // Filter by similar duration (±30%)
+  const durationMin = params.streamDuration * 0.7;
+  const durationMax = params.streamDuration * 1.3;
+  
+  const similar = streams.filter(s => {
+    const dur = s.duration || 0;
+    return dur >= durationMin && dur <= durationMax;
+  });
+
+  return (similar.length > 0 ? similar : streams.slice(0, 5)).map(s => ({
+    id: s.id,
+    date: s.livestreamDate,
+    gmv: Number(s.gmv) || 0,
+    salesAmount: Number(s.salesAmount) || 0,
+    duration: s.duration || 0,
+    viewers: s.viewerCount || 0,
+    salesCount: s.itemsSold || s.salesCount || 0,
+    cvr: s.cvr,
+    avgPrice: Number(s.avgPrice) || 0,
+  }));
+}
+
+/**
+ * Create a new simulation
+ */
+export async function createSimulation(data: InsertSimulation) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(simulations).values(data);
+  return result;
+}
+
+/**
+ * Get simulation by ID
+ */
+export async function getSimulationById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.select().from(simulations).where(eq(simulations.id, id)).limit(1);
+  return result[0] || null;
+}
+
+/**
+ * Get simulation by share token (public access)
+ */
+export async function getSimulationByToken(token: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.select().from(simulations).where(eq(simulations.shareToken, token)).limit(1);
+  return result[0] || null;
+}
+
+/**
+ * List simulations for a user
+ */
+export async function listSimulations(userId: number, limit = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(simulations)
+    .where(eq(simulations.createdBy, userId))
+    .orderBy(desc(simulations.createdAt))
+    .limit(limit);
+}
+
+/**
+ * Update simulation with results
+ */
+export async function updateSimulation(id: number, data: Partial<InsertSimulation>) {
+  const db = await getDb();
+  if (!db) return false;
+  await db.update(simulations).set(data).where(eq(simulations.id, id));
+  return true;
+}
+
+/**
+ * Delete simulation
+ */
+export async function deleteSimulation(id: number) {
+  const db = await getDb();
+  if (!db) return false;
+  await db.delete(simulations).where(eq(simulations.id, id));
+  return true;
+}
+
+/**
+ * Create simulation feedback (actual results)
+ */
+export async function createSimulationFeedback(data: InsertSimulationFeedback) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.insert(simulationFeedback).values(data);
+}
+
+/**
+ * Get all feedback for learning (prediction vs actual)
+ */
+export async function getSimulationFeedbackHistory(limit = 100) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({
+    feedback: simulationFeedback,
+    simulation: simulations,
+  })
+    .from(simulationFeedback)
+    .innerJoin(simulations, eq(simulationFeedback.simulationId, simulations.id))
+    .orderBy(desc(simulationFeedback.createdAt))
+    .limit(limit);
 }

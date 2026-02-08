@@ -2474,3 +2474,92 @@ export const productCategoryMappings = mysqlTable("product_category_mappings", {
 });
 export type ProductCategoryMapping = typeof productCategoryMappings.$inferSelect;
 export type InsertProductCategoryMapping = typeof productCategoryMappings.$inferInsert;
+
+
+/**
+ * Simulations table for storing livestream simulation inputs and results
+ * 配信シミュレーション：入力条件・計算結果・共有トークンを保存
+ */
+export const simulations = mysqlTable("simulations", {
+  id: int("id").autoincrement().primaryKey(),
+  shareToken: varchar("shareToken", { length: 64 }).notNull().unique(), // 公開共有用トークン
+  
+  // 商品条件（SKU）
+  productName: varchar("productName", { length: 500 }), // 商品名（任意）
+  brandId: int("brandId"), // ブランドID（任意）
+  unitPrice: bigint("unitPrice", { mode: "number" }).notNull(), // 商品単価（円）
+  costPrice: bigint("costPrice", { mode: "number" }), // 原価（円）
+  grossMarginRate: decimal("grossMarginRate", { precision: 5, scale: 2 }), // 粗利率（%）
+  hasSet: boolean("hasSet").default(false), // セット有無
+  expectedAov: bigint("expectedAov", { mode: "number" }), // 想定AOV（円）
+  
+  // ライバー条件
+  liverId: int("liverId").notNull(), // 選択ライバーID
+  commissionRate: decimal("commissionRate", { precision: 5, scale: 2 }).notNull(), // 成果報酬率（%）
+  fixedFee: bigint("fixedFee", { mode: "number" }).default(0), // 固定報酬（円）
+  contractType: mysqlEnum("simContractType", ["exclusive", "spot"]).default("spot"), // 専属 or スポット
+  
+  // 実施条件
+  streamDuration: int("streamDuration").notNull(), // 配信時間（分）
+  timeSlot: varchar("timeSlot", { length: 50 }), // 時間帯（例："20:00-21:00"）
+  dayOfWeek: varchar("dayOfWeek", { length: 20 }), // 曜日
+  hasAd: boolean("hasAd").default(false), // 広告有無
+  adBudget: bigint("adBudget", { mode: "number" }), // 広告予算（円）
+  
+  // 計算結果
+  estimatedGmv: bigint("estimatedGmv", { mode: "number" }), // 想定GMV
+  estimatedSalesCount: int("estimatedSalesCount"), // 想定販売数
+  estimatedGrossProfit: bigint("estimatedGrossProfit", { mode: "number" }), // 想定粗利
+  estimatedLiverCost: bigint("estimatedLiverCost", { mode: "number" }), // ライバー報酬合計
+  estimatedNetProfit: bigint("estimatedNetProfit", { mode: "number" }), // 想定利益
+  estimatedRoi: decimal("estimatedRoi", { precision: 8, scale: 2 }), // ROI（%）
+  
+  // AI予測結果
+  aiPrediction: json("aiPrediction").$type<{
+    confidence: number; // 予測信頼度（0-100）
+    gmvRange: { min: number; max: number }; // GMVレンジ
+    similarCases: { avgGmv: number; avgRoi: number; count: number }; // 類似案件統計
+    reasoning: string; // AI分析コメント
+    adjustmentFactors: Record<string, number>; // 補正係数
+  }>(),
+  
+  // メタ情報
+  status: mysqlEnum("simStatus", ["draft", "shared", "archived"]).default("draft"),
+  createdBy: int("createdBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Simulation = typeof simulations.$inferSelect;
+export type InsertSimulation = typeof simulations.$inferInsert;
+
+/**
+ * Simulation Feedback table for tracking prediction accuracy
+ * シミュレーション予測 vs 実績の差分を記録し、AI学習に活用
+ */
+export const simulationFeedback = mysqlTable("simulation_feedback", {
+  id: int("id").autoincrement().primaryKey(),
+  simulationId: int("simulationId").notNull(), // References simulations.id
+  livestreamId: int("livestreamId"), // 紐付いた実際の配信ID（任意）
+  
+  // 実績データ
+  actualGmv: bigint("actualGmv", { mode: "number" }), // 実際のGMV
+  actualSalesCount: int("actualSalesCount"), // 実際の販売数
+  actualNetProfit: bigint("actualNetProfit", { mode: "number" }), // 実際の利益
+  actualRoi: decimal("actualRoi", { precision: 8, scale: 2 }), // 実際のROI
+  
+  // 差分分析
+  gmvAccuracy: decimal("gmvAccuracy", { precision: 5, scale: 2 }), // GMV予測精度（%）
+  overallAccuracy: decimal("overallAccuracy", { precision: 5, scale: 2 }), // 総合精度（%）
+  
+  // フィードバック
+  feedbackNote: text("feedbackNote"), // 運営者メモ
+  impactFactors: json("impactFactors").$type<string[]>(), // 影響要因（例：["広告効果大", "商品人気"]）
+  
+  createdBy: int("createdBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SimulationFeedback = typeof simulationFeedback.$inferSelect;
+export type InsertSimulationFeedback = typeof simulationFeedback.$inferInsert;

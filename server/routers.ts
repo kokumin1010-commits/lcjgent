@@ -378,11 +378,21 @@ import {
   createLivestreamSetItem,
   getLivestreamSetsByLivestreamId,
   deleteLivestreamSetsByLivestreamId,
+  getLiverPerformanceStats,
+  findSimilarCases,
+  createSimulation,
+  getSimulationById,
+  getSimulationByToken,
+  listSimulations,
+  updateSimulation,
+  deleteSimulation,
+  createSimulationFeedback,
+  getSimulationFeedbackHistory,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
-import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems } from "../drizzle/schema";
+import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations } from "../drizzle/schema";
 import { eq, and, not, isNotNull, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
@@ -11081,6 +11091,392 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
       .mutation(async ({ input }) => {
         await deleteLivestreamSetsByLivestreamId(input.livestreamId);
         return { success: true };
+      }),
+  }),
+
+  // ============================================================
+  // Simulation Router - 配信シミュレーター
+  // ============================================================
+  simulation: router({
+    // Get liver performance stats for simulation
+    getLiverStats: publicProcedure
+      .input(z.object({
+        liverId: z.number(),
+        priceRange: z.object({ min: z.number(), max: z.number() }).optional(),
+      }))
+      .query(async ({ input }) => {
+        return await getLiverPerformanceStats(input.liverId, { priceRange: input.priceRange });
+      }),
+
+    // Find similar past cases
+    findSimilarCases: publicProcedure
+      .input(z.object({
+        liverId: z.number(),
+        unitPrice: z.number(),
+        streamDuration: z.number(),
+        limit: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        return await findSimilarCases(input);
+      }),
+
+    // Run simulation calculation
+    calculate: protectedProcedure
+      .input(z.object({
+        // Product conditions
+        productName: z.string().optional(),
+        brandId: z.number().optional(),
+        unitPrice: z.number().min(1),
+        costPrice: z.number().optional(),
+        grossMarginRate: z.number().optional(),
+        hasSet: z.boolean().default(false),
+        expectedAov: z.number().optional(),
+        // Liver conditions
+        liverId: z.number(),
+        commissionRate: z.number().min(0).max(100),
+        fixedFee: z.number().default(0),
+        contractType: z.enum(["exclusive", "spot"]).default("spot"),
+        // Execution conditions
+        streamDuration: z.number().min(1),
+        timeSlot: z.string().optional(),
+        dayOfWeek: z.string().optional(),
+        hasAd: z.boolean().default(false),
+        adBudget: z.number().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        // 1. Get liver performance stats
+        const stats = await getLiverPerformanceStats(input.liverId, {
+          priceRange: { min: input.unitPrice * 0.5, max: input.unitPrice * 2 },
+        });
+
+        if (!stats || stats.streamCount === 0) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "このライバーの配信実績データがありません。シミュレーションを実行するには過去の配信データが必要です。",
+          });
+        }
+
+        // 2. Find similar cases
+        const similarCases = await findSimilarCases({
+          liverId: input.liverId,
+          unitPrice: input.unitPrice,
+          streamDuration: input.streamDuration,
+        });
+
+        // 3. Calculate base estimates
+        const durationHours = input.streamDuration / 60;
+        const baseGmv = stats.avgGmvPerHour * durationHours;
+
+        // Apply adjustments
+        let adjustedGmv = baseGmv;
+        const adjustmentFactors: Record<string, number> = {};
+
+        // Time slot adjustment (if best time slot data available)
+        if (stats.bestTimeSlot && input.timeSlot) {
+          const inputHour = parseInt(input.timeSlot.split(':')[0] || '0');
+          const bestHour = parseInt(stats.bestTimeSlot.slot.split(':')[0] || '0');
+          if (Math.abs(inputHour - bestHour) <= 2) {
+            adjustmentFactors['timeSlot'] = 1.1;
+            adjustedGmv *= 1.1;
+          } else if (Math.abs(inputHour - bestHour) > 4) {
+            adjustmentFactors['timeSlot'] = 0.85;
+            adjustedGmv *= 0.85;
+          }
+        }
+
+        // Ad boost adjustment
+        if (input.hasAd && input.adBudget && input.adBudget > 0) {
+          const adBoost = Math.min(1 + (input.adBudget / baseGmv) * 0.5, 1.5);
+          adjustmentFactors['adBoost'] = adBoost;
+          adjustedGmv *= adBoost;
+        }
+
+        // Set adjustment
+        if (input.hasSet) {
+          adjustmentFactors['setBoost'] = 1.15;
+          adjustedGmv *= 1.15;
+        }
+
+        // Similar cases adjustment
+        if (similarCases.length >= 3) {
+          const avgSimilarGmv = similarCases.reduce((sum, c) => sum + c.gmv, 0) / similarCases.length;
+          const blendFactor = 0.3;
+          adjustedGmv = adjustedGmv * (1 - blendFactor) + avgSimilarGmv * blendFactor;
+          adjustmentFactors['similarCaseBlend'] = blendFactor;
+        }
+
+        const estimatedGmv = Math.round(adjustedGmv);
+        const aov = input.expectedAov || input.unitPrice;
+        const estimatedSalesCount = Math.round(estimatedGmv / aov);
+
+        // Calculate profit
+        let grossMarginRate = 0;
+        if (input.grossMarginRate) {
+          grossMarginRate = input.grossMarginRate / 100;
+        } else if (input.costPrice) {
+          grossMarginRate = (input.unitPrice - input.costPrice) / input.unitPrice;
+        } else {
+          grossMarginRate = 0.5; // Default 50%
+        }
+
+        const estimatedGrossProfit = Math.round(estimatedGmv * grossMarginRate);
+        const liverCommission = Math.round(estimatedGmv * (input.commissionRate / 100));
+        const estimatedLiverCost = liverCommission + input.fixedFee;
+        const adCost = input.hasAd ? (input.adBudget || 0) : 0;
+        const estimatedNetProfit = estimatedGrossProfit - estimatedLiverCost - adCost;
+        const totalCost = estimatedLiverCost + adCost;
+        const estimatedRoi = totalCost > 0 ? Math.round((estimatedNetProfit / totalCost) * 100) : 0;
+
+        // Similar cases stats
+        const similarCaseStats = similarCases.length > 0 ? {
+          avgGmv: Math.round(similarCases.reduce((s, c) => s + c.gmv, 0) / similarCases.length),
+          avgRoi: 0,
+          count: similarCases.length,
+        } : { avgGmv: 0, avgRoi: 0, count: 0 };
+
+        // 4. AI prediction (use LLM for enhanced analysis)
+        let aiPrediction = null;
+        try {
+          // Get past feedback for learning
+          const feedbackHistory = await getSimulationFeedbackHistory(20);
+          const feedbackContext = feedbackHistory.length > 0
+            ? feedbackHistory.map(f => ({
+                predicted: Number(f.simulation.estimatedGmv) || 0,
+                actual: Number(f.feedback.actualGmv) || 0,
+                accuracy: Number(f.feedback.gmvAccuracy) || 0,
+                unitPrice: Number(f.simulation.unitPrice) || 0,
+                duration: f.simulation.streamDuration,
+              }))
+            : [];
+
+          const aiResponse = await invokeLLM({
+            messages: [
+              {
+                role: "system",
+                content: `あなたはTikTokライブコマースの配信シミュレーション専門AIです。過去の配信実績データに基づいて、GMV予測の精度を高めるための分析を行います。必ず以下のJSON形式で回答してください。`,
+              },
+              {
+                role: "user",
+                content: JSON.stringify({
+                  task: "配信シミュレーション分析",
+                  liverStats: {
+                    name: stats.liverName,
+                    avgGmvPerStream: stats.avgGmvPerStream,
+                    avgGmvPerHour: stats.avgGmvPerHour,
+                    streamCount: stats.streamCount,
+                    avgCvr: stats.avgCvr,
+                    avgViewers: stats.avgViewers,
+                  },
+                  inputConditions: {
+                    unitPrice: input.unitPrice,
+                    streamDuration: input.streamDuration,
+                    commissionRate: input.commissionRate,
+                    hasAd: input.hasAd,
+                    adBudget: input.adBudget,
+                    hasSet: input.hasSet,
+                  },
+                  baseEstimate: estimatedGmv,
+                  similarCases: similarCases.slice(0, 5).map(c => ({ gmv: c.gmv, duration: c.duration, viewers: c.viewers })),
+                  pastPredictionAccuracy: feedbackContext.slice(0, 10),
+                }),
+              },
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "simulation_analysis",
+                strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    confidence: { type: "number", description: "予測信頼度 0-100" },
+                    gmvMin: { type: "number", description: "GMV下限予測" },
+                    gmvMax: { type: "number", description: "GMV上限予測" },
+                    reasoning: { type: "string", description: "分析コメント（日本語、100文字以内）" },
+                    adjustmentSuggestion: { type: "number", description: "GMV補正係数（0.5-2.0）" },
+                  },
+                  required: ["confidence", "gmvMin", "gmvMax", "reasoning", "adjustmentSuggestion"],
+                  additionalProperties: false,
+                },
+              },
+            },
+          });
+
+          const rawContent = aiResponse.choices[0]?.message?.content;
+          const contentStr = typeof rawContent === 'string' ? rawContent : JSON.stringify(rawContent) || '{}';
+          const aiResult = JSON.parse(contentStr || '{}');
+          aiPrediction = {
+            confidence: aiResult.confidence || 50,
+            gmvRange: { min: aiResult.gmvMin || Math.round(estimatedGmv * 0.7), max: aiResult.gmvMax || Math.round(estimatedGmv * 1.3) },
+            similarCases: similarCaseStats,
+            reasoning: aiResult.reasoning || '分析データが不足しています',
+            adjustmentFactors,
+          };
+
+          // Apply AI adjustment if available
+          if (aiResult.adjustmentSuggestion && aiResult.adjustmentSuggestion >= 0.5 && aiResult.adjustmentSuggestion <= 2.0) {
+            // Blend AI suggestion with base estimate (30% weight)
+            const aiAdjustedGmv = estimatedGmv * aiResult.adjustmentSuggestion;
+            const finalGmv = Math.round(estimatedGmv * 0.7 + aiAdjustedGmv * 0.3);
+            // Update estimates with AI-adjusted values
+            // (keep original as base, AI prediction shows range)
+          }
+        } catch (error) {
+          console.error('[Simulation] AI prediction error:', error);
+          aiPrediction = {
+            confidence: 40,
+            gmvRange: { min: Math.round(estimatedGmv * 0.6), max: Math.round(estimatedGmv * 1.4) },
+            similarCases: similarCaseStats,
+            reasoning: '過去実績ベースの予測です（AI分析は一時的に利用できません）',
+            adjustmentFactors,
+          };
+        }
+
+        // 5. Save simulation
+        const shareToken = nanoid(16);
+        await createSimulation({
+          shareToken,
+          productName: input.productName || null,
+          brandId: input.brandId || null,
+          unitPrice: input.unitPrice,
+          costPrice: input.costPrice || null,
+          grossMarginRate: input.grossMarginRate ? String(input.grossMarginRate) : null,
+          hasSet: input.hasSet,
+          expectedAov: input.expectedAov || null,
+          liverId: input.liverId,
+          commissionRate: String(input.commissionRate),
+          fixedFee: input.fixedFee,
+          contractType: input.contractType,
+          streamDuration: input.streamDuration,
+          timeSlot: input.timeSlot || null,
+          dayOfWeek: input.dayOfWeek || null,
+          hasAd: input.hasAd,
+          adBudget: input.hasAd ? (input.adBudget || null) : null,
+          estimatedGmv,
+          estimatedSalesCount,
+          estimatedGrossProfit,
+          estimatedLiverCost,
+          estimatedNetProfit,
+          estimatedRoi: String(estimatedRoi),
+          aiPrediction,
+          status: 'draft',
+          createdBy: ctx.user.id,
+        });
+
+        return {
+          shareToken,
+          estimatedGmv,
+          estimatedSalesCount,
+          estimatedGrossProfit,
+          estimatedLiverCost,
+          estimatedNetProfit,
+          estimatedRoi,
+          aiPrediction,
+          liverStats: {
+            name: stats.liverName,
+            streamCount: stats.streamCount,
+            avgGmvPerStream: stats.avgGmvPerStream,
+            avgGmvPerHour: stats.avgGmvPerHour,
+          },
+          similarCases: similarCases.slice(0, 5),
+        };
+      }),
+
+    // Share simulation (make it public)
+    share: protectedProcedure
+      .input(z.object({ shareToken: z.string() }))
+      .mutation(async ({ input }) => {
+        const sim = await getSimulationByToken(input.shareToken);
+        if (!sim) throw new TRPCError({ code: "NOT_FOUND" });
+        await updateSimulation(sim.id, { status: 'shared' });
+        return { shareToken: input.shareToken };
+      }),
+
+    // Get simulation by share token (public)
+    getByToken: publicProcedure
+      .input(z.object({ token: z.string() }))
+      .query(async ({ input }) => {
+        const sim = await getSimulationByToken(input.token);
+        if (!sim) throw new TRPCError({ code: "NOT_FOUND" });
+        // Get liver name
+        const db = await getDb();
+        let liverName = 'Unknown';
+        if (db) {
+          const { livers } = await import('../drizzle/schema');
+          const liver = await db.select().from(livers).where(eq(livers.id, sim.liverId)).limit(1);
+          if (liver.length) liverName = liver[0].name;
+        }
+        return { ...sim, liverName };
+      }),
+
+    // List user's simulations
+    list: protectedProcedure
+      .input(z.object({ limit: z.number().optional() }))
+      .query(async ({ ctx, input }) => {
+        const sims = await listSimulations(ctx.user.id, input.limit);
+        return sims;
+      }),
+
+    // Delete simulation
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteSimulation(input.id);
+        return { success: true };
+      }),
+
+    // Record actual results (feedback for AI learning)
+    recordFeedback: protectedProcedure
+      .input(z.object({
+        simulationId: z.number(),
+        livestreamId: z.number().optional(),
+        actualGmv: z.number(),
+        actualSalesCount: z.number().optional(),
+        actualNetProfit: z.number().optional(),
+        feedbackNote: z.string().optional(),
+        impactFactors: z.array(z.string()).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const sim = await getSimulationById(input.simulationId);
+        if (!sim) throw new TRPCError({ code: "NOT_FOUND" });
+
+        const predictedGmv = Number(sim.estimatedGmv) || 0;
+        const gmvAccuracy = predictedGmv > 0
+          ? Math.round((1 - Math.abs(input.actualGmv - predictedGmv) / predictedGmv) * 100)
+          : 0;
+
+        const actualRoi = input.actualNetProfit && (Number(sim.estimatedLiverCost) || 0) > 0
+          ? Math.round((input.actualNetProfit / (Number(sim.estimatedLiverCost) || 1)) * 100)
+          : null;
+
+        await createSimulationFeedback({
+          simulationId: input.simulationId,
+          livestreamId: input.livestreamId || null,
+          actualGmv: input.actualGmv,
+          actualSalesCount: input.actualSalesCount || null,
+          actualNetProfit: input.actualNetProfit || null,
+          actualRoi: actualRoi !== null ? String(actualRoi) : null,
+          gmvAccuracy: String(gmvAccuracy),
+          overallAccuracy: String(gmvAccuracy),
+          feedbackNote: input.feedbackNote || null,
+          impactFactors: input.impactFactors || null,
+          createdBy: ctx.user.id,
+        });
+
+        return { success: true, gmvAccuracy };
+      }),
+
+    // Get prediction accuracy history
+    getAccuracyHistory: protectedProcedure
+      .query(async () => {
+        const history = await getSimulationFeedbackHistory(50);
+        return history.map(h => ({
+          simulationId: h.simulation.id,
+          predictedGmv: Number(h.simulation.estimatedGmv) || 0,
+          actualGmv: Number(h.feedback.actualGmv) || 0,
+          accuracy: Number(h.feedback.gmvAccuracy) || 0,
+          createdAt: h.feedback.createdAt,
+        }));
       }),
   }),
 });

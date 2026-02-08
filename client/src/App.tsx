@@ -67,6 +67,8 @@ import LiverResetPassword from "./pages/LiverResetPassword";
 import LiverDashboard from "./pages/LiverDashboard";
 import LiverDashboardNew from "./pages/LiverDashboardNew";
 import LiverDetailNew from "./pages/LiverDetailNew";
+import Simulator from "./pages/Simulator";
+import ProposalPage from "./pages/ProposalPage";
 
 function Router() {
   return (
@@ -219,6 +221,7 @@ function Router() {
         </DashboardLayout>
       </Route>
       <Route path={"/master/livers-dashboard"} component={LiverDashboardNew} />
+      <Route path={"/master/simulator"} component={Simulator} />
       <Route path={"/master/livers-dashboard/:id"} component={LiverDetailNew} />
       <Route path={"/master/livers"} component={LiverList} />
       <Route path={"/master/livers/:id"} component={LiverDetail} />
@@ -268,6 +271,9 @@ function Router() {
           <FinanceManagement />
         </DashboardLayout>
       </Route>
+      
+      {/* Public Pages - Proposal */}
+      <Route path="/proposal/:token" component={ProposalPage} />
       
       {/* Public Pages - Schedule */}
       <Route path={"/s"} component={PublicSchedule} />
