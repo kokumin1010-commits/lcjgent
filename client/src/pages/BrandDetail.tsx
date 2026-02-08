@@ -7514,8 +7514,10 @@ ${proposal.proposalContent}
                           setAdCampaignAnalysisResult(null);
                           setAdCampaignFile(null);
                           refetchAdCampaigns();
-                        } catch (error) {
-                          toast.error(language === 'ja' ? '保存に失敗しました' : '保存失败');
+                        } catch (error: any) {
+                          console.error('Campaign save error:', error);
+                          const errorMsg = error?.message || '';
+                          toast.error(language === 'ja' ? `保存に失敗しました: ${errorMsg.slice(0, 100)}` : `保存失败: ${errorMsg.slice(0, 100)}`);
                         }
                       }}
                       disabled={createAdCampaignMutation.isPending}

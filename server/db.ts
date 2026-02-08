@@ -8868,8 +8868,8 @@ export async function createAdCampaign(data: InsertAdCampaign) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  const result = await db.insert(adCampaigns).values(data);
-  return result;
+  const [inserted] = await db.insert(adCampaigns).values(data).$returningId();
+  return { id: inserted.id, ...data };
 }
 
 /**

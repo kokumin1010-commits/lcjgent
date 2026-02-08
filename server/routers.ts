@@ -4502,6 +4502,7 @@ ${hasLearningData ? '- 過去の広告実績データ: ' + learningDataRecords +
         })).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
+        console.log('[createAdCampaign] Input received:', JSON.stringify(input, null, 2).slice(0, 500));
         const { countryBreakdown, impressions, views, views6s, clicks, conversions, gmv, orderCount, cartAdds, ...campaignData } = input;
         
         // Safe date parsing helper
@@ -4526,13 +4527,16 @@ ${hasLearningData ? '- 過去の広告実績データ: ' + learningDataRecords +
           createdByName: ctx.user.name || ctx.user.email,
         });
         
-        const campaignId = (result as any)[0]?.insertId;
+        console.log('[createAdCampaign] DB result:', JSON.stringify(result));
+        const campaignId = result.id;
         if (!campaignId) {
+          console.error('[createAdCampaign] No campaignId found in result');
           throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to create campaign' });
         }
+        console.log('[createAdCampaign] Campaign created with ID:', campaignId);
         
-        // Create metrics if provided
-        if (impressions || views || views6s || clicks || gmv) {
+        // Create metrics if provided (use != null to allow 0 values)
+        if (impressions != null || views != null || views6s != null || clicks != null || gmv != null || conversions != null || orderCount != null || cartAdds != null) {
           try {
             await createAdMetrics({
               campaignId,
