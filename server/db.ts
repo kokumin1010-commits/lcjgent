@@ -9517,7 +9517,7 @@ export async function getLiverCategoryAnalysis(liverId: number) {
     "フレグランス": ["香水", "フレグランス", "fragrance", "perfume", "コロン"],
   };
   
-  const categoryMap = new Map<string, { gmv: number; itemsSold: number; productCount: number; products: string[] }>();
+  const categoryMap = new Map<string, { gmv: number; itemsSold: number; productCount: number; products: { name: string; gmv: number }[] }>();
   
   for (const product of products) {
     const name = product.productName.toLowerCase();
@@ -9529,9 +9529,7 @@ export async function getLiverCategoryAnalysis(liverId: number) {
         existing.gmv += Number(product.totalGmv);
         existing.itemsSold += Number(product.totalItemsSold);
         existing.productCount += 1;
-        if (existing.products.length < 3) {
-          existing.products.push(product.productName);
-        }
+        existing.products.push({ name: product.productName, gmv: Number(product.totalGmv) });
         categoryMap.set(category, existing);
         matched = true;
         break;
@@ -9543,9 +9541,7 @@ export async function getLiverCategoryAnalysis(liverId: number) {
       existing.gmv += Number(product.totalGmv);
       existing.itemsSold += Number(product.totalItemsSold);
       existing.productCount += 1;
-      if (existing.products.length < 3) {
-        existing.products.push(product.productName);
-      }
+      existing.products.push({ name: product.productName, gmv: Number(product.totalGmv) });
       categoryMap.set("その他", existing);
     }
   }
@@ -9560,7 +9556,7 @@ export async function getLiverCategoryAnalysis(liverId: number) {
       itemsSold: data.itemsSold,
       productCount: data.productCount,
       percentage: totalGmv > 0 ? Math.round((data.gmv / totalGmv) * 100) : 0,
-      topProducts: data.products,
+      products: data.products.sort((a, b) => b.gmv - a.gmv),
     }))
     .sort((a, b) => b.gmv - a.gmv);
   

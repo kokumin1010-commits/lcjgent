@@ -119,6 +119,7 @@ export default function LiverDetailNew() {
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].value);
   const [showAllHistory, setShowAllHistory] = useState(false);
   const [showAllProducts, setShowAllProducts] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
   
   const { data: liver, isLoading: liverLoading } = trpc.liverManagement.getById.useQuery({
     id: liverId,
@@ -617,7 +618,8 @@ export default function LiverDetailNew() {
               </div>
             ) : categoryAnalysis && categoryAnalysis.length > 0 ? (
               <div className="space-y-3">
-                {categoryAnalysis.filter(c => c.category !== 'その他').map((category, index) => {
+                {categoryAnalysis.map((category, index) => {
+                  const isOthers = category.category === 'その他';
                   const colors = [
                     'from-yellow-500/20 to-yellow-600/10 border-yellow-500/30',
                     'from-purple-500/20 to-purple-600/10 border-purple-500/30',
@@ -632,27 +634,29 @@ export default function LiverDetailNew() {
                     'text-yellow-400', 'text-purple-400', 'text-emerald-400', 'text-blue-400',
                     'text-pink-400', 'text-orange-400', 'text-red-400', 'text-teal-400',
                   ];
-                  const colorClass = colors[index % colors.length];
-                  const textColor = textColors[index % textColors.length];
+                  const colorClass = isOthers ? 'from-cyan-500/10 to-cyan-600/5 border-cyan-500/10' : colors[index % colors.length];
+                  const textColor = isOthers ? 'text-cyan-500/60' : textColors[index % textColors.length];
+                  const isExpanded = expandedCategories[category.category] || false;
+                  const displayProducts = isExpanded ? category.products : category.products.slice(0, 3);
                   
                   return (
                     <div key={category.category} className={`bg-gradient-to-r ${colorClass} rounded-xl p-4 border`}>
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          {index === 0 && <Medal className="w-4 h-4 text-yellow-400" />}
+                          {index === 0 && !isOthers && <Medal className="w-4 h-4 text-yellow-400" />}
                           <span className={`font-semibold ${textColor}`}>{category.category}</span>
                           <Badge variant="outline" className={`text-xs ${textColor} border-current/30`}>
                             {category.percentage}%
                           </Badge>
                         </div>
-                        <span className="text-yellow-400 font-bold font-mono text-sm">
+                        <span className={`${isOthers ? 'text-cyan-500/60' : 'text-yellow-400'} font-bold font-mono text-sm`}>
                           {formatCurrency(category.gmv)}
                         </span>
                       </div>
                       {/* Progress bar */}
                       <div className="w-full bg-[#0a0a1a]/60 rounded-full h-2 mb-2">
                         <div
-                          className={`h-2 rounded-full transition-all ${index === 0 ? 'bg-yellow-400' : index === 1 ? 'bg-purple-400' : index === 2 ? 'bg-emerald-400' : 'bg-blue-400'}`}
+                          className={`h-2 rounded-full transition-all ${isOthers ? 'bg-cyan-500/40' : index === 0 ? 'bg-yellow-400' : index === 1 ? 'bg-purple-400' : index === 2 ? 'bg-emerald-400' : 'bg-blue-400'}`}
                           style={{ width: `${Math.min(category.percentage, 100)}%` }}
                         />
                       </div>
@@ -660,34 +664,32 @@ export default function LiverDetailNew() {
                         <span>{category.productCount}{language === 'zh' ? '个商品' : '商品'}</span>
                         <span>{category.itemsSold.toLocaleString('ja-JP')}{language === 'zh' ? '件卖出' : '個販売'}</span>
                       </div>
-                      {category.topProducts.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          {category.topProducts.map((name, i) => (
-                            <span key={i} className="text-xs bg-[#0a0a1a]/40 text-cyan-300/70 px-2 py-0.5 rounded-full truncate max-w-[180px]" title={name}>
-                              {name}
-                            </span>
+                      {/* Product list with full names and GMV */}
+                      {category.products.length > 0 && (
+                        <div className="mt-3 space-y-1">
+                          {displayProducts.map((product: { name: string; gmv: number }, i: number) => (
+                            <div key={i} className="flex items-center justify-between text-xs py-1 px-2 rounded bg-[#0a0a1a]/30 hover:bg-[#0a0a1a]/50 transition-colors">
+                              <span className="text-cyan-200/80 break-all">{product.name}</span>
+                              <span className="text-cyan-400/60 font-mono ml-2 whitespace-nowrap">{formatCurrency(product.gmv)}</span>
+                            </div>
                           ))}
+                          {category.products.length > 3 && (
+                            <button
+                              onClick={() => setExpandedCategories(prev => ({ ...prev, [category.category]: !isExpanded }))}
+                              className="text-xs text-cyan-400 hover:text-cyan-300 mt-1 flex items-center gap-1 transition-colors"
+                            >
+                              {isExpanded ? (
+                                <>{language === 'zh' ? '收起' : '閉じる'} <ChevronUp className="w-3 h-3" /></>
+                              ) : (
+                                <>{language === 'zh' ? `查看全部 (${category.products.length}个)` : `全て見る (${category.products.length}件)`} <ChevronDown className="w-3 h-3" /></>
+                              )}
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
                   );
                 })}
-                {/* Show "Others" category at the end if it exists */}
-                {categoryAnalysis.filter(c => c.category === 'その他').map((category) => (
-                  <div key="others" className="bg-[#0a1520]/40 rounded-xl p-4 border border-cyan-500/10">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-cyan-500/60 font-semibold">{category.category}</span>
-                        <Badge variant="outline" className="text-xs text-cyan-500/40 border-cyan-500/20">
-                          {category.percentage}%
-                        </Badge>
-                      </div>
-                      <span className="text-cyan-500/60 font-mono text-sm">
-                        {formatCurrency(category.gmv)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
               </div>
             ) : (
               <p className="text-cyan-500/50 text-center py-6">{language === 'zh' ? '暂无分类数据' : 'カテゴリデータがありません'}</p>
