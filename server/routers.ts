@@ -200,6 +200,11 @@ import {
   getLiverBrandPerformance,
   getTopProductsByLiver,
   getLiverCategoryAnalysis,
+  getAllProductCategoryMappings,
+  upsertProductCategoryMapping,
+  bulkUpsertProductCategoryMappings,
+  deleteProductCategoryMapping,
+  getDistinctMappingCategories,
   getLivestreamById,
   updateLivestreamResult,
   getLiversWithStats,
@@ -7880,6 +7885,45 @@ ${conversationText}
       }))
       .query(async ({ input }) => {
         return await getLiverCategoryAnalysis(input.liverId);
+      }),
+
+    // ===== Product Category Mapping (手動カテゴリ分類) =====
+    getProductCategoryMappings: publicProcedure
+      .query(async () => {
+        return await getAllProductCategoryMappings();
+      }),
+
+    getDistinctCategories: publicProcedure
+      .query(async () => {
+        return await getDistinctMappingCategories();
+      }),
+
+    upsertProductCategoryMapping: publicProcedure
+      .input(z.object({
+        productName: z.string().min(1),
+        category: z.string().min(1),
+      }))
+      .mutation(async ({ input }) => {
+        return await upsertProductCategoryMapping(input.productName, input.category);
+      }),
+
+    bulkUpsertProductCategoryMappings: publicProcedure
+      .input(z.object({
+        mappings: z.array(z.object({
+          productName: z.string().min(1),
+          category: z.string().min(1),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        return await bulkUpsertProductCategoryMappings(input.mappings);
+      }),
+
+    deleteProductCategoryMapping: publicProcedure
+      .input(z.object({
+        id: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        return await deleteProductCategoryMapping(input.id);
       }),
 
     // Create livestream record (配信履歴の記録)

@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -9503,7 +9503,14 @@ export async function getLiverCategoryAnalysis(liverId: number) {
     .where(sql`${livestreamProducts.livestreamId} IN (${sql.join(livestreamIds.map(id => sql`${id}`), sql`, `)})`)
     .groupBy(livestreamProducts.productName);
   
-  // Category classification based on product name patterns
+  // Load manual category mappings from DB (priority over pattern matching)
+  const manualMappings = await db.select().from(productCategoryMappings);
+  const manualMappingMap = new Map<string, string>();
+  for (const m of manualMappings) {
+    manualMappingMap.set(m.productName, m.category);
+  }
+  
+  // Category classification based on product name patterns (fallback)
   const categoryPatterns: Record<string, string[]> = {
     "美容液・セラム": ["美容液", "セラム", "serum", "エッセンス", "essence", "アンプル"],
     "ヘアケア": ["シャンプー", "トリートメント", "ヘアオイル", "ヘア", "hair", "コンディショナー", "ヘアミスト", "ヘアミルク"],
@@ -9520,30 +9527,36 @@ export async function getLiverCategoryAnalysis(liverId: number) {
   const categoryMap = new Map<string, { gmv: number; itemsSold: number; productCount: number; products: { name: string; gmv: number }[] }>();
   
   for (const product of products) {
-    const name = product.productName.toLowerCase();
-    let matched = false;
+    let assignedCategory: string | null = null;
     
-    for (const [category, patterns] of Object.entries(categoryPatterns)) {
-      if (patterns.some(pattern => name.includes(pattern.toLowerCase()))) {
-        const existing = categoryMap.get(category) || { gmv: 0, itemsSold: 0, productCount: 0, products: [] };
-        existing.gmv += Number(product.totalGmv);
-        existing.itemsSold += Number(product.totalItemsSold);
-        existing.productCount += 1;
-        existing.products.push({ name: product.productName, gmv: Number(product.totalGmv) });
-        categoryMap.set(category, existing);
-        matched = true;
-        break;
+    // 1. Check manual mapping first (highest priority)
+    const manualCategory = manualMappingMap.get(product.productName);
+    if (manualCategory) {
+      assignedCategory = manualCategory;
+    }
+    
+    // 2. Fallback to pattern matching
+    if (!assignedCategory) {
+      const name = product.productName.toLowerCase();
+      for (const [category, patterns] of Object.entries(categoryPatterns)) {
+        if (patterns.some(pattern => name.includes(pattern.toLowerCase()))) {
+          assignedCategory = category;
+          break;
+        }
       }
     }
     
-    if (!matched) {
-      const existing = categoryMap.get("その他") || { gmv: 0, itemsSold: 0, productCount: 0, products: [] };
-      existing.gmv += Number(product.totalGmv);
-      existing.itemsSold += Number(product.totalItemsSold);
-      existing.productCount += 1;
-      existing.products.push({ name: product.productName, gmv: Number(product.totalGmv) });
-      categoryMap.set("その他", existing);
+    // 3. If still no match, assign to "その他"
+    if (!assignedCategory) {
+      assignedCategory = "その他";
     }
+    
+    const existing = categoryMap.get(assignedCategory) || { gmv: 0, itemsSold: 0, productCount: 0, products: [] };
+    existing.gmv += Number(product.totalGmv);
+    existing.itemsSold += Number(product.totalItemsSold);
+    existing.productCount += 1;
+    existing.products.push({ name: product.productName, gmv: Number(product.totalGmv) });
+    categoryMap.set(assignedCategory, existing);
   }
   
   // Convert to array and sort by GMV
@@ -9561,4 +9574,83 @@ export async function getLiverCategoryAnalysis(liverId: number) {
     .sort((a, b) => b.gmv - a.gmv);
   
   return categories;
+}
+
+// ===== Product Category Mapping Functions =====
+
+/**
+ * Get all product category mappings
+ */
+export async function getAllProductCategoryMappings() {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(productCategoryMappings).orderBy(asc(productCategoryMappings.category), asc(productCategoryMappings.productName));
+}
+
+/**
+ * Get product category mapping by product name
+ */
+export async function getProductCategoryMappingByName(productName: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const results = await db.select().from(productCategoryMappings).where(eq(productCategoryMappings.productName, productName)).limit(1);
+  return results[0] || null;
+}
+
+/**
+ * Create or update a product category mapping (upsert)
+ */
+export async function upsertProductCategoryMapping(productName: string, category: string) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  // Check if mapping exists
+  const existing = await db.select().from(productCategoryMappings).where(eq(productCategoryMappings.productName, productName)).limit(1);
+  
+  if (existing.length > 0) {
+    // Update existing
+    await db.update(productCategoryMappings)
+      .set({ category })
+      .where(eq(productCategoryMappings.productName, productName));
+    return { id: existing[0].id, productName, category, updated: true };
+  } else {
+    // Insert new
+    const result = await db.insert(productCategoryMappings).values({ productName, category }).$returningId();
+    return { id: result[0].id, productName, category, updated: false };
+  }
+}
+
+/**
+ * Bulk upsert product category mappings
+ */
+export async function bulkUpsertProductCategoryMappings(mappings: { productName: string; category: string }[]) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const results = [];
+  for (const mapping of mappings) {
+    const result = await upsertProductCategoryMapping(mapping.productName, mapping.category);
+    if (result) results.push(result);
+  }
+  return results;
+}
+
+/**
+ * Delete a product category mapping
+ */
+export async function deleteProductCategoryMapping(id: number) {
+  const db = await getDb();
+  if (!db) return false;
+  await db.delete(productCategoryMappings).where(eq(productCategoryMappings.id, id));
+  return true;
+}
+
+/**
+ * Get all distinct custom categories (user-created categories from mappings)
+ */
+export async function getDistinctMappingCategories() {
+  const db = await getDb();
+  if (!db) return [];
+  const results = await db.selectDistinct({ category: productCategoryMappings.category }).from(productCategoryMappings).orderBy(asc(productCategoryMappings.category));
+  return results.map(r => r.category);
 }

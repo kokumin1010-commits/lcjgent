@@ -2459,3 +2459,18 @@ export const livestreamSetItems = mysqlTable("livestream_set_items", {
 
 export type LivestreamSetItem = typeof livestreamSetItems.$inferSelect;
 export type InsertLivestreamSetItem = typeof livestreamSetItems.$inferInsert;
+
+/**
+ * Product Category Mappings table for manual product-to-category classification
+ * 商品名→カテゴリの手動マッピングを記憶するテーブル
+ * 一度設定すれば、同じ商品名は次回以降自動的に正しいカテゴリに分類される
+ */
+export const productCategoryMappings = mysqlTable("product_category_mappings", {
+  id: int("id").autoincrement().primaryKey(),
+  productName: varchar("productName", { length: 500 }).notNull(), // 商品名（完全一致で検索）
+  category: varchar("category", { length: 255 }).notNull(), // 分類先カテゴリ名
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type ProductCategoryMapping = typeof productCategoryMappings.$inferSelect;
+export type InsertProductCategoryMapping = typeof productCategoryMappings.$inferInsert;

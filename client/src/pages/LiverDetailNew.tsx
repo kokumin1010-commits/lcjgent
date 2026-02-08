@@ -12,11 +12,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Edit, Home, ChevronDown, ChevronUp, ExternalLink, AlertTriangle, TrendingUp, Clock, DollarSign, Activity, Calendar, ArrowUpRight, ArrowDownRight, Sparkles, BarChart3, Package, ShoppingBag, Tag, Crown, Medal, Award } from "lucide-react";
+import { ArrowLeft, Edit, Home, ChevronDown, ChevronUp, ExternalLink, AlertTriangle, TrendingUp, Clock, DollarSign, Activity, Calendar, ArrowUpRight, ArrowDownRight, Sparkles, BarChart3, Package, ShoppingBag, Tag, Crown, Medal, Award, MoveRight, Plus, Check, X, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { SiTiktok, SiInstagram, SiYoutube } from "react-icons/si";
 import { Link2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 
 // Matrix rain effect component
 function MatrixRain() {
@@ -120,6 +123,9 @@ export default function LiverDetailNew() {
   const [showAllHistory, setShowAllHistory] = useState(false);
   const [showAllProducts, setShowAllProducts] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+  const [categoryMoveTarget, setCategoryMoveTarget] = useState<{ productName: string; currentCategory: string } | null>(null);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
   
   const { data: liver, isLoading: liverLoading } = trpc.liverManagement.getById.useQuery({
     id: liverId,
@@ -148,6 +154,55 @@ export default function LiverDetailNew() {
   const { data: categoryAnalysis, isLoading: categoryLoading } = trpc.liverManagement.getCategoryAnalysis.useQuery({
     liverId,
   });
+
+  // Category mapping queries and mutations
+  const utils = trpc.useUtils();
+  const { data: distinctCategories } = trpc.liverManagement.getDistinctCategories.useQuery();
+  
+  const upsertMappingMutation = trpc.liverManagement.upsertProductCategoryMapping.useMutation({
+    onSuccess: () => {
+      // Refresh category analysis data
+      utils.liverManagement.getCategoryAnalysis.invalidate({ liverId });
+      utils.liverManagement.getDistinctCategories.invalidate();
+      setCategoryMoveTarget(null);
+      setNewCategoryName("");
+      setShowNewCategoryInput(false);
+      toast.success(language === 'zh' ? '分类已更新' : 'カテゴリを更新しました');
+    },
+    onError: (error) => {
+      toast.error(language === 'zh' ? '分类更新失败' : `カテゴリ更新に失敗: ${error.message}`);
+    },
+  });
+
+  // Build available categories list (built-in + user-created)
+  const builtInCategories = useMemo(() => [
+    "美容液・セラム", "ヘアケア", "スキンケア", "UV・日焼け止め",
+    "美顔器・デバイス", "メイクアップ", "ボディケア", "サプリメント",
+    "健康食品・ドリンク", "フレグランス",
+  ], []);
+
+  const allAvailableCategories = useMemo(() => {
+    const set = new Set([...builtInCategories]);
+    if (distinctCategories) {
+      for (const c of distinctCategories) set.add(c);
+    }
+    // Also add categories from current analysis (excluding "その他")
+    if (categoryAnalysis) {
+      for (const c of categoryAnalysis) {
+        if (c.category !== 'その他') set.add(c.category);
+      }
+    }
+    return Array.from(set).sort();
+  }, [builtInCategories, distinctCategories, categoryAnalysis]);
+
+  const handleMoveToCategory = (productName: string, targetCategory: string) => {
+    upsertMappingMutation.mutate({ productName, category: targetCategory });
+  };
+
+  const handleCreateAndMove = (productName: string) => {
+    if (!newCategoryName.trim()) return;
+    upsertMappingMutation.mutate({ productName, category: newCategoryName.trim() });
+  };
   
   const translations = {
     ja: {
@@ -664,13 +719,83 @@ export default function LiverDetailNew() {
                         <span>{category.productCount}{language === 'zh' ? '个商品' : '商品'}</span>
                         <span>{category.itemsSold.toLocaleString('ja-JP')}{language === 'zh' ? '件卖出' : '個販売'}</span>
                       </div>
-                      {/* Product list with full names and GMV */}
+                      {/* Product list with full names and GMV + category move */}
                       {category.products.length > 0 && (
                         <div className="mt-3 space-y-1">
                           {displayProducts.map((product: { name: string; gmv: number }, i: number) => (
-                            <div key={i} className="flex items-center justify-between text-xs py-1 px-2 rounded bg-[#0a0a1a]/30 hover:bg-[#0a0a1a]/50 transition-colors">
-                              <span className="text-cyan-200/80 break-all">{product.name}</span>
-                              <span className="text-cyan-400/60 font-mono ml-2 whitespace-nowrap">{formatCurrency(product.gmv)}</span>
+                            <div key={i} className="flex items-center gap-1 text-xs py-1 px-2 rounded bg-[#0a0a1a]/30 hover:bg-[#0a0a1a]/50 transition-colors group">
+                              <span className="text-cyan-200/80 break-all flex-1">{product.name}</span>
+                              <span className="text-cyan-400/60 font-mono whitespace-nowrap">{formatCurrency(product.gmv)}</span>
+                              {/* Category move button */}
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <button
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity ml-1 p-1 rounded hover:bg-cyan-500/20 text-cyan-400/60 hover:text-cyan-300 shrink-0"
+                                    title={language === 'zh' ? '移动到其他分类' : 'カテゴリを変更'}
+                                  >
+                                    <MoveRight className="w-3.5 h-3.5" />
+                                  </button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-64 p-2 bg-[#0a1a2a] border-cyan-500/30" align="end">
+                                  <div className="text-xs text-cyan-300 font-semibold mb-2 px-1">
+                                    {language === 'zh' ? '移动到分类:' : 'カテゴリに移動:'}
+                                  </div>
+                                  <div className="max-h-48 overflow-y-auto space-y-0.5">
+                                    {allAvailableCategories
+                                      .filter(c => c !== category.category)
+                                      .map((cat) => (
+                                        <button
+                                          key={cat}
+                                          onClick={() => handleMoveToCategory(product.name, cat)}
+                                          disabled={upsertMappingMutation.isPending}
+                                          className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-cyan-500/20 text-cyan-200/80 hover:text-cyan-100 transition-colors disabled:opacity-50 flex items-center gap-2"
+                                        >
+                                          <Tag className="w-3 h-3 text-cyan-400/60" />
+                                          {cat}
+                                        </button>
+                                      ))}
+                                  </div>
+                                  {/* New category creation */}
+                                  <div className="border-t border-cyan-500/20 mt-2 pt-2">
+                                    {showNewCategoryInput && categoryMoveTarget?.productName === product.name ? (
+                                      <div className="flex items-center gap-1">
+                                        <Input
+                                          value={newCategoryName}
+                                          onChange={(e) => setNewCategoryName(e.target.value)}
+                                          placeholder={language === 'zh' ? '新分类名' : '新カテゴリ名'}
+                                          className="h-7 text-xs bg-[#0a0a1a]/60 border-cyan-500/30 text-cyan-200 placeholder:text-cyan-500/40"
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') handleCreateAndMove(product.name);
+                                            if (e.key === 'Escape') { setShowNewCategoryInput(false); setCategoryMoveTarget(null); }
+                                          }}
+                                          autoFocus
+                                        />
+                                        <button
+                                          onClick={() => handleCreateAndMove(product.name)}
+                                          disabled={!newCategoryName.trim() || upsertMappingMutation.isPending}
+                                          className="p-1 rounded hover:bg-emerald-500/20 text-emerald-400 disabled:opacity-50"
+                                        >
+                                          {upsertMappingMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                                        </button>
+                                        <button
+                                          onClick={() => { setShowNewCategoryInput(false); setCategoryMoveTarget(null); setNewCategoryName(""); }}
+                                          className="p-1 rounded hover:bg-red-500/20 text-red-400"
+                                        >
+                                          <X className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        onClick={() => { setShowNewCategoryInput(true); setCategoryMoveTarget({ productName: product.name, currentCategory: category.category }); setNewCategoryName(""); }}
+                                        className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-emerald-500/20 text-emerald-400/80 hover:text-emerald-300 transition-colors flex items-center gap-2"
+                                      >
+                                        <Plus className="w-3 h-3" />
+                                        {language === 'zh' ? '新建分类' : '新規カテゴリ作成'}
+                                      </button>
+                                    )}
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
                             </div>
                           ))}
                           {category.products.length > 3 && (
