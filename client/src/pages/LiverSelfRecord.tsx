@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { ArrowLeft, Video, Calendar, DollarSign, Clock, X, Link as LinkIcon, Camera, Sparkles, Loader2, Lightbulb, Users, MousePointer, ShoppingCart, CheckCircle, Eye, Package, Plus, Trash2, Tag } from "lucide-react";
 import { toast } from "sonner";
@@ -67,6 +69,7 @@ export default function LiverSelfRecord() {
     { enabled: !!scheduleIdParam }
   );
 
+  const [brandSearchOpen, setBrandSearchOpen] = useState(false);
   const [formData, setFormData] = useState({
     brandId: "",
     livestreamDate: dateParam || "",
@@ -938,21 +941,47 @@ export default function LiverSelfRecord() {
                   <Video className="h-4 w-4 text-red-500" />
                   {tr.selectBrand} <span className="text-red-500">*</span>
                 </Label>
-                <Select
-                  value={formData.brandId}
-                  onValueChange={(value) => setFormData({ ...formData, brandId: value })}
-                >
-                  <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
-                    <SelectValue placeholder={tr.selectBrand} />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border-gray-300 text-black max-h-60">
-                    {brands?.map((brand: { id: number; name: string }) => (
-                      <SelectItem key={brand.id} value={brand.id.toString()}>
-                        {brand.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={brandSearchOpen} onOpenChange={setBrandSearchOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={brandSearchOpen}
+                      className="w-full justify-between bg-gray-800 border-gray-700 text-white hover:bg-gray-700 hover:text-white"
+                    >
+                      {formData.brandId
+                        ? brands?.find((b: { id: number; name: string }) => b.id.toString() === formData.brandId)?.name
+                        : tr.selectBrand}
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-2 h-4 w-4 shrink-0 opacity-50"><path d="m6 9 6 6 6-6"/></svg>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 bg-gray-900 border-gray-700" align="start">
+                    <Command className="bg-gray-900">
+                      <CommandInput placeholder="ブランド名を検索..." className="text-white" />
+                      <CommandList className="max-h-60">
+                        <CommandEmpty className="text-gray-400 py-4 text-center text-sm">ブランドが見つかりません</CommandEmpty>
+                        <CommandGroup>
+                          {brands?.map((brand: { id: number; name: string }) => (
+                            <CommandItem
+                              key={brand.id}
+                              value={brand.name}
+                              onSelect={() => {
+                                setFormData({ ...formData, brandId: brand.id.toString() });
+                                setBrandSearchOpen(false);
+                              }}
+                              className="text-white hover:bg-gray-700 cursor-pointer aria-selected:bg-gray-700"
+                            >
+                              <CheckCircle
+                                className={`mr-2 h-4 w-4 ${formData.brandId === brand.id.toString() ? "text-green-500 opacity-100" : "opacity-0"}`}
+                              />
+                              {brand.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               {/* Date & Time */}
