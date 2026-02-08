@@ -102,7 +102,7 @@ function DashboardLayoutContent({
     { icon: AlertCircle, label: t("nav.pendingResponses"), path: "/master/line/pending" },
     { icon: Calendar, label: t("nav.calendar"), path: "/master/calendar" },
     { icon: Video, label: t("nav.livers"), path: "/master/livers" },
-    { icon: Zap, label: t("nav.liverCommand") || "ライバー司令塔", path: "/livers" },
+    { icon: Zap, label: t("nav.liverCommand") || "ライバー司令塔", path: "/master/livers-dashboard" },
     { icon: Coins, label: t("nav.points"), path: "/master/points" },
     { icon: Receipt, label: t("nav.receipts"), path: "/master/receipts", adminOnly: true },
     { icon: MessageCircle, label: t("nav.lineReceipts"), path: "/master/line-receipts", adminOnly: true },
