@@ -198,6 +198,8 @@ import {
   getLiverMonthlySalesTrendById,
   getLiverRecentLivestreams,
   getLiverBrandPerformance,
+  getTopProductsByLiver,
+  getLiverCategoryAnalysis,
   getLivestreamById,
   updateLivestreamResult,
   getLiversWithStats,
@@ -7859,6 +7861,25 @@ ${conversationText}
       }))
       .query(async ({ input }) => {
         return await getLiverBrandPerformance(input.liverId);
+      }),
+
+    // Get top selling products by liver (ライバー別売れ筋商品ランキング)
+    getTopProducts: publicProcedure
+      .input(z.object({
+        liverId: z.number(),
+        limit: z.number().optional().default(20),
+      }))
+      .query(async ({ input }) => {
+        return await getTopProductsByLiver(input.liverId, input.limit);
+      }),
+
+    // Get liver category analysis (ライバー別得意カテゴリ分析)
+    getCategoryAnalysis: publicProcedure
+      .input(z.object({
+        liverId: z.number(),
+      }))
+      .query(async ({ input }) => {
+        return await getLiverCategoryAnalysis(input.liverId);
       }),
 
     // Create livestream record (配信履歴の記録)

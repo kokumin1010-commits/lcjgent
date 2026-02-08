@@ -12,7 +12,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Edit, Home, ChevronDown, ChevronUp, ExternalLink, AlertTriangle, TrendingUp, Clock, DollarSign, Activity, Calendar, ArrowUpRight, ArrowDownRight, Sparkles, BarChart3 } from "lucide-react";
+import { ArrowLeft, Edit, Home, ChevronDown, ChevronUp, ExternalLink, AlertTriangle, TrendingUp, Clock, DollarSign, Activity, Calendar, ArrowUpRight, ArrowDownRight, Sparkles, BarChart3, Package, ShoppingBag, Tag, Crown, Medal, Award } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { SiTiktok, SiInstagram, SiYoutube } from "react-icons/si";
 import { Link2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -117,6 +118,7 @@ export default function LiverDetailNew() {
   
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].value);
   const [showAllHistory, setShowAllHistory] = useState(false);
+  const [showAllProducts, setShowAllProducts] = useState(false);
   
   const { data: liver, isLoading: liverLoading } = trpc.liverManagement.getById.useQuery({
     id: liverId,
@@ -131,6 +133,19 @@ export default function LiverDetailNew() {
   const { data: livestreams, isLoading: livestreamsLoading } = trpc.liverManagement.getLivestreams.useQuery({
     liverId,
     month: selectedMonth,
+  });
+
+  // New: Top products, brand performance, category analysis
+  const { data: topProducts, isLoading: topProductsLoading } = trpc.liverManagement.getTopProducts.useQuery({
+    liverId,
+  });
+
+  const { data: brandPerformance, isLoading: brandLoading } = trpc.liverManagement.getLiverBrandPerformance.useQuery({
+    liverId,
+  });
+
+  const { data: categoryAnalysis, isLoading: categoryLoading } = trpc.liverManagement.getCategoryAnalysis.useQuery({
+    liverId,
   });
   
   const translations = {
@@ -191,7 +206,7 @@ export default function LiverDetailNew() {
   const tr = translations[language as keyof typeof translations] || translations.ja;
   
   const formatCurrency = (amount: number) => {
-    return `¥${amount.toLocaleString()}`;
+    return `¥${amount.toLocaleString('ja-JP')}`;
   };
   
   const formatDuration = (minutes: number) => {
@@ -457,6 +472,228 @@ export default function LiverDetailNew() {
             </Button>
           </Link>
         </div>
+
+        {/* ===== NEW SECTION: Top Selling Products ===== */}
+        <Card className="bg-[#0a1a2a]/80 border-cyan-500/20 backdrop-blur-sm">
+          <CardContent className="p-6">
+            <h3 className="text-lg font-bold text-cyan-100 flex items-center gap-2 mb-6">
+              <Crown className="w-5 h-5 text-yellow-400" />
+              {language === 'zh' ? '畅销商品排行' : '売れ筋商品ランキング'}
+            </h3>
+            {topProductsLoading ? (
+              <div className="space-y-3">
+                {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-12 w-full bg-cyan-900/30" />)}
+              </div>
+            ) : topProducts && topProducts.length > 0 ? (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-cyan-500/30">
+                        <th className="text-left py-3 px-2 text-cyan-400 w-10">#</th>
+                        <th className="text-left py-3 px-2 text-cyan-400">{language === 'zh' ? '商品名' : '商品名'}</th>
+                        <th className="text-right py-3 px-2 text-cyan-400">GMV</th>
+                        <th className="text-right py-3 px-2 text-cyan-400">{language === 'zh' ? '销量' : '販売数'}</th>
+                        <th className="text-right py-3 px-2 text-cyan-400">{language === 'zh' ? '直播次数' : '配信回数'}</th>
+                        <th className="text-right py-3 px-2 text-cyan-400">{language === 'zh' ? '平均GMV/场' : '平均GMV/配信'}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(showAllProducts ? topProducts : topProducts.slice(0, 10)).map((product) => (
+                        <tr key={product.productName} className="border-b border-cyan-500/10 hover:bg-cyan-900/20 transition-colors">
+                          <td className="py-3 px-2">
+                            {product.rank <= 3 ? (
+                              <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold ${
+                                product.rank === 1 ? 'bg-yellow-500/20 text-yellow-400 ring-1 ring-yellow-500/40' :
+                                product.rank === 2 ? 'bg-gray-400/20 text-gray-300 ring-1 ring-gray-400/40' :
+                                'bg-orange-500/20 text-orange-400 ring-1 ring-orange-500/40'
+                              }`}>
+                                {product.rank}
+                              </span>
+                            ) : (
+                              <span className="text-cyan-500/50 text-xs pl-2">{product.rank}</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-2 text-cyan-100 max-w-[200px] truncate" title={product.productName}>
+                            {product.productName}
+                          </td>
+                          <td className="text-right py-3 px-2 text-yellow-400 font-bold font-mono">
+                            {formatCurrency(product.totalGmv)}
+                          </td>
+                          <td className="text-right py-3 px-2 text-cyan-300 font-mono">
+                            {product.totalItemsSold.toLocaleString('ja-JP')}
+                          </td>
+                          <td className="text-right py-3 px-2 text-cyan-300 font-mono">
+                            {product.livestreamCount}
+                          </td>
+                          <td className="text-right py-3 px-2 text-cyan-300 font-mono">
+                            {formatCurrency(product.avgGmvPerStream)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {topProducts.length > 10 && (
+                  <div className="flex justify-center mt-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowAllProducts(!showAllProducts)}
+                      className="border-cyan-500/30 text-cyan-300 hover:bg-cyan-900/30 hover:border-cyan-400/50"
+                    >
+                      {showAllProducts ? (
+                        <>{language === 'zh' ? '收起' : '閉じる'} <ChevronUp className="w-4 h-4 ml-1" /></>
+                      ) : (
+                        <>VIEW MORE <ChevronDown className="w-4 h-4 ml-1" /></>
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="text-cyan-500/50 text-center py-6">{language === 'zh' ? '暂无商品数据' : '商品データがありません'}</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* ===== NEW SECTION: Brand Performance ===== */}
+        <Card className="bg-[#0a1a2a]/80 border-cyan-500/20 backdrop-blur-sm">
+          <CardContent className="p-6">
+            <h3 className="text-lg font-bold text-cyan-100 flex items-center gap-2 mb-6">
+              <ShoppingBag className="w-5 h-5 text-purple-400" />
+              {language === 'zh' ? '合作品牌' : '取り扱いブランド'}
+            </h3>
+            {brandLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28 w-full bg-cyan-900/30 rounded-xl" />)}
+              </div>
+            ) : brandPerformance && brandPerformance.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {brandPerformance.map((brand, index) => (
+                  <Link key={brand.brandId} href={`/master/brands/${brand.brandId}`}>
+                    <div className={`bg-[#0a1520]/60 rounded-xl p-4 border transition-all hover:shadow-[0_0_15px_rgba(0,255,255,0.15)] cursor-pointer ${
+                      index === 0 ? 'border-yellow-500/30 hover:border-yellow-400/50' : 'border-cyan-500/20 hover:border-cyan-400/40'
+                    }`}>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          {index === 0 && <Crown className="w-4 h-4 text-yellow-400" />}
+                          <span className="text-cyan-100 font-semibold text-sm">{brand.brandName || `Brand ${brand.brandId}`}</span>
+                        </div>
+                        <Badge variant="outline" className="text-xs border-cyan-500/30 text-cyan-400">
+                          {brand.totalLivestreams}{language === 'zh' ? '场' : '回'}
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-cyan-500/60 text-xs mb-1">{language === 'zh' ? '总销售额' : '累計売上'}</p>
+                          <p className="text-yellow-400 font-bold font-mono">{formatCurrency(brand.totalSales)}</p>
+                        </div>
+                        <div>
+                          <p className="text-cyan-500/60 text-xs mb-1">{language === 'zh' ? '平均/场' : '平均/配信'}</p>
+                          <p className="text-cyan-300 font-mono">{formatCurrency(brand.avgSalesPerStream)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="text-cyan-500/50 text-center py-6">{language === 'zh' ? '暂无品牌数据' : 'ブランドデータがありません'}</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* ===== NEW SECTION: Category Analysis ===== */}
+        <Card className="bg-[#0a1a2a]/80 border-cyan-500/20 backdrop-blur-sm">
+          <CardContent className="p-6">
+            <h3 className="text-lg font-bold text-cyan-100 flex items-center gap-2 mb-6">
+              <Tag className="w-5 h-5 text-emerald-400" />
+              {language === 'zh' ? '擅长品类分析' : '得意カテゴリ分析'}
+            </h3>
+            {categoryLoading ? (
+              <div className="space-y-3">
+                {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-16 w-full bg-cyan-900/30 rounded-xl" />)}
+              </div>
+            ) : categoryAnalysis && categoryAnalysis.length > 0 ? (
+              <div className="space-y-3">
+                {categoryAnalysis.filter(c => c.category !== 'その他').map((category, index) => {
+                  const colors = [
+                    'from-yellow-500/20 to-yellow-600/10 border-yellow-500/30',
+                    'from-purple-500/20 to-purple-600/10 border-purple-500/30',
+                    'from-emerald-500/20 to-emerald-600/10 border-emerald-500/30',
+                    'from-blue-500/20 to-blue-600/10 border-blue-500/30',
+                    'from-pink-500/20 to-pink-600/10 border-pink-500/30',
+                    'from-orange-500/20 to-orange-600/10 border-orange-500/30',
+                    'from-red-500/20 to-red-600/10 border-red-500/30',
+                    'from-teal-500/20 to-teal-600/10 border-teal-500/30',
+                  ];
+                  const textColors = [
+                    'text-yellow-400', 'text-purple-400', 'text-emerald-400', 'text-blue-400',
+                    'text-pink-400', 'text-orange-400', 'text-red-400', 'text-teal-400',
+                  ];
+                  const colorClass = colors[index % colors.length];
+                  const textColor = textColors[index % textColors.length];
+                  
+                  return (
+                    <div key={category.category} className={`bg-gradient-to-r ${colorClass} rounded-xl p-4 border`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          {index === 0 && <Medal className="w-4 h-4 text-yellow-400" />}
+                          <span className={`font-semibold ${textColor}`}>{category.category}</span>
+                          <Badge variant="outline" className={`text-xs ${textColor} border-current/30`}>
+                            {category.percentage}%
+                          </Badge>
+                        </div>
+                        <span className="text-yellow-400 font-bold font-mono text-sm">
+                          {formatCurrency(category.gmv)}
+                        </span>
+                      </div>
+                      {/* Progress bar */}
+                      <div className="w-full bg-[#0a0a1a]/60 rounded-full h-2 mb-2">
+                        <div
+                          className={`h-2 rounded-full transition-all ${index === 0 ? 'bg-yellow-400' : index === 1 ? 'bg-purple-400' : index === 2 ? 'bg-emerald-400' : 'bg-blue-400'}`}
+                          style={{ width: `${Math.min(category.percentage, 100)}%` }}
+                        />
+                      </div>
+                      <div className="flex items-center gap-4 text-xs text-cyan-500/60">
+                        <span>{category.productCount}{language === 'zh' ? '个商品' : '商品'}</span>
+                        <span>{category.itemsSold.toLocaleString('ja-JP')}{language === 'zh' ? '件卖出' : '個販売'}</span>
+                      </div>
+                      {category.topProducts.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {category.topProducts.map((name, i) => (
+                            <span key={i} className="text-xs bg-[#0a0a1a]/40 text-cyan-300/70 px-2 py-0.5 rounded-full truncate max-w-[180px]" title={name}>
+                              {name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {/* Show "Others" category at the end if it exists */}
+                {categoryAnalysis.filter(c => c.category === 'その他').map((category) => (
+                  <div key="others" className="bg-[#0a1520]/40 rounded-xl p-4 border border-cyan-500/10">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-cyan-500/60 font-semibold">{category.category}</span>
+                        <Badge variant="outline" className="text-xs text-cyan-500/40 border-cyan-500/20">
+                          {category.percentage}%
+                        </Badge>
+                      </div>
+                      <span className="text-cyan-500/60 font-mono text-sm">
+                        {formatCurrency(category.gmv)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-cyan-500/50 text-center py-6">{language === 'zh' ? '暂无分类数据' : 'カテゴリデータがありません'}</p>
+            )}
+          </CardContent>
+        </Card>
         
         {/* Delivery History */}
         <Card className="bg-[#0a1a2a]/80 border-cyan-500/20 backdrop-blur-sm">

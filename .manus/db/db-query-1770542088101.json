@@ -1,0 +1,88 @@
+{
+  "query": "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'brand_products' ORDER BY ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'brand_products' ORDER BY ORDINAL_POSITION;",
+  "rows": [
+    {
+      "COLUMN_NAME": "id"
+    },
+    {
+      "COLUMN_NAME": "brandId"
+    },
+    {
+      "COLUMN_NAME": "productName"
+    },
+    {
+      "COLUMN_NAME": "listPrice"
+    },
+    {
+      "COLUMN_NAME": "specialPrice"
+    },
+    {
+      "COLUMN_NAME": "discountRate"
+    },
+    {
+      "COLUMN_NAME": "sampleProduct"
+    },
+    {
+      "COLUMN_NAME": "productCode"
+    },
+    {
+      "COLUMN_NAME": "influencer"
+    },
+    {
+      "COLUMN_NAME": "purchasePrice"
+    },
+    {
+      "COLUMN_NAME": "remarks"
+    },
+    {
+      "COLUMN_NAME": "createdAt"
+    },
+    {
+      "COLUMN_NAME": "updatedAt"
+    },
+    {
+      "COLUMN_NAME": "imageUrls"
+    },
+    {
+      "COLUMN_NAME": "imageKeys"
+    },
+    {
+      "COLUMN_NAME": "proposalImageUrl"
+    },
+    {
+      "COLUMN_NAME": "proposalImageKey"
+    },
+    {
+      "COLUMN_NAME": "commissionRate"
+    },
+    {
+      "COLUMN_NAME": "releaseDate"
+    },
+    {
+      "COLUMN_NAME": "catchCopy"
+    },
+    {
+      "COLUMN_NAME": "features"
+    },
+    {
+      "COLUMN_NAME": "productDetails"
+    },
+    {
+      "COLUMN_NAME": "accessories"
+    },
+    {
+      "COLUMN_NAME": "shippingInfo"
+    },
+    {
+      "COLUMN_NAME": "targetAudience"
+    },
+    {
+      "COLUMN_NAME": "usageMethod"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\nid\nbrandId\nproductName\nlistPrice\nspecialPrice\ndiscountRate\nsampleProduct\nproductCode\ninfluencer\npurchasePrice\nremarks\ncreatedAt\nupdatedAt\nimageUrls\nimageKeys\nproposalImageUrl\nproposalImageKey\ncommissionRate\nreleaseDate\ncatchCopy\nfeatures\nproductDetails\naccessories\nshippingInfo\ntargetAudience\nusageMethod\n",
+  "stderr": "",
+  "execution_time_ms": 1555
+}

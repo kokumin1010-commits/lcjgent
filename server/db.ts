@@ -9423,3 +9423,146 @@ export async function deleteLivestreamSetsByLivestreamId(livestreamId: number) {
   // Delete the sets themselves
   await db.delete(livestreamSets).where(eq(livestreamSets.livestreamId, livestreamId));
 }
+
+
+// ========================================
+// Liver Detail Enhancement Functions
+// ライバー詳細ページ改善用関数
+// ========================================
+
+/**
+ * Get top selling products for a specific liver
+ * ライバー別の売れ筋商品ランキング
+ */
+export async function getTopProductsByLiver(liverId: number, limit: number = 20) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // Get all livestream IDs for this liver
+  const liverLivestreams = await db
+    .select({ id: brandLivestreams.id })
+    .from(brandLivestreams)
+    .where(eq(brandLivestreams.liverId, liverId));
+  
+  if (liverLivestreams.length === 0) return [];
+  
+  const livestreamIds = liverLivestreams.map(l => l.id);
+  
+  // Aggregate products by name for this liver
+  const products = await db
+    .select({
+      productName: livestreamProducts.productName,
+      totalGmv: sql<number>`COALESCE(SUM(COALESCE(${livestreamProducts.directGmv}, ${livestreamProducts.gmv}, 0)), 0)`,
+      totalItemsSold: sql<number>`COALESCE(SUM(${livestreamProducts.itemsSold}), 0)`,
+      totalOrders: sql<number>`COALESCE(SUM(${livestreamProducts.orders}), 0)`,
+      livestreamCount: sql<number>`COUNT(DISTINCT ${livestreamProducts.livestreamId})`,
+    })
+    .from(livestreamProducts)
+    .where(sql`${livestreamProducts.livestreamId} IN (${sql.join(livestreamIds.map(id => sql`${id}`), sql`, `)})`)
+    .groupBy(livestreamProducts.productName)
+    .orderBy(sql`SUM(COALESCE(${livestreamProducts.directGmv}, ${livestreamProducts.gmv}, 0)) DESC`)
+    .limit(limit);
+  
+  return products.map((p, index) => ({
+    rank: index + 1,
+    productName: p.productName,
+    totalGmv: Number(p.totalGmv),
+    totalItemsSold: Number(p.totalItemsSold),
+    totalOrders: Number(p.totalOrders),
+    livestreamCount: Number(p.livestreamCount),
+    avgGmvPerStream: Number(p.livestreamCount) > 0 ? Math.round(Number(p.totalGmv) / Number(p.livestreamCount)) : 0,
+  }));
+}
+
+/**
+ * Get product category analysis for a specific liver
+ * ライバー別の得意カテゴリ分析（商品名からカテゴリを推定）
+ */
+export async function getLiverCategoryAnalysis(liverId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // Get all livestream IDs for this liver
+  const liverLivestreams = await db
+    .select({ id: brandLivestreams.id })
+    .from(brandLivestreams)
+    .where(eq(brandLivestreams.liverId, liverId));
+  
+  if (liverLivestreams.length === 0) return [];
+  
+  const livestreamIds = liverLivestreams.map(l => l.id);
+  
+  // Get all products for this liver
+  const products = await db
+    .select({
+      productName: livestreamProducts.productName,
+      totalGmv: sql<number>`COALESCE(SUM(COALESCE(${livestreamProducts.directGmv}, ${livestreamProducts.gmv}, 0)), 0)`,
+      totalItemsSold: sql<number>`COALESCE(SUM(${livestreamProducts.itemsSold}), 0)`,
+    })
+    .from(livestreamProducts)
+    .where(sql`${livestreamProducts.livestreamId} IN (${sql.join(livestreamIds.map(id => sql`${id}`), sql`, `)})`)
+    .groupBy(livestreamProducts.productName);
+  
+  // Category classification based on product name patterns
+  const categoryPatterns: Record<string, string[]> = {
+    "美容液・セラム": ["美容液", "セラム", "serum", "エッセンス", "essence", "アンプル"],
+    "ヘアケア": ["シャンプー", "トリートメント", "ヘアオイル", "ヘア", "hair", "コンディショナー", "ヘアミスト", "ヘアミルク"],
+    "スキンケア": ["化粧水", "乳液", "クリーム", "ローション", "モイスチャー", "保湿", "skin", "フェイス", "洗顔", "クレンジング", "パック", "マスク"],
+    "UV・日焼け止め": ["UV", "日焼け止め", "サンスクリーン", "SPF", "sunscreen", "sun"],
+    "美顔器・デバイス": ["美顔器", "デバイス", "EMS", "LED", "マッサージ", "ローラー", "device"],
+    "メイクアップ": ["ファンデ", "リップ", "アイシャドウ", "マスカラ", "チーク", "コンシーラー", "パウダー", "メイク", "makeup", "BBクリーム", "CCクリーム"],
+    "ボディケア": ["ボディ", "body", "ハンドクリーム", "ボディクリーム", "ボディローション", "入浴"],
+    "サプリメント": ["サプリ", "supplement", "ビタミン", "コラーゲン", "プロテイン", "酵素"],
+    "健康食品・ドリンク": ["ドリンク", "drink", "tea", "茶", "ジュース", "スムージー", "食品"],
+    "フレグランス": ["香水", "フレグランス", "fragrance", "perfume", "コロン"],
+  };
+  
+  const categoryMap = new Map<string, { gmv: number; itemsSold: number; productCount: number; products: string[] }>();
+  
+  for (const product of products) {
+    const name = product.productName.toLowerCase();
+    let matched = false;
+    
+    for (const [category, patterns] of Object.entries(categoryPatterns)) {
+      if (patterns.some(pattern => name.includes(pattern.toLowerCase()))) {
+        const existing = categoryMap.get(category) || { gmv: 0, itemsSold: 0, productCount: 0, products: [] };
+        existing.gmv += Number(product.totalGmv);
+        existing.itemsSold += Number(product.totalItemsSold);
+        existing.productCount += 1;
+        if (existing.products.length < 3) {
+          existing.products.push(product.productName);
+        }
+        categoryMap.set(category, existing);
+        matched = true;
+        break;
+      }
+    }
+    
+    if (!matched) {
+      const existing = categoryMap.get("その他") || { gmv: 0, itemsSold: 0, productCount: 0, products: [] };
+      existing.gmv += Number(product.totalGmv);
+      existing.itemsSold += Number(product.totalItemsSold);
+      existing.productCount += 1;
+      if (existing.products.length < 3) {
+        existing.products.push(product.productName);
+      }
+      categoryMap.set("その他", existing);
+    }
+  }
+  
+  // Convert to array and sort by GMV
+  const totalGmv = Array.from(categoryMap.values()).reduce((sum, c) => sum + c.gmv, 0);
+  
+  const categories = Array.from(categoryMap.entries())
+    .map(([category, data]) => ({
+      category,
+      gmv: data.gmv,
+      itemsSold: data.itemsSold,
+      productCount: data.productCount,
+      percentage: totalGmv > 0 ? Math.round((data.gmv / totalGmv) * 100) : 0,
+      topProducts: data.products,
+    }))
+    .sort((a, b) => b.gmv - a.gmv);
+  
+  return categories;
+}

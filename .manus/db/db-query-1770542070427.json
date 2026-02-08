@@ -1,0 +1,82 @@
+{
+  "query": "SELECT bl.liverId, l.name as liverName, b.name as brandName, COUNT(bl.id) as streamCount, SUM(bl.gmv) as totalGmv, SUM(bl.salesAmount) as totalSales\nFROM brand_livestreams bl\nLEFT JOIN livers l ON l.id = bl.liverId\nLEFT JOIN brands b ON b.id = bl.brandId\nWHERE bl.liverId IS NOT NULL\nGROUP BY bl.liverId, l.name, b.name\nORDER BY bl.liverId, totalGmv DESC\nLIMIT 30;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT bl.liverId, l.name as liverName, b.name as brandName, COUNT(bl.id) as streamCount, SUM(bl.gmv) as totalGmv, SUM(bl.salesAmount) as totalSales\nFROM brand_livestreams bl\nLEFT JOIN livers l ON l.id = bl.liverId\nLEFT JOIN brands b ON b.id = bl.brandId\nWHERE bl.liverId IS NOT NULL\nGROUP BY bl.liverId, l.name, b.name\nORDER BY bl.liverId, totalGmv DESC\nLIMIT 30;",
+  "rows": [
+    {
+      "liverId": "1",
+      "liverName": "NULL",
+      "brandName": "KYOGOKU",
+      "streamCount": "4",
+      "totalGmv": "NULL",
+      "totalSales": "NULL"
+    },
+    {
+      "liverId": "120005",
+      "liverName": "Ryu kyogoku Test",
+      "brandName": "KYOGOKU",
+      "streamCount": "272",
+      "totalGmv": "393315148",
+      "totalSales": "426834756"
+    },
+    {
+      "liverId": "360009",
+      "liverName": "はづき",
+      "brandName": "KYOGOKU",
+      "streamCount": "87",
+      "totalGmv": "415716",
+      "totalSales": "439303"
+    },
+    {
+      "liverId": "360012",
+      "liverName": "三宅あゆみ",
+      "brandName": "KYOGOKU",
+      "streamCount": "8",
+      "totalGmv": "1005306",
+      "totalSales": "1005306"
+    },
+    {
+      "liverId": "360013",
+      "liverName": "NANA",
+      "brandName": "KYOGOKU",
+      "streamCount": "155",
+      "totalGmv": "22107542",
+      "totalSales": "24160219"
+    },
+    {
+      "liverId": "360029",
+      "liverName": "SHIHO",
+      "brandName": "KYOGOKU",
+      "streamCount": "177",
+      "totalGmv": "8567510",
+      "totalSales": "9376395"
+    },
+    {
+      "liverId": "540001",
+      "liverName": "けい",
+      "brandName": "KYOGOKU",
+      "streamCount": "4",
+      "totalGmv": "32300",
+      "totalSales": "32300"
+    },
+    {
+      "liverId": "540002",
+      "liverName": "みぃ",
+      "brandName": "KYOGOKU",
+      "streamCount": "7",
+      "totalGmv": "41133",
+      "totalSales": "41133"
+    },
+    {
+      "liverId": "540003",
+      "liverName": "yae",
+      "brandName": "KYOGOKU",
+      "streamCount": "8",
+      "totalGmv": "5821689",
+      "totalSales": "5790889"
+    }
+  ],
+  "messages": [],
+  "stdout": "liverId\tliverName\tbrandName\tstreamCount\ttotalGmv\ttotalSales\n1\tNULL\tKYOGOKU\t4\tNULL\tNULL\n120005\tRyu kyogoku Test\tKYOGOKU\t272\t393315148\t426834756\n360009\tはづき\tKYOGOKU\t87\t415716\t439303\n360012\t三宅あゆみ\tKYOGOKU\t8\t1005306\t1005306\n360013\tNANA\tKYOGOKU\t155\t22107542\t24160219\n360029\tSHIHO\tKYOGOKU\t177\t8567510\t9376395\n540001\tけい\tKYOGOKU\t4\t32300\t32300\n540002\tみぃ\tKYOGOKU\t7\t41133\t41133\n540003\tyae\tKYOGOKU\t8\t5821689\t5790889\n",
+  "stderr": "",
+  "execution_time_ms": 1518
+}

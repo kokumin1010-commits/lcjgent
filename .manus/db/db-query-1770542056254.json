@@ -1,0 +1,34 @@
+{
+  "query": "SELECT bl.liverId, l.name as liverName, COUNT(DISTINCT lp.id) as productCount, SUM(lp.gmv) as totalProductGmv\nFROM brand_livestreams bl\nJOIN livestream_products lp ON lp.livestreamId = bl.id\nLEFT JOIN livers l ON l.id = bl.liverId\nWHERE bl.liverId IS NOT NULL\nGROUP BY bl.liverId, l.name\nORDER BY totalProductGmv DESC\nLIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT bl.liverId, l.name as liverName, COUNT(DISTINCT lp.id) as productCount, SUM(lp.gmv) as totalProductGmv\nFROM brand_livestreams bl\nJOIN livestream_products lp ON lp.livestreamId = bl.id\nLEFT JOIN livers l ON l.id = bl.liverId\nWHERE bl.liverId IS NOT NULL\nGROUP BY bl.liverId, l.name\nORDER BY totalProductGmv DESC\nLIMIT 10;",
+  "rows": [
+    {
+      "liverId": "120005",
+      "liverName": "Ryu kyogoku Test",
+      "productCount": "20350",
+      "totalProductGmv": "383301280"
+    },
+    {
+      "liverId": "360013",
+      "liverName": "NANA",
+      "productCount": "7367",
+      "totalProductGmv": "21753840"
+    },
+    {
+      "liverId": "360029",
+      "liverName": "SHIHO",
+      "productCount": "6854",
+      "totalProductGmv": "7869636"
+    },
+    {
+      "liverId": "360009",
+      "liverName": "はづき",
+      "productCount": "2268",
+      "totalProductGmv": "415716"
+    }
+  ],
+  "messages": [],
+  "stdout": "liverId\tliverName\tproductCount\ttotalProductGmv\n120005\tRyu kyogoku Test\t20350\t383301280\n360013\tNANA\t7367\t21753840\n360029\tSHIHO\t6854\t7869636\n360009\tはづき\t2268\t415716\n",
+  "stderr": "",
+  "execution_time_ms": 1739
+}

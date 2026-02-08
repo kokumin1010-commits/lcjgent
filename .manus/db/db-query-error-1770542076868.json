@@ -1,0 +1,8 @@
+{
+  "query": "SELECT pl.liverId, l.name as liverName, bp.name as productName, bp.brandId, b.name as brandName, pl.specialPrice, pl.commissionRate\nFROM product_livers pl\nLEFT JOIN livers l ON l.id = pl.liverId\nLEFT JOIN brand_products bp ON bp.id = pl.productId\nLEFT JOIN brands b ON b.id = bp.brandId\nORDER BY pl.liverId\nLIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT pl.liverId, l.name as liverName, bp.name as productName, bp.brandId, b.name as brandName, pl.specialPrice, pl.commissionRate\nFROM product_livers pl\nLEFT JOIN livers l ON l.id = pl.liverId\nLEFT JOIN brand_products bp ON bp.id = pl.productId\nLEFT JOIN brands b ON b.id = bp.brandId\nORDER BY pl.liverId\nLIMIT 20;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'bp.name' in 'field list'"
+  ]
+}

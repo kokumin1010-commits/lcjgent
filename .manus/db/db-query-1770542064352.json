@@ -1,0 +1,150 @@
+{
+  "query": "SELECT bl.liverId, l.name as liverName, lp.productName, SUM(lp.gmv) as totalGmv, SUM(lp.itemsSold) as totalSold\nFROM brand_livestreams bl\nJOIN livestream_products lp ON lp.livestreamId = bl.id\nLEFT JOIN livers l ON l.id = bl.liverId\nWHERE bl.liverId IS NOT NULL\nGROUP BY bl.liverId, l.name, lp.productName\nORDER BY totalGmv DESC\nLIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT bl.liverId, l.name as liverName, lp.productName, SUM(lp.gmv) as totalGmv, SUM(lp.itemsSold) as totalSold\nFROM brand_livestreams bl\nJOIN livestream_products lp ON lp.livestreamId = bl.id\nLEFT JOIN livers l ON l.id = bl.liverId\nWHERE bl.liverId IS NOT NULL\nGROUP BY bl.liverId, l.name, lp.productName\nORDER BY totalGmv DESC\nLIMIT 20;",
+  "rows": [
+    {
+      "liverId": "120005",
+      "liverName": "Ryu kyogoku Test",
+      "productName": "KYOGOKU MEGAガチャ袋　　【KG MEGA ガチャ袋 Aタイプ2980円】【KG MEGA ガチャ袋 Bタイプ 4950円】【KG MEGA ガチャ袋 Cタイプ9900円】【KG MEGA ガチャ袋 Dタイプ13500円】【KG MEGA ガチャ袋 Sタイプ1500円】 福袋",
+      "totalGmv": "43731665",
+      "totalSold": "8333"
+    },
+    {
+      "liverId": "120005",
+      "liverName": "Ryu kyogoku Test",
+      "productName": "KYOGOKU ナノシルクケラチンエアソニック  ヘアドライヤー ドライヤー 大風量 速乾 1400W 120℃ 7段階 ケラチン ナノイオン 高性能 オートクリーン 温冷風切替 毛髪補修 ダメージケア 時短 保湿 軽量 液晶 ノズル付き ヘアサロン ツヤ髪",
+      "totalGmv": "30341455",
+      "totalSold": "1191"
+    },
+    {
+      "liverId": "120005",
+      "liverName": "Ryu kyogoku Test",
+      "productName": "KYOGOKUナノシルク　アイロン　ストレート　カール　ストレート カール 2WAY コテ 25mm 220℃ 9段階 ケラチン ナノイオン 痛みにくい 保湿 両用アイロン プレート プロ仕様 ヘアケア ヘアアレンジ 液晶 海外対応 ブラック",
+      "totalGmv": "16108181",
+      "totalSold": "1064"
+    },
+    {
+      "liverId": "120005",
+      "liverName": "Ryu kyogoku Test",
+      "productName": "KYOGOKU　ケラチン ブースト＋ 原液100% 集中ケア補修型トリートメント パウダー系 トリートメント ヘアパック ヘアトリートメント",
+      "totalGmv": "15020847",
+      "totalSold": "12646"
+    },
+    {
+      "liverId": "120005",
+      "liverName": "Ryu kyogoku Test",
+      "productName": "KYOGOKU シグネチャートリートメント　ヒト幹細胞　オーガニック　ヘアケア",
+      "totalGmv": "11124183",
+      "totalSold": "1739"
+    },
+    {
+      "liverId": "120005",
+      "liverName": "Ryu kyogoku Test",
+      "productName": "KYOGOKU　Ｗトリートメント　洗い流すトリートメント 洗い流さないトリートメント兼用 サロン専売",
+      "totalGmv": "8858536",
+      "totalSold": "2168"
+    },
+    {
+      "liverId": "120005",
+      "liverName": "Ryu kyogoku Test",
+      "productName": "予約販売 2026年２月発送  ヒト幹細胞美容液",
+      "totalGmv": "8381682",
+      "totalSold": "380"
+    },
+    {
+      "liverId": "120005",
+      "liverName": "Ryu kyogoku Test",
+      "productName": "KYOGOKU　ケラチンシャンプー・トリートメント　人毛ケラチン配合　ハイダメージ用",
+      "totalGmv": "8329664",
+      "totalSold": "2434"
+    },
+    {
+      "liverId": "120005",
+      "liverName": "Ryu kyogoku Test",
+      "productName": "1+1 KYOGOKU ミラクルカラーフォーム　ブラック ダークブラウン　ヘアカラー白髪染め　泡カラー　低刺激",
+      "totalGmv": "7365589",
+      "totalSold": "1855"
+    },
+    {
+      "liverId": "120005",
+      "liverName": "Ryu kyogoku Test",
+      "productName": "KYOGOKU ヒト幹細胞導入美容液 プラチナ配合 70万個突破 上質ヒト脂肪由来培養液 1000分子量コラーゲン",
+      "totalGmv": "7333937",
+      "totalSold": "6064"
+    },
+    {
+      "liverId": "120005",
+      "liverName": "Ryu kyogoku Test",
+      "productName": "KYOGOKU スキンソニック メディプロ　 美顔器 リフトアップ 美顔機 フェイスケア 充電式 多機能 スキンケア リフトケア マッサージ LED 光美容 温感 最先端 美肌 表情筋 引き締め 保湿 光エステ 美顔ローラー イオン美顔器 超音波振動",
+      "totalGmv": "7148296",
+      "totalSold": "1201"
+    },
+    {
+      "liverId": "120005",
+      "liverName": "Ryu kyogoku Test",
+      "productName": "KYOGOKU　ネイチャーブースター＋　育毛剤　医薬部外品　桑白皮エキス　CICA",
+      "totalGmv": "6603241",
+      "totalSold": "1388"
+    },
+    {
+      "liverId": "120005",
+      "liverName": "Ryu kyogoku Test",
+      "productName": "KYOGOKU　ハイライトコーム　シグネチャーハイライトコーム　アドバンストハイライトコーム",
+      "totalGmv": "5827261",
+      "totalSold": "1881"
+    },
+    {
+      "liverId": "120005",
+      "liverName": "Ryu kyogoku Test",
+      "productName": "KYOGOKU　ラッシュセラム まつげ美容液 エクソソーム ヒト幹細胞培養液 日本製",
+      "totalGmv": "5535223",
+      "totalSold": "965"
+    },
+    {
+      "liverId": "120005",
+      "liverName": "Ryu kyogoku Test",
+      "productName": "KYOGOKU ダーマデバイス 美容　乾燥　艶肌　キメ　保湿",
+      "totalGmv": "5432706",
+      "totalSold": "245"
+    },
+    {
+      "liverId": "120005",
+      "liverName": "Ryu kyogoku Test",
+      "productName": "KYOGOKU ミラクルホワイトTシャツ",
+      "totalGmv": "5381914",
+      "totalSold": "619"
+    },
+    {
+      "liverId": "120005",
+      "liverName": "Ryu kyogoku Test",
+      "productName": "KYOGOKU　ナノシルクケラチンピロー　寝るだけ美容　髪のうねり・肌荒れ・疲労感 枕 マクラ 枕カバー シルクカバー",
+      "totalGmv": "4596945",
+      "totalSold": "559"
+    },
+    {
+      "liverId": "120005",
+      "liverName": "Ryu kyogoku Test",
+      "productName": "KYOGOKU クリスタルブライト スパークリングフォーム 炭酸白肌洗顔フォーム 男女兼用 黒ずみケア 毛穴ケア ナイアシンアミド ハイドロキノン セラミド 高濃度",
+      "totalGmv": "4588922",
+      "totalSold": "2055"
+    },
+    {
+      "liverId": "120005",
+      "liverName": "Ryu kyogoku Test",
+      "productName": "KYOGOKU　逆毛コーム　ヘアセット　ハイライト　効率化　ダメージレス",
+      "totalGmv": "4497772",
+      "totalSold": "2060"
+    },
+    {
+      "liverId": "120005",
+      "liverName": "Ryu kyogoku Test",
+      "productName": "KYOGOKU マドラー　ヘアカラー用　丈夫　効率化　プロ仕様",
+      "totalGmv": "4072177",
+      "totalSold": "444"
+    }
+  ],
+  "messages": [],
+  "stdout": "liverId\tliverName\tproductName\ttotalGmv\ttotalSold\n120005\tRyu kyogoku Test\tKYOGOKU MEGAガチャ袋　　【KG MEGA ガチャ袋 Aタイプ2980円】【KG MEGA ガチャ袋 Bタイプ 4950円】【KG MEGA ガチャ袋 Cタイプ9900円】【KG MEGA ガチャ袋 Dタイプ13500円】【KG MEGA ガチャ袋 Sタイプ1500円】 福袋\t43731665\t8333\n120005\tRyu kyogoku Test\tKYOGOKU ナノシルクケラチンエアソニック  ヘアドライヤー ドライヤー 大風量 速乾 1400W 120℃ 7段階 ケラチン ナノイオン 高性能 オートクリーン 温冷風切替 毛髪補修 ダメージケア 時短 保湿 軽量 液晶 ノズル付き ヘアサロン ツヤ髪\t30341455\t1191\n120005\tRyu kyogoku Test\tKYOGOKUナノシルク　アイロン　ストレート　カール　ストレート カール 2WAY コテ 25mm 220℃ 9段階 ケラチン ナノイオン 痛みにくい 保湿 両用アイロン プレート プロ仕様 ヘアケア ヘアアレンジ 液晶 海外対応 ブラック\t16108181\t1064\n120005\tRyu kyogoku Test\tKYOGOKU　ケラチン ブースト＋ 原液100% 集中ケア補修型トリートメント パウダー系 トリートメント ヘアパック ヘアトリートメント\t15020847\t12646\n120005\tRyu kyogoku Test\tKYOGOKU シグネチャートリートメント　ヒト幹細胞　オーガニック　ヘアケア\t11124183\t1739\n120005\tRyu kyogoku Test\tKYOGOKU　Ｗトリートメント　洗い流すトリートメント 洗い流さないトリートメント兼用 サロン専売\t8858536\t2168\n120005\tRyu kyogoku Test\t予約販売 2026年２月発送  ヒト幹細胞美容液\t8381682\t380\n120005\tRyu kyogoku Test\tKYOGOKU　ケラチンシャンプー・トリートメント　人毛ケラチン配合　ハイダメージ用\t8329664\t2434\n120005\tRyu kyogoku Test\t1+1 KYOGOKU ミラクルカラーフォーム　ブラック ダークブラウン　ヘアカラー白髪染め　泡カラー　低刺激\t7365589\t1855\n120005\tRyu kyogoku Test\tKYOGOKU ヒト幹細胞導入美容液 プラチナ配合 70万個突破 上質ヒト脂肪由来培養液 1000分子量コラーゲン\t7333937\t6064\n120005\tRyu kyogoku Test\tKYOGOKU スキンソニック メディプロ　 美顔器 リフトアップ 美顔機 フェイスケア 充電式 多機能 スキンケア リフトケア マッサージ LED 光美容 温感 最先端 美肌 表情筋 引き締め 保湿 光エステ 美顔ローラー イオン美顔器 超音波振動\t7148296\t1201\n120005\tRyu kyogoku Test\tKYOGOKU　ネイチャーブースター＋　育毛剤　医薬部外品　桑白皮エキス　CICA\t6603241\t1388\n120005\tRyu kyogoku Test\tKYOGOKU　ハイライトコーム　シグネチャーハイライトコーム　アドバンストハイライトコーム\t5827261\t1881\n120005\tRyu kyogoku Test\tKYOGOKU　ラッシュセラム まつげ美容液 エクソソーム ヒト幹細胞培養液 日本製\t5535223\t965\n120005\tRyu kyogoku Test\tKYOGOKU ダーマデバイス 美容　乾燥　艶肌　キメ　保湿\t5432706\t245\n120005\tRyu kyogoku Test\tKYOGOKU ミラクルホワイトTシャツ\t5381914\t619\n120005\tRyu kyogoku Test\tKYOGOKU　ナノシルクケラチンピロー　寝るだけ美容　髪のうねり・肌荒れ・疲労感 枕 マクラ 枕カバー シルクカバー\t4596945\t559\n120005\tRyu kyogoku Test\tKYOGOKU クリスタルブライト スパークリングフォーム 炭酸白肌洗顔フォーム 男女兼用 黒ずみケア 毛穴ケア ナイアシンアミド ハイドロキノン セラミド 高濃度\t4588922\t2055\n120005\tRyu kyogoku Test\tKYOGOKU　逆毛コーム　ヘアセット　ハイライト　効率化　ダメージレス\t4497772\t2060\n120005\tRyu kyogoku Test\tKYOGOKU マドラー　ヘアカラー用　丈夫　効率化　プロ仕様\t4072177\t444\n",
+  "stderr": "",
+  "execution_time_ms": 1901
+}
