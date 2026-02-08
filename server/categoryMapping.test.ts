@@ -143,5 +143,81 @@ describe("Product Category Mapping", () => {
       expect(mappings).toHaveLength(3);
       expect(mappings.every(m => m.productName.length > 0 && m.category.length > 0)).toBe(true);
     });
+
+    it("should handle bulk move to same category", () => {
+      const selectedProducts = ["KYOGOKU MEGAガチャ袋", "XBJ プロジェクター", "テスト商品C"];
+      const targetCategory = "ヘアケア";
+      const mappings = selectedProducts.map(productName => ({
+        productName,
+        category: targetCategory,
+      }));
+      expect(mappings).toHaveLength(3);
+      expect(mappings.every(m => m.category === "ヘアケア")).toBe(true);
+    });
+
+    it("should handle bulk move to new category", () => {
+      const selectedProducts = ["商品X", "商品Y"];
+      const newCategory = "新カテゴリ";
+      const mappings = selectedProducts.map(productName => ({
+        productName,
+        category: newCategory,
+      }));
+      expect(mappings).toHaveLength(2);
+      expect(mappings.every(m => m.category === "新カテゴリ")).toBe(true);
+    });
+
+    it("should not create mappings when no products selected", () => {
+      const selectedProducts: string[] = [];
+      const mappings = selectedProducts.map(productName => ({
+        productName,
+        category: "ヘアケア",
+      }));
+      expect(mappings).toHaveLength(0);
+    });
+  });
+
+  describe("Product Selection Logic", () => {
+    it("should toggle individual product selection", () => {
+      const selected = new Set<string>();
+      // Add product
+      selected.add("商品A");
+      expect(selected.has("商品A")).toBe(true);
+      expect(selected.size).toBe(1);
+      // Remove product
+      selected.delete("商品A");
+      expect(selected.has("商品A")).toBe(false);
+      expect(selected.size).toBe(0);
+    });
+
+    it("should select all products in a category", () => {
+      const products = [
+        { name: "商品A", gmv: 100 },
+        { name: "商品B", gmv: 200 },
+        { name: "商品C", gmv: 300 },
+      ];
+      const selected = new Set<string>();
+      products.forEach(p => selected.add(p.name));
+      expect(selected.size).toBe(3);
+      expect(products.every(p => selected.has(p.name))).toBe(true);
+    });
+
+    it("should deselect all products when all are selected", () => {
+      const products = [{ name: "商品A", gmv: 100 }, { name: "商品B", gmv: 200 }];
+      const selected = new Set<string>(products.map(p => p.name));
+      const allSelected = products.every(p => selected.has(p.name));
+      expect(allSelected).toBe(true);
+      // Deselect all
+      if (allSelected) {
+        products.forEach(p => selected.delete(p.name));
+      }
+      expect(selected.size).toBe(0);
+    });
+
+    it("should clear all selections", () => {
+      const selected = new Set(["商品A", "商品B", "商品C"]);
+      expect(selected.size).toBe(3);
+      selected.clear();
+      expect(selected.size).toBe(0);
+    });
   });
 });

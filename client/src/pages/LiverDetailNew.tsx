@@ -19,6 +19,7 @@ import { Link2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 
 // Matrix rain effect component
@@ -126,6 +127,9 @@ export default function LiverDetailNew() {
   const [categoryMoveTarget, setCategoryMoveTarget] = useState<{ productName: string; currentCategory: string } | null>(null);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
+  const [bulkNewCategoryName, setBulkNewCategoryName] = useState("");
+  const [showBulkNewCategoryInput, setShowBulkNewCategoryInput] = useState(false);
   
   const { data: liver, isLoading: liverLoading } = trpc.liverManagement.getById.useQuery({
     id: liverId,
@@ -161,7 +165,6 @@ export default function LiverDetailNew() {
   
   const upsertMappingMutation = trpc.liverManagement.upsertProductCategoryMapping.useMutation({
     onSuccess: () => {
-      // Refresh category analysis data
       utils.liverManagement.getCategoryAnalysis.invalidate({ liverId });
       utils.liverManagement.getDistinctCategories.invalidate();
       setCategoryMoveTarget(null);
@@ -171,6 +174,21 @@ export default function LiverDetailNew() {
     },
     onError: (error) => {
       toast.error(language === 'zh' ? '分类更新失败' : `カテゴリ更新に失敗: ${error.message}`);
+    },
+  });
+
+  const bulkUpsertMutation = trpc.liverManagement.bulkUpsertProductCategoryMappings.useMutation({
+    onSuccess: (data) => {
+      utils.liverManagement.getCategoryAnalysis.invalidate({ liverId });
+      utils.liverManagement.getDistinctCategories.invalidate();
+      const count = selectedProducts.size;
+      setSelectedProducts(new Set());
+      setBulkNewCategoryName("");
+      setShowBulkNewCategoryInput(false);
+      toast.success(language === 'zh' ? `${count}个商品已移动` : `${count}件の商品を移動しました`);
+    },
+    onError: (error) => {
+      toast.error(language === 'zh' ? '一括移动失败' : `一括移動に失敗: ${error.message}`);
     },
   });
 
@@ -202,6 +220,51 @@ export default function LiverDetailNew() {
   const handleCreateAndMove = (productName: string) => {
     if (!newCategoryName.trim()) return;
     upsertMappingMutation.mutate({ productName, category: newCategoryName.trim() });
+  };
+
+  // Bulk move handlers
+  const toggleProductSelection = (productName: string) => {
+    setSelectedProducts(prev => {
+      const next = new Set(prev);
+      if (next.has(productName)) {
+        next.delete(productName);
+      } else {
+        next.add(productName);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAllInCategory = (products: { name: string; gmv: number }[]) => {
+    const productNames = products.map(p => p.name);
+    const allSelected = productNames.every(n => selectedProducts.has(n));
+    setSelectedProducts(prev => {
+      const next = new Set(prev);
+      if (allSelected) {
+        productNames.forEach(n => next.delete(n));
+      } else {
+        productNames.forEach(n => next.add(n));
+      }
+      return next;
+    });
+  };
+
+  const handleBulkMoveToCategory = (targetCategory: string) => {
+    if (selectedProducts.size === 0) return;
+    const mappings = Array.from(selectedProducts).map(productName => ({
+      productName,
+      category: targetCategory,
+    }));
+    bulkUpsertMutation.mutate({ mappings });
+  };
+
+  const handleBulkCreateAndMove = () => {
+    if (!bulkNewCategoryName.trim() || selectedProducts.size === 0) return;
+    const mappings = Array.from(selectedProducts).map(productName => ({
+      productName,
+      category: bulkNewCategoryName.trim(),
+    }));
+    bulkUpsertMutation.mutate({ mappings });
   };
   
   const translations = {
@@ -722,8 +785,27 @@ export default function LiverDetailNew() {
                       {/* Product list with full names and GMV + category move */}
                       {category.products.length > 0 && (
                         <div className="mt-3 space-y-1">
+                          {/* Select all in this category */}
+                          {category.products.length > 1 && (
+                            <div className="flex items-center gap-2 text-xs px-2 py-1 text-cyan-500/60">
+                              <Checkbox
+                                id={`select-all-${category.category}`}
+                                checked={category.products.every((p: { name: string }) => selectedProducts.has(p.name))}
+                                onCheckedChange={() => toggleSelectAllInCategory(category.products)}
+                                className="h-3.5 w-3.5 border-cyan-500/40 data-[state=checked]:bg-cyan-500 data-[state=checked]:border-cyan-500"
+                              />
+                              <label htmlFor={`select-all-${category.category}`} className="cursor-pointer select-none">
+                                {language === 'zh' ? '全选' : '全選択'}
+                              </label>
+                            </div>
+                          )}
                           {displayProducts.map((product: { name: string; gmv: number }, i: number) => (
-                            <div key={i} className="flex items-center gap-1 text-xs py-1 px-2 rounded bg-[#0a0a1a]/30 hover:bg-[#0a0a1a]/50 transition-colors group">
+                            <div key={i} className={`flex items-center gap-1 text-xs py-1 px-2 rounded transition-colors group ${selectedProducts.has(product.name) ? 'bg-cyan-500/15 ring-1 ring-cyan-500/30' : 'bg-[#0a0a1a]/30 hover:bg-[#0a0a1a]/50'}`}>
+                              <Checkbox
+                                checked={selectedProducts.has(product.name)}
+                                onCheckedChange={() => toggleProductSelection(product.name)}
+                                className="h-3.5 w-3.5 shrink-0 border-cyan-500/40 data-[state=checked]:bg-cyan-500 data-[state=checked]:border-cyan-500"
+                              />
                               <span className="text-cyan-200/80 break-all flex-1">{product.name}</span>
                               <span className="text-cyan-400/60 font-mono whitespace-nowrap">{formatCurrency(product.gmv)}</span>
                               {/* Category move button */}
@@ -818,6 +900,100 @@ export default function LiverDetailNew() {
               </div>
             ) : (
               <p className="text-cyan-500/50 text-center py-6">{language === 'zh' ? '暂无分类数据' : 'カテゴリデータがありません'}</p>
+            )}
+
+            {/* Floating bulk move bar */}
+            {selectedProducts.size > 0 && (
+              <div className="mt-4 p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/30 backdrop-blur-sm">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <div className="w-6 h-6 rounded-full bg-cyan-500/20 flex items-center justify-center">
+                      <Check className="w-3.5 h-3.5 text-cyan-400" />
+                    </div>
+                    <span className="text-cyan-200 font-medium">
+                      {selectedProducts.size}{language === 'zh' ? '个商品已选择' : '件選択中'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          disabled={bulkUpsertMutation.isPending}
+                          className="px-3 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 text-xs font-medium transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                        >
+                          {bulkUpsertMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MoveRight className="w-3.5 h-3.5" />}
+                          {language === 'zh' ? '一括移动到...' : '一括移動...'}
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-72 p-2 bg-[#0a1a2a] border-cyan-500/30" align="end">
+                        <div className="text-xs text-cyan-300 font-semibold mb-2 px-1">
+                          {language === 'zh'
+                            ? `${selectedProducts.size}个商品を移动到:`
+                            : `${selectedProducts.size}件の商品を移動先:`}
+                        </div>
+                        <div className="max-h-48 overflow-y-auto space-y-0.5">
+                          {allAvailableCategories.map((cat) => (
+                            <button
+                              key={cat}
+                              onClick={() => handleBulkMoveToCategory(cat)}
+                              disabled={bulkUpsertMutation.isPending}
+                              className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-cyan-500/20 text-cyan-200/80 hover:text-cyan-100 transition-colors disabled:opacity-50 flex items-center gap-2"
+                            >
+                              <Tag className="w-3 h-3 text-cyan-400/60" />
+                              {cat}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="border-t border-cyan-500/20 mt-2 pt-2">
+                          {showBulkNewCategoryInput ? (
+                            <div className="flex items-center gap-1">
+                              <Input
+                                value={bulkNewCategoryName}
+                                onChange={(e) => setBulkNewCategoryName(e.target.value)}
+                                placeholder={language === 'zh' ? '新分类名' : '新カテゴリ名'}
+                                className="h-7 text-xs bg-[#0a0a1a]/60 border-cyan-500/30 text-cyan-200 placeholder:text-cyan-500/40"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleBulkCreateAndMove();
+                                  if (e.key === 'Escape') { setShowBulkNewCategoryInput(false); setBulkNewCategoryName(""); }
+                                }}
+                                autoFocus
+                              />
+                              <button
+                                onClick={handleBulkCreateAndMove}
+                                disabled={!bulkNewCategoryName.trim() || bulkUpsertMutation.isPending}
+                                className="p-1 rounded hover:bg-emerald-500/20 text-emerald-400 disabled:opacity-50"
+                              >
+                                {bulkUpsertMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                              </button>
+                              <button
+                                onClick={() => { setShowBulkNewCategoryInput(false); setBulkNewCategoryName(""); }}
+                                className="p-1 rounded hover:bg-red-500/20 text-red-400"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => { setShowBulkNewCategoryInput(true); setBulkNewCategoryName(""); }}
+                              className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-emerald-500/20 text-emerald-400/80 hover:text-emerald-300 transition-colors flex items-center gap-2"
+                            >
+                              <Plus className="w-3 h-3" />
+                              {language === 'zh' ? '新建分类' : '新規カテゴリ作成'}
+                            </button>
+                          )}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    <button
+                      onClick={() => setSelectedProducts(new Set())}
+                      className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400/80 text-xs font-medium transition-colors flex items-center gap-1.5"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      {language === 'zh' ? '取消选择' : '選択解除'}
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
