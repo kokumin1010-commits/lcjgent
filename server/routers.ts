@@ -4469,28 +4469,29 @@ ${hasLearningData ? '- 過去の広告実績データ: ' + learningDataRecords +
     createAdCampaign: protectedProcedure
       .input(z.object({
         brandId: z.number(),
-        name: z.string().min(1),
-        platform: z.enum(["tiktok", "facebook", "instagram", "google", "youtube", "other"]).default("tiktok"),
-        objective: z.enum(["impressions", "clicks", "conversions", "awareness", "engagement"]).default("impressions"),
+        campaignName: z.string().min(1),
+        platform: z.string().default("tiktok"),
+        objective: z.enum(["impression", "click", "conversion", "engagement", "other"]).default("impression"),
         objectiveConfidence: z.number().optional(),
         startDate: z.string().optional(),
         endDate: z.string().optional(),
         budget: z.number().optional(),
-        actualSpend: z.number().optional(),
-        status: z.enum(["draft", "active", "paused", "completed"]).default("draft"),
-        detectedLanguage: z.string().optional(),
-        sourceFileUrl: z.string().optional(),
-        sourceFileKey: z.string().optional(),
-        rawData: z.record(z.string(), z.unknown()).optional(),
+        adSpend: z.number().optional(),
+        status: z.enum(["active", "completed", "paused", "cancelled"]).default("active"),
+        reportLanguage: z.enum(["ja", "zh", "en"]).default("ja"),
+        reportFileUrl: z.string().optional(),
+        reportFileKey: z.string().optional(),
+        memo: z.string().optional(),
         // Metrics
         impressions: z.number().optional(),
         views: z.number().optional(),
-        views6s: z.number().optional(),
+        views6sPlus: z.number().optional(),
         clicks: z.number().optional(),
-        conversions: z.number().optional(),
-        gmv: z.number().optional(),
-        orderCount: z.number().optional(),
+        productClicks: z.number().optional(),
         cartAdds: z.number().optional(),
+        salesCount: z.number().optional(),
+        gmv: z.number().optional(),
+        durationMinutes: z.number().optional(),
         // Country breakdown
         countryBreakdown: z.array(z.object({
           countryCode: z.string(),
@@ -4503,28 +4504,36 @@ ${hasLearningData ? '- 過去の広告実績データ: ' + learningDataRecords +
       }))
       .mutation(async ({ ctx, input }) => {
         console.log('[createAdCampaign] Input received:', JSON.stringify(input, null, 2).slice(0, 500));
-        const { countryBreakdown, impressions, views, views6s, clicks, conversions, gmv, orderCount, cartAdds, ...campaignData } = input;
+        const { countryBreakdown, impressions, views, views6sPlus, clicks, productClicks, cartAdds, salesCount, gmv, adSpend, durationMinutes, ...campaignData } = input;
         
-        // Safe date parsing helper
-        const safeParseDate = (dateStr?: string): Date | undefined => {
-          if (!dateStr) return undefined;
+        // Safe date parsing helper - returns current date as fallback since DB requires NOT NULL
+        const safeParseDate = (dateStr?: string): Date => {
+          if (!dateStr) return new Date();
           try {
             const d = new Date(dateStr);
-            if (isNaN(d.getTime())) return undefined;
+            if (isNaN(d.getTime())) return new Date();
             return d;
           } catch {
-            return undefined;
+            return new Date();
           }
         };
         
         // Create campaign
         const result = await createAdCampaign({
-          ...campaignData,
+          brandId: campaignData.brandId,
+          campaignName: campaignData.campaignName,
+          platform: campaignData.platform,
+          objective: campaignData.objective,
+          objectiveConfidence: campaignData.objectiveConfidence != null ? String(campaignData.objectiveConfidence) : undefined,
           startDate: safeParseDate(campaignData.startDate),
           endDate: safeParseDate(campaignData.endDate),
-          rawData: campaignData.rawData as Record<string, unknown> | undefined,
+          budget: campaignData.budget || 0,
+          status: campaignData.status,
+          reportLanguage: campaignData.reportLanguage,
+          reportFileUrl: campaignData.reportFileUrl,
+          reportFileKey: campaignData.reportFileKey,
+          memo: campaignData.memo,
           createdBy: ctx.user.id,
-          createdByName: ctx.user.name || ctx.user.email,
         });
         
         console.log('[createAdCampaign] DB result:', JSON.stringify(result));
@@ -4536,22 +4545,24 @@ ${hasLearningData ? '- 過去の広告実績データ: ' + learningDataRecords +
         console.log('[createAdCampaign] Campaign created with ID:', campaignId);
         
         // Create metrics if provided (use != null to allow 0 values)
-        if (impressions != null || views != null || views6s != null || clicks != null || gmv != null || conversions != null || orderCount != null || cartAdds != null) {
+        if (impressions != null || views != null || views6sPlus != null || clicks != null || gmv != null || salesCount != null || cartAdds != null) {
           try {
             await createAdMetrics({
               campaignId,
-              impressions: impressions || 0,
-              views: views || 0,
-              views6s: views6s || 0,
-              clicks: clicks || 0,
-              conversions: conversions || 0,
-              gmv: gmv || 0,
-              orderCount: orderCount || 0,
-              cartAdds: cartAdds || 0,
+              impressions: impressions ?? 0,
+              views: views ?? 0,
+              views6sPlus: views6sPlus ?? 0,
+              clicks: clicks ?? 0,
+              productClicks: productClicks ?? 0,
+              cartAdds: cartAdds ?? 0,
+              salesCount: salesCount ?? 0,
+              gmv: gmv ?? 0,
+              adSpend: adSpend ?? 0,
+              durationMinutes: durationMinutes,
+              isAiExtracted: true,
             });
           } catch (metricsError) {
             console.error('[createAdCampaign] Failed to create metrics:', metricsError);
-            // Campaign was created successfully, metrics failure is non-fatal
           }
         }
         
@@ -4562,16 +4573,14 @@ ${hasLearningData ? '- 過去の広告実績データ: ' + learningDataRecords +
               await createAdCountryBreakdown({
                 campaignId,
                 countryCode: country.countryCode,
-                countryName: country.countryName,
-                percentage: String(country.percentage),
-                impressions: country.impressions || 0,
-                clicks: country.clicks || 0,
-                gmv: country.gmv || 0,
+                percentage: country.percentage != null ? String(country.percentage) : undefined,
+                impressions: country.impressions ?? 0,
+                clicks: country.clicks ?? 0,
+                gmv: country.gmv ?? 0,
               });
             }
           } catch (countryError) {
             console.error('[createAdCampaign] Failed to create country breakdown:', countryError);
-            // Campaign was created successfully, country breakdown failure is non-fatal
           }
         }
         
@@ -4582,20 +4591,21 @@ ${hasLearningData ? '- 過去の広告実績データ: ' + learningDataRecords +
     updateAdCampaign: protectedProcedure
       .input(z.object({
         id: z.number(),
-        name: z.string().optional(),
-        platform: z.enum(["tiktok", "facebook", "instagram", "google", "youtube", "other"]).optional(),
-        objective: z.enum(["impressions", "clicks", "conversions", "awareness", "engagement"]).optional(),
+        campaignName: z.string().optional(),
+        platform: z.string().optional(),
+        objective: z.enum(["impression", "click", "conversion", "engagement", "other"]).optional(),
         objectiveConfidence: z.number().optional(),
         startDate: z.string().optional(),
         endDate: z.string().optional(),
         budget: z.number().optional(),
-        actualSpend: z.number().optional(),
-        status: z.enum(["draft", "active", "paused", "completed"]).optional(),
+        status: z.enum(["active", "completed", "paused", "cancelled"]).optional(),
+        memo: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
-        const { id, startDate, endDate, ...updateData } = input;
+        const { id, startDate, endDate, objectiveConfidence, ...updateData } = input;
         await updateAdCampaign(id, {
           ...updateData,
+          objectiveConfidence: objectiveConfidence != null ? String(objectiveConfidence) : undefined,
           startDate: startDate ? new Date(startDate) : undefined,
           endDate: endDate ? new Date(endDate) : undefined,
         });

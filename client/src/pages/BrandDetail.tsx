@@ -7486,27 +7486,40 @@ ${proposal.proposalContent}
                     <Button
                       onClick={async () => {
                         try {
+                          // Map objective values from AI analysis to DB enum values
+                          const objectiveMap: Record<string, 'impression' | 'click' | 'conversion' | 'engagement' | 'other'> = {
+                            'impressions': 'impression',
+                            'clicks': 'click',
+                            'conversions': 'conversion',
+                            'awareness': 'other',
+                            'engagement': 'engagement',
+                            'impression': 'impression',
+                            'click': 'click',
+                            'conversion': 'conversion',
+                            'other': 'other',
+                          };
+                          const mappedObjective = objectiveMap[adCampaignAnalysisResult.objective] || 'impression';
+                          
                           await createAdCampaignMutation.mutateAsync({
                             brandId,
-                            name: adCampaignAnalysisResult.campaignName || adCampaignAnalysisResult.name || 'キャンペーン',
+                            campaignName: adCampaignAnalysisResult.campaignName || adCampaignAnalysisResult.name || 'キャンペーン',
                             platform: adCampaignAnalysisResult.platform || 'tiktok',
-                            objective: adCampaignAnalysisResult.objective || 'impressions',
+                            objective: mappedObjective,
                             objectiveConfidence: adCampaignAnalysisResult.objectiveConfidence,
                             startDate: adCampaignAnalysisResult.startDate,
                             endDate: adCampaignAnalysisResult.endDate,
                             budget: Number(adCampaignAnalysisResult.budget) || undefined,
-                            actualSpend: Number(adCampaignAnalysisResult.actualSpend) || undefined,
+                            adSpend: Number(adCampaignAnalysisResult.actualSpend) || undefined,
                             status: 'completed',
-                            detectedLanguage: adCampaignAnalysisResult.detectedLanguage,
-                            sourceFileUrl: adCampaignAnalysisResult.sourceFileUrl,
-                            sourceFileKey: adCampaignAnalysisResult.sourceFileKey,
+                            reportLanguage: (adCampaignAnalysisResult.detectedLanguage as 'ja' | 'zh' | 'en') || 'ja',
+                            reportFileUrl: adCampaignAnalysisResult.sourceFileUrl,
+                            reportFileKey: adCampaignAnalysisResult.sourceFileKey,
                             impressions: Number(adCampaignAnalysisResult.impressions) || undefined,
                             views: Number(adCampaignAnalysisResult.views) || undefined,
-                            views6s: Number(adCampaignAnalysisResult.views6s) || undefined,
+                            views6sPlus: Number(adCampaignAnalysisResult.views6s) || undefined,
                             clicks: Number(adCampaignAnalysisResult.clicks) || undefined,
-                            conversions: Number(adCampaignAnalysisResult.conversions) || undefined,
+                            salesCount: Number(adCampaignAnalysisResult.orderCount) || undefined,
                             gmv: Number(adCampaignAnalysisResult.gmv) || undefined,
-                            orderCount: Number(adCampaignAnalysisResult.orderCount) || undefined,
                             cartAdds: Number(adCampaignAnalysisResult.cartAdds) || undefined,
                             countryBreakdown: adCampaignAnalysisResult.countryBreakdown,
                           });
@@ -7546,16 +7559,16 @@ ${proposal.proposalContent}
                           <Badge className={`${campaign.platform === 'tiktok' ? 'bg-pink-500/30 text-pink-300' : 'bg-blue-500/30 text-blue-300'}`}>
                             {campaign.platform.toUpperCase()}
                           </Badge>
-                          <span className="font-medium text-white">{campaign.name}</span>
-                          <Badge className={`${campaign.objective === 'impressions' ? 'bg-blue-500/20 text-blue-300' : campaign.objective === 'clicks' ? 'bg-green-500/20 text-green-300' : 'bg-purple-500/20 text-purple-300'}`}>
-                            {campaign.objective === 'impressions' ? (language === 'ja' ? 'インプレッション' : '曝光') :
-                             campaign.objective === 'clicks' ? (language === 'ja' ? 'クリック' : '点击') :
-                             campaign.objective === 'conversions' ? (language === 'ja' ? 'コンバージョン' : '转化') :
+                          <span className="font-medium text-white">{campaign.campaignName}</span>
+                          <Badge className={`${campaign.objective === 'impression' ? 'bg-blue-500/20 text-blue-300' : campaign.objective === 'click' ? 'bg-green-500/20 text-green-300' : 'bg-purple-500/20 text-purple-300'}`}>
+                            {campaign.objective === 'impression' ? (language === 'ja' ? 'インプレッション' : '曝光') :
+                             campaign.objective === 'click' ? (language === 'ja' ? 'クリック' : '点击') :
+                             campaign.objective === 'conversion' ? (language === 'ja' ? 'コンバージョン' : '转化') :
                              campaign.objective}
                           </Badge>
                         </div>
                         <div className="flex items-center gap-4">
-                          <span className="text-green-400 font-medium">¥{(campaign.actualSpend || 0).toLocaleString()}</span>
+                          <span className="text-green-400 font-medium">¥{(campaign.budget || 0).toLocaleString()}</span>
                           <Button
                             variant="ghost"
                             size="sm"

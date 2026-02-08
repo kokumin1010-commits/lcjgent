@@ -1,0 +1,154 @@
+{
+  "query": "DESCRIBE ad_campaigns;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute DESCRIBE ad_campaigns;",
+  "rows": [
+    {
+      "Field": "id",
+      "Type": "int(11)",
+      "Null": "NO",
+      "Key": "PRI",
+      "Default": "NULL",
+      "Extra": "auto_increment"
+    },
+    {
+      "Field": "brandId",
+      "Type": "int(11)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "campaignName",
+      "Type": "varchar(255)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "platform",
+      "Type": "varchar(100)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "startDate",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "endDate",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "budget",
+      "Type": "bigint(20)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "currency",
+      "Type": "varchar(10)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "JPY",
+      "Extra": ""
+    },
+    {
+      "Field": "objective",
+      "Type": "enum('impression','click','conversion','engagement','other')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "impression",
+      "Extra": ""
+    },
+    {
+      "Field": "objectiveConfidence",
+      "Type": "decimal(5,2)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "reportLanguage",
+      "Type": "enum('ja','zh','en')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "ja",
+      "Extra": ""
+    },
+    {
+      "Field": "reportFileUrl",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "reportFileKey",
+      "Type": "varchar(512)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "status",
+      "Type": "enum('active','completed','paused','cancelled')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "active",
+      "Extra": ""
+    },
+    {
+      "Field": "memo",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "createdBy",
+      "Type": "int(11)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "createdAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": ""
+    },
+    {
+      "Field": "updatedAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nid\tint(11)\tNO\tPRI\tNULL\tauto_increment\nbrandId\tint(11)\tNO\t\tNULL\t\ncampaignName\tvarchar(255)\tNO\t\tNULL\t\nplatform\tvarchar(100)\tNO\t\tNULL\t\nstartDate\ttimestamp\tNO\t\tNULL\t\nendDate\ttimestamp\tNO\t\tNULL\t\nbudget\tbigint(20)\tNO\t\tNULL\t\ncurrency\tvarchar(10)\tNO\t\tJPY\t\nobjective\tenum('impression','click','conversion','engagement','other')\tNO\t\timpression\t\nobjectiveConfidence\tdecimal(5,2)\tYES\t\tNULL\t\nreportLanguage\tenum('ja','zh','en')\tNO\t\tja\t\nreportFileUrl\ttext\tYES\t\tNULL\t\nreportFileKey\tvarchar(512)\tYES\t\tNULL\t\nstatus\tenum('active','completed','paused','cancelled')\tNO\t\tactive\t\nmemo\ttext\tYES\t\tNULL\t\ncreatedBy\tint(11)\tNO\t\tNULL\t\ncreatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\t\nupdatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\tDEFAULT_GENERATED on update CURRENT_TIMESTAMP\n",
+  "stderr": "",
+  "execution_time_ms": 1617
+}

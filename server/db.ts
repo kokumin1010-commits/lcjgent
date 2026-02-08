@@ -8946,7 +8946,7 @@ export async function getAdMetricsByCampaignId(campaignId: number) {
     .select()
     .from(adMetrics)
     .where(eq(adMetrics.campaignId, campaignId))
-    .orderBy(desc(adMetrics.recordedAt));
+    .orderBy(desc(adMetrics.createdAt));
 }
 
 /**
@@ -9008,7 +9008,7 @@ export async function getAdCampaignStatsByBrandId(brandId: number) {
   return {
     campaignCount: campaigns.length,
     totalBudget: campaigns.reduce((sum, c) => sum + (c.budget || 0), 0),
-    totalSpend: campaigns.reduce((sum, c) => sum + (c.actualSpend || 0), 0),
+    totalSpend: metrics.reduce((sum, m) => sum + (m.adSpend || 0), 0),
     totalImpressions: metrics.reduce((sum, m) => sum + (m.impressions || 0), 0),
     totalClicks: metrics.reduce((sum, m) => sum + (m.clicks || 0), 0),
     totalGmv: metrics.reduce((sum, m) => sum + (m.gmv || 0), 0),

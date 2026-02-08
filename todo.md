@@ -4191,3 +4191,10 @@
 - [x] フロントエンド側の保存処理を確認・修正（エラー詳細メッセージ表示追加）
 - [x] バックエンド側のcreateAdCampaign処理を確認・修正（$returningId使用、メトリクス条件0値対応）
 - [x] テスト作成・実行（19テスト全パス）
+
+## バグ修正：広告レポート保存DBクエリエラー + 履歴表示不具合
+- [x] 「Failed query: insert into ad_campaigns」エラーの原因調査（DB実テーブルとDrizzleスキーマの完全不整合）
+- [x] DrizzleスキーマをDB実テーブルに完全一致させる修正（ad_campaigns, ad_metrics, ad_country_breakdown）
+- [x] ルーター・DBヘルパー・フロントエンドのフィールド名をDBに合わせて修正
+- [x] 広告実績・分析タブの履歴一覧表示のフィールド名修正（campaignName, objective enum値）
+- [x] テスト作成・実行（31テスト全パス）

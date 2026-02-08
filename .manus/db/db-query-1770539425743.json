@@ -1,0 +1,136 @@
+{
+  "query": "SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT, COLUMN_KEY FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ad_campaigns' ORDER BY ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT, COLUMN_KEY FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ad_campaigns' ORDER BY ORDINAL_POSITION;",
+  "rows": [
+    {
+      "COLUMN_NAME": "id",
+      "DATA_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "COLUMN_KEY": "PRI"
+    },
+    {
+      "COLUMN_NAME": "brandId",
+      "DATA_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "COLUMN_KEY": ""
+    },
+    {
+      "COLUMN_NAME": "campaignName",
+      "DATA_TYPE": "varchar",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "COLUMN_KEY": ""
+    },
+    {
+      "COLUMN_NAME": "platform",
+      "DATA_TYPE": "varchar",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "COLUMN_KEY": ""
+    },
+    {
+      "COLUMN_NAME": "startDate",
+      "DATA_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "COLUMN_KEY": ""
+    },
+    {
+      "COLUMN_NAME": "endDate",
+      "DATA_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "COLUMN_KEY": ""
+    },
+    {
+      "COLUMN_NAME": "budget",
+      "DATA_TYPE": "bigint",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "COLUMN_KEY": ""
+    },
+    {
+      "COLUMN_NAME": "currency",
+      "DATA_TYPE": "varchar",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "JPY",
+      "COLUMN_KEY": ""
+    },
+    {
+      "COLUMN_NAME": "objective",
+      "DATA_TYPE": "enum",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "impression",
+      "COLUMN_KEY": ""
+    },
+    {
+      "COLUMN_NAME": "objectiveConfidence",
+      "DATA_TYPE": "decimal",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL",
+      "COLUMN_KEY": ""
+    },
+    {
+      "COLUMN_NAME": "reportLanguage",
+      "DATA_TYPE": "enum",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "ja",
+      "COLUMN_KEY": ""
+    },
+    {
+      "COLUMN_NAME": "reportFileUrl",
+      "DATA_TYPE": "text",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL",
+      "COLUMN_KEY": ""
+    },
+    {
+      "COLUMN_NAME": "reportFileKey",
+      "DATA_TYPE": "varchar",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL",
+      "COLUMN_KEY": ""
+    },
+    {
+      "COLUMN_NAME": "status",
+      "DATA_TYPE": "enum",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "active",
+      "COLUMN_KEY": ""
+    },
+    {
+      "COLUMN_NAME": "memo",
+      "DATA_TYPE": "text",
+      "IS_NULLABLE": "YES",
+      "COLUMN_DEFAULT": "NULL",
+      "COLUMN_KEY": ""
+    },
+    {
+      "COLUMN_NAME": "createdBy",
+      "DATA_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "NULL",
+      "COLUMN_KEY": ""
+    },
+    {
+      "COLUMN_NAME": "createdAt",
+      "DATA_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "CURRENT_TIMESTAMP",
+      "COLUMN_KEY": ""
+    },
+    {
+      "COLUMN_NAME": "updatedAt",
+      "DATA_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_DEFAULT": "CURRENT_TIMESTAMP",
+      "COLUMN_KEY": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\tDATA_TYPE\tIS_NULLABLE\tCOLUMN_DEFAULT\tCOLUMN_KEY\nid\tint\tNO\tNULL\tPRI\nbrandId\tint\tNO\tNULL\t\ncampaignName\tvarchar\tNO\tNULL\t\nplatform\tvarchar\tNO\tNULL\t\nstartDate\ttimestamp\tNO\tNULL\t\nendDate\ttimestamp\tNO\tNULL\t\nbudget\tbigint\tNO\tNULL\t\ncurrency\tvarchar\tNO\tJPY\t\nobjective\tenum\tNO\timpression\t\nobjectiveConfidence\tdecimal\tYES\tNULL\t\nreportLanguage\tenum\tNO\tja\t\nreportFileUrl\ttext\tYES\tNULL\t\nreportFileKey\tvarchar\tYES\tNULL\t\nstatus\tenum\tNO\tactive\t\nmemo\ttext\tYES\tNULL\t\ncreatedBy\tint\tNO\tNULL\t\ncreatedAt\ttimestamp\tNO\tCURRENT_TIMESTAMP\t\nupdatedAt\ttimestamp\tNO\tCURRENT_TIMESTAMP\t\n",
+  "stderr": "",
+  "execution_time_ms": 1641
+}

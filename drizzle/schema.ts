@@ -2124,35 +2124,36 @@ export const adCampaigns = mysqlTable("ad_campaigns", {
   brandId: int("brandId").notNull(), // References brands.id
   
   // キャンペーン基本情報
-  name: varchar("name", { length: 255 }).notNull(), // キャンペーン名
-  platform: mysqlEnum("platform", ["tiktok", "facebook", "instagram", "google", "youtube", "other"]).default("tiktok").notNull(),
-  
-  // 目的（AI判定 + 手動修正可能）
-  objective: mysqlEnum("objective", ["impressions", "clicks", "conversions", "awareness", "engagement"]).default("impressions").notNull(),
-  objectiveConfidence: int("objectiveConfidence"), // AI判定の信頼度（0-100）
+  campaignName: varchar("campaignName", { length: 255 }).notNull(), // キャンペーン名
+  platform: varchar("platform", { length: 100 }).notNull(), // プラットフォーム
   
   // 期間
-  startDate: timestamp("startDate"),
-  endDate: timestamp("endDate"),
+  startDate: timestamp("startDate").notNull(),
+  endDate: timestamp("endDate").notNull(),
   
   // 予算・費用
-  budget: bigint("budget", { mode: "number" }), // 予算（円）
-  actualSpend: bigint("actualSpend", { mode: "number" }), // 実際の支出
+  budget: bigint("budget", { mode: "number" }).notNull(), // 予算（円）
+  currency: varchar("currency", { length: 10 }).notNull().default("JPY"),
+  
+  // 目的（AI判定 + 手動修正可能）
+  objective: mysqlEnum("objective", ["impression", "click", "conversion", "engagement", "other"]).default("impression").notNull(),
+  objectiveConfidence: decimal("objectiveConfidence", { precision: 5, scale: 2 }), // AI判定の信頼度
+  
+  // 言語
+  reportLanguage: mysqlEnum("reportLanguage", ["ja", "zh", "en"]).default("ja").notNull(),
+  
+  // レポートファイル
+  reportFileUrl: text("reportFileUrl"), // アップロードされたPDF/ファイルのURL
+  reportFileKey: varchar("reportFileKey", { length: 512 }), // S3 key
   
   // ステータス
-  status: mysqlEnum("status", ["draft", "active", "paused", "completed"]).default("draft").notNull(),
+  status: mysqlEnum("status", ["active", "completed", "paused", "cancelled"]).default("active").notNull(),
   
-  // 言語検出
-  detectedLanguage: varchar("detectedLanguage", { length: 10 }), // ja, zh, en
-  
-  // 元データ
-  sourceFileUrl: text("sourceFileUrl"), // アップロードされたPDF/ファイルのURL
-  sourceFileKey: varchar("sourceFileKey", { length: 512 }), // S3 key
-  rawData: json("rawData").$type<Record<string, unknown>>(), // AIが抽出した生データ
+  // メモ
+  memo: text("memo"),
   
   // 作成者情報
   createdBy: int("createdBy").notNull(),
-  createdByName: varchar("createdByName", { length: 255 }).notNull(),
   
   // タイムスタンプ
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -2170,27 +2171,39 @@ export const adMetrics = mysqlTable("ad_metrics", {
   id: int("id").autoincrement().primaryKey(),
   campaignId: int("campaignId").notNull(), // References adCampaigns.id
   
-  // 基本指標
-  impressions: bigint("impressions", { mode: "number" }).default(0), // インプレッション数
-  views: bigint("views", { mode: "number" }).default(0), // 視聴数
-  views6s: bigint("views6s", { mode: "number" }).default(0), // 6秒以上視聴数
-  clicks: bigint("clicks", { mode: "number" }).default(0), // クリック数
-  conversions: int("conversions").default(0), // コンバージョン数
+  // 期間
+  metricDate: timestamp("metricDate"),
+  periodStart: timestamp("periodStart"),
+  periodEnd: timestamp("periodEnd"),
   
-  // 売上関連
-  gmv: bigint("gmv", { mode: "number" }).default(0), // GMV
-  orderCount: int("orderCount").default(0), // 注文数
-  cartAdds: int("cartAdds").default(0), // カート追加数
+  // 基本指標
+  impressions: bigint("impressions", { mode: "number" }), // インプレッション数
+  views: bigint("views", { mode: "number" }), // 視聴数
+  views6sPlus: bigint("views6sPlus", { mode: "number" }), // 6秒以上視聴数
+  focusViewRate: decimal("focusViewRate", { precision: 5, scale: 2 }), // フォーカスビュー率
+  clicks: bigint("clicks", { mode: "number" }), // クリック数
+  productClicks: bigint("productClicks", { mode: "number" }), // 商品クリック数
+  cartAdds: bigint("cartAdds", { mode: "number" }), // カート追加数
+  salesCount: bigint("salesCount", { mode: "number" }), // 販売数
+  gmv: bigint("gmv", { mode: "number" }), // GMV
+  adSpend: bigint("adSpend", { mode: "number" }), // 広告費
   
   // コスト指標
   cpm: decimal("cpm", { precision: 10, scale: 4 }), // Cost per 1000 impressions
   cpc: decimal("cpc", { precision: 10, scale: 4 }), // Cost per click
   cpa: decimal("cpa", { precision: 10, scale: 4 }), // Cost per acquisition
-  roas: decimal("roas", { precision: 10, scale: 4 }), // Return on ad spend
+  roas: decimal("roas", { precision: 10, scale: 2 }), // Return on ad spend
+  
+  // 配信時間
+  durationMinutes: int("durationMinutes"),
+  
+  // AI抽出フラグ
+  isAiExtracted: boolean("isAiExtracted").notNull().default(false),
+  aiExtractionConfidence: decimal("aiExtractionConfidence", { precision: 5, scale: 2 }),
   
   // タイムスタンプ
-  recordedAt: timestamp("recordedAt").defaultNow().notNull(), // データ記録日時
   createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
 export type AdMetric = typeof adMetrics.$inferSelect;
@@ -2206,13 +2219,16 @@ export const adCountryBreakdown = mysqlTable("ad_country_breakdown", {
   
   // 国情報
   countryCode: varchar("countryCode", { length: 10 }).notNull(), // ISO country code (e.g., ID, TH, PH)
-  countryName: varchar("countryName", { length: 100 }).notNull(), // 国名（表示言語に依存）
   
   // パフォーマンス
-  percentage: decimal("percentage", { precision: 5, scale: 2 }).notNull(), // 割合（%）
-  impressions: bigint("impressions", { mode: "number" }).default(0),
-  clicks: bigint("clicks", { mode: "number" }).default(0),
-  gmv: bigint("gmv", { mode: "number" }).default(0),
+  impressions: bigint("impressions", { mode: "number" }),
+  percentage: decimal("percentage", { precision: 5, scale: 2 }),
+  clicks: bigint("clicks", { mode: "number" }),
+  conversions: bigint("conversions", { mode: "number" }),
+  gmv: bigint("gmv", { mode: "number" }),
+  
+  // マーケットノート
+  marketNote: text("marketNote"),
   
   // タイムスタンプ
   createdAt: timestamp("createdAt").defaultNow().notNull(),
