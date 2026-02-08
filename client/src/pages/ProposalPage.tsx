@@ -13,12 +13,22 @@ import {
   Sparkles,
   AlertTriangle,
   CheckCircle2,
+  Gift,
+  Tag,
+  Percent,
+  ShoppingBag,
 } from "lucide-react";
 
 function formatCurrency(value: number | string | null | undefined): string {
   const num = typeof value === "string" ? parseFloat(value) : Number(value);
   if (isNaN(num)) return "¥0";
-  return `¥${num.toLocaleString("ja-JP")}`;
+  return `¥${Math.round(num).toLocaleString("ja-JP")}`;
+}
+
+function calcDiscountRate(original: number, selling: number): string {
+  if (!original || original <= 0) return "—";
+  const rate = Math.round(((original - selling) / original) * 100);
+  return `${rate}%`;
 }
 
 export default function ProposalPage() {
@@ -67,6 +77,20 @@ export default function ProposalPage() {
   const aiConfidence = aiPrediction?.confidence || 0;
   const aiReasoning = aiPrediction?.reasoning || null;
 
+  // Bundle/set info
+  const hasSet = sim.hasSet ?? false;
+  const bundleName = sim.bundleName || "";
+  const bundlePrice = Number(sim.bundlePrice) || 0;
+  const bundleItems = (sim.bundleItems as Array<{ name: string; price: number }>) || [];
+  const listPrice = Number(sim.listPrice) || 0;
+  const sellingPrice = Number(sim.sellingPrice) || 0;
+
+  // Calculate totals for bundle
+  const bundleTotalListPrice = bundleItems.reduce((sum, item) => sum + (item.price || 0), 0);
+  const bundleDiscountRate = bundleTotalListPrice > 0
+    ? Math.round(((bundleTotalListPrice - bundlePrice) / bundleTotalListPrice) * 100)
+    : 0;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Header */}
@@ -85,21 +109,126 @@ export default function ProposalPage() {
       </div>
 
       <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
+
+        {/* Product / Bundle Info Section */}
+        {hasSet && bundleItems.length > 0 ? (
+          /* ===== セット商品セクション ===== */
+          <Card className="shadow-sm border-t-4 border-t-indigo-500">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Gift className="w-5 h-5 text-indigo-500" />
+                <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">セット商品構成</h2>
+                <Badge className="bg-indigo-100 text-indigo-700 border-indigo-200 text-xs">
+                  セット販売
+                </Badge>
+              </div>
+
+              {/* Bundle name & price overview */}
+              <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-lg p-4 mb-4">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="text-xs text-slate-400 mb-1">セット名</div>
+                    <div className="text-lg font-bold text-slate-800">{bundleName || "—"}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-slate-400 mb-1">セット販売価格</div>
+                    <div className="text-2xl font-bold text-indigo-600">{formatCurrency(bundlePrice)}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bundle items list */}
+              <div className="mb-4">
+                <div className="text-xs text-slate-400 mb-2 flex items-center gap-1">
+                  <ShoppingBag className="w-3.5 h-3.5" />
+                  セット内容（{bundleItems.length}点）
+                </div>
+                <div className="bg-white rounded-lg border border-slate-200 divide-y divide-slate-100">
+                  {bundleItems.map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-500 text-xs flex items-center justify-center font-medium">
+                          {idx + 1}
+                        </span>
+                        <span className="text-sm text-slate-700">{item.name}</span>
+                      </div>
+                      <span className="text-sm font-medium text-slate-600">{formatCurrency(item.price)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Totals & discount */}
+              <div className="grid grid-cols-3 gap-4 bg-slate-50 rounded-lg p-4">
+                <div className="text-center">
+                  <div className="text-xs text-slate-400 mb-1">元値合計（定価）</div>
+                  <div className="text-lg font-bold text-slate-600 line-through decoration-red-400">
+                    {formatCurrency(bundleTotalListPrice)}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs text-slate-400 mb-1">セット販売価格</div>
+                  <div className="text-lg font-bold text-indigo-600">
+                    {formatCurrency(bundlePrice)}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs text-slate-400 mb-1">割引率</div>
+                  <div className="flex items-center justify-center gap-1">
+                    <Percent className="w-4 h-4 text-red-500" />
+                    <span className="text-lg font-bold text-red-500">
+                      {bundleDiscountRate > 0 ? `${bundleDiscountRate}%OFF` : "—"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          /* ===== 単品商品セクション ===== */
+          <Card className="shadow-sm">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Tag className="w-5 h-5 text-blue-500" />
+                <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">商品情報</h2>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {sim.productName && (
+                  <div className="col-span-2 md:col-span-4">
+                    <div className="text-xs text-slate-400">商品名</div>
+                    <div className="text-sm font-medium text-slate-700">{sim.productName}</div>
+                  </div>
+                )}
+                {listPrice > 0 && (
+                  <div>
+                    <div className="text-xs text-slate-400">定価</div>
+                    <div className="text-sm font-medium text-slate-500 line-through">{formatCurrency(listPrice)}</div>
+                  </div>
+                )}
+                <div>
+                  <div className="text-xs text-slate-400">販売価格</div>
+                  <div className="text-sm font-bold text-slate-700">
+                    {formatCurrency(sellingPrice > 0 ? sellingPrice : sim.unitPrice)}
+                  </div>
+                </div>
+                {listPrice > 0 && sellingPrice > 0 && listPrice > sellingPrice && (
+                  <div>
+                    <div className="text-xs text-slate-400">割引率</div>
+                    <div className="text-sm font-bold text-red-500">
+                      {calcDiscountRate(listPrice, sellingPrice)}OFF
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Conditions Summary */}
         <Card className="shadow-sm">
           <CardContent className="p-6">
             <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">実施条件</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {sim.productName && (
-                <div className="col-span-2 md:col-span-4">
-                  <div className="text-xs text-slate-400">商品名</div>
-                  <div className="text-sm font-medium text-slate-700">{sim.productName}</div>
-                </div>
-              )}
-              <div>
-                <div className="text-xs text-slate-400">商品単価</div>
-                <div className="text-sm font-medium text-slate-700">{formatCurrency(sim.unitPrice)}</div>
-              </div>
               <div>
                 <div className="text-xs text-slate-400">配信時間</div>
                 <div className="text-sm font-medium text-slate-700">{sim.streamDuration}分</div>
@@ -118,6 +247,24 @@ export default function ProposalPage() {
                 <div>
                   <div className="text-xs text-slate-400">ライバー</div>
                   <div className="text-sm font-medium text-slate-700">{sim.liverName}</div>
+                </div>
+              )}
+              {sim.timeSlot && (
+                <div>
+                  <div className="text-xs text-slate-400">時間帯</div>
+                  <div className="text-sm font-medium text-slate-700">{sim.timeSlot}</div>
+                </div>
+              )}
+              {sim.dayOfWeek && (
+                <div>
+                  <div className="text-xs text-slate-400">曜日</div>
+                  <div className="text-sm font-medium text-slate-700">{sim.dayOfWeek}</div>
+                </div>
+              )}
+              {sim.hasAd && (
+                <div>
+                  <div className="text-xs text-slate-400">広告予算</div>
+                  <div className="text-sm font-medium text-slate-700">{formatCurrency(sim.adBudget)}</div>
                 </div>
               )}
             </div>

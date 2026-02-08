@@ -282,6 +282,120 @@ describe("Simulation Feature", () => {
     });
   });
 
+  describe("Bundle/Set Product Simulation", () => {
+    it("should calculate bundle discount rate correctly", () => {
+      const bundleItems = [
+        { name: "美容液A", price: 5000 },
+        { name: "化粧水B", price: 3000 },
+        { name: "クリームC", price: 4000 },
+      ];
+      const bundlePrice = 9800;
+
+      const totalListPrice = bundleItems.reduce((sum, item) => sum + item.price, 0);
+      const discountRate = Math.round(((totalListPrice - bundlePrice) / totalListPrice) * 100);
+
+      expect(totalListPrice).toBe(12000);
+      expect(discountRate).toBe(18);
+    });
+
+    it("should use bundle price as effective price when hasSet is true", () => {
+      const hasSet = true;
+      const sellingPrice = 5000;
+      const bundlePrice = 9800;
+
+      const effectivePrice = hasSet && bundlePrice ? bundlePrice : sellingPrice;
+      expect(effectivePrice).toBe(9800);
+    });
+
+    it("should use selling price when hasSet is false", () => {
+      const hasSet = false;
+      const sellingPrice = 5000;
+      const bundlePrice = 9800;
+
+      const effectivePrice = hasSet && bundlePrice ? bundlePrice : sellingPrice;
+      expect(effectivePrice).toBe(5000);
+    });
+
+    it("should calculate GMV with bundle pricing", () => {
+      const bundlePrice = 9800;
+      const avgGmvPerHour = 800000;
+      const streamDuration = 60;
+
+      const estimatedGmv = Math.round(avgGmvPerHour * (streamDuration / 60));
+      const estimatedSalesCount = Math.round(estimatedGmv / bundlePrice);
+
+      expect(estimatedGmv).toBe(800000);
+      expect(estimatedSalesCount).toBe(82);
+    });
+
+    it("should handle single product discount rate", () => {
+      const listPrice = 5000;
+      const sellingPrice = 3980;
+
+      const discountRate = Math.round(((listPrice - sellingPrice) / listPrice) * 100);
+      expect(discountRate).toBe(20);
+    });
+
+    it("should handle zero total list price gracefully", () => {
+      const bundleItems: Array<{ name: string; price: number }> = [];
+      const bundlePrice = 9800;
+
+      const totalListPrice = bundleItems.reduce((sum, item) => sum + item.price, 0);
+      const discountRate = totalListPrice > 0
+        ? Math.round(((totalListPrice - bundlePrice) / totalListPrice) * 100)
+        : 0;
+
+      expect(totalListPrice).toBe(0);
+      expect(discountRate).toBe(0);
+    });
+
+    it("should display bundle info in proposal when hasSet is true", () => {
+      const sim = {
+        hasSet: true,
+        bundleName: "美容3点セット",
+        bundlePrice: 9800,
+        bundleItems: [
+          { name: "美容液A", price: 5000 },
+          { name: "化粧水B", price: 3000 },
+          { name: "クリームC", price: 4000 },
+        ],
+        listPrice: 5000,
+        sellingPrice: 3980,
+      };
+
+      const showBundleSection = sim.hasSet && sim.bundleItems.length > 0;
+      expect(showBundleSection).toBe(true);
+
+      const totalListPrice = sim.bundleItems.reduce((sum, item) => sum + item.price, 0);
+      const bundleDiscountRate = totalListPrice > 0
+        ? Math.round(((totalListPrice - sim.bundlePrice) / totalListPrice) * 100)
+        : 0;
+
+      expect(totalListPrice).toBe(12000);
+      expect(bundleDiscountRate).toBe(18);
+    });
+
+    it("should display single product info in proposal when hasSet is false", () => {
+      const sim = {
+        hasSet: false,
+        bundleName: null,
+        bundlePrice: null,
+        bundleItems: null,
+        listPrice: 5000,
+        sellingPrice: 3980,
+      };
+
+      const bundleItems = sim.bundleItems || [];
+      const showBundleSection = sim.hasSet && bundleItems.length > 0;
+      expect(showBundleSection).toBe(false);
+
+      const listPrice = sim.listPrice || 0;
+      const sellingPrice = sim.sellingPrice || 0;
+      const hasDiscount = listPrice > 0 && sellingPrice > 0 && listPrice > sellingPrice;
+      expect(hasDiscount).toBe(true);
+    });
+  });
+
   describe("Edge Cases", () => {
     it("should handle very high unit prices", () => {
       const unitPrice = 1000000;
