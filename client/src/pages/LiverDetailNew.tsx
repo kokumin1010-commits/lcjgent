@@ -324,8 +324,9 @@ export default function LiverDetailNew() {
   
   const tr = translations[language as keyof typeof translations] || translations.ja;
   
-  const formatCurrency = (amount: number) => {
-    return `¥${amount.toLocaleString('ja-JP')}`;
+  const formatCurrency = (amount: number | string) => {
+    const num = typeof amount === 'string' ? parseFloat(amount) || 0 : amount;
+    return `¥${Math.round(num).toLocaleString('ja-JP')}`;
   };
   
   const formatDuration = (minutes: number) => {
@@ -580,16 +581,6 @@ export default function LiverDetailNew() {
               </div>
             </CardContent>
           </Card>
-        </div>
-        
-        {/* Record Button */}
-        <div className="flex justify-center">
-          <Link href={`/livers/${liverId}/record`}>
-            <Button className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 px-10 py-6 text-lg rounded-full shadow-[0_0_20px_rgba(0,255,255,0.3)] transition-all hover:shadow-[0_0_30px_rgba(0,255,255,0.5)]">
-              <Activity className="w-5 h-5 mr-2" />
-              {tr.recordStream}
-            </Button>
-          </Link>
         </div>
 
         {/* ===== NEW SECTION: Top Selling Products ===== */}
