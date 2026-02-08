@@ -902,101 +902,102 @@ export default function LiverDetailNew() {
               <p className="text-cyan-500/50 text-center py-6">{language === 'zh' ? '暂无分类数据' : 'カテゴリデータがありません'}</p>
             )}
 
-            {/* Floating bulk move bar */}
-            {selectedProducts.size > 0 && (
-              <div className="mt-4 p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/30 backdrop-blur-sm">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div className="flex items-center gap-2 text-sm">
-                    <div className="w-6 h-6 rounded-full bg-cyan-500/20 flex items-center justify-center">
-                      <Check className="w-3.5 h-3.5 text-cyan-400" />
-                    </div>
-                    <span className="text-cyan-200 font-medium">
-                      {selectedProducts.size}{language === 'zh' ? '个商品已选择' : '件選択中'}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button
-                          disabled={bulkUpsertMutation.isPending}
-                          className="px-3 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 text-xs font-medium transition-colors disabled:opacity-50 flex items-center gap-1.5"
-                        >
-                          {bulkUpsertMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MoveRight className="w-3.5 h-3.5" />}
-                          {language === 'zh' ? '一括移动到...' : '一括移動...'}
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-72 p-2 bg-[#0a1a2a] border-cyan-500/30" align="end">
-                        <div className="text-xs text-cyan-300 font-semibold mb-2 px-1">
-                          {language === 'zh'
-                            ? `${selectedProducts.size}个商品を移动到:`
-                            : `${selectedProducts.size}件の商品を移動先:`}
-                        </div>
-                        <div className="max-h-48 overflow-y-auto space-y-0.5">
-                          {allAvailableCategories.map((cat) => (
-                            <button
-                              key={cat}
-                              onClick={() => handleBulkMoveToCategory(cat)}
-                              disabled={bulkUpsertMutation.isPending}
-                              className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-cyan-500/20 text-cyan-200/80 hover:text-cyan-100 transition-colors disabled:opacity-50 flex items-center gap-2"
-                            >
-                              <Tag className="w-3 h-3 text-cyan-400/60" />
-                              {cat}
-                            </button>
-                          ))}
-                        </div>
-                        <div className="border-t border-cyan-500/20 mt-2 pt-2">
-                          {showBulkNewCategoryInput ? (
-                            <div className="flex items-center gap-1">
-                              <Input
-                                value={bulkNewCategoryName}
-                                onChange={(e) => setBulkNewCategoryName(e.target.value)}
-                                placeholder={language === 'zh' ? '新分类名' : '新カテゴリ名'}
-                                className="h-7 text-xs bg-[#0a0a1a]/60 border-cyan-500/30 text-cyan-200 placeholder:text-cyan-500/40"
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') handleBulkCreateAndMove();
-                                  if (e.key === 'Escape') { setShowBulkNewCategoryInput(false); setBulkNewCategoryName(""); }
-                                }}
-                                autoFocus
-                              />
-                              <button
-                                onClick={handleBulkCreateAndMove}
-                                disabled={!bulkNewCategoryName.trim() || bulkUpsertMutation.isPending}
-                                className="p-1 rounded hover:bg-emerald-500/20 text-emerald-400 disabled:opacity-50"
-                              >
-                                {bulkUpsertMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                              </button>
-                              <button
-                                onClick={() => { setShowBulkNewCategoryInput(false); setBulkNewCategoryName(""); }}
-                                className="p-1 rounded hover:bg-red-500/20 text-red-400"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => { setShowBulkNewCategoryInput(true); setBulkNewCategoryName(""); }}
-                              className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-emerald-500/20 text-emerald-400/80 hover:text-emerald-300 transition-colors flex items-center gap-2"
-                            >
-                              <Plus className="w-3 h-3" />
-                              {language === 'zh' ? '新建分类' : '新規カテゴリ作成'}
-                            </button>
-                          )}
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                    <button
-                      onClick={() => setSelectedProducts(new Set())}
-                      className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400/80 text-xs font-medium transition-colors flex items-center gap-1.5"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                      {language === 'zh' ? '取消选择' : '選択解除'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
+
+        {/* Fixed bottom bulk move bar - always visible when products selected */}
+        {selectedProducts.size > 0 && (
+          <div className="fixed bottom-0 left-0 right-0 z-50 p-3 bg-[#0a1a2a]/95 border-t border-cyan-500/30 backdrop-blur-md shadow-[0_-4px_20px_rgba(0,200,255,0.15)]">
+            <div className="max-w-4xl mx-auto flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2 text-sm">
+                <div className="w-7 h-7 rounded-full bg-cyan-500/20 flex items-center justify-center">
+                  <Check className="w-4 h-4 text-cyan-400" />
+                </div>
+                <span className="text-cyan-200 font-medium">
+                  {selectedProducts.size}{language === 'zh' ? '个商品已选择' : '件選択中'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button
+                      disabled={bulkUpsertMutation.isPending}
+                      className="px-4 py-2 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {bulkUpsertMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <MoveRight className="w-4 h-4" />}
+                      {language === 'zh' ? '一括移动到...' : '一括移動...'}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72 p-2 bg-[#0a1a2a] border-cyan-500/30" align="end" side="top">
+                    <div className="text-xs text-cyan-300 font-semibold mb-2 px-1">
+                      {language === 'zh'
+                        ? `${selectedProducts.size}个商品を移动到:`
+                        : `${selectedProducts.size}件の商品を移動先:`}
+                    </div>
+                    <div className="max-h-48 overflow-y-auto space-y-0.5">
+                      {allAvailableCategories.map((cat) => (
+                        <button
+                          key={cat}
+                          onClick={() => handleBulkMoveToCategory(cat)}
+                          disabled={bulkUpsertMutation.isPending}
+                          className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-cyan-500/20 text-cyan-200/80 hover:text-cyan-100 transition-colors disabled:opacity-50 flex items-center gap-2"
+                        >
+                          <Tag className="w-3 h-3 text-cyan-400/60" />
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="border-t border-cyan-500/20 mt-2 pt-2">
+                      {showBulkNewCategoryInput ? (
+                        <div className="flex items-center gap-1">
+                          <Input
+                            value={bulkNewCategoryName}
+                            onChange={(e) => setBulkNewCategoryName(e.target.value)}
+                            placeholder={language === 'zh' ? '新分类名' : '新カテゴリ名'}
+                            className="h-7 text-xs bg-[#0a0a1a]/60 border-cyan-500/30 text-cyan-200 placeholder:text-cyan-500/40"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleBulkCreateAndMove();
+                              if (e.key === 'Escape') { setShowBulkNewCategoryInput(false); setBulkNewCategoryName(""); }
+                            }}
+                            autoFocus
+                          />
+                          <button
+                            onClick={handleBulkCreateAndMove}
+                            disabled={!bulkNewCategoryName.trim() || bulkUpsertMutation.isPending}
+                            className="p-1 rounded hover:bg-emerald-500/20 text-emerald-400 disabled:opacity-50"
+                          >
+                            {bulkUpsertMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                          </button>
+                          <button
+                            onClick={() => { setShowBulkNewCategoryInput(false); setBulkNewCategoryName(""); }}
+                            className="p-1 rounded hover:bg-red-500/20 text-red-400"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => { setShowBulkNewCategoryInput(true); setBulkNewCategoryName(""); }}
+                          className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-emerald-500/20 text-emerald-400/80 hover:text-emerald-300 transition-colors flex items-center gap-2"
+                        >
+                          <Plus className="w-3 h-3" />
+                          {language === 'zh' ? '新建分类' : '新規カテゴリ作成'}
+                        </button>
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                <button
+                  onClick={() => setSelectedProducts(new Set())}
+                  className="px-4 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400/80 text-sm font-medium transition-colors flex items-center gap-2"
+                >
+                  <X className="w-4 h-4" />
+                  {language === 'zh' ? '取消选择' : '選択解除'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         
         {/* Delivery History */}
         <Card className="bg-[#0a1a2a]/80 border-cyan-500/20 backdrop-blur-sm">
