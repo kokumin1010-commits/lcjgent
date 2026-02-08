@@ -11127,9 +11127,14 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         productName: z.string().optional(),
         brandId: z.number().optional(),
         unitPrice: z.number().min(1),
+        listPrice: z.number().optional(),
+        sellingPrice: z.number().optional(),
         costPrice: z.number().optional(),
         grossMarginRate: z.number().optional(),
         hasSet: z.boolean().default(false),
+        bundleName: z.string().optional(),
+        bundlePrice: z.number().optional(),
+        bundleItems: z.array(z.object({ name: z.string(), price: z.number() })).optional(),
         expectedAov: z.number().optional(),
         // Liver conditions
         liverId: z.number(),
@@ -11191,10 +11196,20 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           adjustedGmv *= adBoost;
         }
 
-        // Set adjustment
+        // Set/Bundle adjustment
         if (input.hasSet) {
-          adjustmentFactors['setBoost'] = 1.15;
-          adjustedGmv *= 1.15;
+          // Calculate discount rate for bundle
+          let discountBoost = 1.15; // default boost
+          if (input.bundlePrice && input.bundleItems && input.bundleItems.length > 0) {
+            const originalTotal = input.bundleItems.reduce((sum, item) => sum + item.price, 0);
+            if (originalTotal > 0) {
+              const discountRate = 1 - (input.bundlePrice / originalTotal);
+              // Higher discount = higher boost (20%OFF -> 1.15, 40%OFF -> 1.30)
+              discountBoost = 1 + Math.min(discountRate * 0.75, 0.4);
+            }
+          }
+          adjustmentFactors['setBoost'] = discountBoost;
+          adjustedGmv *= discountBoost;
         }
 
         // Similar cases adjustment
@@ -11206,7 +11221,9 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         }
 
         const estimatedGmv = Math.round(adjustedGmv);
-        const aov = input.expectedAov || input.unitPrice;
+        // For bundles, use bundle price as AOV; otherwise use selling price or unit price
+        const effectivePrice = input.hasSet && input.bundlePrice ? input.bundlePrice : (input.sellingPrice || input.unitPrice);
+        const aov = input.expectedAov || effectivePrice;
         const estimatedSalesCount = Math.round(estimatedGmv / aov);
 
         // Calculate profit
@@ -11214,7 +11231,8 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         if (input.grossMarginRate) {
           grossMarginRate = input.grossMarginRate / 100;
         } else if (input.costPrice) {
-          grossMarginRate = (input.unitPrice - input.costPrice) / input.unitPrice;
+          const priceForMargin = input.sellingPrice || input.unitPrice;
+          grossMarginRate = (priceForMargin - input.costPrice) / priceForMargin;
         } else {
           grossMarginRate = 0.5; // Default 50%
         }
@@ -11339,9 +11357,14 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           productName: input.productName || null,
           brandId: input.brandId || null,
           unitPrice: input.unitPrice,
+          listPrice: input.listPrice || null,
+          sellingPrice: input.sellingPrice || null,
           costPrice: input.costPrice || null,
           grossMarginRate: input.grossMarginRate ? String(input.grossMarginRate) : null,
           hasSet: input.hasSet,
+          bundleName: input.bundleName || null,
+          bundlePrice: input.bundlePrice || null,
+          bundleItems: input.bundleItems || null,
           expectedAov: input.expectedAov || null,
           liverId: input.liverId,
           commissionRate: String(input.commissionRate),
@@ -11379,6 +11402,20 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
             avgGmvPerHour: stats.avgGmvPerHour,
           },
           similarCases: similarCases.slice(0, 5),
+          bundleInfo: input.hasSet ? {
+            bundleName: input.bundleName || null,
+            bundlePrice: input.bundlePrice || null,
+            bundleItems: input.bundleItems || [],
+            originalTotal: input.bundleItems ? input.bundleItems.reduce((s, i) => s + i.price, 0) : 0,
+            discountRate: input.bundleItems && input.bundlePrice
+              ? Math.round((1 - input.bundlePrice / input.bundleItems.reduce((s, i) => s + i.price, 0)) * 100)
+              : 0,
+          } : null,
+          priceInfo: {
+            listPrice: input.listPrice || null,
+            sellingPrice: input.sellingPrice || null,
+            unitPrice: input.unitPrice,
+          },
         };
       }),
 

@@ -35,6 +35,10 @@ import {
   ChevronUp,
   ExternalLink,
   Loader2,
+  Plus,
+  Trash2,
+  Tag,
+  Percent,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -88,11 +92,15 @@ export default function Simulator() {
 
   // Form state
   const [productName, setProductName] = useState("");
-  const [unitPrice, setUnitPrice] = useState<number>(0);
+  const [listPrice, setListPrice] = useState<number>(0); // 定価
+  const [sellingPrice, setSellingPrice] = useState<number>(0); // 販売価格
   const [costPrice, setCostPrice] = useState<number>(0);
   const [grossMarginRate, setGrossMarginRate] = useState<number>(0);
   const [costInputMode, setCostInputMode] = useState<"cost" | "margin">("cost");
   const [hasSet, setHasSet] = useState(false);
+  const [bundleName, setBundleName] = useState(""); // セット名
+  const [bundlePrice, setBundlePrice] = useState<number>(0); // セット販売価格（売値）
+  const [bundleItems, setBundleItems] = useState<Array<{ name: string; price: number }>>([{ name: "", price: 0 }]); // セット内容
   const [expectedAov, setExpectedAov] = useState<number>(0);
   const [selectedLiverId, setSelectedLiverId] = useState<number>(0);
   const [commissionRate, setCommissionRate] = useState<number>(10);
@@ -152,8 +160,9 @@ export default function Simulator() {
       toast.error("ライバーを選択してください");
       return;
     }
-    if (!unitPrice || unitPrice <= 0) {
-      toast.error("商品単価を入力してください");
+    const effectivePrice = hasSet ? bundlePrice : sellingPrice;
+    if (!effectivePrice || effectivePrice <= 0) {
+      toast.error(hasSet ? "セット販売価格を入力してください" : "販売価格を入力してください");
       return;
     }
     if (!streamDuration || streamDuration <= 0) {
@@ -163,10 +172,15 @@ export default function Simulator() {
 
     calculateMutation.mutate({
       productName: productName || undefined,
-      unitPrice,
+      unitPrice: effectivePrice,
+      listPrice: listPrice > 0 ? listPrice : undefined,
+      sellingPrice: sellingPrice > 0 ? sellingPrice : undefined,
       costPrice: costInputMode === "cost" && costPrice > 0 ? costPrice : undefined,
       grossMarginRate: costInputMode === "margin" && grossMarginRate > 0 ? grossMarginRate : undefined,
       hasSet,
+      bundleName: hasSet && bundleName ? bundleName : undefined,
+      bundlePrice: hasSet && bundlePrice > 0 ? bundlePrice : undefined,
+      bundleItems: hasSet && bundleItems.some(i => i.name) ? bundleItems.filter(i => i.name) : undefined,
       expectedAov: expectedAov > 0 ? expectedAov : undefined,
       liverId: selectedLiverId,
       commissionRate,
@@ -235,21 +249,49 @@ export default function Simulator() {
                     />
                   </div>
 
-                  <div>
-                    <Label className="text-slate-300 text-sm">
-                      商品単価 <span className="text-red-400">*</span>
-                    </Label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">¥</span>
-                      <Input
-                        type="number"
-                        value={unitPrice || ""}
-                        onChange={(e) => setUnitPrice(Number(e.target.value))}
-                        placeholder="3,980"
-                        className="bg-[#0a192f] border-slate-600 text-white pl-8 focus:border-cyan-500"
-                      />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-slate-300 text-sm">定価</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">¥</span>
+                        <Input
+                          type="number"
+                          value={listPrice || ""}
+                          onChange={(e) => setListPrice(Number(e.target.value))}
+                          placeholder="9,980"
+                          className="bg-[#0a192f] border-slate-600 text-white pl-8 focus:border-cyan-500"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-slate-300 text-sm">
+                        販売価格 <span className="text-red-400">*</span>
+                      </Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">¥</span>
+                        <Input
+                          type="number"
+                          value={sellingPrice || ""}
+                          onChange={(e) => setSellingPrice(Number(e.target.value))}
+                          placeholder="7,980"
+                          className="bg-[#0a192f] border-slate-600 text-white pl-8 focus:border-cyan-500"
+                        />
+                      </div>
                     </div>
                   </div>
+
+                  {/* 割引率自動表示 */}
+                  {listPrice > 0 && sellingPrice > 0 && listPrice > sellingPrice && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-green-500/10 border border-green-500/20 rounded-lg">
+                      <Percent className="w-4 h-4 text-green-400" />
+                      <span className="text-green-400 text-sm font-medium">
+                        {Math.round((1 - sellingPrice / listPrice) * 100)}%OFF
+                      </span>
+                      <span className="text-slate-400 text-xs">
+                        (定価{formatCurrency(listPrice)} → {formatCurrency(sellingPrice)})
+                      </span>
+                    </div>
+                  )}
 
                   <div>
                     <div className="flex items-center gap-2 mb-2">
@@ -304,8 +346,135 @@ export default function Simulator() {
 
                   <div className="flex items-center justify-between">
                     <Label className="text-slate-300 text-sm">セット有無</Label>
-                    <Switch checked={hasSet} onCheckedChange={setHasSet} />
+                    <Switch checked={hasSet} onCheckedChange={(checked) => {
+                      setHasSet(checked);
+                      if (!checked) {
+                        setBundleName("");
+                        setBundlePrice(0);
+                        setBundleItems([{ name: "", price: 0 }]);
+                      }
+                    }} />
                   </div>
+
+                  {/* セット組みセクション */}
+                  {hasSet && (
+                    <div className="p-4 bg-[#0a192f] rounded-lg border border-purple-500/30 space-y-4">
+                      <div className="flex items-center gap-2">
+                        <Package className="w-4 h-4 text-purple-400" />
+                        <span className="text-purple-300 font-medium text-sm">セット組み</span>
+                      </div>
+
+                      <div>
+                        <Label className="text-slate-300 text-sm">セット名</Label>
+                        <Input
+                          value={bundleName}
+                          onChange={(e) => setBundleName(e.target.value)}
+                          placeholder="例: 2.5NANAやらかし2"
+                          className="bg-[#112240] border-slate-600 text-white placeholder:text-slate-500 focus:border-purple-500"
+                        />
+                      </div>
+
+                      <div>
+                        <Label className="text-slate-300 text-sm">
+                          セット販売価格（売値） <span className="text-red-400">*</span>
+                        </Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">¥</span>
+                          <Input
+                            type="number"
+                            value={bundlePrice || ""}
+                            onChange={(e) => setBundlePrice(Number(e.target.value))}
+                            placeholder="9,900"
+                            className="bg-[#112240] border-slate-600 text-white pl-8 focus:border-purple-500"
+                          />
+                        </div>
+                      </div>
+
+                      {/* セット内容（商品リスト） */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <Label className="text-slate-300 text-sm">
+                            <Tag className="w-3 h-3 inline mr-1" />
+                            セット内容
+                          </Label>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setBundleItems([...bundleItems, { name: "", price: 0 }])}
+                            className="text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 h-7 text-xs"
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            商品追加
+                          </Button>
+                        </div>
+
+                        <div className="space-y-2">
+                          {bundleItems.map((item, index) => (
+                            <div key={index} className="flex items-center gap-2">
+                              <Input
+                                value={item.name}
+                                onChange={(e) => {
+                                  const newItems = [...bundleItems];
+                                  newItems[index] = { ...newItems[index], name: e.target.value };
+                                  setBundleItems(newItems);
+                                }}
+                                placeholder="商品名"
+                                className="bg-[#112240] border-slate-600 text-white placeholder:text-slate-500 focus:border-purple-500 flex-1 text-sm"
+                              />
+                              <div className="relative w-32">
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-sm">¥</span>
+                                <Input
+                                  type="number"
+                                  value={item.price || ""}
+                                  onChange={(e) => {
+                                    const newItems = [...bundleItems];
+                                    newItems[index] = { ...newItems[index], price: Number(e.target.value) };
+                                    setBundleItems(newItems);
+                                  }}
+                                  placeholder="定価"
+                                  className="bg-[#112240] border-slate-600 text-white pl-6 focus:border-purple-500 text-sm"
+                                />
+                              </div>
+                              {bundleItems.length > 1 && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setBundleItems(bundleItems.filter((_, i) => i !== index))}
+                                  className="text-red-400 hover:text-red-300 hover:bg-red-500/10 h-8 w-8 p-0"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* 元値合計・割引率自動計算 */}
+                        {(() => {
+                          const totalOriginal = bundleItems.reduce((sum, item) => sum + (item.price || 0), 0);
+                          const discountRate = totalOriginal > 0 && bundlePrice > 0
+                            ? Math.round((1 - bundlePrice / totalOriginal) * 100)
+                            : 0;
+                          return totalOriginal > 0 ? (
+                            <div className="mt-3 p-3 bg-[#112240]/50 rounded-lg border border-slate-700">
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-slate-400">元値合計:</span>
+                                <span className="text-white font-medium">{formatCurrency(totalOriginal)}</span>
+                              </div>
+                              {discountRate > 0 && (
+                                <div className="flex items-center justify-between text-sm mt-1">
+                                  <span className="text-slate-400">セット割引:</span>
+                                  <Badge className="bg-green-500/20 text-green-400 border-none">
+                                    {discountRate}%OFF
+                                  </Badge>
+                                </div>
+                              )}
+                            </div>
+                          ) : null;
+                        })()}
+                      </div>
+                    </div>
+                  )}
 
                   <div>
                     <Label className="text-slate-300 text-sm">想定AOV（自動補正可）</Label>
@@ -315,11 +484,11 @@ export default function Simulator() {
                         type="number"
                         value={expectedAov || ""}
                         onChange={(e) => setExpectedAov(Number(e.target.value))}
-                        placeholder={unitPrice ? String(unitPrice) : "自動"}
+                        placeholder={hasSet && bundlePrice ? String(bundlePrice) : sellingPrice ? String(sellingPrice) : "自動"}
                         className="bg-[#0a192f] border-slate-600 text-white pl-8 focus:border-cyan-500"
                       />
                     </div>
-                    <p className="text-xs text-slate-500 mt-1">空欄の場合は商品単価を使用</p>
+                    <p className="text-xs text-slate-500 mt-1">空欄の場合は{hasSet ? "セット販売価格" : "販売価格"}を使用</p>
                   </div>
                 </div>
               </CardContent>

@@ -2487,10 +2487,15 @@ export const simulations = mysqlTable("simulations", {
   // 商品条件（SKU）
   productName: varchar("productName", { length: 500 }), // 商品名（任意）
   brandId: int("brandId"), // ブランドID（任意）
-  unitPrice: bigint("unitPrice", { mode: "number" }).notNull(), // 商品単価（円）
+  unitPrice: bigint("unitPrice", { mode: "number" }).notNull(), // 商品単価（円）= 実効価格
+  listPrice: bigint("listPrice", { mode: "number" }), // 定価（円）
+  sellingPrice: bigint("sellingPrice", { mode: "number" }), // 販売価格（円）
   costPrice: bigint("costPrice", { mode: "number" }), // 原価（円）
   grossMarginRate: decimal("grossMarginRate", { precision: 5, scale: 2 }), // 粗利率（%）
   hasSet: boolean("hasSet").default(false), // セット有無
+  bundleName: varchar("bundleName", { length: 500 }), // セット名
+  bundlePrice: bigint("bundlePrice", { mode: "number" }), // セット販売価格（売値）
+  bundleItems: json("bundleItems").$type<Array<{ name: string; price: number }>>(), // セット内容
   expectedAov: bigint("expectedAov", { mode: "number" }), // 想定AOV（円）
   
   // ライバー条件

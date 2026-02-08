@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE simulations ADD COLUMN listPrice BIGINT NULL AFTER unitPrice;\nALTER TABLE simulations ADD COLUMN sellingPrice BIGINT NULL AFTER listPrice;\nALTER TABLE simulations ADD COLUMN bundleName VARCHAR(500) NULL AFTER hasSet;\nALTER TABLE simulations ADD COLUMN bundlePrice BIGINT NULL AFTER bundleName;\nALTER TABLE simulations ADD COLUMN bundleItems JSON NULL AFTER bundlePrice;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute ALTER TABLE simulations ADD COLUMN listPrice BIGINT NULL AFTER unitPrice;\nALTER TABLE simulations ADD COLUMN sellingPrice BIGINT NULL AFTER listPrice;\nALTER TABLE simulations ADD COLUMN bundleName VARCHAR(500) NULL AFTER hasSet;\nALTER TABLE simulations ADD COLUMN bundlePrice BIGINT NULL AFTER bundleName;\nALTER TABLE simulations ADD COLUMN bundleItems JSON NULL AFTER bundlePrice;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 6645
+}
