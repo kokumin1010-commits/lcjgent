@@ -831,6 +831,11 @@ export default function BrandDetail() {
   const [adCampaignAnalysisResult, setAdCampaignAnalysisResult] = useState<any>(null);
   const adCampaignFileInputRef = useRef<HTMLInputElement>(null);
 
+  // File preview state
+  const [previewFileUrl, setPreviewFileUrl] = useState<string | null>(null);
+  const [previewFileName, setPreviewFileName] = useState<string>('');
+  const [previewFileType, setPreviewFileType] = useState<string>('');
+
   // AI Image Add states
   const [aiImageAddDialogOpen, setAiImageAddDialogOpen] = useState(false);
   const [aiImageFile, setAiImageFile] = useState<File | null>(null);
@@ -7601,7 +7606,22 @@ ${proposal.proposalContent}
                 </h3>
                 <div className="space-y-2 max-h-60 overflow-y-auto">
                   {reportFileHistory.map((file: any) => (
-                    <div key={file.id} className="bg-gray-900/50 border border-gray-700 rounded-lg p-3">
+                    <div
+                      key={file.id}
+                      className="bg-gray-900/50 border border-gray-700 rounded-lg p-3 cursor-pointer hover:bg-gray-800/70 hover:border-blue-500/50 transition-all group"
+                      onClick={() => {
+                        if (file.fileUrl) {
+                          const ft = file.fileType?.toLowerCase() || '';
+                          if (ft === 'pdf' || ft === 'png' || ft === 'jpg' || ft === 'jpeg' || ft === 'webp') {
+                            setPreviewFileUrl(file.fileUrl);
+                            setPreviewFileName(file.fileName);
+                            setPreviewFileType(ft);
+                          } else {
+                            window.open(file.fileUrl, '_blank');
+                          }
+                        }
+                      }}
+                    >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 flex-1 min-w-0">
                           <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
@@ -7612,11 +7632,14 @@ ${proposal.proposalContent}
                             {file.fileType?.toUpperCase()}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm text-white truncate">{file.fileName}</p>
+                            <p className="text-sm text-white truncate group-hover:text-blue-300 transition-colors">{file.fileName}</p>
                             <div className="flex items-center gap-2 text-xs text-gray-500">
                               <span>{new Date(file.createdAt).toLocaleDateString('ja-JP')}</span>
                               <span>・</span>
                               <span>{file.uploadedByName}</span>
+                              {file.fileSize && (
+                                <><span>・</span><span>{file.fileSize > 1048576 ? `${(file.fileSize / 1048576).toFixed(1)}MB` : `${Math.round(file.fileSize / 1024)}KB`}</span></>
+                              )}
                               {file.analysisStatus === 'completed' && (
                                 <Badge className="bg-green-500/20 text-green-400 text-xs">分析済み</Badge>
                               )}
@@ -7626,13 +7649,14 @@ ${proposal.proposalContent}
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
                           {file.fileUrl && (
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => window.open(file.fileUrl, '_blank')}
+                              onClick={(e) => { e.stopPropagation(); window.open(file.fileUrl, '_blank'); }}
                               className="text-blue-400 hover:text-blue-300"
+                              title={language === 'ja' ? '新しいタブで開く' : '在新标签页中打开'}
                             >
                               <ExternalLink className="h-4 w-4" />
                             </Button>
@@ -7640,7 +7664,8 @@ ${proposal.proposalContent}
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={async () => {
+                            onClick={async (e) => {
+                              e.stopPropagation();
                               if (confirm(language === 'ja' ? 'このファイル履歴を削除しますか？' : '确定删除此文件记录？')) {
                                 await deleteReportFileMutation.mutateAsync({ id: file.id });
                                 refetchReportFileHistory();
@@ -7669,6 +7694,66 @@ ${proposal.proposalContent}
               {language === 'ja' ? '閉じる' : '关闭'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* File Preview Dialog */}
+      <Dialog open={!!previewFileUrl} onOpenChange={(open) => { if (!open) { setPreviewFileUrl(null); setPreviewFileName(''); setPreviewFileType(''); } }}>
+        <DialogContent className="bg-black/95 border-blue-900/50 text-white max-w-5xl h-[90vh] backdrop-blur-xl p-0 flex flex-col">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
+                previewFileType === 'pdf' ? 'bg-red-500/20 text-red-400' : 'bg-blue-500/20 text-blue-400'
+              }`}>
+                {previewFileType?.toUpperCase()}
+              </div>
+              <p className="text-sm text-white truncate">{previewFileName}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => previewFileUrl && window.open(previewFileUrl, '_blank')}
+                className="text-blue-400 hover:text-blue-300"
+              >
+                <ExternalLink className="h-4 w-4 mr-1" />
+                {language === 'ja' ? '新しいタブで開く' : '在新标签页中打开'}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (previewFileUrl) {
+                    const a = document.createElement('a');
+                    a.href = previewFileUrl;
+                    a.download = previewFileName;
+                    a.click();
+                  }
+                }}
+                className="text-green-400 hover:text-green-300"
+              >
+                <Download className="h-4 w-4 mr-1" />
+                {language === 'ja' ? 'ダウンロード' : '下载'}
+              </Button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            {previewFileType === 'pdf' ? (
+              <iframe
+                src={previewFileUrl || ''}
+                className="w-full h-full border-0"
+                title={previewFileName}
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center p-4 overflow-auto">
+                <img
+                  src={previewFileUrl || ''}
+                  alt={previewFileName}
+                  className="max-w-full max-h-full object-contain"
+                />
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
