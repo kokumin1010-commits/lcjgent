@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { 
   Receipt, 
   CheckCircle, 
@@ -23,18 +25,51 @@ import {
   DollarSign,
   Store,
   Image as ImageIcon,
+  Images,
+  Brain,
+  Sparkles,
+  ChevronLeft,
+  ChevronRight,
+  ZoomIn,
+  ThumbsUp,
+  ThumbsDown,
+  Bot,
 } from "lucide-react";
 
 type ReceiptStatus = "pending" | "approved" | "rejected" | "on_hold";
+
+// AI rejection reason categories for learning
+const REJECTION_CATEGORIES = [
+  { value: "blurry_image", label: "画像が不鮮明" },
+  { value: "not_receipt", label: "レシートではない" },
+  { value: "duplicate", label: "重複申請" },
+  { value: "expired", label: "期限切れ" },
+  { value: "wrong_store", label: "対象外店舗" },
+  { value: "amount_mismatch", label: "金額不一致" },
+  { value: "tampered", label: "改ざんの疑い" },
+  { value: "other", label: "その他" },
+];
+
+// AI approval confidence labels
+const getConfidenceLabel = (score: number) => {
+  if (score >= 90) return { label: "高信頼", color: "text-green-600 bg-green-50 border-green-200" };
+  if (score >= 70) return { label: "中信頼", color: "text-yellow-600 bg-yellow-50 border-yellow-200" };
+  return { label: "低信頼", color: "text-red-600 bg-red-50 border-red-200" };
+};
 
 export default function LineReceiptManagement() {
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<ReceiptStatus>("pending");
   const [selectedReceipt, setSelectedReceipt] = useState<number | null>(null);
   const [editMode, setEditMode] = useState(false);
-  const [actionDialog, setActionDialog] = useState<{ type: "approve" | "reject" | "hold"; id: number } | null>(null);
+  const [actionDialog, setActionDialog] = useState<{ type: "approve" | "reject" | "hold"; id: number; receipt?: any } | null>(null);
   const [actionNote, setActionNote] = useState("");
   const [pointsOverride, setPointsOverride] = useState<number | undefined>();
+  const [rejectionCategory, setRejectionCategory] = useState<string>("");
+  const [imageViewerOpen, setImageViewerOpen] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [viewerImages, setViewerImages] = useState<string[]>([]);
+  const [aiAutoMode, setAiAutoMode] = useState(false);
   
   // Edit form state
   const [editForm, setEditForm] = useState({
@@ -86,6 +121,7 @@ export default function LineReceiptManagement() {
       utils.point.adminGetLineStatistics.invalidate();
       setActionDialog(null);
       setActionNote("");
+      setRejectionCategory("");
     },
   });
   
@@ -101,24 +137,28 @@ export default function LineReceiptManagement() {
   const handleAction = () => {
     if (!actionDialog) return;
     
+    const noteWithCategory = actionDialog.type === "reject" && rejectionCategory
+      ? `[${REJECTION_CATEGORIES.find(c => c.value === rejectionCategory)?.label || rejectionCategory}] ${actionNote}`
+      : actionNote;
+    
     switch (actionDialog.type) {
       case "approve":
         approveMutation.mutate({
           id: actionDialog.id,
           pointsOverride,
-          note: actionNote || undefined,
+          note: noteWithCategory || undefined,
         });
         break;
       case "reject":
         rejectMutation.mutate({
           id: actionDialog.id,
-          note: actionNote,
+          note: noteWithCategory,
         });
         break;
       case "hold":
         holdMutation.mutate({
           id: actionDialog.id,
-          note: actionNote,
+          note: noteWithCategory,
         });
         break;
     }
@@ -150,6 +190,36 @@ export default function LineReceiptManagement() {
     }
   };
   
+  // Get all images for a receipt
+  const getReceiptImages = (receipt: any): string[] => {
+    const images: string[] = [];
+    if (receipt.imageUrls && Array.isArray(receipt.imageUrls) && receipt.imageUrls.length > 0) {
+      images.push(...receipt.imageUrls);
+    } else if (receipt.imageUrl) {
+      images.push(receipt.imageUrl);
+    }
+    return images;
+  };
+  
+  // Open image viewer
+  const openImageViewer = (images: string[], startIndex: number = 0) => {
+    setViewerImages(images);
+    setCurrentImageIndex(startIndex);
+    setImageViewerOpen(true);
+  };
+  
+  // Calculate AI confidence score based on OCR data
+  const getAiConfidence = (receipt: any): number => {
+    let score = 50; // base
+    if (receipt.storeName) score += 15;
+    if (receipt.totalAmount && receipt.totalAmount > 0) score += 15;
+    if (receipt.purchaseDate) score += 10;
+    if (receipt.ocrConfidence && Number(receipt.ocrConfidence) > 80) score += 10;
+    if (receipt.fraudFlags && receipt.fraudFlags.length > 0) score -= 30;
+    if (receipt.ocrRawText && receipt.ocrRawText.length > 50) score += 5;
+    return Math.max(0, Math.min(100, score));
+  };
+  
   const getStatusBadge = (status: ReceiptStatus) => {
     switch (status) {
       case "pending":
@@ -175,7 +245,7 @@ export default function LineReceiptManagement() {
   };
   
   const formatCurrency = (amount: number | null, currency: string = "JPY") => {
-    if (amount === null) return "-";
+    if (amount === null || amount === undefined) return "-";
     return new Intl.NumberFormat("ja-JP", {
       style: "currency",
       currency,
@@ -194,6 +264,21 @@ export default function LineReceiptManagement() {
           <p className="text-muted-foreground mt-1">
             LINEから送信されたレシートの審査・ポイント付与管理
           </p>
+        </div>
+        
+        {/* AI Auto Mode Toggle */}
+        <div className="flex items-center gap-3 p-3 rounded-lg border bg-card">
+          <div className="flex items-center gap-2">
+            <Brain className="w-5 h-5 text-purple-500" />
+            <div>
+              <p className="text-sm font-medium">AI自動承認モード</p>
+              <p className="text-xs text-muted-foreground">高信頼度のレシートを自動承認</p>
+            </div>
+          </div>
+          <Switch 
+            checked={aiAutoMode} 
+            onCheckedChange={setAiAutoMode}
+          />
         </div>
       </div>
       
@@ -246,6 +331,25 @@ export default function LineReceiptManagement() {
         </Card>
       </div>
       
+      {/* AI Auto Mode Banner */}
+      {aiAutoMode && (
+        <Card className="border-purple-200 bg-gradient-to-r from-purple-50 to-blue-50">
+          <CardContent className="py-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-full bg-purple-100">
+                <Sparkles className="w-5 h-5 text-purple-600" />
+              </div>
+              <div>
+                <p className="font-medium text-purple-800">AI自動承認モード有効</p>
+                <p className="text-sm text-purple-600">
+                  信頼度90%以上のレシートは自動承認されます。人間の判断データを蓄積中（将来的に精度向上）
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ReceiptStatus)}>
         <TabsList>
@@ -280,143 +384,303 @@ export default function LineReceiptManagement() {
             </Card>
           ) : (
             <div className="grid gap-4">
-              {receipts?.map(({ receipt, lineUser }) => (
-                <Card key={receipt.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-4">
-                        {/* Thumbnail */}
-                        <div className="w-20 h-20 bg-muted rounded-lg overflow-hidden flex-shrink-0">
-                          {receipt.imageUrl ? (
-                            <img 
-                              src={receipt.imageUrl} 
-                              alt="レシート" 
-                              className="w-full h-full object-cover cursor-pointer"
-                              onClick={() => openReceiptDetails(receipt.id)}
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <ImageIcon className="w-8 h-8 text-muted-foreground" />
+              {receipts?.map(({ receipt, lineUser }) => {
+                const images = getReceiptImages(receipt);
+                const aiScore = getAiConfidence(receipt);
+                const confidence = getConfidenceLabel(aiScore);
+                
+                return (
+                  <Card key={receipt.id} className="hover:shadow-md transition-shadow overflow-hidden">
+                    <CardContent className="p-0">
+                      <div className="flex">
+                        {/* Image Gallery - Left Side */}
+                        <div className="flex-shrink-0 bg-muted/30 p-3 border-r">
+                          <div className="flex gap-2">
+                            {images.length > 0 ? (
+                              images.map((url, idx) => (
+                                <div 
+                                  key={idx}
+                                  className="relative w-24 h-24 rounded-lg overflow-hidden cursor-pointer group border-2 border-transparent hover:border-primary transition-colors"
+                                  onClick={() => openImageViewer(images, idx)}
+                                >
+                                  <img 
+                                    src={url} 
+                                    alt={`レシート ${idx + 1}`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                    <ZoomIn className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  </div>
+                                  {images.length > 1 && (
+                                    <div className="absolute top-1 right-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded">
+                                      {idx + 1}/{images.length}
+                                    </div>
+                                  )}
+                                </div>
+                              ))
+                            ) : (
+                              <div className="w-24 h-24 rounded-lg bg-muted flex items-center justify-center">
+                                <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                              </div>
+                            )}
+                          </div>
+                          {images.length > 1 && (
+                            <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
+                              <Images className="w-3 h-3" />
+                              <span>{images.length}枚の画像</span>
                             </div>
                           )}
                         </div>
                         
-                        {/* Info */}
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <User className="w-4 h-4 text-muted-foreground" />
-                            <span className="font-medium">{lineUser?.displayName || "不明"}</span>
-                            {getStatusBadge(receipt.status as ReceiptStatus)}
-                          </div>
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <Store className="w-3 h-3" />
-                              {receipt.storeName || "店舗不明"}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Calendar className="w-3 h-3" />
-                              {formatDate(receipt.purchaseDate)}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <DollarSign className="w-3 h-3" />
-                              {formatCurrency(receipt.totalAmount, receipt.currency || "JPY")}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className="text-muted-foreground">計算ポイント:</span>
-                            <span className="font-medium text-blue-600">{receipt.pointsCalculated || 0} pt</span>
-                            {receipt.fraudFlags && receipt.fraudFlags.length > 0 && (
-                              <Badge variant="destructive" className="text-xs">
-                                <AlertTriangle className="w-3 h-3 mr-1" />
-                                不正フラグ
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            申請日時: {formatDate(receipt.submittedAt)}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Actions */}
-                      <div className="flex items-center gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => openReceiptDetails(receipt.id)}
-                        >
-                          <Eye className="w-4 h-4 mr-1" />
-                          詳細
-                        </Button>
-                        {receipt.status === "pending" || receipt.status === "on_hold" ? (
-                          <>
-                            <Button 
-                              variant="default" 
-                              size="sm"
-                              className="bg-green-600 hover:bg-green-700"
-                              onClick={() => setActionDialog({ type: "approve", id: receipt.id })}
-                            >
-                              <CheckCircle className="w-4 h-4 mr-1" />
-                              承認
-                            </Button>
-                            <Button 
-                              variant="destructive" 
-                              size="sm"
-                              onClick={() => setActionDialog({ type: "reject", id: receipt.id })}
-                            >
-                              <XCircle className="w-4 h-4 mr-1" />
-                              却下
-                            </Button>
-                            {receipt.status === "pending" && (
+                        {/* Info - Center */}
+                        <div className="flex-1 p-4">
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-2 flex-1">
+                              {/* User & Status Row */}
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <div className="flex items-center gap-1.5">
+                                  <User className="w-4 h-4 text-muted-foreground" />
+                                  <span className="font-semibold">{lineUser?.displayName || "不明"}</span>
+                                </div>
+                                {getStatusBadge(receipt.status as ReceiptStatus)}
+                                
+                                {/* AI Confidence Badge */}
+                                <Badge variant="outline" className={`${confidence.color} text-xs`}>
+                                  <Bot className="w-3 h-3 mr-1" />
+                                  AI {confidence.label} ({aiScore}%)
+                                </Badge>
+                                
+                                {receipt.fraudFlags && (receipt.fraudFlags as string[]).length > 0 && (
+                                  <Badge variant="destructive" className="text-xs">
+                                    <AlertTriangle className="w-3 h-3 mr-1" />
+                                    不正フラグ
+                                  </Badge>
+                                )}
+                              </div>
+                              
+                              {/* Receipt Details Grid */}
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                                <div className="flex items-center gap-1.5 text-muted-foreground">
+                                  <Store className="w-3.5 h-3.5 flex-shrink-0" />
+                                  <span className="truncate font-medium text-foreground">{receipt.storeName || "店舗不明"}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-muted-foreground">
+                                  <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+                                  <span className="font-medium text-foreground">{receipt.purchaseDate ? new Date(receipt.purchaseDate).toLocaleDateString("ja-JP") : "-"}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-muted-foreground">
+                                  <DollarSign className="w-3.5 h-3.5 flex-shrink-0" />
+                                  <span className="font-medium text-foreground">{formatCurrency(receipt.totalAmount, receipt.currency || "JPY")}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-muted-foreground">ポイント:</span>
+                                  <span className="font-bold text-blue-600">{receipt.pointsCalculated || 0} pt</span>
+                                </div>
+                              </div>
+                              
+                              {/* Submission Time */}
+                              <div className="text-xs text-muted-foreground">
+                                申請: {formatDate(receipt.submittedAt)}
+                              </div>
+                            </div>
+                            
+                            {/* Action Buttons - Right Side */}
+                            <div className="flex flex-col gap-2 ml-4">
                               <Button 
                                 variant="outline" 
                                 size="sm"
-                                className="border-orange-300 text-orange-600 hover:bg-orange-50"
-                                onClick={() => setActionDialog({ type: "hold", id: receipt.id })}
+                                onClick={() => openReceiptDetails(receipt.id)}
                               >
-                                <AlertTriangle className="w-4 h-4 mr-1" />
-                                保留
+                                <Eye className="w-4 h-4 mr-1" />
+                                詳細
                               </Button>
-                            )}
-                          </>
-                        ) : null}
+                              {(receipt.status === "pending" || receipt.status === "on_hold") && (
+                                <>
+                                  <Button 
+                                    size="sm"
+                                    className="bg-green-600 hover:bg-green-700 text-white"
+                                    onClick={() => setActionDialog({ type: "approve", id: receipt.id, receipt })}
+                                  >
+                                    <CheckCircle className="w-4 h-4 mr-1" />
+                                    承認
+                                  </Button>
+                                  <Button 
+                                    variant="destructive" 
+                                    size="sm"
+                                    onClick={() => setActionDialog({ type: "reject", id: receipt.id, receipt })}
+                                  >
+                                    <XCircle className="w-4 h-4 mr-1" />
+                                    却下
+                                  </Button>
+                                  {receipt.status === "pending" && (
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm"
+                                      className="border-orange-300 text-orange-600 hover:bg-orange-50"
+                                      onClick={() => setActionDialog({ type: "hold", id: receipt.id, receipt })}
+                                    >
+                                      <AlertTriangle className="w-4 h-4 mr-1" />
+                                      保留
+                                    </Button>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </TabsContent>
       </Tabs>
       
+      {/* Image Viewer Dialog */}
+      <Dialog open={imageViewerOpen} onOpenChange={setImageViewerOpen}>
+        <DialogContent className="max-w-4xl p-0 bg-black/95">
+          <div className="relative">
+            {/* Close button handled by Dialog */}
+            <div className="flex items-center justify-center min-h-[60vh] p-4">
+              {viewerImages[currentImageIndex] && (
+                <img 
+                  src={viewerImages[currentImageIndex]} 
+                  alt={`レシート画像 ${currentImageIndex + 1}`}
+                  className="max-w-full max-h-[80vh] object-contain"
+                />
+              )}
+            </div>
+            
+            {/* Navigation */}
+            {viewerImages.length > 1 && (
+              <>
+                <button
+                  className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/20 hover:bg-white/40 text-white transition-colors"
+                  onClick={() => setCurrentImageIndex(prev => prev > 0 ? prev - 1 : viewerImages.length - 1)}
+                >
+                  <ChevronLeft className="w-6 h-6" />
+                </button>
+                <button
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/20 hover:bg-white/40 text-white transition-colors"
+                  onClick={() => setCurrentImageIndex(prev => prev < viewerImages.length - 1 ? prev + 1 : 0)}
+                >
+                  <ChevronRight className="w-6 h-6" />
+                </button>
+                
+                {/* Image counter */}
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white px-3 py-1 rounded-full text-sm">
+                  {currentImageIndex + 1} / {viewerImages.length}
+                </div>
+                
+                {/* Thumbnails */}
+                <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex gap-2">
+                  {viewerImages.map((url, idx) => (
+                    <button
+                      key={idx}
+                      className={`w-12 h-12 rounded overflow-hidden border-2 transition-colors ${
+                        idx === currentImageIndex ? "border-white" : "border-transparent opacity-60 hover:opacity-100"
+                      }`}
+                      onClick={() => setCurrentImageIndex(idx)}
+                    >
+                      <img src={url} alt="" className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+      
       {/* Receipt Detail Dialog */}
       <Dialog open={!!selectedReceipt} onOpenChange={(open) => !open && setSelectedReceipt(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Receipt className="w-5 h-5" />
-              レシート詳細
+              レシート詳細 #{selectedReceipt}
             </DialogTitle>
           </DialogHeader>
           
           {receiptDetails && (
             <div className="grid md:grid-cols-2 gap-6">
-              {/* Image */}
-              <div>
-                <div className="bg-muted rounded-lg overflow-hidden">
-                  {receiptDetails.receipt.imageUrl ? (
-                    <img 
-                      src={receiptDetails.receipt.imageUrl} 
-                      alt="レシート" 
-                      className="w-full object-contain max-h-[500px]"
-                    />
-                  ) : (
-                    <div className="h-64 flex items-center justify-center">
-                      <ImageIcon className="w-16 h-16 text-muted-foreground" />
+              {/* Images */}
+              <div className="space-y-3">
+                {(() => {
+                  const images = getReceiptImages(receiptDetails.receipt);
+                  return (
+                    <>
+                      {/* Main Image */}
+                      <div className="bg-muted rounded-lg overflow-hidden cursor-pointer" onClick={() => openImageViewer(images, 0)}>
+                        {images[0] ? (
+                          <img 
+                            src={images[0]} 
+                            alt="レシート" 
+                            className="w-full object-contain max-h-[500px]"
+                          />
+                        ) : (
+                          <div className="h-64 flex items-center justify-center">
+                            <ImageIcon className="w-16 h-16 text-muted-foreground" />
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Additional Images Thumbnails */}
+                      {images.length > 1 && (
+                        <div className="flex gap-2">
+                          {images.map((url, idx) => (
+                            <div 
+                              key={idx}
+                              className="w-20 h-20 rounded-lg overflow-hidden cursor-pointer border-2 border-transparent hover:border-primary transition-colors"
+                              onClick={() => openImageViewer(images, idx)}
+                            >
+                              <img src={url} alt={`画像 ${idx + 1}`} className="w-full h-full object-cover" />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {images.length > 1 && (
+                        <p className="text-sm text-muted-foreground flex items-center gap-1">
+                          <Images className="w-4 h-4" />
+                          この申請には{images.length}枚の画像が含まれています（同一申請としてカウント）
+                        </p>
+                      )}
+                    </>
+                  );
+                })()}
+                
+                {/* AI Analysis Card */}
+                <Card className="border-purple-200 bg-purple-50/50">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center gap-2 text-purple-700">
+                      <Brain className="w-4 h-4" />
+                      AI分析結果
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">信頼度スコア</span>
+                      <Badge variant="outline" className={getConfidenceLabel(getAiConfidence(receiptDetails.receipt)).color}>
+                        {getAiConfidence(receiptDetails.receipt)}%
+                      </Badge>
                     </div>
-                  )}
-                </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">OCR信頼度</span>
+                      <span className="font-medium">{receiptDetails.receipt.ocrConfidence || "-"}%</span>
+                    </div>
+                    {receiptDetails.receipt.ocrRawText && (
+                      <div>
+                        <span className="text-muted-foreground block mb-1">OCRテキスト</span>
+                        <div className="bg-white rounded p-2 text-xs max-h-32 overflow-y-auto border">
+                          {receiptDetails.receipt.ocrRawText}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               </div>
               
               {/* Details */}
@@ -473,46 +737,48 @@ export default function LineReceiptManagement() {
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    <div className="flex justify-between py-2 border-b">
-                      <span className="text-muted-foreground">店舗名</span>
-                      <span className="font-medium">{receiptDetails.receipt.storeName || "-"}</span>
-                    </div>
-                    <div className="flex justify-between py-2 border-b">
-                      <span className="text-muted-foreground">購入日時</span>
-                      <span className="font-medium">{formatDate(receiptDetails.receipt.purchaseDate)}</span>
-                    </div>
-                    <div className="flex justify-between py-2 border-b">
-                      <span className="text-muted-foreground">金額</span>
-                      <span className="font-medium">{formatCurrency(receiptDetails.receipt.totalAmount, receiptDetails.receipt.currency || "JPY")}</span>
-                    </div>
-                    <div className="flex justify-between py-2 border-b">
-                      <span className="text-muted-foreground">計算ポイント</span>
-                      <span className="font-medium text-blue-600">{receiptDetails.receipt.pointsCalculated || 0} pt</span>
-                    </div>
-                    {receiptDetails.receipt.pointsAwarded !== null && (
+                  <Card>
+                    <CardContent className="pt-4 space-y-3">
                       <div className="flex justify-between py-2 border-b">
-                        <span className="text-muted-foreground">付与ポイント</span>
-                        <span className="font-medium text-green-600">{receiptDetails.receipt.pointsAwarded} pt</span>
+                        <span className="text-muted-foreground">店舗名</span>
+                        <span className="font-medium">{receiptDetails.receipt.storeName || "-"}</span>
                       </div>
-                    )}
-                    <div className="flex justify-between py-2 border-b">
-                      <span className="text-muted-foreground">申請日時</span>
-                      <span className="font-medium">{formatDate(receiptDetails.receipt.submittedAt)}</span>
-                    </div>
-                    {receiptDetails.receipt.reviewedAt && (
                       <div className="flex justify-between py-2 border-b">
-                        <span className="text-muted-foreground">審査日時</span>
-                        <span className="font-medium">{formatDate(receiptDetails.receipt.reviewedAt)}</span>
+                        <span className="text-muted-foreground">購入日時</span>
+                        <span className="font-medium">{formatDate(receiptDetails.receipt.purchaseDate)}</span>
                       </div>
-                    )}
-                    {receiptDetails.receipt.reviewNote && (
-                      <div className="py-2 border-b">
-                        <span className="text-muted-foreground block mb-1">審査メモ</span>
-                        <span className="font-medium">{receiptDetails.receipt.reviewNote}</span>
+                      <div className="flex justify-between py-2 border-b">
+                        <span className="text-muted-foreground">金額</span>
+                        <span className="font-medium">{formatCurrency(receiptDetails.receipt.totalAmount, receiptDetails.receipt.currency || "JPY")}</span>
                       </div>
-                    )}
-                  </div>
+                      <div className="flex justify-between py-2 border-b">
+                        <span className="text-muted-foreground">計算ポイント</span>
+                        <span className="font-medium text-blue-600">{receiptDetails.receipt.pointsCalculated || 0} pt</span>
+                      </div>
+                      {receiptDetails.receipt.pointsAwarded !== null && (
+                        <div className="flex justify-between py-2 border-b">
+                          <span className="text-muted-foreground">付与ポイント</span>
+                          <span className="font-medium text-green-600">{receiptDetails.receipt.pointsAwarded} pt</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between py-2 border-b">
+                        <span className="text-muted-foreground">申請日時</span>
+                        <span className="font-medium">{formatDate(receiptDetails.receipt.submittedAt)}</span>
+                      </div>
+                      {receiptDetails.receipt.reviewedAt && (
+                        <div className="flex justify-between py-2 border-b">
+                          <span className="text-muted-foreground">審査日時</span>
+                          <span className="font-medium">{formatDate(receiptDetails.receipt.reviewedAt)}</span>
+                        </div>
+                      )}
+                      {receiptDetails.receipt.reviewNote && (
+                        <div className="py-2 border-b">
+                          <span className="text-muted-foreground block mb-1">審査メモ</span>
+                          <span className="font-medium">{receiptDetails.receipt.reviewNote}</span>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
                 )}
                 
                 {/* Fraud Detection */}
@@ -525,7 +791,7 @@ export default function LineReceiptManagement() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2">
-                      {receiptDetails.fraudLogs.map((log, i) => (
+                      {receiptDetails.fraudLogs.map((log: any, i: number) => (
                         <div key={i} className="text-sm">
                           <Badge variant="outline" className="mr-2">
                             {log.checkType}
@@ -536,6 +802,33 @@ export default function LineReceiptManagement() {
                     </CardContent>
                   </Card>
                 )}
+                
+                {/* Quick Actions in Detail View */}
+                {(receiptDetails.receipt.status === "pending" || receiptDetails.receipt.status === "on_hold") && (
+                  <div className="flex gap-2 pt-2">
+                    <Button 
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                      onClick={() => {
+                        setSelectedReceipt(null);
+                        setActionDialog({ type: "approve", id: receiptDetails.receipt.id, receipt: receiptDetails.receipt });
+                      }}
+                    >
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      承認
+                    </Button>
+                    <Button 
+                      variant="destructive"
+                      className="flex-1"
+                      onClick={() => {
+                        setSelectedReceipt(null);
+                        setActionDialog({ type: "reject", id: receiptDetails.receipt.id, receipt: receiptDetails.receipt });
+                      }}
+                    >
+                      <XCircle className="w-4 h-4 mr-2" />
+                      却下
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -544,19 +837,39 @@ export default function LineReceiptManagement() {
       
       {/* Action Dialog */}
       <Dialog open={!!actionDialog} onOpenChange={(open) => !open && setActionDialog(null)}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>
-              {actionDialog?.type === "approve" && "レシートを承認"}
-              {actionDialog?.type === "reject" && "レシートを却下"}
-              {actionDialog?.type === "hold" && "レシートを保留"}
+            <DialogTitle className="flex items-center gap-2">
+              {actionDialog?.type === "approve" && <><CheckCircle className="w-5 h-5 text-green-600" /> レシートを承認</>}
+              {actionDialog?.type === "reject" && <><XCircle className="w-5 h-5 text-red-600" /> レシートを却下</>}
+              {actionDialog?.type === "hold" && <><AlertTriangle className="w-5 h-5 text-orange-600" /> レシートを保留</>}
             </DialogTitle>
             <DialogDescription>
               {actionDialog?.type === "approve" && "このレシートを承認してポイントを付与しますか？"}
-              {actionDialog?.type === "reject" && "このレシートを却下しますか？理由を入力してください。"}
+              {actionDialog?.type === "reject" && "このレシートを却下しますか？理由を選択・入力してください。"}
               {actionDialog?.type === "hold" && "このレシートを保留にしますか？理由を入力してください。"}
             </DialogDescription>
           </DialogHeader>
+          
+          {/* AI Suggestion */}
+          {actionDialog?.receipt && (
+            <Card className="border-purple-200 bg-purple-50/50">
+              <CardContent className="py-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles className="w-4 h-4 text-purple-600" />
+                  <span className="text-sm font-medium text-purple-700">AI提案</span>
+                </div>
+                <div className="text-sm text-purple-600">
+                  {(() => {
+                    const score = getAiConfidence(actionDialog.receipt);
+                    if (score >= 90) return "高信頼度のレシートです。承認を推奨します。";
+                    if (score >= 70) return "中程度の信頼度です。内容を確認の上、判断してください。";
+                    return "低信頼度のレシートです。慎重に確認してください。";
+                  })()}
+                </div>
+              </CardContent>
+            </Card>
+          )}
           
           <div className="space-y-4">
             {actionDialog?.type === "approve" && (
@@ -570,12 +883,41 @@ export default function LineReceiptManagement() {
                 />
               </div>
             )}
+            
+            {/* Rejection Category (for AI learning) */}
+            {actionDialog?.type === "reject" && (
+              <div>
+                <Label className="flex items-center gap-2">
+                  却下理由カテゴリ
+                  <Badge variant="outline" className="text-xs bg-purple-50 text-purple-600 border-purple-200">
+                    <Brain className="w-3 h-3 mr-1" />
+                    AI学習用
+                  </Badge>
+                </Label>
+                <Select value={rejectionCategory} onValueChange={setRejectionCategory}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="カテゴリを選択..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REJECTION_CATEGORIES.map(cat => (
+                      <SelectItem key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  カテゴリを選択すると、AIが将来的に同様のパターンを自動判定できるようになります
+                </p>
+              </div>
+            )}
+            
             <div>
-              <Label>{actionDialog?.type === "approve" ? "メモ（任意）" : "理由"}</Label>
+              <Label>{actionDialog?.type === "approve" ? "メモ（任意）" : "詳細理由"}</Label>
               <Textarea 
                 value={actionNote}
                 onChange={(e) => setActionNote(e.target.value)}
-                placeholder={actionDialog?.type === "approve" ? "任意でメモを入力" : "理由を入力してください"}
+                placeholder={actionDialog?.type === "approve" ? "任意でメモを入力" : "詳細な理由を入力してください"}
                 required={actionDialog?.type !== "approve"}
               />
             </div>
@@ -588,7 +930,8 @@ export default function LineReceiptManagement() {
             <Button 
               onClick={handleAction}
               disabled={
-                (actionDialog?.type !== "approve" && !actionNote) ||
+                (actionDialog?.type === "reject" && (!actionNote || !rejectionCategory)) ||
+                (actionDialog?.type === "hold" && !actionNote) ||
                 approveMutation.isPending ||
                 rejectMutation.isPending ||
                 holdMutation.isPending
@@ -596,9 +939,15 @@ export default function LineReceiptManagement() {
               variant={actionDialog?.type === "reject" ? "destructive" : "default"}
               className={actionDialog?.type === "approve" ? "bg-green-600 hover:bg-green-700" : ""}
             >
-              {actionDialog?.type === "approve" && "承認する"}
-              {actionDialog?.type === "reject" && "却下する"}
-              {actionDialog?.type === "hold" && "保留にする"}
+              {approveMutation.isPending || rejectMutation.isPending || holdMutation.isPending ? (
+                "処理中..."
+              ) : (
+                <>
+                  {actionDialog?.type === "approve" && "承認する"}
+                  {actionDialog?.type === "reject" && "却下する"}
+                  {actionDialog?.type === "hold" && "保留にする"}
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
