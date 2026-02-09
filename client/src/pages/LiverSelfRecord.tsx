@@ -568,16 +568,24 @@ export default function LiverSelfRecord() {
         beforeScreenshotUrl: finalBeforeScreenshotUrl || undefined,
         scheduleId: formData.scheduleId ? parseInt(formData.scheduleId) : undefined,
         aiAdvice: advice || undefined,
-        // セット組みデータ
-        sets: sets.length > 0 ? sets.map(s => ({
-          setName: s.setName,
-          setPrice: parseInt(s.setPrice) || 0,
-          quantitySold: parseInt(s.quantitySold) || 1,
-          items: s.items.map(item => ({
-            productName: item.productName,
-            originalPrice: parseInt(item.originalPrice) || 0,
-          })),
-        })) : undefined,
+        // セット組みデータ（空のセット名・商品名をフィルタリング）
+        sets: sets.length > 0 ? (() => {
+          const validSets = sets
+            .filter(s => s.setName.trim().length > 0)
+            .map(s => ({
+              setName: s.setName.trim(),
+              setPrice: parseInt(s.setPrice) || 0,
+              quantitySold: parseInt(s.quantitySold) || 1,
+              items: s.items
+                .filter(item => item.productName.trim().length > 0)
+                .map(item => ({
+                  productName: item.productName.trim(),
+                  originalPrice: parseInt(item.originalPrice) || 0,
+                })),
+            }))
+            .filter(s => s.items.length > 0);
+          return validSets.length > 0 ? validSets : undefined;
+        })() : undefined,
       });
     } catch (error) {
       console.error("Failed to save livestream:", error);
