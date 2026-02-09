@@ -120,13 +120,6 @@ export default function Simulator() {
   // Fetch livers
   const { data: liversData } = trpc.liverManagement.list.useQuery();
 
-  // Fetch liver stats when selected
-  const { data: liverStats, isLoading: statsLoading } =
-    trpc.simulation.getLiverStats.useQuery(
-      { liverId: selectedLiverId },
-      { enabled: selectedLiverId > 0 }
-    );
-
   // Simulation mutation
   const calculateMutation = trpc.simulation.calculate.useMutation({
     onSuccess: () => {
@@ -523,41 +516,7 @@ export default function Simulator() {
                       </SelectContent>
                     </Select>
 
-                    {/* Liver stats preview */}
-                    {selectedLiverId > 0 && (
-                      <div className="mt-3 p-3 bg-[#0a192f] rounded-lg border border-slate-700">
-                        {statsLoading ? (
-                          <div className="flex items-center gap-2 text-slate-400 text-sm">
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            実績データ読み込み中...
-                          </div>
-                        ) : liverStats ? (
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <Badge className="bg-cyan-500/20 text-cyan-400 border-none text-xs">
-                                {liverStats.streamCount}回配信
-                              </Badge>
-                              <span className="text-xs text-slate-400">
-                                平均GMV: {formatCurrency(liverStats.avgGmvPerStream)}
-                              </span>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2 text-xs">
-                              <div className="text-slate-400">
-                                時間あたりGMV: <span className="text-cyan-400">{formatCurrency(liverStats.avgGmvPerHour)}</span>
-                              </div>
-                              <div className="text-slate-400">
-                                平均視聴者: <span className="text-cyan-400">{liverStats.avgViewers?.toLocaleString()}人</span>
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2 text-amber-400 text-sm">
-                            <AlertTriangle className="w-4 h-4" />
-                            配信実績データがありません
-                          </div>
-                        )}
-                      </div>
-                    )}
+
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -879,35 +838,37 @@ export default function Simulator() {
                   </CardContent>
                 </Card>
 
-                {/* Liver Stats */}
-                <Card className="bg-[#112240]/80 border-cyan-500/20 backdrop-blur-sm">
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Users className="w-5 h-5 text-cyan-400" />
-                      <h3 className="text-sm font-semibold text-cyan-300">
-                        {result.liverStats.name} の過去実績
-                      </h3>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="text-center p-3 bg-[#0a192f] rounded-lg">
-                        <div className="text-xs text-slate-400">配信回数</div>
-                        <div className="text-lg font-bold text-white">{result.liverStats.streamCount}回</div>
+                {/* Liver Stats - only show when data exists */}
+                {result.liverStats && result.liverStats.streamCount > 0 && (
+                  <Card className="bg-[#112240]/80 border-cyan-500/20 backdrop-blur-sm">
+                    <CardContent className="p-6">
+                      <div className="flex items-center gap-2 mb-4">
+                        <Users className="w-5 h-5 text-cyan-400" />
+                        <h3 className="text-sm font-semibold text-cyan-300">
+                          {result.liverStats.name} の過去実績
+                        </h3>
                       </div>
-                      <div className="text-center p-3 bg-[#0a192f] rounded-lg">
-                        <div className="text-xs text-slate-400">平均GMV</div>
-                        <div className="text-lg font-bold text-cyan-400">{formatCurrency(result.liverStats.avgGmvPerStream)}</div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="text-center p-3 bg-[#0a192f] rounded-lg">
+                          <div className="text-xs text-slate-400">配信回数</div>
+                          <div className="text-lg font-bold text-white">{result.liverStats.streamCount}回</div>
+                        </div>
+                        <div className="text-center p-3 bg-[#0a192f] rounded-lg">
+                          <div className="text-xs text-slate-400">平均GMV</div>
+                          <div className="text-lg font-bold text-cyan-400">{formatCurrency(result.liverStats.avgGmvPerStream)}</div>
+                        </div>
+                        <div className="text-center p-3 bg-[#0a192f] rounded-lg">
+                          <div className="text-xs text-slate-400">時間あたりGMV</div>
+                          <div className="text-lg font-bold text-cyan-400">{formatCurrency(result.liverStats.avgGmvPerHour)}</div>
+                        </div>
+                        <div className="text-center p-3 bg-[#0a192f] rounded-lg">
+                          <div className="text-xs text-slate-400">類似案件数</div>
+                          <div className="text-lg font-bold text-white">{result.similarCases.length}件</div>
+                        </div>
                       </div>
-                      <div className="text-center p-3 bg-[#0a192f] rounded-lg">
-                        <div className="text-xs text-slate-400">時間あたりGMV</div>
-                        <div className="text-lg font-bold text-cyan-400">{formatCurrency(result.liverStats.avgGmvPerHour)}</div>
-                      </div>
-                      <div className="text-center p-3 bg-[#0a192f] rounded-lg">
-                        <div className="text-xs text-slate-400">類似案件数</div>
-                        <div className="text-lg font-bold text-white">{result.similarCases.length}件</div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Similar Cases */}
                 {result.similarCases.length > 0 && (
