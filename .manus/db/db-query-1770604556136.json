@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE staff \n  ADD COLUMN phone varchar(50) NULL,\n  ADD COLUMN position varchar(255) NULL,\n  ADD COLUMN avatarUrl text NULL,\n  ADD COLUMN joinDate timestamp NULL,\n  ADD COLUMN birthDate timestamp NULL,\n  ADD COLUMN skills json NULL,\n  ADD COLUMN lineId varchar(255) NULL,\n  ADD COLUMN emergencyContact varchar(255) NULL,\n  ADD COLUMN notes text NULL,\n  ADD COLUMN employmentType enum('fulltime','parttime','contract','intern') NOT NULL DEFAULT 'fulltime';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute ALTER TABLE staff \n  ADD COLUMN phone varchar(50) NULL,\n  ADD COLUMN position varchar(255) NULL,\n  ADD COLUMN avatarUrl text NULL,\n  ADD COLUMN joinDate timestamp NULL,\n  ADD COLUMN birthDate timestamp NULL,\n  ADD COLUMN skills json NULL,\n  ADD COLUMN lineId varchar(255) NULL,\n  ADD COLUMN emergencyContact varchar(255) NULL,\n  ADD COLUMN notes text NULL,\n  ADD COLUMN employmentType enum('fulltime','parttime','contract','intern') NOT NULL DEFAULT 'fulltime';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 5415
+}

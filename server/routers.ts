@@ -1165,17 +1165,39 @@ export const appRouter = router({
       .input(
         z.object({
           name: z.string().min(1),
+          nameEn: z.string().optional(),
           email: z.string().min(1).regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Invalid email format"),
+          phone: z.string().optional(),
           department: z.string().optional(),
+          position: z.string().optional(),
           country: z.string().optional(),
+          avatarUrl: z.string().optional(),
+          joinDate: z.string().optional(), // ISO date string
+          birthDate: z.string().optional(), // ISO date string
+          skills: z.array(z.string()).optional(),
+          lineId: z.string().optional(),
+          emergencyContact: z.string().optional(),
+          notes: z.string().optional(),
+          employmentType: z.enum(["fulltime", "parttime", "contract", "intern"]).optional(),
         })
       )
       .mutation(async ({ input }) => {
         await createStaff({
           name: input.name,
+          nameEn: input.nameEn,
           email: input.email,
+          phone: input.phone,
           department: input.department,
+          position: input.position,
           country: input.country,
+          avatarUrl: input.avatarUrl,
+          joinDate: input.joinDate ? new Date(input.joinDate) : undefined,
+          birthDate: input.birthDate ? new Date(input.birthDate) : undefined,
+          skills: input.skills,
+          lineId: input.lineId,
+          emergencyContact: input.emergencyContact,
+          notes: input.notes,
+          employmentType: input.employmentType || "fulltime",
           isActive: "active",
         });
         return { success: true };
@@ -1200,14 +1222,32 @@ export const appRouter = router({
         z.object({
           id: z.number(),
           name: z.string().min(1).optional(),
+          nameEn: z.string().optional(),
           email: z.string().min(1).regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Invalid email format").optional(),
+          phone: z.string().optional(),
           department: z.string().optional(),
+          position: z.string().optional(),
           country: z.string().optional(),
+          avatarUrl: z.string().optional(),
+          joinDate: z.string().nullable().optional(), // ISO date string
+          birthDate: z.string().nullable().optional(), // ISO date string
+          skills: z.array(z.string()).optional(),
+          lineId: z.string().optional(),
+          emergencyContact: z.string().optional(),
+          notes: z.string().optional(),
+          employmentType: z.enum(["fulltime", "parttime", "contract", "intern"]).optional(),
           isActive: z.enum(["active", "inactive"]).optional(),
         })
       )
       .mutation(async ({ input }) => {
-        const { id, ...updateData } = input;
+        const { id, joinDate, birthDate, ...rest } = input;
+        const updateData: any = { ...rest };
+        if (joinDate !== undefined) {
+          updateData.joinDate = joinDate ? new Date(joinDate) : null;
+        }
+        if (birthDate !== undefined) {
+          updateData.birthDate = birthDate ? new Date(birthDate) : null;
+        }
         await updateStaff(id, updateData);
         return { success: true };
       }),
@@ -1218,6 +1258,58 @@ export const appRouter = router({
         await deleteStaff(input.id);
         return { success: true };
       }),
+
+    // Upload avatar photo
+    uploadAvatar: protectedProcedure
+      .input(z.object({
+        staffId: z.number(),
+        base64: z.string(),
+        mimeType: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        const buffer = Buffer.from(input.base64, "base64");
+        const ext = input.mimeType.split("/")[1] || "jpg";
+        const fileKey = `staff-avatars/${input.staffId}/${nanoid()}.${ext}`;
+        const { url } = await storagePut(fileKey, buffer, input.mimeType);
+        await updateStaff(input.staffId, { avatarUrl: url });
+        return { success: true, url };
+      }),
+
+    // Staff statistics for HR dashboard
+    statistics: protectedProcedure.query(async () => {
+      const allStaffData = await getAllStaff();
+      const activeStaff = allStaffData.filter(s => s.isActive === "active");
+      
+      // Department breakdown
+      const departmentCounts: Record<string, number> = {};
+      activeStaff.forEach(s => {
+        const dept = s.department || "未設定";
+        departmentCounts[dept] = (departmentCounts[dept] || 0) + 1;
+      });
+
+      // Country breakdown
+      const countryCounts: Record<string, number> = {};
+      activeStaff.forEach(s => {
+        const country = s.country || "未設定";
+        countryCounts[country] = (countryCounts[country] || 0) + 1;
+      });
+
+      // Employment type breakdown
+      const employmentTypeCounts: Record<string, number> = {};
+      activeStaff.forEach(s => {
+        const type = s.employmentType || "fulltime";
+        employmentTypeCounts[type] = (employmentTypeCounts[type] || 0) + 1;
+      });
+
+      return {
+        totalStaff: allStaffData.length,
+        activeStaff: activeStaff.length,
+        inactiveStaff: allStaffData.length - activeStaff.length,
+        departmentBreakdown: departmentCounts,
+        countryBreakdown: countryCounts,
+        employmentTypeBreakdown: employmentTypeCounts,
+      };
+    }),
 
     getTaskCounts: protectedProcedure
       .input(z.object({ staffId: z.number() }))

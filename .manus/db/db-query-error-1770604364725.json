@@ -1,0 +1,8 @@
+{
+  "query": "ALTER TABLE staff \n  ADD COLUMN nameEn VARCHAR(255) NULL AFTER name,\n  ADD COLUMN phone VARCHAR(50) NULL AFTER email,\n  ADD COLUMN position VARCHAR(255) NULL AFTER department,\n  ADD COLUMN avatarUrl TEXT NULL AFTER country,\n  ADD COLUMN joinDate TIMESTAMP NULL AFTER avatarUrl,\n  ADD COLUMN birthDate TIMESTAMP NULL AFTER joinDate,\n  ADD COLUMN skills JSON NULL AFTER birthDate,\n  ADD COLUMN lineId VARCHAR(255) NULL AFTER skills,\n  ADD COLUMN emergencyContact VARCHAR(255) NULL AFTER lineId,\n  ADD COLUMN notes TEXT NULL AFTER emergencyContact,\n  ADD COLUMN employmentType ENUM('fulltime', 'parttime', 'contract', 'intern') NOT NULL DEFAULT 'fulltime' AFTER notes;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute ALTER TABLE staff \n  ADD COLUMN nameEn VARCHAR(255) NULL AFTER name,\n  ADD COLUMN phone VARCHAR(50) NULL AFTER email,\n  ADD COLUMN position VARCHAR(255) NULL AFTER department,\n  ADD COLUMN avatarUrl TEXT NULL AFTER country,\n  ADD COLUMN joinDate TIMESTAMP NULL AFTER avatarUrl,\n  ADD COLUMN birthDate TIMESTAMP NULL AFTER joinDate,\n  ADD COLUMN skills JSON NULL AFTER birthDate,\n  ADD COLUMN lineId VARCHAR(255) NULL AFTER skills,\n  ADD COLUMN emergencyContact VARCHAR(255) NULL AFTER lineId,\n  ADD COLUMN notes TEXT NULL AFTER emergencyContact,\n  ADD COLUMN employmentType ENUM('fulltime', 'parttime', 'contract', 'intern') NOT NULL DEFAULT 'fulltime' AFTER notes;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'avatarurl' in 'staff'"
+  ]
+}

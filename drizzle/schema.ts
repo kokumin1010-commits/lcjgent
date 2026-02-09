@@ -23,9 +23,20 @@ export type InsertUser = typeof users.$inferInsert;
 export const staff = mysqlTable("staff", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
+  nameEn: varchar("nameEn", { length: 255 }), // English name
   email: varchar("email", { length: 320 }).notNull(),
+  phone: varchar("phone", { length: 50 }),
   department: varchar("department", { length: 255 }),
+  position: varchar("position", { length: 255 }), // 役職・ポジション
   country: varchar("country", { length: 100 }), // Country for filtering (e.g., "日本", "中国")
+  avatarUrl: text("avatarUrl"), // プロフィール写真
+  joinDate: timestamp("joinDate"), // 入社日
+  birthDate: timestamp("birthDate"), // 生年月日
+  skills: json("skills").$type<string[]>(), // スキルタグ
+  lineId: varchar("lineId", { length: 255 }), // LINE ID
+  emergencyContact: varchar("emergencyContact", { length: 255 }), // 緊急連絡先
+  notes: text("notes"), // メモ
+  employmentType: mysqlEnum("employmentType", ["fulltime", "parttime", "contract", "intern"]).default("fulltime").notNull(),
   isActive: mysqlEnum("isActive", ["active", "inactive"]).default("active").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

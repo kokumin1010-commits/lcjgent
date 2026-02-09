@@ -69,6 +69,7 @@ import LiverDashboardNew from "./pages/LiverDashboardNew";
 import LiverDetailNew from "./pages/LiverDetailNew";
 import Simulator from "./pages/Simulator";
 import ProposalPage from "./pages/ProposalPage";
+import HRManagement from "./pages/HRManagement";
 
 function Router() {
   return (
@@ -269,6 +270,11 @@ function Router() {
       <Route path={"/master/finance"}>
         <DashboardLayout>
           <FinanceManagement />
+        </DashboardLayout>
+      </Route>
+      <Route path={"/master/hr"}>
+        <DashboardLayout>
+          <HRManagement />
         </DashboardLayout>
       </Route>
       
