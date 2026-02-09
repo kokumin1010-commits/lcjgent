@@ -837,6 +837,7 @@ export default function BrandDetail() {
   const [previewFileType, setPreviewFileType] = useState<string>('');
   const [previewFileAnalysis, setPreviewFileAnalysis] = useState<Record<string, any> | null>(null);
   const [showAnalysisPanel, setShowAnalysisPanel] = useState(true);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null);
 
   // AI Image Add states
   const [aiImageAddDialogOpen, setAiImageAddDialogOpen] = useState(false);
@@ -866,6 +867,7 @@ export default function BrandDetail() {
   const { data: adCampaigns = [], refetch: refetchAdCampaigns } = trpc.brand.getAdCampaigns.useQuery({ brandId }, { enabled: brandId > 0 });
   const { data: adCampaignStats } = trpc.brand.getAdCampaignStats.useQuery({ brandId }, { enabled: brandId > 0 });
   const { data: reportFileHistory = [], refetch: refetchReportFileHistory } = trpc.brand.getReportFileHistory.useQuery({ brandId }, { enabled: brandId > 0 });
+  const { data: campaignDetail, isLoading: campaignDetailLoading } = trpc.brand.getAdCampaignDetail.useQuery({ id: selectedCampaignId! }, { enabled: !!selectedCampaignId });
   const deleteReportFileMutation = trpc.brand.deleteReportFile.useMutation();
 
   // 同じ日の配信は1回としてカウント（ユニークな日付の数）
@@ -7560,13 +7562,17 @@ ${proposal.proposalContent}
                 <h3 className="text-lg font-bold text-white">{language === 'ja' ? '保存済みキャンペーン' : '已保存的投放'}</h3>
                 <div className="space-y-2">
                   {adCampaigns.map((campaign: any) => (
-                    <div key={campaign.id} className="bg-gray-900/50 border border-gray-700 rounded-lg p-4">
+                    <div
+                      key={campaign.id}
+                      className="bg-gray-900/50 border border-gray-700 rounded-lg p-4 cursor-pointer hover:bg-gray-800/70 hover:border-cyan-500/50 transition-all group"
+                      onClick={() => setSelectedCampaignId(campaign.id)}
+                    >
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
                           <Badge className={`${campaign.platform === 'tiktok' ? 'bg-pink-500/30 text-pink-300' : 'bg-blue-500/30 text-blue-300'}`}>
                             {campaign.platform.toUpperCase()}
                           </Badge>
-                          <span className="font-medium text-white">{campaign.campaignName}</span>
+                          <span className="font-medium text-white truncate">{campaign.campaignName}</span>
                           <Badge className={`${campaign.objective === 'impression' ? 'bg-blue-500/20 text-blue-300' : campaign.objective === 'click' ? 'bg-green-500/20 text-green-300' : 'bg-purple-500/20 text-purple-300'}`}>
                             {campaign.objective === 'impression' ? (language === 'ja' ? 'インプレッション' : '曝光') :
                              campaign.objective === 'click' ? (language === 'ja' ? 'クリック' : '点击') :
@@ -7576,10 +7582,12 @@ ${proposal.proposalContent}
                         </div>
                         <div className="flex items-center gap-4">
                           <span className="text-green-400 font-medium">¥{(campaign.budget || 0).toLocaleString()}</span>
+                          <ChevronRight className="h-4 w-4 text-gray-500 group-hover:text-cyan-400 transition-colors" />
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={async () => {
+                            onClick={async (e) => {
+                              e.stopPropagation();
                               if (confirm(language === 'ja' ? 'このキャンペーンを削除しますか？' : '确定删除此投放？')) {
                                 await deleteAdCampaignMutation.mutateAsync({ id: campaign.id });
                                 refetchAdCampaigns();
@@ -7901,6 +7909,218 @@ ${proposal.proposalContent}
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Campaign Detail Dialog */}
+      <Dialog open={!!selectedCampaignId} onOpenChange={(open) => { if (!open) setSelectedCampaignId(null); }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-gray-950 border-gray-700">
+          {campaignDetailLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-cyan-400" />
+              <span className="ml-3 text-gray-400">{language === 'ja' ? '読み込み中...' : '加载中...'}</span>
+            </div>
+          ) : campaignDetail ? (
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <Badge className={`text-sm ${campaignDetail.platform === 'tiktok' ? 'bg-pink-500/30 text-pink-300' : 'bg-blue-500/30 text-blue-300'}`}>
+                    {campaignDetail.platform.toUpperCase()}
+                  </Badge>
+                  <h2 className="text-xl font-bold text-white">{campaignDetail.campaignName}</h2>
+                  <Badge className={`${campaignDetail.objective === 'impression' ? 'bg-blue-500/20 text-blue-300' : campaignDetail.objective === 'click' ? 'bg-green-500/20 text-green-300' : 'bg-purple-500/20 text-purple-300'}`}>
+                    {campaignDetail.objective === 'impression' ? (language === 'ja' ? 'インプレッション' : '曝光') :
+                     campaignDetail.objective === 'click' ? (language === 'ja' ? 'クリック' : '点击') :
+                     campaignDetail.objective === 'conversion' ? (language === 'ja' ? 'コンバージョン' : '转化') :
+                     campaignDetail.objective}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-4 text-sm text-gray-400">
+                  <span className="flex items-center gap-1">
+                    <Calendar className="h-4 w-4" />
+                    {campaignDetail.startDate ? new Date(campaignDetail.startDate).toLocaleDateString() : '?'} 〜 {campaignDetail.endDate ? new Date(campaignDetail.endDate).toLocaleDateString() : '?'}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Globe className="h-4 w-4" />
+                    {campaignDetail.reportLanguage === 'ja' ? '日本語' : campaignDetail.reportLanguage === 'zh' ? '中国語' : '英語'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Budget & Key Metrics */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3">
+                  <p className="text-xs text-green-400 mb-1">{language === 'ja' ? '予算' : '预算'}</p>
+                  <p className="text-lg font-bold text-white">¥{(campaignDetail.budget || 0).toLocaleString()}</p>
+                </div>
+                {campaignDetail.metrics && (
+                  <>
+                    {campaignDetail.metrics.adSpend != null && (
+                      <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3">
+                        <p className="text-xs text-cyan-400 mb-1">{language === 'ja' ? '広告費' : '广告费'}</p>
+                        <p className="text-lg font-bold text-white">¥{Number(campaignDetail.metrics.adSpend).toLocaleString()}</p>
+                      </div>
+                    )}
+                    {campaignDetail.metrics.impressions != null && (
+                      <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+                        <p className="text-xs text-blue-400 mb-1">{language === 'ja' ? 'インプレッション' : '曝光'}</p>
+                        <p className="text-lg font-bold text-white">{Number(campaignDetail.metrics.impressions).toLocaleString()}</p>
+                      </div>
+                    )}
+                    {campaignDetail.metrics.clicks != null && (
+                      <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3">
+                        <p className="text-xs text-purple-400 mb-1">{language === 'ja' ? 'クリック' : '点击'}</p>
+                        <p className="text-lg font-bold text-white">{Number(campaignDetail.metrics.clicks).toLocaleString()}</p>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Detailed Metrics */}
+              {campaignDetail.metrics && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">{language === 'ja' ? '詳細指標' : '详细指标'}</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                    {campaignDetail.metrics.views != null && (
+                      <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-3">
+                        <p className="text-xs text-gray-500 mb-1">{language === 'ja' ? '視聴数' : '观看数'}</p>
+                        <p className="text-sm font-bold text-white">{Number(campaignDetail.metrics.views).toLocaleString()}</p>
+                      </div>
+                    )}
+                    {campaignDetail.metrics.views6sPlus != null && (
+                      <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-3">
+                        <p className="text-xs text-gray-500 mb-1">6s+{language === 'ja' ? '視聴' : '观看'}</p>
+                        <p className="text-sm font-bold text-white">{Number(campaignDetail.metrics.views6sPlus).toLocaleString()}</p>
+                      </div>
+                    )}
+                    {campaignDetail.metrics.productClicks != null && (
+                      <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-3">
+                        <p className="text-xs text-gray-500 mb-1">{language === 'ja' ? '商品クリック' : '商品点击'}</p>
+                        <p className="text-sm font-bold text-white">{Number(campaignDetail.metrics.productClicks).toLocaleString()}</p>
+                      </div>
+                    )}
+                    {campaignDetail.metrics.cartAdds != null && (
+                      <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-3">
+                        <p className="text-xs text-gray-500 mb-1">{language === 'ja' ? 'カート追加' : '加购'}</p>
+                        <p className="text-sm font-bold text-white">{Number(campaignDetail.metrics.cartAdds).toLocaleString()}</p>
+                      </div>
+                    )}
+                    {campaignDetail.metrics.salesCount != null && (
+                      <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-3">
+                        <p className="text-xs text-gray-500 mb-1">{language === 'ja' ? '販売数' : '销量'}</p>
+                        <p className="text-sm font-bold text-white">{Number(campaignDetail.metrics.salesCount).toLocaleString()}</p>
+                      </div>
+                    )}
+                    {campaignDetail.metrics.gmv != null && (
+                      <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-3">
+                        <p className="text-xs text-gray-500 mb-1">GMV</p>
+                        <p className="text-sm font-bold text-white">¥{Number(campaignDetail.metrics.gmv).toLocaleString()}</p>
+                      </div>
+                    )}
+                    {campaignDetail.metrics.cpm != null && (
+                      <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-3">
+                        <p className="text-xs text-gray-500 mb-1">CPM</p>
+                        <p className="text-sm font-bold text-white">¥{Number(campaignDetail.metrics.cpm).toLocaleString()}</p>
+                      </div>
+                    )}
+                    {campaignDetail.metrics.cpc != null && (
+                      <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-3">
+                        <p className="text-xs text-gray-500 mb-1">CPC</p>
+                        <p className="text-sm font-bold text-white">¥{Number(campaignDetail.metrics.cpc).toLocaleString()}</p>
+                      </div>
+                    )}
+                    {campaignDetail.metrics.roas != null && (
+                      <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-3">
+                        <p className="text-xs text-gray-500 mb-1">ROAS</p>
+                        <p className="text-sm font-bold text-white">{Number(campaignDetail.metrics.roas).toFixed(2)}x</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Country Breakdown */}
+              {campaignDetail.countryBreakdown && campaignDetail.countryBreakdown.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-2">
+                    <Globe className="h-4 w-4" />
+                    {language === 'ja' ? '国別内訳' : '国家分布'}
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {campaignDetail.countryBreakdown.map((cb: any, i: number) => (
+                      <div key={i} className="bg-gray-900/50 border border-gray-700 rounded-lg p-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{cb.countryCode === 'ID' ? '🇮🇩' : cb.countryCode === 'TH' ? '🇹🇭' : cb.countryCode === 'PH' ? '🇵🇭' : cb.countryCode === 'VN' ? '🇻🇳' : cb.countryCode === 'MY' ? '🇲🇾' : cb.countryCode === 'SG' ? '🇸🇬' : cb.countryCode === 'JP' ? '🇯🇵' : '🌏'}</span>
+                          <span className="text-sm font-medium text-white">{cb.countryCode}</span>
+                        </div>
+                        <div className="flex items-center gap-4 text-sm">
+                          {cb.percentage != null && <span className="text-gray-400">{Number(cb.percentage).toFixed(1)}%</span>}
+                          {cb.impressions != null && <span className="text-blue-400">{Number(cb.impressions).toLocaleString()} imp</span>}
+                          {cb.gmv != null && <span className="text-green-400">¥{Number(cb.gmv).toLocaleString()}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Report PDF */}
+              {campaignDetail.reportFileUrl && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    {language === 'ja' ? 'レポートファイル' : '报告文件'}
+                  </h3>
+                  <div className="bg-gray-900/50 border border-gray-700 rounded-lg overflow-hidden">
+                    <iframe
+                      src={campaignDetail.reportFileUrl}
+                      className="w-full h-[400px]"
+                      title="Campaign Report"
+                    />
+                    <div className="flex items-center justify-end gap-2 p-2 border-t border-gray-700">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open(campaignDetail.reportFileUrl || '', '_blank')}
+                        className="text-gray-300 border-gray-600 hover:bg-gray-800"
+                      >
+                        <ExternalLink className="h-3 w-3 mr-1" />
+                        {language === 'ja' ? '新しいタブで開く' : '新标签打开'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const a = document.createElement('a');
+                          a.href = campaignDetail.reportFileUrl || '';
+                          a.download = `${campaignDetail.campaignName}_report`;
+                          a.click();
+                        }}
+                        className="text-gray-300 border-gray-600 hover:bg-gray-800"
+                      >
+                        <Download className="h-3 w-3 mr-1" />
+                        {language === 'ja' ? 'ダウンロード' : '下载'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* No metrics message */}
+              {!campaignDetail.metrics && (
+                <div className="text-center py-8 text-gray-500">
+                  <TrendingUp className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                  <p>{language === 'ja' ? '詳細指標データはまだありません' : '暂无详细指标数据'}</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-20 text-gray-500">
+              <p>{language === 'ja' ? 'キャンペーンが見つかりません' : '未找到投放'}</p>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
