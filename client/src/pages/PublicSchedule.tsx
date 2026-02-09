@@ -862,8 +862,8 @@ export default function PublicSchedule() {
         </div>
       )}
 
-      {/* Brand Filter Tabs */}
-      {brandsData && brandsData.length > 0 && (
+      {/* Brand Filter Tabs - only show if any schedule has a brand */}
+      {brandsData && brandsData.length > 0 && (schedules ?? []).some(s => s.brandId) && (
         <div className="border-b bg-gray-50/50">
           <ScrollArea className="w-full whitespace-nowrap">
             <div className="flex gap-1 p-2">
@@ -880,8 +880,10 @@ export default function PublicSchedule() {
                 <Check className={cn("h-3.5 w-3.5", selectedBrandId === null ? "opacity-100" : "opacity-0")} />
                 全ブランド
               </button>
-              {/* Brand tabs */}
-              {brandsData.map((brand: any) => (
+              {/* Brand tabs - only show brands that have schedules */}
+              {brandsData
+                .filter((brand: any) => (schedules ?? []).some(s => s.brandId === brand.id))
+                .map((brand: any) => (
                 <button
                   key={brand.id}
                   onClick={() => setSelectedBrandId(brand.id)}
