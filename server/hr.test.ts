@@ -219,6 +219,114 @@ describe("HR staff management - extended fields", () => {
     }
   });
 
+  it("should get task history for a staff member", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    // Create a staff member
+    const email = `hr-task-hist-${Date.now()}@example.com`;
+    await caller.staff.create({ name: "タスク履歴テスト", email });
+
+    const allStaff = await caller.staff.list();
+    const created = allStaff.find(s => s.email === email);
+    expect(created).toBeDefined();
+
+    if (created) {
+      // Get task history (should return array, possibly empty)
+      const taskHistory = await caller.staff.getTaskHistory({ staffId: created.id });
+      expect(Array.isArray(taskHistory)).toBe(true);
+
+      // Each task should have expected fields
+      if (taskHistory.length > 0) {
+        const task = taskHistory[0];
+        expect(task).toHaveProperty("id");
+        expect(task).toHaveProperty("taskId");
+        expect(task).toHaveProperty("status");
+        expect(task).toHaveProperty("taskDetail");
+        expect(task).toHaveProperty("startDate");
+        expect(task).toHaveProperty("createdAt");
+      }
+
+      // Cleanup
+      await caller.staff.delete({ id: created.id });
+    }
+  });
+
+  it("should get task counts for a staff member", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const email = `hr-task-counts-${Date.now()}@example.com`;
+    await caller.staff.create({ name: "タスクカウントテスト", email });
+
+    const allStaff = await caller.staff.list();
+    const created = allStaff.find(s => s.email === email);
+    expect(created).toBeDefined();
+
+    if (created) {
+      const counts = await caller.staff.getTaskCounts({ staffId: created.id });
+      expect(counts).toHaveProperty("totalCount");
+      expect(counts).toHaveProperty("inProgressCount");
+      expect(counts).toHaveProperty("completedCount");
+      expect(counts).toHaveProperty("overdueCount");
+      expect(typeof counts.totalCount).toBe("number");
+      expect(counts.totalCount).toBeGreaterThanOrEqual(0);
+
+      // Cleanup
+      await caller.staff.delete({ id: created.id });
+    }
+  });
+
+  it("should get report history for a staff member", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const email = `hr-report-hist-${Date.now()}@example.com`;
+    await caller.staff.create({ name: "日報履歴テスト", email });
+
+    const allStaff = await caller.staff.list();
+    const created = allStaff.find(s => s.email === email);
+    expect(created).toBeDefined();
+
+    if (created) {
+      // Get report history (may be empty if no linked reportStaff)
+      const reportHistory = await caller.staff.getReportHistory({ staffId: created.id });
+      expect(Array.isArray(reportHistory)).toBe(true);
+
+      // Each report should have expected fields if present
+      if (reportHistory.length > 0) {
+        const report = reportHistory[0];
+        expect(report).toHaveProperty("id");
+        expect(report).toHaveProperty("reportDate");
+        expect(report).toHaveProperty("workContent");
+        expect(report).toHaveProperty("createdAt");
+      }
+
+      // Cleanup
+      await caller.staff.delete({ id: created.id });
+    }
+  });
+
+  it("should get linked report staff for a staff member", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const email = `hr-linked-${Date.now()}@example.com`;
+    await caller.staff.create({ name: "連携テスト", email });
+
+    const allStaff = await caller.staff.list();
+    const created = allStaff.find(s => s.email === email);
+    expect(created).toBeDefined();
+
+    if (created) {
+      const linkedStaff = await caller.staff.getLinkedReportStaff({ staffId: created.id });
+      expect(Array.isArray(linkedStaff)).toBe(true);
+
+      // Cleanup
+      await caller.staff.delete({ id: created.id });
+    }
+  });
+
   it("should handle null date fields correctly", async () => {
     const { ctx } = createAuthContext();
     const caller = appRouter.createCaller(ctx);

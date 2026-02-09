@@ -2164,6 +2164,43 @@ export async function getRecentReportsByStaffId(staffId: number, limit: number =
 
 
 // ============================================
+// HR Integration Functions (staff <-> reportStaff linkage)
+// ============================================
+
+// Get reportStaff records linked to a staff ID
+export async function getReportStaffByLinkedStaffId(staffId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.select().from(reportStaff)
+    .where(eq(reportStaff.linkedStaffId, staffId));
+}
+
+// Get reports for a staff member via linkedStaffId
+export async function getReportsByLinkedStaffId(staffId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // First find reportStaff records linked to this staff
+  const linkedReportStaff = await db.select().from(reportStaff)
+    .where(eq(reportStaff.linkedStaffId, staffId));
+
+  if (linkedReportStaff.length === 0) return [];
+
+  const reportStaffIds = linkedReportStaff.map(rs => rs.id);
+
+  return await db
+    .select({
+      report: reports,
+      staff: reportStaff,
+    })
+    .from(reports)
+    .leftJoin(reportStaff, eq(reports.reportStaffId, reportStaff.id))
+    .where(inArray(reports.reportStaffId, reportStaffIds))
+    .orderBy(desc(reports.reportDate));
+}
+
+// ============================================
 // LINE Bot Database Functions
 // ============================================
 

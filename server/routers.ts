@@ -69,6 +69,8 @@ import {
   getBrandStatistics,
   deleteReportStaff,
   getReportStaffByCountry,
+  getReportsByLinkedStaffId,
+  getReportStaffByLinkedStaffId,
   createBrandLivestream,
   getLivestreamsByBrandId,
   updateBrandLivestream,
@@ -1331,6 +1333,47 @@ export const appRouter = router({
           overdueCount,
           totalCount: tasksWithStaff.length,
         };
+      }),
+
+    // HR: Get task history for a staff member
+    getTaskHistory: protectedProcedure
+      .input(z.object({ staffId: z.number() }))
+      .query(async ({ input }) => {
+        const tasksWithStaff = await getTasksByStaffId(input.staffId);
+        return tasksWithStaff.map(t => ({
+          id: t.task.id,
+          taskId: t.task.taskId,
+          status: t.task.status,
+          taskDetail: t.task.taskDetail,
+          deadline: t.task.deadline,
+          startDate: t.task.startDate,
+          completedAt: t.task.completedAt,
+          notes: t.task.notes,
+          createdAt: t.task.createdAt,
+        }));
+      }),
+
+    // HR: Get report history for a staff member (via reportStaff linkedStaffId)
+    getReportHistory: protectedProcedure
+      .input(z.object({ staffId: z.number() }))
+      .query(async ({ input }) => {
+        const reportsData = await getReportsByLinkedStaffId(input.staffId);
+        return reportsData.map(r => ({
+          id: r.report.id,
+          reportDate: r.report.reportDate,
+          workContent: r.report.workContent,
+          issues: r.report.issues,
+          remarks: r.report.remarks,
+          createdAt: r.report.createdAt,
+          reportStaffName: r.staff?.name || null,
+        }));
+      }),
+
+    // HR: Get linked reportStaff for a staff member
+    getLinkedReportStaff: protectedProcedure
+      .input(z.object({ staffId: z.number() }))
+      .query(async ({ input }) => {
+        return await getReportStaffByLinkedStaffId(input.staffId);
       }),
   }),
 

@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -39,7 +40,8 @@ import {
   Loader2, Plus, Search, Users, Building2, Globe, Briefcase,
   LayoutGrid, List, X, Upload, Mail, Phone, MapPin, Calendar,
   Tag, MessageCircle, AlertCircle, FileText, Trash2, Edit, UserPlus,
-  ChevronLeft, Camera
+  ChevronLeft, Camera, ClipboardList, BookOpen, CheckCircle2, Clock,
+  AlertTriangle, CircleDot
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -68,6 +70,13 @@ const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
   parttime: "パート",
   contract: "契約社員",
   intern: "インターン",
+};
+
+const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof CheckCircle2 }> = {
+  pending: { label: "未着手", color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300", icon: Clock },
+  in_progress: { label: "進行中", color: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300", icon: CircleDot },
+  completed: { label: "完了", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300", icon: CheckCircle2 },
+  cancelled: { label: "キャンセル", color: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300", icon: X },
 };
 
 interface StaffFormData {
@@ -127,6 +136,228 @@ function formatDate(date: Date | string | null | undefined): string {
   return d.toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" });
 }
 
+function formatShortDate(date: Date | string | null | undefined): string {
+  if (!date) return "";
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" });
+}
+
+// Task History Tab Component
+function TaskHistoryTab({ staffId }: { staffId: number }) {
+  const { data: tasks, isLoading } = trpc.staff.getTaskHistory.useQuery({ staffId });
+  const { data: taskCounts } = trpc.staff.getTaskCounts.useQuery({ staffId });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Task Summary Cards */}
+      {taskCounts && (
+        <div className="grid grid-cols-4 gap-2">
+          <div className="rounded-lg border p-3 text-center">
+            <p className="text-xl font-bold">{taskCounts.totalCount}</p>
+            <p className="text-xs text-muted-foreground">全タスク</p>
+          </div>
+          <div className="rounded-lg border p-3 text-center">
+            <p className="text-xl font-bold text-blue-600">{taskCounts.inProgressCount}</p>
+            <p className="text-xs text-muted-foreground">進行中</p>
+          </div>
+          <div className="rounded-lg border p-3 text-center">
+            <p className="text-xl font-bold text-emerald-600">{taskCounts.completedCount}</p>
+            <p className="text-xs text-muted-foreground">完了</p>
+          </div>
+          <div className="rounded-lg border p-3 text-center">
+            <p className="text-xl font-bold text-red-600">{taskCounts.overdueCount}</p>
+            <p className="text-xs text-muted-foreground">期限超過</p>
+          </div>
+        </div>
+      )}
+
+      {/* Completion Rate */}
+      {taskCounts && taskCounts.totalCount > 0 && (
+        <div className="space-y-1">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">完了率</span>
+            <span className="font-medium">{Math.round((taskCounts.completedCount / taskCounts.totalCount) * 100)}%</span>
+          </div>
+          <div className="h-2 rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full rounded-full bg-emerald-500 transition-all"
+              style={{ width: `${(taskCounts.completedCount / taskCounts.totalCount) * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Task List */}
+      {!tasks || tasks.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-8 text-center">
+          <ClipboardList className="h-10 w-10 text-muted-foreground/30 mb-3" />
+          <p className="text-sm text-muted-foreground">タスク履歴がありません</p>
+        </div>
+      ) : (
+        <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
+          {tasks.map((task) => {
+            const statusCfg = STATUS_CONFIG[task.status] || STATUS_CONFIG.pending;
+            const StatusIcon = statusCfg.icon;
+            const isOverdue = task.status === "in_progress" && task.deadline && new Date(task.deadline) < new Date();
+            return (
+              <div key={task.id} className="rounded-lg border p-3 hover:bg-accent/50 transition-colors">
+                <div className="flex items-start gap-3">
+                  <StatusIcon className={`h-4 w-4 mt-0.5 shrink-0 ${
+                    task.status === "completed" ? "text-emerald-500" :
+                    task.status === "in_progress" ? "text-blue-500" :
+                    task.status === "cancelled" ? "text-gray-400" : "text-yellow-500"
+                  }`} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge className={`text-xs ${statusCfg.color}`}>{statusCfg.label}</Badge>
+                      {isOverdue && (
+                        <Badge variant="destructive" className="text-xs gap-1">
+                          <AlertTriangle className="h-3 w-3" /> 期限超過
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-sm mt-1 line-clamp-2">{task.taskDetail}</p>
+                    <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        開始: {formatShortDate(new Date(task.startDate))}
+                      </span>
+                      {task.deadline && (
+                        <span className={`flex items-center gap-1 ${isOverdue ? "text-red-500 font-medium" : ""}`}>
+                          <Clock className="h-3 w-3" />
+                          期限: {formatShortDate(task.deadline)}
+                        </span>
+                      )}
+                      {task.completedAt && (
+                        <span className="flex items-center gap-1 text-emerald-600">
+                          <CheckCircle2 className="h-3 w-3" />
+                          完了: {formatShortDate(new Date(task.completedAt))}
+                        </span>
+                      )}
+                    </div>
+                    {task.notes && (
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-1 italic">
+                        メモ: {task.notes}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Report History Tab Component
+function ReportHistoryTab({ staffId }: { staffId: number }) {
+  const { data: reports, isLoading } = trpc.staff.getReportHistory.useQuery({ staffId });
+  const { data: linkedStaff } = trpc.staff.getLinkedReportStaff.useQuery({ staffId });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Linked Report Staff Info */}
+      {linkedStaff && linkedStaff.length > 0 && (
+        <div className="rounded-lg border bg-muted/30 p-3">
+          <p className="text-xs text-muted-foreground mb-1">日報システム連携</p>
+          <div className="flex flex-wrap gap-2">
+            {linkedStaff.map((rs) => (
+              <Badge key={rs.id} variant="outline" className="gap-1">
+                <BookOpen className="h-3 w-3" />
+                {rs.name} ({rs.country})
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Report Summary */}
+      {reports && reports.length > 0 && (
+        <div className="rounded-lg border p-3 text-center">
+          <p className="text-xl font-bold">{reports.length}</p>
+          <p className="text-xs text-muted-foreground">日報件数</p>
+        </div>
+      )}
+
+      {/* Report List */}
+      {!reports || reports.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-8 text-center">
+          <BookOpen className="h-10 w-10 text-muted-foreground/30 mb-3" />
+          <p className="text-sm text-muted-foreground">
+            {linkedStaff && linkedStaff.length > 0
+              ? "日報履歴がありません"
+              : "日報システムとの連携が設定されていません"}
+          </p>
+          {(!linkedStaff || linkedStaff.length === 0) && (
+            <p className="text-xs text-muted-foreground mt-1">
+              日報スタッフの「linkedStaffId」にこのスタッフのIDを設定してください
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
+          {reports.map((report) => (
+            <div key={report.id} className="rounded-lg border p-3 hover:bg-accent/50 transition-colors">
+              <div className="flex items-start gap-3">
+                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <FileText className="h-4 w-4 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium flex items-center gap-1">
+                      <Calendar className="h-3 w-3 text-muted-foreground" />
+                      {formatDate(report.reportDate)}
+                    </span>
+                    {report.reportStaffName && (
+                      <Badge variant="outline" className="text-xs">{report.reportStaffName}</Badge>
+                    )}
+                  </div>
+                  <div className="mt-2 space-y-1.5">
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground">業務内容</p>
+                      <p className="text-sm line-clamp-3 whitespace-pre-wrap">{report.workContent}</p>
+                    </div>
+                    {report.issues && (
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground">気付き・問題</p>
+                        <p className="text-sm line-clamp-2 whitespace-pre-wrap text-amber-700 dark:text-amber-400">{report.issues}</p>
+                      </div>
+                    )}
+                    {report.remarks && (
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground">備考</p>
+                        <p className="text-sm line-clamp-2 whitespace-pre-wrap text-muted-foreground">{report.remarks}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function HRManagement() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchQuery, setSearchQuery] = useState("");
@@ -140,6 +371,7 @@ export default function HRManagement() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [formData, setFormData] = useState<StaffFormData>({ ...emptyFormData });
   const [newSkill, setNewSkill] = useState("");
+  const [detailTab, setDetailTab] = useState("profile");
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const utils = trpc.useUtils();
@@ -163,7 +395,6 @@ export default function HRManagement() {
       utils.staff.list.invalidate();
       utils.staff.statistics.invalidate();
       setIsEditMode(false);
-      // Refresh selected staff
       if (selectedStaff) {
         const updated = staffList?.find(s => s.id === selectedStaff.id);
         if (updated) setSelectedStaff(updated);
@@ -198,15 +429,10 @@ export default function HRManagement() {
   const filteredStaff = useMemo(() => {
     if (!staffList) return [];
     return staffList.filter((s) => {
-      // Status filter
       if (statusFilter !== "all" && s.isActive !== statusFilter) return false;
-      // Department filter
       if (departmentFilter !== "all" && s.department !== departmentFilter) return false;
-      // Country filter
       if (countryFilter !== "all" && s.country !== countryFilter) return false;
-      // Employment type filter
       if (employmentFilter !== "all" && s.employmentType !== employmentFilter) return false;
-      // Search
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
         return (
@@ -222,7 +448,6 @@ export default function HRManagement() {
     });
   }, [staffList, searchQuery, departmentFilter, countryFilter, employmentFilter, statusFilter]);
 
-  // Get unique departments from data
   const uniqueDepartments = useMemo(() => {
     if (!staffList) return [];
     const depts = new Set(staffList.map(s => s.department).filter(Boolean));
@@ -235,6 +460,7 @@ export default function HRManagement() {
       setSelectedStaff(fullStaff);
       setIsDetailOpen(true);
       setIsEditMode(false);
+      setDetailTab("profile");
     }
   };
 
@@ -518,8 +744,8 @@ export default function HRManagement() {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-orange-100 dark:bg-orange-900 flex items-center justify-center">
-                  <Briefcase className="h-5 w-5 text-orange-600 dark:text-orange-300" />
+                <div className="h-10 w-10 rounded-lg bg-amber-100 dark:bg-amber-900 flex items-center justify-center">
+                  <Briefcase className="h-5 w-5 text-amber-600 dark:text-amber-300" />
                 </div>
                 <div>
                   <p className="text-2xl font-bold">{stats.totalStaff}</p>
@@ -531,92 +757,41 @@ export default function HRManagement() {
         </div>
       )}
 
-      {/* Department & Country Breakdown */}
-      {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">部署別</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="space-y-2">
-                {Object.entries(stats.departmentBreakdown).sort((a, b) => b[1] - a[1]).map(([dept, count]) => (
-                  <div key={dept} className="flex items-center justify-between">
-                    <span className="text-sm">{dept}</span>
-                    <Badge variant="secondary">{count}名</Badge>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">国・地域別</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="space-y-2">
-                {Object.entries(stats.countryBreakdown).sort((a, b) => b[1] - a[1]).map(([country, count]) => (
-                  <div key={country} className="flex items-center justify-between">
-                    <span className="text-sm">{country}</span>
-                    <Badge variant="secondary">{count}名</Badge>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">雇用形態別</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="space-y-2">
-                {Object.entries(stats.employmentTypeBreakdown).sort((a, b) => b[1] - a[1]).map(([type, count]) => (
-                  <div key={type} className="flex items-center justify-between">
-                    <span className="text-sm">{EMPLOYMENT_TYPE_LABELS[type] || type}</span>
-                    <Badge variant="secondary">{count}名</Badge>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Search & Filters */}
-      <div className="flex flex-col md:flex-row gap-3">
-        <div className="relative flex-1">
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3 items-center">
+        <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            className="pl-9"
-            placeholder="名前、メール、部署、スキルで検索..."
+            placeholder="名前、メール、スキルで検索..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
+            className="pl-9"
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">全て</SelectItem>
-            <SelectItem value="active">在籍中</SelectItem>
-            <SelectItem value="inactive">退職済</SelectItem>
+            <SelectItem value="all">全ステータス</SelectItem>
+            <SelectItem value="active">在籍</SelectItem>
+            <SelectItem value="inactive">退職</SelectItem>
           </SelectContent>
         </Select>
         <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-          <SelectTrigger className="w-[150px]"><SelectValue placeholder="部署" /></SelectTrigger>
+          <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全部署</SelectItem>
-            {uniqueDepartments.map(d => <SelectItem key={d as string} value={d as string}>{d as string}</SelectItem>)}
+            {uniqueDepartments.map(d => <SelectItem key={d} value={d as string}>{d}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={countryFilter} onValueChange={setCountryFilter}>
-          <SelectTrigger className="w-[130px]"><SelectValue placeholder="国" /></SelectTrigger>
+          <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全国</SelectItem>
             {COUNTRIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={employmentFilter} onValueChange={setEmploymentFilter}>
-          <SelectTrigger className="w-[140px]"><SelectValue placeholder="雇用形態" /></SelectTrigger>
+          <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全雇用形態</SelectItem>
             {EMPLOYMENT_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
@@ -704,209 +879,232 @@ export default function HRManagement() {
         </DialogContent>
       </Dialog>
 
-      {/* Staff Detail Dialog */}
-      <Dialog open={isDetailOpen} onOpenChange={(open) => { setIsDetailOpen(open); if (!open) { setIsEditMode(false); } }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      {/* Staff Detail Dialog with Tabs */}
+      <Dialog open={isDetailOpen} onOpenChange={(open) => { setIsDetailOpen(open); if (!open) { setIsEditMode(false); setDetailTab("profile"); } }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
           {selectedStaff && !isEditMode ? (
             <>
-              {/* Detail View */}
-              <div className="space-y-6">
-                {/* Header */}
-                <div className="flex items-start gap-4">
-                  <div className="relative group">
-                    <Avatar className="h-20 w-20 ring-2 ring-background shadow-lg">
-                      <AvatarImage src={selectedStaff.avatarUrl || undefined} alt={selectedStaff.name} />
-                      <AvatarFallback className={`${getAvatarColor(selectedStaff.name)} text-white text-2xl font-bold`}>
-                        {getInitials(selectedStaff.name)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <button
-                      className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
-                      onClick={() => avatarInputRef.current?.click()}
-                    >
-                      <Camera className="h-6 w-6 text-white" />
-                    </button>
-                    <input
-                      ref={avatarInputRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleAvatarUpload}
-                    />
+              {/* Header - Always visible */}
+              <div className="flex items-start gap-4 pb-4 border-b shrink-0">
+                <div className="relative group">
+                  <Avatar className="h-16 w-16 ring-2 ring-background shadow-lg">
+                    <AvatarImage src={selectedStaff.avatarUrl || undefined} alt={selectedStaff.name} />
+                    <AvatarFallback className={`${getAvatarColor(selectedStaff.name)} text-white text-xl font-bold`}>
+                      {getInitials(selectedStaff.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <button
+                    className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                    onClick={() => avatarInputRef.current?.click()}
+                  >
+                    <Camera className="h-5 w-5 text-white" />
+                  </button>
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleAvatarUpload}
+                  />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-xl font-bold">{selectedStaff.name}</h2>
+                    {selectedStaff.isActive === "active" ? (
+                      <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">在籍</Badge>
+                    ) : (
+                      <Badge variant="secondary">退職</Badge>
+                    )}
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h2 className="text-xl font-bold">{selectedStaff.name}</h2>
-                      {selectedStaff.isActive === "active" ? (
-                        <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">在籍</Badge>
-                      ) : (
-                        <Badge variant="secondary">退職</Badge>
-                      )}
-                    </div>
-                    {selectedStaff.nameEn && <p className="text-sm text-muted-foreground">{selectedStaff.nameEn}</p>}
+                  {selectedStaff.nameEn && <p className="text-sm text-muted-foreground">{selectedStaff.nameEn}</p>}
+                  <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
                     {selectedStaff.position && (
-                      <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
-                        <Briefcase className="h-3.5 w-3.5" /> {selectedStaff.position}
-                      </p>
+                      <span className="flex items-center gap-1"><Briefcase className="h-3.5 w-3.5" /> {selectedStaff.position}</span>
                     )}
                     {selectedStaff.department && (
-                      <p className="text-sm text-muted-foreground flex items-center gap-1">
-                        <Building2 className="h-3.5 w-3.5" /> {selectedStaff.department}
-                      </p>
+                      <span className="flex items-center gap-1"><Building2 className="h-3.5 w-3.5" /> {selectedStaff.department}</span>
                     )}
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={openEditMode}>
-                      <Edit className="h-4 w-4 mr-1" /> 編集
-                    </Button>
                   </div>
                 </div>
-
-                {/* Contact Info */}
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium">連絡先情報</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex items-center gap-3 text-sm">
-                      <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <span>{selectedStaff.email}</span>
-                    </div>
-                    {selectedStaff.phone && (
-                      <div className="flex items-center gap-3 text-sm">
-                        <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <span>{selectedStaff.phone}</span>
-                      </div>
-                    )}
-                    {selectedStaff.lineId && (
-                      <div className="flex items-center gap-3 text-sm">
-                        <MessageCircle className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <span>LINE: {selectedStaff.lineId}</span>
-                      </div>
-                    )}
-                    {selectedStaff.country && (
-                      <div className="flex items-center gap-3 text-sm">
-                        <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <span>{selectedStaff.country}</span>
-                      </div>
-                    )}
-                    {selectedStaff.emergencyContact && (
-                      <div className="flex items-center gap-3 text-sm">
-                        <AlertCircle className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <span>緊急連絡先: {selectedStaff.emergencyContact}</span>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Employment Info */}
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium">雇用情報</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex items-center gap-3 text-sm">
-                      <Briefcase className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <span>雇用形態: {EMPLOYMENT_TYPE_LABELS[selectedStaff.employmentType || "fulltime"]}</span>
-                    </div>
-                    {selectedStaff.joinDate && (
-                      <div className="flex items-center gap-3 text-sm">
-                        <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <span>入社日: {formatDate(selectedStaff.joinDate)}</span>
-                      </div>
-                    )}
-                    {selectedStaff.birthDate && (
-                      <div className="flex items-center gap-3 text-sm">
-                        <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <span>生年月日: {formatDate(selectedStaff.birthDate)}</span>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Skills */}
-                {selectedStaff.skills && selectedStaff.skills.length > 0 && (
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm font-medium">スキル・資格</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex flex-wrap gap-2">
-                        {selectedStaff.skills.map((skill: string, i: number) => (
-                          <Badge key={i} variant="secondary" className="gap-1">
-                            <Tag className="h-3 w-3" /> {skill}
-                          </Badge>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Notes */}
-                {selectedStaff.notes && (
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm font-medium">メモ</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm whitespace-pre-wrap">{selectedStaff.notes}</p>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Actions */}
-                <div className="flex justify-between items-center pt-2 border-t">
-                  <p className="text-xs text-muted-foreground">
-                    登録日: {formatDate(selectedStaff.createdAt)}
-                  </p>
-                  <div className="flex gap-2">
-                    {selectedStaff.isActive === "active" ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          updateMutation.mutate({ id: selectedStaff.id, isActive: "inactive" });
-                          setSelectedStaff({ ...selectedStaff, isActive: "inactive" });
-                        }}
-                      >
-                        退職処理
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          updateMutation.mutate({ id: selectedStaff.id, isActive: "active" });
-                          setSelectedStaff({ ...selectedStaff, isActive: "active" });
-                        }}
-                      >
-                        復職処理
-                      </Button>
-                    )}
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="destructive" size="sm">
-                          <Trash2 className="h-4 w-4 mr-1" /> 削除
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>スタッフを削除しますか？</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            この操作は取り消せません。{selectedStaff.name}さんの全情報が完全に削除されます。
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>キャンセル</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => deleteMutation.mutate({ id: selectedStaff.id })}>
-                            削除
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                </div>
+                <Button variant="outline" size="sm" onClick={openEditMode}>
+                  <Edit className="h-4 w-4 mr-1" /> 編集
+                </Button>
               </div>
+
+              {/* Tabs */}
+              <Tabs value={detailTab} onValueChange={setDetailTab} className="flex-1 overflow-hidden flex flex-col">
+                <TabsList className="grid w-full grid-cols-3 shrink-0">
+                  <TabsTrigger value="profile" className="gap-1.5">
+                    <Users className="h-4 w-4" />
+                    プロフィール
+                  </TabsTrigger>
+                  <TabsTrigger value="tasks" className="gap-1.5">
+                    <ClipboardList className="h-4 w-4" />
+                    タスク履歴
+                  </TabsTrigger>
+                  <TabsTrigger value="reports" className="gap-1.5">
+                    <BookOpen className="h-4 w-4" />
+                    日報履歴
+                  </TabsTrigger>
+                </TabsList>
+
+                <div className="flex-1 overflow-y-auto mt-4">
+                  <TabsContent value="profile" className="mt-0 space-y-4">
+                    {/* Contact Info */}
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-medium">連絡先情報</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <div className="flex items-center gap-3 text-sm">
+                          <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <span>{selectedStaff.email}</span>
+                        </div>
+                        {selectedStaff.phone && (
+                          <div className="flex items-center gap-3 text-sm">
+                            <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span>{selectedStaff.phone}</span>
+                          </div>
+                        )}
+                        {selectedStaff.lineId && (
+                          <div className="flex items-center gap-3 text-sm">
+                            <MessageCircle className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span>LINE: {selectedStaff.lineId}</span>
+                          </div>
+                        )}
+                        {selectedStaff.country && (
+                          <div className="flex items-center gap-3 text-sm">
+                            <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span>{selectedStaff.country}</span>
+                          </div>
+                        )}
+                        {selectedStaff.emergencyContact && (
+                          <div className="flex items-center gap-3 text-sm">
+                            <AlertCircle className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span>緊急連絡先: {selectedStaff.emergencyContact}</span>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    {/* Employment Info */}
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-medium">雇用情報</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <div className="flex items-center gap-3 text-sm">
+                          <Briefcase className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <span>雇用形態: {EMPLOYMENT_TYPE_LABELS[selectedStaff.employmentType || "fulltime"]}</span>
+                        </div>
+                        {selectedStaff.joinDate && (
+                          <div className="flex items-center gap-3 text-sm">
+                            <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span>入社日: {formatDate(selectedStaff.joinDate)}</span>
+                          </div>
+                        )}
+                        {selectedStaff.birthDate && (
+                          <div className="flex items-center gap-3 text-sm">
+                            <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+                            <span>生年月日: {formatDate(selectedStaff.birthDate)}</span>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    {/* Skills */}
+                    {selectedStaff.skills && selectedStaff.skills.length > 0 && (
+                      <Card>
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-sm font-medium">スキル・資格</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedStaff.skills.map((skill: string, i: number) => (
+                              <Badge key={i} variant="secondary" className="gap-1">
+                                <Tag className="h-3 w-3" /> {skill}
+                              </Badge>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Notes */}
+                    {selectedStaff.notes && (
+                      <Card>
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-sm font-medium">メモ</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-sm whitespace-pre-wrap">{selectedStaff.notes}</p>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Actions */}
+                    <div className="flex justify-between items-center pt-2 border-t">
+                      <p className="text-xs text-muted-foreground">
+                        登録日: {formatDate(selectedStaff.createdAt)}
+                      </p>
+                      <div className="flex gap-2">
+                        {selectedStaff.isActive === "active" ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              updateMutation.mutate({ id: selectedStaff.id, isActive: "inactive" });
+                              setSelectedStaff({ ...selectedStaff, isActive: "inactive" });
+                            }}
+                          >
+                            退職処理
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              updateMutation.mutate({ id: selectedStaff.id, isActive: "active" });
+                              setSelectedStaff({ ...selectedStaff, isActive: "active" });
+                            }}
+                          >
+                            復職処理
+                          </Button>
+                        )}
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="destructive" size="sm">
+                              <Trash2 className="h-4 w-4 mr-1" /> 削除
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>スタッフを削除しますか？</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                この操作は取り消せません。{selectedStaff.name}さんの全情報が完全に削除されます。
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => deleteMutation.mutate({ id: selectedStaff.id })}>
+                                削除
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="tasks" className="mt-0">
+                    <TaskHistoryTab staffId={selectedStaff.id} />
+                  </TabsContent>
+
+                  <TabsContent value="reports" className="mt-0">
+                    <ReportHistoryTab staffId={selectedStaff.id} />
+                  </TabsContent>
+                </div>
+              </Tabs>
             </>
           ) : selectedStaff && isEditMode ? (
             <>
