@@ -4433,3 +4433,8 @@
 - [x] 空状態メッセージを「LINEで送信」から「上のボタンからアップロード」に変更
 - [x] Upload/ExternalLinkアイコンを追加
 - [x] Vitestテストの作成（6テスト全パス）
+
+## バグ修正：LINEマイページからレシートアップロードページに遷移すると再ログインを求められる
+- [x] ReceiptUploadページの認証ロジックを調査（/receipt-uploadがisLcjMallPageに含まれていなかった）
+- [x] LINEログイン済みユーザーがそのまま利用できるように修正（main.tsxのisLcjMallPageに/receipt-uploadと/point-requestを追加）
+- [x] テストと動作確認（6テスト全パス）
