@@ -634,6 +634,7 @@ export const lineLoginRouter = router({
   me: publicProcedure.query(async ({ ctx }) => {
     // Try to get session from cookie first
     let sessionCookie = ctx.req.cookies?.line_session;
+    let sessionSource: 'cookie' | 'header' = 'cookie';
     
     // If no cookie, try Authorization header (for localStorage fallback)
     if (!sessionCookie) {
@@ -642,6 +643,7 @@ export const lineLoginRouter = router({
         try {
           const token = authHeader.substring(7);
           sessionCookie = Buffer.from(token, 'base64').toString('utf-8');
+          sessionSource = 'header';
         } catch {
           return null;
         }
@@ -674,6 +676,11 @@ export const lineLoginRouter = router({
       // Get point balance
       const pointBalance = lineUser.lineUserId ? await getLinePointBalance(lineUser.lineUserId) : null;
       
+      // Generate sessionToken for localStorage sync
+      // This ensures that even if the user logged in via cookie,
+      // the frontend can save the token to localStorage for cross-page navigation
+      const sessionToken = Buffer.from(JSON.stringify(session)).toString('base64');
+      
       return {
         lineUserId: lineUser.lineUserId || `email_${lineUser.id}`,
         displayName: lineUser.displayName,
@@ -681,6 +688,7 @@ export const lineLoginRouter = router({
         email: lineUser.email,
         points: pointBalance?.balance || 0,
         lifetimePoints: pointBalance?.totalEarned || 0,
+        sessionToken, // Always return session token for localStorage sync
       };
     } catch {
       return null;

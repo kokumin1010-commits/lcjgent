@@ -59,6 +59,13 @@ export default function ReceiptUpload() {
     { enabled: tokenRestored }
   );
 
+  // セッショントークンをlocalStorageに自動保存（永久ログイン対応）
+  useEffect(() => {
+    if (user?.sessionToken) {
+      localStorage.setItem('lcj_session_token', user.sessionToken);
+    }
+  }, [user?.sessionToken]);
+
   const submitMutation = trpc.lineLogin.submitWebReceipt.useMutation({
     onSuccess: (data) => {
       setAnalysisResult(data as AnalysisResult);

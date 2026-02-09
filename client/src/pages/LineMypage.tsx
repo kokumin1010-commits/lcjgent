@@ -17,6 +17,16 @@ export default function LineMypage() {
   const [historyFilter, setHistoryFilter] = useState<"all" | "earn" | "use">("all");
   
   const { data: user, isLoading: userLoading } = trpc.lineLogin.me.useQuery();
+  
+  // セッショントークンをlocalStorageに自動保存（永久ログイン対応）
+  // cookieでログインできている場合でも、localStorageにトークンを保存しておくことで
+  // /receipt-uploadなど他ページに遷移した際にも認証が通るようにする
+  useEffect(() => {
+    if (user?.sessionToken) {
+      localStorage.setItem('lcj_session_token', user.sessionToken);
+    }
+  }, [user?.sessionToken]);
+  
   const { data: pointsData, isLoading: pointsLoading } = trpc.lineLogin.getMyPoints.useQuery(undefined, {
     enabled: !!user,
   });

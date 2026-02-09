@@ -4443,3 +4443,11 @@
 - [x] cookie/localStorage/認証フロー全体を深掘り調査（LINEアプリ内ブラウザ→外部ブラウザ遷移でcookie/localStorageが共有されないのが根本原因）
 - [x] ReceiptUploadページの認証を拜本的に修正（URLパラメータでトークンを引き継ぎ、localStorageに復元）
 - [x] テストと動作確認（16テスト全パス）
+
+## 永久ログイン機能（LINEログイン済みユーザーのセッション永続化）
+- [x] 現在のLINEセッション管理を調査（cookie有効期限は既に10年、セッションも同様）
+- [x] lineLogin.meのレスポンスにsessionTokenを追加（cookieで認証成功時もトークンを返す）
+- [x] LineMypage.tsxでsessionTokenをlocalStorageに自動保存（ページ表示時に自動同期）
+- [x] ReceiptUpload.tsxでもsessionTokenをlocalStorageに自動保存
+- [x] /receipt-uploadや/point-requestでもlocalStorageトークンで認証が通るように統一
+- [x] テストと動作確認（11テスト全パス）
