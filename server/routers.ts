@@ -1153,6 +1153,290 @@ export const lineLoginRouter = router({
       expiresAt: activeCode.expiresAt.toISOString(),
     };
   }),
+
+  // ==========================================
+  // Web Receipt Upload (Webフォームからのレシートアップロード)
+  // ==========================================
+
+  // Submit receipt via Web form (uses S3 URL instead of Base64 for better LLM analysis)
+  submitWebReceipt: publicProcedure
+    .input(z.object({
+      images: z.array(z.object({
+        base64: z.string(),
+        mimeType: z.string(),
+        fileName: z.string().optional(),
+      })).min(1).max(5),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const result = await getLineUserFromSession(ctx);
+      if (!result || !result.lineUser) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "ログインが必要です",
+        });
+      }
+      
+      const { lineUser } = result;
+      const lineUserId = lineUser.lineUserId || `email_${lineUser.id}`;
+      
+      try {
+        const crypto = await import("crypto");
+        
+        // Upload all images to S3 and collect URLs
+        const uploadedImages: { url: string; key: string; hash: string }[] = [];
+        
+        for (const img of input.images) {
+          const buffer = Buffer.from(img.base64, "base64");
+          
+          // Check file size (max 10MB)
+          if (buffer.length > 10 * 1024 * 1024) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "画像サイズが大きすぎます（最大10MB）",
+            });
+          }
+          
+          const imageHash = crypto.createHash("sha256").update(buffer).digest("hex");
+          
+          // Check duplicate by hash
+          const { checkDuplicateLineReceiptByHash } = await import("./db");
+          const duplicate = await checkDuplicateLineReceiptByHash(imageHash);
+          if (duplicate) {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "この画像は既に登録されています。別のレシートをアップロードしてください。",
+            });
+          }
+          
+          const ext = img.mimeType.includes("png") ? "png" : "jpg";
+          const timestamp = Date.now();
+          const fileKey = `web-receipts/${lineUserId}/${timestamp}-${nanoid(8)}.${ext}`;
+          const { url } = await storagePut(fileKey, buffer, img.mimeType);
+          
+          uploadedImages.push({ url, key: fileKey, hash: imageHash });
+        }
+        
+        // Create receipt record
+        const { createLineReceipt } = await import("./db");
+        const receiptId = await createLineReceipt({
+          lineUserId,
+          lineMessageId: `web_${nanoid(16)}`,
+          imageUrl: uploadedImages[0].url,
+          imageKey: uploadedImages[0].key,
+          imageHash: uploadedImages[0].hash,
+          imageUrls: uploadedImages.map(i => i.url),
+          imageKeys: uploadedImages.map(i => i.key),
+          status: "pending",
+        });
+        
+        // Run AI analysis using S3 URLs (not Base64 - much better success rate)
+        const imageContents: any[] = [];
+        for (const img of uploadedImages) {
+          imageContents.push({
+            type: "image_url",
+            image_url: {
+              url: img.url,
+              detail: "high",
+            },
+          });
+        }
+        imageContents.push({
+          type: "text",
+          text: `これらの${uploadedImages.length}枚の画像はTikTok Shopの注文詳細画面のスクリーンショットです。\nすべての画像を統合して、以下の情報を抽出してください。\n情報が複数の画像に分散している場合は、すべての画像から情報を収集してください。`,
+        });
+        
+        const ocrResult = await invokeLLM({
+          messages: [
+            {
+              role: "system",
+              content: `あなたはTikTok Shopの注文詳細画面のスクリーンショットを解析するAIです。
+複数の画像が送信された場合、すべての画像を統合して情報を抽出してください。
+
+以下の情報を抽出してJSON形式で返してください：
+
+{
+  "isTikTokShop": true/false,
+  "isDelivered": true/false,
+  "orderNumber": "string",
+  "totalAmount": number,
+  "orderDate": "string",
+  "shopName": "string",
+  "productName": "string"
+}
+
+【配達済みの判定基準】
+以下のいずれかが確認できれば isDelivered = true としてください：
+- 「配達済み」という文字
+- 「X月X日に配達」（例：「1月28日に配達」）
+- 「お荷物が最終目的地に到着しました」
+- 「已签收」「Delivered」
+- 配達ステータスのプログレスバーで最後のステップが完了している
+
+【重要】
+- 抽出できない項目はnullを返してください
+- 必ずJSON形式のみで回答してください（説明文は不要）
+- 複数画像から情報を統合してください`,
+            },
+            {
+              role: "user",
+              content: imageContents,
+            },
+          ],
+        });
+        
+        const messageContent = ocrResult.choices[0].message.content;
+        let ocrData: any;
+        try {
+          let jsonStr = typeof messageContent === "string" ? messageContent : "{}";
+          if (jsonStr.includes("```json")) {
+            jsonStr = jsonStr.replace(/```json\s*/g, "").replace(/```\s*/g, "");
+          } else if (jsonStr.includes("```")) {
+            jsonStr = jsonStr.replace(/```\s*/g, "");
+          }
+          jsonStr = jsonStr.trim();
+          ocrData = JSON.parse(jsonStr);
+        } catch (parseError: any) {
+          // AI analysis failed - return partial result
+          return {
+            receiptId,
+            status: "analysis_failed" as const,
+            message: "画像の解析に失敗しました。画像が鮮明であることを確認して、再度お試しください。",
+            imageUrls: uploadedImages.map(i => i.url),
+          };
+        }
+        
+        // Validate TikTok Shop
+        if (!ocrData.isTikTokShop) {
+          const { deleteLineReceipt } = await import("./db");
+          await deleteLineReceipt(receiptId);
+          return {
+            receiptId: null,
+            status: "not_tiktok" as const,
+            message: "TikTok Shopの注文詳細画面ではないようです。TikTok Shopの注文詳細画面のスクリーンショットをアップロードしてください。",
+            imageUrls: uploadedImages.map(i => i.url),
+          };
+        }
+        
+        // Validate delivery status
+        if (!ocrData.isDelivered) {
+          const { deleteLineReceipt } = await import("./db");
+          await deleteLineReceipt(receiptId);
+          return {
+            receiptId: null,
+            status: "not_delivered" as const,
+            message: "この注文はまだ配達済みになっていません。商品が配達された後に再度申請してください。",
+            ocrData,
+            imageUrls: uploadedImages.map(i => i.url),
+          };
+        }
+        
+        // Validate required fields
+        if (!ocrData.orderNumber || !ocrData.totalAmount) {
+          const { deleteLineReceipt } = await import("./db");
+          await deleteLineReceipt(receiptId);
+          return {
+            receiptId: null,
+            status: "incomplete" as const,
+            message: "注文番号または金額を読み取れませんでした。注文番号と金額が見える画像をアップロードしてください。",
+            ocrData,
+            imageUrls: uploadedImages.map(i => i.url),
+          };
+        }
+        
+        // Calculate points (1% return)
+        const pointsCalculated = Math.floor(ocrData.totalAmount * 0.01);
+        
+        // Update receipt with OCR data
+        const { updateLineReceiptOcr } = await import("./db");
+        await updateLineReceiptOcr(receiptId, {
+          storeName: ocrData.shopName || "TikTok Shop",
+          purchaseDate: ocrData.orderDate ? new Date(ocrData.orderDate) : undefined,
+          totalAmount: ocrData.totalAmount,
+          currency: "JPY",
+          ocrRawText: JSON.stringify(ocrData),
+          pointsCalculated,
+          imageUrls: uploadedImages.map(i => i.url),
+          imageKeys: uploadedImages.map(i => i.key),
+        });
+        
+        // Fraud detection
+        const fraudFlags: string[] = [];
+        let fraudScore = 0;
+        
+        // Check order date expiry (30 days)
+        if (ocrData.orderDate) {
+          const orderDate = new Date(ocrData.orderDate);
+          const daysSinceOrder = (Date.now() - orderDate.getTime()) / (1000 * 60 * 60 * 24);
+          if (daysSinceOrder > 30) {
+            fraudFlags.push("expired_order");
+            fraudScore += 50;
+          }
+        }
+        
+        // Check duplicate order number globally
+        const { checkDuplicateOrderNumberGlobal } = await import("./db");
+        const duplicateOrder = await checkDuplicateOrderNumberGlobal(ocrData.orderNumber, receiptId);
+        if (duplicateOrder) {
+          fraudFlags.push("duplicate_order");
+          fraudScore += 100;
+          
+          const { deleteLineReceipt } = await import("./db");
+          await deleteLineReceipt(receiptId);
+          
+          const isSameUser = duplicateOrder.lineUserId === lineUserId;
+          return {
+            receiptId: null,
+            status: "duplicate" as const,
+            message: isSameUser
+              ? `この注文は既にポイント申請済みです。注文番号: ${ocrData.orderNumber}`
+              : `この注文番号は既に他の方が申請済みです。注文番号: ${ocrData.orderNumber}`,
+            ocrData,
+            imageUrls: uploadedImages.map(i => i.url),
+          };
+        }
+        
+        // Check high amount
+        if (ocrData.totalAmount > 50000) {
+          fraudFlags.push("high_amount");
+          fraudScore += 20;
+        }
+        
+        // Update fraud flags
+        if (fraudFlags.length > 0) {
+          const { updateLineReceiptFraudFlags, updateLineReceiptStatus } = await import("./db");
+          await updateLineReceiptFraudFlags(receiptId, fraudFlags, fraudScore);
+          
+          if (fraudScore >= 50) {
+            await updateLineReceiptStatus(receiptId, "on_hold", 0, "自動保留: 不正検知スコアが高いため");
+          }
+        }
+        
+        return {
+          receiptId,
+          status: fraudScore >= 50 ? "on_hold" as const : "success" as const,
+          message: fraudScore >= 50
+            ? "注文を確認中です。スタッフが確認後、結果をお知らせします。"
+            : "レシートの解析が完了しました！スタッフの確認後、ポイントが付与されます。",
+          ocrData: {
+            orderNumber: ocrData.orderNumber,
+            shopName: ocrData.shopName || "TikTok Shop",
+            productName: ocrData.productName,
+            totalAmount: ocrData.totalAmount,
+            orderDate: ocrData.orderDate,
+          },
+          pointsCalculated,
+          imageUrls: uploadedImages.map(i => i.url),
+          fraudFlags: fraudFlags.length > 0 ? fraudFlags : undefined,
+        };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        console.error("[Web Receipt] Error:", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "レシートの処理中にエラーが発生しました。しばらくしてからもう一度お試しください。",
+        });
+      }
+    }),
 });
 
 export const appRouter = router({

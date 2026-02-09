@@ -732,12 +732,14 @@ export async function processReceiptImageMessage(event: LineWebhookEvent): Promi
     
     console.log(`[LINE Agent] Added image to session, total images: ${session.images.length}`);
     
-    // If this is the first image, send initial response and photo guide
+      // If this is the first image, send initial response and photo guide
     if (session.images.length === 1) {
-      // Send initial response
+      // Send initial response with Web form recommendation
+      const appUrl = process.env.APP_URL || 'https://lcjmall.com';
+      const receiptUploadUrl = `${appUrl}/receipt-upload`;
       if (event.replyToken) {
         await replyMessage(event.replyToken, [
-          { type: "text", text: "📷 画像を受け付けました！\n\n追加の画像がある場合は10秒以内に送信してください。\n（注文番号と配達ステータスが別々の画面にある場合は、両方のスクリーンショットを送信してください）" },
+          { type: "text", text: `📷 画像を受け付けました！\n\n追加の画像がある場合は10秒以内に送信してください。\n（注文番号と配達ステータスが別々の画面にある場合は、両方のスクリーンショットを送信してください）\n\n💡 より高い成功率で申請するには、Webフォームがおすすめです👇\n${receiptUploadUrl}` },
         ]);
       }
       

@@ -70,6 +70,7 @@ import LiverDetailNew from "./pages/LiverDetailNew";
 import Simulator from "./pages/Simulator";
 import ProposalPage from "./pages/ProposalPage";
 import HRManagement from "./pages/HRManagement";
+import ReceiptUpload from "./pages/ReceiptUpload";
 
 function Router() {
   return (
@@ -84,6 +85,7 @@ function Router() {
       <Route path="/mall/products" component={MallProducts} />
       <Route path="/mall/products/:id" component={MallProductDetail} />
       <Route path="/point-request" component={PointRequest} />
+      <Route path="/receipt-upload" component={ReceiptUpload} />
       <Route path="/master/point-requests">
         <DashboardLayout>
           <PointRequestAdmin />
