@@ -9935,3 +9935,108 @@ export async function getSimulationFeedbackHistory(limit = 100) {
     .orderBy(desc(simulationFeedback.createdAt))
     .limit(limit);
 }
+
+
+// ============================================
+// HR Integration: reportStaff + staff unified view
+// ============================================
+
+/**
+ * Get all report staff with their linked staff data for HR unified view
+ */
+export async function getAllReportStaffWithLinkedStaff() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db
+    .select({
+      reportStaff: reportStaff,
+      linkedStaff: staff,
+    })
+    .from(reportStaff)
+    .leftJoin(staff, eq(reportStaff.linkedStaffId, staff.id))
+    .orderBy(reportStaff.name);
+}
+
+/**
+ * Auto-link reportStaff to staff by matching names
+ * Returns the number of newly linked records
+ */
+export async function autoLinkReportStaffToStaff() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Get all unlinked reportStaff
+  const unlinkedReportStaff = await db.select().from(reportStaff)
+    .where(sql`${reportStaff.linkedStaffId} IS NULL`);
+
+  // Get all staff
+  const allStaff = await db.select().from(staff);
+
+  let linkedCount = 0;
+
+  for (const rs of unlinkedReportStaff) {
+    // Try to find matching staff by name (case-insensitive, trimmed)
+    const rsNameLower = rs.name.trim().toLowerCase();
+    const matchingStaff = allStaff.find(s => 
+      s.name.trim().toLowerCase() === rsNameLower ||
+      (s.nameEn && s.nameEn.trim().toLowerCase() === rsNameLower)
+    );
+
+    if (matchingStaff) {
+      await db.update(reportStaff)
+        .set({ linkedStaffId: matchingStaff.id })
+        .where(eq(reportStaff.id, rs.id));
+      linkedCount++;
+    }
+  }
+
+  return linkedCount;
+}
+
+/**
+ * Create a staff record from reportStaff data and link them
+ */
+export async function createStaffFromReportStaff(reportStaffId: number, additionalData?: Partial<InsertStaff>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Get the reportStaff record
+  const rs = await db.select().from(reportStaff).where(eq(reportStaff.id, reportStaffId)).limit(1);
+  if (rs.length === 0) throw new Error("Report staff not found");
+
+  const reportStaffRecord = rs[0];
+
+  // Create staff record
+  const staffData: InsertStaff = {
+    name: reportStaffRecord.name,
+    email: additionalData?.email || `${reportStaffRecord.name.toLowerCase().replace(/\s+/g, '.')}@lcj.placeholder`,
+    country: reportStaffRecord.country,
+    ...additionalData,
+  };
+
+  const result = await db.insert(staff).values(staffData);
+  const insertedId = result[0].insertId;
+
+  // Link reportStaff to the new staff record
+  await db.update(reportStaff)
+    .set({ linkedStaffId: insertedId })
+    .where(eq(reportStaff.id, reportStaffId));
+
+  return insertedId;
+}
+
+/**
+ * Get report count for a reportStaff member
+ */
+export async function getReportCountByReportStaffId(reportStaffId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.select({ count: sql<number>`count(*)` })
+    .from(reports)
+    .where(eq(reports.reportStaffId, reportStaffId));
+
+  return result[0]?.count || 0;
+}
+

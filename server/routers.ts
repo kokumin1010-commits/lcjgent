@@ -71,6 +71,11 @@ import {
   getReportStaffByCountry,
   getReportsByLinkedStaffId,
   getReportStaffByLinkedStaffId,
+  getAllReportStaffWithLinkedStaff,
+  autoLinkReportStaffToStaff,
+  createStaffFromReportStaff,
+  getReportCountByReportStaffId,
+  getReportsByReportStaffId,
   createBrandLivestream,
   getLivestreamsByBrandId,
   updateBrandLivestream,
@@ -1374,6 +1379,44 @@ export const appRouter = router({
       .input(z.object({ staffId: z.number() }))
       .query(async ({ input }) => {
         return await getReportStaffByLinkedStaffId(input.staffId);
+      }),
+
+    // HR: Get all reportStaff with linked staff data for unified view
+    listReportStaffUnified: protectedProcedure.query(async () => {
+      return await getAllReportStaffWithLinkedStaff();
+    }),
+
+    // HR: Auto-link reportStaff to staff by name matching
+    autoLinkReportStaff: protectedProcedure.mutation(async () => {
+      const linkedCount = await autoLinkReportStaffToStaff();
+      return { linkedCount };
+    }),
+
+    // HR: Create staff record from reportStaff and link them
+    createFromReportStaff: protectedProcedure
+      .input(z.object({
+        reportStaffId: z.number(),
+        email: z.string().optional(),
+        phone: z.string().optional(),
+        department: z.string().optional(),
+        position: z.string().optional(),
+        employmentType: z.enum(["fulltime", "parttime", "contract", "intern"]).optional(),
+        joinDate: z.string().optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { reportStaffId, joinDate, ...rest } = input;
+        const additionalData: any = { ...rest };
+        if (joinDate) additionalData.joinDate = new Date(joinDate);
+        const staffId = await createStaffFromReportStaff(reportStaffId, additionalData);
+        return { staffId };
+      }),
+
+    // HR: Get reports by reportStaffId directly
+    getReportsByReportStaffId: protectedProcedure
+      .input(z.object({ reportStaffId: z.number() }))
+      .query(async ({ input }) => {
+        return await getReportsByReportStaffId(input.reportStaffId);
       }),
   }),
 

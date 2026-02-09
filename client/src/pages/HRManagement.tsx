@@ -34,14 +34,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import StaffCard from "@/components/StaffCard";
-import type { StaffCardData } from "@/components/StaffCard";
 import {
   Loader2, Plus, Search, Users, Building2, Globe, Briefcase,
   LayoutGrid, List, X, Upload, Mail, Phone, MapPin, Calendar,
   Tag, MessageCircle, AlertCircle, FileText, Trash2, Edit, UserPlus,
   ChevronLeft, Camera, ClipboardList, BookOpen, CheckCircle2, Clock,
-  AlertTriangle, CircleDot
+  AlertTriangle, CircleDot, Link2, Link2Off, RefreshCw, UserRoundCog
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -142,6 +140,36 @@ function formatShortDate(date: Date | string | null | undefined): string {
   return d.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" });
 }
 
+// ============================================
+// Unified Staff Item type (merging reportStaff + staff)
+// ============================================
+interface UnifiedStaffItem {
+  // reportStaff data
+  reportStaffId: number;
+  reportStaffName: string;
+  reportStaffCountry: string;
+  reportStaffIsActive: string;
+  // linked staff data (if exists)
+  staffId: number | null;
+  staffName: string | null;
+  staffEmail: string | null;
+  staffPhone: string | null;
+  staffDepartment: string | null;
+  staffPosition: string | null;
+  staffCountry: string | null;
+  staffAvatarUrl: string | null;
+  staffJoinDate: Date | string | null;
+  staffBirthDate: Date | string | null;
+  staffSkills: string[] | null;
+  staffLineId: string | null;
+  staffEmergencyContact: string | null;
+  staffNotes: string | null;
+  staffEmploymentType: string | null;
+  staffIsActive: string | null;
+  staffNameEn: string | null;
+  isLinked: boolean;
+}
+
 // Task History Tab Component
 function TaskHistoryTab({ staffId }: { staffId: number }) {
   const { data: tasks, isLoading } = trpc.staff.getTaskHistory.useQuery({ staffId });
@@ -204,50 +232,38 @@ function TaskHistoryTab({ staffId }: { staffId: number }) {
       ) : (
         <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
           {tasks.map((task) => {
-            const statusCfg = STATUS_CONFIG[task.status] || STATUS_CONFIG.pending;
-            const StatusIcon = statusCfg.icon;
-            const isOverdue = task.status === "in_progress" && task.deadline && new Date(task.deadline) < new Date();
+            const config = STATUS_CONFIG[task.status] || STATUS_CONFIG.pending;
+            const StatusIcon = config.icon;
             return (
               <div key={task.id} className="rounded-lg border p-3 hover:bg-accent/50 transition-colors">
                 <div className="flex items-start gap-3">
-                  <StatusIcon className={`h-4 w-4 mt-0.5 shrink-0 ${
-                    task.status === "completed" ? "text-emerald-500" :
-                    task.status === "in_progress" ? "text-blue-500" :
-                    task.status === "cancelled" ? "text-gray-400" : "text-yellow-500"
-                  }`} />
+                  <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${config.color}`}>
+                    <StatusIcon className="h-4 w-4" />
+                  </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Badge className={`text-xs ${statusCfg.color}`}>{statusCfg.label}</Badge>
-                      {isOverdue && (
-                        <Badge variant="destructive" className="text-xs gap-1">
-                          <AlertTriangle className="h-3 w-3" /> 期限超過
-                        </Badge>
-                      )}
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium truncate">{task.taskId}</span>
+                      <Badge variant="outline" className={`text-xs shrink-0 ${config.color}`}>
+                        {config.label}
+                      </Badge>
                     </div>
-                    <p className="text-sm mt-1 line-clamp-2">{task.taskDetail}</p>
-                    <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        開始: {formatShortDate(new Date(task.startDate))}
-                      </span>
+                    {task.taskDetail && (
+                      <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{task.taskDetail}</p>
+                    )}
+                    <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
                       {task.deadline && (
-                        <span className={`flex items-center gap-1 ${isOverdue ? "text-red-500 font-medium" : ""}`}>
+                        <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
                           期限: {formatShortDate(task.deadline)}
                         </span>
                       )}
                       {task.completedAt && (
-                        <span className="flex items-center gap-1 text-emerald-600">
-                          <CheckCircle2 className="h-3 w-3" />
-                          完了: {formatShortDate(new Date(task.completedAt))}
+                        <span className="flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                          完了: {formatShortDate(typeof task.completedAt === 'number' ? new Date(task.completedAt) : task.completedAt)}
                         </span>
                       )}
                     </div>
-                    {task.notes && (
-                      <p className="text-xs text-muted-foreground mt-1 line-clamp-1 italic">
-                        メモ: {task.notes}
-                      </p>
-                    )}
                   </div>
                 </div>
               </div>
@@ -259,10 +275,9 @@ function TaskHistoryTab({ staffId }: { staffId: number }) {
   );
 }
 
-// Report History Tab Component
-function ReportHistoryTab({ staffId }: { staffId: number }) {
-  const { data: reports, isLoading } = trpc.staff.getReportHistory.useQuery({ staffId });
-  const { data: linkedStaff } = trpc.staff.getLinkedReportStaff.useQuery({ staffId });
+// Report History Tab Component - uses reportStaffId directly
+function ReportHistoryTab({ reportStaffId, staffId }: { reportStaffId: number; staffId: number | null }) {
+  const { data: reports, isLoading } = trpc.staff.getReportsByReportStaffId.useQuery({ reportStaffId });
 
   if (isLoading) {
     return (
@@ -274,21 +289,6 @@ function ReportHistoryTab({ staffId }: { staffId: number }) {
 
   return (
     <div className="space-y-4">
-      {/* Linked Report Staff Info */}
-      {linkedStaff && linkedStaff.length > 0 && (
-        <div className="rounded-lg border bg-muted/30 p-3">
-          <p className="text-xs text-muted-foreground mb-1">日報システム連携</p>
-          <div className="flex flex-wrap gap-2">
-            {linkedStaff.map((rs) => (
-              <Badge key={rs.id} variant="outline" className="gap-1">
-                <BookOpen className="h-3 w-3" />
-                {rs.name} ({rs.country})
-              </Badge>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Report Summary */}
       {reports && reports.length > 0 && (
         <div className="rounded-lg border p-3 text-center">
@@ -301,87 +301,99 @@ function ReportHistoryTab({ staffId }: { staffId: number }) {
       {!reports || reports.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-8 text-center">
           <BookOpen className="h-10 w-10 text-muted-foreground/30 mb-3" />
-          <p className="text-sm text-muted-foreground">
-            {linkedStaff && linkedStaff.length > 0
-              ? "日報履歴がありません"
-              : "日報システムとの連携が設定されていません"}
-          </p>
-          {(!linkedStaff || linkedStaff.length === 0) && (
-            <p className="text-xs text-muted-foreground mt-1">
-              日報スタッフの「linkedStaffId」にこのスタッフのIDを設定してください
-            </p>
-          )}
+          <p className="text-sm text-muted-foreground">日報履歴がありません</p>
         </div>
       ) : (
         <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
-          {reports.map((report) => (
-            <div key={report.id} className="rounded-lg border p-3 hover:bg-accent/50 transition-colors">
-              <div className="flex items-start gap-3">
-                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                  <FileText className="h-4 w-4 text-primary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
+          {reports.map((report: any) => {
+            const r = report.report || report;
+            return (
+              <div key={r.id} className="rounded-lg border p-3 hover:bg-accent/50 transition-colors">
+                <div className="flex items-start gap-3">
+                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <FileText className="h-4 w-4 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
                     <span className="text-sm font-medium flex items-center gap-1">
                       <Calendar className="h-3 w-3 text-muted-foreground" />
-                      {formatDate(report.reportDate)}
+                      {formatDate(r.reportDate)}
                     </span>
-                    {report.reportStaffName && (
-                      <Badge variant="outline" className="text-xs">{report.reportStaffName}</Badge>
-                    )}
-                  </div>
-                  <div className="mt-2 space-y-1.5">
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground">業務内容</p>
-                      <p className="text-sm line-clamp-3 whitespace-pre-wrap">{report.workContent}</p>
+                    <div className="mt-2 space-y-1.5">
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground">業務内容</p>
+                        <p className="text-sm line-clamp-3 whitespace-pre-wrap">{r.workContent}</p>
+                      </div>
+                      {r.issues && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">気付き・問題</p>
+                          <p className="text-sm line-clamp-2 whitespace-pre-wrap text-amber-700 dark:text-amber-400">{r.issues}</p>
+                        </div>
+                      )}
+                      {r.remarks && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">備考</p>
+                          <p className="text-sm line-clamp-2 whitespace-pre-wrap text-muted-foreground">{r.remarks}</p>
+                        </div>
+                      )}
                     </div>
-                    {report.issues && (
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground">気付き・問題</p>
-                        <p className="text-sm line-clamp-2 whitespace-pre-wrap text-amber-700 dark:text-amber-400">{report.issues}</p>
-                      </div>
-                    )}
-                    {report.remarks && (
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground">備考</p>
-                        <p className="text-sm line-clamp-2 whitespace-pre-wrap text-muted-foreground">{report.remarks}</p>
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
 
+// ============================================
+// Main HR Management Component
+// ============================================
 export default function HRManagement() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchQuery, setSearchQuery] = useState("");
-  const [departmentFilter, setDepartmentFilter] = useState("all");
   const [countryFilter, setCountryFilter] = useState("all");
-  const [employmentFilter, setEmploymentFilter] = useState("all");
+  const [linkFilter, setLinkFilter] = useState("all"); // all, linked, unlinked
   const [statusFilter, setStatusFilter] = useState("active");
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [selectedStaff, setSelectedStaff] = useState<any>(null);
+  const [selectedItem, setSelectedItem] = useState<UnifiedStaffItem | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [formData, setFormData] = useState<StaffFormData>({ ...emptyFormData });
   const [newSkill, setNewSkill] = useState("");
   const [detailTab, setDetailTab] = useState("profile");
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const utils = trpc.useUtils();
-  const { data: staffList, isLoading } = trpc.staff.list.useQuery();
+
+  // Fetch reportStaff unified data (reportStaff + linked staff)
+  const { data: unifiedData, isLoading } = trpc.staff.listReportStaffUnified.useQuery();
   const { data: stats } = trpc.staff.statistics.useQuery();
+
+  const autoLinkMutation = trpc.staff.autoLinkReportStaff.useMutation({
+    onSuccess: (data) => {
+      toast.success(`${data.linkedCount}件の紐付けを自動実行しました`);
+      utils.staff.listReportStaffUnified.invalidate();
+      utils.staff.statistics.invalidate();
+    },
+    onError: (error) => toast.error("自動紐付けに失敗しました", { description: error.message }),
+  });
+
+  const createFromReportStaffMutation = trpc.staff.createFromReportStaff.useMutation({
+    onSuccess: () => {
+      toast.success("スタッフレコードを作成し紐付けました");
+      utils.staff.listReportStaffUnified.invalidate();
+      utils.staff.statistics.invalidate();
+    },
+    onError: (error) => toast.error("作成に失敗しました", { description: error.message }),
+  });
 
   const createMutation = trpc.staff.create.useMutation({
     onSuccess: () => {
       toast.success("スタッフを登録しました");
       utils.staff.list.invalidate();
+      utils.staff.listReportStaffUnified.invalidate();
       utils.staff.statistics.invalidate();
       setIsCreateDialogOpen(false);
       setFormData({ ...emptyFormData });
@@ -393,75 +405,84 @@ export default function HRManagement() {
     onSuccess: () => {
       toast.success("スタッフ情報を更新しました");
       utils.staff.list.invalidate();
+      utils.staff.listReportStaffUnified.invalidate();
       utils.staff.statistics.invalidate();
       setIsEditMode(false);
-      if (selectedStaff) {
-        const updated = staffList?.find(s => s.id === selectedStaff.id);
-        if (updated) setSelectedStaff(updated);
-      }
     },
     onError: (error) => toast.error("更新に失敗しました", { description: error.message }),
-  });
-
-  const deleteMutation = trpc.staff.delete.useMutation({
-    onSuccess: () => {
-      toast.success("スタッフを削除しました");
-      utils.staff.list.invalidate();
-      utils.staff.statistics.invalidate();
-      setIsDetailOpen(false);
-      setSelectedStaff(null);
-    },
-    onError: (error) => toast.error("削除に失敗しました", { description: error.message }),
   });
 
   const uploadAvatarMutation = trpc.staff.uploadAvatar.useMutation({
     onSuccess: (data) => {
       toast.success("プロフィール写真を更新しました");
       utils.staff.list.invalidate();
-      if (selectedStaff) {
-        setSelectedStaff({ ...selectedStaff, avatarUrl: data.url });
+      utils.staff.listReportStaffUnified.invalidate();
+      if (selectedItem) {
+        setSelectedItem({ ...selectedItem, staffAvatarUrl: data.url });
       }
     },
     onError: (error) => toast.error("写真のアップロードに失敗しました", { description: error.message }),
   });
 
-  // Filtered staff list
+  // Transform unified data into UnifiedStaffItem[]
+  const unifiedStaffList = useMemo<UnifiedStaffItem[]>(() => {
+    if (!unifiedData) return [];
+    return unifiedData.map((item: any) => ({
+      reportStaffId: item.reportStaff.id,
+      reportStaffName: item.reportStaff.name,
+      reportStaffCountry: item.reportStaff.country,
+      reportStaffIsActive: item.reportStaff.isActive,
+      staffId: item.linkedStaff?.id || null,
+      staffName: item.linkedStaff?.name || null,
+      staffEmail: item.linkedStaff?.email || null,
+      staffPhone: item.linkedStaff?.phone || null,
+      staffDepartment: item.linkedStaff?.department || null,
+      staffPosition: item.linkedStaff?.position || null,
+      staffCountry: item.linkedStaff?.country || null,
+      staffAvatarUrl: item.linkedStaff?.avatarUrl || null,
+      staffJoinDate: item.linkedStaff?.joinDate || null,
+      staffBirthDate: item.linkedStaff?.birthDate || null,
+      staffSkills: item.linkedStaff?.skills || null,
+      staffLineId: item.linkedStaff?.lineId || null,
+      staffEmergencyContact: item.linkedStaff?.emergencyContact || null,
+      staffNotes: item.linkedStaff?.notes || null,
+      staffEmploymentType: item.linkedStaff?.employmentType || null,
+      staffIsActive: item.linkedStaff?.isActive || null,
+      staffNameEn: item.linkedStaff?.nameEn || null,
+      isLinked: !!item.linkedStaff,
+    }));
+  }, [unifiedData]);
+
+  // Filter staff
   const filteredStaff = useMemo(() => {
-    if (!staffList) return [];
-    return staffList.filter((s) => {
-      if (statusFilter !== "all" && s.isActive !== statusFilter) return false;
-      if (departmentFilter !== "all" && s.department !== departmentFilter) return false;
-      if (countryFilter !== "all" && s.country !== countryFilter) return false;
-      if (employmentFilter !== "all" && s.employmentType !== employmentFilter) return false;
+    return unifiedStaffList.filter((s) => {
+      if (statusFilter !== "all" && s.reportStaffIsActive !== statusFilter) return false;
+      if (countryFilter !== "all" && s.reportStaffCountry !== countryFilter) return false;
+      if (linkFilter === "linked" && !s.isLinked) return false;
+      if (linkFilter === "unlinked" && s.isLinked) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
         return (
-          s.name.toLowerCase().includes(q) ||
-          (s.nameEn && s.nameEn.toLowerCase().includes(q)) ||
-          s.email.toLowerCase().includes(q) ||
-          (s.department && s.department.toLowerCase().includes(q)) ||
-          (s.position && s.position.toLowerCase().includes(q)) ||
-          (s.skills && s.skills.some((sk: string) => sk.toLowerCase().includes(q)))
+          s.reportStaffName.toLowerCase().includes(q) ||
+          (s.staffName && s.staffName.toLowerCase().includes(q)) ||
+          (s.staffNameEn && s.staffNameEn.toLowerCase().includes(q)) ||
+          (s.staffEmail && s.staffEmail.toLowerCase().includes(q)) ||
+          (s.staffDepartment && s.staffDepartment.toLowerCase().includes(q)) ||
+          (s.staffPosition && s.staffPosition.toLowerCase().includes(q))
         );
       }
       return true;
     });
-  }, [staffList, searchQuery, departmentFilter, countryFilter, employmentFilter, statusFilter]);
+  }, [unifiedStaffList, searchQuery, countryFilter, linkFilter, statusFilter]);
 
-  const uniqueDepartments = useMemo(() => {
-    if (!staffList) return [];
-    const depts = new Set(staffList.map(s => s.department).filter(Boolean));
-    return Array.from(depts).sort();
-  }, [staffList]);
+  const linkedCount = useMemo(() => unifiedStaffList.filter(s => s.isLinked).length, [unifiedStaffList]);
+  const unlinkedCount = useMemo(() => unifiedStaffList.filter(s => !s.isLinked).length, [unifiedStaffList]);
 
-  const handleStaffClick = (staff: StaffCardData) => {
-    const fullStaff = staffList?.find(s => s.id === staff.id);
-    if (fullStaff) {
-      setSelectedStaff(fullStaff);
-      setIsDetailOpen(true);
-      setIsEditMode(false);
-      setDetailTab("profile");
-    }
+  const handleStaffClick = (item: UnifiedStaffItem) => {
+    setSelectedItem(item);
+    setIsDetailOpen(true);
+    setIsEditMode(false);
+    setDetailTab("profile");
   };
 
   const handleCreate = () => {
@@ -488,9 +509,9 @@ export default function HRManagement() {
   };
 
   const handleUpdate = () => {
-    if (!selectedStaff) return;
+    if (!selectedItem?.staffId) return;
     updateMutation.mutate({
-      id: selectedStaff.id,
+      id: selectedItem.staffId,
       name: formData.name || undefined,
       nameEn: formData.nameEn || undefined,
       email: formData.email || undefined,
@@ -505,27 +526,27 @@ export default function HRManagement() {
       emergencyContact: formData.emergencyContact || undefined,
       notes: formData.notes || undefined,
       employmentType: (formData.employmentType as any) || undefined,
-      isActive: selectedStaff.isActive,
+      isActive: (selectedItem.staffIsActive as "active" | "inactive") || "active",
     });
   };
 
   const openEditMode = () => {
-    if (!selectedStaff) return;
+    if (!selectedItem) return;
     setFormData({
-      name: selectedStaff.name || "",
-      nameEn: selectedStaff.nameEn || "",
-      email: selectedStaff.email || "",
-      phone: selectedStaff.phone || "",
-      department: selectedStaff.department || "",
-      position: selectedStaff.position || "",
-      country: selectedStaff.country || "日本",
-      joinDate: selectedStaff.joinDate ? new Date(selectedStaff.joinDate).toISOString().split("T")[0] : "",
-      birthDate: selectedStaff.birthDate ? new Date(selectedStaff.birthDate).toISOString().split("T")[0] : "",
-      skills: selectedStaff.skills || [],
-      lineId: selectedStaff.lineId || "",
-      emergencyContact: selectedStaff.emergencyContact || "",
-      notes: selectedStaff.notes || "",
-      employmentType: selectedStaff.employmentType || "fulltime",
+      name: selectedItem.staffName || selectedItem.reportStaffName || "",
+      nameEn: selectedItem.staffNameEn || "",
+      email: selectedItem.staffEmail || "",
+      phone: selectedItem.staffPhone || "",
+      department: selectedItem.staffDepartment || "",
+      position: selectedItem.staffPosition || "",
+      country: selectedItem.staffCountry || selectedItem.reportStaffCountry || "日本",
+      joinDate: selectedItem.staffJoinDate ? new Date(selectedItem.staffJoinDate as string).toISOString().split("T")[0] : "",
+      birthDate: selectedItem.staffBirthDate ? new Date(selectedItem.staffBirthDate as string).toISOString().split("T")[0] : "",
+      skills: selectedItem.staffSkills || [],
+      lineId: selectedItem.staffLineId || "",
+      emergencyContact: selectedItem.staffEmergencyContact || "",
+      notes: selectedItem.staffNotes || "",
+      employmentType: selectedItem.staffEmploymentType || "fulltime",
     });
     setIsEditMode(true);
   };
@@ -543,7 +564,7 @@ export default function HRManagement() {
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !selectedStaff) return;
+    if (!file || !selectedItem?.staffId) return;
     if (file.size > 5 * 1024 * 1024) {
       toast.error("ファイルサイズは5MB以下にしてください");
       return;
@@ -552,7 +573,7 @@ export default function HRManagement() {
     reader.onload = () => {
       const base64 = (reader.result as string).split(",")[1];
       uploadAvatarMutation.mutate({
-        staffId: selectedStaff.id,
+        staffId: selectedItem.staffId!,
         base64,
         mimeType: file.type,
       });
@@ -680,89 +701,244 @@ export default function HRManagement() {
     </div>
   );
 
+  // ============================================
+  // Staff Card for unified view
+  // ============================================
+  const UnifiedStaffCard = ({ item, compact = false }: { item: UnifiedStaffItem; compact?: boolean }) => {
+    const name = item.staffName || item.reportStaffName;
+    const avatarColor = getAvatarColor(name);
+    const initials = getInitials(name);
+    const isActive = item.reportStaffIsActive === "active";
+
+    if (compact) {
+      return (
+        <Card
+          className={`cursor-pointer transition-all duration-200 hover:shadow-md hover:border-primary/30 ${!isActive ? "opacity-60" : ""}`}
+          onClick={() => handleStaffClick(item)}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <Avatar className="h-10 w-10 shrink-0">
+                <AvatarImage src={item.staffAvatarUrl || undefined} alt={name} />
+                <AvatarFallback className={`${avatarColor} text-white text-sm font-medium`}>
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="font-medium text-sm truncate">{name}</p>
+                  {item.isLinked ? (
+                    <Link2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                  ) : (
+                    <Link2Off className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                  )}
+                  {!isActive && <Badge variant="secondary" className="text-[10px] px-1 py-0">退職</Badge>}
+                </div>
+                <p className="text-xs text-muted-foreground truncate">
+                  {item.staffPosition || item.staffDepartment || item.staffEmail || item.reportStaffCountry}
+                </p>
+              </div>
+              <Badge variant="outline" className="text-[10px] shrink-0">
+                {item.reportStaffCountry}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    return (
+      <Card
+        className={`cursor-pointer transition-all duration-200 hover:shadow-lg hover:border-primary/30 hover:-translate-y-0.5 ${!isActive ? "opacity-60" : ""}`}
+        onClick={() => handleStaffClick(item)}
+      >
+        <CardContent className="p-5">
+          {/* Header */}
+          <div className="flex items-start gap-4 mb-4">
+            <Avatar className="h-14 w-14 shrink-0 ring-2 ring-background shadow-sm">
+              <AvatarImage src={item.staffAvatarUrl || undefined} alt={name} />
+              <AvatarFallback className={`${avatarColor} text-white text-lg font-semibold`}>
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-semibold text-base truncate">{name}</h3>
+                {isActive ? (
+                  <span className="inline-flex items-center h-5 px-1.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-200">
+                    在籍
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center h-5 px-1.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                    退職
+                  </span>
+                )}
+              </div>
+              {item.staffNameEn && (
+                <p className="text-xs text-muted-foreground mt-0.5">{item.staffNameEn}</p>
+              )}
+              {item.staffPosition && (
+                <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
+                  <Briefcase className="h-3 w-3" />
+                  {item.staffPosition}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Info */}
+          <div className="space-y-2 text-sm">
+            {item.staffDepartment && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Building2 className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{item.staffDepartment}</span>
+              </div>
+            )}
+            {item.staffEmail && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Mail className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{item.staffEmail}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <MapPin className="h-3.5 w-3.5 shrink-0" />
+              <span>{item.reportStaffCountry}</span>
+            </div>
+          </div>
+
+          {/* Tags */}
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {item.isLinked ? (
+              <span className="inline-flex items-center gap-1 h-5 px-2 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-200">
+                <Link2 className="h-2.5 w-2.5" /> HR紐付済
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 h-5 px-2 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-200">
+                <Link2Off className="h-2.5 w-2.5" /> 未紐付
+              </span>
+            )}
+            {item.staffEmploymentType && (
+              <span className="inline-flex items-center h-5 px-2 rounded-full text-[10px] font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                {EMPLOYMENT_TYPE_LABELS[item.staffEmploymentType] || item.staffEmploymentType}
+              </span>
+            )}
+            {item.staffSkills && item.staffSkills.length > 0 && (
+              <>
+                {item.staffSkills.slice(0, 2).map((skill, i) => (
+                  <span key={i} className="inline-flex items-center gap-0.5 h-5 px-2 rounded-full text-[10px] font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                    <Tag className="h-2.5 w-2.5" /> {skill}
+                  </span>
+                ))}
+                {item.staffSkills.length > 2 && (
+                  <span className="inline-flex items-center h-5 px-2 rounded-full text-[10px] font-medium bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                    +{item.staffSkills.length - 2}
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Users className="h-7 w-7 text-primary" />
+            <UserRoundCog className="h-7 w-7 text-primary" />
             人事管理（HR）
           </h1>
           <p className="text-muted-foreground mt-1">
-            LCJスタッフの人事情報を管理します
+            日報スタッフを中心にLCJスタッフの人事情報を管理します
           </p>
         </div>
-        <Button onClick={() => { setFormData({ ...emptyFormData }); setIsCreateDialogOpen(true); }}>
-          <UserPlus className="mr-2 h-4 w-4" />
-          スタッフ登録
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => autoLinkMutation.mutate()}
+            disabled={autoLinkMutation.isPending}
+          >
+            {autoLinkMutation.isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 h-4 w-4" />
+            )}
+            自動紐付け
+          </Button>
+          <Button onClick={() => { setFormData({ ...emptyFormData }); setIsCreateDialogOpen(true); }}>
+            <UserPlus className="mr-2 h-4 w-4" />
+            スタッフ登録
+          </Button>
+        </div>
       </div>
 
       {/* Statistics Cards */}
-      {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
-                  <Users className="h-5 w-5 text-blue-600 dark:text-blue-300" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.activeStaff}</p>
-                  <p className="text-xs text-muted-foreground">在籍スタッフ</p>
-                </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                <Users className="h-5 w-5 text-blue-600 dark:text-blue-300" />
               </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center">
-                  <Building2 className="h-5 w-5 text-emerald-600 dark:text-emerald-300" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{Object.keys(stats.departmentBreakdown).length}</p>
-                  <p className="text-xs text-muted-foreground">部署数</p>
-                </div>
+              <div>
+                <p className="text-2xl font-bold">{unifiedStaffList.length}</p>
+                <p className="text-xs text-muted-foreground">全スタッフ</p>
               </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-purple-100 dark:bg-purple-900 flex items-center justify-center">
-                  <Globe className="h-5 w-5 text-purple-600 dark:text-purple-300" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{Object.keys(stats.countryBreakdown).length}</p>
-                  <p className="text-xs text-muted-foreground">国・地域</p>
-                </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center">
+                <Link2 className="h-5 w-5 text-emerald-600 dark:text-emerald-300" />
               </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-amber-100 dark:bg-amber-900 flex items-center justify-center">
-                  <Briefcase className="h-5 w-5 text-amber-600 dark:text-amber-300" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.totalStaff}</p>
-                  <p className="text-xs text-muted-foreground">全スタッフ</p>
-                </div>
+              <div>
+                <p className="text-2xl font-bold">{linkedCount}</p>
+                <p className="text-xs text-muted-foreground">HR紐付済</p>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-amber-100 dark:bg-amber-900 flex items-center justify-center">
+                <Link2Off className="h-5 w-5 text-amber-600 dark:text-amber-300" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{unlinkedCount}</p>
+                <p className="text-xs text-muted-foreground">未紐付</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-purple-100 dark:bg-purple-900 flex items-center justify-center">
+                <Globe className="h-5 w-5 text-purple-600 dark:text-purple-300" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">
+                  {new Set(unifiedStaffList.map(s => s.reportStaffCountry)).size}
+                </p>
+                <p className="text-xs text-muted-foreground">国・地域</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="名前、メール、スキルで検索..."
+            placeholder="名前、メール、部署で検索..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             className="pl-9"
@@ -776,13 +952,6 @@ export default function HRManagement() {
             <SelectItem value="inactive">退職</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-          <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部署</SelectItem>
-            {uniqueDepartments.map(d => <SelectItem key={d} value={d as string}>{d}</SelectItem>)}
-          </SelectContent>
-        </Select>
         <Select value={countryFilter} onValueChange={setCountryFilter}>
           <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -790,11 +959,12 @@ export default function HRManagement() {
             {COUNTRIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Select value={employmentFilter} onValueChange={setEmploymentFilter}>
+        <Select value={linkFilter} onValueChange={setLinkFilter}>
           <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">全雇用形態</SelectItem>
-            {EMPLOYMENT_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+            <SelectItem value="all">全紐付状態</SelectItem>
+            <SelectItem value="linked">紐付済</SelectItem>
+            <SelectItem value="unlinked">未紐付</SelectItem>
           </SelectContent>
         </Select>
         <div className="flex border rounded-md">
@@ -831,14 +1001,14 @@ export default function HRManagement() {
       ) : filteredStaff.length > 0 ? (
         viewMode === "grid" ? (
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {filteredStaff.map(staff => (
-              <StaffCard key={staff.id} staff={staff as any} onClick={handleStaffClick} />
+            {filteredStaff.map(item => (
+              <UnifiedStaffCard key={item.reportStaffId} item={item} />
             ))}
           </div>
         ) : (
           <div className="space-y-2">
-            {filteredStaff.map(staff => (
-              <StaffCard key={staff.id} staff={staff as any} onClick={handleStaffClick} compact />
+            {filteredStaff.map(item => (
+              <UnifiedStaffCard key={item.reportStaffId} item={item} compact />
             ))}
           </div>
         )
@@ -849,12 +1019,6 @@ export default function HRManagement() {
             <p className="text-muted-foreground mb-2">
               {searchQuery ? "検索結果がありません" : "スタッフが登録されていません"}
             </p>
-            {!searchQuery && (
-              <Button onClick={() => { setFormData({ ...emptyFormData }); setIsCreateDialogOpen(true); }}>
-                <UserPlus className="mr-2 h-4 w-4" />
-                最初のスタッフを登録
-              </Button>
-            )}
           </CardContent>
         </Card>
       )}
@@ -882,23 +1046,25 @@ export default function HRManagement() {
       {/* Staff Detail Dialog with Tabs */}
       <Dialog open={isDetailOpen} onOpenChange={(open) => { setIsDetailOpen(open); if (!open) { setIsEditMode(false); setDetailTab("profile"); } }}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
-          {selectedStaff && !isEditMode ? (
+          {selectedItem && !isEditMode ? (
             <>
-              {/* Header - Always visible */}
+              {/* Header */}
               <div className="flex items-start gap-4 pb-4 border-b shrink-0">
                 <div className="relative group">
                   <Avatar className="h-16 w-16 ring-2 ring-background shadow-lg">
-                    <AvatarImage src={selectedStaff.avatarUrl || undefined} alt={selectedStaff.name} />
-                    <AvatarFallback className={`${getAvatarColor(selectedStaff.name)} text-white text-xl font-bold`}>
-                      {getInitials(selectedStaff.name)}
+                    <AvatarImage src={selectedItem.staffAvatarUrl || undefined} alt={selectedItem.reportStaffName} />
+                    <AvatarFallback className={`${getAvatarColor(selectedItem.reportStaffName)} text-white text-xl font-bold`}>
+                      {getInitials(selectedItem.reportStaffName)}
                     </AvatarFallback>
                   </Avatar>
-                  <button
-                    className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
-                    onClick={() => avatarInputRef.current?.click()}
-                  >
-                    <Camera className="h-5 w-5 text-white" />
-                  </button>
+                  {selectedItem.isLinked && (
+                    <button
+                      className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                      onClick={() => avatarInputRef.current?.click()}
+                    >
+                      <Camera className="h-5 w-5 text-white" />
+                    </button>
+                  )}
                   <input
                     ref={avatarInputRef}
                     type="file"
@@ -909,26 +1075,59 @@ export default function HRManagement() {
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-xl font-bold">{selectedStaff.name}</h2>
-                    {selectedStaff.isActive === "active" ? (
+                    <h2 className="text-xl font-bold">{selectedItem.staffName || selectedItem.reportStaffName}</h2>
+                    {selectedItem.reportStaffIsActive === "active" ? (
                       <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">在籍</Badge>
                     ) : (
                       <Badge variant="secondary">退職</Badge>
                     )}
+                    {selectedItem.isLinked ? (
+                      <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 gap-1">
+                        <Link2 className="h-3 w-3" /> HR紐付済
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-amber-600 border-amber-300 gap-1">
+                        <Link2Off className="h-3 w-3" /> 未紐付
+                      </Badge>
+                    )}
                   </div>
-                  {selectedStaff.nameEn && <p className="text-sm text-muted-foreground">{selectedStaff.nameEn}</p>}
+                  {selectedItem.staffNameEn && <p className="text-sm text-muted-foreground">{selectedItem.staffNameEn}</p>}
                   <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-                    {selectedStaff.position && (
-                      <span className="flex items-center gap-1"><Briefcase className="h-3.5 w-3.5" /> {selectedStaff.position}</span>
+                    {selectedItem.staffPosition && (
+                      <span className="flex items-center gap-1"><Briefcase className="h-3.5 w-3.5" /> {selectedItem.staffPosition}</span>
                     )}
-                    {selectedStaff.department && (
-                      <span className="flex items-center gap-1"><Building2 className="h-3.5 w-3.5" /> {selectedStaff.department}</span>
+                    {selectedItem.staffDepartment && (
+                      <span className="flex items-center gap-1"><Building2 className="h-3.5 w-3.5" /> {selectedItem.staffDepartment}</span>
                     )}
+                    <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {selectedItem.reportStaffCountry}</span>
                   </div>
                 </div>
-                <Button variant="outline" size="sm" onClick={openEditMode}>
-                  <Edit className="h-4 w-4 mr-1" /> 編集
-                </Button>
+                <div className="flex gap-2">
+                  {selectedItem.isLinked ? (
+                    <Button variant="outline" size="sm" onClick={openEditMode}>
+                      <Edit className="h-4 w-4 mr-1" /> 編集
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        createFromReportStaffMutation.mutate({
+                          reportStaffId: selectedItem.reportStaffId,
+                          email: `${selectedItem.reportStaffName.toLowerCase().replace(/\s+/g, '.')}@lcj.placeholder`,
+                        });
+                        setIsDetailOpen(false);
+                      }}
+                      disabled={createFromReportStaffMutation.isPending}
+                    >
+                      {createFromReportStaffMutation.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Link2 className="mr-2 h-4 w-4" />
+                      )}
+                      HR紐付け
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {/* Tabs */}
@@ -938,7 +1137,7 @@ export default function HRManagement() {
                     <Users className="h-4 w-4" />
                     プロフィール
                   </TabsTrigger>
-                  <TabsTrigger value="tasks" className="gap-1.5">
+                  <TabsTrigger value="tasks" className="gap-1.5" disabled={!selectedItem.isLinked}>
                     <ClipboardList className="h-4 w-4" />
                     タスク履歴
                   </TabsTrigger>
@@ -950,163 +1149,171 @@ export default function HRManagement() {
 
                 <div className="flex-1 overflow-y-auto mt-4">
                   <TabsContent value="profile" className="mt-0 space-y-4">
-                    {/* Contact Info */}
+                    {/* Report Staff Info */}
                     <Card>
                       <CardHeader className="pb-3">
-                        <CardTitle className="text-sm font-medium">連絡先情報</CardTitle>
+                        <CardTitle className="text-sm font-medium flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          日報スタッフ情報
+                        </CardTitle>
                       </CardHeader>
-                      <CardContent className="space-y-3">
+                      <CardContent className="space-y-2">
                         <div className="flex items-center gap-3 text-sm">
-                          <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-                          <span>{selectedStaff.email}</span>
+                          <span className="text-muted-foreground w-24">日報名:</span>
+                          <span className="font-medium">{selectedItem.reportStaffName}</span>
                         </div>
-                        {selectedStaff.phone && (
-                          <div className="flex items-center gap-3 text-sm">
-                            <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
-                            <span>{selectedStaff.phone}</span>
-                          </div>
-                        )}
-                        {selectedStaff.lineId && (
-                          <div className="flex items-center gap-3 text-sm">
-                            <MessageCircle className="h-4 w-4 text-muted-foreground shrink-0" />
-                            <span>LINE: {selectedStaff.lineId}</span>
-                          </div>
-                        )}
-                        {selectedStaff.country && (
-                          <div className="flex items-center gap-3 text-sm">
-                            <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-                            <span>{selectedStaff.country}</span>
-                          </div>
-                        )}
-                        {selectedStaff.emergencyContact && (
-                          <div className="flex items-center gap-3 text-sm">
-                            <AlertCircle className="h-4 w-4 text-muted-foreground shrink-0" />
-                            <span>緊急連絡先: {selectedStaff.emergencyContact}</span>
-                          </div>
-                        )}
+                        <div className="flex items-center gap-3 text-sm">
+                          <span className="text-muted-foreground w-24">国:</span>
+                          <span>{selectedItem.reportStaffCountry}</span>
+                        </div>
+                        <div className="flex items-center gap-3 text-sm">
+                          <span className="text-muted-foreground w-24">ID:</span>
+                          <span className="font-mono text-xs">{selectedItem.reportStaffId}</span>
+                        </div>
                       </CardContent>
                     </Card>
 
-                    {/* Employment Info */}
-                    <Card>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-sm font-medium">雇用情報</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        <div className="flex items-center gap-3 text-sm">
-                          <Briefcase className="h-4 w-4 text-muted-foreground shrink-0" />
-                          <span>雇用形態: {EMPLOYMENT_TYPE_LABELS[selectedStaff.employmentType || "fulltime"]}</span>
-                        </div>
-                        {selectedStaff.joinDate && (
-                          <div className="flex items-center gap-3 text-sm">
-                            <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
-                            <span>入社日: {formatDate(selectedStaff.joinDate)}</span>
-                          </div>
-                        )}
-                        {selectedStaff.birthDate && (
-                          <div className="flex items-center gap-3 text-sm">
-                            <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
-                            <span>生年月日: {formatDate(selectedStaff.birthDate)}</span>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
+                    {selectedItem.isLinked ? (
+                      <>
+                        {/* Contact Info */}
+                        <Card>
+                          <CardHeader className="pb-3">
+                            <CardTitle className="text-sm font-medium">連絡先情報</CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-3">
+                            {selectedItem.staffEmail && (
+                              <div className="flex items-center gap-3 text-sm">
+                                <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                                <span>{selectedItem.staffEmail}</span>
+                              </div>
+                            )}
+                            {selectedItem.staffPhone && (
+                              <div className="flex items-center gap-3 text-sm">
+                                <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
+                                <span>{selectedItem.staffPhone}</span>
+                              </div>
+                            )}
+                            {selectedItem.staffLineId && (
+                              <div className="flex items-center gap-3 text-sm">
+                                <MessageCircle className="h-4 w-4 text-muted-foreground shrink-0" />
+                                <span>LINE: {selectedItem.staffLineId}</span>
+                              </div>
+                            )}
+                            {selectedItem.staffEmergencyContact && (
+                              <div className="flex items-center gap-3 text-sm">
+                                <AlertCircle className="h-4 w-4 text-muted-foreground shrink-0" />
+                                <span>緊急連絡先: {selectedItem.staffEmergencyContact}</span>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
 
-                    {/* Skills */}
-                    {selectedStaff.skills && selectedStaff.skills.length > 0 && (
+                        {/* Employment Info */}
+                        <Card>
+                          <CardHeader className="pb-3">
+                            <CardTitle className="text-sm font-medium">雇用情報</CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-3">
+                            {selectedItem.staffEmploymentType && (
+                              <div className="flex items-center gap-3 text-sm">
+                                <Briefcase className="h-4 w-4 text-muted-foreground shrink-0" />
+                                <span>雇用形態: {EMPLOYMENT_TYPE_LABELS[selectedItem.staffEmploymentType]}</span>
+                              </div>
+                            )}
+                            {selectedItem.staffJoinDate && (
+                              <div className="flex items-center gap-3 text-sm">
+                                <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+                                <span>入社日: {formatDate(selectedItem.staffJoinDate)}</span>
+                              </div>
+                            )}
+                            {selectedItem.staffBirthDate && (
+                              <div className="flex items-center gap-3 text-sm">
+                                <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+                                <span>生年月日: {formatDate(selectedItem.staffBirthDate)}</span>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+
+                        {/* Skills */}
+                        {selectedItem.staffSkills && selectedItem.staffSkills.length > 0 && (
+                          <Card>
+                            <CardHeader className="pb-3">
+                              <CardTitle className="text-sm font-medium">スキル・資格</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="flex flex-wrap gap-2">
+                                {selectedItem.staffSkills.map((skill: string, i: number) => (
+                                  <Badge key={i} variant="secondary" className="gap-1">
+                                    <Tag className="h-3 w-3" /> {skill}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        {/* Notes */}
+                        {selectedItem.staffNotes && (
+                          <Card>
+                            <CardHeader className="pb-3">
+                              <CardTitle className="text-sm font-medium">メモ</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <p className="text-sm whitespace-pre-wrap">{selectedItem.staffNotes}</p>
+                            </CardContent>
+                          </Card>
+                        )}
+                      </>
+                    ) : (
                       <Card>
-                        <CardHeader className="pb-3">
-                          <CardTitle className="text-sm font-medium">スキル・資格</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="flex flex-wrap gap-2">
-                            {selectedStaff.skills.map((skill: string, i: number) => (
-                              <Badge key={i} variant="secondary" className="gap-1">
-                                <Tag className="h-3 w-3" /> {skill}
-                              </Badge>
-                            ))}
-                          </div>
+                        <CardContent className="flex flex-col items-center justify-center py-8 text-center">
+                          <Link2Off className="h-10 w-10 text-amber-400 mb-3" />
+                          <p className="text-sm font-medium mb-1">HR情報が未紐付です</p>
+                          <p className="text-xs text-muted-foreground mb-4">
+                            「HR紐付け」ボタンをクリックしてスタッフレコードを作成し、詳細情報を登録できます
+                          </p>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              createFromReportStaffMutation.mutate({
+                                reportStaffId: selectedItem.reportStaffId,
+                                email: `${selectedItem.reportStaffName.toLowerCase().replace(/\s+/g, '.')}@lcj.placeholder`,
+                              });
+                              setIsDetailOpen(false);
+                            }}
+                            disabled={createFromReportStaffMutation.isPending}
+                          >
+                            {createFromReportStaffMutation.isPending ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <Link2 className="mr-2 h-4 w-4" />
+                            )}
+                            HR紐付けを実行
+                          </Button>
                         </CardContent>
                       </Card>
                     )}
-
-                    {/* Notes */}
-                    {selectedStaff.notes && (
-                      <Card>
-                        <CardHeader className="pb-3">
-                          <CardTitle className="text-sm font-medium">メモ</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <p className="text-sm whitespace-pre-wrap">{selectedStaff.notes}</p>
-                        </CardContent>
-                      </Card>
-                    )}
-
-                    {/* Actions */}
-                    <div className="flex justify-between items-center pt-2 border-t">
-                      <p className="text-xs text-muted-foreground">
-                        登録日: {formatDate(selectedStaff.createdAt)}
-                      </p>
-                      <div className="flex gap-2">
-                        {selectedStaff.isActive === "active" ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              updateMutation.mutate({ id: selectedStaff.id, isActive: "inactive" });
-                              setSelectedStaff({ ...selectedStaff, isActive: "inactive" });
-                            }}
-                          >
-                            退職処理
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              updateMutation.mutate({ id: selectedStaff.id, isActive: "active" });
-                              setSelectedStaff({ ...selectedStaff, isActive: "active" });
-                            }}
-                          >
-                            復職処理
-                          </Button>
-                        )}
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="destructive" size="sm">
-                              <Trash2 className="h-4 w-4 mr-1" /> 削除
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>スタッフを削除しますか？</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                この操作は取り消せません。{selectedStaff.name}さんの全情報が完全に削除されます。
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>キャンセル</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => deleteMutation.mutate({ id: selectedStaff.id })}>
-                                削除
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    </div>
                   </TabsContent>
 
                   <TabsContent value="tasks" className="mt-0">
-                    <TaskHistoryTab staffId={selectedStaff.id} />
+                    {selectedItem.staffId ? (
+                      <TaskHistoryTab staffId={selectedItem.staffId} />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-8 text-center">
+                        <ClipboardList className="h-10 w-10 text-muted-foreground/30 mb-3" />
+                        <p className="text-sm text-muted-foreground">HR紐付けが必要です</p>
+                      </div>
+                    )}
                   </TabsContent>
 
                   <TabsContent value="reports" className="mt-0">
-                    <ReportHistoryTab staffId={selectedStaff.id} />
+                    <ReportHistoryTab reportStaffId={selectedItem.reportStaffId} staffId={selectedItem.staffId} />
                   </TabsContent>
                 </div>
               </Tabs>
             </>
-          ) : selectedStaff && isEditMode ? (
+          ) : selectedItem && isEditMode ? (
             <>
               {/* Edit View */}
               <DialogHeader>
@@ -1114,7 +1321,7 @@ export default function HRManagement() {
                   <Edit className="h-5 w-5" />
                   スタッフ情報編集
                 </DialogTitle>
-                <DialogDescription>{selectedStaff.name}さんの情報を編集します</DialogDescription>
+                <DialogDescription>{selectedItem.staffName || selectedItem.reportStaffName}さんの情報を編集します</DialogDescription>
               </DialogHeader>
               <StaffFormFields isEdit />
               <DialogFooter>

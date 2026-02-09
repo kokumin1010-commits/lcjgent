@@ -327,6 +327,53 @@ describe("HR staff management - extended fields", () => {
     }
   });
 
+  it("should list unified report staff with linked staff data", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const result = await caller.staff.listReportStaffUnified();
+    expect(Array.isArray(result)).toBe(true);
+
+    // Each item should have reportStaff and optionally linkedStaff
+    if (result.length > 0) {
+      const item = result[0];
+      expect(item).toHaveProperty("reportStaff");
+      expect(item.reportStaff).toHaveProperty("id");
+      expect(item.reportStaff).toHaveProperty("name");
+      expect(item.reportStaff).toHaveProperty("country");
+      expect(item.reportStaff).toHaveProperty("isActive");
+      // linkedStaff can be null or an object
+      if (item.linkedStaff) {
+        expect(item.linkedStaff).toHaveProperty("id");
+        expect(item.linkedStaff).toHaveProperty("name");
+        expect(item.linkedStaff).toHaveProperty("email");
+      }
+    }
+  });
+
+  it("should auto-link report staff to staff by name matching", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const result = await caller.staff.autoLinkReportStaff();
+    expect(result).toHaveProperty("linkedCount");
+    expect(typeof result.linkedCount).toBe("number");
+    expect(result.linkedCount).toBeGreaterThanOrEqual(0);
+  });
+
+  it("should get reports by reportStaffId directly", async () => {
+    const { ctx } = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    // Get unified list to find a reportStaffId
+    const unified = await caller.staff.listReportStaffUnified();
+    if (unified.length > 0) {
+      const reportStaffId = unified[0].reportStaff.id;
+      const reports = await caller.staff.getReportsByReportStaffId({ reportStaffId });
+      expect(Array.isArray(reports)).toBe(true);
+    }
+  });
+
   it("should handle null date fields correctly", async () => {
     const { ctx } = createAuthContext();
     const caller = appRouter.createCaller(ctx);
