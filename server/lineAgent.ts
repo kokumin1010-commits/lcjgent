@@ -648,7 +648,16 @@ export async function processReceiptImageMessage(event: LineWebhookEvent): Promi
     
     // Redirect user to Web form instead of processing image
     const appUrl = process.env.APP_URL || 'https://lcjmall.com';
-    const receiptUploadUrl = `${appUrl}/receipt-upload`;
+    // ユーザーのセッショントークンを生成してURLに付与（LINEアプリ→外部ブラウザ遷移でも認証が引き継がれる）
+    const sessionData = {
+      lineUserId: userId,
+      displayName: profile?.displayName || 'LINE User',
+      pictureUrl: profile?.pictureUrl,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 3650 * 24 * 60 * 60 * 1000,
+    };
+    const sessionToken = Buffer.from(JSON.stringify(sessionData)).toString('base64');
+    const receiptUploadUrl = `${appUrl}/receipt-upload?token=${encodeURIComponent(sessionToken)}`;
     
     if (event.replyToken) {
       await replyMessage(event.replyToken, [

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,8 +35,29 @@ export default function ReceiptUpload() {
   const [isDragging, setIsDragging] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [tokenRestored, setTokenRestored] = useState(false);
 
-  const { data: user, isLoading: userLoading } = trpc.lineLogin.me.useQuery();
+  // URLパラメータからセッショントークンを復元（LINEアプリ→外部ブラウザ遷移対応）
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    if (token) {
+      // トークンをlocalStorageに保存して認証を復元
+      localStorage.setItem('lcj_session_token', token);
+      // URLからtokenパラメータを削除（セキュリティ対策）
+      const url = new URL(window.location.href);
+      url.searchParams.delete('token');
+      window.history.replaceState({}, '', url.pathname + url.search);
+      setTokenRestored(true);
+    } else {
+      setTokenRestored(true);
+    }
+  }, []);
+
+  const { data: user, isLoading: userLoading } = trpc.lineLogin.me.useQuery(
+    undefined,
+    { enabled: tokenRestored }
+  );
 
   const submitMutation = trpc.lineLogin.submitWebReceipt.useMutation({
     onSuccess: (data) => {
@@ -134,7 +155,7 @@ export default function ReceiptUpload() {
   }, []);
 
   // Loading
-  if (userLoading) {
+  if (!tokenRestored || userLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-rose-50 to-white flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-rose-500" />

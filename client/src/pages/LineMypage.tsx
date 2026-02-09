@@ -339,7 +339,15 @@ export default function LineMypage() {
                   </div>
                   <Button
                     className="w-full bg-rose-500 hover:bg-rose-600 text-white"
-                    onClick={() => setLocation("/receipt-upload")}
+                    onClick={() => {
+                      // セッショントークンをURLパラメータに付与して外部ブラウザでも認証を引き継ぐ
+                      const token = localStorage.getItem('lcj_session_token');
+                      if (token) {
+                        setLocation(`/receipt-upload?token=${encodeURIComponent(token)}`);
+                      } else {
+                        setLocation('/receipt-upload');
+                      }
+                    }}
                   >
                     <ExternalLink className="h-4 w-4 mr-2" />
                     レシートをアップロードする
