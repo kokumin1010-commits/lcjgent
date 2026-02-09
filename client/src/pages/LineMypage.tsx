@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ShoppingBag, Coins, Receipt, LogOut, ArrowLeft, Clock, CheckCircle, XCircle, AlertCircle, TrendingUp, TrendingDown, ShoppingCart, History, Link2, Copy, RefreshCw } from "lucide-react";
+import { Loader2, ShoppingBag, Coins, Receipt, LogOut, ArrowLeft, Clock, CheckCircle, XCircle, AlertCircle, TrendingUp, TrendingDown, ShoppingCart, History, Link2, Copy, RefreshCw, ExternalLink, Upload } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -324,10 +324,40 @@ export default function LineMypage() {
           </TabsContent>
 
           <TabsContent value="receipts">
+            {/* Webフォームへの誘導カード */}
+            <Card className="mb-4 border-rose-200 bg-gradient-to-r from-rose-50 to-pink-50">
+              <CardContent className="pt-6">
+                <div className="text-center space-y-4">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-rose-100">
+                    <Upload className="h-8 w-8 text-rose-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">Webフォームでレシートを申請</h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      高精度AI解析で確実にポイントが付与されます
+                    </p>
+                  </div>
+                  <Button
+                    className="w-full bg-rose-500 hover:bg-rose-600 text-white"
+                    onClick={() => setLocation("/receipt-upload")}
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    レシートをアップロードする
+                  </Button>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p>1. レシート画像をアップロード</p>
+                    <p>2. AIが自動で解析</p>
+                    <p>3. 内容を確認して申請完了</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* 既存の申請履歴 */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">レシート申請履歴</CardTitle>
-                <CardDescription>LINEで送信したレシートの申請状況</CardDescription>
+                <CardDescription>過去のレシート申請状況</CardDescription>
               </CardHeader>
               <CardContent>
                 {receiptsLoading ? (
@@ -369,7 +399,7 @@ export default function LineMypage() {
                   <div className="text-center py-8 text-muted-foreground">
                     <Receipt className="h-12 w-12 mx-auto mb-2 opacity-50" />
                     <p>レシート申請履歴がありません</p>
-                    <p className="text-sm mt-2">LINEでレシート画像を送信してポイントを獲得しましょう</p>
+                    <p className="text-sm mt-2">上のボタンからレシートをアップロードしてポイントを獲得しましょう</p>
                   </div>
                 )}
               </CardContent>
