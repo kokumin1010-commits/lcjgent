@@ -4451,3 +4451,10 @@
 - [x] ReceiptUpload.tsxでもsessionTokenをlocalStorageに自動保存
 - [x] /receipt-uploadや/point-requestでもlocalStorageトークンで認証が通るように統一
 - [x] テストと動作確認（11テスト全パス）
+
+## ポイント申請ページ（/point-request）にも永久ログイン対応
+- [x] /point-requestページの認証ロジックを確認（useAuthのManus OAuth + protectedProcedure）
+- [x] URLパラメータからのトークン復元機能を追加
+- [x] sessionToken自動保存（useEffect）を追加
+- [x] LINEログインフォールバック認証（effectiveUser）を実装
+- [x] テストと動作確認（10テスト全パス）

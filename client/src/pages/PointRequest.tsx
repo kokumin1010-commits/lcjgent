@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +13,39 @@ import { Link } from "wouter";
 
 export default function PointRequest() {
   const { user, loading: authLoading } = useAuth();
+  const [tokenRestored, setTokenRestored] = useState(false);
+
+  // URLパラメータからセッショントークンを復元（LINEアプリ→外部ブラウザ遷移対応）
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    if (token) {
+      localStorage.setItem('lcj_session_token', token);
+      const url = new URL(window.location.href);
+      url.searchParams.delete('token');
+      window.history.replaceState({}, '', url.pathname + url.search);
+      setTokenRestored(true);
+    } else {
+      setTokenRestored(true);
+    }
+  }, []);
+
+  // LINEログインのフォールバック認証
+  const { data: lineUser, isLoading: lineUserLoading } = trpc.lineLogin.me.useQuery(
+    undefined,
+    { enabled: tokenRestored && !user && !authLoading }
+  );
+
+  // セッショントークンをlocalStorageに自動保存（永久ログイン対応）
+  useEffect(() => {
+    if (lineUser?.sessionToken) {
+      localStorage.setItem('lcj_session_token', lineUser.sessionToken);
+    }
+  }, [lineUser?.sessionToken]);
+
+  // 有効なユーザー（Manus OAuth または LINEログイン）
+  const effectiveUser = user || (lineUser ? { id: lineUser.lineUserId, name: lineUser.displayName } : null);
+  const isLoading = authLoading || (!user && lineUserLoading);
   const [orderNumber, setOrderNumber] = useState("");
   const [orderAmount, setOrderAmount] = useState("");
   const [deliveryDate, setDeliveryDate] = useState("");
@@ -23,15 +57,15 @@ export default function PointRequest() {
   const utils = trpc.useUtils();
   
   const { data: todayCount } = trpc.pointRequest.todayCount.useQuery(undefined, {
-    enabled: !!user,
+    enabled: !!effectiveUser,
   });
   
   const { data: myRequests, isLoading: requestsLoading } = trpc.pointRequest.myRequests.useQuery(undefined, {
-    enabled: !!user,
+    enabled: !!effectiveUser,
   });
   
   const { data: myBalance } = trpc.pointRequest.myBalance.useQuery(undefined, {
-    enabled: !!user,
+    enabled: !!effectiveUser,
   });
 
   const submitMutation = trpc.pointRequest.submit.useMutation({
@@ -122,7 +156,7 @@ export default function PointRequest() {
     }
   };
 
-  if (authLoading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-pink-50 to-white flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500"></div>
@@ -130,7 +164,7 @@ export default function PointRequest() {
     );
   }
 
-  if (!user) {
+  if (!effectiveUser) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-pink-50 to-white flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
