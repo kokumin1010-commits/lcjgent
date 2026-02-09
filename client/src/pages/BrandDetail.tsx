@@ -835,6 +835,8 @@ export default function BrandDetail() {
   const [previewFileUrl, setPreviewFileUrl] = useState<string | null>(null);
   const [previewFileName, setPreviewFileName] = useState<string>('');
   const [previewFileType, setPreviewFileType] = useState<string>('');
+  const [previewFileAnalysis, setPreviewFileAnalysis] = useState<Record<string, any> | null>(null);
+  const [showAnalysisPanel, setShowAnalysisPanel] = useState(true);
 
   // AI Image Add states
   const [aiImageAddDialogOpen, setAiImageAddDialogOpen] = useState(false);
@@ -7616,6 +7618,8 @@ ${proposal.proposalContent}
                             setPreviewFileUrl(file.fileUrl);
                             setPreviewFileName(file.fileName);
                             setPreviewFileType(ft);
+                            setPreviewFileAnalysis(file.analysisResult || null);
+                            setShowAnalysisPanel(true);
                           } else {
                             window.open(file.fileUrl, '_blank');
                           }
@@ -7698,8 +7702,8 @@ ${proposal.proposalContent}
       </Dialog>
 
       {/* File Preview Dialog */}
-      <Dialog open={!!previewFileUrl} onOpenChange={(open) => { if (!open) { setPreviewFileUrl(null); setPreviewFileName(''); setPreviewFileType(''); } }}>
-        <DialogContent className="bg-black/95 border-blue-900/50 text-white max-w-5xl h-[90vh] backdrop-blur-xl p-0 flex flex-col">
+      <Dialog open={!!previewFileUrl} onOpenChange={(open) => { if (!open) { setPreviewFileUrl(null); setPreviewFileName(''); setPreviewFileType(''); setPreviewFileAnalysis(null); } }}>
+        <DialogContent className="bg-black/95 border-blue-900/50 text-white max-w-6xl h-[90vh] backdrop-blur-xl p-0 flex flex-col">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
             <div className="flex items-center gap-3 min-w-0 flex-1">
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
@@ -7710,6 +7714,17 @@ ${proposal.proposalContent}
               <p className="text-sm text-white truncate">{previewFileName}</p>
             </div>
             <div className="flex items-center gap-2">
+              {previewFileAnalysis && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowAnalysisPanel(!showAnalysisPanel)}
+                  className={showAnalysisPanel ? 'text-cyan-400 hover:text-cyan-300' : 'text-gray-400 hover:text-gray-300'}
+                >
+                  <Sparkles className="h-4 w-4 mr-1" />
+                  {language === 'ja' ? 'AI分析' : 'AI分析'}
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -7737,20 +7752,152 @@ ${proposal.proposalContent}
               </Button>
             </div>
           </div>
-          <div className="flex-1 overflow-hidden">
-            {previewFileType === 'pdf' ? (
-              <iframe
-                src={previewFileUrl || ''}
-                className="w-full h-full border-0"
-                title={previewFileName}
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center p-4 overflow-auto">
-                <img
+          <div className="flex-1 overflow-hidden flex">
+            {/* File Preview */}
+            <div className={`${previewFileAnalysis && showAnalysisPanel ? 'flex-1' : 'w-full'} overflow-hidden`}>
+              {previewFileType === 'pdf' ? (
+                <iframe
                   src={previewFileUrl || ''}
-                  alt={previewFileName}
-                  className="max-w-full max-h-full object-contain"
+                  className="w-full h-full border-0"
+                  title={previewFileName}
                 />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center p-4 overflow-auto">
+                  <img
+                    src={previewFileUrl || ''}
+                    alt={previewFileName}
+                    className="max-w-full max-h-full object-contain"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* AI Analysis Panel */}
+            {previewFileAnalysis && showAnalysisPanel && (
+              <div className="w-80 border-l border-gray-800 overflow-y-auto bg-gray-950/50">
+                <div className="p-4 space-y-4">
+                  <h3 className="text-sm font-bold text-cyan-400 flex items-center gap-2">
+                    <Sparkles className="h-4 w-4" />
+                    AI分析結果
+                  </h3>
+
+                  {/* キャンペーン名 */}
+                  {previewFileAnalysis.campaignName && (
+                    <div className="space-y-1">
+                      <p className="text-xs text-gray-500 uppercase tracking-wider">キャンペーン名</p>
+                      <p className="text-sm text-white font-medium">{previewFileAnalysis.campaignName}</p>
+                    </div>
+                  )}
+
+                  {/* プラットフォーム・目的 */}
+                  <div className="flex gap-2">
+                    {previewFileAnalysis.platform && (
+                      <Badge className="bg-purple-500/20 text-purple-300 text-xs">{previewFileAnalysis.platform}</Badge>
+                    )}
+                    {previewFileAnalysis.objective && (
+                      <Badge className="bg-blue-500/20 text-blue-300 text-xs">{previewFileAnalysis.objective}</Badge>
+                    )}
+                  </div>
+
+                  {/* 期間 */}
+                  {(previewFileAnalysis.startDate || previewFileAnalysis.endDate) && (
+                    <div className="space-y-1">
+                      <p className="text-xs text-gray-500 uppercase tracking-wider">期間</p>
+                      <p className="text-sm text-gray-300">
+                        {previewFileAnalysis.startDate || '?'} 〜 {previewFileAnalysis.endDate || '?'}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* 主要指標 */}
+                  <div className="space-y-2">
+                    <p className="text-xs text-gray-500 uppercase tracking-wider">主要指標</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(previewFileAnalysis.actualSpend || previewFileAnalysis.budget) ? (
+                        <div className="bg-gray-900/80 rounded-lg p-2">
+                          <p className="text-xs text-gray-500">広告費</p>
+                          <p className="text-sm font-bold text-white">¥{Number(previewFileAnalysis.actualSpend || previewFileAnalysis.budget || 0).toLocaleString()}</p>
+                        </div>
+                      ) : null}
+                      {(previewFileAnalysis.metrics?.impressions || previewFileAnalysis.impressions) ? (
+                        <div className="bg-gray-900/80 rounded-lg p-2">
+                          <p className="text-xs text-gray-500">インプレッション</p>
+                          <p className="text-sm font-bold text-white">{Number(previewFileAnalysis.metrics?.impressions || previewFileAnalysis.impressions || 0).toLocaleString()}</p>
+                        </div>
+                      ) : null}
+                      {(previewFileAnalysis.metrics?.clicks || previewFileAnalysis.clicks) ? (
+                        <div className="bg-gray-900/80 rounded-lg p-2">
+                          <p className="text-xs text-gray-500">クリック</p>
+                          <p className="text-sm font-bold text-white">{Number(previewFileAnalysis.metrics?.clicks || previewFileAnalysis.clicks || 0).toLocaleString()}</p>
+                        </div>
+                      ) : null}
+                      {(previewFileAnalysis.metrics?.views || previewFileAnalysis.views) ? (
+                        <div className="bg-gray-900/80 rounded-lg p-2">
+                          <p className="text-xs text-gray-500">視聴数</p>
+                          <p className="text-sm font-bold text-white">{Number(previewFileAnalysis.metrics?.views || previewFileAnalysis.views || 0).toLocaleString()}</p>
+                        </div>
+                      ) : null}
+                      {(previewFileAnalysis.metrics?.conversions || previewFileAnalysis.conversions) ? (
+                        <div className="bg-gray-900/80 rounded-lg p-2">
+                          <p className="text-xs text-gray-500">CV</p>
+                          <p className="text-sm font-bold text-white">{Number(previewFileAnalysis.metrics?.conversions || previewFileAnalysis.conversions || 0).toLocaleString()}</p>
+                        </div>
+                      ) : null}
+                      {(previewFileAnalysis.metrics?.gmv || previewFileAnalysis.gmv) ? (
+                        <div className="bg-gray-900/80 rounded-lg p-2">
+                          <p className="text-xs text-gray-500">GMV</p>
+                          <p className="text-sm font-bold text-white">¥{Number(previewFileAnalysis.metrics?.gmv || previewFileAnalysis.gmv || 0).toLocaleString()}</p>
+                        </div>
+                      ) : null}
+                      {(previewFileAnalysis.metrics?.orderCount || previewFileAnalysis.orderCount) ? (
+                        <div className="bg-gray-900/80 rounded-lg p-2">
+                          <p className="text-xs text-gray-500">注文数</p>
+                          <p className="text-sm font-bold text-white">{Number(previewFileAnalysis.metrics?.orderCount || previewFileAnalysis.orderCount || 0).toLocaleString()}</p>
+                        </div>
+                      ) : null}
+                      {(previewFileAnalysis.metrics?.cartAdds || previewFileAnalysis.cartAdds) ? (
+                        <div className="bg-gray-900/80 rounded-lg p-2">
+                          <p className="text-xs text-gray-500">カート追加</p>
+                          <p className="text-sm font-bold text-white">{Number(previewFileAnalysis.metrics?.cartAdds || previewFileAnalysis.cartAdds || 0).toLocaleString()}</p>
+                        </div>
+                      ) : null}
+                      {previewFileAnalysis.costPerUnit ? (
+                        <div className="bg-gray-900/80 rounded-lg p-2">
+                          <p className="text-xs text-gray-500">単価</p>
+                          <p className="text-sm font-bold text-white">¥{Number(previewFileAnalysis.costPerUnit).toLocaleString()}</p>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {/* 国別内訳 */}
+                  {previewFileAnalysis.countryBreakdown && previewFileAnalysis.countryBreakdown.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-gray-500 uppercase tracking-wider">国別内訳</p>
+                      <div className="space-y-1">
+                        {previewFileAnalysis.countryBreakdown.map((c: any, i: number) => (
+                          <div key={i} className="flex items-center justify-between text-xs bg-gray-900/60 rounded px-2 py-1">
+                            <span className="text-gray-300">{c.country || c.name}</span>
+                            <span className="text-white font-medium">
+                              {c.spend ? `¥${Number(c.spend).toLocaleString()}` : ''}
+                              {c.impressions ? ` / ${Number(c.impressions).toLocaleString()} imp` : ''}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 検出言語 */}
+                  {previewFileAnalysis.detectedLanguage && (
+                    <div className="space-y-1">
+                      <p className="text-xs text-gray-500 uppercase tracking-wider">検出言語</p>
+                      <Badge className="bg-gray-700 text-gray-300 text-xs">
+                        {previewFileAnalysis.detectedLanguage === 'ja' ? '日本語' : previewFileAnalysis.detectedLanguage === 'zh' ? '中国語' : previewFileAnalysis.detectedLanguage === 'en' ? '英語' : previewFileAnalysis.detectedLanguage}
+                      </Badge>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>

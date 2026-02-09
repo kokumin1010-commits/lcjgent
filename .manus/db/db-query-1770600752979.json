@@ -1,0 +1,9 @@
+{
+  "query": "SELECT id, fileName, fileType, analysisStatus, SUBSTRING(analysisResult, 1, 1000) as resultPreview FROM ad_report_files ORDER BY id DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, fileName, fileType, analysisStatus, SUBSTRING(analysisResult, 1, 1000) as resultPreview FROM ad_report_files ORDER BY id DESC LIMIT 5;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1596
+}
