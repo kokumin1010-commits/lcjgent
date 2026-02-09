@@ -612,20 +612,24 @@ export async function processReceiptImageMessage(event: LineWebhookEvent): Promi
     return;
   }
   
-  const messageId = event.message.id;
   const userId = event.source.userId;
   const isGroupChat = event.source.type === "group";
-  const groupId = event.source.groupId;
   
   if (!userId) {
     console.log(`[LINE Agent] No user ID for image message`);
     return;
   }
   
-  console.log(`[LINE Agent] Processing receipt image from ${userId}, messageId: ${messageId}`);
+  // For group chats, ignore images completely
+  if (isGroupChat) {
+    console.log(`[LINE Agent] Ignoring image in group chat`);
+    return;
+  }
+  
+  console.log(`[LINE Agent] Image received from ${userId}, redirecting to Web form`);
   
   try {
-    // Get user profile
+    // Get user profile and update user record
     let profile = null;
     try {
       profile = await getUserProfile(userId);
@@ -633,7 +637,6 @@ export async function processReceiptImageMessage(event: LineWebhookEvent): Promi
       console.error("[LINE Agent] Failed to get user profile:", error);
     }
     
-    // Create or update LINE user
     await createOrUpdateLineUser({
       lineUserId: userId,
       displayName: profile?.displayName,
@@ -641,166 +644,26 @@ export async function processReceiptImageMessage(event: LineWebhookEvent): Promi
       statusMessage: profile?.statusMessage,
     });
     
-    // Update last message timestamp
     await updateLineUserLastMessage(userId);
     
-    // For group chats, NEVER process images automatically
-    // Images in groups should only be processed via explicit @LCJ mention in a text message
-    let shouldRespond = !isGroupChat; // Always respond in DM, never in groups
-    
-    if (isGroupChat && groupId) {
-      // CRITICAL: Do NOT process images in group chats
-      // This prevents unwanted responses to random images shared in groups
-      console.log(`[LINE Agent] Ignoring image in group chat (images only processed in DM)`);
-      shouldRespond = false;
-    }
-    
-    if (!shouldRespond) {
-      return;
-    }
-    
-    // Check submission frequency (max 10 per 24 hours)
-    const recentCount = await getRecentLineReceiptsCount(userId, 24);
-    if (recentCount >= 10) {
-      if (event.replyToken) {
-        await replyMessage(event.replyToken, [
-          { type: "text", text: "⚠️ 24時間以内の申請上限（10件）に達しています。\n\n明日以降に再度お試しください。" },
-        ]);
-      }
-      return;
-    }
-    
-    // Get image content
-    console.log(`[LINE Agent] Fetching image content for message ${messageId}`);
-    const imageContent = await getMessageContent(messageId);
-    if (!imageContent) {
-      console.error(`[LINE Agent] Failed to get image content for message ${messageId}`);
-      if (event.replyToken) {
-        await replyMessage(event.replyToken, [
-          { type: "text", text: "画像の取得に失敗しました。もう一度お送りください。" },
-        ]);
-      }
-      return;
-    }
-    console.log(`[LINE Agent] Image content fetched: ${(imageContent.data.length / 1024).toFixed(1)}KB, type: ${imageContent.contentType}`);
-    
-    // Generate image hash for duplicate detection
-    const imageHash = crypto.createHash("sha256").update(imageContent.data).digest("hex");
-    
-    // Check for duplicate image
-    const duplicateByHash = await checkDuplicateLineReceiptByHash(imageHash);
-    if (duplicateByHash) {
-      if (event.replyToken) {
-        await replyMessage(event.replyToken, [
-          { type: "text", text: "⚠️ このレシート画像は既に登録されています。\n\n別のレシートをお送りください。" },
-        ]);
-      }
-      return;
-    }
-    
-    // Upload image to S3
-    const timestamp = Date.now();
-    const ext = imageContent.contentType.includes("png") ? "png" : "jpg";
-    const fileKey = `line-receipts/${userId}/${timestamp}-${messageId}.${ext}`;
-    const { url: imageUrl } = await storagePut(fileKey, imageContent.data, imageContent.contentType);
-    
-    // Create receipt record
-    const receiptId = await createLineReceipt({
-      lineUserId: userId,
-      lineMessageId: messageId,
-      imageUrl,
-      imageKey: fileKey,
-      imageHash,
-      status: "pending",
-    });
-    
-    console.log(`[LINE Agent] Created receipt record ${receiptId} for image ${messageId}`);
-    
-    // Get or create pending image session
-    const session = getOrCreatePendingImageSession(userId, event.replyToken || "");
-    
-    // Add image to session
-    session.images.push({
-      messageId,
-      imageData: imageContent.data,
-      contentType: imageContent.contentType,
-      imageUrl,
-      imageKey: fileKey,
-      imageHash,
-      receiptId,
-    });
-    
-    console.log(`[LINE Agent] Added image to session, total images: ${session.images.length}`);
-    
-      // If this is the first image, send initial response and photo guide
-    if (session.images.length === 1) {
-      // Send initial response with Web form recommendation
-      const appUrl = process.env.APP_URL || 'https://lcjmall.com';
-      const receiptUploadUrl = `${appUrl}/receipt-upload`;
-      if (event.replyToken) {
-        await replyMessage(event.replyToken, [
-          { type: "text", text: `📷 画像を受け付けました！\n\n追加の画像がある場合は10秒以内に送信してください。\n（注文番号と配達ステータスが別々の画面にある場合は、両方のスクリーンショットを送信してください）\n\n💡 より高い成功率で申請するには、Webフォームがおすすめです👇\n${receiptUploadUrl}` },
-        ]);
-      }
-      
-      // Send photo guide for first-time users
-      await sendPhotoGuide(userId);
-    }
-    
-    // Clear existing timeout
-    if (session.timeoutId) {
-      clearTimeout(session.timeoutId);
-    }
-    
-    // Set new timeout to process images after 10 seconds
-    session.timeoutId = setTimeout(async () => {
-      console.log(`[LINE Agent] Processing ${session.images.length} images for user ${userId}`);
-      
-      try {
-        // Process all images together
-        await processMultipleImagesOcr(session.images, userId);
-      } catch (error: any) {
-        console.error("[LINE Agent] Multi-image OCR processing failed:", error);
-        console.error("[LINE Agent] Error details:", {
-          name: error?.name,
-          message: error?.message,
-          stack: error?.stack?.split('\n').slice(0, 5).join('\n'),
-        });
-        
-        // Delete all receipt records on failure
-        for (const img of session.images) {
-          try {
-            await deleteLineReceipt(img.receiptId);
-            console.log(`[LINE Agent] Deleted failed receipt record ${img.receiptId}`);
-          } catch (deleteError) {
-            console.error(`[LINE Agent] Failed to delete receipt ${img.receiptId}:`, deleteError);
-          }
-        }
-        
-        // Notify user
-        try {
-          const { pushMessage } = await import("./line");
-          await pushMessage(userId, [
-            {
-              type: "text",
-              text: `❌ 画像の解析に失敗しました。\n\nもう一度スクリーンショットを送信してください。\n\n【撮影のコツ】\n・「X月X日に配達」または「配達済み」が見える画面\n・注文番号（17桁）が見える画面\n・合計金額が見える画面\n\n1枚に収まらない場合は、2〜3枚に分けて送信してください。`,
-            },
-          ]);
-        } catch (notifyError) {
-          console.error("[LINE Agent] Failed to send error notification:", notifyError);
-        }
-      } finally {
-        // Clear session
-        clearPendingImageSession(userId);
-      }
-    }, IMAGE_SESSION_TIMEOUT_MS);
-    
-  } catch (error) {
-    console.error("[LINE Agent] Error processing receipt image:", error);
+    // Redirect user to Web form instead of processing image
+    const appUrl = process.env.APP_URL || 'https://lcjmall.com';
+    const receiptUploadUrl = `${appUrl}/receipt-upload`;
     
     if (event.replyToken) {
       await replyMessage(event.replyToken, [
-        { type: "text", text: "レシートの処理中にエラーが発生しました。しばらくしてからもう一度お試しください。" },
+        {
+          type: "text",
+          text: `📷 レシート画像を受け取りました！\n\nポイント申請は、Webフォームからアップロードしてください。\nWebフォームの方が解析精度が高く、確実にポイントが付与されます。\n\n👇 こちらからアップロード\n${receiptUploadUrl}\n\n【手順】\n1️⃣ 上のリンクをタップ\n2️⃣ レシート画像をアップロード\n3️⃣ AI解析結果を確認して申請\n\n※ LINEでの画像解析は廃止しました。`,
+        },
+      ]);
+    }
+  } catch (error) {
+    console.error("[LINE Agent] Error handling receipt image:", error);
+    
+    if (event.replyToken) {
+      await replyMessage(event.replyToken, [
+        { type: "text", text: "エラーが発生しました。しばらくしてからもう一度お試しください。" },
       ]);
     }
   }
