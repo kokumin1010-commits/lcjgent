@@ -7591,6 +7591,7 @@ ${conversationText}
           liverName: z.string().min(1),
           notes: z.string().optional(),
           scheduleGroupId: z.number().optional(), // スケジュールグループID
+          brandId: z.number().optional(), // ブランドID
         })
       )
       .mutation(async ({ input }) => {
@@ -7604,6 +7605,7 @@ ${conversationText}
           liverName: input.liverName,
           notes: input.notes,
           scheduleGroupId: input.scheduleGroupId,
+          brandId: input.brandId,
         });
         return schedule;
       }),

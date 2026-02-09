@@ -92,6 +92,7 @@ type Schedule = {
   category?: string | null;
   liverName?: string | null;
   liverId?: number | null;
+  brandId?: number | null;
   parentScheduleId?: number | null; // 繰り返し予定の親 ID
 };
 
@@ -105,8 +106,14 @@ export default function PublicSchedule() {
   // Schedule group state
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
 
+  // Brand filter state
+  const [selectedBrandId, setSelectedBrandId] = useState<number | null>(null);
+
   // Fetch schedule groups with members
   const { data: scheduleGroups } = trpc.scheduleGroup.listWithMembers.useQuery();
+
+  // Fetch brands for filter tabs
+  const { data: brandsData } = trpc.brand.list.useQuery();
 
   // Use auth from users table (same as management dashboard)
   const { user: adminUser, logout: adminLogout, loading: authLoading } = useAuth();
@@ -150,6 +157,8 @@ export default function PublicSchedule() {
     liverName: "",
     isNewLiver: false,
     newLiverName: "",
+    // ブランド選択
+    brandId: undefined as number | undefined,
     // 繰り返し設定
     repeatType: "none" as "none" | "weekly" | "monthly",
     repeatWeekdays: [] as number[], // 0=日, 1=月, ..., 6=土
@@ -304,6 +313,7 @@ export default function PublicSchedule() {
       liverName: "",
       isNewLiver: false,
       newLiverName: "",
+      brandId: undefined,
       repeatType: "none",
       repeatWeekdays: [],
       repeatUntil: "",
@@ -338,7 +348,7 @@ export default function PublicSchedule() {
     if (!schedules) return new Map<string, (Schedule & { isMultiDay?: boolean; isStart?: boolean; isEnd?: boolean; spanDays?: number })[]>();
     
     // Filter schedules by selected group (scheduleGroupId or liverName)
-    const filteredSchedules = selectedGroupId
+    let filteredSchedules = selectedGroupId
       ? schedules.filter(s => 
           // スケジュールにscheduleGroupIdが設定されている場合はそれでフィルタリング
           // または従来の方法（liverNameがグループメンバーに含まれる）でフィルタリング
@@ -346,6 +356,11 @@ export default function PublicSchedule() {
           (selectedGroupLiverNames && s.liverName && selectedGroupLiverNames.includes(s.liverName))
         )
       : schedules;
+
+    // Filter by selected brand
+    if (selectedBrandId) {
+      filteredSchedules = filteredSchedules.filter(s => s.brandId === selectedBrandId);
+    }
     
     const map = new Map<string, (Schedule & { isMultiDay?: boolean; isStart?: boolean; isEnd?: boolean; spanDays?: number })[]>();
     
@@ -408,7 +423,7 @@ export default function PublicSchedule() {
     });
     
     return map;
-  }, [schedules, selectedGroupLiverNames]);
+  }, [schedules, selectedGroupLiverNames, selectedBrandId]);
 
   // Get today's date key in JST
   const todayKey = getJSTDateKey(new Date());
@@ -676,6 +691,7 @@ export default function PublicSchedule() {
         category: newSchedule.category,
         liverName: defaultLiverName,
         scheduleGroupId: selectedGroupId || undefined, // 選択中のグループIDを送信
+        brandId: newSchedule.brandId, // ブランドIDを送信
       });
     }
     
@@ -840,6 +856,48 @@ export default function PublicSchedule() {
                   <Settings className="h-4 w-4" />
                 </button>
               )}
+            </div>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
+        </div>
+      )}
+
+      {/* Brand Filter Tabs */}
+      {brandsData && brandsData.length > 0 && (
+        <div className="border-b bg-gray-50/50">
+          <ScrollArea className="w-full whitespace-nowrap">
+            <div className="flex gap-1 p-2">
+              {/* All brands tab */}
+              <button
+                onClick={() => setSelectedBrandId(null)}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors",
+                  selectedBrandId === null
+                    ? "bg-blue-500 text-white"
+                    : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+                )}
+              >
+                <Check className={cn("h-3.5 w-3.5", selectedBrandId === null ? "opacity-100" : "opacity-0")} />
+                全ブランド
+              </button>
+              {/* Brand tabs */}
+              {brandsData.map((brand: any) => (
+                <button
+                  key={brand.id}
+                  onClick={() => setSelectedBrandId(brand.id)}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors",
+                    selectedBrandId === brand.id
+                      ? "bg-blue-500 text-white"
+                      : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+                  )}
+                >
+                  {brand.logoUrl && (
+                    <img src={brand.logoUrl} alt="" className="w-4 h-4 rounded-full object-cover" />
+                  )}
+                  {brand.name || brand.brandName}
+                </button>
+              ))}
             </div>
             <ScrollBar orientation="horizontal" />
           </ScrollArea>
@@ -1600,6 +1658,33 @@ export default function PublicSchedule() {
             )}
           </div>
           
+          {/* Brand Selection */}
+          {brandsData && brandsData.length > 0 && (
+            <div className="px-4 py-3 border-b">
+              <div className="flex items-center gap-3">
+                <div className="w-5 h-5 text-blue-500">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                </div>
+                <Select
+                  value={newSchedule.brandId?.toString() || "none"}
+                  onValueChange={(value) => setNewSchedule(prev => ({ ...prev, brandId: value === "none" ? undefined : Number(value) }))}
+                >
+                  <SelectTrigger className="border-0 p-0 h-auto focus:ring-0 flex-1">
+                    <SelectValue placeholder="ブランドを選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">ブランドなし</SelectItem>
+                    {brandsData.map((brand: any) => (
+                      <SelectItem key={brand.id} value={brand.id.toString()}>
+                        {brand.name || brand.brandName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
           {/* User Info - Show logged in user */}
           {user && (
             <div className="px-4 py-3 border-b">
