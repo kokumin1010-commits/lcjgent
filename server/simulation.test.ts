@@ -418,9 +418,100 @@ describe("Simulation Feature", () => {
       expect(totalLiverCost).toBe(50000);
     });
 
-    it("should handle exclusive vs spot contract types", () => {
-      const contractType = "exclusive";
-      expect(["exclusive", "spot"]).toContain(contractType);
+    it("should handle contract types", () => {
+      const contractType = "単発";
+      expect(["単発", "契約", "完全成果報酬"]).toContain(contractType);
+    });
+  });
+
+  describe("Default Fallback Calculation (No Liver History)", () => {
+    it("should calculate GMV using industry defaults when no stats", () => {
+      // Industry default: \u00a550,000/hour
+      const DEFAULTS = {
+        avgGmvPerHour: 50000,
+        avgGmvPerStream: 50000,
+        avgViewers: 100,
+        avgCvr: 2.5,
+      };
+
+      const streamDuration = 60; // 60 minutes
+      const durationHours = streamDuration / 60;
+      const baseGmv = DEFAULTS.avgGmvPerHour * durationHours;
+
+      expect(baseGmv).toBe(50000);
+    });
+
+    it("should apply price-level adjustment for default estimates", () => {
+      const DEFAULTS = { avgGmvPerHour: 50000 };
+      const streamDuration = 60;
+      const durationHours = streamDuration / 60;
+      const baseGmv = DEFAULTS.avgGmvPerHour * durationHours;
+
+      // High price product (>10000) gets 0.8x
+      const highPriceAdjust = 0.8;
+      expect(Math.round(baseGmv * highPriceAdjust)).toBe(40000);
+
+      // Mid price product (5000-10000) gets 1.0x
+      const midPriceAdjust = 1.0;
+      expect(Math.round(baseGmv * midPriceAdjust)).toBe(50000);
+
+      // Low price product (<5000) gets 1.2x
+      const lowPriceAdjust = 1.2;
+      expect(Math.round(baseGmv * lowPriceAdjust)).toBe(60000);
+    });
+
+    it("should apply prime time boost for default estimates", () => {
+      const baseGmv = 50000;
+
+      // Prime time (19:00-22:00) gets 1.15x
+      const primeTimeBoost = 1.15;
+      expect(Math.round(baseGmv * primeTimeBoost)).toBe(57500);
+
+      // Lunch time (12:00-14:00) gets 1.05x
+      const lunchTimeBoost = 1.05;
+      expect(Math.round(baseGmv * lunchTimeBoost)).toBe(52500);
+    });
+
+    it("should still calculate profit metrics with defaults", () => {
+      const estimatedGmv = 50000;
+      const unitPrice = 3980;
+      const costPrice = 1500;
+      const commissionRate = 10;
+      const fixedFee = 50000;
+
+      const grossMarginRate = (unitPrice - costPrice) / unitPrice;
+      const estimatedGrossProfit = Math.round(estimatedGmv * grossMarginRate);
+      const liverCommission = Math.round(estimatedGmv * (commissionRate / 100));
+      const estimatedLiverCost = liverCommission + fixedFee;
+      const estimatedNetProfit = estimatedGrossProfit - estimatedLiverCost;
+
+      expect(estimatedGrossProfit).toBe(31156); // 50000 * 0.6231
+      expect(estimatedLiverCost).toBe(55000); // 5000 + 50000
+      expect(estimatedNetProfit).toBe(-23844); // Unprofitable with defaults
+    });
+
+    it("should flag result as estimate-based when no real data", () => {
+      const hasRealData = false;
+      const dataSource = hasRealData ? '過去実績ベース' : '業界平均値ベース（推定）';
+
+      expect(hasRealData).toBe(false);
+      expect(dataSource).toBe('業界平均値ベース（推定）');
+    });
+
+    it("should flag result as real-data-based when stats exist", () => {
+      const hasRealData = true;
+      const dataSource = hasRealData ? '過去実績ベース' : '業界平均値ベース（推定）';
+
+      expect(hasRealData).toBe(true);
+      expect(dataSource).toBe('過去実績ベース');
+    });
+
+    it("should use 50% default gross margin when no cost info", () => {
+      const estimatedGmv = 50000;
+      const defaultGrossMarginRate = 0.5;
+
+      const estimatedGrossProfit = Math.round(estimatedGmv * defaultGrossMarginRate);
+      expect(estimatedGrossProfit).toBe(25000);
     });
   });
 });

@@ -392,7 +392,7 @@ import {
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
-import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations } from "../drizzle/schema";
+import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers } from "../drizzle/schema";
 import { eq, and, not, isNotNull, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
@@ -11149,19 +11149,54 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         adBudget: z.number().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        // 1. Get liver performance stats
-        const stats = await getLiverPerformanceStats(input.liverId, {
+        // 1. Get liver performance stats (may be null if no history)
+        const rawStats = await getLiverPerformanceStats(input.liverId, {
           priceRange: { min: input.unitPrice * 0.5, max: input.unitPrice * 2 },
         });
 
-        if (!stats || stats.streamCount === 0) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "このライバーの配信実績データがありません。シミュレーションを実行するには過去の配信データが必要です。",
-          });
+        // Determine if we have real data or need defaults
+        const hasRealData = rawStats !== null && rawStats.streamCount > 0;
+
+        // Get liver name even if no stats
+        let liverNameForDisplay = 'Unknown';
+        if (rawStats) {
+          liverNameForDisplay = rawStats.liverName;
+        } else {
+          const db = await getDb();
+          if (db) {
+            const liver = await db.select().from(livers).where(eq(livers.id, input.liverId)).limit(1);
+            if (liver.length) liverNameForDisplay = liver[0].name;
+          }
         }
 
-        // 2. Find similar cases
+        // Default industry averages for TikTok live commerce (used when no real data)
+        const DEFAULTS = {
+          avgGmvPerHour: 50000,    // ¥50,000/hour (conservative industry average)
+          avgGmvPerStream: 50000,  // ¥50,000/stream
+          avgViewers: 100,
+          avgCvr: 2.5,             // 2.5% conversion rate
+          streamCount: 0,
+        };
+
+        // Use real stats or fallback defaults
+        const stats = hasRealData ? rawStats! : {
+          liverName: liverNameForDisplay,
+          liverId: input.liverId,
+          streamCount: 0,
+          totalGmv: 0,
+          avgGmvPerStream: DEFAULTS.avgGmvPerStream,
+          avgGmvPerHour: DEFAULTS.avgGmvPerHour,
+          avgViewers: DEFAULTS.avgViewers,
+          avgSalesPerStream: 0,
+          avgOrdersPerStream: 0,
+          avgCvr: DEFAULTS.avgCvr,
+          filteredGmv: 0,
+          filteredCount: 0,
+          bestTimeSlot: null,
+          recentStreams: [],
+        };
+
+        // 2. Find similar cases (may return empty array)
         const similarCases = await findSimilarCases({
           liverId: input.liverId,
           unitPrice: input.unitPrice,
@@ -11176,6 +11211,13 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         let adjustedGmv = baseGmv;
         const adjustmentFactors: Record<string, number> = {};
 
+        // Price-based adjustment for default estimates (higher price = lower volume but higher GMV potential)
+        if (!hasRealData) {
+          const priceAdjust = input.unitPrice > 10000 ? 0.8 : input.unitPrice > 5000 ? 1.0 : 1.2;
+          adjustmentFactors['priceLevel'] = priceAdjust;
+          adjustedGmv *= priceAdjust;
+        }
+
         // Time slot adjustment (if best time slot data available)
         if (stats.bestTimeSlot && input.timeSlot) {
           const inputHour = parseInt(input.timeSlot.split(':')[0] || '0');
@@ -11186,6 +11228,16 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           } else if (Math.abs(inputHour - bestHour) > 4) {
             adjustmentFactors['timeSlot'] = 0.85;
             adjustedGmv *= 0.85;
+          }
+        } else if (!hasRealData && input.timeSlot) {
+          // Apply general time slot boost for prime time (19:00-22:00)
+          const hour = parseInt(input.timeSlot.split(':')[0] || '0');
+          if (hour >= 19 && hour <= 22) {
+            adjustmentFactors['primeTime'] = 1.15;
+            adjustedGmv *= 1.15;
+          } else if (hour >= 12 && hour <= 14) {
+            adjustmentFactors['lunchTime'] = 1.05;
+            adjustedGmv *= 1.05;
           }
         }
 
@@ -11271,7 +11323,7 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
             messages: [
               {
                 role: "system",
-                content: `あなたはTikTokライブコマースの配信シミュレーション専門AIです。過去の配信実績データに基づいて、GMV予測の精度を高めるための分析を行います。必ず以下のJSON形式で回答してください。`,
+                content: `あなたはTikTokライブコマースの配信シミュレーション専門AIです。${hasRealData ? '過去の配信実績データに基づいて' : '業界平均値をベースに'}、GMV予測の分析を行います。${!hasRealData ? 'このライバーには過去実績がないため、業界平均値での推定です。信頼度は低めに設定してください。' : ''}必ず以下のJSON形式で回答してください。`,
               },
               {
                 role: "user",
@@ -11284,6 +11336,8 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
                     streamCount: stats.streamCount,
                     avgCvr: stats.avgCvr,
                     avgViewers: stats.avgViewers,
+                    hasRealData,
+                    dataSource: hasRealData ? '過去実績ベース' : '業界平均値ベース',
                   },
                   inputConditions: {
                     unitPrice: input.unitPrice,
@@ -11395,6 +11449,8 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           estimatedNetProfit,
           estimatedRoi,
           aiPrediction,
+          hasRealData,
+          dataSource: hasRealData ? '過去実績ベース' : '業界平均値ベース（推定）',
           liverStats: {
             name: stats.liverName,
             streamCount: stats.streamCount,

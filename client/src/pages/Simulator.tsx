@@ -715,7 +715,7 @@ export default function Simulator() {
                     AI分析中...
                   </h3>
                   <p className="text-slate-400 text-sm">
-                    過去実績データとAIモデルを組み合わせて予測を計算しています
+                    AIモデルで配信パフォーマンスを予測しています
                   </p>
                   <div className="mt-4 space-y-2 w-full max-w-xs">
                     <Skeleton className="h-4 bg-slate-700/50" />
@@ -736,12 +736,26 @@ export default function Simulator() {
                         <Sparkles className="w-5 h-5 text-cyan-400" />
                         <h2 className="text-lg font-semibold text-cyan-300">シミュレーション結果</h2>
                       </div>
-                      {result.aiPrediction && (
-                        <Badge className="bg-cyan-500/20 text-cyan-400 border-none">
-                          AI信頼度: {result.aiPrediction.confidence}%
-                        </Badge>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {result.dataSource && (
+                          <Badge className={`border-none text-xs ${result.hasRealData ? 'bg-green-500/20 text-green-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                            {result.dataSource}
+                          </Badge>
+                        )}
+                        {result.aiPrediction && (
+                          <Badge className="bg-cyan-500/20 text-cyan-400 border-none">
+                            AI信頼度: {result.aiPrediction.confidence}%
+                          </Badge>
+                        )}
+                      </div>
                     </div>
+                    {!result.hasRealData && (
+                      <div className="mt-2 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                        <p className="text-xs text-amber-400">
+                          ※ このライバーの過去配信実績がないため、業界平均値での推定です。実績が蓄積されると予測精度が向上します。
+                        </p>
+                      </div>
+                    )}
                   </div>
                   <CardContent className="p-6">
                     {/* Key Metrics */}
