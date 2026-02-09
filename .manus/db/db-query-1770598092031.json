@@ -1,0 +1,18 @@
+{
+  "query": "SHOW COLUMNS FROM simulations WHERE Field = 'simContractType';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SHOW COLUMNS FROM simulations WHERE Field = 'simContractType';",
+  "rows": [
+    {
+      "Field": "simContractType",
+      "Type": "enum('exclusive','spot')",
+      "Null": "YES",
+      "Key": "",
+      "Default": "spot",
+      "Extra": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nsimContractType\tenum('exclusive','spot')\tYES\t\tspot\t\n",
+  "stderr": "",
+  "execution_time_ms": 1615
+}

@@ -11140,7 +11140,7 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         liverId: z.number(),
         commissionRate: z.number().min(0).max(100),
         fixedFee: z.number().default(0),
-        contractType: z.enum(["exclusive", "spot"]).default("spot"),
+        contractType: z.enum(["単発", "契約", "完全成果報酬"]).default("単発"),
         // Execution conditions
         streamDuration: z.number().min(1),
         timeSlot: z.string().optional(),

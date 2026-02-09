@@ -1,0 +1,14 @@
+{
+  "query": "SELECT COLUMN_TYPE, COLUMN_DEFAULT FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'simulations' AND COLUMN_NAME = 'simContractType';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT COLUMN_TYPE, COLUMN_DEFAULT FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'simulations' AND COLUMN_NAME = 'simContractType';",
+  "rows": [
+    {
+      "COLUMN_TYPE": "enum('exclusive','spot')",
+      "COLUMN_DEFAULT": "spot"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_TYPE\tCOLUMN_DEFAULT\nenum('exclusive','spot')\tspot\n",
+  "stderr": "",
+  "execution_time_ms": 1579
+}

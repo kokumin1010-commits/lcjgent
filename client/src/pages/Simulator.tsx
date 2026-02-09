@@ -105,7 +105,7 @@ export default function Simulator() {
   const [selectedLiverId, setSelectedLiverId] = useState<number>(0);
   const [commissionRate, setCommissionRate] = useState<number>(10);
   const [fixedFee, setFixedFee] = useState<number>(0);
-  const [contractType, setContractType] = useState<"exclusive" | "spot">("spot");
+  const [contractType, setContractType] = useState<"単発" | "契約" | "完全成果報酬">("単発");
   const [streamDuration, setStreamDuration] = useState<number>(60);
   const [timeSlot, setTimeSlot] = useState("");
   const [dayOfWeek, setDayOfWeek] = useState("");
@@ -549,13 +549,14 @@ export default function Simulator() {
 
                   <div>
                     <Label className="text-slate-300 text-sm">契約形態</Label>
-                    <Select value={contractType} onValueChange={(v: "exclusive" | "spot") => setContractType(v)}>
+                    <Select value={contractType} onValueChange={(v: "単発" | "契約" | "完全成果報酬") => setContractType(v)}>
                       <SelectTrigger className="bg-[#0a192f] border-slate-600 text-white">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-[#112240] border-slate-600">
-                        <SelectItem value="spot" className="text-white hover:bg-cyan-500/20">スポット</SelectItem>
-                        <SelectItem value="exclusive" className="text-white hover:bg-cyan-500/20">専属</SelectItem>
+                        <SelectItem value="単発" className="text-white hover:bg-cyan-500/20">単発</SelectItem>
+                        <SelectItem value="契約" className="text-white hover:bg-cyan-500/20">契約</SelectItem>
+                        <SelectItem value="完全成果報酬" className="text-white hover:bg-cyan-500/20">完全成果報酬</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

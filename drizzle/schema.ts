@@ -2502,7 +2502,7 @@ export const simulations = mysqlTable("simulations", {
   liverId: int("liverId").notNull(), // 選択ライバーID
   commissionRate: decimal("commissionRate", { precision: 5, scale: 2 }).notNull(), // 成果報酬率（%）
   fixedFee: bigint("fixedFee", { mode: "number" }).default(0), // 固定報酬（円）
-  contractType: mysqlEnum("simContractType", ["exclusive", "spot"]).default("spot"), // 専属 or スポット
+  contractType: mysqlEnum("simContractType", ["単発", "契約", "完全成果報酬"]).default("単発"), // 単発 / 契約 / 完全成果報酬
   
   // 実施条件
   streamDuration: int("streamDuration").notNull(), // 配信時間（分）
