@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -581,35 +581,40 @@ export default function HRManagement() {
     reader.readAsDataURL(file);
   };
 
-  // Staff form fields component
-  const StaffFormFields = ({ isEdit = false }: { isEdit?: boolean }) => (
+  // Form field update helper - uses functional setState to avoid stale closures
+  const updateField = useCallback((field: keyof StaffFormData, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  }, []);
+
+  // Staff form fields - rendered as JSX, not as a component to avoid remounting
+  const staffFormFieldsJsx = (
     <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>名前 <span className="text-red-500">*</span></Label>
-          <Input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="山田 太郎" />
+          <Input value={formData.name} onChange={e => updateField('name', e.target.value)} placeholder="山田 太郎" />
         </div>
         <div className="space-y-2">
           <Label>英語名</Label>
-          <Input value={formData.nameEn} onChange={e => setFormData({ ...formData, nameEn: e.target.value })} placeholder="Taro Yamada" />
+          <Input value={formData.nameEn} onChange={e => updateField('nameEn', e.target.value)} placeholder="Taro Yamada" />
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>メールアドレス <span className="text-red-500">*</span></Label>
-          <Input type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} placeholder="yamada@lcj.co.jp" />
+          <Input type="email" value={formData.email} onChange={e => updateField('email', e.target.value)} placeholder="yamada@lcj.co.jp" />
         </div>
         <div className="space-y-2">
           <Label>電話番号</Label>
-          <Input value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} placeholder="090-1234-5678" />
+          <Input value={formData.phone} onChange={e => updateField('phone', e.target.value)} placeholder="090-1234-5678" />
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>部署</Label>
-          <Select value={formData.department || "none"} onValueChange={v => setFormData({ ...formData, department: v === "none" ? "" : v })}>
+          <Select value={formData.department || "none"} onValueChange={v => updateField('department', v === "none" ? "" : v)}>
             <SelectTrigger><SelectValue placeholder="部署を選択" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">未設定</SelectItem>
@@ -619,14 +624,14 @@ export default function HRManagement() {
         </div>
         <div className="space-y-2">
           <Label>役職・ポジション</Label>
-          <Input value={formData.position} onChange={e => setFormData({ ...formData, position: e.target.value })} placeholder="マネージャー" />
+          <Input value={formData.position} onChange={e => updateField('position', e.target.value)} placeholder="マネージャー" />
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>国</Label>
-          <Select value={formData.country || "日本"} onValueChange={v => setFormData({ ...formData, country: v })}>
+          <Select value={formData.country || "日本"} onValueChange={v => updateField('country', v)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {COUNTRIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
@@ -635,7 +640,7 @@ export default function HRManagement() {
         </div>
         <div className="space-y-2">
           <Label>雇用形態</Label>
-          <Select value={formData.employmentType} onValueChange={v => setFormData({ ...formData, employmentType: v })}>
+          <Select value={formData.employmentType} onValueChange={v => updateField('employmentType', v)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {EMPLOYMENT_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
@@ -647,22 +652,22 @@ export default function HRManagement() {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>入社日</Label>
-          <Input type="date" value={formData.joinDate} onChange={e => setFormData({ ...formData, joinDate: e.target.value })} />
+          <Input type="date" value={formData.joinDate} onChange={e => updateField('joinDate', e.target.value)} />
         </div>
         <div className="space-y-2">
           <Label>生年月日</Label>
-          <Input type="date" value={formData.birthDate} onChange={e => setFormData({ ...formData, birthDate: e.target.value })} />
+          <Input type="date" value={formData.birthDate} onChange={e => updateField('birthDate', e.target.value)} />
         </div>
       </div>
 
       <div className="space-y-2">
         <Label>LINE ID</Label>
-        <Input value={formData.lineId} onChange={e => setFormData({ ...formData, lineId: e.target.value })} placeholder="line_id" />
+        <Input value={formData.lineId} onChange={e => updateField('lineId', e.target.value)} placeholder="line_id" />
       </div>
 
       <div className="space-y-2">
         <Label>緊急連絡先</Label>
-        <Input value={formData.emergencyContact} onChange={e => setFormData({ ...formData, emergencyContact: e.target.value })} placeholder="緊急時の連絡先" />
+        <Input value={formData.emergencyContact} onChange={e => updateField('emergencyContact', e.target.value)} placeholder="緊急時の連絡先" />
       </div>
 
       {/* Skills */}
@@ -693,7 +698,7 @@ export default function HRManagement() {
         <Label>メモ</Label>
         <Textarea
           value={formData.notes}
-          onChange={e => setFormData({ ...formData, notes: e.target.value })}
+          onChange={e => updateField('notes', e.target.value)}
           placeholder="備考・メモ"
           rows={3}
         />
@@ -1033,7 +1038,7 @@ export default function HRManagement() {
             </DialogTitle>
             <DialogDescription>スタッフの人事情報を入力してください</DialogDescription>
           </DialogHeader>
-          <StaffFormFields />
+          {staffFormFieldsJsx}
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>キャンセル</Button>
             <Button onClick={handleCreate} disabled={createMutation.isPending}>
@@ -1323,7 +1328,7 @@ export default function HRManagement() {
                 </DialogTitle>
                 <DialogDescription>{selectedItem.staffName || selectedItem.reportStaffName}さんの情報を編集します</DialogDescription>
               </DialogHeader>
-              <StaffFormFields isEdit />
+              {staffFormFieldsJsx}
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsEditMode(false)}>キャンセル</Button>
                 <Button onClick={handleUpdate} disabled={updateMutation.isPending}>
