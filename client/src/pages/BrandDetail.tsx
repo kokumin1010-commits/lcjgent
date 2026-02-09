@@ -37,7 +37,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn, Info, History, ChevronLeft, ChevronRight, Download, FolderOpen, Link, ExternalLink, TrendingUp, CheckCircle, FileDown, Save } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Edit2, Package, Calendar, DollarSign, Percent, Users, Video, Clock, Eye, FileText, ChevronDown, ChevronUp, MessageSquare, Send, User, Sparkles, Image, Loader2, Upload, Globe, X, ZoomIn, Info, History, ChevronLeft, ChevronRight, Download, FolderOpen, Link, ExternalLink, TrendingUp, CheckCircle, FileDown, Save, BarChart3, Target, MousePointerClick } from "lucide-react";
 import { toast } from "sonner";
 
 const translations = {
@@ -174,6 +174,20 @@ const translations = {
     avgGmvPerLivestream: "平均GMV/配信",
     noLiverStats: "ライバー別の売上データはありません",
     gmvShare: "GMVシェア",
+    // Ad Campaign Performance Section
+    adCampaignPerformance: "広告キャンペーン実績",
+    totalAdSpend: "総広告費",
+    totalAdImpressions: "総インプレッション",
+    avgAdRoas: "平均ROAS",
+    campaignCount: "キャンペーン数",
+    noAdCampaigns: "広告キャンペーンデータはありません",
+    adObjective: "目的",
+    adBudget: "予算",
+    adSpendLabel: "広告費",
+    adClicks: "クリック",
+    adGmv: "GMV",
+    adPeriod: "期間",
+    viewDetails: "詳細を表示",
   },
   zh: {
     title: "品牌详情",
@@ -308,6 +322,20 @@ const translations = {
     avgGmvPerLivestream: "平均GMV/直播",
     noLiverStats: "没有主播别的销售数据",
     gmvShare: "GMV占比",
+    // Ad Campaign Performance Section
+    adCampaignPerformance: "广告活动实绩",
+    totalAdSpend: "总广告费",
+    totalAdImpressions: "总曝光",
+    avgAdRoas: "平均ROAS",
+    campaignCount: "活动数",
+    noAdCampaigns: "没有广告活动数据",
+    adObjective: "目的",
+    adBudget: "预算",
+    adSpendLabel: "广告费",
+    adClicks: "点击",
+    adGmv: "GMV",
+    adPeriod: "期间",
+    viewDetails: "查看详情",
   },
 };
 
@@ -2770,6 +2798,179 @@ ${proposal.proposalContent}
             </div>
           )}
         </div>
+
+        {/* Ad Campaign Performance Section - レポートベースのキャンペーン実績 */}
+        {adCampaigns.length > 0 && (() => {
+          // サマリー計算
+          const totalAdSpend = adCampaignStats?.totalSpend || 0;
+          const totalAdImpressions = adCampaignStats?.totalImpressions || 0;
+          const totalAdGmv = adCampaignStats?.totalGmv || 0;
+          const avgRoas = totalAdSpend > 0 ? totalAdGmv / totalAdSpend : 0;
+          const campaignCountVal = adCampaignStats?.campaignCount || adCampaigns.length;
+
+          return (
+            <div className="space-y-4 mb-6">
+              {/* Ad Performance Summary Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="relative overflow-hidden rounded-xl p-4 transition-all duration-300 hover:scale-105" style={{
+                  background: 'linear-gradient(135deg, rgba(0,40,30,0.9) 0%, rgba(0,60,50,0.7) 100%)',
+                  border: '1px solid rgba(0, 255, 180, 0.5)',
+                  boxShadow: '0 0 25px rgba(0, 255, 180, 0.3), inset 0 0 20px rgba(0, 255, 180, 0.1)',
+                }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <DollarSign className="h-5 w-5 text-emerald-300" />
+                    <span className="text-xs text-emerald-200 uppercase tracking-wider font-bold">{t.totalAdSpend}</span>
+                  </div>
+                  <p className="text-2xl font-black" style={{ fontFamily: 'JetBrains Mono, monospace', color: '#00ffb4', textShadow: '0 0 10px rgba(0, 255, 180, 0.8)' }}>
+                    {formatCurrency(totalAdSpend)}
+                  </p>
+                </div>
+                <div className="relative overflow-hidden rounded-xl p-4 transition-all duration-300 hover:scale-105" style={{
+                  background: 'linear-gradient(135deg, rgba(0,20,50,0.9) 0%, rgba(0,40,80,0.7) 100%)',
+                  border: '1px solid rgba(100, 180, 255, 0.5)',
+                  boxShadow: '0 0 25px rgba(100, 180, 255, 0.3), inset 0 0 20px rgba(100, 180, 255, 0.1)',
+                }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Eye className="h-5 w-5 text-blue-300" />
+                    <span className="text-xs text-blue-200 uppercase tracking-wider font-bold">{t.totalAdImpressions}</span>
+                  </div>
+                  <p className="text-2xl font-black" style={{ fontFamily: 'JetBrains Mono, monospace', color: '#64b4ff', textShadow: '0 0 10px rgba(100, 180, 255, 0.8)' }}>
+                    {totalAdImpressions.toLocaleString()}
+                  </p>
+                </div>
+                <div className="relative overflow-hidden rounded-xl p-4 transition-all duration-300 hover:scale-105" style={{
+                  background: 'linear-gradient(135deg, rgba(50,30,0,0.9) 0%, rgba(80,50,0,0.7) 100%)',
+                  border: '1px solid rgba(255, 200, 50, 0.5)',
+                  boxShadow: '0 0 25px rgba(255, 200, 50, 0.3), inset 0 0 20px rgba(255, 200, 50, 0.1)',
+                }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <TrendingUp className="h-5 w-5 text-amber-300" />
+                    <span className="text-xs text-amber-200 uppercase tracking-wider font-bold">{t.avgAdRoas}</span>
+                  </div>
+                  <p className="text-2xl font-black" style={{ fontFamily: 'JetBrains Mono, monospace', color: '#ffcc33', textShadow: '0 0 10px rgba(255, 200, 50, 0.8)' }}>
+                    {avgRoas.toFixed(2)}<span className="text-sm text-amber-300 ml-1">{language === 'ja' ? '倍' : '倍'}</span>
+                  </p>
+                </div>
+                <div className="relative overflow-hidden rounded-xl p-4 transition-all duration-300 hover:scale-105" style={{
+                  background: 'linear-gradient(135deg, rgba(40,0,50,0.9) 0%, rgba(60,0,80,0.7) 100%)',
+                  border: '1px solid rgba(200, 100, 255, 0.5)',
+                  boxShadow: '0 0 25px rgba(200, 100, 255, 0.3), inset 0 0 20px rgba(200, 100, 255, 0.1)',
+                }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <BarChart3 className="h-5 w-5 text-purple-300" />
+                    <span className="text-xs text-purple-200 uppercase tracking-wider font-bold">{t.campaignCount}</span>
+                  </div>
+                  <p className="text-2xl font-black" style={{ fontFamily: 'JetBrains Mono, monospace', color: '#c864ff', textShadow: '0 0 10px rgba(200, 100, 255, 0.8)' }}>
+                    {campaignCountVal}<span className="text-sm text-purple-300 ml-1">{t.cases}</span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Ad Campaign Table */}
+              <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-cyan-900/40 p-4 md:p-6 shadow-[0_0_30px_rgba(0,200,255,0.1)]">
+                <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-3">
+                  <div className="w-1 h-6 bg-gradient-to-b from-cyan-400 to-teal-500 rounded-full" />
+                  {t.adCampaignPerformance}
+                  <Badge className="ml-1 bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 text-xs">
+                    {language === 'ja' ? '📄 レポート' : '📄 报告'}
+                  </Badge>
+                </h2>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-cyan-900/30">
+                        <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.campaignName}</th>
+                        <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.platform}</th>
+                        <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.adObjective}</th>
+                        <th className="text-left text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.adPeriod}</th>
+                        <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.adBudget}</th>
+                        <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.impressions}</th>
+                        <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.adClicks}</th>
+                        <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.adGmv}</th>
+                        <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2">{t.roas}</th>
+                        <th className="text-right text-xs text-gray-500 uppercase tracking-wider py-3 px-2 w-12"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {adCampaigns.slice(0, 10).map((campaign) => {
+                        const objectiveLabels: Record<string, Record<string, string>> = {
+                          ja: { impression: 'インプレッション', click: 'クリック', conversion: 'コンバージョン', engagement: 'エンゲージメント', other: 'その他' },
+                          zh: { impression: '曝光', click: '点击', conversion: '转化', engagement: '互动', other: '其他' },
+                        };
+                        return (
+                          <tr 
+                            key={campaign.id} 
+                            className="border-b border-cyan-900/20 hover:bg-cyan-900/10 transition-colors cursor-pointer group"
+                            onClick={() => setSelectedCampaignId(campaign.id)}
+                          >
+                            <td className="py-3 px-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-white font-medium text-sm">{campaign.campaignName}</span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-2">
+                              <Badge className={`text-xs ${campaign.platform === 'tiktok' ? 'bg-pink-500/20 text-pink-300 border-pink-500/30' : 'bg-blue-500/20 text-blue-300 border-blue-500/30'}`}>
+                                {campaign.platform.toUpperCase()}
+                              </Badge>
+                            </td>
+                            <td className="py-3 px-2">
+                              <span className="text-gray-400 text-sm">
+                                {objectiveLabels[language]?.[campaign.objective] || campaign.objective}
+                              </span>
+                            </td>
+                            <td className="py-3 px-2 text-gray-400 text-sm" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                              {campaign.startDate ? new Date(campaign.startDate).toLocaleDateString('ja-JP', { month: '2-digit', day: '2-digit' }) : '?'}
+                              〜
+                              {campaign.endDate ? new Date(campaign.endDate).toLocaleDateString('ja-JP', { month: '2-digit', day: '2-digit' }) : '?'}
+                            </td>
+                            <td className="py-3 px-2 text-right text-emerald-400 font-mono text-sm">
+                              {formatCurrency(campaign.budget)}
+                            </td>
+                            <td className="py-3 px-2 text-right text-blue-400 font-mono text-sm">
+                              {(campaign as any).impressions?.toLocaleString() || '-'}
+                            </td>
+                            <td className="py-3 px-2 text-right text-orange-400 font-mono text-sm">
+                              {(campaign as any).clicks?.toLocaleString() || '-'}
+                            </td>
+                            <td className="py-3 px-2 text-right text-cyan-400 font-mono text-sm font-bold">
+                              {(campaign as any).gmv ? formatCurrency((campaign as any).gmv) : '-'}
+                            </td>
+                            <td className="py-3 px-2 text-right">
+                              {(campaign as any).roas ? (
+                                <span className={`font-mono text-sm font-bold ${
+                                  Number((campaign as any).roas) >= 3 ? 'text-green-400' :
+                                  Number((campaign as any).roas) >= 1 ? 'text-amber-400' : 'text-red-400'
+                                }`}>
+                                  {Number((campaign as any).roas).toFixed(2)}x
+                                </span>
+                              ) : '-'}
+                            </td>
+                            <td className="py-3 px-2 text-right">
+                              <button
+                                className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-cyan-400 transition-all"
+                                title={t.viewDetails}
+                                onClick={(e) => { e.stopPropagation(); setSelectedCampaignId(campaign.id); }}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {adCampaigns.length > 10 && (
+                  <div className="text-center mt-3">
+                    <span className="text-gray-500 text-sm">
+                      {language === 'ja' ? `他 ${adCampaigns.length - 10} 件のキャンペーン` : `其他 ${adCampaigns.length - 10} 个活动`}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Activity Memos - Timeline */}
         <div className="bg-black/85 backdrop-blur-xl rounded-xl border border-red-900/30 p-4 md:p-6 shadow-[0_0_30px_rgba(255,0,0,0.1)]">

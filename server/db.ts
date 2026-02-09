@@ -8910,17 +8910,49 @@ export async function createAdCampaign(data: InsertAdCampaign) {
 }
 
 /**
- * ブランドIDで広告キャンペーン一覧を取得
+ * ブランドIDで広告キャンペーン一覧を取得（メトリクス付き）
  */
 export async function getAdCampaignsByBrandId(brandId: number) {
   const db = await getDb();
   if (!db) return [];
   
-  return await db
+  const campaigns = await db
     .select()
     .from(adCampaigns)
     .where(eq(adCampaigns.brandId, brandId))
     .orderBy(desc(adCampaigns.createdAt));
+  
+  if (campaigns.length === 0) return [];
+  
+  // 各キャンペーンのメトリクスを一括取得
+  const campaignIds = campaigns.map(c => c.id);
+  const allMetrics = await db
+    .select()
+    .from(adMetrics)
+    .where(inArray(adMetrics.campaignId, campaignIds));
+  
+  // キャンペーンIDごとにメトリクスをグループ化
+  const metricsMap = new Map<number, typeof allMetrics>();
+  for (const m of allMetrics) {
+    if (!metricsMap.has(m.campaignId)) {
+      metricsMap.set(m.campaignId, []);
+    }
+    metricsMap.get(m.campaignId)!.push(m);
+  }
+  
+  return campaigns.map(campaign => {
+    const metrics = metricsMap.get(campaign.id) || [];
+    const firstMetric = metrics[0];
+    return {
+      ...campaign,
+      // メトリクスデータをフラットに展開
+      impressions: metrics.reduce((sum, m) => sum + (m.impressions || 0), 0),
+      clicks: metrics.reduce((sum, m) => sum + (m.clicks || 0), 0),
+      gmv: metrics.reduce((sum, m) => sum + (m.gmv || 0), 0),
+      adSpendActual: metrics.reduce((sum, m) => sum + (m.adSpend || 0), 0),
+      roas: firstMetric?.roas || null,
+    };
+  });
 }
 
 /**
