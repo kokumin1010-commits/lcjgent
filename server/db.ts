@@ -9995,7 +9995,38 @@ export async function findSimilarCases(params: {
     return dur >= durationMin && dur <= durationMax;
   });
 
-  return (similar.length > 0 ? similar : streams.slice(0, 5)).map(s => ({
+  const finalStreams = similar.length > 0 ? similar : streams.slice(0, 5);
+
+  // Enrich with brand name and product name
+  const brandIdSet = new Set<number>();
+  const productIdSet = new Set<number>();
+  for (const s of finalStreams) {
+    brandIdSet.add(s.brandId);
+    if (s.productId) productIdSet.add(s.productId);
+  }
+  const brandIds: number[] = [];
+  brandIdSet.forEach(id => brandIds.push(id));
+  const productIds: number[] = [];
+  productIdSet.forEach(id => productIds.push(id));
+
+  const brandMap = new Map<number, string>();
+  const productMap = new Map<number, string>();
+
+  if (brandIds.length > 0) {
+    const brandRows = await db.select({ id: brands.id, name: brands.name, nameJa: brands.nameJa }).from(brands).where(inArray(brands.id, brandIds));
+    for (const b of brandRows) {
+      brandMap.set(b.id, b.nameJa || b.name);
+    }
+  }
+
+  if (productIds.length > 0) {
+    const productRows = await db.select({ id: brandProducts.id, productName: brandProducts.productName }).from(brandProducts).where(inArray(brandProducts.id, productIds));
+    for (const p of productRows) {
+      productMap.set(p.id, p.productName);
+    }
+  }
+
+  return finalStreams.map(s => ({
     id: s.id,
     date: s.livestreamDate,
     gmv: Number(s.gmv) || 0,
@@ -10005,6 +10036,20 @@ export async function findSimilarCases(params: {
     salesCount: s.itemsSold || s.salesCount || 0,
     cvr: s.cvr,
     avgPrice: Number(s.avgPrice) || 0,
+    // 詳細情報
+    brandName: brandMap.get(s.brandId) || null,
+    productName: s.productId ? (productMap.get(s.productId) || null) : null,
+    platform: s.platform || null,
+    peakViewers: s.peakViewers || null,
+    likes: s.likes || null,
+    comments: s.comments || null,
+    shares: s.shares || null,
+    ctr: s.ctr || null,
+    impressions: s.impressions || null,
+    orderCount: s.orderCount || null,
+    adCost: s.adCost ? Number(s.adCost) : null,
+    result: s.result || null,
+    livestreamStartTime: s.livestreamStartTime || null,
   }));
 }
 

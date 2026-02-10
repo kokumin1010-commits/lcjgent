@@ -42,6 +42,14 @@ import {
   Eye,
   Megaphone,
   Trophy,
+  MapPin,
+  ThumbsUp,
+  MessageCircle,
+  Monitor,
+  Target,
+  Banknote,
+  ShoppingCart,
+  Star,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -119,6 +127,7 @@ export default function Simulator() {
   const [showResult, setShowResult] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showSimilarCases, setShowSimilarCases] = useState(false);
+  const [expandedCaseId, setExpandedCaseId] = useState<number | null>(null);
 
   // Fetch livers
   const { data: liversData } = trpc.liverManagement.list.useQuery();
@@ -976,14 +985,169 @@ export default function Simulator() {
                       </button>
                       {showSimilarCases && (
                         <div className="mt-4 space-y-2">
-                          {result.similarCases.map((c: any, i: number) => (
-                            <div key={i} className="flex items-center justify-between p-3 bg-[#0a192f] rounded-lg text-sm">
-                              <div className="text-slate-400">{c.date ? new Date(c.date).toLocaleDateString('ja-JP') : "N/A"}</div>
-                              <div className="text-cyan-400 font-semibold">{formatCurrency(c.gmv)}</div>
-                              <div className="text-slate-400">{c.duration}分</div>
-                              <div className="text-slate-400">{c.viewers?.toLocaleString() || 0}人</div>
-                            </div>
-                          ))}
+                          {result.similarCases.map((c: any, i: number) => {
+                            const isExpanded = expandedCaseId === c.id;
+                            return (
+                              <div key={c.id || i} className="rounded-lg overflow-hidden">
+                                {/* Summary row - clickable */}
+                                <button
+                                  onClick={() => setExpandedCaseId(isExpanded ? null : c.id)}
+                                  className="flex items-center justify-between w-full p-3 bg-[#0a192f] hover:bg-[#0d2247] transition-colors text-sm"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <div className="text-slate-400 min-w-[80px]">{c.date ? new Date(c.date).toLocaleDateString('ja-JP') : "N/A"}</div>
+                                    {c.brandName && (
+                                      <Badge variant="outline" className="text-[10px] border-cyan-500/30 text-cyan-300 px-1.5 py-0">{c.brandName}</Badge>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <div className="text-cyan-400 font-semibold">{formatCurrency(c.gmv)}</div>
+                                    <div className="text-slate-500 text-xs">{c.duration}分</div>
+                                    {isExpanded ? (
+                                      <ChevronUp className="w-3 h-3 text-slate-500" />
+                                    ) : (
+                                      <ChevronDown className="w-3 h-3 text-slate-500" />
+                                    )}
+                                  </div>
+                                </button>
+
+                                {/* Expanded detail */}
+                                {isExpanded && (
+                                  <div className="bg-[#0a192f]/60 border-t border-cyan-500/10 p-4 space-y-3">
+                                    {/* Brand & Product */}
+                                    <div className="grid grid-cols-2 gap-3">
+                                      {c.brandName && (
+                                        <div className="flex items-center gap-2">
+                                          <Star className="w-3.5 h-3.5 text-amber-400" />
+                                          <span className="text-xs text-slate-400">ブランド:</span>
+                                          <span className="text-xs text-white font-medium">{c.brandName}</span>
+                                        </div>
+                                      )}
+                                      {c.productName && (
+                                        <div className="flex items-center gap-2">
+                                          <ShoppingCart className="w-3.5 h-3.5 text-cyan-400" />
+                                          <span className="text-xs text-slate-400">商品:</span>
+                                          <span className="text-xs text-white font-medium">{c.productName}</span>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Metrics grid */}
+                                    <div className="grid grid-cols-3 gap-2">
+                                      <div className="bg-[#112240]/80 rounded-lg p-2 text-center">
+                                        <div className="text-[10px] text-slate-500 flex items-center justify-center gap-1"><Eye className="w-3 h-3" />視聴者</div>
+                                        <div className="text-sm font-semibold text-cyan-400">{(c.viewers || 0).toLocaleString()}人</div>
+                                      </div>
+                                      {c.peakViewers != null && (
+                                        <div className="bg-[#112240]/80 rounded-lg p-2 text-center">
+                                          <div className="text-[10px] text-slate-500 flex items-center justify-center gap-1"><TrendingUp className="w-3 h-3" />ピーク</div>
+                                          <div className="text-sm font-semibold text-amber-400">{c.peakViewers.toLocaleString()}人</div>
+                                        </div>
+                                      )}
+                                      <div className="bg-[#112240]/80 rounded-lg p-2 text-center">
+                                        <div className="text-[10px] text-slate-500 flex items-center justify-center gap-1"><Clock className="w-3 h-3" />配信時間</div>
+                                        <div className="text-sm font-semibold text-white">{c.duration}分</div>
+                                      </div>
+                                      <div className="bg-[#112240]/80 rounded-lg p-2 text-center">
+                                        <div className="text-[10px] text-slate-500 flex items-center justify-center gap-1"><DollarSign className="w-3 h-3" />GMV</div>
+                                        <div className="text-sm font-semibold text-green-400">{formatCurrency(c.gmv)}</div>
+                                      </div>
+                                      <div className="bg-[#112240]/80 rounded-lg p-2 text-center">
+                                        <div className="text-[10px] text-slate-500 flex items-center justify-center gap-1"><ShoppingCart className="w-3 h-3" />販売数</div>
+                                        <div className="text-sm font-semibold text-white">{(c.salesCount || 0).toLocaleString()}個</div>
+                                      </div>
+                                      {c.avgPrice > 0 && (
+                                        <div className="bg-[#112240]/80 rounded-lg p-2 text-center">
+                                          <div className="text-[10px] text-slate-500 flex items-center justify-center gap-1"><Tag className="w-3 h-3" />平均単価</div>
+                                          <div className="text-sm font-semibold text-white">{formatCurrency(c.avgPrice)}</div>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Engagement metrics */}
+                                    {(c.likes != null || c.comments != null || c.shares != null) && (
+                                      <div className="flex items-center gap-4 pt-1">
+                                        {c.likes != null && (
+                                          <div className="flex items-center gap-1 text-xs text-slate-400">
+                                            <ThumbsUp className="w-3 h-3 text-pink-400" />
+                                            <span>{c.likes.toLocaleString()}</span>
+                                          </div>
+                                        )}
+                                        {c.comments != null && (
+                                          <div className="flex items-center gap-1 text-xs text-slate-400">
+                                            <MessageCircle className="w-3 h-3 text-blue-400" />
+                                            <span>{c.comments.toLocaleString()}</span>
+                                          </div>
+                                        )}
+                                        {c.shares != null && (
+                                          <div className="flex items-center gap-1 text-xs text-slate-400">
+                                            <Share2 className="w-3 h-3 text-green-400" />
+                                            <span>{c.shares.toLocaleString()}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+
+                                    {/* CVR / CTR / Impressions */}
+                                    {(c.cvr || c.ctr || c.impressions != null) && (
+                                      <div className="flex items-center gap-4 pt-1 border-t border-cyan-500/10">
+                                        {c.cvr && (
+                                          <div className="flex items-center gap-1 text-xs">
+                                            <Target className="w-3 h-3 text-cyan-400" />
+                                            <span className="text-slate-400">CVR:</span>
+                                            <span className="text-white font-medium">{c.cvr}</span>
+                                          </div>
+                                        )}
+                                        {c.ctr && (
+                                          <div className="flex items-center gap-1 text-xs">
+                                            <Monitor className="w-3 h-3 text-cyan-400" />
+                                            <span className="text-slate-400">CTR:</span>
+                                            <span className="text-white font-medium">{c.ctr}</span>
+                                          </div>
+                                        )}
+                                        {c.impressions != null && (
+                                          <div className="flex items-center gap-1 text-xs">
+                                            <Eye className="w-3 h-3 text-cyan-400" />
+                                            <span className="text-slate-400">曝光:</span>
+                                            <span className="text-white font-medium">{c.impressions.toLocaleString()}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+
+                                    {/* Ad cost & Result */}
+                                    {(c.adCost != null || c.result) && (
+                                      <div className="flex items-center gap-4 pt-1 border-t border-cyan-500/10">
+                                        {c.adCost != null && c.adCost > 0 && (
+                                          <div className="flex items-center gap-1 text-xs">
+                                            <Banknote className="w-3 h-3 text-amber-400" />
+                                            <span className="text-slate-400">広告費:</span>
+                                            <span className="text-white font-medium">{formatCurrency(c.adCost)}</span>
+                                          </div>
+                                        )}
+                                        {c.result && (
+                                          <Badge
+                                            variant="outline"
+                                            className={`text-[10px] px-1.5 py-0 ${
+                                              c.result === "成功" ? "border-green-500/30 text-green-400" : "border-red-500/30 text-red-400"
+                                            }`}
+                                          >
+                                            {c.result}
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    )}
+
+                                    {/* Platform & Start time */}
+                                    <div className="flex items-center gap-4 text-[10px] text-slate-500">
+                                      {c.platform && <span>プラットフォーム: {c.platform}</span>}
+                                      {c.livestreamStartTime && <span>開始時間: {c.livestreamStartTime}</span>}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                           <div className="p-3 bg-cyan-500/10 rounded-lg border border-cyan-500/20">
                             <div className="flex justify-between text-sm">
                               <span className="text-cyan-300 font-semibold">平均</span>
