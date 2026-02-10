@@ -1138,7 +1138,8 @@ export default function HRManagement() {
                   </div>
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                  {selectedItem.isLinked && selectedItem.staffIsActive === "active" && (
+                  {/* 退職処理ボタン：在籍中のスタッフ（紐付済・未紐付どちらも） */}
+                  {(selectedItem.isLinked ? selectedItem.staffIsActive === "active" : selectedItem.reportStaffIsActive === "active") && (
                     <Button variant="destructive" size="sm" onClick={() => {
                       setResignDate(new Date().toISOString().split('T')[0]);
                       setResignReason("");
@@ -1147,14 +1148,13 @@ export default function HRManagement() {
                       <UserRoundCog className="h-4 w-4 mr-1" /> 退職処理
                     </Button>
                   )}
-                  {selectedItem.isLinked && selectedItem.staffIsActive === "inactive" && (
+                  {/* 復職ボタン：退職済みのスタッフ（紐付済・未紐付どちらも） */}
+                  {(selectedItem.isLinked ? selectedItem.staffIsActive === "inactive" : selectedItem.reportStaffIsActive === "inactive") && (
                     <Button variant="outline" size="sm" className="text-emerald-600 border-emerald-300 hover:bg-emerald-50" onClick={() => {
-                      if (selectedItem.staffId) {
-                        reinstateMutation.mutate({
-                          staffId: selectedItem.staffId,
-                          reportStaffId: selectedItem.reportStaffId,
-                        });
-                      }
+                      reinstateMutation.mutate({
+                        staffId: selectedItem.staffId || null,
+                        reportStaffId: selectedItem.reportStaffId,
+                      });
                     }} disabled={reinstateMutation.isPending}>
                       {reinstateMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
                       復職
@@ -1461,9 +1461,9 @@ export default function HRManagement() {
               disabled={!resignDate || resignMutation.isPending}
               onClick={(e) => {
                 e.preventDefault();
-                if (selectedItem?.staffId) {
+                if (selectedItem) {
                   resignMutation.mutate({
-                    staffId: selectedItem.staffId,
+                    staffId: selectedItem.staffId || null,
                     reportStaffId: selectedItem.reportStaffId,
                     resignDate: resignDate,
                     resignReason: resignReason || undefined,

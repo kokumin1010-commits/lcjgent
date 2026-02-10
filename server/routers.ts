@@ -1574,18 +1574,20 @@ export const appRouter = router({
     // Resign staff (set inactive with resign date/reason, also update reportStaff)
     resign: protectedProcedure
       .input(z.object({
-        staffId: z.number(),
+        staffId: z.number().nullable().optional(),
         reportStaffId: z.number(),
         resignDate: z.string(), // ISO date string
         resignReason: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
-        // Update staff record
-        await updateStaff(input.staffId, {
-          isActive: "inactive",
-          resignDate: new Date(input.resignDate),
-          resignReason: input.resignReason || null,
-        });
+        // Update staff record if linked
+        if (input.staffId) {
+          await updateStaff(input.staffId, {
+            isActive: "inactive",
+            resignDate: new Date(input.resignDate),
+            resignReason: input.resignReason || null,
+          });
+        }
         // Also update reportStaff isActive
         await updateReportStaff(input.reportStaffId, {
           isActive: "inactive",
@@ -1596,15 +1598,17 @@ export const appRouter = router({
     // Reinstate staff (set active again, clear resign info)
     reinstate: protectedProcedure
       .input(z.object({
-        staffId: z.number(),
+        staffId: z.number().nullable().optional(),
         reportStaffId: z.number(),
       }))
       .mutation(async ({ input }) => {
-        await updateStaff(input.staffId, {
-          isActive: "active",
-          resignDate: null,
-          resignReason: null,
-        });
+        if (input.staffId) {
+          await updateStaff(input.staffId, {
+            isActive: "active",
+            resignDate: null,
+            resignReason: null,
+          });
+        }
         await updateReportStaff(input.reportStaffId, {
           isActive: "active",
         });
