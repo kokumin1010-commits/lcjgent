@@ -17,6 +17,9 @@ import {
   Tag,
   Percent,
   ShoppingBag,
+  Eye,
+  Megaphone,
+  Trophy,
 } from "lucide-react";
 
 function formatCurrency(value: number | string | null | undefined): string {
@@ -338,6 +341,81 @@ export default function ProposalPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* 広告換算値・広告効果ROAS・業界比較 */}
+        {sim.adMetrics && (() => {
+          const adMetrics = sim.adMetrics as {
+            estimatedImpressions: number;
+            adConversionValue: number;
+            brandExposure: { totalPersonMinutes: number; totalPersonHours: number; avgViewers: number; durationMinutes: number };
+            adEffectRoas: number;
+            industryComparison: { industryAvgRoas: number; priceLabel: string; roasVsIndustryPercent: number; roasVsIndustryLabel: string; isAboveAverage: boolean };
+            cpmRate: number;
+          };
+          return (
+            <Card className="shadow-sm border-amber-200">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Megaphone className="w-5 h-5 text-amber-500" />
+                  <h2 className="text-sm font-semibold text-slate-600">広告換算・ブランド露出価値</h2>
+                  <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300">CPM ¥{adMetrics.cpmRate.toLocaleString()}</Badge>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="text-center p-3 bg-amber-50 rounded-lg">
+                    <div className="text-xs text-slate-500 flex items-center justify-center gap-1"><Eye className="w-3 h-3" />想定曝光量</div>
+                    <div className="text-lg font-bold text-amber-600">{adMetrics.estimatedImpressions.toLocaleString()}</div>
+                    <div className="text-[10px] text-slate-400">{adMetrics.brandExposure.avgViewers.toLocaleString()}人×{adMetrics.brandExposure.durationMinutes}分</div>
+                  </div>
+                  <div className="text-center p-3 bg-amber-50 rounded-lg">
+                    <div className="text-xs text-slate-500">広告換算値</div>
+                    <div className="text-lg font-bold text-amber-600">{formatCurrency(adMetrics.adConversionValue)}</div>
+                    <div className="text-[10px] text-slate-400">CPM ¥{adMetrics.cpmRate.toLocaleString()} × 曝光量</div>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg p-4 border border-amber-200 mb-4">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm text-slate-600">広告効果ROAS</span>
+                    <span className="text-2xl font-bold text-amber-600">{adMetrics.adEffectRoas}倍</span>
+                  </div>
+                  <div className="text-xs text-slate-400">(GMV + 広告換算値) ÷ 総コスト</div>
+                </div>
+
+                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-lg p-4 border border-emerald-200">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Trophy className="w-4 h-4 text-emerald-500" />
+                    <span className="text-sm font-semibold text-emerald-700">業界比較</span>
+                    <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-300">{adMetrics.industryComparison.priceLabel}</Badge>
+                  </div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-slate-500">同価格帯の業界平均ROAS</span>
+                    <span className="text-sm text-slate-600">{adMetrics.industryComparison.industryAvgRoas}倍</span>
+                  </div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs text-slate-500">この案件の広告効果ROAS</span>
+                    <span className="text-sm font-bold text-amber-600">{adMetrics.adEffectRoas}倍</span>
+                  </div>
+                  <div className="relative w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className={`absolute left-0 top-0 h-full rounded-full ${
+                        adMetrics.industryComparison.isAboveAverage
+                          ? 'bg-gradient-to-r from-emerald-400 to-teal-400'
+                          : 'bg-gradient-to-r from-amber-400 to-orange-400'
+                      }`}
+                      style={{ width: `${Math.min(adMetrics.industryComparison.roasVsIndustryPercent, 300) / 3}%` }}
+                    />
+                  </div>
+                  <div className={`text-center mt-2 text-sm font-bold ${
+                    adMetrics.industryComparison.isAboveAverage ? 'text-emerald-600' : 'text-amber-600'
+                  }`}>
+                    {adMetrics.industryComparison.roasVsIndustryLabel}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
 
         {/* AI Reasoning */}
         {aiReasoning && (

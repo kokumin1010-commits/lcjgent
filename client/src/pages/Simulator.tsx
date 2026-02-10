@@ -39,6 +39,9 @@ import {
   Trash2,
   Tag,
   Percent,
+  Eye,
+  Megaphone,
+  Trophy,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -852,6 +855,72 @@ export default function Simulator() {
                     )}
                   </CardContent>
                 </Card>
+
+                {/* 広告換算値・広告効果ROAS・業界比較 */}
+                {result.adMetrics && (
+                  <Card className="bg-[#112240]/80 border-cyan-500/20 backdrop-blur-sm">
+                    <CardContent className="p-6">
+                      <div className="flex items-center gap-2 mb-4">
+                        <Megaphone className="w-5 h-5 text-amber-400" />
+                        <h3 className="text-sm font-semibold text-amber-300">広告換算・ブランド露出価値</h3>
+                        <Badge className="bg-amber-500/20 text-amber-400 border-none text-[10px]">CPM ¥{result.adMetrics.cpmRate.toLocaleString()}</Badge>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 mb-4">
+                        <div className="text-center p-3 bg-[#0a192f] rounded-lg">
+                          <div className="text-xs text-slate-400 flex items-center justify-center gap-1"><Eye className="w-3 h-3" />想定曝光量</div>
+                          <div className="text-lg font-bold text-amber-400">{result.adMetrics.estimatedImpressions.toLocaleString()}</div>
+                          <div className="text-[10px] text-slate-500">{result.adMetrics.brandExposure.avgViewers.toLocaleString()}人×{result.adMetrics.brandExposure.durationMinutes}分</div>
+                        </div>
+                        <div className="text-center p-3 bg-[#0a192f] rounded-lg">
+                          <div className="text-xs text-slate-400">広告換算値</div>
+                          <div className="text-lg font-bold text-amber-400">{formatCurrency(result.adMetrics.adConversionValue)}</div>
+                          <div className="text-[10px] text-slate-500">CPM ¥{result.adMetrics.cpmRate.toLocaleString()} × 曝光量</div>
+                        </div>
+                      </div>
+
+                      <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 rounded-lg p-4 border border-amber-500/20 mb-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm text-slate-300">広告効果ROAS</span>
+                          <span className="text-2xl font-bold text-amber-400">{result.adMetrics.adEffectRoas}倍</span>
+                        </div>
+                        <div className="text-xs text-slate-500">(GMV {formatCurrency(result.estimatedGmv)} + 広告換算値 {formatCurrency(result.adMetrics.adConversionValue)}) ÷ 総コスト</div>
+                      </div>
+
+                      {/* 業界比較 */}
+                      <div className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 rounded-lg p-4 border border-emerald-500/20">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Trophy className="w-4 h-4 text-emerald-400" />
+                          <span className="text-sm font-semibold text-emerald-300">業界比較</span>
+                          <Badge className="bg-emerald-500/20 text-emerald-400 border-none text-[10px]">{result.adMetrics.industryComparison.priceLabel}</Badge>
+                        </div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs text-slate-400">同価格帯の業界平均ROAS</span>
+                          <span className="text-sm text-slate-300">{result.adMetrics.industryComparison.industryAvgRoas}倍</span>
+                        </div>
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-xs text-slate-400">この案件の広告効果ROAS</span>
+                          <span className="text-sm font-bold text-amber-400">{result.adMetrics.adEffectRoas}倍</span>
+                        </div>
+                        <div className="relative w-full h-3 bg-[#0a192f] rounded-full overflow-hidden">
+                          <div
+                            className={`absolute left-0 top-0 h-full rounded-full transition-all duration-1000 ${
+                              result.adMetrics.industryComparison.isAboveAverage
+                                ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
+                                : 'bg-gradient-to-r from-amber-500 to-orange-400'
+                            }`}
+                            style={{ width: `${Math.min(result.adMetrics.industryComparison.roasVsIndustryPercent, 300) / 3}%` }}
+                          />
+                        </div>
+                        <div className={`text-center mt-2 text-sm font-bold ${
+                          result.adMetrics.industryComparison.isAboveAverage ? 'text-emerald-400' : 'text-amber-400'
+                        }`}>
+                          {result.adMetrics.industryComparison.roasVsIndustryLabel}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Liver Stats - only show when data exists */}
                 {result.liverStats && result.liverStats.streamCount > 0 && (

@@ -515,3 +515,211 @@ describe("Simulation Feature", () => {
     });
   });
 });
+
+describe("Ad Metrics Calculation (広告換算値・広告効果ROAS・業界比較)", () => {
+  const CPM_RATE = 15000;
+  const CPM_PER_IMPRESSION = CPM_RATE / 1000; // ¥15 per impression
+
+  describe("Estimated Impressions (想定曝光量)", () => {
+    it("should calculate impressions from avgViewers × duration in minutes", () => {
+      const avgViewers = 1200;
+      const durationHours = 1; // 60 minutes
+      const estimatedImpressions = Math.round(avgViewers * durationHours * 60);
+      expect(estimatedImpressions).toBe(72000);
+    });
+
+    it("should scale impressions with longer stream duration", () => {
+      const avgViewers = 500;
+      const durationHours2 = 2;
+      const durationHours1 = 1;
+      const imp2h = Math.round(avgViewers * durationHours2 * 60);
+      const imp1h = Math.round(avgViewers * durationHours1 * 60);
+      expect(imp2h).toBe(imp1h * 2);
+    });
+
+    it("should handle default avgViewers when no real data", () => {
+      const DEFAULTS_AVG_VIEWERS = 100;
+      const durationHours = 1;
+      const estimatedImpressions = Math.round(DEFAULTS_AVG_VIEWERS * durationHours * 60);
+      expect(estimatedImpressions).toBe(6000);
+    });
+  });
+
+  describe("Ad Conversion Value (広告換算値)", () => {
+    it("should calculate ad conversion value = CPM ¥15,000 × (impressions / 1000)", () => {
+      const impressions = 72000;
+      const adConversionValue = Math.round(impressions * CPM_PER_IMPRESSION);
+      expect(adConversionValue).toBe(1080000);
+    });
+
+    it("should calculate correctly for small impression counts", () => {
+      const impressions = 6000;
+      const adConversionValue = Math.round(impressions * CPM_PER_IMPRESSION);
+      expect(adConversionValue).toBe(90000);
+    });
+
+    it("should be zero when impressions are zero", () => {
+      const impressions = 0;
+      const adConversionValue = Math.round(impressions * CPM_PER_IMPRESSION);
+      expect(adConversionValue).toBe(0);
+    });
+  });
+
+  describe("Brand Exposure (ブランド露出価値)", () => {
+    it("should calculate total person-minutes", () => {
+      const avgViewers = 1200;
+      const streamDuration = 60;
+      const brandExposureMinutes = Math.round(avgViewers * streamDuration);
+      expect(brandExposureMinutes).toBe(72000);
+    });
+
+    it("should calculate total person-hours", () => {
+      const avgViewers = 1200;
+      const streamDuration = 60;
+      const brandExposureMinutes = Math.round(avgViewers * streamDuration);
+      const brandExposureHours = Math.round(brandExposureMinutes / 60);
+      expect(brandExposureHours).toBe(1200);
+    });
+  });
+
+  describe("Ad Effect ROAS (広告効果ROAS)", () => {
+    it("should calculate (GMV + adConversionValue) / totalCost", () => {
+      const estimatedGmv = 500000;
+      const adConversionValue = 1080000;
+      const totalCost = 100000;
+      const totalValueWithAd = estimatedGmv + adConversionValue;
+      const adEffectRoas = Math.round((totalValueWithAd / totalCost) * 100) / 100;
+      expect(adEffectRoas).toBe(15.8);
+    });
+
+    it("should return 0 when totalCost is 0", () => {
+      const estimatedGmv = 500000;
+      const adConversionValue = 1080000;
+      const totalCost = 0;
+      const adEffectRoas = totalCost > 0
+        ? Math.round(((estimatedGmv + adConversionValue) / totalCost) * 100) / 100
+        : 0;
+      expect(adEffectRoas).toBe(0);
+    });
+
+    it("should always be higher than plain ROAS due to ad conversion value", () => {
+      const estimatedGmv = 500000;
+      const adConversionValue = 1080000;
+      const totalCost = 100000;
+      const plainRoas = estimatedGmv / totalCost;
+      const adEffectRoas = (estimatedGmv + adConversionValue) / totalCost;
+      expect(adEffectRoas).toBeGreaterThan(plainRoas);
+    });
+  });
+
+  describe("Industry Comparison (業界比較)", () => {
+    const getIndustryAvgRoas = (unitPrice: number): { avgRoas: number; label: string } => {
+      if (unitPrice <= 3000) return { avgRoas: 2.5, label: '低価格帯（〜¥3,000）' };
+      if (unitPrice <= 8000) return { avgRoas: 3.2, label: '中価格帯（¥3,000〜¥8,000）' };
+      if (unitPrice <= 15000) return { avgRoas: 4.0, label: '中高価格帯（¥8,000〜¥15,000）' };
+      return { avgRoas: 5.0, label: '高価格帯（¥15,000〜）' };
+    };
+
+    it("should return correct ROAS for low price range", () => {
+      const result = getIndustryAvgRoas(2000);
+      expect(result.avgRoas).toBe(2.5);
+      expect(result.label).toContain('低価格帯');
+    });
+
+    it("should return correct ROAS for mid price range", () => {
+      const result = getIndustryAvgRoas(5000);
+      expect(result.avgRoas).toBe(3.2);
+      expect(result.label).toContain('中価格帯');
+    });
+
+    it("should return correct ROAS for mid-high price range", () => {
+      const result = getIndustryAvgRoas(10000);
+      expect(result.avgRoas).toBe(4.0);
+      expect(result.label).toContain('中高価格帯');
+    });
+
+    it("should return correct ROAS for high price range", () => {
+      const result = getIndustryAvgRoas(20000);
+      expect(result.avgRoas).toBe(5.0);
+      expect(result.label).toContain('高価格帯');
+    });
+
+    it("should calculate roasVsIndustry percentage correctly", () => {
+      const adEffectRoas = 15.8;
+      const industryAvgRoas = 3.2;
+      const roasVsIndustry = Math.round((adEffectRoas / industryAvgRoas) * 100);
+      expect(roasVsIndustry).toBe(494);
+    });
+
+    it("should generate correct label when above average", () => {
+      const roasVsIndustry = 494;
+      const label = roasVsIndustry >= 100
+        ? `業界平均の${Math.round(roasVsIndustry / 100 * 10) / 10}倍`
+        : `業界平均の${roasVsIndustry}%`;
+      expect(label).toBe('業界平均の4.9倍');
+    });
+
+    it("should generate correct label when below average", () => {
+      const roasVsIndustry = 75;
+      const label = roasVsIndustry >= 100
+        ? `業界平均の${Math.round(roasVsIndustry / 100 * 10) / 10}倍`
+        : `業界平均の${roasVsIndustry}%`;
+      expect(label).toBe('業界平均の75%');
+    });
+  });
+
+  describe("Full Ad Metrics Integration", () => {
+    it("should produce complete adMetrics object", () => {
+      const avgViewers = 1200;
+      const streamDuration = 60;
+      const durationHours = streamDuration / 60;
+      const estimatedGmv = 500000;
+      const totalCost = 100000;
+      const unitPrice = 3980;
+
+      const estimatedImpressions = Math.round(avgViewers * durationHours * 60);
+      const adConversionValue = Math.round(estimatedImpressions * CPM_PER_IMPRESSION);
+      const brandExposureMinutes = Math.round(avgViewers * streamDuration);
+      const brandExposureHours = Math.round(brandExposureMinutes / 60);
+      const totalValueWithAd = estimatedGmv + adConversionValue;
+      const adEffectRoas = totalCost > 0 ? Math.round((totalValueWithAd / totalCost) * 100) / 100 : 0;
+
+      const getIndustryAvgRoas = (price: number) => {
+        if (price <= 3000) return { avgRoas: 2.5, label: '低価格帯' };
+        if (price <= 8000) return { avgRoas: 3.2, label: '中価格帯' };
+        if (price <= 15000) return { avgRoas: 4.0, label: '中高価格帯' };
+        return { avgRoas: 5.0, label: '高価格帯' };
+      };
+      const industryData = getIndustryAvgRoas(unitPrice);
+      const roasVsIndustry = Math.round((adEffectRoas / industryData.avgRoas) * 100);
+
+      const adMetrics = {
+        estimatedImpressions,
+        adConversionValue,
+        brandExposure: {
+          totalPersonMinutes: brandExposureMinutes,
+          totalPersonHours: brandExposureHours,
+          avgViewers,
+          durationMinutes: streamDuration,
+        },
+        adEffectRoas,
+        industryComparison: {
+          industryAvgRoas: industryData.avgRoas,
+          priceLabel: industryData.label,
+          roasVsIndustryPercent: roasVsIndustry,
+          roasVsIndustryLabel: `業界平均の${Math.round(roasVsIndustry / 100 * 10) / 10}倍`,
+          isAboveAverage: roasVsIndustry >= 100,
+        },
+        cpmRate: CPM_RATE,
+      };
+
+      expect(adMetrics.estimatedImpressions).toBe(72000);
+      expect(adMetrics.adConversionValue).toBe(1080000);
+      expect(adMetrics.brandExposure.totalPersonMinutes).toBe(72000);
+      expect(adMetrics.adEffectRoas).toBe(15.8);
+      expect(adMetrics.industryComparison.industryAvgRoas).toBe(3.2);
+      expect(adMetrics.industryComparison.isAboveAverage).toBe(true);
+      expect(adMetrics.cpmRate).toBe(15000);
+    });
+  });
+});

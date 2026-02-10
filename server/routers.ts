@@ -12136,6 +12136,40 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         const totalCost = estimatedLiverCost + adCost;
         const estimatedRoi = totalCost > 0 ? Math.round((estimatedNetProfit / totalCost) * 100) : 0;
 
+        // ============================================================
+        // 広告換算値・広告効果ROAS・業界比較の計算
+        // ============================================================
+        const CPM_RATE = 15000; // CPM ¥15,000
+        const CPM_PER_IMPRESSION = CPM_RATE / 1000; // ¥15 per impression
+
+        // 想定曝光量 = 平均視聴者数 × 配信時間（分）
+        const avgViewersForCalc = stats.avgViewers || DEFAULTS.avgViewers;
+        const estimatedImpressions = Math.round(avgViewersForCalc * durationHours * 60);
+
+        // 広告換算値 = CPM ¥15,000 × (想定曝光量 / 1000)
+        const adConversionValue = Math.round(estimatedImpressions * CPM_PER_IMPRESSION);
+
+        // ブランド露出価値の計算
+        const brandExposureMinutes = Math.round(avgViewersForCalc * input.streamDuration);
+        const brandExposureHours = Math.round(brandExposureMinutes / 60);
+
+        // 広告効果ROAS = (GMV + 広告換算値) ÷ 総コスト
+        const totalValueWithAd = estimatedGmv + adConversionValue;
+        const adEffectRoas = totalCost > 0 ? Math.round((totalValueWithAd / totalCost) * 100) / 100 : 0;
+
+        // 業界比較データ
+        const getIndustryAvgRoas = (unitPrice: number): { avgRoas: number; label: string } => {
+          if (unitPrice <= 3000) return { avgRoas: 2.5, label: '低価格帯（〜¥3,000）' };
+          if (unitPrice <= 8000) return { avgRoas: 3.2, label: '中価格帯（¥3,000〜¥8,000）' };
+          if (unitPrice <= 15000) return { avgRoas: 4.0, label: '中高価格帯（¥8,000〜¥15,000）' };
+          return { avgRoas: 5.0, label: '高価格帯（¥15,000〜）' };
+        };
+        const industryData = getIndustryAvgRoas(input.unitPrice);
+        const industryAvgRoas = industryData.avgRoas;
+        const industryPriceLabel = industryData.label;
+        const roasVsIndustry = industryAvgRoas > 0 ? Math.round((adEffectRoas / industryAvgRoas) * 100) : 0;
+        const roasVsIndustryLabel = roasVsIndustry >= 100 ? `業界平均の${Math.round(roasVsIndustry / 100 * 10) / 10}倍` : `業界平均の${roasVsIndustry}%`;
+
         // Similar cases stats
         const similarCaseStats = similarCases.length > 0 ? {
           avgGmv: Math.round(similarCases.reduce((s, c) => s + c.gmv, 0) / similarCases.length),
@@ -12311,6 +12345,26 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
             sellingPrice: input.sellingPrice || null,
             unitPrice: input.unitPrice,
           },
+          // 広告換算値・広告効果ROAS・業界比較
+          adMetrics: {
+            estimatedImpressions,
+            adConversionValue,
+            brandExposure: {
+              totalPersonMinutes: brandExposureMinutes,
+              totalPersonHours: brandExposureHours,
+              avgViewers: avgViewersForCalc,
+              durationMinutes: input.streamDuration,
+            },
+            adEffectRoas,
+            industryComparison: {
+              industryAvgRoas,
+              priceLabel: industryPriceLabel,
+              roasVsIndustryPercent: roasVsIndustry,
+              roasVsIndustryLabel,
+              isAboveAverage: roasVsIndustry >= 100,
+            },
+            cpmRate: CPM_RATE,
+          },
         };
       }),
 
@@ -12338,7 +12392,64 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           const liver = await db.select().from(livers).where(eq(livers.id, sim.liverId)).limit(1);
           if (liver.length) liverName = liver[0].name;
         }
-        return { ...sim, liverName };
+        // 広告換算値・広告効果ROAS・業界比較を計算
+        const CPM_RATE = 15000;
+        const CPM_PER_IMPRESSION = CPM_RATE / 1000;
+        const DEFAULTS_AVG_VIEWERS = 100;
+
+        // ライバーの平均視聴者数を取得
+        let avgViewersForCalc = DEFAULTS_AVG_VIEWERS;
+        if (db) {
+          const { getLiverPerformanceStats } = await import('./db');
+          const stats = await getLiverPerformanceStats(sim.liverId);
+          if (stats && stats.avgViewers && stats.avgViewers > 0) {
+            avgViewersForCalc = stats.avgViewers;
+          }
+        }
+
+        const durationHours = sim.streamDuration / 60;
+        const estimatedImpressions = Math.round(avgViewersForCalc * durationHours * 60);
+        const adConversionValue = Math.round(estimatedImpressions * CPM_PER_IMPRESSION);
+        const brandExposureMinutes = Math.round(avgViewersForCalc * sim.streamDuration);
+        const brandExposureHours = Math.round(brandExposureMinutes / 60);
+
+        const liverCommission = Math.round(Number(sim.estimatedGmv || 0) * (Number(sim.commissionRate) / 100));
+        const adCost = sim.hasAd ? (sim.adBudget || 0) : 0;
+        const totalCost = liverCommission + (sim.fixedFee || 0) + adCost;
+        const totalValueWithAd = Number(sim.estimatedGmv || 0) + adConversionValue;
+        const adEffectRoas = totalCost > 0 ? Math.round((totalValueWithAd / totalCost) * 100) / 100 : 0;
+
+        const getIndustryAvgRoas = (unitPrice: number): { avgRoas: number; label: string } => {
+          if (unitPrice <= 3000) return { avgRoas: 2.5, label: '低価格帯（〜¥3,000）' };
+          if (unitPrice <= 8000) return { avgRoas: 3.2, label: '中価格帯（¥3,000〜¥8,000）' };
+          if (unitPrice <= 15000) return { avgRoas: 4.0, label: '中高価格帯（¥8,000〜¥15,000）' };
+          return { avgRoas: 5.0, label: '高価格帯（¥15,000〜）' };
+        };
+        const industryData = getIndustryAvgRoas(sim.unitPrice);
+        const roasVsIndustry = industryData.avgRoas > 0 ? Math.round((adEffectRoas / industryData.avgRoas) * 100) : 0;
+        const roasVsIndustryLabel = roasVsIndustry >= 100 ? `業界平均の${Math.round(roasVsIndustry / 100 * 10) / 10}倍` : `業界平均の${roasVsIndustry}%`;
+
+        const adMetrics = {
+          estimatedImpressions,
+          adConversionValue,
+          brandExposure: {
+            totalPersonMinutes: brandExposureMinutes,
+            totalPersonHours: brandExposureHours,
+            avgViewers: avgViewersForCalc,
+            durationMinutes: sim.streamDuration,
+          },
+          adEffectRoas,
+          industryComparison: {
+            industryAvgRoas: industryData.avgRoas,
+            priceLabel: industryData.label,
+            roasVsIndustryPercent: roasVsIndustry,
+            roasVsIndustryLabel,
+            isAboveAverage: roasVsIndustry >= 100,
+          },
+          cpmRate: CPM_RATE,
+        };
+
+        return { ...sim, liverName, adMetrics };
       }),
 
     // List user's simulations
