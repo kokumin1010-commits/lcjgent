@@ -95,6 +95,56 @@ describe("mall.brands", () => {
     expect(result).toEqual({ success: true });
   });
 
+  it("createBrand with linkedBrandId succeeds for admin", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.mall.createBrand({
+      name: "紐付けテストブランド",
+      linkedBrandId: 1,
+      sortOrder: 2,
+      isActive: "yes",
+    });
+    expect(result).toEqual({ success: true });
+  });
+
+  it("createBrand with null linkedBrandId succeeds for admin", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.mall.createBrand({
+      name: "紐付けなしブランド",
+      linkedBrandId: null,
+      sortOrder: 3,
+      isActive: "yes",
+    });
+    expect(result).toEqual({ success: true });
+  });
+
+  it("updateBrand with linkedBrandId succeeds for admin", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+    const brands = await caller.mall.getBrands();
+    if (brands.length > 0) {
+      const result = await caller.mall.updateBrand({
+        id: brands[0].id,
+        linkedBrandId: 1,
+      });
+      expect(result).toEqual({ success: true });
+    }
+  });
+
+  it("updateBrand can clear linkedBrandId", async () => {
+    const ctx = createAdminContext();
+    const caller = appRouter.createCaller(ctx);
+    const brands = await caller.mall.getBrands();
+    if (brands.length > 0) {
+      const result = await caller.mall.updateBrand({
+        id: brands[0].id,
+        linkedBrandId: null,
+      });
+      expect(result).toEqual({ success: true });
+    }
+  });
+
   it("updateBrand requires admin role", async () => {
     const ctx = createUserContext();
     const caller = appRouter.createCaller(ctx);

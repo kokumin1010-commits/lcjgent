@@ -10694,6 +10694,7 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         logoKey: z.string().optional(),
         description: z.string().optional(),
         website: z.string().optional(),
+        linkedBrandId: z.number().nullable().optional(),
         sortOrder: z.number().default(0),
         isActive: z.enum(["yes", "no"]).default("yes"),
       }))
@@ -10715,6 +10716,7 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         logoKey: z.string().nullable().optional(),
         description: z.string().nullable().optional(),
         website: z.string().nullable().optional(),
+        linkedBrandId: z.number().nullable().optional(),
         sortOrder: z.number().optional(),
         isActive: z.enum(["yes", "no"]).optional(),
       }))

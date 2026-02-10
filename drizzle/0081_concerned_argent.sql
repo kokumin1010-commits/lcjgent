@@ -1,0 +1,1 @@
+ALTER TABLE `mall_brands` ADD `linkedBrandId` int;

@@ -4499,3 +4499,13 @@
 - [x] DashboardLayoutのサイドバーにブランド・カテゴリ管理メニューを追加
 - [x] App.tsxにルーティングを追加
 - [x] ブランド・カテゴリCRUD APIのvitestテストを作成・実行
+
+## MALLブランドと営業ブランドの紐付け機能
+- [x] mallBrandsスキーマにlinkedBrandId（営業ブランドID）フィールドを追加
+- [x] DBマイグレーション実行
+- [x] MALLブランドCRUD APIにlinkedBrandIdの読み書きを追加
+- [x] 営業ブランド一覧取得APIの確認（既存brand.listを利用）
+- [x] MALLブランド編集画面に営業ブランド選択ドロップダウンを追加
+- [x] MALLブランド一覧に紐付き営業ブランド名を表示
+- [ ] 営業ブランド詳細ページからMALL商品へのリンクを追加（次回対応）
+- [x] vitestテスト作成・実行（16テスト全パス）

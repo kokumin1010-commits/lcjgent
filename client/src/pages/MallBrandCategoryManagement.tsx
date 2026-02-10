@@ -39,6 +39,7 @@ interface BrandFormData {
   logoKey: string;
   description: string;
   website: string;
+  linkedBrandId: number | null;
   sortOrder: number;
   isActive: "yes" | "no";
 }
@@ -50,6 +51,7 @@ const initialBrandForm: BrandFormData = {
   logoKey: "",
   description: "",
   website: "",
+  linkedBrandId: null,
   sortOrder: 0,
   isActive: "yes",
 };
@@ -63,6 +65,8 @@ function BrandManagementTab() {
   const utils = trpc.useUtils();
 
   const { data: brands, isLoading } = trpc.mall.getBrands.useQuery();
+  // 営業ブランド一覧を取得（紐付け用）
+  const { data: salesBrands } = trpc.brand.list.useQuery({});
 
   const createBrand = trpc.mall.createBrand.useMutation({
     onSuccess: () => {
@@ -121,6 +125,7 @@ function BrandManagementTab() {
       logoKey: formData.logoKey || undefined,
       description: formData.description || undefined,
       website: formData.website || undefined,
+      linkedBrandId: formData.linkedBrandId,
       sortOrder: formData.sortOrder,
       isActive: formData.isActive,
     };
@@ -141,6 +146,7 @@ function BrandManagementTab() {
       logoKey: brand.logoKey || "",
       description: brand.description || "",
       website: brand.website || "",
+      linkedBrandId: brand.linkedBrandId ?? null,
       sortOrder: brand.sortOrder,
       isActive: brand.isActive as "yes" | "no",
     });
@@ -235,6 +241,27 @@ function BrandManagementTab() {
                 onChange={(e) => setFormData({ ...formData, website: e.target.value })}
                 placeholder="https://example.com"
               />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">営業ブランドとの紐付け</label>
+              <Select
+                value={formData.linkedBrandId ? String(formData.linkedBrandId) : "none"}
+                onValueChange={(v) => setFormData({ ...formData, linkedBrandId: v === "none" ? null : Number(v) })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="営業ブランドを選択（任意）" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">紐付けなし</SelectItem>
+                  {salesBrands?.map((sb: any) => (
+                    <SelectItem key={sb.id} value={String(sb.id)}>
+                      {sb.name}{sb.status ? ` (ステータス: ${sb.status})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">営業側のブランドと紐付けると、契約情報・対応履歴を確認できます</p>
             </div>
 
             <div>
@@ -339,6 +366,7 @@ function BrandManagementTab() {
                   <TableHead>ブランド名</TableHead>
                   <TableHead>英語名</TableHead>
                   <TableHead>ウェブサイト</TableHead>
+                  <TableHead>営業ブランド</TableHead>
                   <TableHead className="text-center">表示順</TableHead>
                   <TableHead className="text-center">ステータス</TableHead>
                   <TableHead className="text-right">操作</TableHead>
@@ -369,6 +397,18 @@ function BrandManagementTab() {
                           リンク
                         </a>
                       ) : "-"}
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const linked = brand.linkedBrandId;
+                        if (!linked) return <span className="text-muted-foreground">-</span>;
+                        const sb = salesBrands?.find((s: any) => s.id === linked);
+                        return sb ? (
+                          <Badge variant="outline" className="text-xs">
+                            {sb.name}
+                          </Badge>
+                        ) : <span className="text-muted-foreground">ID: {linked}</span>;
+                      })()}
                     </TableCell>
                     <TableCell className="text-center">{brand.sortOrder}</TableCell>
                     <TableCell className="text-center">

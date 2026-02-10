@@ -1525,6 +1525,7 @@ export const mallBrands = mysqlTable("mall_brands", {
   description: text("description"),
   website: varchar("website", { length: 500 }),
   sortOrder: int("sortOrder").default(0).notNull(),
+  linkedBrandId: int("linkedBrandId"), // 営業ブランド（brands）との紐付け
   isActive: mysqlEnum("isActive", ["yes", "no"]).default("yes").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
