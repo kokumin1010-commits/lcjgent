@@ -1,0 +1,50 @@
+{
+  "query": "SELECT l.id, l.name FROM livers l WHERE l.name LIKE '%Ryu%' OR l.name LIKE '%kyogoku%' OR l.name LIKE '%Test%' LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT l.id, l.name FROM livers l WHERE l.name LIKE '%Ryu%' OR l.name LIKE '%kyogoku%' OR l.name LIKE '%Test%' LIMIT 10;",
+  "rows": [
+    {
+      "id": "120005",
+      "name": "Ryu kyogoku Test"
+    },
+    {
+      "id": "690001",
+      "name": "Test Liver"
+    },
+    {
+      "id": "690002",
+      "name": "Test Liver"
+    },
+    {
+      "id": "690004",
+      "name": "Test Liver"
+    },
+    {
+      "id": "690005",
+      "name": "Test Liver"
+    },
+    {
+      "id": "690006",
+      "name": "Test Liver"
+    },
+    {
+      "id": "690007",
+      "name": "Test Liver"
+    },
+    {
+      "id": "690008",
+      "name": "Test Liver"
+    },
+    {
+      "id": "690009",
+      "name": "Test Liver"
+    },
+    {
+      "id": "690010",
+      "name": "Test Liver"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\n120005\tRyu kyogoku Test\n690001\tTest Liver\n690002\tTest Liver\n690004\tTest Liver\n690005\tTest Liver\n690006\tTest Liver\n690007\tTest Liver\n690008\tTest Liver\n690009\tTest Liver\n690010\tTest Liver\n",
+  "stderr": "",
+  "execution_time_ms": 1651
+}

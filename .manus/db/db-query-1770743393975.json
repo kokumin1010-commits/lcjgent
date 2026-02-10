@@ -1,0 +1,30 @@
+{
+  "query": "SELECT id, name, HEX(name) as hex_name FROM livers WHERE name LIKE '%Ryu kyogoku%' LIMIT 1; SELECT DISTINCT streamerName, HEX(streamerName) as hex_name, COUNT(*) as cnt FROM brand_livestreams WHERE liverId = (SELECT id FROM livers WHERE name LIKE '%Ryu kyogoku%' LIMIT 1) GROUP BY streamerName LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, name, HEX(name) as hex_name FROM livers WHERE name LIKE '%Ryu kyogoku%' LIMIT 1; SELECT DISTINCT streamerName, HEX(streamerName) as hex_name, COUNT(*) as cnt FROM brand_livestreams WHERE liverId = (SELECT id FROM livers WHERE name LIKE '%Ryu kyogoku%' LIMIT 1) GROUP BY streamerName LIMIT 5;",
+  "rows": [
+    {
+      "id": "120005",
+      "name": "Ryu kyogoku Test",
+      "hex_name": "527975206B796F676F6B752054657374"
+    },
+    {
+      "id": "streamerName",
+      "name": "hex_name",
+      "hex_name": "cnt"
+    },
+    {
+      "id": "KYOGOKU",
+      "name": "4B594F474F4B55",
+      "hex_name": "270"
+    },
+    {
+      "id": "Ryu kyogoku",
+      "name": "527975206B796F676F6B75",
+      "hex_name": "2"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\thex_name\n120005\tRyu kyogoku Test\t527975206B796F676F6B752054657374\nstreamerName\thex_name\tcnt\nKYOGOKU\t4B594F474F4B55\t270\nRyu kyogoku\t527975206B796F676F6B75\t2\n",
+  "stderr": "",
+  "execution_time_ms": 1838
+}

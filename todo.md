@@ -4556,3 +4556,7 @@
 - [x] 注文一覧（日付・商品名・金額・ステータス）を表示
 - [x] 注文詳細の展開表示（商品一覧・配送先・注文情報）
 - [x] vitestテスト実行（4テスト全パス）
+
+## バグ修正：配信シミュレーターで「過去実績がない」と表示される
+- [x] シミュレーションロジックの調査（streamerNameではなくliverIdで検索すべきだった）
+- [x] getLiverPerformanceStatsとfindSimilarCasesをliverId優先検索に修正

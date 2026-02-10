@@ -9852,10 +9852,17 @@ export async function getLiverPerformanceStats(liverId: number, options?: { cate
 
   const liverName = liver[0].name;
 
-  // Get all livestreams by this liver
-  const allStreams = await db.select().from(brandLivestreams)
-    .where(eq(brandLivestreams.streamerName, liverName))
+  // Get all livestreams by this liver (use liverId first, fallback to streamerName)
+  let allStreams = await db.select().from(brandLivestreams)
+    .where(eq(brandLivestreams.liverId, liverId))
     .orderBy(desc(brandLivestreams.livestreamDate));
+
+  // Fallback: if no streams found by liverId, try matching by streamerName
+  if (!allStreams.length) {
+    allStreams = await db.select().from(brandLivestreams)
+      .where(eq(brandLivestreams.streamerName, liverName))
+      .orderBy(desc(brandLivestreams.livestreamDate));
+  }
 
   if (!allStreams.length) return null;
 
@@ -9959,14 +9966,25 @@ export async function findSimilarCases(params: {
   const priceMin = params.unitPrice * 0.5;
   const priceMax = params.unitPrice * 2;
 
-  // Get livestreams by this liver
-  const streams = await db.select().from(brandLivestreams)
+  // Get livestreams by this liver (use liverId first, fallback to streamerName)
+  let streams = await db.select().from(brandLivestreams)
     .where(and(
-      eq(brandLivestreams.streamerName, liverName),
+      eq(brandLivestreams.liverId, params.liverId),
       isNotNull(brandLivestreams.gmv),
     ))
     .orderBy(desc(brandLivestreams.livestreamDate))
     .limit(params.limit || 20);
+
+  // Fallback: if no streams found by liverId, try matching by streamerName
+  if (!streams.length) {
+    streams = await db.select().from(brandLivestreams)
+      .where(and(
+        eq(brandLivestreams.streamerName, liverName),
+        isNotNull(brandLivestreams.gmv),
+      ))
+      .orderBy(desc(brandLivestreams.livestreamDate))
+      .limit(params.limit || 20);
+  }
 
   // Filter by similar duration (±30%)
   const durationMin = params.streamDuration * 0.7;

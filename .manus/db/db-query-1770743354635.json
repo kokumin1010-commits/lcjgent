@@ -1,0 +1,14 @@
+{
+  "query": "SELECT l.id, l.name FROM livers l WHERE l.name LIKE '%Ryu kyogoku%'; SELECT COUNT(*) as count_by_name, bl.streamerName FROM brand_livestreams bl WHERE bl.streamerName = (SELECT name FROM livers WHERE name LIKE '%Ryu kyogoku%' LIMIT 1) GROUP BY bl.streamerName;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT l.id, l.name FROM livers l WHERE l.name LIKE '%Ryu kyogoku%'; SELECT COUNT(*) as count_by_name, bl.streamerName FROM brand_livestreams bl WHERE bl.streamerName = (SELECT name FROM livers WHERE name LIKE '%Ryu kyogoku%' LIMIT 1) GROUP BY bl.streamerName;",
+  "rows": [
+    {
+      "id": "120005",
+      "name": "Ryu kyogoku Test"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\n120005\tRyu kyogoku Test\n",
+  "stderr": "",
+  "execution_time_ms": 1921
+}
