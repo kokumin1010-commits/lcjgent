@@ -264,11 +264,6 @@ import {
   updateMallProduct,
   deleteMallProduct,
   getMallCategories,
-  getAllMallBrands,
-  getMallBrandById,
-  createMallBrand,
-  updateMallBrand,
-  deleteMallBrand,
   getAllMallCategoryRecords,
   getMallCategoryById,
   createMallCategory,
@@ -10671,92 +10666,8 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
       return await getMallCategories();
     }),
 
-    // ===== ブランド管理API =====
-    
-    // ブランド一覧取得（公開）
-    getBrands: publicProcedure.query(async () => {
-      return await getAllMallBrands();
-    }),
-
-    // ブランド詳細取得（公開）
-    getBrandById: publicProcedure
-      .input(z.object({ id: z.number() }))
-      .query(async ({ input }) => {
-        return await getMallBrandById(input.id);
-      }),
-
-    // ブランド作成（管理者のみ）
-    createBrand: protectedProcedure
-      .input(z.object({
-        name: z.string().min(1, "ブランド名を入力してください"),
-        nameEn: z.string().optional(),
-        logoUrl: z.string().optional(),
-        logoKey: z.string().optional(),
-        description: z.string().optional(),
-        website: z.string().optional(),
-        linkedBrandId: z.number().nullable().optional(),
-        sortOrder: z.number().default(0),
-        isActive: z.enum(["yes", "no"]).default("yes"),
-      }))
-      .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") {
-          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
-        }
-        await createMallBrand(input);
-        return { success: true };
-      }),
-
-    // ブランド更新（管理者のみ）
-    updateBrand: protectedProcedure
-      .input(z.object({
-        id: z.number(),
-        name: z.string().min(1).optional(),
-        nameEn: z.string().nullable().optional(),
-        logoUrl: z.string().nullable().optional(),
-        logoKey: z.string().nullable().optional(),
-        description: z.string().nullable().optional(),
-        website: z.string().nullable().optional(),
-        linkedBrandId: z.number().nullable().optional(),
-        sortOrder: z.number().optional(),
-        isActive: z.enum(["yes", "no"]).optional(),
-      }))
-      .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") {
-          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
-        }
-        const { id, ...data } = input;
-        await updateMallBrand(id, data);
-        return { success: true };
-      }),
-
-    // ブランド削除（管理者のみ）
-    deleteBrand: protectedProcedure
-      .input(z.object({ id: z.number() }))
-      .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") {
-          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
-        }
-        await deleteMallBrand(input.id);
-        return { success: true };
-      }),
-
-    // ブランドロゴアップロード（管理者のみ）
-    uploadBrandLogo: protectedProcedure
-      .input(z.object({
-        base64: z.string(),
-        filename: z.string(),
-      }))
-      .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") {
-          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
-        }
-        const buffer = Buffer.from(input.base64, "base64");
-        const ext = input.filename.split(".").pop() || "png";
-        const contentType = ext === "png" ? "image/png" : ext === "svg" ? "image/svg+xml" : "image/jpeg";
-        const key = `mall/brands/${nanoid()}.${ext}`;
-        const { url } = await storagePut(key, buffer, contentType);
-        return { url, key };
-      }),
+    // ===== ブランドは既存のbrand.listを使用（mall_brandsテーブルは廃止） =====
+    // MALL商品のbrandIdは既存のbrandsテーブルを直接参照する
 
     // ===== カテゴリ管理API =====
     

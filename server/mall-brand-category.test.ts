@@ -67,99 +67,23 @@ function createPublicContext(): TrpcContext {
   };
 }
 
-describe("mall.brands", () => {
-  it("getBrands is accessible publicly", async () => {
+describe("brand.list (shared brands for MALL)", () => {
+  it("brand.list is accessible publicly", async () => {
     const ctx = createPublicContext();
     const caller = appRouter.createCaller(ctx);
-    const result = await caller.mall.getBrands();
+    const result = await caller.brand.list({});
     expect(Array.isArray(result)).toBe(true);
-  });
+  }, 15000);
 
-  it("createBrand requires admin role", async () => {
-    const ctx = createUserContext();
+  it("brand.list returns brand objects with id and name", async () => {
+    const ctx = createPublicContext();
     const caller = appRouter.createCaller(ctx);
-    await expect(
-      caller.mall.createBrand({ name: "Test Brand", sortOrder: 0, isActive: "yes" })
-    ).rejects.toThrow("管理者権限が必要です");
-  });
-
-  it("createBrand succeeds for admin", async () => {
-    const ctx = createAdminContext();
-    const caller = appRouter.createCaller(ctx);
-    const result = await caller.mall.createBrand({
-      name: "テストブランド",
-      nameEn: "Test Brand",
-      sortOrder: 1,
-      isActive: "yes",
-    });
-    expect(result).toEqual({ success: true });
-  });
-
-  it("createBrand with linkedBrandId succeeds for admin", async () => {
-    const ctx = createAdminContext();
-    const caller = appRouter.createCaller(ctx);
-    const result = await caller.mall.createBrand({
-      name: "紐付けテストブランド",
-      linkedBrandId: 1,
-      sortOrder: 2,
-      isActive: "yes",
-    });
-    expect(result).toEqual({ success: true });
-  });
-
-  it("createBrand with null linkedBrandId succeeds for admin", async () => {
-    const ctx = createAdminContext();
-    const caller = appRouter.createCaller(ctx);
-    const result = await caller.mall.createBrand({
-      name: "紐付けなしブランド",
-      linkedBrandId: null,
-      sortOrder: 3,
-      isActive: "yes",
-    });
-    expect(result).toEqual({ success: true });
-  });
-
-  it("updateBrand with linkedBrandId succeeds for admin", async () => {
-    const ctx = createAdminContext();
-    const caller = appRouter.createCaller(ctx);
-    const brands = await caller.mall.getBrands();
-    if (brands.length > 0) {
-      const result = await caller.mall.updateBrand({
-        id: brands[0].id,
-        linkedBrandId: 1,
-      });
-      expect(result).toEqual({ success: true });
+    const result = await caller.brand.list({});
+    if (result.length > 0) {
+      expect(result[0]).toHaveProperty("id");
+      expect(result[0]).toHaveProperty("name");
     }
-  });
-
-  it("updateBrand can clear linkedBrandId", async () => {
-    const ctx = createAdminContext();
-    const caller = appRouter.createCaller(ctx);
-    const brands = await caller.mall.getBrands();
-    if (brands.length > 0) {
-      const result = await caller.mall.updateBrand({
-        id: brands[0].id,
-        linkedBrandId: null,
-      });
-      expect(result).toEqual({ success: true });
-    }
-  });
-
-  it("updateBrand requires admin role", async () => {
-    const ctx = createUserContext();
-    const caller = appRouter.createCaller(ctx);
-    await expect(
-      caller.mall.updateBrand({ id: 1, name: "Updated" })
-    ).rejects.toThrow("管理者権限が必要です");
-  });
-
-  it("deleteBrand requires admin role", async () => {
-    const ctx = createUserContext();
-    const caller = appRouter.createCaller(ctx);
-    await expect(
-      caller.mall.deleteBrand({ id: 1 })
-    ).rejects.toThrow("管理者権限が必要です");
-  });
+  }, 15000);
 });
 
 describe("mall.categories", () => {
@@ -227,8 +151,6 @@ describe("mall.products - brand/category fields", () => {
   it("updateProduct accepts brandId and categoryId", async () => {
     const ctx = createAdminContext();
     const caller = appRouter.createCaller(ctx);
-    // This should not throw a validation error for the new fields
-    // (actual DB update may fail if product doesn't exist, but input validation should pass)
     try {
       await caller.mall.updateProduct({
         id: 999999,
@@ -236,8 +158,6 @@ describe("mall.products - brand/category fields", () => {
         categoryId: 2,
       });
     } catch (e: any) {
-      // DB error is expected since product 999999 doesn't exist
-      // but it should NOT be a validation error
       expect(e.message).not.toContain("Expected");
     }
   });

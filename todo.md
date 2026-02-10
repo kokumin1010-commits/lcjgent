@@ -4509,3 +4509,9 @@
 - [x] MALLブランド一覧に紐付き営業ブランド名を表示
 - [ ] 営業ブランド詳細ページからMALL商品へのリンクを追加（次回対応）
 - [x] vitestテスト作成・実行（16テスト全パス）
+
+## MALLブランドを既存brandsテーブルに統合
+- [x] routers.tsからmall_brands関連のCRUD APIを削除
+- [x] ProductManagement.tsxのブランド取得をbrand.listに変更
+- [x] MallBrandCategoryManagement.tsxのブランドタブを既存ブランド管理への案内に変更
+- [x] テスト更新・実行（9テスト全パス）

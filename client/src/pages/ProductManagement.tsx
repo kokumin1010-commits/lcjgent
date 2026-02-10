@@ -77,7 +77,7 @@ export default function ProductManagement() {
   );
 
   // ブランド・カテゴリ一覧を取得
-  const { data: brands } = trpc.mall.getBrands.useQuery();
+  const { data: brands } = trpc.brand.list.useQuery({});
   const { data: categories } = trpc.mall.getCategoryRecords.useQuery();
 
   const createProduct = trpc.mall.createProduct.useMutation({
@@ -286,7 +286,7 @@ export default function ProductManagement() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">未設定</SelectItem>
-                        {brands?.filter(b => b.isActive === "yes").map((brand) => (
+                        {brands?.map((brand) => (
                           <SelectItem key={brand.id} value={String(brand.id)}>
                             {brand.name}
                           </SelectItem>
