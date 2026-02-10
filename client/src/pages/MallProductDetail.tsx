@@ -302,7 +302,8 @@ export default function MallProductDetail() {
           description: "Stripeの安全な決済ページが開きます",
         });
         setIsPurchaseDialogOpen(false);
-        window.open(data.checkoutUrl, "_blank");
+        // モバイルブラウザのポップアップブロッカー対策：同一タブで遷移
+        window.location.href = data.checkoutUrl;
       }
     },
     onError: (error) => {
@@ -318,7 +319,7 @@ export default function MallProductDetail() {
     }
   };
 
-  const handleNextStep = () => {
+  const handleNextStep = async () => {
     if (purchaseStep === "payment") {
       if (paymentMethod === "points" && !lineUser) {
         toast.error("ポイント購入にはLINEログインが必要です");
@@ -334,6 +335,29 @@ export default function MallProductDetail() {
             !addressForm.postalCode || !addressForm.prefecture || 
             !addressForm.city || !addressForm.addressLine1) {
           toast.error("必須項目を入力してください");
+          return;
+        }
+        // 新しい住所を先に保存する
+        try {
+          const savedAddr = await addAddress.mutateAsync({
+            label: addressForm.label,
+            recipientName: addressForm.recipientName,
+            phoneNumber: addressForm.phoneNumber,
+            postalCode: addressForm.postalCode,
+            prefecture: addressForm.prefecture,
+            city: addressForm.city,
+            addressLine1: addressForm.addressLine1,
+            addressLine2: addressForm.addressLine2 || undefined,
+            isDefault: !savedAddresses || savedAddresses.length === 0,
+          });
+          // 保存成功したら、保存済み住所として選択状態にする
+          if (savedAddr && typeof savedAddr === 'object' && 'id' in savedAddr) {
+            setSelectedAddressId((savedAddr as any).id);
+            setIsNewAddress(false);
+          }
+        } catch (error) {
+          console.error("住所保存エラー:", error);
+          toast.error("住所の保存に失敗しました");
           return;
         }
       } else if (!selectedAddressId) {
@@ -354,25 +378,6 @@ export default function MallProductDetail() {
 
   const handlePurchase = async () => {
     if (!product) return;
-
-    // 新しい住所を保存
-    if (isNewAddress && addressForm.recipientName) {
-      try {
-        await addAddress.mutateAsync({
-          label: addressForm.label,
-          recipientName: addressForm.recipientName,
-          phoneNumber: addressForm.phoneNumber,
-          postalCode: addressForm.postalCode,
-          prefecture: addressForm.prefecture,
-          city: addressForm.city,
-          addressLine1: addressForm.addressLine1,
-          addressLine2: addressForm.addressLine2 || undefined,
-          isDefault: !savedAddresses || savedAddresses.length === 0,
-        });
-      } catch (error) {
-        console.error("住所保存エラー:", error);
-      }
-    }
 
     if (paymentMethod === "points") {
       if (!lineUser) {
@@ -399,21 +404,23 @@ export default function MallProductDetail() {
       // Stripe決済
       setIsPurchasing(true);
       try {
-        // 配送先情報を取得
+        // 配送先情報を取得（住所はhandleNextStepで保存済みなのでselectedAddressを使用）
         let shippingInfo: { name: string; phone: string; postalCode: string; address: string } | undefined;
-        if (isNewAddress) {
-          shippingInfo = {
-            name: addressForm.recipientName,
-            phone: addressForm.phoneNumber,
-            postalCode: addressForm.postalCode,
-            address: `${addressForm.prefecture}${addressForm.city}${addressForm.addressLine1}${addressForm.addressLine2 ? " " + addressForm.addressLine2 : ""}`,
-          };
-        } else if (selectedAddress) {
+        // 新しい住所がまだフォームに残っている場合（保存が失敗した場合のフォールバック）
+        if (selectedAddress) {
           shippingInfo = {
             name: selectedAddress.recipientName,
             phone: selectedAddress.phoneNumber,
             postalCode: selectedAddress.postalCode,
             address: `${selectedAddress.prefecture}${selectedAddress.city}${selectedAddress.addressLine1}${selectedAddress.addressLine2 ? " " + selectedAddress.addressLine2 : ""}`,
+          };
+        } else if (addressForm.recipientName) {
+          // フォールバック：フォームのデータを使用
+          shippingInfo = {
+            name: addressForm.recipientName,
+            phone: addressForm.phoneNumber,
+            postalCode: addressForm.postalCode,
+            address: `${addressForm.prefecture}${addressForm.city}${addressForm.addressLine1}${addressForm.addressLine2 ? " " + addressForm.addressLine2 : ""}`,
           };
         }
 
