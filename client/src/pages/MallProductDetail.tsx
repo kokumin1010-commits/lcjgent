@@ -295,6 +295,21 @@ export default function MallProductDetail() {
     },
   });
 
+  const createCheckoutSession = trpc.mall.createCheckoutSession.useMutation({
+    onSuccess: (data) => {
+      if (data.checkoutUrl) {
+        toast.info("決済ページに移動します...", {
+          description: "Stripeの安全な決済ページが開きます",
+        });
+        setIsPurchaseDialogOpen(false);
+        window.open(data.checkoutUrl, "_blank");
+      }
+    },
+    onError: (error) => {
+      toast.error(error.message || "決済セッションの作成に失敗しました");
+    },
+  });
+
   const handlePostalCodeChange = (value: string) => {
     const cleaned = value.replace(/[^0-9]/g, "").slice(0, 7);
     setAddressForm(prev => ({ ...prev, postalCode: cleaned }));
@@ -381,7 +396,34 @@ export default function MallProductDetail() {
         setIsPurchasing(false);
       }
     } else {
-      toast.info("現金決済は準備中です。ポイント購入をご利用ください。");
+      // Stripe決済
+      setIsPurchasing(true);
+      try {
+        // 配送先情報を取得
+        let shippingInfo: { name: string; phone: string; postalCode: string; address: string } | undefined;
+        if (isNewAddress) {
+          shippingInfo = {
+            name: addressForm.recipientName,
+            phone: addressForm.phoneNumber,
+            postalCode: addressForm.postalCode,
+            address: `${addressForm.prefecture}${addressForm.city}${addressForm.addressLine1}${addressForm.addressLine2 ? " " + addressForm.addressLine2 : ""}`,
+          };
+        } else if (selectedAddress) {
+          shippingInfo = {
+            name: selectedAddress.recipientName,
+            phone: selectedAddress.phoneNumber,
+            postalCode: selectedAddress.postalCode,
+            address: `${selectedAddress.prefecture}${selectedAddress.city}${selectedAddress.addressLine1}${selectedAddress.addressLine2 ? " " + selectedAddress.addressLine2 : ""}`,
+          };
+        }
+
+        await createCheckoutSession.mutateAsync({
+          items: [{ productId: product.id, quantity }],
+          shippingInfo,
+        });
+      } finally {
+        setIsPurchasing(false);
+      }
     }
   };
 
@@ -816,7 +858,7 @@ export default function MallProductDetail() {
                         ¥{totalCashPrice.toLocaleString()}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        クレジットカード・銀行振込
+                        クレジットカード決済（Stripeセキュア決済）
                       </p>
                     </div>
                   </Label>
@@ -1093,7 +1135,7 @@ export default function MallProductDetail() {
                   お支払い方法
                 </h4>
                 <p className="text-sm">
-                  {paymentMethod === "points" ? "ポイント決済" : "現金決済"}
+                  {paymentMethod === "points" ? "ポイント決済" : "クレジットカード決済（Stripe）"}
                 </p>
               </div>
 

@@ -6012,7 +6012,7 @@ export async function createMallOrder(data: {
 
 // 注文一覧取得（管理者用）
 export async function getMallOrders(options?: {
-  status?: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled";
+  status?: "pending" | "paid" | "confirmed" | "shipped" | "delivered" | "cancelled" | "refunded";
   lineUserId?: number;
   limit?: number;
   offset?: number;
@@ -6080,7 +6080,7 @@ export async function getMallOrderById(id: number) {
 // 注文ステータス更新
 export async function updateMallOrderStatus(
   id: number, 
-  status: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled",
+  status: "pending" | "paid" | "confirmed" | "shipped" | "delivered" | "cancelled" | "refunded",
   adminNotes?: string
 ) {
   const db = await getDb();
@@ -6099,6 +6099,43 @@ export async function updateMallOrderStatus(
   }
 
   await db.update(mallOrders).set(updateData).where(eq(mallOrders.id, id));
+}
+
+// Stripe情報で注文を更新
+export async function updateMallOrderStripeInfo(
+  orderId: number,
+  data: {
+    stripeSessionId?: string;
+    stripePaymentIntentId?: string;
+    status?: "pending" | "paid" | "confirmed" | "shipped" | "delivered" | "cancelled" | "refunded";
+    paymentMethod?: "stripe" | "points" | "cod";
+  }
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(mallOrders).set(data).where(eq(mallOrders.id, orderId));
+}
+
+// 注文番号で注文を取得
+export async function getMallOrderByOrderNumber(orderNumber: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select()
+    .from(mallOrders)
+    .where(eq(mallOrders.orderNumber, orderNumber))
+    .limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+// StripeセッションIDで注文を取得
+export async function getMallOrderByStripeSessionId(sessionId: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select()
+    .from(mallOrders)
+    .where(eq(mallOrders.stripeSessionId, sessionId))
+    .limit(1);
+  return result.length > 0 ? result[0] : undefined;
 }
 
 // ユーザーの注文一覧取得

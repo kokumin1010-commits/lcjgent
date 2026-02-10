@@ -72,6 +72,8 @@ import ProposalPage from "./pages/ProposalPage";
 import HRManagement from "./pages/HRManagement";
 import ReceiptUpload from "./pages/ReceiptUpload";
 import MallBrandCategoryManagement from "./pages/MallBrandCategoryManagement";
+import CheckoutSuccess from "./pages/CheckoutSuccess";
+import CheckoutCancel from "./pages/CheckoutCancel";
 
 function Router() {
   return (
@@ -85,6 +87,8 @@ function Router() {
       <Route path="/mypage" component={LineMypage} />
       <Route path="/mall/products" component={MallProducts} />
       <Route path="/mall/products/:id" component={MallProductDetail} />
+      <Route path="/mall/checkout/success" component={CheckoutSuccess} />
+      <Route path="/mall/checkout/cancel" component={CheckoutCancel} />
       <Route path="/point-request" component={PointRequest} />
       <Route path="/receipt-upload" component={ReceiptUpload} />
       <Route path="/master/point-requests">

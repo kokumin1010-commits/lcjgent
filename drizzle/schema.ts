@@ -1607,12 +1607,21 @@ export const mallOrders = mysqlTable("mall_orders", {
   
   // 注文ステータス
   status: mysqlEnum("status", [
-    "pending",      // 注文受付
+    "pending",      // 注文受付（決済待ち）
+    "paid",         // 決済完了
     "confirmed",    // 確認済み
     "shipped",      // 発送済み
     "delivered",    // 配達完了
     "cancelled",    // キャンセル
+    "refunded",     // 返金済み
   ]).default("pending").notNull(),
+  
+  // 決済方法
+  paymentMethod: mysqlEnum("paymentMethod", [
+    "stripe",       // Stripe決済
+    "points",       // ポイント全額
+    "cod",          // 代引き
+  ]).default("stripe").notNull(),
   
   // 金額
   totalAmount: int("totalAmount").notNull(), // 合計金額（円）
@@ -1624,6 +1633,10 @@ export const mallOrders = mysqlTable("mall_orders", {
   shippingPhone: varchar("shippingPhone", { length: 50 }),
   shippingPostalCode: varchar("shippingPostalCode", { length: 20 }),
   shippingAddress: text("shippingAddress"),
+  
+  // Stripe決済情報
+  stripeSessionId: varchar("stripeSessionId", { length: 255 }),
+  stripePaymentIntentId: varchar("stripePaymentIntentId", { length: 255 }),
   
   // メモ
   notes: text("notes"),

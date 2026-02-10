@@ -12,4 +12,7 @@ export const ENV = {
   lineChannelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN ?? "",
   // プロラインフリー Webhook転送
   prolineWebhookUrl: process.env.PROLINE_WEBHOOK_URL ?? "",
+  // Stripe
+  stripeSecretKey: process.env.STRIPE_SECRET_KEY ?? "",
+  stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? "",
 };

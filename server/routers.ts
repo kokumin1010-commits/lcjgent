@@ -279,6 +279,9 @@ import {
   getMallOrderById,
   updateMallOrderStatus,
   getMallOrdersByLineUser,
+  updateMallOrderStripeInfo,
+  getMallOrderByOrderNumber,
+  getMallOrderByStripeSessionId,
   useLinePoints,
   getUserAddresses,
   getUserAddressById,
@@ -10804,7 +10807,7 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
     // 注文一覧取得（管理者のみ）
     getOrders: protectedProcedure
       .input(z.object({
-        status: z.enum(["pending", "confirmed", "shipped", "delivered", "cancelled"]).optional(),
+        status: z.enum(["pending", "paid", "confirmed", "shipped", "delivered", "cancelled", "refunded"]).optional(),
         limit: z.number().optional(),
         offset: z.number().optional(),
       }).optional())
@@ -10829,7 +10832,7 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
     updateOrderStatus: protectedProcedure
       .input(z.object({
         id: z.number(),
-        status: z.enum(["pending", "confirmed", "shipped", "delivered", "cancelled"]),
+        status: z.enum(["pending", "paid", "confirmed", "shipped", "delivered", "cancelled", "refunded"]),
         adminNotes: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -10839,6 +10842,156 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         await updateMallOrderStatus(input.id, input.status, input.adminNotes);
         return { success: true };
       }),
+
+    // Stripe Checkoutセッション作成
+    createCheckoutSession: publicProcedure
+      .input(z.object({
+        items: z.array(z.object({
+          productId: z.number(),
+          quantity: z.number().min(1),
+        })),
+        shippingInfo: z.object({
+          name: z.string().min(1),
+          phone: z.string().min(1),
+          postalCode: z.string().min(1),
+          address: z.string().min(1),
+        }).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        // LINEセッションからユーザー情報を取得
+        const result = await getLineUserFromSession(ctx);
+        if (!result || !result.lineUser) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+        }
+        const lineUser = result.lineUser;
+
+        // 商品情報を取得
+        const lineItems: Array<{
+          price_data: {
+            currency: string;
+            product_data: { name: string; images?: string[] };
+            unit_amount: number;
+          };
+          quantity: number;
+        }> = [];
+        let totalAmount = 0;
+        const orderItemsData: Array<{
+          productId: number;
+          quantity: number;
+          usePoints: boolean;
+        }> = [];
+
+        for (const item of input.items) {
+          const product = await getMallProductById(item.productId);
+          if (!product) {
+            throw new TRPCError({ code: "NOT_FOUND", message: `商品ID ${item.productId} が見つかりません` });
+          }
+          if (product.status !== "active") {
+            throw new TRPCError({ code: "BAD_REQUEST", message: `${product.name} は現在販売中ではありません` });
+          }
+          if (product.stock < item.quantity) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: `${product.name} の在庫が不足しています` });
+          }
+
+          const productImages: string[] = [];
+          if (product.imageUrls && Array.isArray(product.imageUrls) && product.imageUrls.length > 0) {
+            productImages.push(String(product.imageUrls[0]));
+          }
+
+          lineItems.push({
+            price_data: {
+              currency: "jpy",
+              product_data: {
+                name: product.name,
+                ...(productImages.length > 0 ? { images: productImages } : {}),
+              },
+              unit_amount: product.price,
+            },
+            quantity: item.quantity,
+          });
+
+          totalAmount += product.price * item.quantity;
+          orderItemsData.push({
+            productId: product.id,
+            quantity: item.quantity,
+            usePoints: false,
+          });
+        }
+
+        // 注文を作成（pendingステータス）
+        const orderResult = await createMallOrder({
+          lineUserId: lineUser.id,
+          items: orderItemsData,
+          pointsToUse: 0,
+          shippingInfo: input.shippingInfo,
+        });
+
+        // Stripe Checkoutセッションを作成
+        const Stripe = (await import("stripe")).default;
+        const stripeClient = new Stripe(ENV.stripeSecretKey, {
+          apiVersion: "2025-01-27.acacia" as any,
+        });
+
+        const origin = ctx.req.headers.origin || ctx.req.headers.referer?.replace(/\/$/, "") || "";
+
+        const session = await stripeClient.checkout.sessions.create({
+          payment_method_types: ["card"],
+          line_items: lineItems,
+          mode: "payment",
+          success_url: `${origin}/mall/checkout/success?session_id={CHECKOUT_SESSION_ID}&order=${orderResult.orderNumber}`,
+          cancel_url: `${origin}/mall/checkout/cancel?order=${orderResult.orderNumber}`,
+          client_reference_id: lineUser.id.toString(),
+          customer_email: lineUser.email || undefined,
+          allow_promotion_codes: true,
+          metadata: {
+            user_id: lineUser.id.toString(),
+            order_number: orderResult.orderNumber,
+            customer_name: lineUser.displayName || "",
+          },
+        });
+
+        // 注文にStripeセッションIDを保存
+        await updateMallOrderStripeInfo(orderResult.orderId, {
+          stripeSessionId: session.id,
+          paymentMethod: "stripe",
+        });
+
+        return { checkoutUrl: session.url, orderNumber: orderResult.orderNumber };
+      }),
+
+    // 注文ステータス確認（決済完了後のポーリング用）
+    checkOrderPaymentStatus: publicProcedure
+      .input(z.object({
+        orderNumber: z.string(),
+      }))
+      .query(async ({ ctx, input }) => {
+        const result = await getLineUserFromSession(ctx);
+        if (!result || !result.lineUser) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+        }
+        const order = await getMallOrderByOrderNumber(input.orderNumber);
+        if (!order) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "注文が見つかりません" });
+        }
+        if (order.lineUserId !== result.lineUser.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "アクセス権限がありません" });
+        }
+        return {
+          orderNumber: order.orderNumber,
+          status: order.status,
+          totalAmount: order.totalAmount,
+          paymentMethod: order.paymentMethod,
+        };
+      }),
+
+    // ユーザーの注文履歴取得
+    getMyOrders: publicProcedure.query(async ({ ctx }) => {
+      const result = await getLineUserFromSession(ctx);
+      if (!result || !result.lineUser) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+      }
+      return await getMallOrdersByLineUser(result.lineUser.id);
+    }),
 
     // 公開商品一覧取得（アクティブな商品のみ）
     getPublicProducts: publicProcedure.query(async () => {

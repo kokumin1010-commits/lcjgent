@@ -4532,3 +4532,17 @@
 ## バグ修正: 商品画像アップロード失敗
 - [x] webpファイルのアップロード失敗を修正（拡張子サニタイズ・contentTypeマップ対応）
 - [x] 対応ファイル形式にwebp/svg/bmp/icoを追加、ファイル名サニタイズも実装
+
+## Stripe決済機能の追加（LCJ MALL）
+- [x] StripeダッシュボードからAPIキーを取得
+- [x] webdev_add_featureでStripeインテグレーションをセットアップ
+- [x] Stripeパッケージインストール（stripe, @stripe/stripe-js）
+- [x] mallOrdersテーブルにStripe関連カラムを追加（paymentMethod, stripeSessionId, stripePaymentIntentId）
+- [x] Stripe Checkoutセッション作成APIを実装
+- [x] Webhook処理（決済完了・注文ステータス更新）を実装
+- [x] 商品詳細ページの現金決済をStripe Checkout連携に変更
+- [x] 決済完了ページを実装
+- [x] 決済キャンセルページを実装
+- [x] ユーザー注文履歴APIを実装
+- [x] 注文ステータス確認APIを実装
+- [x] vitestテスト作成・実行（4テスト全パス）
