@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ShoppingBag, Coins, Receipt, LogOut, ArrowLeft, Clock, CheckCircle, XCircle, AlertCircle, TrendingUp, TrendingDown, ShoppingCart, History, Link2, Copy, RefreshCw, ExternalLink, Upload } from "lucide-react";
+import { Loader2, ShoppingBag, Coins, Receipt, LogOut, ArrowLeft, Clock, CheckCircle, XCircle, AlertCircle, TrendingUp, TrendingDown, ShoppingCart, History, Link2, Copy, RefreshCw, ExternalLink, Upload, Package, Truck, ChevronDown, ChevronUp, CreditCard } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -15,6 +15,7 @@ import { ja } from "date-fns/locale";
 export default function LineMypage() {
   const [, setLocation] = useLocation();
   const [historyFilter, setHistoryFilter] = useState<"all" | "earn" | "use">("all");
+  const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
   
   const { data: user, isLoading: userLoading } = trpc.lineLogin.me.useQuery();
   
@@ -31,6 +32,9 @@ export default function LineMypage() {
     enabled: !!user,
   });
   const { data: receipts, isLoading: receiptsLoading } = trpc.lineLogin.getMyReceipts.useQuery(undefined, {
+    enabled: !!user,
+  });
+  const { data: orders, isLoading: ordersLoading } = trpc.mall.getMyOrders.useQuery(undefined, {
     enabled: !!user,
   });
   
@@ -160,6 +164,27 @@ export default function LineMypage() {
     }
   };
 
+  const getOrderStatusBadge = (status: string) => {
+    switch (status) {
+      case "pending":
+        return <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200 text-xs">決済待ち</Badge>;
+      case "paid":
+        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-xs">決済済み</Badge>;
+      case "confirmed":
+        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200 text-xs">確認済み</Badge>;
+      case "shipped":
+        return <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 text-xs">発送済み</Badge>;
+      case "delivered":
+        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">配達完了</Badge>;
+      case "cancelled":
+        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-xs">キャンセル</Badge>;
+      case "refunded":
+        return <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 text-xs">返金済み</Badge>;
+      default:
+        return <Badge variant="outline" className="text-xs">{status}</Badge>;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-rose-50 to-white">
       {/* Header */}
@@ -250,11 +275,177 @@ export default function LineMypage() {
         </Card>
 
         {/* Tabs */}
-        <Tabs defaultValue="history" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2">
+        <Tabs defaultValue="orders" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="orders">注文履歴</TabsTrigger>
             <TabsTrigger value="history">ポイント履歴</TabsTrigger>
             <TabsTrigger value="receipts">レシート申請</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="orders">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Package className="h-5 w-5 text-rose-500" />
+                  注文履歴
+                </CardTitle>
+                <CardDescription>商品の購入履歴と配送状況</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {ordersLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  </div>
+                ) : orders && orders.length > 0 ? (
+                  <div className="space-y-4">
+                    {orders.map((order: any) => {
+                      const isExpanded = expandedOrderId === order.id;
+                      return (
+                        <div key={order.id} className="border rounded-lg overflow-hidden">
+                          {/* 注文ヘッダー */}
+                          <button
+                            className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors text-left"
+                            onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
+                          >
+                            <div className="flex items-start gap-3 flex-1 min-w-0">
+                              <div className={`h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                order.status === 'delivered' ? 'bg-green-100' :
+                                order.status === 'shipped' ? 'bg-blue-100' :
+                                order.status === 'paid' || order.status === 'confirmed' ? 'bg-yellow-100' :
+                                order.status === 'cancelled' || order.status === 'refunded' ? 'bg-red-100' :
+                                'bg-gray-100'
+                              }`}>
+                                {order.status === 'delivered' ? <CheckCircle className="h-5 w-5 text-green-600" /> :
+                                 order.status === 'shipped' ? <Truck className="h-5 w-5 text-blue-600" /> :
+                                 order.status === 'paid' || order.status === 'confirmed' ? <Package className="h-5 w-5 text-yellow-600" /> :
+                                 order.status === 'cancelled' || order.status === 'refunded' ? <XCircle className="h-5 w-5 text-red-600" /> :
+                                 <Clock className="h-5 w-5 text-gray-600" />}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="font-medium text-sm truncate">
+                                    {order.items && order.items.length > 0 
+                                      ? order.items[0].productName + (order.items.length > 1 ? ` 他${order.items.length - 1}点` : '')
+                                      : `注文 #${order.orderNumber}`}
+                                  </p>
+                                  {getOrderStatusBadge(order.status)}
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {format(new Date(order.createdAt), "yyyy年M月d日 HH:mm", { locale: ja })}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3 flex-shrink-0">
+                              <div className="text-right">
+                                <p className="font-bold text-rose-600">
+                                  {order.paymentMethod === 'points' 
+                                    ? `${order.pointsUsed?.toLocaleString()} pt`
+                                    : `¥${order.totalAmount?.toLocaleString()}`}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {order.paymentMethod === 'points' ? 'ポイント' : 
+                                   order.paymentMethod === 'stripe' ? 'カード' : '代引き'}
+                                </p>
+                              </div>
+                              {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                            </div>
+                          </button>
+
+                          {/* 注文詳細（展開時） */}
+                          {isExpanded && (
+                            <div className="border-t bg-gray-50/50 p-4 space-y-4">
+                              {/* 商品一覧 */}
+                              <div>
+                                <p className="text-sm font-medium text-muted-foreground mb-2">注文商品</p>
+                                <div className="space-y-2">
+                                  {order.items?.map((item: any) => (
+                                    <div key={item.id} className="flex items-center justify-between bg-white rounded-lg p-3">
+                                      <div className="flex items-center gap-3">
+                                        <div className="h-12 w-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                                          <ShoppingBag className="h-6 w-6 text-gray-400" />
+                                        </div>
+                                        <div>
+                                          <p className="font-medium text-sm">{item.productName}</p>
+                                          <p className="text-xs text-muted-foreground">数量: {item.quantity}</p>
+                                        </div>
+                                      </div>
+                                      <p className="font-medium text-sm">
+                                        {order.paymentMethod === 'points'
+                                          ? `${item.pointSubtotal?.toLocaleString()} pt`
+                                          : `¥${item.subtotal?.toLocaleString()}`}
+                                      </p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* 配送先 */}
+                              {order.shippingAddress && (
+                                <div>
+                                  <p className="text-sm font-medium text-muted-foreground mb-1">配送先</p>
+                                  <div className="bg-white rounded-lg p-3 text-sm">
+                                    <p className="font-medium">{order.shippingName}</p>
+                                    <p className="text-muted-foreground">
+                                      〒{order.shippingPostalCode} {order.shippingAddress}
+                                    </p>
+                                    {order.shippingPhone && (
+                                      <p className="text-muted-foreground">TEL: {order.shippingPhone}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* 注文情報 */}
+                              <div>
+                                <p className="text-sm font-medium text-muted-foreground mb-1">注文情報</p>
+                                <div className="bg-white rounded-lg p-3 text-sm space-y-1">
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">注文番号</span>
+                                    <span className="font-mono text-xs">{order.orderNumber}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">支払方法</span>
+                                    <span className="flex items-center gap-1">
+                                      {order.paymentMethod === 'stripe' && <CreditCard className="h-3 w-3" />}
+                                      {order.paymentMethod === 'points' && <Coins className="h-3 w-3" />}
+                                      {order.paymentMethod === 'points' ? 'ポイント' : 
+                                       order.paymentMethod === 'stripe' ? 'クレジットカード' : '代引き'}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between font-medium">
+                                    <span>合計</span>
+                                    <span className="text-rose-600">
+                                      {order.paymentMethod === 'points'
+                                        ? `${order.pointsUsed?.toLocaleString()} pt`
+                                        : `¥${order.totalAmount?.toLocaleString()}`}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Package className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>注文履歴がありません</p>
+                    <p className="text-sm mt-2">商品を購入すると、ここに表示されます</p>
+                    <Button
+                      variant="outline"
+                      className="mt-4 gap-2"
+                      onClick={() => setLocation("/mall/products")}
+                    >
+                      <ShoppingBag className="h-4 w-4" />
+                      商品を見る
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           <TabsContent value="history">
             <Card>
