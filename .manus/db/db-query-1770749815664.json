@@ -1,0 +1,32 @@
+{
+  "query": "SELECT * FROM mall_orders WHERE orderNumber = 'LCJ202602105CHUZN';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT * FROM mall_orders WHERE orderNumber = 'LCJ202602105CHUZN';",
+  "rows": [
+    {
+      "id": "3",
+      "orderNumber": "LCJ202602105CHUZN",
+      "lineUserId": "660005",
+      "status": "pending",
+      "totalAmount": "1463",
+      "pointsUsed": "0",
+      "cashAmount": "1463",
+      "shippingName": "京極",
+      "shippingPhone": "08088885052",
+      "shippingPostalCode": "1080073",
+      "shippingAddress": "東京都港区三田3-3-3",
+      "notes": "NULL",
+      "adminNotes": "NULL",
+      "createdAt": "2026-02-10 18:53:03",
+      "updatedAt": "2026-02-10 18:53:03",
+      "shippedAt": "NULL",
+      "deliveredAt": "NULL",
+      "paymentMethod": "stripe",
+      "stripeSessionId": "cs_live_b1raTlCwOfLpgFyMtpUdzDxGHfPBh1dAHydTV1K66Hqhn8ypd6NyKhjbVD",
+      "stripePaymentIntentId": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\torderNumber\tlineUserId\tstatus\ttotalAmount\tpointsUsed\tcashAmount\tshippingName\tshippingPhone\tshippingPostalCode\tshippingAddress\tnotes\tadminNotes\tcreatedAt\tupdatedAt\tshippedAt\tdeliveredAt\tpaymentMethod\tstripeSessionId\tstripePaymentIntentId\n3\tLCJ202602105CHUZN\t660005\tpending\t1463\t0\t1463\t京極\t08088885052\t1080073\t東京都港区三田3-3-3\tNULL\tNULL\t2026-02-10 18:53:03\t2026-02-10 18:53:03\tNULL\tNULL\tstripe\tcs_live_b1raTlCwOfLpgFyMtpUdzDxGHfPBh1dAHydTV1K66Hqhn8ypd6NyKhjbVD\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1615
+}

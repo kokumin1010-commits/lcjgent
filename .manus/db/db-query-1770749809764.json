@@ -1,0 +1,20 @@
+{
+  "query": "SELECT id, orderNumber, status, paymentMethod, stripeSessionId, stripePaymentIntentId, totalAmount, createdAt FROM mall_orders WHERE orderNumber = 'LCJ202602105CHUZN';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, orderNumber, status, paymentMethod, stripeSessionId, stripePaymentIntentId, totalAmount, createdAt FROM mall_orders WHERE orderNumber = 'LCJ202602105CHUZN';",
+  "rows": [
+    {
+      "id": "3",
+      "orderNumber": "LCJ202602105CHUZN",
+      "status": "pending",
+      "paymentMethod": "stripe",
+      "stripeSessionId": "cs_live_b1raTlCwOfLpgFyMtpUdzDxGHfPBh1dAHydTV1K66Hqhn8ypd6NyKhjbVD",
+      "stripePaymentIntentId": "NULL",
+      "totalAmount": "1463",
+      "createdAt": "2026-02-10 18:53:03"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\torderNumber\tstatus\tpaymentMethod\tstripeSessionId\tstripePaymentIntentId\ttotalAmount\tcreatedAt\n3\tLCJ202602105CHUZN\tpending\tstripe\tcs_live_b1raTlCwOfLpgFyMtpUdzDxGHfPBh1dAHydTV1K66Hqhn8ypd6NyKhjbVD\tNULL\t1463\t2026-02-10 18:53:03\n",
+  "stderr": "",
+  "execution_time_ms": 1824
+}

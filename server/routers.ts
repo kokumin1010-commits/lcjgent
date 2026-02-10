@@ -11025,6 +11025,36 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         if (order.lineUserId !== result.lineUser.id) {
           throw new TRPCError({ code: "FORBIDDEN", message: "アクセス権限がありません" });
         }
+
+        // Webhook未到着のフォールバック: pendingのままならStripe APIで直接確認
+        if (order.status === "pending" && order.stripeSessionId && order.paymentMethod === "stripe") {
+          try {
+            const Stripe = (await import("stripe")).default;
+            const stripeClient = new Stripe(ENV.stripeSecretKey, {
+              apiVersion: "2025-01-27.acacia" as any,
+            });
+            const session = await stripeClient.checkout.sessions.retrieve(order.stripeSessionId);
+            
+            if (session.payment_status === "paid") {
+              // Webhookが届いていなかったが、実際には決済完了 → DBを更新
+              console.log(`[Payment Fallback] Order ${order.orderNumber} confirmed paid via Stripe API (webhook missed)`);
+              await updateMallOrderStripeInfo(order.id, {
+                status: "paid",
+                stripePaymentIntentId: session.payment_intent as string || undefined,
+              });
+              return {
+                orderNumber: order.orderNumber,
+                status: "paid" as const,
+                totalAmount: order.totalAmount,
+                paymentMethod: order.paymentMethod,
+              };
+            }
+          } catch (err) {
+            console.error(`[Payment Fallback] Error checking Stripe session for order ${order.orderNumber}:`, err);
+            // フォールバック失敗時は通常のレスポンスを返す
+          }
+        }
+
         return {
           orderNumber: order.orderNumber,
           status: order.status,

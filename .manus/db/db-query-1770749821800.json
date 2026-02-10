@@ -1,0 +1,15 @@
+{
+  "query": "SELECT id, status, stripePaymentIntentId FROM mall_orders WHERE orderNumber = 'LCJ202602105CHUZN';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, status, stripePaymentIntentId FROM mall_orders WHERE orderNumber = 'LCJ202602105CHUZN';",
+  "rows": [
+    {
+      "id": "3",
+      "status": "pending",
+      "stripePaymentIntentId": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tstatus\tstripePaymentIntentId\n3\tpending\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1511
+}

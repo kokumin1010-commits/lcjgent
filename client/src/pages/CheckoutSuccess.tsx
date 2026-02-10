@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { CheckCircle2, Package, ArrowLeft, ShoppingBag, Loader2 } from "lucide-react";
+import { CheckCircle2, Package, ArrowLeft, ShoppingBag, Loader2, AlertCircle } from "lucide-react";
 import { Link, useSearch } from "wouter";
 
 export default function CheckoutSuccess() {
@@ -10,23 +10,46 @@ export default function CheckoutSuccess() {
   const params = new URLSearchParams(searchString);
   const orderNumber = params.get("order") || "";
 
+  const [pollingEnabled, setPollingEnabled] = useState(true);
+  const [timedOut, setTimedOut] = useState(false);
+  const startTimeRef = useRef(Date.now());
+
   const { data: orderStatus, isLoading } = trpc.mall.checkOrderPaymentStatus.useQuery(
     { orderNumber },
-    { enabled: !!orderNumber, refetchInterval: 3000 }
+    { 
+      enabled: !!orderNumber && pollingEnabled, 
+      refetchInterval: pollingEnabled ? 3000 : false,
+    }
   );
 
   // 決済完了後はポーリング停止
-  const isPaidOrConfirmed = orderStatus?.status === "paid" || orderStatus?.status === "confirmed";
+  const isPaid = orderStatus?.status === "paid" || orderStatus?.status === "confirmed";
+
+  useEffect(() => {
+    if (isPaid) {
+      setPollingEnabled(false);
+    }
+  }, [isPaid]);
+
+  // 60秒後にタイムアウト（ポーリングを停止し、メッセージを変更）
+  useEffect(() => {
+    if (isPaid) return;
+    const timer = setTimeout(() => {
+      setTimedOut(true);
+      setPollingEnabled(false);
+    }, 60000);
+    return () => clearTimeout(timer);
+  }, [isPaid]);
 
   const [showConfetti, setShowConfetti] = useState(false);
 
   useEffect(() => {
-    if (orderStatus?.status === "paid" || orderStatus?.status === "confirmed") {
+    if (isPaid) {
       setShowConfetti(true);
       const timer = setTimeout(() => setShowConfetti(false), 5000);
       return () => clearTimeout(timer);
     }
-  }, [orderStatus?.status]);
+  }, [isPaid]);
 
   if (isLoading) {
     return (
@@ -38,8 +61,6 @@ export default function CheckoutSuccess() {
       </div>
     );
   }
-
-  const isPaid = orderStatus?.status === "paid" || orderStatus?.status === "confirmed";
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-green-50 to-white">
@@ -77,6 +98,21 @@ export default function CheckoutSuccess() {
                 </h1>
                 <p className="text-muted-foreground mb-6">
                   お支払いが正常に完了しました。
+                </p>
+              </>
+            ) : timedOut ? (
+              <>
+                <div className="bg-blue-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <AlertCircle className="h-12 w-12 text-blue-600" />
+                </div>
+                <h1 className="text-2xl font-bold text-blue-800 mb-2">
+                  注文を受け付けました
+                </h1>
+                <p className="text-muted-foreground mb-4">
+                  決済の確認に時間がかかっています。カード会社での処理が完了次第、注文ステータスが更新されます。
+                </p>
+                <p className="text-sm text-muted-foreground mb-6">
+                  注文履歴ページで最新のステータスをご確認いただけます。
                 </p>
               </>
             ) : (
