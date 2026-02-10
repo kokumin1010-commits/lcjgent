@@ -318,14 +318,26 @@ export default function ProductManagement() {
       try {
         const base64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
-          reader.onload = () => resolve((reader.result as string).split(",")[1]);
+          reader.onload = () => {
+            const result = reader.result as string;
+            const base64Data = result.split(",")[1];
+            if (!base64Data) {
+              reject(new Error("画像の変換に失敗しました"));
+              return;
+            }
+            resolve(base64Data);
+          };
           reader.onerror = reject;
           reader.readAsDataURL(file);
         });
 
+        // ファイル名をサニタイズ（拡張子のみ保持）
+        const extMatch = file.name.match(/\.([a-zA-Z0-9]+)$/);
+        const safeFilename = `image.${extMatch ? extMatch[1].toLowerCase() : "png"}`;
+
         const result = await uploadImage.mutateAsync({
           base64,
-          filename: file.name,
+          filename: safeFilename,
         });
 
         setFormData(prev => ({

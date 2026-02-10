@@ -10910,9 +10910,26 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         }
 
         const buffer = Buffer.from(input.base64, "base64");
-        const ext = input.filename.split(".").pop()?.toLowerCase() || "png";
+        // 拡張子を安全に取得（長いファイル名やクエリパラメータ付きにも対応）
+        const filenameParts = input.filename.split(".");
+        let ext = filenameParts.length > 1 ? filenameParts.pop()!.toLowerCase().replace(/[^a-z0-9]/g, "") : "png";
+        // 有効な画像拡張子のみ許可
+        const validExts = ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico"];
+        if (!validExts.includes(ext)) {
+          ext = "png";
+        }
         const key = `mall/products/${nanoid()}.${ext}`;
-        const contentType = `image/${ext === "jpg" ? "jpeg" : ext}`;
+        const contentTypeMap: Record<string, string> = {
+          jpg: "image/jpeg",
+          jpeg: "image/jpeg",
+          png: "image/png",
+          gif: "image/gif",
+          webp: "image/webp",
+          svg: "image/svg+xml",
+          bmp: "image/bmp",
+          ico: "image/x-icon",
+        };
+        const contentType = contentTypeMap[ext] || "image/png";
         
         const { url } = await storagePut(key, buffer, contentType);
         

@@ -4528,3 +4528,7 @@
 - [x] ProductManagement.tsxの画像一覧をSortableImageItemコンポーネントでドラッグ可能に変更
 - [x] 並び替え後にupdateProductImages APIで順序を保存
 - [x] vitestテスト全パス（product-images: 6テスト）
+
+## バグ修正: 商品画像アップロード失敗
+- [x] webpファイルのアップロード失敗を修正（拡張子サニタイズ・contentTypeマップ対応）
+- [x] 対応ファイル形式にwebp/svg/bmp/icoを追加、ファイル名サニタイズも実装
