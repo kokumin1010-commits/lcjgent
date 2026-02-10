@@ -10902,7 +10902,7 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
       .input(z.object({
         base64: z.string(),
         filename: z.string(),
-        productId: z.number().optional(), // 既存商品への追加時
+        productId: z.number().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") {
@@ -10916,15 +10916,42 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         
         const { url } = await storagePut(key, buffer, contentType);
         
-        // 既存商品への画像追加
+        // 既存商品への画像追加（imageUrlsに追記）
         if (input.productId) {
-          await updateMallProduct(input.productId, {
-            imageUrl: url,
-            imageKey: key,
-          });
+          const product = await getMallProductById(input.productId);
+          if (product) {
+            const existingUrls = product.imageUrls || [];
+            const existingKeys = product.imageKeys || [];
+            await updateMallProduct(input.productId, {
+              imageUrl: existingUrls.length === 0 ? url : product.imageUrl,
+              imageKey: existingKeys.length === 0 ? key : product.imageKey,
+              imageUrls: [...existingUrls, url],
+              imageKeys: [...existingKeys, key],
+            });
+          }
         }
         
         return { url, key };
+      }),
+
+    // 商品画像の並び替え・削除（管理者のみ）
+    updateProductImages: protectedProcedure
+      .input(z.object({
+        productId: z.number(),
+        imageUrls: z.array(z.string()),
+        imageKeys: z.array(z.string()),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        await updateMallProduct(input.productId, {
+          imageUrl: input.imageUrls[0] || null,
+          imageKey: input.imageKeys[0] || null,
+          imageUrls: input.imageUrls,
+          imageKeys: input.imageKeys,
+        });
+        return { success: true };
       }),
 
     // ===== 住所管理API =====

@@ -28,11 +28,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, Package, ImageIcon } from "lucide-react";
+import { Plus, Pencil, Trash2, Package, ImageIcon, GripVertical, X } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "sonner";
 
 type ProductStatus = "draft" | "active" | "sold_out" | "archived";
+
+interface ImageItem {
+  url: string;
+  key: string;
+}
 
 interface ProductFormData {
   name: string;
@@ -43,7 +48,7 @@ interface ProductFormData {
   price: number;
   pointPrice: number | null;
   stock: number;
-  imageUrl: string;
+  images: ImageItem[];
   status: ProductStatus;
   sortOrder: number;
 }
@@ -57,7 +62,7 @@ const initialFormData: ProductFormData = {
   price: 0,
   pointPrice: null,
   stock: 0,
-  imageUrl: "",
+  images: [],
   status: "draft",
   sortOrder: 0,
 };
@@ -69,6 +74,7 @@ export default function ProductManagement() {
   const [formData, setFormData] = useState<ProductFormData>(initialFormData);
   const [filterStatus, setFilterStatus] = useState<ProductStatus | "all">("all");
   const [isUploading, setIsUploading] = useState(false);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
 
   const utils = trpc.useUtils();
 
@@ -85,6 +91,7 @@ export default function ProductManagement() {
       toast.success("商品を登録しました");
       utils.mall.getProducts.invalidate();
       setIsDialogOpen(false);
+      setEditingProduct(null);
       setFormData(initialFormData);
     },
     onError: (error) => {
@@ -119,10 +126,20 @@ export default function ProductManagement() {
     e.preventDefault();
     
     const submitData = {
-      ...formData,
-      pointPrice: formData.pointPrice || undefined,
+      name: formData.name,
+      description: formData.description || undefined,
+      category: formData.category || undefined,
       brandId: formData.brandId,
       categoryId: formData.categoryId,
+      price: formData.price,
+      pointPrice: formData.pointPrice || undefined,
+      stock: formData.stock,
+      imageUrl: formData.images[0]?.url || undefined,
+      imageKey: formData.images[0]?.key || undefined,
+      imageUrls: formData.images.map(i => i.url),
+      imageKeys: formData.images.map(i => i.key),
+      status: formData.status,
+      sortOrder: formData.sortOrder,
     };
 
     if (editingProduct) {
@@ -134,6 +151,19 @@ export default function ProductManagement() {
 
   const handleEdit = (product: NonNullable<typeof products>[0]) => {
     setEditingProduct(product.id);
+    // 複数画像を復元
+    const images: ImageItem[] = [];
+    if (product.imageUrls && product.imageKeys && product.imageUrls.length > 0) {
+      for (let i = 0; i < product.imageUrls.length; i++) {
+        images.push({
+          url: product.imageUrls[i],
+          key: product.imageKeys?.[i] || "",
+        });
+      }
+    } else if (product.imageUrl) {
+      images.push({ url: product.imageUrl, key: product.imageKey || "" });
+    }
+
     setFormData({
       name: product.name,
       description: product.description || "",
@@ -143,7 +173,7 @@ export default function ProductManagement() {
       price: product.price,
       pointPrice: product.pointPrice,
       stock: product.stock,
-      imageUrl: product.imageUrl || "",
+      images,
       status: product.status as ProductStatus,
       sortOrder: product.sortOrder,
     });
@@ -157,45 +187,96 @@ export default function ProductManagement() {
   };
 
   const uploadImage = trpc.mall.uploadProductImage.useMutation({
-    onSuccess: (data) => {
-      setFormData((prev) => ({ ...prev, imageUrl: data.url }));
-      toast.success("画像をアップロードしました");
-    },
     onError: (error) => {
       toast.error(error.message || "画像のアップロードに失敗しました");
     },
   });
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("画像サイズは5MB以下にしてください");
+    const maxFiles = 10;
+    const currentCount = formData.images.length;
+    const remainingSlots = maxFiles - currentCount;
+    
+    if (remainingSlots <= 0) {
+      toast.error(`画像は最大${maxFiles}枚までです`);
       return;
     }
 
+    const filesToUpload = Array.from(files).slice(0, remainingSlots);
+    if (files.length > remainingSlots) {
+      toast.info(`最大${maxFiles}枚まで。${remainingSlots}枚のみアップロードします`);
+    }
+
     setIsUploading(true);
-    try {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const base64 = (reader.result as string).split(",")[1];
-        await uploadImage.mutateAsync({
+    let uploadedCount = 0;
+
+    for (const file of filesToUpload) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`${file.name}: 5MB以下にしてください`);
+        continue;
+      }
+
+      try {
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve((reader.result as string).split(",")[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        const result = await uploadImage.mutateAsync({
           base64,
           filename: file.name,
-          productId: editingProduct || undefined,
         });
-        setIsUploading(false);
-      };
-      reader.onerror = () => {
-        toast.error("ファイルの読み込みに失敗しました");
-        setIsUploading(false);
-      };
-      reader.readAsDataURL(file);
-    } catch (error) {
-      toast.error("画像のアップロードに失敗しました");
-      setIsUploading(false);
+
+        setFormData(prev => ({
+          ...prev,
+          images: [...prev.images, { url: result.url, key: result.key }],
+        }));
+        uploadedCount++;
+      } catch (error) {
+        toast.error(`${file.name}: アップロード失敗`);
+      }
     }
+
+    if (uploadedCount > 0) {
+      toast.success(`${uploadedCount}枚の画像をアップロードしました`);
+    }
+    setIsUploading(false);
+    // inputをリセット
+    e.target.value = "";
+  };
+
+  const removeImage = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index),
+    }));
+  };
+
+  // ドラッグ&ドロップで並び替え
+  const handleDragStart = (index: number) => {
+    setDragIndex(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (dragIndex === null || dragIndex === index) return;
+    
+    setFormData(prev => {
+      const newImages = [...prev.images];
+      const [dragged] = newImages.splice(dragIndex, 1);
+      newImages.splice(index, 0, dragged);
+      return { ...prev, images: newImages };
+    });
+    setDragIndex(index);
+  };
+
+  const handleDragEnd = () => {
+    setDragIndex(null);
   };
 
   const getStatusBadge = (status: string) => {
@@ -378,30 +459,63 @@ export default function ProductManagement() {
                     />
                   </div>
 
+                  {/* 複数画像アップロード */}
                   <div className="col-span-2">
-                    <label className="text-sm font-medium">商品画像</label>
+                    <label className="text-sm font-medium">
+                      商品画像（最大10枚・ドラッグで並び替え可能）
+                    </label>
                     <div className="mt-2 space-y-3">
-                      {formData.imageUrl && (
-                        <div className="relative inline-block">
-                          <img
-                            src={formData.imageUrl}
-                            alt="Preview"
-                            className="h-32 w-32 object-cover rounded-lg border"
-                          />
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="sm"
-                            className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full"
-                            onClick={() => setFormData({ ...formData, imageUrl: "" })}
-                          >
-                            ×
-                          </Button>
+                      {/* 画像プレビューグリッド */}
+                      {formData.images.length > 0 && (
+                        <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
+                          {formData.images.map((img, index) => (
+                            <div
+                              key={`${img.url}-${index}`}
+                              draggable
+                              onDragStart={() => handleDragStart(index)}
+                              onDragOver={(e) => handleDragOver(e, index)}
+                              onDragEnd={handleDragEnd}
+                              className={`relative group cursor-grab active:cursor-grabbing rounded-lg border-2 transition-all ${
+                                dragIndex === index
+                                  ? "border-primary opacity-50 scale-95"
+                                  : "border-border hover:border-primary/50"
+                              } ${index === 0 ? "ring-2 ring-primary ring-offset-2" : ""}`}
+                            >
+                              <div className="aspect-square overflow-hidden rounded-md">
+                                <img
+                                  src={img.url}
+                                  alt={`商品画像 ${index + 1}`}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                              {/* メイン画像バッジ */}
+                              {index === 0 && (
+                                <div className="absolute top-1 left-1">
+                                  <Badge className="text-[10px] px-1 py-0 bg-primary">メイン</Badge>
+                                </div>
+                              )}
+                              {/* ドラッグハンドル */}
+                              <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <GripVertical className="h-4 w-4 text-white drop-shadow-md" />
+                              </div>
+                              {/* 削除ボタン */}
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="sm"
+                                className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={() => removeImage(index)}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ))}
                         </div>
                       )}
                       
-                      <div className="flex items-center gap-4">
-                        <label className="flex-1 cursor-pointer">
+                      {/* アップロードエリア */}
+                      {formData.images.length < 10 && (
+                        <label className="cursor-pointer block">
                           <div className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
                             isUploading ? "bg-muted" : "hover:bg-muted/50 hover:border-primary"
                           }`}>
@@ -414,10 +528,10 @@ export default function ProductManagement() {
                               <div className="flex flex-col items-center gap-1">
                                 <ImageIcon className="h-8 w-8 text-muted-foreground" />
                                 <span className="text-sm text-muted-foreground">
-                                  クリックして画像を選択
+                                  クリックして画像を選択（複数選択可）
                                 </span>
                                 <span className="text-xs text-muted-foreground">
-                                  PNG, JPG, GIF（5MB以下）
+                                  PNG, JPG, GIF（各5MB以下）・残り{10 - formData.images.length}枚
                                 </span>
                               </div>
                             )}
@@ -425,19 +539,32 @@ export default function ProductManagement() {
                           <Input
                             type="file"
                             accept="image/*"
+                            multiple
                             onChange={handleImageUpload}
                             disabled={isUploading}
                             className="hidden"
                           />
                         </label>
-                      </div>
-                      
+                      )}
+
+                      {/* URL直接入力 */}
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">または</span>
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">URL追加:</span>
                         <Input
-                          value={formData.imageUrl}
-                          onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                          placeholder="画像URLを直接入力"
+                          placeholder="画像URLを入力してEnter"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              const url = (e.target as HTMLInputElement).value.trim();
+                              if (url && formData.images.length < 10) {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  images: [...prev.images, { url, key: "" }],
+                                }));
+                                (e.target as HTMLInputElement).value = "";
+                              }
+                            }
+                          }}
                           className="flex-1"
                         />
                       </div>
@@ -522,56 +649,66 @@ export default function ProductManagement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {products.map((product) => (
-                    <TableRow key={product.id}>
-                      <TableCell>
-                        {product.imageUrl ? (
-                          <img
-                            src={product.imageUrl}
-                            alt={product.name}
-                            className="h-12 w-12 object-cover rounded"
-                          />
-                        ) : (
-                          <div className="h-12 w-12 bg-muted rounded flex items-center justify-center">
-                            <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                  {products.map((product) => {
+                    const imageCount = product.imageUrls?.length || (product.imageUrl ? 1 : 0);
+                    return (
+                      <TableRow key={product.id}>
+                        <TableCell>
+                          <div className="relative">
+                            {product.imageUrl ? (
+                              <img
+                                src={product.imageUrl}
+                                alt={product.name}
+                                className="h-12 w-12 object-cover rounded"
+                              />
+                            ) : (
+                              <div className="h-12 w-12 bg-muted rounded flex items-center justify-center">
+                                <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                              </div>
+                            )}
+                            {imageCount > 1 && (
+                              <Badge className="absolute -top-1 -right-1 text-[10px] px-1 py-0 min-w-[18px] h-[18px] flex items-center justify-center">
+                                {imageCount}
+                              </Badge>
+                            )}
                           </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="font-medium">{product.name}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {getBrandName(product.brandId)}
-                      </TableCell>
-                      <TableCell>
-                        {getCategoryName(product.categoryId, product.category)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        ¥{product.price.toLocaleString()}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {product.pointPrice ? `${product.pointPrice.toLocaleString()}pt` : "-"}
-                      </TableCell>
-                      <TableCell className="text-right">{product.stock}</TableCell>
-                      <TableCell>{getStatusBadge(product.status)}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEdit(product)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDelete(product.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        </TableCell>
+                        <TableCell className="font-medium">{product.name}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {getBrandName(product.brandId)}
+                        </TableCell>
+                        <TableCell>
+                          {getCategoryName(product.categoryId, product.category)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          ¥{product.price.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {product.pointPrice ? `${product.pointPrice.toLocaleString()}pt` : "-"}
+                        </TableCell>
+                        <TableCell className="text-right">{product.stock}</TableCell>
+                        <TableCell>{getStatusBadge(product.status)}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEdit(product)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDelete(product.id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}

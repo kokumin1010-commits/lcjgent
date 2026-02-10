@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -31,6 +31,7 @@ import {
   Shield, 
   Gift, 
   ChevronRight,
+  ChevronLeft,
   Heart,
   Share2,
   Minus,
@@ -45,6 +46,140 @@ import {
 } from "lucide-react";
 import { Link, useParams, useLocation } from "wouter";
 import { toast } from "sonner";
+
+// 商品画像ギャラリーコンポーネント
+function ProductImageGallery({ product, isFavorite, setIsFavorite, handleShare }: {
+  product: { imageUrl: string | null; imageUrls: string[] | null; name: string; pointPrice: number | null; stock: number };
+  isFavorite: boolean;
+  setIsFavorite: (v: boolean) => void;
+  handleShare: () => void;
+}) {
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  
+  const images = useMemo(() => {
+    if (product.imageUrls && product.imageUrls.length > 0) return product.imageUrls;
+    if (product.imageUrl) return [product.imageUrl];
+    return [];
+  }, [product.imageUrls, product.imageUrl]);
+
+  const currentImage = images[selectedIndex] || null;
+
+  const goNext = () => {
+    if (selectedIndex < images.length - 1) setSelectedIndex(selectedIndex + 1);
+  };
+  const goPrev = () => {
+    if (selectedIndex > 0) setSelectedIndex(selectedIndex - 1);
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* メイン画像 */}
+      <div className="aspect-square relative rounded-2xl overflow-hidden bg-white shadow-lg border border-pink-100">
+        {currentImage ? (
+          <img
+            src={currentImage}
+            alt={`${product.name} - 画像${selectedIndex + 1}`}
+            className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-pink-50 to-rose-50">
+            <Package className="h-32 w-32 text-pink-200" />
+          </div>
+        )}
+        {product.pointPrice && (
+          <div className="absolute top-4 left-4">
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-r from-amber-400 to-yellow-400 rounded-full blur-sm animate-pulse"></div>
+              <Badge className="relative bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-amber-900 px-4 py-2 text-lg shadow-lg border-2 border-amber-300 font-bold">
+                <Coins className="h-5 w-5 mr-2 text-amber-700" />
+                {product.pointPrice.toLocaleString()}pt
+              </Badge>
+            </div>
+          </div>
+        )}
+        {product.stock <= 5 && product.stock > 0 && (
+          <Badge className="absolute top-4 right-4 bg-red-500 text-white">
+            残り{product.stock}点
+          </Badge>
+        )}
+        {/* 左右ナビゲーション矢印 */}
+        {images.length > 1 && (
+          <>
+            {selectedIndex > 0 && (
+              <button
+                onClick={goPrev}
+                className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-2 shadow-lg transition-all"
+              >
+                <ChevronLeft className="h-5 w-5 text-gray-700" />
+              </button>
+            )}
+            {selectedIndex < images.length - 1 && (
+              <button
+                onClick={goNext}
+                className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-2 shadow-lg transition-all"
+              >
+                <ChevronRight className="h-5 w-5 text-gray-700" />
+              </button>
+            )}
+            {/* ページインジケーター */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
+              {images.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setSelectedIndex(i)}
+                  className={`w-2.5 h-2.5 rounded-full transition-all ${
+                    i === selectedIndex
+                      ? "bg-white shadow-md scale-110"
+                      : "bg-white/50 hover:bg-white/70"
+                  }`}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* サムネイル一覧 */}
+      {images.length > 1 && (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {images.map((url, i) => (
+            <button
+              key={i}
+              onClick={() => setSelectedIndex(i)}
+              className={`flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-lg overflow-hidden border-2 transition-all ${
+                i === selectedIndex
+                  ? "border-pink-500 ring-2 ring-pink-200"
+                  : "border-gray-200 hover:border-pink-300"
+              }`}
+            >
+              <img
+                src={url}
+                alt={`${product.name} - サムネイル${i + 1}`}
+                className="w-full h-full object-cover"
+              />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* アクションボタン */}
+      <div className="flex gap-3">
+        <Button
+          variant="outline"
+          className={`flex-1 ${isFavorite ? 'bg-pink-50 border-pink-300 text-pink-600' : ''}`}
+          onClick={() => setIsFavorite(!isFavorite)}
+        >
+          <Heart className={`h-5 w-5 mr-2 ${isFavorite ? 'fill-current' : ''}`} />
+          お気に入り
+        </Button>
+        <Button variant="outline" className="flex-1" onClick={handleShare}>
+          <Share2 className="h-5 w-5 mr-2" />
+          シェア
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 type PaymentMethod = "cash" | "points";
 type PurchaseStep = "payment" | "address" | "confirm";
@@ -361,54 +496,8 @@ export default function MallProductDetail() {
         </nav>
 
         <div className="grid lg:grid-cols-2 gap-8 lg:gap-12">
-          {/* 商品画像セクション */}
-          <div className="space-y-4">
-            <div className="aspect-square relative rounded-2xl overflow-hidden bg-white shadow-lg border border-pink-100">
-              {product.imageUrl ? (
-                <img
-                  src={product.imageUrl}
-                  alt={product.name}
-                  className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-pink-50 to-rose-50">
-                  <Package className="h-32 w-32 text-pink-200" />
-                </div>
-              )}
-              {product.pointPrice && (
-                <div className="absolute top-4 left-4">
-                  <div className="relative">
-                    <div className="absolute inset-0 bg-gradient-to-r from-amber-400 to-yellow-400 rounded-full blur-sm animate-pulse"></div>
-                    <Badge className="relative bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-amber-900 px-4 py-2 text-lg shadow-lg border-2 border-amber-300 font-bold">
-                      <Coins className="h-5 w-5 mr-2 text-amber-700" />
-                      {product.pointPrice.toLocaleString()}pt
-                    </Badge>
-                  </div>
-                </div>
-              )}
-              {product.stock <= 5 && product.stock > 0 && (
-                <Badge className="absolute top-4 right-4 bg-red-500 text-white">
-                  残り{product.stock}点
-                </Badge>
-              )}
-            </div>
-            
-            {/* アクションボタン */}
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                className={`flex-1 ${isFavorite ? 'bg-pink-50 border-pink-300 text-pink-600' : ''}`}
-                onClick={() => setIsFavorite(!isFavorite)}
-              >
-                <Heart className={`h-5 w-5 mr-2 ${isFavorite ? 'fill-current' : ''}`} />
-                お気に入り
-              </Button>
-              <Button variant="outline" className="flex-1" onClick={handleShare}>
-                <Share2 className="h-5 w-5 mr-2" />
-                シェア
-              </Button>
-            </div>
-          </div>
+          {/* 商品画像ギャラリーセクション */}
+          <ProductImageGallery product={product} isFavorite={isFavorite} setIsFavorite={setIsFavorite} handleShare={handleShare} />
 
           {/* 商品情報セクション */}
           <div className="space-y-6">

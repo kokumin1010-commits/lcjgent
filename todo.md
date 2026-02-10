@@ -4515,3 +4515,10 @@
 - [x] ProductManagement.tsxのブランド取得をbrand.listに変更
 - [x] MallBrandCategoryManagement.tsxのブランドタブを既存ブランド管理への案内に変更
 - [x] テスト更新・実行（9テスト全パス）
+
+## 商品画像の複数枚一括アップロード対応
+- [x] 既存imageUrls/imageKeysフィールドを活用（別テーブル不要）
+- [x] 複数画像APIをバックエンドに追加（uploadProductImage拡張、updateProductImages追加）
+- [x] 管理画面の商品フォームで複数画像アップロード・削除対応
+- [x] MALL商品詳細ページに画像ギャラリー表示を追加（サムネイル・左右矢印・ページインジケーター）
+- [x] vitestテスト作成・実行（6テスト全パス）
