@@ -10554,7 +10554,8 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           const storeName = receipt.storeName || "不明";
           const amount = receipt.totalAmount ? `¥${receipt.totalAmount.toLocaleString()}` : "不明";
           
-          const message = `🎉 レシートが承認されました！\n您的收据已获批准！\n\n🏪 店舗名/店铺名: ${storeName}\n💰 購入金額/购买金额: ${amount}\n⭐ 獲得ポイント/获得积分: ${pointsToAward}ポイント\n\n📊 現在の残高/当前余额: ${newBalance}ポイント\n\nご利用ありがとうございます！\n感谢您的使用！`;
+          const appUrl = process.env.APP_URL || "https://lcjmall.com";
+          const message = `🎉 レシートが承認されました！\n\n🏪 店舗名: ${storeName}\n💰 購入金額: ${amount}\n⭐ 獲得ポイント: ${pointsToAward}ポイント\n\n📊 現在の残高: ${newBalance}ポイント\n\nご利用ありがとうございます！\n\n📋 ポイント履歴を確認する\n${appUrl}/mypage`;
           
           await pushMessage(receipt.lineUserId, [{ type: "text", text: message }]);
           console.log(`[LINE Receipt] Sent approval notification to ${receipt.lineUserId}`);
@@ -10589,7 +10590,8 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           const storeName = receipt.storeName || "不明";
           const reason = input.note || "理由は記載されていません";
           
-          const message = `❌ レシートが却下されました\n您的收据已被拒绝\n\n🏪 店舗名/店铺名: ${storeName}\n\n📝 却下理由/拒绝原因:\n${reason}\n\n正しいレシート画像を再度送信してください。\n请重新发送正确的收据图片。`;
+          const appUrl = process.env.APP_URL || "https://lcjmall.com";
+          const message = `❌ レシートが却下されました\n\n🏪 店舗名: ${storeName}\n\n📝 却下理由:\n${reason}\n\n正しいレシート画像を再度送信してください。\n\n📋 マイページで確認する\n${appUrl}/mypage`;
           
           await pushMessage(receipt.lineUserId, [{ type: "text", text: message }]);
           console.log(`[LINE Receipt] Sent rejection notification to ${receipt.lineUserId}`);

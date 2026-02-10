@@ -291,7 +291,7 @@ describe("LINE Receipt Notification", () => {
       const pointsAwarded = 100;
       const newBalance = 500;
 
-      const message = `🎉 レシートが承認されました！\n您的收据已获批准！\n\n🏪 店舗名/店铺名: ${storeName}\n💰 購入金額/购买金额: ¥${amount.toLocaleString()}\n⭐ 獲得ポイント/获得积分: ${pointsAwarded}ポイント\n\n📊 現在の残高/当前余额: ${newBalance}ポイント\n\nご利用ありがとうございます！\n感谢您的使用！`;
+      const message = `🎉 レシートが承認されました！\n\n🏪 店舗名: ${storeName}\n💰 購入金額: ¥${amount.toLocaleString()}\n⭐ 獲得ポイント: ${pointsAwarded}ポイント\n\n📊 現在の残高: ${newBalance}ポイント\n\nご利用ありがとうございます！\n\n📋 ポイント履歴を確認する\nhttps://lcjmall.com/mypage`;
 
       await pushMessage(lineUserId, [{ type: "text", text: message }]);
 
@@ -316,28 +316,30 @@ describe("LINE Receipt Notification", () => {
       const storeName = "テスト店舗";
       const reason = "レシートが不鮮明です";
 
-      const message = `❌ レシートが却下されました\n您的收据已被拒绝\n\n🏪 店舗名/店铺名: ${storeName}\n\n📝 却下理由/拒绝原因:\n${reason}\n\n正しいレシート画像を再度送信してください。\n请重新发送正确的收据图片。`;
+      const message = `❌ レシートが却下されました\n\n🏪 店舗名: ${storeName}\n\n📝 却下理由:\n${reason}\n\n正しいレシート画像を再度送信してください。\n\n📋 マイページで確認する\nhttps://lcjmall.com/mypage`;
 
       await pushMessage(lineUserId, [{ type: "text", text: message }]);
 
       expect(pushMessage).toHaveBeenCalledWith(lineUserId, [{ type: "text", text: message }]);
     });
 
-    it("should include bilingual content in rejection message", async () => {
+    it("should include Japanese-only content in rejection message", async () => {
       vi.mocked(pushMessage).mockResolvedValue(true);
 
       const lineUserId = "U1234567890";
       const storeName = "不明";
       const reason = "対象外の店舗です";
 
-      const message = `❌ レシートが却下されました\n您的收据已被拒绝\n\n🏪 店舗名/店铺名: ${storeName}\n\n📝 却下理由/拒绝原因:\n${reason}\n\n正しいレシート画像を再度送信してください。\n请重新发送正确的收据图片。`;
+      const message = `❌ レシートが却下されました\n\n🏪 店舗名: ${storeName}\n\n📝 却下理由:\n${reason}\n\n正しいレシート画像を再度送信してください。\n\n📋 マイページで確認する\nhttps://lcjmall.com/mypage`;
 
       await pushMessage(lineUserId, [{ type: "text", text: message }]);
 
-      // Verify bilingual content
+      // Verify Japanese-only content (no Chinese)
       expect(message).toContain("レシートが却下されました");
-      expect(message).toContain("您的收据已被拒绝");
-      expect(message).toContain("却下理由/拒绝原因");
+      expect(message).toContain("却下理由:");
+      expect(message).toContain("https://lcjmall.com/mypage");
+      expect(message).not.toContain("您的");
+      expect(message).not.toContain("拒绝");
     });
   });
 
@@ -346,9 +348,10 @@ describe("LINE Receipt Notification", () => {
       vi.mocked(pushMessage).mockResolvedValue(true);
 
       const storeName = "不明";
-      const message = `🎉 レシートが承認されました！\n您的收据已获批准！\n\n🏪 店舗名/店铺名: ${storeName}`;
+      const message = `🎉 レシートが承認されました！\n\n🏪 店舗名: ${storeName}`;
 
-      expect(message).toContain("店舗名/店铺名: 不明");
+      expect(message).toContain("店舗名: 不明");
+      expect(message).not.toContain("店铺名");
     });
 
     it("should format large amounts correctly", async () => {
