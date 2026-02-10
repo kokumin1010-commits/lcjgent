@@ -11042,6 +11042,15 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
                 status: "paid",
                 stripePaymentIntentId: session.payment_intent as string || undefined,
               });
+
+              // LINE通知を送信（フォールバック経由）
+              try {
+                const { sendOrderConfirmationLine } = await import("./stripeWebhook");
+                await sendOrderConfirmationLine(order.id);
+              } catch (lineErr) {
+                console.error(`[Payment Fallback] LINE notification failed for order ${order.orderNumber}:`, lineErr);
+              }
+
               return {
                 orderNumber: order.orderNumber,
                 status: "paid" as const,

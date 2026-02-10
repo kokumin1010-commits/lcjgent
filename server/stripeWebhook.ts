@@ -2,8 +2,10 @@ import Stripe from "stripe";
 import { ENV } from "./_core/env";
 import {
   getMallOrderByStripeSessionId,
+  getMallOrderById,
   updateMallOrderStripeInfo,
 } from "./db";
+import { pushMessage } from "./line";
 
 const stripe = new Stripe(ENV.stripeSecretKey, {
   apiVersion: "2025-01-27.acacia" as any,
@@ -49,6 +51,9 @@ export async function handleStripeWebhook(req: any, res: any) {
             stripePaymentIntentId: session.payment_intent as string,
           });
           console.log(`[Stripe Webhook] Order ${order.orderNumber} marked as paid`);
+
+          // LINE通知を送信
+          await sendOrderConfirmationLine(order.id);
         } else {
           console.warn(`[Stripe Webhook] No order found for session ${session.id}`);
         }
@@ -76,4 +81,58 @@ export async function handleStripeWebhook(req: any, res: any) {
 
   // Always return 200 to acknowledge receipt
   res.json({ received: true });
+}
+
+/**
+ * 決済完了時にLINEメッセージで注文確認を送信
+ */
+export async function sendOrderConfirmationLine(orderId: number) {
+  try {
+    const orderDetail = await getMallOrderById(orderId);
+    if (!orderDetail) {
+      console.warn(`[LINE Notify] Order ${orderId} not found`);
+      return;
+    }
+
+    const { order, lineUser, items } = orderDetail;
+    if (!lineUser || !lineUser.lineUserId) {
+      console.warn(`[LINE Notify] No LINE user ID for order ${order.orderNumber}`);
+      return;
+    }
+
+    // 商品名リストを作成
+    const itemLines = items.map((item: any) => 
+      `  ・${item.productName} ×${item.quantity} ￥${(item.subtotal).toLocaleString()}`
+    ).join("\n");
+
+    const pointsInfo = order.pointsUsed > 0 
+      ? `\n🏅 ポイント利用: ${order.pointsUsed.toLocaleString()}pt` 
+      : "";
+
+    const message = [
+      `✅ ご注文ありがとうございます！`,
+      ``,
+      `📦 注文番号: ${order.orderNumber}`,
+      ``,
+      `【ご注文内容】`,
+      itemLines,
+      ``,
+      `💰 お支払い金額: ￥${order.totalAmount.toLocaleString()}${pointsInfo}`,
+      ``,
+      `配送の準備ができ次第、発送いたします。`,
+      `ご不明な点がございましたら、お気軽にお問い合わせください。`,
+    ].join("\n");
+
+    const success = await pushMessage(lineUser.lineUserId, [
+      { type: "text", text: message },
+    ]);
+
+    if (success) {
+      console.log(`[LINE Notify] Order confirmation sent to ${lineUser.displayName || lineUser.lineUserId} for order ${order.orderNumber}`);
+    } else {
+      console.error(`[LINE Notify] Failed to send order confirmation for order ${order.orderNumber}`);
+    }
+  } catch (error) {
+    console.error(`[LINE Notify] Error sending order confirmation for order ${orderId}:`, error);
+  }
 }
