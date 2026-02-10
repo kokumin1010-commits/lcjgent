@@ -978,10 +978,10 @@ export default function Simulator() {
                         <div className="mt-4 space-y-2">
                           {result.similarCases.map((c: any, i: number) => (
                             <div key={i} className="flex items-center justify-between p-3 bg-[#0a192f] rounded-lg text-sm">
-                              <div className="text-slate-400">{c.date || "N/A"}</div>
+                              <div className="text-slate-400">{c.date ? new Date(c.date).toLocaleDateString('ja-JP') : "N/A"}</div>
                               <div className="text-cyan-400 font-semibold">{formatCurrency(c.gmv)}</div>
                               <div className="text-slate-400">{c.duration}分</div>
-                              <div className="text-slate-400">{c.viewers?.toLocaleString()}人</div>
+                              <div className="text-slate-400">{c.viewers?.toLocaleString() || 0}人</div>
                             </div>
                           ))}
                           <div className="p-3 bg-cyan-500/10 rounded-lg border border-cyan-500/20">
