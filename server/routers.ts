@@ -1544,16 +1544,21 @@ export const appRouter = router({
           notes: z.string().optional(),
           employmentType: z.enum(["fulltime", "parttime", "contract", "intern"]).optional(),
           isActive: z.enum(["active", "inactive"]).optional(),
+          resignDate: z.string().nullable().optional(),
+          resignReason: z.string().nullable().optional(),
         })
       )
       .mutation(async ({ input }) => {
-        const { id, joinDate, birthDate, ...rest } = input;
+        const { id, joinDate, birthDate, resignDate, ...rest } = input;
         const updateData: any = { ...rest };
         if (joinDate !== undefined) {
           updateData.joinDate = joinDate ? new Date(joinDate) : null;
         }
         if (birthDate !== undefined) {
           updateData.birthDate = birthDate ? new Date(birthDate) : null;
+        }
+        if (resignDate !== undefined) {
+          updateData.resignDate = resignDate ? new Date(resignDate) : null;
         }
         await updateStaff(id, updateData);
         return { success: true };
@@ -1566,7 +1571,47 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    // Upload avatar photo
+    // Resign staff (set inactive with resign date/reason, also update reportStaff)
+    resign: protectedProcedure
+      .input(z.object({
+        staffId: z.number(),
+        reportStaffId: z.number(),
+        resignDate: z.string(), // ISO date string
+        resignReason: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        // Update staff record
+        await updateStaff(input.staffId, {
+          isActive: "inactive",
+          resignDate: new Date(input.resignDate),
+          resignReason: input.resignReason || null,
+        });
+        // Also update reportStaff isActive
+        await updateReportStaff(input.reportStaffId, {
+          isActive: "inactive",
+        });
+        return { success: true };
+      }),
+
+    // Reinstate staff (set active again, clear resign info)
+    reinstate: protectedProcedure
+      .input(z.object({
+        staffId: z.number(),
+        reportStaffId: z.number(),
+      }))
+      .mutation(async ({ input }) => {
+        await updateStaff(input.staffId, {
+          isActive: "active",
+          resignDate: null,
+          resignReason: null,
+        });
+        await updateReportStaff(input.reportStaffId, {
+          isActive: "active",
+        });
+        return { success: true };
+      }),
+
+    // Upload avatar photoo
     uploadAvatar: protectedProcedure
       .input(z.object({
         staffId: z.number(),

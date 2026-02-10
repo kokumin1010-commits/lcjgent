@@ -38,6 +38,8 @@ export const staff = mysqlTable("staff", {
   notes: text("notes"), // メモ
   employmentType: mysqlEnum("employmentType", ["fulltime", "parttime", "contract", "intern"]).default("fulltime").notNull(),
   isActive: mysqlEnum("isActive", ["active", "inactive"]).default("active").notNull(),
+  resignDate: timestamp("resignDate"), // 退職日
+  resignReason: text("resignReason"), // 退職理由
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

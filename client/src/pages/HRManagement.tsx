@@ -167,6 +167,8 @@ interface UnifiedStaffItem {
   staffEmploymentType: string | null;
   staffIsActive: string | null;
   staffNameEn: string | null;
+  staffResignDate: Date | string | null;
+  staffResignReason: string | null;
   isLinked: boolean;
 }
 
@@ -363,6 +365,9 @@ export default function HRManagement() {
   const [formData, setFormData] = useState<StaffFormData>({ ...emptyFormData });
   const [newSkill, setNewSkill] = useState("");
   const [detailTab, setDetailTab] = useState("profile");
+  const [isResignDialogOpen, setIsResignDialogOpen] = useState(false);
+  const [resignDate, setResignDate] = useState("");
+  const [resignReason, setResignReason] = useState("");
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const utils = trpc.useUtils();
@@ -412,6 +417,29 @@ export default function HRManagement() {
     onError: (error) => toast.error("更新に失敗しました", { description: error.message }),
   });
 
+  const resignMutation = trpc.staff.resign.useMutation({
+    onSuccess: () => {
+      toast.success("退職処理が完了しました");
+      utils.staff.listReportStaffUnified.invalidate();
+      utils.staff.statistics.invalidate();
+      setIsResignDialogOpen(false);
+      setIsDetailOpen(false);
+      setResignDate("");
+      setResignReason("");
+    },
+    onError: (error) => toast.error("退職処理に失敗しました", { description: error.message }),
+  });
+
+  const reinstateMutation = trpc.staff.reinstate.useMutation({
+    onSuccess: () => {
+      toast.success("復職処理が完了しました");
+      utils.staff.listReportStaffUnified.invalidate();
+      utils.staff.statistics.invalidate();
+      setIsDetailOpen(false);
+    },
+    onError: (error) => toast.error("復職処理に失敗しました", { description: error.message }),
+  });
+
   const uploadAvatarMutation = trpc.staff.uploadAvatar.useMutation({
     onSuccess: (data) => {
       toast.success("プロフィール写真を更新しました");
@@ -449,6 +477,8 @@ export default function HRManagement() {
       staffEmploymentType: item.linkedStaff?.employmentType || null,
       staffIsActive: item.linkedStaff?.isActive || null,
       staffNameEn: item.linkedStaff?.nameEn || null,
+      staffResignDate: item.linkedStaff?.resignDate || null,
+      staffResignReason: item.linkedStaff?.resignReason || null,
       isLinked: !!item.linkedStaff,
     }));
   }, [unifiedData]);
@@ -1107,7 +1137,29 @@ export default function HRManagement() {
                     <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {selectedItem.reportStaffCountry}</span>
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
+                  {selectedItem.isLinked && selectedItem.staffIsActive === "active" && (
+                    <Button variant="destructive" size="sm" onClick={() => {
+                      setResignDate(new Date().toISOString().split('T')[0]);
+                      setResignReason("");
+                      setIsResignDialogOpen(true);
+                    }}>
+                      <UserRoundCog className="h-4 w-4 mr-1" /> 退職処理
+                    </Button>
+                  )}
+                  {selectedItem.isLinked && selectedItem.staffIsActive === "inactive" && (
+                    <Button variant="outline" size="sm" className="text-emerald-600 border-emerald-300 hover:bg-emerald-50" onClick={() => {
+                      if (selectedItem.staffId) {
+                        reinstateMutation.mutate({
+                          staffId: selectedItem.staffId,
+                          reportStaffId: selectedItem.reportStaffId,
+                        });
+                      }
+                    }} disabled={reinstateMutation.isPending}>
+                      {reinstateMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+                      復職
+                    </Button>
+                  )}
                   {selectedItem.isLinked ? (
                     <Button variant="outline" size="sm" onClick={openEditMode}>
                       <Edit className="h-4 w-4 mr-1" /> 編集
@@ -1258,6 +1310,35 @@ export default function HRManagement() {
                           </Card>
                         )}
 
+                        {/* Resign Info */}
+                        {selectedItem.staffIsActive === "inactive" && (
+                          <Card className="border-red-200 bg-red-50/50 dark:border-red-900 dark:bg-red-950/30">
+                            <CardHeader className="pb-3">
+                              <CardTitle className="text-sm font-medium text-red-700 dark:text-red-400 flex items-center gap-2">
+                                <AlertTriangle className="h-4 w-4" />
+                                退職情報
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-2">
+                              {selectedItem.staffResignDate && (
+                                <div className="flex items-center gap-3 text-sm">
+                                  <Calendar className="h-4 w-4 text-red-500 shrink-0" />
+                                  <span>退職日: {formatDate(selectedItem.staffResignDate)}</span>
+                                </div>
+                              )}
+                              {selectedItem.staffResignReason && (
+                                <div className="flex items-start gap-3 text-sm">
+                                  <FileText className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                                  <span>退職理由: {selectedItem.staffResignReason}</span>
+                                </div>
+                              )}
+                              {!selectedItem.staffResignDate && !selectedItem.staffResignReason && (
+                                <p className="text-sm text-muted-foreground">退職済み（詳細未登録）</p>
+                              )}
+                            </CardContent>
+                          </Card>
+                        )}
+
                         {/* Notes */}
                         {selectedItem.staffNotes && (
                           <Card>
@@ -1339,6 +1420,66 @@ export default function HRManagement() {
           ) : null}
         </DialogContent>
       </Dialog>
+
+      {/* Resign Confirmation Dialog */}
+      <AlertDialog open={isResignDialogOpen} onOpenChange={setIsResignDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+              退職処理の確認
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {selectedItem?.staffName || selectedItem?.reportStaffName}さんの退職処理を行います。ステータスが「退職」に変更されますが、日報履歴やタスク履歴はそのまま保持されます。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="resignDate">退職日 <span className="text-red-500">*</span></Label>
+              <Input
+                id="resignDate"
+                type="date"
+                value={resignDate}
+                onChange={(e) => setResignDate(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="resignReason">退職理由</Label>
+              <Textarea
+                id="resignReason"
+                placeholder="退職理由を入力（任意）"
+                value={resignReason}
+                onChange={(e) => setResignReason(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>キャンセル</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              disabled={!resignDate || resignMutation.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                if (selectedItem?.staffId) {
+                  resignMutation.mutate({
+                    staffId: selectedItem.staffId,
+                    reportStaffId: selectedItem.reportStaffId,
+                    resignDate: resignDate,
+                    resignReason: resignReason || undefined,
+                  });
+                }
+              }}
+            >
+              {resignMutation.isPending ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />処理中...</>
+              ) : (
+                "退職処理を実行"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
