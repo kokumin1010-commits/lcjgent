@@ -1514,6 +1514,45 @@ export type InsertLineFraudDetectionLog = typeof lineFraudDetectionLogs.$inferIn
 // ============================================
 
 /**
+ * MALLブランドテーブル
+ */
+export const mallBrands = mysqlTable("mall_brands", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  nameEn: varchar("nameEn", { length: 255 }), // 英語名
+  logoUrl: text("logoUrl"),
+  logoKey: varchar("logoKey", { length: 512 }),
+  description: text("description"),
+  website: varchar("website", { length: 500 }),
+  sortOrder: int("sortOrder").default(0).notNull(),
+  isActive: mysqlEnum("isActive", ["yes", "no"]).default("yes").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type MallBrand = typeof mallBrands.$inferSelect;
+export type InsertMallBrand = typeof mallBrands.$inferInsert;
+
+/**
+ * MALLカテゴリテーブル
+ */
+export const mallCategories = mysqlTable("mall_categories", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  slug: varchar("slug", { length: 255 }), // URL用スラッグ
+  description: text("description"),
+  parentId: int("parentId"), // 親カテゴリID（階層対応）
+  iconEmoji: varchar("iconEmoji", { length: 10 }), // アイコン絵文字
+  sortOrder: int("sortOrder").default(0).notNull(),
+  isActive: mysqlEnum("isActive", ["yes", "no"]).default("yes").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type MallCategory = typeof mallCategories.$inferSelect;
+export type InsertMallCategory = typeof mallCategories.$inferInsert;
+
+/**
  * MALL商品テーブル
  */
 export const mallProducts = mysqlTable("mall_products", {
@@ -1522,7 +1561,9 @@ export const mallProducts = mysqlTable("mall_products", {
   // 基本情報
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
-  category: varchar("category", { length: 100 }),
+  category: varchar("category", { length: 100 }), // レガシー（テキスト入力）
+  brandId: int("brandId"), // References mallBrands.id
+  categoryId: int("categoryId"), // References mallCategories.id
   
   // 価格
   price: int("price").notNull(), // 通常価格（円）

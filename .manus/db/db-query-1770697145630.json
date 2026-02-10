@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `mall_brands` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`name` varchar(255) NOT NULL,\n\t`nameEn` varchar(255),\n\t`logoUrl` text,\n\t`logoKey` varchar(512),\n\t`description` text,\n\t`website` varchar(500),\n\t`sortOrder` int NOT NULL DEFAULT 0,\n\t`isActive` enum('yes','no') NOT NULL DEFAULT 'yes',\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `mall_brands_id` PRIMARY KEY(`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute CREATE TABLE IF NOT EXISTS `mall_brands` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`name` varchar(255) NOT NULL,\n\t`nameEn` varchar(255),\n\t`logoUrl` text,\n\t`logoKey` varchar(512),\n\t`description` text,\n\t`website` varchar(500),\n\t`sortOrder` int NOT NULL DEFAULT 0,\n\t`isActive` enum('yes','no') NOT NULL DEFAULT 'yes',\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `mall_brands_id` PRIMARY KEY(`id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1844
+}

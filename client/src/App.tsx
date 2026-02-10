@@ -71,6 +71,7 @@ import Simulator from "./pages/Simulator";
 import ProposalPage from "./pages/ProposalPage";
 import HRManagement from "./pages/HRManagement";
 import ReceiptUpload from "./pages/ReceiptUpload";
+import MallBrandCategoryManagement from "./pages/MallBrandCategoryManagement";
 
 function Router() {
   return (
@@ -257,6 +258,11 @@ function Router() {
       <Route path={"/master/products"}>
         <DashboardLayout>
           <ProductManagement />
+        </DashboardLayout>
+      </Route>
+      <Route path={"/master/mall-brands-categories"}>
+        <DashboardLayout>
+          <MallBrandCategoryManagement />
         </DashboardLayout>
       </Route>
       <Route path={"/master/orders"}>

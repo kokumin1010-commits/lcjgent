@@ -38,6 +38,8 @@ interface ProductFormData {
   name: string;
   description: string;
   category: string;
+  brandId: number | null;
+  categoryId: number | null;
   price: number;
   pointPrice: number | null;
   stock: number;
@@ -50,6 +52,8 @@ const initialFormData: ProductFormData = {
   name: "",
   description: "",
   category: "",
+  brandId: null,
+  categoryId: null,
   price: 0,
   pointPrice: null,
   stock: 0,
@@ -71,6 +75,10 @@ export default function ProductManagement() {
   const { data: products, isLoading } = trpc.mall.getProducts.useQuery(
     filterStatus === "all" ? undefined : { status: filterStatus }
   );
+
+  // ブランド・カテゴリ一覧を取得
+  const { data: brands } = trpc.mall.getBrands.useQuery();
+  const { data: categories } = trpc.mall.getCategoryRecords.useQuery();
 
   const createProduct = trpc.mall.createProduct.useMutation({
     onSuccess: () => {
@@ -113,6 +121,8 @@ export default function ProductManagement() {
     const submitData = {
       ...formData,
       pointPrice: formData.pointPrice || undefined,
+      brandId: formData.brandId,
+      categoryId: formData.categoryId,
     };
 
     if (editingProduct) {
@@ -128,6 +138,8 @@ export default function ProductManagement() {
       name: product.name,
       description: product.description || "",
       category: product.category || "",
+      brandId: product.brandId ?? null,
+      categoryId: product.categoryId ?? null,
       price: product.price,
       pointPrice: product.pointPrice,
       stock: product.stock,
@@ -158,7 +170,6 @@ export default function ProductManagement() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // ファイルサイズチェック（5MB以下）
     if (file.size > 5 * 1024 * 1024) {
       toast.error("画像サイズは5MB以下にしてください");
       return;
@@ -166,7 +177,6 @@ export default function ProductManagement() {
 
     setIsUploading(true);
     try {
-      // ファイルをBase64に変換
       const reader = new FileReader();
       reader.onload = async () => {
         const base64 = (reader.result as string).split(",")[1];
@@ -197,6 +207,22 @@ export default function ProductManagement() {
     };
     const config = variants[status] || variants.draft;
     return <Badge variant={config.variant}>{config.label}</Badge>;
+  };
+
+  // ブランド名を取得するヘルパー
+  const getBrandName = (brandId: number | null) => {
+    if (!brandId || !brands) return "-";
+    const brand = brands.find((b) => b.id === brandId);
+    return brand ? brand.name : "-";
+  };
+
+  // カテゴリ名を取得するヘルパー
+  const getCategoryName = (categoryId: number | null, legacyCategory: string | null) => {
+    if (categoryId && categories) {
+      const cat = categories.find((c) => c.id === categoryId);
+      if (cat) return cat.iconEmoji ? `${cat.iconEmoji} ${cat.name}` : cat.name;
+    }
+    return legacyCategory || "-";
   };
 
   return (
@@ -248,13 +274,46 @@ export default function ProductManagement() {
                     />
                   </div>
 
+                  {/* ブランド選択ドロップダウン */}
+                  <div>
+                    <label className="text-sm font-medium">ブランド</label>
+                    <Select
+                      value={formData.brandId ? String(formData.brandId) : "none"}
+                      onValueChange={(v) => setFormData({ ...formData, brandId: v === "none" ? null : Number(v) })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="ブランドを選択" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">未設定</SelectItem>
+                        {brands?.filter(b => b.isActive === "yes").map((brand) => (
+                          <SelectItem key={brand.id} value={String(brand.id)}>
+                            {brand.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* カテゴリ選択ドロップダウン */}
                   <div>
                     <label className="text-sm font-medium">カテゴリ</label>
-                    <Input
-                      value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                      placeholder="カテゴリを入力"
-                    />
+                    <Select
+                      value={formData.categoryId ? String(formData.categoryId) : "none"}
+                      onValueChange={(v) => setFormData({ ...formData, categoryId: v === "none" ? null : Number(v) })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="カテゴリを選択" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">未設定</SelectItem>
+                        {categories?.filter(c => c.isActive === "yes").map((cat) => (
+                          <SelectItem key={cat.id} value={String(cat.id)}>
+                            {cat.iconEmoji ? `${cat.iconEmoji} ` : ""}{cat.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div>
@@ -322,7 +381,6 @@ export default function ProductManagement() {
                   <div className="col-span-2">
                     <label className="text-sm font-medium">商品画像</label>
                     <div className="mt-2 space-y-3">
-                      {/* 画像プレビュー */}
                       {formData.imageUrl && (
                         <div className="relative inline-block">
                           <img
@@ -342,7 +400,6 @@ export default function ProductManagement() {
                         </div>
                       )}
                       
-                      {/* アップロードエリア */}
                       <div className="flex items-center gap-4">
                         <label className="flex-1 cursor-pointer">
                           <div className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
@@ -375,7 +432,6 @@ export default function ProductManagement() {
                         </label>
                       </div>
                       
-                      {/* URL直接入力 */}
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">または</span>
                         <Input
@@ -456,6 +512,7 @@ export default function ProductManagement() {
                   <TableRow>
                     <TableHead className="w-16">画像</TableHead>
                     <TableHead>商品名</TableHead>
+                    <TableHead>ブランド</TableHead>
                     <TableHead>カテゴリ</TableHead>
                     <TableHead className="text-right">価格</TableHead>
                     <TableHead className="text-right">ポイント価格</TableHead>
@@ -481,7 +538,12 @@ export default function ProductManagement() {
                         )}
                       </TableCell>
                       <TableCell className="font-medium">{product.name}</TableCell>
-                      <TableCell>{product.category || "-"}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {getBrandName(product.brandId)}
+                      </TableCell>
+                      <TableCell>
+                        {getCategoryName(product.categoryId, product.category)}
+                      </TableCell>
                       <TableCell className="text-right">
                         ¥{product.price.toLocaleString()}
                       </TableCell>

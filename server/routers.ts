@@ -264,6 +264,16 @@ import {
   updateMallProduct,
   deleteMallProduct,
   getMallCategories,
+  getAllMallBrands,
+  getMallBrandById,
+  createMallBrand,
+  updateMallBrand,
+  deleteMallBrand,
+  getAllMallCategoryRecords,
+  getMallCategoryById,
+  createMallCategory,
+  updateMallCategory,
+  deleteMallCategory,
   getMallCart,
   addToMallCart,
   updateMallCartQuantity,
@@ -10656,9 +10666,162 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
       }),
 
     // カテゴリ一覧取得（公開）
+    // レガシーカテゴリ一覧取得（テキストベース）
     getCategories: publicProcedure.query(async () => {
       return await getMallCategories();
     }),
+
+    // ===== ブランド管理API =====
+    
+    // ブランド一覧取得（公開）
+    getBrands: publicProcedure.query(async () => {
+      return await getAllMallBrands();
+    }),
+
+    // ブランド詳細取得（公開）
+    getBrandById: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return await getMallBrandById(input.id);
+      }),
+
+    // ブランド作成（管理者のみ）
+    createBrand: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1, "ブランド名を入力してください"),
+        nameEn: z.string().optional(),
+        logoUrl: z.string().optional(),
+        logoKey: z.string().optional(),
+        description: z.string().optional(),
+        website: z.string().optional(),
+        sortOrder: z.number().default(0),
+        isActive: z.enum(["yes", "no"]).default("yes"),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        await createMallBrand(input);
+        return { success: true };
+      }),
+
+    // ブランド更新（管理者のみ）
+    updateBrand: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().min(1).optional(),
+        nameEn: z.string().nullable().optional(),
+        logoUrl: z.string().nullable().optional(),
+        logoKey: z.string().nullable().optional(),
+        description: z.string().nullable().optional(),
+        website: z.string().nullable().optional(),
+        sortOrder: z.number().optional(),
+        isActive: z.enum(["yes", "no"]).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        const { id, ...data } = input;
+        await updateMallBrand(id, data);
+        return { success: true };
+      }),
+
+    // ブランド削除（管理者のみ）
+    deleteBrand: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        await deleteMallBrand(input.id);
+        return { success: true };
+      }),
+
+    // ブランドロゴアップロード（管理者のみ）
+    uploadBrandLogo: protectedProcedure
+      .input(z.object({
+        base64: z.string(),
+        filename: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        const buffer = Buffer.from(input.base64, "base64");
+        const ext = input.filename.split(".").pop() || "png";
+        const contentType = ext === "png" ? "image/png" : ext === "svg" ? "image/svg+xml" : "image/jpeg";
+        const key = `mall/brands/${nanoid()}.${ext}`;
+        const { url } = await storagePut(key, buffer, contentType);
+        return { url, key };
+      }),
+
+    // ===== カテゴリ管理API =====
+    
+    // カテゴリレコード一覧取得（公開）
+    getCategoryRecords: publicProcedure.query(async () => {
+      return await getAllMallCategoryRecords();
+    }),
+
+    // カテゴリ詳細取得（公開）
+    getCategoryById: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return await getMallCategoryById(input.id);
+      }),
+
+    // カテゴリ作成（管理者のみ）
+    createCategory: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1, "カテゴリ名を入力してください"),
+        slug: z.string().optional(),
+        description: z.string().optional(),
+        parentId: z.number().optional(),
+        iconEmoji: z.string().optional(),
+        sortOrder: z.number().default(0),
+        isActive: z.enum(["yes", "no"]).default("yes"),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        await createMallCategory(input);
+        return { success: true };
+      }),
+
+    // カテゴリ更新（管理者のみ）
+    updateCategory: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().min(1).optional(),
+        slug: z.string().nullable().optional(),
+        description: z.string().nullable().optional(),
+        parentId: z.number().nullable().optional(),
+        iconEmoji: z.string().nullable().optional(),
+        sortOrder: z.number().optional(),
+        isActive: z.enum(["yes", "no"]).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        const { id, ...data } = input;
+        await updateMallCategory(id, data);
+        return { success: true };
+      }),
+
+    // カテゴリ削除（管理者のみ）
+    deleteCategory: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        await deleteMallCategory(input.id);
+        return { success: true };
+      }),
+
+    // ===== 商品管理API =====
 
     // 商品作成（管理者のみ）
     createProduct: protectedProcedure
@@ -10666,6 +10829,8 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         name: z.string().min(1),
         description: z.string().optional(),
         category: z.string().optional(),
+        brandId: z.number().nullable().optional(),
+        categoryId: z.number().nullable().optional(),
         price: z.number().min(0),
         pointPrice: z.number().optional(),
         stock: z.number().default(0),
@@ -10691,6 +10856,8 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         name: z.string().min(1).optional(),
         description: z.string().optional(),
         category: z.string().optional(),
+        brandId: z.number().nullable().optional(),
+        categoryId: z.number().nullable().optional(),
         price: z.number().min(0).optional(),
         pointPrice: z.number().nullable().optional(),
         stock: z.number().optional(),
