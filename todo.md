@@ -4522,3 +4522,9 @@
 - [x] 管理画面の商品フォームで複数画像アップロード・削除対応
 - [x] MALL商品詳細ページに画像ギャラリー表示を追加（サムネイル・左右矢印・ページインジケーター）
 - [x] vitestテスト作成・実行（6テスト全パス）
+
+## 商品画像のドラッグ＆ドロップ並び替え機能
+- [x] ドラッグ＆ドロップライブラリ（@dnd-kit/core, @dnd-kit/sortable, @dnd-kit/utilities）を導入
+- [x] ProductManagement.tsxの画像一覧をSortableImageItemコンポーネントでドラッグ可能に変更
+- [x] 並び替え後にupdateProductImages APIで順序を保存
+- [x] vitestテスト全パス（product-images: 6テスト）

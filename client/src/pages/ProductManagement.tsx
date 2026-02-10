@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,24 @@ import {
 import { Plus, Pencil, Trash2, Package, ImageIcon, GripVertical, X } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "sonner";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  rectSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 type ProductStatus = "draft" | "active" | "sold_out" | "archived";
 
@@ -67,6 +85,85 @@ const initialFormData: ProductFormData = {
   sortOrder: 0,
 };
 
+// ドラッグ＆ドロップ可能な画像アイテムコンポーネント
+function SortableImageItem({
+  id,
+  img,
+  index,
+  onRemove,
+}: {
+  id: string;
+  img: ImageItem;
+  index: number;
+  onRemove: (index: number) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : undefined,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`relative group rounded-lg border-2 transition-all ${
+        isDragging
+          ? "border-primary scale-105 shadow-lg"
+          : "border-border hover:border-primary/50"
+      } ${index === 0 ? "ring-2 ring-primary ring-offset-2" : ""}`}
+    >
+      {/* ドラッグハンドル（画像全体） */}
+      <div
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing"
+      >
+        <div className="aspect-square overflow-hidden rounded-md">
+          <img
+            src={img.url}
+            alt={`商品画像 ${index + 1}`}
+            className="w-full h-full object-cover pointer-events-none"
+          />
+        </div>
+      </div>
+      {/* メイン画像バッジ */}
+      {index === 0 && (
+        <div className="absolute top-1 left-1 pointer-events-none">
+          <Badge className="text-[10px] px-1 py-0 bg-primary">メイン</Badge>
+        </div>
+      )}
+      {/* ドラッグハンドルアイコン */}
+      <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+        <GripVertical className="h-4 w-4 text-white drop-shadow-md" />
+      </div>
+      {/* 削除ボタン */}
+      <Button
+        type="button"
+        variant="destructive"
+        size="sm"
+        className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove(index);
+        }}
+      >
+        <X className="h-3 w-3" />
+      </Button>
+    </div>
+  );
+}
+
 export default function ProductManagement() {
   const { t } = useLanguage();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -74,7 +171,6 @@ export default function ProductManagement() {
   const [formData, setFormData] = useState<ProductFormData>(initialFormData);
   const [filterStatus, setFilterStatus] = useState<ProductStatus | "all">("all");
   const [isUploading, setIsUploading] = useState(false);
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
 
   const utils = trpc.useUtils();
 
@@ -257,27 +353,24 @@ export default function ProductManagement() {
     }));
   };
 
-  // ドラッグ&ドロップで並び替え
-  const handleDragStart = (index: number) => {
-    setDragIndex(index);
-  };
+  // @dnd-kit sensors（タッチ・ポインター・キーボード対応）
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (dragIndex === null || dragIndex === index) return;
-    
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
     setFormData(prev => {
-      const newImages = [...prev.images];
-      const [dragged] = newImages.splice(dragIndex, 1);
-      newImages.splice(index, 0, dragged);
-      return { ...prev, images: newImages };
+      const oldIndex = prev.images.findIndex((_, i) => `img-${i}` === active.id);
+      const newIndex = prev.images.findIndex((_, i) => `img-${i}` === over.id);
+      if (oldIndex === -1 || newIndex === -1) return prev;
+      return { ...prev, images: arrayMove(prev.images, oldIndex, newIndex) };
     });
-    setDragIndex(index);
-  };
-
-  const handleDragEnd = () => {
-    setDragIndex(null);
-  };
+  }, []);
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; label: string }> = {
@@ -465,52 +558,30 @@ export default function ProductManagement() {
                       商品画像（最大10枚・ドラッグで並び替え可能）
                     </label>
                     <div className="mt-2 space-y-3">
-                      {/* 画像プレビューグリッド */}
+                      {/* 画像プレビューグリッド（ドラッグ＆ドロップ並び替え対応） */}
                       {formData.images.length > 0 && (
-                        <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
-                          {formData.images.map((img, index) => (
-                            <div
-                              key={`${img.url}-${index}`}
-                              draggable
-                              onDragStart={() => handleDragStart(index)}
-                              onDragOver={(e) => handleDragOver(e, index)}
-                              onDragEnd={handleDragEnd}
-                              className={`relative group cursor-grab active:cursor-grabbing rounded-lg border-2 transition-all ${
-                                dragIndex === index
-                                  ? "border-primary opacity-50 scale-95"
-                                  : "border-border hover:border-primary/50"
-                              } ${index === 0 ? "ring-2 ring-primary ring-offset-2" : ""}`}
-                            >
-                              <div className="aspect-square overflow-hidden rounded-md">
-                                <img
-                                  src={img.url}
-                                  alt={`商品画像 ${index + 1}`}
-                                  className="w-full h-full object-cover"
+                        <DndContext
+                          sensors={sensors}
+                          collisionDetection={closestCenter}
+                          onDragEnd={handleDragEnd}
+                        >
+                          <SortableContext
+                            items={formData.images.map((_, i) => `img-${i}`)}
+                            strategy={rectSortingStrategy}
+                          >
+                            <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
+                              {formData.images.map((img, index) => (
+                                <SortableImageItem
+                                  key={`${img.url}-${index}`}
+                                  id={`img-${index}`}
+                                  img={img}
+                                  index={index}
+                                  onRemove={removeImage}
                                 />
-                              </div>
-                              {/* メイン画像バッジ */}
-                              {index === 0 && (
-                                <div className="absolute top-1 left-1">
-                                  <Badge className="text-[10px] px-1 py-0 bg-primary">メイン</Badge>
-                                </div>
-                              )}
-                              {/* ドラッグハンドル */}
-                              <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <GripVertical className="h-4 w-4 text-white drop-shadow-md" />
-                              </div>
-                              {/* 削除ボタン */}
-                              <Button
-                                type="button"
-                                variant="destructive"
-                                size="sm"
-                                className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                                onClick={() => removeImage(index)}
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
+                              ))}
                             </div>
-                          ))}
-                        </div>
+                          </SortableContext>
+                        </DndContext>
                       )}
                       
                       {/* アップロードエリア */}
