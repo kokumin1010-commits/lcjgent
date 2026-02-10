@@ -785,7 +785,7 @@ export default function BrandDetail() {
   const [addLivestreamDialogOpen, setAddLivestreamDialogOpen] = useState(false);
   const [addContractDialogOpen, setAddContractDialogOpen] = useState(false);
   const [newProduct, setNewProduct] = useState({ productName: "", listPrice: 0, specialPrice: 0, commissionRate: "", remarks: "", liverIds: [] as number[] });
-  const [newLivestream, setNewLivestream] = useState({ livestreamDate: "", livestreamStartTime: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "", productClicks: 0, impressions: 0, salesCount: 0, cartAddCount: 0, productId: null as number | null, productCommission: "", adCost: 0, ctr: "", cvr: "", cpc: 0, acos: "", roas: "" });
+  const [newLivestream, setNewLivestream] = useState({ livestreamDate: "", livestreamStartTime: "", streamerName: "", liverId: null as number | null, platform: "TikTok", duration: 0, gmv: 0, remarks: "", productClicks: 0, impressions: 0, salesCount: 0, cartAddCount: 0, productId: null as number | null, productCommission: "", adCost: 0, ctr: "", cvr: "", cpc: 0, acos: "", roas: "" });
   const [newContract, setNewContract] = useState({ serviceType: "単発ライブ契約" as "単発ライブ契約" | "期間契約" | "運用代行型（TSP）" | "パッケージ／複合契約", fixedFee: 0, status: "契約中" as "契約中" | "完了" | "保留" | "終了", startDate: "", endDate: "", memo: "", linkedLivestreamIds: [] as number[], plannedLivestreamCount: undefined as number | undefined });
   // Delete states
   const [deleteProductDialogOpen, setDeleteProductDialogOpen] = useState(false);
@@ -1400,7 +1400,7 @@ ${proposal.proposalContent}
     onSuccess: () => {
       refetchLivestreams();
       setAddLivestreamDialogOpen(false);
-      setNewLivestream({ livestreamDate: "", livestreamStartTime: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "", productClicks: 0, impressions: 0, salesCount: 0, cartAddCount: 0, productId: null, productCommission: "", adCost: 0, ctr: "", cvr: "", cpc: 0, acos: "", roas: "" });
+      setNewLivestream({ livestreamDate: "", livestreamStartTime: "", streamerName: "", liverId: null, platform: "TikTok", duration: 0, gmv: 0, remarks: "", productClicks: 0, impressions: 0, salesCount: 0, cartAddCount: 0, productId: null, productCommission: "", adCost: 0, ctr: "", cvr: "", cpc: 0, acos: "", roas: "" });
       toast.success("直播を追加しました");
     },
     onError: () => {
@@ -3356,11 +3356,52 @@ ${proposal.proposalContent}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-gray-400">アカウント</Label>
-                  <Input
-                    value={editingLivestream.streamerName || ""}
-                    onChange={(e) => setEditingLivestream({ ...editingLivestream, streamerName: e.target.value })}
-                    className="bg-black/60 border-red-900/50 text-white mt-1"
-                  />
+                  <Select
+                    value={editingLivestream.liverId ? String(editingLivestream.liverId) : "manual"}
+                    onValueChange={(value) => {
+                      if (value === "manual") {
+                        setEditingLivestream({ ...editingLivestream, liverId: null });
+                      } else {
+                        const selectedLiver = allLivers.find(l => l.id === Number(value));
+                        setEditingLivestream({
+                          ...editingLivestream,
+                          liverId: Number(value),
+                          streamerName: selectedLiver?.tiktokAccount || selectedLiver?.name || editingLivestream.streamerName,
+                        });
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="bg-black/60 border-red-900/50 text-white mt-1">
+                      <SelectValue placeholder={language === 'ja' ? 'ライバーを選択' : '选择主播'} />
+                    </SelectTrigger>
+                    <SelectContent className="bg-black/95 border-red-900/50">
+                      <SelectItem value="manual">
+                        <span className="text-gray-400">{language === 'ja' ? '手入力（ライバー未選択）' : '手动输入'}</span>
+                      </SelectItem>
+                      {allLivers.filter(l => l.isActive).map((liver) => (
+                        <SelectItem key={liver.id} value={String(liver.id)}>
+                          <span className="flex items-center gap-2">
+                            {liver.avatarUrl ? (
+                              <img src={liver.avatarUrl} alt={liver.name} className="w-5 h-5 rounded-full object-cover inline-block" />
+                            ) : (
+                              <span className="w-5 h-5 rounded-full bg-gradient-to-br from-pink-500 to-purple-500 inline-flex items-center justify-center text-white text-xs font-bold">
+                                {liver.name?.charAt(0) || '?'}
+                              </span>
+                            )}
+                            {liver.name}{liver.tiktokAccount ? ` (${liver.tiktokAccount})` : ''}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!editingLivestream.liverId && (
+                    <Input
+                      value={editingLivestream.streamerName || ""}
+                      onChange={(e) => setEditingLivestream({ ...editingLivestream, streamerName: e.target.value })}
+                      placeholder={language === 'ja' ? 'アカウント名を入力' : '输入账号名'}
+                      className="bg-black/60 border-red-900/50 text-white mt-2"
+                    />
+                  )}
                 </div>
                 <div>
                   <Label className="text-gray-400">プラットフォーム</Label>
@@ -3516,6 +3557,8 @@ ${proposal.proposalContent}
                   };
                   if (dateStr) updateData.livestreamDate = dateStr;
                   if (editingLivestream.streamerName) updateData.streamerName = editingLivestream.streamerName;
+                  // liverIdを送信（nullの場合も送信して紐付け解除を可能に）
+                  if (editingLivestream.liverId !== undefined) updateData.liverId = editingLivestream.liverId;
                   if (editingLivestream.platform) updateData.platform = editingLivestream.platform;
                   if (editingLivestream.duration !== undefined && editingLivestream.duration !== null) updateData.duration = editingLivestream.duration;
                   if (editingLivestream.gmv !== undefined && editingLivestream.gmv !== null) updateData.gmv = editingLivestream.gmv;
@@ -4341,11 +4384,37 @@ ${proposal.proposalContent}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label className="text-gray-400">{t.account}</Label>
-                <Input
-                  value={newLivestream.streamerName}
-                  onChange={(e) => setNewLivestream({ ...newLivestream, streamerName: e.target.value })}
-                  className="bg-black/60 border-red-900/50 text-white mt-1"
-                />
+                <Select
+                  value={newLivestream.liverId ? String(newLivestream.liverId) : ""}
+                  onValueChange={(value) => {
+                    const selectedLiver = allLivers.find(l => l.id === Number(value));
+                    setNewLivestream({
+                      ...newLivestream,
+                      liverId: Number(value),
+                      streamerName: selectedLiver?.tiktokAccount || selectedLiver?.name || '',
+                    });
+                  }}
+                >
+                  <SelectTrigger className="bg-black/60 border-red-900/50 text-white mt-1">
+                    <SelectValue placeholder={language === 'ja' ? 'ライバーを選択' : '选择主播'} />
+                  </SelectTrigger>
+                  <SelectContent className="bg-black/95 border-red-900/50">
+                    {allLivers.filter(l => l.isActive).map((liver) => (
+                      <SelectItem key={liver.id} value={String(liver.id)}>
+                        <span className="flex items-center gap-2">
+                          {liver.avatarUrl ? (
+                            <img src={liver.avatarUrl} alt={liver.name} className="w-5 h-5 rounded-full object-cover inline-block" />
+                          ) : (
+                            <span className="w-5 h-5 rounded-full bg-gradient-to-br from-pink-500 to-purple-500 inline-flex items-center justify-center text-white text-xs font-bold">
+                              {liver.name?.charAt(0) || '?'}
+                            </span>
+                          )}
+                          {liver.name}{liver.tiktokAccount ? ` (${liver.tiktokAccount})` : ''}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label className="text-gray-400">{t.platform}</Label>
@@ -4477,18 +4546,19 @@ ${proposal.proposalContent}
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => { setAddLivestreamDialogOpen(false); setNewLivestream({ livestreamDate: "", livestreamStartTime: "", streamerName: "", platform: "TikTok", duration: 0, gmv: 0, remarks: "", productClicks: 0, impressions: 0, salesCount: 0, cartAddCount: 0, productId: null, productCommission: "", adCost: 0, ctr: "", cvr: "", cpc: 0, acos: "", roas: "" }); }}
+              onClick={() => { setAddLivestreamDialogOpen(false); setNewLivestream({ livestreamDate: "", livestreamStartTime: "", streamerName: "", liverId: null, platform: "TikTok", duration: 0, gmv: 0, remarks: "", productClicks: 0, impressions: 0, salesCount: 0, cartAddCount: 0, productId: null, productCommission: "", adCost: 0, ctr: "", cvr: "", cpc: 0, acos: "", roas: "" }); }}
               className="border-red-500/50 bg-red-950/50 text-gray-200 hover:bg-red-900/40 hover:text-white hover:border-red-400/70"
             >
               {t.cancel}
             </Button>
             <Button
               onClick={() => {
-                if (newLivestream.livestreamDate && newLivestream.streamerName.trim()) {
+                if (newLivestream.livestreamDate && (newLivestream.liverId || newLivestream.streamerName.trim())) {
                   createLivestreamMutation.mutate({
                     brandId,
                     livestreamDate: newLivestream.livestreamDate,
-                    streamerName: newLivestream.streamerName,
+                    streamerName: newLivestream.streamerName || undefined,
+                    liverId: newLivestream.liverId || undefined,
                     platform: newLivestream.platform,
                     duration: newLivestream.duration,
                     gmv: newLivestream.gmv,
@@ -4509,7 +4579,7 @@ ${proposal.proposalContent}
                   });
                 }
               }}
-              disabled={!newLivestream.livestreamDate || !newLivestream.streamerName.trim()}
+              disabled={!newLivestream.livestreamDate || !(newLivestream.liverId || newLivestream.streamerName.trim())}
               className="bg-gradient-to-r from-pink-600 to-pink-500 hover:from-pink-500 hover:to-pink-400 text-white"
             >
               {t.add}

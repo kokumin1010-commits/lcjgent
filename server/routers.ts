@@ -5888,7 +5888,8 @@ Respond with a JSON object.`,
         z.object({
           brandId: z.number(),
           livestreamDate: z.string(),
-          streamerName: z.string().min(1),
+          streamerName: z.string().optional(), // 後方互換：手入力も許容
+          liverId: z.number().optional(), // ライバードロップダウンから選択
           salesAmount: z.number().optional(),
           duration: z.number().optional(),
           viewerCount: z.number().optional(),
@@ -5914,8 +5915,24 @@ Respond with a JSON object.`,
         })
       )
       .mutation(async ({ ctx, input }) => {
+        // liverId が指定された場合、ライバーマスターから名前を自動取得
+        let resolvedStreamerName = input.streamerName || '';
+        let resolvedLiverId = input.liverId;
+        if (input.liverId) {
+          const liver = await getLiverById(input.liverId);
+          if (liver) {
+            resolvedStreamerName = liver.tiktokAccount || liver.name;
+          }
+        }
+        
+        if (!resolvedStreamerName) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'ライバーを選択するか、アカウント名を入力してください' });
+        }
+        
         const livestream = await createBrandLivestream({
           ...input,
+          streamerName: resolvedStreamerName,
+          liverId: resolvedLiverId || null,
           livestreamDate: new Date(input.livestreamDate),
           createdBy: ctx.user.id,
         });
@@ -5927,8 +5944,8 @@ Respond with a JSON object.`,
           "create",
           "livestream",
           livestream.id,
-          `${dateStr} ${input.streamerName}`,
-          `ライブ配信を追加：${dateStr} ${input.streamerName}`,
+          `${dateStr} ${resolvedStreamerName}`,
+          `ライブ配信を追加：${dateStr} ${resolvedStreamerName}`,
           ctx.user.id,
           ctx.user.name || ctx.user.email
         );
@@ -5959,6 +5976,7 @@ Respond with a JSON object.`,
           id: z.number(),
           livestreamDate: z.string().optional(),
           streamerName: z.string().optional(),
+          liverId: z.number().nullable().optional(), // ライバードロップダウンから選択
           salesAmount: z.number().optional(),
           duration: z.number().optional(),
           viewerCount: z.number().optional(),
@@ -5984,12 +6002,22 @@ Respond with a JSON object.`,
         })
       )
       .mutation(async ({ ctx, input }) => {
-        const { id, livestreamDate, ...rest } = input;
+        const { id, livestreamDate, liverId, ...rest } = input;
         
         // Get existing livestream for logging
         const existingLivestream = await getLivestreamById(id);
         
+        // liverId が指定された場合、ライバーマスターから名前を自動取得
         const updateData: any = { ...rest };
+        if (liverId !== undefined) {
+          updateData.liverId = liverId;
+          if (liverId) {
+            const liver = await getLiverById(liverId);
+            if (liver) {
+              updateData.streamerName = liver.tiktokAccount || liver.name;
+            }
+          }
+        }
         if (livestreamDate) {
           updateData.livestreamDate = new Date(livestreamDate);
         }
