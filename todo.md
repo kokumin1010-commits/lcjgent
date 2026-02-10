@@ -4599,3 +4599,8 @@
 - [x] Webhook/フォールバックの決済完了時にLINE通知を送信
 - [x] 注文確認メッセージのテンプレート作成（注文番号・金額・商品名・ポイント利用）
 - [x] テスト・動作確認（vitest 5件全パス）
+
+## バグ修正：注文管理ページ(/master/orders)がクラッシュ
+- [x] 「Cannot read properties of undefined (reading 'color')」エラーの原因を調査（「paid」ステータスがstatusConfigに未定義）
+- [x] バグを修正（paid/refundedを追加、フォールバック表示も追加）
+- [x] テスト・動作確認（ビルドエラーなし、TSエラーなし）

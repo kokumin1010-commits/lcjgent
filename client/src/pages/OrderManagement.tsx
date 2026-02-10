@@ -11,7 +11,7 @@ import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import { toast } from "sonner";
 
-type OrderStatus = "pending" | "confirmed" | "shipped" | "delivered" | "cancelled";
+type OrderStatus = "pending" | "paid" | "confirmed" | "shipped" | "delivered" | "cancelled" | "refunded";
 
 const statusConfig: Record<OrderStatus, { label: string; color: string; icon: React.ReactNode; bgColor: string }> = {
   pending: { 
@@ -19,6 +19,12 @@ const statusConfig: Record<OrderStatus, { label: string; color: string; icon: Re
     color: "text-yellow-700", 
     bgColor: "bg-yellow-50 border-yellow-200",
     icon: <Clock className="h-4 w-4" /> 
+  },
+  paid: { 
+    label: "決済完了", 
+    color: "text-emerald-700", 
+    bgColor: "bg-emerald-50 border-emerald-200",
+    icon: <CreditCard className="h-4 w-4" /> 
   },
   confirmed: { 
     label: "確認済み", 
@@ -43,6 +49,12 @@ const statusConfig: Record<OrderStatus, { label: string; color: string; icon: Re
     color: "text-red-700", 
     bgColor: "bg-red-50 border-red-200",
     icon: <XCircle className="h-4 w-4" /> 
+  },
+  refunded: { 
+    label: "返金済み", 
+    color: "text-orange-700", 
+    bgColor: "bg-orange-50 border-orange-200",
+    icon: <RefreshCw className="h-4 w-4" /> 
   },
 };
 
@@ -96,8 +108,16 @@ export default function OrderManagement() {
     });
   };
 
-  const getStatusBadge = (status: OrderStatus) => {
-    const config = statusConfig[status];
+  const getStatusBadge = (status: string) => {
+    const config = statusConfig[status as OrderStatus];
+    if (!config) {
+      return (
+        <Badge variant="outline" className="text-gray-700 bg-gray-50 border-gray-200 gap-1">
+          <Clock className="h-4 w-4" />
+          {status}
+        </Badge>
+      );
+    }
     return (
       <Badge variant="outline" className={`${config.color} ${config.bgColor} gap-1`}>
         {config.icon}
@@ -110,6 +130,7 @@ export default function OrderManagement() {
   const stats = {
     total: orders?.length || 0,
     pending: orders?.filter(o => o.order.status === "pending").length || 0,
+    paid: orders?.filter(o => o.order.status === "paid").length || 0,
     confirmed: orders?.filter(o => o.order.status === "confirmed").length || 0,
     shipped: orders?.filter(o => o.order.status === "shipped").length || 0,
     delivered: orders?.filter(o => o.order.status === "delivered").length || 0,
@@ -134,7 +155,7 @@ export default function OrderManagement() {
       </div>
 
       {/* 統計カード */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
         <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setStatusFilter("all")}>
           <CardContent className="p-4">
             <div className="text-2xl font-bold">{stats.total}</div>
@@ -145,6 +166,12 @@ export default function OrderManagement() {
           <CardContent className="p-4">
             <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
             <div className="text-sm text-muted-foreground">注文受付</div>
+          </CardContent>
+        </Card>
+        <Card className={`cursor-pointer hover:shadow-md transition-shadow ${statusFilter === "paid" ? "ring-2 ring-emerald-500" : ""}`} onClick={() => setStatusFilter("paid")}>
+          <CardContent className="p-4">
+            <div className="text-2xl font-bold text-emerald-600">{stats.paid}</div>
+            <div className="text-sm text-muted-foreground">決済完了</div>
           </CardContent>
         </Card>
         <Card className={`cursor-pointer hover:shadow-md transition-shadow ${statusFilter === "confirmed" ? "ring-2 ring-blue-500" : ""}`} onClick={() => setStatusFilter("confirmed")}>
@@ -182,6 +209,7 @@ export default function OrderManagement() {
           <SelectContent>
             <SelectItem value="all">すべて</SelectItem>
             <SelectItem value="pending">注文受付</SelectItem>
+            <SelectItem value="paid">決済完了</SelectItem>
             <SelectItem value="confirmed">確認済み</SelectItem>
             <SelectItem value="shipped">発送済み</SelectItem>
             <SelectItem value="delivered">配達完了</SelectItem>
@@ -455,6 +483,12 @@ export default function OrderManagement() {
                     <span className="flex items-center gap-2">
                       <Clock className="h-4 w-4 text-yellow-600" />
                       注文受付
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="paid">
+                    <span className="flex items-center gap-2">
+                      <CreditCard className="h-4 w-4 text-emerald-600" />
+                      決済完了
                     </span>
                   </SelectItem>
                   <SelectItem value="confirmed">
