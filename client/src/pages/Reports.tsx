@@ -5,7 +5,10 @@ import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -80,8 +83,10 @@ export default function Reports() {
   // Fetch staff statistics for header cards
   const { data: staffStats, isLoading: statsLoading } = trpc.report.staffStatistics.useQuery();
   
-  // Fetch active report staff for filter dropdown
-  const { data: activeReportStaff } = trpc.reportStaff.listActive.useQuery();
+  // Fetch all report staff for filter dropdown (including inactive/resigned)
+  const { data: allReportStaff } = trpc.reportStaff.list.useQuery();
+  const activeReportStaff = useMemo(() => allReportStaff?.filter(s => s.isActive === "active") || [], [allReportStaff]);
+  const inactiveReportStaff = useMemo(() => allReportStaff?.filter(s => s.isActive === "inactive") || [], [allReportStaff]);
 
   // Fetch overdue followups with staff filter
   const staffIdFilter = followupStaffFilter === "all" ? undefined : parseInt(followupStaffFilter);
@@ -287,17 +292,17 @@ export default function Reports() {
     return reports.filter(({ staff }) => staff?.country === selectedCountry);
   }, [reports, selectedCountry]);
 
-  // Get unique countries from report staff
+  // Get unique countries from all report staff (including resigned)
   const availableCountries = useMemo(() => {
-    if (!activeReportStaff) return COUNTRIES;
+    if (!allReportStaff) return COUNTRIES;
     const countries = new Set<string>();
-    activeReportStaff.forEach(staff => {
+    allReportStaff.forEach(staff => {
       if (staff.country) countries.add(staff.country);
     });
     // Merge with default countries
     COUNTRIES.forEach(c => countries.add(c.value));
     return Array.from(countries).map(c => ({ value: c, label: c }));
-  }, [activeReportStaff]);
+  }, [allReportStaff]);
 
   const deleteReport = trpc.report.delete.useMutation({
     onSuccess: () => {
@@ -417,16 +422,35 @@ export default function Reports() {
               </Button>
             </div>
             <Select value={followupStaffFilter} onValueChange={setFollowupStaffFilter}>
-              <SelectTrigger className="w-[140px] h-8">
+              <SelectTrigger className="w-[160px] h-8">
                 <SelectValue placeholder={t("followups.allStaff")} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">{t("followups.allStaff")}</SelectItem>
-                {activeReportStaff?.map((staff) => (
-                  <SelectItem key={staff.id} value={staff.id.toString()}>
-                    {staff.name}
-                  </SelectItem>
-                ))}
+                <SelectGroup>
+                  <SelectLabel className="text-xs text-muted-foreground">在籍中</SelectLabel>
+                  {activeReportStaff.map((staff) => (
+                    <SelectItem key={staff.id} value={staff.id.toString()}>
+                      {staff.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+                {inactiveReportStaff.length > 0 && (
+                  <>
+                    <SelectSeparator />
+                    <SelectGroup>
+                      <SelectLabel className="text-xs text-muted-foreground">退職済み</SelectLabel>
+                      {inactiveReportStaff.map((staff) => (
+                        <SelectItem key={staff.id} value={staff.id.toString()}>
+                          <span className="flex items-center gap-1.5">
+                            {staff.name}
+                            <span className="text-[10px] px-1 py-0.5 rounded bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400">退職</span>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </>
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -682,21 +706,45 @@ export default function Reports() {
             <div className="space-y-2">
               <Label>{t("reports.staff")}:</Label>
               <Select value={selectedStaffId} onValueChange={setSelectedStaffId}>
-                <SelectTrigger className="w-48">
+                <SelectTrigger className="w-52">
                   <SelectValue placeholder={t("reports.allStaff")} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{t("reports.allStaff")}</SelectItem>
-                  {activeReportStaff?.map((staff) => (
-                    <SelectItem key={staff.id} value={staff.id.toString()}>
-                      {staff.name}
-                      {staff.country && (
-                        <span className="text-muted-foreground ml-1">
-                          ({staff.country})
-                        </span>
-                      )}
-                    </SelectItem>
-                  ))}
+                  <SelectGroup>
+                    <SelectLabel className="text-xs text-muted-foreground">在籍中</SelectLabel>
+                    {activeReportStaff.map((staff) => (
+                      <SelectItem key={staff.id} value={staff.id.toString()}>
+                        {staff.name}
+                        {staff.country && (
+                          <span className="text-muted-foreground ml-1">
+                            ({staff.country})
+                          </span>
+                        )}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                  {inactiveReportStaff.length > 0 && (
+                    <>
+                      <SelectSeparator />
+                      <SelectGroup>
+                        <SelectLabel className="text-xs text-muted-foreground">退職済み</SelectLabel>
+                        {inactiveReportStaff.map((staff) => (
+                          <SelectItem key={staff.id} value={staff.id.toString()}>
+                            <span className="flex items-center gap-1.5">
+                              {staff.name}
+                              {staff.country && (
+                                <span className="text-muted-foreground ml-1">
+                                  ({staff.country})
+                                </span>
+                              )}
+                              <span className="text-[10px] px-1 py-0.5 rounded bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400">退職</span>
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             </div>
