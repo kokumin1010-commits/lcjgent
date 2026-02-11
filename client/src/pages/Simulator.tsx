@@ -123,19 +123,43 @@ export default function Simulator() {
   const [hasAd, setHasAd] = useState(false);
   const [adBudget, setAdBudget] = useState<number>(0);
 
-  // Result state
-  const [showResult, setShowResult] = useState(false);
+  // Result state - accumulate results
+  const [results, setResults] = useState<Array<{ data: any; conditions: { productName: string; listPrice: number; sellingPrice: number; liverName: string; liverId: number; commissionRate: number; fixedFee: number; streamDuration: number; discountRate: number; contractType: string; } }>>([]); 
   const [copied, setCopied] = useState(false);
-  const [showSimilarCases, setShowSimilarCases] = useState(false);
+  const [showSimilarCases, setShowSimilarCases] = useState<Record<number, boolean>>({});
   const [expandedCaseId, setExpandedCaseId] = useState<number | null>(null);
+  const resultsContainerRef = useRef<HTMLDivElement>(null);
 
   // Fetch livers
   const { data: liversData } = trpc.liverManagement.list.useQuery();
 
   // Simulation mutation
   const calculateMutation = trpc.simulation.calculate.useMutation({
-    onSuccess: () => {
-      setShowResult(true);
+    onSuccess: (data) => {
+      const selectedLiver = livers.find((l: any) => l.id === selectedLiverId);
+      const effectivePrice = hasSet ? bundlePrice : sellingPrice;
+      const discountRate = listPrice > 0 && effectivePrice < listPrice ? Math.round((1 - effectivePrice / listPrice) * 100) : 0;
+      setResults(prev => [...prev, {
+        data,
+        conditions: {
+          productName: productName || '未設定',
+          listPrice,
+          sellingPrice: effectivePrice,
+          liverName: selectedLiver?.name || '不明',
+          liverId: selectedLiverId,
+          commissionRate,
+          fixedFee,
+          streamDuration,
+          discountRate,
+          contractType,
+        }
+      }]);
+      // Scroll to the newest result
+      setTimeout(() => {
+        if (resultsContainerRef.current) {
+          resultsContainerRef.current.scrollLeft = resultsContainerRef.current.scrollWidth;
+        }
+      }, 100);
     },
     onError: (error) => {
       toast.error(error.message);
@@ -199,7 +223,7 @@ export default function Simulator() {
     });
   };
 
-  const result = calculateMutation.data;
+  const latestResult = results.length > 0 ? results[results.length - 1].data : null;
 
   return (
     <div className="min-h-screen bg-[#0a192f] text-white relative overflow-hidden">
@@ -232,9 +256,9 @@ export default function Simulator() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left: Input Form */}
-          <div className="space-y-6">
+        <div className="flex gap-6">
+          {/* Left: Input Form - fixed width */}
+          <div className="w-full lg:w-[420px] lg:min-w-[420px] space-y-6">
             {/* A. Product Conditions */}
             <Card className="bg-[#112240]/80 border-cyan-500/20 backdrop-blur-sm">
               <CardContent className="p-6">
@@ -698,9 +722,9 @@ export default function Simulator() {
             </Button>
           </div>
 
-          {/* Right: Results */}
-          <div className="space-y-6">
-            {!result && !calculateMutation.isPending && (
+          {/* Right: Results - horizontal scroll accumulation */}
+          <div className="flex-1 overflow-hidden">
+            {results.length === 0 && !calculateMutation.isPending && (
               <Card className="bg-[#112240]/80 border-cyan-500/20 backdrop-blur-sm">
                 <CardContent className="p-12 flex flex-col items-center justify-center text-center">
                   <div className="w-20 h-20 rounded-full bg-cyan-500/10 flex items-center justify-center mb-6">
@@ -711,513 +735,306 @@ export default function Simulator() {
                   </h3>
                   <p className="text-slate-500 text-sm max-w-xs">
                     左の入力フォームに条件を入力し、「シミュレーション実行」をクリックすると、
-                    過去実績ベースの予測結果がここに表示されます。
+                    過去実績ベースの予測結果がここに表示されます。条件を変えて何度でも実行でき、結果は横並びで比較できます。
                   </p>
                 </CardContent>
               </Card>
             )}
 
-            {calculateMutation.isPending && (
-              <Card className="bg-[#112240]/80 border-cyan-500/20 backdrop-blur-sm">
-                <CardContent className="p-12 flex flex-col items-center justify-center text-center">
-                  <div className="w-20 h-20 rounded-full bg-cyan-500/10 flex items-center justify-center mb-6 animate-pulse">
-                    <Brain className="w-10 h-10 text-cyan-400" />
-                  </div>
-                  <h3 className="text-xl font-semibold text-cyan-300 mb-2">
-                    AI分析中...
-                  </h3>
-                  <p className="text-slate-400 text-sm">
-                    AIモデルで配信パフォーマンスを予測しています
-                  </p>
-                  <div className="mt-4 space-y-2 w-full max-w-xs">
-                    <Skeleton className="h-4 bg-slate-700/50" />
-                    <Skeleton className="h-4 bg-slate-700/50 w-3/4" />
-                    <Skeleton className="h-4 bg-slate-700/50 w-1/2" />
-                  </div>
-                </CardContent>
-              </Card>
+            {/* Results count header */}
+            {results.length > 0 && (
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-cyan-400" />
+                  <span className="text-sm text-slate-300">シミュレーション結果 ({results.length}件)</span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setResults([])}
+                  className="text-slate-500 hover:text-red-400 hover:bg-red-400/10 text-xs"
+                >
+                  <Trash2 className="w-3 h-3 mr-1" />
+                  全てクリア
+                </Button>
+              </div>
             )}
 
-            {result && (
-              <>
-                {/* Main Results */}
-                <Card className="bg-[#112240]/80 border-cyan-500/20 backdrop-blur-sm overflow-hidden">
-                  <div className="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 px-6 py-4 border-b border-cyan-500/20">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Sparkles className="w-5 h-5 text-cyan-400" />
-                        <h2 className="text-lg font-semibold text-cyan-300">シミュレーション結果</h2>
+            {/* Horizontal scrollable results */}
+            <div
+              ref={resultsContainerRef}
+              className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory"
+              style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(0,255,200,0.3) transparent' }}
+            >
+              {results.map((item, idx) => {
+                const result = item.data;
+                const cond = item.conditions;
+                const isSimilarOpen = showSimilarCases[idx] || false;
+                return (
+                  <div key={idx} className="snap-start flex-shrink-0 w-[400px] space-y-4">
+                    {/* Condition Summary Header */}
+                    <div className="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 rounded-xl p-3 border border-cyan-500/20">
+                      <div className="flex items-center justify-between mb-1">
+                        <Badge className="bg-cyan-500/20 text-cyan-400 border-none text-xs">#{idx + 1}</Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setResults(prev => prev.filter((_, i) => i !== idx))}
+                          className="text-slate-500 hover:text-red-400 h-6 w-6 p-0"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {result.dataSource && (
-                          <Badge className={`border-none text-xs ${result.hasRealData ? 'bg-green-500/20 text-green-400' : 'bg-amber-500/20 text-amber-400'}`}>
-                            {result.dataSource}
-                          </Badge>
-                        )}
-                        {result.aiPrediction && (
-                          <Badge className="bg-cyan-500/20 text-cyan-400 border-none">
-                            AI信頼度: {result.aiPrediction.confidence}%
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                    {!result.hasRealData && (
-                      <div className="mt-2 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                        <p className="text-xs text-amber-400">
-                          ※ このライバーの過去配信実績がないため、業界平均値での推定です。実績が蓄積されると予測精度が向上します。
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                  <CardContent className="p-6">
-                    {/* Key Metrics */}
-                    <div className="grid grid-cols-2 gap-4 mb-6">
-                      <div className="bg-[#0a192f] rounded-xl p-4 border border-cyan-500/20">
-                        <div className="flex items-center gap-2 mb-2">
-                          <DollarSign className="w-4 h-4 text-cyan-400" />
-                          <span className="text-sm text-slate-400">想定GMV</span>
-                        </div>
-                        <div className="text-2xl font-bold text-cyan-400">
-                          {formatCurrency(result.estimatedGmv)}
-                        </div>
-                        {result.aiPrediction?.gmvRange && (
-                          <div className="text-xs text-slate-500 mt-1">
-                            予測レンジ: {formatCurrency(result.aiPrediction.gmvRange.min)} 〜 {formatCurrency(result.aiPrediction.gmvRange.max)}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="bg-[#0a192f] rounded-xl p-4 border border-green-500/20">
-                        <div className="flex items-center gap-2 mb-2">
-                          <TrendingUp className="w-4 h-4 text-green-400" />
-                          <span className="text-sm text-slate-400">想定利益</span>
-                        </div>
-                        <div className="text-2xl font-bold text-green-400">
-                          {formatCurrency(result.estimatedNetProfit)}
-                        </div>
-                        <div className="text-xs text-slate-500 mt-1">
-                          粗利: {formatCurrency(result.estimatedGrossProfit)}
-                        </div>
-                      </div>
-
-                      <div className="bg-[#0a192f] rounded-xl p-4 border border-amber-500/20">
-                        <div className="flex items-center gap-2 mb-2">
-                          <BarChart3 className="w-4 h-4 text-amber-400" />
-                          <span className="text-sm text-slate-400">ROI</span>
-                        </div>
-                        <div className="text-2xl font-bold text-amber-400">
-                          {result.estimatedRoi >= 0 ? `${result.estimatedRoi}%` : `${result.estimatedRoi}%`}
-                        </div>
-                      </div>
-
-                      <div className="bg-[#0a192f] rounded-xl p-4 border border-purple-500/20">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Package className="w-4 h-4 text-purple-400" />
-                          <span className="text-sm text-slate-400">想定販売数</span>
-                        </div>
-                        <div className="text-2xl font-bold text-purple-400">
-                          {result.estimatedSalesCount.toLocaleString()}個
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Cost Breakdown */}
-                    <div className="bg-[#0a192f] rounded-xl p-4 border border-slate-700 mb-4">
-                      <h3 className="text-sm font-semibold text-slate-300 mb-3">コスト内訳</h3>
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-400">ライバー報酬（成果報酬）</span>
-                          <span className="text-white">
-                            {formatCurrency(Math.round(result.estimatedGmv * (commissionRate / 100)))}
-                          </span>
-                        </div>
-                        {fixedFee > 0 && (
-                          <div className="flex justify-between text-sm">
-                            <span className="text-slate-400">ライバー報酬（固定）</span>
-                            <span className="text-white">{formatCurrency(fixedFee)}</span>
-                          </div>
-                        )}
-                        {hasAd && adBudget > 0 && (
-                          <div className="flex justify-between text-sm">
-                            <span className="text-slate-400">広告費</span>
-                            <span className="text-white">{formatCurrency(adBudget)}</span>
-                          </div>
-                        )}
-                        <div className="border-t border-slate-700 pt-2 flex justify-between text-sm font-semibold">
-                          <span className="text-slate-300">合計コスト</span>
-                          <span className="text-cyan-400">{formatCurrency(result.estimatedLiverCost + (hasAd ? (adBudget || 0) : 0))}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* AI Analysis */}
-                    {result.aiPrediction?.reasoning && (
-                      <div className="bg-gradient-to-r from-cyan-500/5 to-blue-500/5 rounded-xl p-4 border border-cyan-500/20">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Brain className="w-4 h-4 text-cyan-400" />
-                          <h3 className="text-sm font-semibold text-cyan-300">AI分析コメント</h3>
-                        </div>
-                        <p className="text-sm text-slate-300 leading-relaxed">
-                          {result.aiPrediction.reasoning}
-                        </p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* 広告換算値・広告効果ROAS・業界比較 */}
-                {result.adMetrics && (
-                  <Card className="bg-[#112240]/80 border-cyan-500/20 backdrop-blur-sm">
-                    <CardContent className="p-6">
-                      <div className="flex items-center gap-2 mb-4">
-                        <Megaphone className="w-5 h-5 text-amber-400" />
-                        <h3 className="text-sm font-semibold text-amber-300">広告換算・ブランド露出価値</h3>
-                        <Badge className="bg-amber-500/20 text-amber-400 border-none text-[10px]">CPM ¥{result.adMetrics.cpmRate.toLocaleString()}</Badge>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3 mb-4">
-                        <div className="text-center p-3 bg-[#0a192f] rounded-lg">
-                          <div className="text-xs text-slate-400 flex items-center justify-center gap-1"><Eye className="w-3 h-3" />想定曝光量</div>
-                          <div className="text-lg font-bold text-amber-400">{result.adMetrics.estimatedImpressions.toLocaleString()}</div>
-                          <div className="text-[10px] text-slate-500">{result.adMetrics.brandExposure.avgViewers.toLocaleString()}人×{result.adMetrics.brandExposure.durationMinutes}分</div>
-                        </div>
-                        <div className="text-center p-3 bg-[#0a192f] rounded-lg">
-                          <div className="text-xs text-slate-400">広告換算値</div>
-                          <div className="text-lg font-bold text-amber-400">{formatCurrency(result.adMetrics.adConversionValue)}</div>
-                          <div className="text-[10px] text-slate-500">CPM ¥{result.adMetrics.cpmRate.toLocaleString()} × 曝光量</div>
-                        </div>
-                      </div>
-
-                      <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 rounded-lg p-4 border border-amber-500/20 mb-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm text-slate-300">広告効果ROAS</span>
-                          <span className="text-2xl font-bold text-amber-400">{result.adMetrics.adEffectRoas}倍</span>
-                        </div>
-                        <div className="text-xs text-slate-500">(GMV {formatCurrency(result.estimatedGmv)} + 広告換算値 {formatCurrency(result.adMetrics.adConversionValue)}) ÷ 総コスト</div>
-                      </div>
-
-                      {/* 業界比較 */}
-                      <div className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 rounded-lg p-4 border border-emerald-500/20">
-                        <div className="flex items-center gap-2 mb-3">
-                          <Trophy className="w-4 h-4 text-emerald-400" />
-                          <span className="text-sm font-semibold text-emerald-300">業界比較</span>
-                          <Badge className="bg-emerald-500/20 text-emerald-400 border-none text-[10px]">{result.adMetrics.industryComparison.priceLabel}</Badge>
-                        </div>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs text-slate-400">同価格帯の業界平均ROAS</span>
-                          <span className="text-sm text-slate-300">{result.adMetrics.industryComparison.industryAvgRoas}倍</span>
-                        </div>
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-xs text-slate-400">この案件の広告効果ROAS</span>
-                          <span className="text-sm font-bold text-amber-400">{result.adMetrics.adEffectRoas}倍</span>
-                        </div>
-                        <div className="relative w-full h-3 bg-[#0a192f] rounded-full overflow-hidden">
-                          <div
-                            className={`absolute left-0 top-0 h-full rounded-full transition-all duration-1000 ${
-                              result.adMetrics.industryComparison.isAboveAverage
-                                ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
-                                : 'bg-gradient-to-r from-amber-500 to-orange-400'
-                            }`}
-                            style={{ width: `${Math.min(result.adMetrics.industryComparison.roasVsIndustryPercent, 300) / 3}%` }}
-                          />
-                        </div>
-                        <div className={`text-center mt-2 text-sm font-bold ${
-                          result.adMetrics.industryComparison.isAboveAverage ? 'text-emerald-400' : 'text-amber-400'
-                        }`}>
-                          {result.adMetrics.industryComparison.roasVsIndustryLabel}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Liver Stats - only show when data exists */}
-                {result.liverStats && result.liverStats.streamCount > 0 && (
-                  <Card className="bg-[#112240]/80 border-cyan-500/20 backdrop-blur-sm">
-                    <CardContent className="p-6">
-                      <div className="flex items-center gap-2 mb-4">
-                        <Users className="w-5 h-5 text-cyan-400" />
-                        <h3 className="text-sm font-semibold text-cyan-300">
-                          {result.liverStats.name} の過去実績
-                        </h3>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="text-center p-3 bg-[#0a192f] rounded-lg">
-                          <div className="text-xs text-slate-400">配信回数</div>
-                          <div className="text-lg font-bold text-white">{result.liverStats.streamCount}回</div>
-                        </div>
-                        <div className="text-center p-3 bg-[#0a192f] rounded-lg">
-                          <div className="text-xs text-slate-400">平均GMV</div>
-                          <div className="text-lg font-bold text-cyan-400">{formatCurrency(result.liverStats.avgGmvPerStream)}</div>
-                        </div>
-                        <div className="text-center p-3 bg-[#0a192f] rounded-lg">
-                          <div className="text-xs text-slate-400">時間あたりGMV</div>
-                          <div className="text-lg font-bold text-cyan-400">{formatCurrency(result.liverStats.avgGmvPerHour)}</div>
-                        </div>
-                        <div className="text-center p-3 bg-[#0a192f] rounded-lg">
-                          <div className="text-xs text-slate-400">類似案件数</div>
-                          <div className="text-lg font-bold text-white">{result.similarCases.length}件</div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Similar Cases */}
-                {result.similarCases.length > 0 && (
-                  <Card className="bg-[#112240]/80 border-cyan-500/20 backdrop-blur-sm">
-                    <CardContent className="p-6">
-                      <button
-                        onClick={() => setShowSimilarCases(!showSimilarCases)}
-                        className="flex items-center justify-between w-full"
-                      >
+                      <div className="text-xs text-slate-400 space-y-0.5">
                         <div className="flex items-center gap-2">
-                          <BarChart3 className="w-5 h-5 text-cyan-400" />
-                          <h3 className="text-sm font-semibold text-cyan-300">
-                            過去類似案件 ({result.similarCases.length}件)
-                          </h3>
+                          <Package className="w-3 h-3" />
+                          <span className="text-white font-medium truncate">{cond.productName}</span>
+                          {cond.discountRate > 0 && (
+                            <Badge className="bg-red-500/20 text-red-400 border-none text-[10px]">{cond.discountRate}%OFF</Badge>
+                          )}
                         </div>
-                        {showSimilarCases ? (
-                          <ChevronUp className="w-4 h-4 text-slate-400" />
-                        ) : (
-                          <ChevronDown className="w-4 h-4 text-slate-400" />
-                        )}
-                      </button>
-                      {showSimilarCases && (
-                        <div className="mt-4 space-y-2">
-                          {result.similarCases.map((c: any, i: number) => {
-                            const isExpanded = expandedCaseId === c.id;
-                            return (
-                              <div key={c.id || i} className="rounded-lg overflow-hidden">
-                                {/* Summary row - clickable */}
-                                <button
-                                  onClick={() => setExpandedCaseId(isExpanded ? null : c.id)}
-                                  className="flex items-center justify-between w-full p-3 bg-[#0a192f] hover:bg-[#0d2247] transition-colors text-sm"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <div className="text-slate-400 min-w-[80px]">{c.date ? new Date(c.date).toLocaleDateString('ja-JP') : "N/A"}</div>
-                                    {c.brandName && (
-                                      <Badge variant="outline" className="text-[10px] border-cyan-500/30 text-cyan-300 px-1.5 py-0">{c.brandName}</Badge>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-3">
-                                    <div className="text-cyan-400 font-semibold">{formatCurrency(c.gmv)}</div>
-                                    <div className="text-slate-500 text-xs">{c.duration}分</div>
-                                    {isExpanded ? (
-                                      <ChevronUp className="w-3 h-3 text-slate-500" />
-                                    ) : (
-                                      <ChevronDown className="w-3 h-3 text-slate-500" />
-                                    )}
-                                  </div>
-                                </button>
+                        <div className="flex items-center gap-2">
+                          <Users className="w-3 h-3" />
+                          <span>{cond.liverName}</span>
+                          <span className="text-slate-600">|</span>
+                          <Clock className="w-3 h-3" />
+                          <span>{cond.streamDuration}分</span>
+                          <span className="text-slate-600">|</span>
+                          <span>{cond.commissionRate}%</span>
+                          {cond.fixedFee > 0 && <span>+{formatCurrency(cond.fixedFee)}</span>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Tag className="w-3 h-3" />
+                          <span>定価{formatCurrency(cond.listPrice)} → {formatCurrency(cond.sellingPrice)}</span>
+                        </div>
+                      </div>
+                    </div>
 
-                                {/* Expanded detail */}
-                                {isExpanded && (
-                                  <div className="bg-[#0a192f]/60 border-t border-cyan-500/10 p-4 space-y-3">
-                                    {/* Brand & Product */}
-                                    <div className="grid grid-cols-2 gap-3">
-                                      {c.brandName && (
-                                        <div className="flex items-center gap-2">
-                                          <Star className="w-3.5 h-3.5 text-amber-400" />
-                                          <span className="text-xs text-slate-400">ブランド:</span>
-                                          <span className="text-xs text-white font-medium">{c.brandName}</span>
-                                        </div>
-                                      )}
-                                      {c.productName && (
-                                        <div className="flex items-center gap-2">
-                                          <ShoppingCart className="w-3.5 h-3.5 text-cyan-400" />
-                                          <span className="text-xs text-slate-400">商品:</span>
-                                          <span className="text-xs text-white font-medium">{c.productName}</span>
-                                        </div>
-                                      )}
-                                    </div>
+                    {/* Main Results Card */}
+                    <Card className="bg-[#112240]/80 border-cyan-500/20 backdrop-blur-sm overflow-hidden">
+                      <div className="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 px-4 py-3 border-b border-cyan-500/20">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="w-4 h-4 text-cyan-400" />
+                            <span className="text-sm font-semibold text-cyan-300">シミュレーション結果</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {result.dataSource && (
+                              <Badge className={`border-none text-[10px] ${result.hasRealData ? 'bg-green-500/20 text-green-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                                {result.dataSource}
+                              </Badge>
+                            )}
+                            {result.aiPrediction && (
+                              <Badge className="bg-cyan-500/20 text-cyan-400 border-none text-[10px]">
+                                AI信頼度: {result.aiPrediction.confidence}%
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <CardContent className="p-4">
+                        <div className="grid grid-cols-2 gap-3 mb-4">
+                          <div className="bg-[#0a192f] rounded-lg p-3 border border-cyan-500/20">
+                            <div className="flex items-center gap-1 mb-1">
+                              <DollarSign className="w-3 h-3 text-cyan-400" />
+                              <span className="text-xs text-slate-400">想定GMV</span>
+                            </div>
+                            <div className="text-lg font-bold text-cyan-400">{formatCurrency(result.estimatedGmv)}</div>
+                            {result.aiPrediction?.gmvRange && (
+                              <div className="text-[10px] text-slate-500">{formatCurrency(result.aiPrediction.gmvRange.min)} 〜 {formatCurrency(result.aiPrediction.gmvRange.max)}</div>
+                            )}
+                          </div>
+                          <div className="bg-[#0a192f] rounded-lg p-3 border border-green-500/20">
+                            <div className="flex items-center gap-1 mb-1">
+                              <TrendingUp className="w-3 h-3 text-green-400" />
+                              <span className="text-xs text-slate-400">想定利益</span>
+                            </div>
+                            <div className="text-lg font-bold text-green-400">{formatCurrency(result.estimatedNetProfit)}</div>
+                            <div className="text-[10px] text-slate-500">粗利: {formatCurrency(result.estimatedGrossProfit)}</div>
+                          </div>
+                          <div className="bg-[#0a192f] rounded-lg p-3 border border-amber-500/20">
+                            <div className="flex items-center gap-1 mb-1">
+                              <BarChart3 className="w-3 h-3 text-amber-400" />
+                              <span className="text-xs text-slate-400">ROI</span>
+                            </div>
+                            <div className="text-lg font-bold text-amber-400">{result.estimatedRoi}%</div>
+                          </div>
+                          <div className="bg-[#0a192f] rounded-lg p-3 border border-purple-500/20">
+                            <div className="flex items-center gap-1 mb-1">
+                              <Package className="w-3 h-3 text-purple-400" />
+                              <span className="text-xs text-slate-400">想定販売数</span>
+                            </div>
+                            <div className="text-lg font-bold text-purple-400">{result.estimatedSalesCount.toLocaleString()}個</div>
+                          </div>
+                        </div>
 
-                                    {/* Metrics grid */}
-                                    <div className="grid grid-cols-3 gap-2">
-                                      <div className="bg-[#112240]/80 rounded-lg p-2 text-center">
-                                        <div className="text-[10px] text-slate-500 flex items-center justify-center gap-1"><Eye className="w-3 h-3" />視聴者</div>
-                                        <div className="text-sm font-semibold text-cyan-400">{(c.viewers || 0).toLocaleString()}人</div>
-                                      </div>
-                                      {c.peakViewers != null && (
-                                        <div className="bg-[#112240]/80 rounded-lg p-2 text-center">
-                                          <div className="text-[10px] text-slate-500 flex items-center justify-center gap-1"><TrendingUp className="w-3 h-3" />ピーク</div>
-                                          <div className="text-sm font-semibold text-amber-400">{c.peakViewers.toLocaleString()}人</div>
-                                        </div>
-                                      )}
-                                      <div className="bg-[#112240]/80 rounded-lg p-2 text-center">
-                                        <div className="text-[10px] text-slate-500 flex items-center justify-center gap-1"><Clock className="w-3 h-3" />配信時間</div>
-                                        <div className="text-sm font-semibold text-white">{c.duration}分</div>
-                                      </div>
-                                      <div className="bg-[#112240]/80 rounded-lg p-2 text-center">
-                                        <div className="text-[10px] text-slate-500 flex items-center justify-center gap-1"><DollarSign className="w-3 h-3" />GMV</div>
-                                        <div className="text-sm font-semibold text-green-400">{formatCurrency(c.gmv)}</div>
-                                      </div>
-                                      <div className="bg-[#112240]/80 rounded-lg p-2 text-center">
-                                        <div className="text-[10px] text-slate-500 flex items-center justify-center gap-1"><ShoppingCart className="w-3 h-3" />販売数</div>
-                                        <div className="text-sm font-semibold text-white">{(c.salesCount || 0).toLocaleString()}個</div>
-                                      </div>
-                                      {c.avgPrice > 0 && (
-                                        <div className="bg-[#112240]/80 rounded-lg p-2 text-center">
-                                          <div className="text-[10px] text-slate-500 flex items-center justify-center gap-1"><Tag className="w-3 h-3" />平均単価</div>
-                                          <div className="text-sm font-semibold text-white">{formatCurrency(c.avgPrice)}</div>
-                                        </div>
-                                      )}
-                                    </div>
-
-                                    {/* Engagement metrics */}
-                                    {(c.likes != null || c.comments != null || c.shares != null) && (
-                                      <div className="flex items-center gap-4 pt-1">
-                                        {c.likes != null && (
-                                          <div className="flex items-center gap-1 text-xs text-slate-400">
-                                            <ThumbsUp className="w-3 h-3 text-pink-400" />
-                                            <span>{c.likes.toLocaleString()}</span>
-                                          </div>
-                                        )}
-                                        {c.comments != null && (
-                                          <div className="flex items-center gap-1 text-xs text-slate-400">
-                                            <MessageCircle className="w-3 h-3 text-blue-400" />
-                                            <span>{c.comments.toLocaleString()}</span>
-                                          </div>
-                                        )}
-                                        {c.shares != null && (
-                                          <div className="flex items-center gap-1 text-xs text-slate-400">
-                                            <Share2 className="w-3 h-3 text-green-400" />
-                                            <span>{c.shares.toLocaleString()}</span>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-
-                                    {/* CVR / CTR / Impressions */}
-                                    {(c.cvr || c.ctr || c.impressions != null) && (
-                                      <div className="flex items-center gap-4 pt-1 border-t border-cyan-500/10">
-                                        {c.cvr && (
-                                          <div className="flex items-center gap-1 text-xs">
-                                            <Target className="w-3 h-3 text-cyan-400" />
-                                            <span className="text-slate-400">CVR:</span>
-                                            <span className="text-white font-medium">{c.cvr}</span>
-                                          </div>
-                                        )}
-                                        {c.ctr && (
-                                          <div className="flex items-center gap-1 text-xs">
-                                            <Monitor className="w-3 h-3 text-cyan-400" />
-                                            <span className="text-slate-400">CTR:</span>
-                                            <span className="text-white font-medium">{c.ctr}</span>
-                                          </div>
-                                        )}
-                                        {c.impressions != null && (
-                                          <div className="flex items-center gap-1 text-xs">
-                                            <Eye className="w-3 h-3 text-cyan-400" />
-                                            <span className="text-slate-400">曝光:</span>
-                                            <span className="text-white font-medium">{c.impressions.toLocaleString()}</span>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-
-                                    {/* Ad cost & Result */}
-                                    {(c.adCost != null || c.result) && (
-                                      <div className="flex items-center gap-4 pt-1 border-t border-cyan-500/10">
-                                        {c.adCost != null && c.adCost > 0 && (
-                                          <div className="flex items-center gap-1 text-xs">
-                                            <Banknote className="w-3 h-3 text-amber-400" />
-                                            <span className="text-slate-400">広告費:</span>
-                                            <span className="text-white font-medium">{formatCurrency(c.adCost)}</span>
-                                          </div>
-                                        )}
-                                        {c.result && (
-                                          <Badge
-                                            variant="outline"
-                                            className={`text-[10px] px-1.5 py-0 ${
-                                              c.result === "成功" ? "border-green-500/30 text-green-400" : "border-red-500/30 text-red-400"
-                                            }`}
-                                          >
-                                            {c.result}
-                                          </Badge>
-                                        )}
-                                      </div>
-                                    )}
-
-                                    {/* Platform & Start time */}
-                                    <div className="flex items-center gap-4 text-[10px] text-slate-500">
-                                      {c.platform && <span>プラットフォーム: {c.platform}</span>}
-                                      {c.livestreamStartTime && <span>開始時間: {c.livestreamStartTime}</span>}
-                                    </div>
-                                  </div>
-                                )}
+                        {/* Cost Breakdown */}
+                        <div className="bg-[#0a192f] rounded-lg p-3 border border-slate-700 mb-3">
+                          <h3 className="text-xs font-semibold text-slate-300 mb-2">コスト内訳</h3>
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-xs">
+                              <span className="text-slate-400">成果報酬</span>
+                              <span className="text-white">{formatCurrency(Math.round(result.estimatedGmv * (cond.commissionRate / 100)))}</span>
+                            </div>
+                            {cond.fixedFee > 0 && (
+                              <div className="flex justify-between text-xs">
+                                <span className="text-slate-400">固定報酬</span>
+                                <span className="text-white">{formatCurrency(cond.fixedFee)}</span>
                               </div>
-                            );
-                          })}
-                          <div className="p-3 bg-cyan-500/10 rounded-lg border border-cyan-500/20">
-                            <div className="flex justify-between text-sm">
-                              <span className="text-cyan-300 font-semibold">平均</span>
-                              <span className="text-cyan-400 font-bold">
-                                {formatCurrency(
-                                  Math.round(
-                                    result.similarCases.reduce((s: number, c: any) => s + c.gmv, 0) /
-                                      result.similarCases.length
-                                  )
-                                )}
-                              </span>
+                            )}
+                            <div className="border-t border-slate-700 pt-1 flex justify-between text-xs font-semibold">
+                              <span className="text-slate-300">合計コスト</span>
+                              <span className="text-cyan-400">{formatCurrency(result.estimatedLiverCost)}</span>
                             </div>
                           </div>
                         </div>
-                      )}
+
+                        {/* AI Analysis */}
+                        {result.aiPrediction?.reasoning && (
+                          <div className="bg-gradient-to-r from-cyan-500/5 to-blue-500/5 rounded-lg p-3 border border-cyan-500/20">
+                            <div className="flex items-center gap-1 mb-1">
+                              <Brain className="w-3 h-3 text-cyan-400" />
+                              <span className="text-xs font-semibold text-cyan-300">AI分析</span>
+                            </div>
+                            <p className="text-xs text-slate-300 leading-relaxed line-clamp-3">{result.aiPrediction.reasoning}</p>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    {/* Ad Metrics Card */}
+                    {result.adMetrics && (
+                      <Card className="bg-[#112240]/80 border-cyan-500/20 backdrop-blur-sm">
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Megaphone className="w-4 h-4 text-amber-400" />
+                            <span className="text-xs font-semibold text-amber-300">広告換算・ブランド露出価値</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 mb-3">
+                            <div className="text-center p-2 bg-[#0a192f] rounded-lg">
+                              <div className="text-[10px] text-slate-400">想定曝光量</div>
+                              <div className="text-sm font-bold text-amber-400">{result.adMetrics.estimatedImpressions.toLocaleString()}</div>
+                            </div>
+                            <div className="text-center p-2 bg-[#0a192f] rounded-lg">
+                              <div className="text-[10px] text-slate-400">広告換算値</div>
+                              <div className="text-sm font-bold text-amber-400">{formatCurrency(result.adMetrics.adConversionValue)}</div>
+                            </div>
+                          </div>
+                          <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 rounded-lg p-3 border border-amber-500/20 mb-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-slate-300">広告効果ROAS</span>
+                              <span className="text-xl font-bold text-amber-400">{result.adMetrics.adEffectRoas}倍</span>
+                            </div>
+                          </div>
+                          {/* Industry comparison */}
+                          <div className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 rounded-lg p-3 border border-emerald-500/20">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Trophy className="w-3 h-3 text-emerald-400" />
+                              <span className="text-xs font-semibold text-emerald-300">業界比較</span>
+                              <Badge className="bg-emerald-500/20 text-emerald-400 border-none text-[9px]">{result.adMetrics.industryComparison.priceLabel}</Badge>
+                            </div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[10px] text-slate-400">業界平均</span>
+                              <span className="text-xs text-slate-300">{result.adMetrics.industryComparison.industryAvgRoas}倍</span>
+                            </div>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[10px] text-slate-400">この案件</span>
+                              <span className="text-xs font-bold text-amber-400">{result.adMetrics.adEffectRoas}倍</span>
+                            </div>
+                            <div className="relative w-full h-2 bg-[#0a192f] rounded-full overflow-hidden">
+                              <div
+                                className={`absolute left-0 top-0 h-full rounded-full transition-all duration-1000 ${result.adMetrics.industryComparison.isAboveAverage ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-amber-500 to-orange-400'}`}
+                                style={{ width: `${Math.min(result.adMetrics.industryComparison.roasVsIndustryPercent, 300) / 3}%` }}
+                              />
+                            </div>
+                            <div className={`text-center mt-1 text-xs font-bold ${result.adMetrics.industryComparison.isAboveAverage ? 'text-emerald-400' : 'text-amber-400'}`}>
+                              {result.adMetrics.industryComparison.roasVsIndustryLabel}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Similar Cases */}
+                    {result.similarCases && result.similarCases.length > 0 && (
+                      <Card className="bg-[#112240]/80 border-cyan-500/20 backdrop-blur-sm">
+                        <CardContent className="p-4">
+                          <button
+                            onClick={() => setShowSimilarCases(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                            className="flex items-center justify-between w-full"
+                          >
+                            <div className="flex items-center gap-2">
+                              <BarChart3 className="w-4 h-4 text-cyan-400" />
+                              <span className="text-xs font-semibold text-cyan-300">過去類似案件 ({result.similarCases.length}件)</span>
+                            </div>
+                            {isSimilarOpen ? <ChevronUp className="w-3 h-3 text-slate-400" /> : <ChevronDown className="w-3 h-3 text-slate-400" />}
+                          </button>
+                          {isSimilarOpen && (
+                            <div className="mt-3 space-y-1">
+                              {result.similarCases.map((c: any, ci: number) => (
+                                <div key={c.id || ci} className="flex items-center justify-between p-2 bg-[#0a192f] rounded text-xs">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-slate-400">{c.date ? new Date(c.date).toLocaleDateString('ja-JP') : 'N/A'}</span>
+                                    {c.brandName && <Badge variant="outline" className="text-[9px] border-cyan-500/30 text-cyan-300 px-1 py-0">{c.brandName}</Badge>}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-cyan-400 font-semibold">{formatCurrency(c.gmv)}</span>
+                                    <span className="text-slate-500">{c.duration}分</span>
+                                  </div>
+                                </div>
+                              ))}
+                              <div className="p-2 bg-cyan-500/10 rounded border border-cyan-500/20">
+                                <div className="flex justify-between text-xs">
+                                  <span className="text-cyan-300 font-semibold">平均</span>
+                                  <span className="text-cyan-400 font-bold">{formatCurrency(Math.round(result.similarCases.reduce((s: number, c: any) => s + c.gmv, 0) / result.similarCases.length))}</span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Share Button */}
+                    <Card className="bg-[#112240]/80 border-cyan-500/20 backdrop-blur-sm">
+                      <CardContent className="p-4">
+                        <Button
+                          onClick={() => result && shareMutation.mutate({ shareToken: result.shareToken })}
+                          disabled={shareMutation.isPending}
+                          className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-400 hover:to-purple-500 text-white text-xs"
+                          size="sm"
+                        >
+                          {copied ? (
+                            <div className="flex items-center gap-1"><Check className="w-3 h-3" />URLコピー済み</div>
+                          ) : (
+                            <div className="flex items-center gap-1"><ExternalLink className="w-3 h-3" />提案URLを生成</div>
+                          )}
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </div>
+                );
+              })}
+
+              {/* Loading card */}
+              {calculateMutation.isPending && (
+                <div className="snap-start flex-shrink-0 w-[400px]">
+                  <Card className="bg-[#112240]/80 border-cyan-500/20 backdrop-blur-sm">
+                    <CardContent className="p-12 flex flex-col items-center justify-center text-center">
+                      <div className="w-16 h-16 rounded-full bg-cyan-500/10 flex items-center justify-center mb-4 animate-pulse">
+                        <Brain className="w-8 h-8 text-cyan-400" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-cyan-300 mb-2">AI分析中...</h3>
+                      <div className="mt-3 space-y-2 w-full max-w-xs">
+                        <Skeleton className="h-3 bg-slate-700/50" />
+                        <Skeleton className="h-3 bg-slate-700/50 w-3/4" />
+                        <Skeleton className="h-3 bg-slate-700/50 w-1/2" />
+                      </div>
                     </CardContent>
                   </Card>
-                )}
-
-                {/* Share Button */}
-                <Card className="bg-[#112240]/80 border-cyan-500/20 backdrop-blur-sm">
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Share2 className="w-5 h-5 text-cyan-400" />
-                      <h3 className="text-sm font-semibold text-cyan-300">ブランド向け提案</h3>
-                    </div>
-                    <p className="text-sm text-slate-400 mb-4">
-                      シミュレーション結果をブランド担当者に共有できるURLを生成します。
-                      余計な情報は含まれず、想定売上・利益・ROIのみが表示されます。
-                    </p>
-                    <Button
-                      onClick={() => result && shareMutation.mutate({ shareToken: result.shareToken })}
-                      disabled={shareMutation.isPending}
-                      className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-400 hover:to-purple-500 text-white"
-                    >
-                      {copied ? (
-                        <div className="flex items-center gap-2">
-                          <Check className="w-4 h-4" />
-                          URLをコピーしました
-                        </div>
-                      ) : shareMutation.isPending ? (
-                        <div className="flex items-center gap-2">
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          生成中...
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <ExternalLink className="w-4 h-4" />
-                          提案URLを生成してコピー
-                        </div>
-                      )}
-                    </Button>
-                  </CardContent>
-                </Card>
-
-                {/* Positive reinforcement message */}
-                {result.estimatedNetProfit > 0 && result.adMetrics && (
-                  <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 flex items-start gap-3">
-                    <ThumbsUp className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <h4 className="text-sm font-semibold text-green-400">収益性の高い案件です</h4>
-                      <p className="text-sm text-green-300/80 mt-1">
-                        広告換算値を含めた総合価値はコストを大きく上回ります。
-                        ブランド露出効果も加味した高い投資効果が期待できます。
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
