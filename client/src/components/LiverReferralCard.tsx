@@ -25,7 +25,7 @@ export default function LiverReferralCard() {
 
   const shareCode = () => {
     if (!referralCode?.code) return;
-    const shareUrl = `https://lcjmall.com/login?ref=${referralCode.code}&mode=register`;
+    const shareUrl = `https://lcjmall.com/line-login?ref=${referralCode.code}&mode=register`;
     const text = `LCJ MALLで使える紹介コード: ${referralCode.code}\n新規登録＆初回購入で500ポイントもらえます！\n${shareUrl}`;
     if (navigator.share) {
       navigator.share({ title: "LCJ MALL 紹介コード", text }).catch(() => {});

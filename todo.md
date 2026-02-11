@@ -4780,3 +4780,6 @@
 ## シェアボタンのURL変更（直接登録ページ+紹介コード自動入力）
 - [x] シェアURLを /login?ref=コード&mode=register に変更
 - [x] 登録ページでrefパラメータから紹介コードを自動入力
+
+## バグ修正：シェアボタンのリンク先を /line-login に修正
+- [x] LiverReferralCardのシェアURLを /line-login?ref=コード&mode=register に変更
