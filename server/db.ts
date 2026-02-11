@@ -10882,6 +10882,20 @@ export async function confirmPendingReferral(
     })
     .where(eq(referralCodes.id, referral.referralCodeId));
   
+  // Send LINE notification to referrer liver (points confirmed)
+  try {
+    if (referrerLineUserId) {
+      const { pushMessage } = await import("./line");
+      const appUrl = process.env.APP_URL || "https://lcjmall.com";
+      await pushMessage(referrerLineUserId, [{
+        type: "text",
+        text: `🌟 紹介ポイントが確定しました！\n\nあなたが紹介したユーザーが初回購入を完了しました。\n\n⭐ 獲得ポイント: ${referral.referrerPoints}ポイント\n\n引き続き紹介コードをシェアしてポイントを獲得しましょう！\n\n📊 紹介実績を確認\n${appUrl}/liver-mypage`
+      }]);
+    }
+  } catch (notifyErr: any) {
+    console.error(`[Referral] Failed to send confirmation LINE notification to liver:`, notifyErr.message);
+  }
+  
   return {
     newUserPoints: referral.newUserPoints,
     referrerPoints: referral.referrerPoints,

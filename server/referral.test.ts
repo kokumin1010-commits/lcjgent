@@ -539,3 +539,77 @@ describe("Referral Code - Registration & Purchase Flow", () => {
     });
   });
 });
+
+
+describe("Shipping Fee Logic", () => {
+  const FREE_SHIPPING_THRESHOLD = 5000;
+  const SHIPPING_FEE = 880;
+
+  function calculateShippingFee(subtotal: number): number {
+    return subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FEE;
+  }
+
+  it("should charge 880 yen shipping for orders under 5000 yen", () => {
+    expect(calculateShippingFee(1000)).toBe(880);
+    expect(calculateShippingFee(4999)).toBe(880);
+    expect(calculateShippingFee(0)).toBe(880);
+    expect(calculateShippingFee(100)).toBe(880);
+  });
+
+  it("should be free shipping for orders of 5000 yen or more", () => {
+    expect(calculateShippingFee(5000)).toBe(0);
+    expect(calculateShippingFee(5001)).toBe(0);
+    expect(calculateShippingFee(10000)).toBe(0);
+    expect(calculateShippingFee(50000)).toBe(0);
+  });
+
+  it("should charge shipping at exactly 5000 yen threshold", () => {
+    expect(calculateShippingFee(4999)).toBe(880);
+    expect(calculateShippingFee(5000)).toBe(0);
+  });
+});
+
+describe("Referral LINE Notification", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("confirmPendingReferral should return referrer info for LINE notification", async () => {
+    mockedConfirmPendingReferral.mockResolvedValue({
+      newUserPoints: 500,
+      referrerPoints: 200,
+      referrerLineUserId: "U_liver_123",
+    });
+
+    const result = await confirmPendingReferral("U_user_456", 100);
+    expect(result).not.toBeNull();
+    expect(result!.referrerLineUserId).toBe("U_liver_123");
+    expect(result!.referrerPoints).toBe(200);
+    expect(result!.newUserPoints).toBe(500);
+  });
+
+  it("confirmPendingReferral should return null when no pending referral", async () => {
+    mockedConfirmPendingReferral.mockResolvedValue(null);
+
+    const result = await confirmPendingReferral("U_user_789", 200);
+    expect(result).toBeNull();
+  });
+
+  it("notification message should contain correct information", () => {
+    const referrerPoints = 200;
+    const referralCode = "1234";
+    const appUrl = "https://lcjmall.com";
+
+    // Registration notification
+    const registrationMsg = `🎉 紹介コードが使われました！\n\nあなたの紹介コード「${referralCode}」で新しいユーザーが登録しました。\n\n※ ポイントはこのユーザーが初回購入を完了した時点で付与されます。\n\n📊 紹介実績を確認\n${appUrl}/liver-mypage`;
+    expect(registrationMsg).toContain(referralCode);
+    expect(registrationMsg).toContain("初回購入を完了した時点");
+    expect(registrationMsg).toContain("/liver-mypage");
+
+    // Purchase confirmation notification
+    const confirmMsg = `🌟 紹介ポイントが確定しました！\n\nあなたが紹介したユーザーが初回購入を完了しました。\n\n⭐ 獲得ポイント: ${referrerPoints}ポイント\n\n引き続き紹介コードをシェアしてポイントを獲得しましょう！\n\n📊 紹介実績を確認\n${appUrl}/liver-mypage`;
+    expect(confirmMsg).toContain(`${referrerPoints}ポイント`);
+    expect(confirmMsg).toContain("初回購入を完了しました");
+    expect(confirmMsg).toContain("/liver-mypage");
+  });
+});

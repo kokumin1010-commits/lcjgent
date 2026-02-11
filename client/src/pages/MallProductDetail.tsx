@@ -538,6 +538,10 @@ export default function MallProductDetail() {
   const canPurchaseWithPoints = lineUser && product.pointPrice && lineUser.points >= (product.pointPrice * quantity);
   const totalPointPrice = product.pointPrice ? product.pointPrice * quantity : 0;
   const totalCashPrice = product.price * quantity;
+  const SHIPPING_FEE = 880;
+  const FREE_SHIPPING_THRESHOLD = 5000;
+  const shippingFee = totalCashPrice < FREE_SHIPPING_THRESHOLD ? SHIPPING_FEE : 0;
+  const totalWithShipping = totalCashPrice + shippingFee;
   const selectedAddress = savedAddresses?.find(a => a.id === selectedAddressId);
 
   // 関連商品（現在の商品を除く）
@@ -1113,10 +1117,18 @@ export default function MallProductDetail() {
                       <p className="font-bold mb-1">現金で購入</p>
                       <p className="text-2xl font-bold text-pink-600">
                         ¥{totalCashPrice.toLocaleString()}
+                        {shippingFee > 0 && (
+                          <span className="text-sm font-normal text-muted-foreground ml-1">+ 送料¥{shippingFee.toLocaleString()}</span>
+                        )}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
                         クレジットカード決済（Stripeセキュア決済）
                       </p>
+                      {shippingFee > 0 ? (
+                        <p className="text-xs text-amber-600 mt-0.5">※ ¥{FREE_SHIPPING_THRESHOLD.toLocaleString()}以上のご購入で送料無料</p>
+                      ) : (
+                        <p className="text-xs text-green-600 mt-0.5">✓ 送料無料</p>
+                      )}
                     </div>
                   </Label>
                 </div>
@@ -1396,14 +1408,33 @@ export default function MallProductDetail() {
                 </p>
               </div>
 
-              {/* 合計 */}
-              <div className="border-t pt-4">
-                <div className="flex justify-between items-center text-lg font-bold">
+              {/* 送料・合計 */}
+              <div className="border-t pt-4 space-y-2">
+                {paymentMethod !== "points" && (
+                  <>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground">小計</span>
+                      <span>¥{totalCashPrice.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground">送料</span>
+                      {shippingFee > 0 ? (
+                        <span>¥{shippingFee.toLocaleString()}</span>
+                      ) : (
+                        <span className="text-green-600 font-medium">無料</span>
+                      )}
+                    </div>
+                    {shippingFee > 0 && (
+                      <p className="text-xs text-muted-foreground">※ ¥{FREE_SHIPPING_THRESHOLD.toLocaleString()}以上のご購入で送料無料</p>
+                    )}
+                  </>
+                )}
+                <div className="flex justify-between items-center text-lg font-bold pt-1">
                   <span>合計</span>
                   {paymentMethod === "points" ? (
                     <span className="text-orange-600">{totalPointPrice.toLocaleString()}pt</span>
                   ) : (
-                    <span className="text-pink-600">¥{totalCashPrice.toLocaleString()}</span>
+                    <span className="text-pink-600">¥{totalWithShipping.toLocaleString()}</span>
                   )}
                 </div>
               </div>

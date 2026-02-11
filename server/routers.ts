@@ -791,6 +791,19 @@ export const lineLoginRouter = router({
                   200
                 );
                 console.log(`[Referral] Pending referral registered for LINE user ${lineUser.id} via code ${input.referralCode}`);
+                // ライバーにLINE通知を送信（紹介コードが使われた）
+                try {
+                  if (liver?.lineUserId) {
+                    const { pushMessage } = await import("./line");
+                    const appUrl = process.env.APP_URL || "https://lcjmall.com";
+                    await pushMessage(liver.lineUserId, [{
+                      type: "text",
+                      text: `🎉 紹介コードが使われました！\n\nあなたの紹介コード「${input.referralCode}」で新しいユーザーが登録しました。\n\n※ ポイントはこのユーザーが初回購入を完了した時点で付与されます。\n\n📊 紹介実績を確認\n${appUrl}/liver-mypage`
+                    }]);
+                  }
+                } catch (notifyErr: any) {
+                  console.error(`[Referral] Failed to send LINE notification to liver:`, notifyErr.message);
+                }
               }
             }
           }
@@ -903,6 +916,21 @@ export const lineLoginRouter = router({
             200
           );
           console.log(`[Referral] Pending referral registered for user ${newUser.id} via code ${input.referralCode}`);
+          // ライバーにLINE通知を送信（紹介コードが使われた）
+          try {
+            const { getLiverById } = await import("./db");
+            const liver = await getLiverById(referralData.referralCode.liverId);
+            if (liver?.lineUserId) {
+              const { pushMessage } = await import("./line");
+              const appUrl = process.env.APP_URL || "https://lcjmall.com";
+              await pushMessage(liver.lineUserId, [{
+                type: "text",
+                text: `🎉 紹介コードが使われました！\n\nあなたの紹介コード「${input.referralCode}」で新しいユーザーが登録しました。\n\n※ ポイントはこのユーザーが初回購入を完了した時点で付与されます。\n\n📊 紹介実績を確認\n${appUrl}/liver-mypage`
+              }]);
+            }
+          } catch (notifyErr: any) {
+            console.error(`[Referral] Failed to send LINE notification to liver:`, notifyErr.message);
+          }
         } catch (err: any) {
           console.error(`[Referral] Failed to register pending referral:`, err.message);
           // Don't fail registration if referral fails
@@ -11222,6 +11250,11 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           });
         }
 
+        // 送料計算: 5,000円未満は880円、5,000円以上は送料無料
+        const SHIPPING_FEE = 880;
+        const FREE_SHIPPING_THRESHOLD = 5000;
+        const shippingFee = totalAmount < FREE_SHIPPING_THRESHOLD ? SHIPPING_FEE : 0;
+
         // 注文を作成（pendingステータス）
         const orderResult = await createMallOrder({
           lineUserId: lineUser.id,
@@ -11237,6 +11270,20 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         });
 
         const origin = ctx.req.headers.origin || ctx.req.headers.referer?.replace(/\/$/, "") || "";
+
+        // 送料がある場合はline_itemsに追加
+        if (shippingFee > 0) {
+          lineItems.push({
+            price_data: {
+              currency: "jpy",
+              product_data: {
+                name: "送料",
+              },
+              unit_amount: shippingFee,
+            },
+            quantity: 1,
+          });
+        }
 
         const session = await stripeClient.checkout.sessions.create({
           payment_method_types: ["card"],
