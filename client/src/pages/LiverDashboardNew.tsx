@@ -162,6 +162,11 @@ export default function LiverDashboardNew() {
   
   // Set Analysis (セット活用ランキング)
   const { data: setAnalysisData } = trpc.livestreamSets.allLiversSetAnalysis.useQuery();
+  const [expandedLiverId, setExpandedLiverId] = useState<number | null>(null);
+  const { data: expandedLiverSets } = trpc.livestreamSets.liverSetAnalysis.useQuery(
+    { liverId: expandedLiverId! },
+    { enabled: expandedLiverId !== null }
+  );
 
   // AI Matching Suggestions
   const aiMatchingMutation = trpc.liverManagement.getAiMatchingSuggestions.useMutation({
@@ -274,6 +279,15 @@ export default function LiverDashboardNew() {
       quantitySold: "販売数",
       noSetData: "セットデータがありません",
       setNotUsed: "未使用",
+      setDetail: "セット詳細",
+      setName: "セット名",
+      setPrice: "売値",
+      setRevenueSingle: "セット売上",
+      setContent: "セット内容",
+      originalPrice: "元値合計",
+      bestSet: "ベストセット",
+      popular: "人気",
+      livestreamDate: "配信日",
     },
     zh: {
       title: "主播指挥中心",
@@ -325,6 +339,15 @@ export default function LiverDashboardNew() {
       quantitySold: "销量",
       noSetData: "暂无套装数据",
       setNotUsed: "未使用",
+      setDetail: "套装详情",
+      setName: "套装名",
+      setPrice: "售价",
+      setRevenueSingle: "套装销售额",
+      setContent: "套装内容",
+      originalPrice: "原价合计",
+      bestSet: "最佳套装",
+      popular: "热门",
+      livestreamDate: "直播日期",
     },
   };
   
@@ -920,12 +943,15 @@ export default function LiverDashboardNew() {
             {setAnalysisData && setAnalysisData.length > 0 ? (
               <div className="space-y-3">
                 {setAnalysisData.map((liver, index) => (
-                  <Link
-                    key={liver.liverId || index}
-                    href={`/master/livers/${liver.liverId}`}
-                    className="block"
-                  >
-                    <div className="p-4 rounded-xl bg-[#0a1520]/40 border border-cyan-500/10 hover:border-pink-400/30 transition-all cursor-pointer">
+                  <div key={liver.liverId || index}>
+                    <div
+                      onClick={() => setExpandedLiverId(expandedLiverId === liver.liverId ? null : liver.liverId)}
+                      className={`p-4 rounded-xl bg-[#0a1520]/40 border transition-all cursor-pointer ${
+                        expandedLiverId === liver.liverId
+                          ? 'border-pink-400/50 bg-[#0a1520]/60'
+                          : 'border-cyan-500/10 hover:border-pink-400/30'
+                      }`}
+                    >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <span className={`font-bold text-lg ${
@@ -936,6 +962,10 @@ export default function LiverDashboardNew() {
                             #{index + 1}
                           </span>
                           <span className="text-cyan-100 font-semibold">{liver.streamerName || '不明'}</span>
+                          {expandedLiverId === liver.liverId
+                            ? <ChevronUp className="w-4 h-4 text-pink-400" />
+                            : <ChevronDown className="w-4 h-4 text-cyan-500/50" />
+                          }
                         </div>
                         <div className="flex items-center gap-4 text-sm">
                           <div className="text-center">
@@ -957,7 +987,101 @@ export default function LiverDashboardNew() {
                         </div>
                       </div>
                     </div>
-                  </Link>
+
+                    {/* セット詳細展開エリア */}
+                    {expandedLiverId === liver.liverId && (
+                      <div className="mt-2 ml-4 mr-2 space-y-2 animate-in slide-in-from-top-2 duration-200">
+                        {expandedLiverSets && expandedLiverSets.sets.length > 0 ? (
+                          expandedLiverSets.sets.map((set) => {
+                            const isBest = expandedLiverSets.summary?.bestSetId === set.id;
+                            const isMostPopular = expandedLiverSets.summary?.mostPopularSetId === set.id && !isBest;
+                            return (
+                              <div
+                                key={set.id}
+                                className="p-3 rounded-lg bg-[#0a1a2a]/60 border border-cyan-500/10"
+                              >
+                                <div className="flex items-start justify-between gap-2 flex-wrap">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <Package className="w-4 h-4 text-pink-400 shrink-0" />
+                                    <span className="text-cyan-100 font-semibold text-sm">{set.setName}</span>
+                                    {set.discountRate != null && set.discountRate > 0 && (
+                                      <span className="px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 text-xs font-bold">
+                                        {Math.round(set.discountRate)}%OFF
+                                      </span>
+                                    )}
+                                    {isBest && (
+                                      <span className="px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-300 text-xs font-bold">
+                                        ⭐ {tr.bestSet}
+                                      </span>
+                                    )}
+                                    {isMostPopular && (
+                                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold">
+                                        🔥 {tr.popular}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-3 text-xs">
+                                    {set.livestreamDate && (
+                                      <span className="text-cyan-500/50">
+                                        {new Date(set.livestreamDate).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-4 mt-2 text-xs">
+                                  <div>
+                                    <span className="text-cyan-500/50">{tr.setPrice}: </span>
+                                    <span className="text-yellow-400 font-bold">{formatCurrency(set.setPrice || 0)}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-cyan-500/50">{tr.quantitySold}: </span>
+                                    <span className="text-cyan-300 font-bold">{set.quantitySold || 0}セット</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-cyan-500/50">{tr.setRevenueSingle}: </span>
+                                    <span className="text-emerald-400 font-mono font-bold">{formatCurrency(set.totalRevenue || 0)}</span>
+                                  </div>
+                                </div>
+
+                                {/* セット内容（構成商品） */}
+                                {set.items && set.items.length > 0 && (
+                                  <div className="mt-2 pt-2 border-t border-cyan-500/10">
+                                    <div className="text-cyan-500/40 text-xs mb-1 flex items-center gap-1">
+                                      <span>{tr.setContent}</span>
+                                      {set.totalOriginalPrice != null && set.totalOriginalPrice > 0 && (
+                                        <span className="text-cyan-500/30">({tr.originalPrice}: {formatCurrency(set.totalOriginalPrice)})</span>
+                                      )}
+                                    </div>
+                                    <div className="space-y-0.5">
+                                      {set.items.map((item, idx) => (
+                                        <div key={idx} className="flex items-center justify-between text-xs">
+                                          <span className="text-cyan-200/70">{item.productName}</span>
+                                          <span className="text-cyan-500/40 font-mono">{formatCurrency(item.originalPrice || 0)}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="p-4 text-center text-cyan-500/40 text-sm">
+                            <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
+                            読み込み中...
+                          </div>
+                        )}
+
+                        {/* ライバー詳細ページへのリンク */}
+                        <div className="text-right pt-1">
+                          <Link href={`/master/livers/${liver.liverId}`} className="text-xs text-pink-400 hover:text-pink-300 transition-colors">
+                            ライバー詳細を見る →
+                          </Link>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             ) : (
