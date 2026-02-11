@@ -4783,3 +4783,6 @@
 
 ## バグ修正：シェアボタンのリンク先を /line-login に修正
 - [x] LiverReferralCardのシェアURLを /line-login?ref=コード&mode=register に変更
+
+## 修正：シェアリンクからアクセス時にメールタブ新規登録モードをデフォルト表示
+- [x] mode=register時にactiveTab='email'かつisRegistering=trueにする（初期値で設定に変更）

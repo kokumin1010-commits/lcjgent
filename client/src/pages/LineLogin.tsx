@@ -23,9 +23,12 @@ export default function LineLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [isRegistering, setIsRegistering] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [activeTab, setActiveTab] = useState<"line" | "email">("line");
+  // Check URL params for initial state
+  const urlParamsInit = new URLSearchParams(window.location.search);
+  const modeInit = urlParamsInit.get('mode');
+  const [isRegistering, setIsRegistering] = useState(modeInit === 'register');
+  const [activeTab, setActiveTab] = useState<"line" | "email">(modeInit === 'register' ? 'email' : 'line');
   
   // Referral code state
   const [referralCode, setReferralCode] = useState("");
@@ -39,11 +42,7 @@ export default function LineLogin() {
     const refCode = urlParams.get('ref');
     const mode = urlParams.get('mode');
     
-    // If mode=register, switch to registration mode with email tab
-    if (mode === 'register') {
-      setIsRegistering(true);
-      setActiveTab('email');
-    }
+    // mode=register is now handled by initial state above
     
     if (refCode && /^\d{4}$/.test(refCode)) {
       setReferralCode(refCode);
