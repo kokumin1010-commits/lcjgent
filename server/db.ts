@@ -5896,6 +5896,7 @@ function generateOrderNumber(): string {
 // 注文作成
 export async function createMallOrder(data: {
   lineUserId: number;
+  pointLineUserId?: string; // ポイント消費用のキー（email_${id}またはLINE userId）
   items: Array<{
     productId: number;
     quantity: number;
@@ -5957,12 +5958,16 @@ export async function createMallOrder(data: {
 
   // 注文を作成
   const orderNumber = generateOrderNumber();
+  const paymentMethod = cashAmount === 0 ? "points" : "stripe";
+  const status = cashAmount === 0 ? "paid" : "pending"; // ポイント全額なら即決済完了
   const [orderResult] = await db.insert(mallOrders).values({
     orderNumber,
     lineUserId: data.lineUserId,
     totalAmount,
     pointsUsed,
     cashAmount,
+    paymentMethod,
+    status,
     shippingName: data.shippingInfo?.name,
     shippingPhone: data.shippingInfo?.phone,
     shippingPostalCode: data.shippingInfo?.postalCode,
@@ -5995,11 +6000,11 @@ export async function createMallOrder(data: {
         balance: sql`${linePointBalances.balance} - ${pointsUsed}`,
         totalUsed: sql`${linePointBalances.totalUsed} + ${pointsUsed}`,
       })
-      .where(eq(linePointBalances.lineUserId, String(data.lineUserId)));
+      .where(eq(linePointBalances.lineUserId, data.pointLineUserId || String(data.lineUserId)));
 
     // ポイント取引履歴を追加
     await db.insert(linePointTransactions).values({
-      lineUserId: String(data.lineUserId),
+      lineUserId: data.pointLineUserId || String(data.lineUserId),
       type: "use",
       amount: -pointsUsed,
       balanceAfter: 0, // 後で更新

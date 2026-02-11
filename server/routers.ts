@@ -11472,13 +11472,19 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           throw new TRPCError({ code: "BAD_REQUEST", message: "ポイントが不足しています" });
         }
 
-        // ポイントを消費
-        await useLinePoints(lineUserId, totalPoints, `商品購入: ${product.name}`);
+        // 注文レコードを作成（ポイント消費・在庫減算・注文履歴作成を一括で実行）
+        const orderResult = await createMallOrder({
+          lineUserId: result.lineUser.id,
+          pointLineUserId: lineUserId, // email_${id} または LINE userId
+          items: [{
+            productId: input.productId,
+            quantity: input.quantity,
+            usePoints: true,
+          }],
+          pointsToUse: totalPoints,
+        });
 
-        // 在庫を減らす
-        await updateMallProduct(product.id, { stock: product.stock - input.quantity });
-
-        return { success: true, pointsUsed: totalPoints };
+        return { success: true, pointsUsed: totalPoints, orderNumber: orderResult.orderNumber };
       }),
 
     // 商品画像アップロード（管理者のみ）
