@@ -50,6 +50,7 @@ import {
 
 import { SiTiktok, SiInstagram, SiYoutube } from "react-icons/si";
 import { GoalAchievedConfetti } from "@/components/Confetti";
+import LiverReferralCard from "@/components/LiverReferralCard";
 
 export default function LiverMypage() {
   const [, navigate] = useLocation();
@@ -599,6 +600,9 @@ export default function LiverMypage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* 紹介コードカード */}
+        <LiverReferralCard />
 
         {/* Goal Progress Card - マイページトップに目標設定 */}
         <Card className="bg-gradient-to-r from-purple-600/20 via-pink-600/20 to-red-600/20 border-purple-500/30">

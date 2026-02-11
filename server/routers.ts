@@ -414,6 +414,10 @@ import {
   getProductDescImages,
   addProductDescImage,
   deleteProductDescImage,
+  getReferralCodeByCode,
+  applyReferralCode,
+  hasUsedReferralCode,
+  getAllReferralCodes,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -1464,6 +1468,121 @@ export const lineLoginRouter = router({
         });
       }
     }),
+
+  // ==========================================
+  // 紹介コードシステム (Referral Code System)
+  // ==========================================
+
+  // 紹介コードの検証（コード入力時のプレビュー）
+  verifyReferralCode: publicProcedure
+    .input(z.object({
+      code: z.string().length(4).regex(/^\d{4}$/),
+    }))
+    .query(async ({ input }) => {
+      const result = await getReferralCodeByCode(input.code);
+      if (!result) {
+        return { valid: false, message: "無効な紹介コードです" };
+      }
+      return {
+        valid: true,
+        liverName: result.liverName,
+        liverAvatarUrl: result.liverAvatarUrl,
+      };
+    }),
+
+  // 紹介コードの適用（ポイント付与）
+  applyReferralCode: publicProcedure
+    .input(z.object({
+      code: z.string().length(4).regex(/^\d{4}$/),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // ログインチェック
+      const sessionResult = await getLineUserFromSession(ctx);
+      if (!sessionResult || !sessionResult.lineUser) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "ログインが必要です",
+        });
+      }
+
+      const { lineUser } = sessionResult;
+
+      // 既に紹介コードを使用済みかチェック
+      const alreadyUsed = await hasUsedReferralCode(lineUser.id);
+      if (alreadyUsed) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "紹介コードは1人1回のみ使用できます",
+        });
+      }
+
+      // 紹介コードの検証
+      const referralResult = await getReferralCodeByCode(input.code);
+      if (!referralResult) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "無効な紹介コードです",
+        });
+      }
+
+      const { referralCode, liverName } = referralResult;
+
+      // 自分自身の紹介コードは使用不可（ライバーがLINE連携している場合）
+      // ライバーのLINE User IDを取得
+      const { getLiverById } = await import("./db");
+      const liver = await getLiverById(referralCode.liverId);
+      if (liver?.lineUserId && lineUser.lineUserId === liver.lineUserId) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "自分自身の紹介コードは使用できません",
+        });
+      }
+
+      // ポイント付与実行
+      const lineUserId = lineUser.lineUserId || `email_${lineUser.id}`;
+      const referrerLineUserId = liver?.lineUserId || null;
+
+      try {
+        const result = await applyReferralCode(
+          referralCode.id,
+          referralCode.liverId,
+          lineUser.id,
+          lineUserId,
+          referrerLineUserId,
+          500, // 新規ユーザー500pt
+          200  // ライバー200pt
+        );
+
+        return {
+          success: true,
+          newUserPoints: result.newUserPoints,
+          referrerPoints: result.referrerPoints,
+          liverName,
+          message: `紹介コードが適用されました！${result.newUserPoints}ポイントを獲得しました🎉`,
+        };
+      } catch (error: any) {
+        if (error.message === "このユーザーは既に紹介コードを使用済みです") {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "紹介コードは1人1回のみ使用できます",
+          });
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "紹介コードの適用に失敗しました",
+        });
+      }
+    }),
+
+  // 紹介コード使用済みかチェック
+  checkReferralUsed: publicProcedure.query(async ({ ctx }) => {
+    const sessionResult = await getLineUserFromSession(ctx);
+    if (!sessionResult || !sessionResult.lineUser) {
+      return { used: false, loggedIn: false };
+    }
+    const used = await hasUsedReferralCode(sessionResult.lineUser.id);
+    return { used, loggedIn: true };
+  }),
 });
 
 export const appRouter = router({

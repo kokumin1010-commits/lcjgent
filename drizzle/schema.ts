@@ -2669,3 +2669,46 @@ export const mallProductDescImages = mysqlTable("mall_product_desc_images", {
 });
 export type MallProductDescImage = typeof mallProductDescImages.$inferSelect;
 export type InsertMallProductDescImage = typeof mallProductDescImages.$inferInsert;
+
+
+// =====================================================
+// Referral Code System (紹介コードシステム)
+// ライバーが配信中に宣伝して新規ユーザーを獲得する仕組み
+// =====================================================
+
+/**
+ * Referral Codes table
+ * ライバーごとに4桁数字の紹介コードを管理
+ */
+export const referralCodes = mysqlTable("referral_codes", {
+  id: int("id").autoincrement().primaryKey(),
+  liverId: int("liverId").notNull(), // References livers.id
+  code: varchar("code", { length: 4 }).notNull().unique(), // 4桁数字の紹介コード
+  isActive: boolean("isActive").default(true).notNull(), // コードが有効かどうか
+  totalReferrals: int("totalReferrals").default(0).notNull(), // 累計紹介人数
+  totalPointsEarned: bigint("totalPointsEarned", { mode: "number" }).default(0).notNull(), // 累計獲得ポイント
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type ReferralCode = typeof referralCodes.$inferSelect;
+export type InsertReferralCode = typeof referralCodes.$inferInsert;
+
+/**
+ * Referral History table
+ * 紹介履歴（誰が誰を紹介したか・ポイント付与記録）
+ */
+export const referralHistory = mysqlTable("referral_history", {
+  id: int("id").autoincrement().primaryKey(),
+  referralCodeId: int("referralCodeId").notNull(), // References referral_codes.id
+  referrerLiverId: int("referrerLiverId").notNull(), // 紹介したライバーのID
+  referredLineUserId: int("referredLineUserId").notNull(), // 紹介された新規ユーザーのline_users.id
+  // ポイント付与記録
+  newUserPoints: int("newUserPoints").default(500).notNull(), // 新規ユーザーに付与したポイント
+  referrerPoints: int("referrerPoints").default(200).notNull(), // 紹介ライバーに付与したポイント
+  newUserPointAwarded: boolean("newUserPointAwarded").default(false).notNull(), // 新規ユーザーへのポイント付与済みか
+  referrerPointAwarded: boolean("referrerPointAwarded").default(false).notNull(), // ライバーへのポイント付与済みか
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ReferralHistoryRecord = typeof referralHistory.$inferSelect;
+export type InsertReferralHistory = typeof referralHistory.$inferInsert;

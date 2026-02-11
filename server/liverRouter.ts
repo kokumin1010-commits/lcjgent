@@ -24,6 +24,8 @@ import {
   getLiverGoal,
   upsertLiverGoal,
   getLiverDashboardStats,
+  getOrCreateReferralCode,
+  getReferralStats,
 } from "./db";
 import { nanoid } from "nanoid";
 import nodemailer from "nodemailer";
@@ -638,4 +640,36 @@ export const liverRouter = router({
       const stats = await getLiverDashboardStats(payload.liverId, input.yearMonth);
       return stats;
     }),
+
+  // ==========================================
+  // 紹介コードシステム (Referral Code System for Livers)
+  // ==========================================
+
+  // 紹介コード取得（未作成なら自動生成）
+  getMyReferralCode: publicProcedure.query(async ({ ctx }) => {
+    const token = getLiverToken(ctx);
+    if (!token) {
+      throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+    }
+    const payload = await verifyLiverToken(token);
+    if (!payload) {
+      throw new TRPCError({ code: "UNAUTHORIZED", message: "セッションが無効です" });
+    }
+    const code = await getOrCreateReferralCode(payload.liverId);
+    return code;
+  }),
+
+  // 紹介統計情報取得
+  getReferralStats: publicProcedure.query(async ({ ctx }) => {
+    const token = getLiverToken(ctx);
+    if (!token) {
+      throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+    }
+    const payload = await verifyLiverToken(token);
+    if (!payload) {
+      throw new TRPCError({ code: "UNAUTHORIZED", message: "セッションが無効です" });
+    }
+    const stats = await getReferralStats(payload.liverId);
+    return stats;
+  }),
 });

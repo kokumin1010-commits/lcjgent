@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -10527,4 +10527,238 @@ export async function deleteProductDescImage(imageId: number) {
   if (!db) throw new Error("Database not available");
 
   return await db.delete(mallProductDescImages).where(eq(mallProductDescImages.id, imageId));
+}
+
+
+// =====================================================
+// Referral Code System (紹介コードシステム)
+// =====================================================
+
+/**
+ * Generate a unique 4-digit referral code
+ */
+async function generateUniqueReferralCode(): Promise<string> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  let attempts = 0;
+  while (attempts < 100) {
+    // Generate random 4-digit number (1000-9999)
+    const code = String(Math.floor(1000 + Math.random() * 9000));
+    
+    // Check if code already exists
+    const existing = await db
+      .select()
+      .from(referralCodes)
+      .where(eq(referralCodes.code, code))
+      .limit(1);
+    
+    if (existing.length === 0) {
+      return code;
+    }
+    attempts++;
+  }
+  throw new Error("Failed to generate unique referral code after 100 attempts");
+}
+
+/**
+ * Get or create referral code for a liver
+ */
+export async function getOrCreateReferralCode(liverId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Check if liver already has a referral code
+  const existing = await db
+    .select()
+    .from(referralCodes)
+    .where(and(eq(referralCodes.liverId, liverId), eq(referralCodes.isActive, true)))
+    .limit(1);
+  
+  if (existing.length > 0) {
+    return existing[0];
+  }
+  
+  // Generate new code
+  const code = await generateUniqueReferralCode();
+  const result = await db.insert(referralCodes).values({
+    liverId,
+    code,
+  });
+  
+  const newCode = await db
+    .select()
+    .from(referralCodes)
+    .where(eq(referralCodes.id, Number(result[0].insertId)))
+    .limit(1);
+  
+  return newCode[0];
+}
+
+/**
+ * Get referral code by code string
+ */
+export async function getReferralCodeByCode(code: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db
+    .select({
+      referralCode: referralCodes,
+      liverName: livers.name,
+      liverAvatarUrl: livers.avatarUrl,
+    })
+    .from(referralCodes)
+    .leftJoin(livers, eq(referralCodes.liverId, livers.id))
+    .where(and(eq(referralCodes.code, code), eq(referralCodes.isActive, true)))
+    .limit(1);
+  
+  if (result.length === 0) return null;
+  return result[0];
+}
+
+/**
+ * Apply referral code - award points to both new user and referrer
+ */
+export async function applyReferralCode(
+  referralCodeId: number,
+  referrerLiverId: number,
+  referredLineUserId: number,
+  newUserLineUserId: string, // LINE User ID string for point system
+  referrerLineUserId: string | null, // Liver's LINE User ID (may be null)
+  newUserPoints: number = 500,
+  referrerPoints: number = 200
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Check if this user has already used a referral code
+  const existingReferral = await db
+    .select()
+    .from(referralHistory)
+    .where(eq(referralHistory.referredLineUserId, referredLineUserId))
+    .limit(1);
+  
+  if (existingReferral.length > 0) {
+    throw new Error("このユーザーは既に紹介コードを使用済みです");
+  }
+  
+  // Create referral history record
+  await db.insert(referralHistory).values({
+    referralCodeId,
+    referrerLiverId,
+    referredLineUserId,
+    newUserPoints,
+    referrerPoints,
+    newUserPointAwarded: true,
+    referrerPointAwarded: !!referrerLineUserId,
+  });
+  
+  // Award points to new user
+  await createLinePointTransaction({
+    lineUserId: newUserLineUserId,
+    type: "earn",
+    amount: newUserPoints,
+    referenceType: "system",
+    description: `紹介コード特典: ${newUserPoints}ポイント獲得`,
+  });
+  
+  // Award points to referrer liver (if they have a LINE User ID)
+  if (referrerLineUserId) {
+    await createLinePointTransaction({
+      lineUserId: referrerLineUserId,
+      type: "earn",
+      amount: referrerPoints,
+      referenceType: "system",
+      description: `紹介報酬: 新規ユーザー紹介で${referrerPoints}ポイント獲得`,
+    });
+  }
+  
+  // Update referral code stats
+  await db
+    .update(referralCodes)
+    .set({
+      totalReferrals: sql`${referralCodes.totalReferrals} + 1`,
+      totalPointsEarned: sql`${referralCodes.totalPointsEarned} + ${referrerPoints}`,
+    })
+    .where(eq(referralCodes.id, referralCodeId));
+  
+  return { newUserPoints, referrerPoints };
+}
+
+/**
+ * Get referral stats for a liver
+ */
+export async function getReferralStats(liverId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const code = await db
+    .select()
+    .from(referralCodes)
+    .where(and(eq(referralCodes.liverId, liverId), eq(referralCodes.isActive, true)))
+    .limit(1);
+  
+  if (code.length === 0) return null;
+  
+  // Get recent referral history
+  const history = await db
+    .select({
+      id: referralHistory.id,
+      referredLineUserId: referralHistory.referredLineUserId,
+      referrerPoints: referralHistory.referrerPoints,
+      createdAt: referralHistory.createdAt,
+      userName: lineUsers.displayName,
+      userPicture: lineUsers.pictureUrl,
+    })
+    .from(referralHistory)
+    .leftJoin(lineUsers, eq(referralHistory.referredLineUserId, lineUsers.id))
+    .where(eq(referralHistory.referrerLiverId, liverId))
+    .orderBy(desc(referralHistory.createdAt))
+    .limit(50);
+  
+  return {
+    code: code[0],
+    history,
+  };
+}
+
+/**
+ * Check if a line user has already used a referral code
+ */
+export async function hasUsedReferralCode(lineUserId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db
+    .select()
+    .from(referralHistory)
+    .where(eq(referralHistory.referredLineUserId, lineUserId))
+    .limit(1);
+  
+  return result.length > 0;
+}
+
+/**
+ * Get all referral codes with liver info (admin view)
+ */
+export async function getAllReferralCodes() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return db
+    .select({
+      id: referralCodes.id,
+      code: referralCodes.code,
+      liverId: referralCodes.liverId,
+      liverName: livers.name,
+      liverAvatarUrl: livers.avatarUrl,
+      isActive: referralCodes.isActive,
+      totalReferrals: referralCodes.totalReferrals,
+      totalPointsEarned: referralCodes.totalPointsEarned,
+      createdAt: referralCodes.createdAt,
+    })
+    .from(referralCodes)
+    .leftJoin(livers, eq(referralCodes.liverId, livers.id))
+    .orderBy(desc(referralCodes.totalReferrals));
 }

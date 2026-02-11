@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLocation } from "wouter";
+import ReferralCodeInput from "@/components/ReferralCodeInput";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 
@@ -616,7 +617,12 @@ export default function LineMypage() {
           </TabsContent>
         </Tabs>
 
-        {/* LINE連携セクション */}
+        {/* 紹介コード入力セクション */}
+        <div className="mt-8">
+          <ReferralCodeInput compact />
+        </div>
+
+        {/* LINEアカウント連携セクション */}
         <Card className="mt-8 border-emerald-200 bg-gradient-to-br from-emerald-50 to-green-50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-emerald-700">
