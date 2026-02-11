@@ -22,7 +22,7 @@ import {
 import { useLanguage, Language } from "@/contexts/LanguageContext";
 
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, Coins, Receipt, MessageCircle, Package, ShoppingCart, UserCheck, Zap, Wallet, Calculator, UserRoundCog } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, Coins, Receipt, MessageCircle, Package, ShoppingCart, UserCheck, Zap, Wallet, Calculator, UserRoundCog, Megaphone } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -112,6 +112,7 @@ function DashboardLayoutContent({
     { icon: Building2, label: "ブランド・カテゴリ", path: "/master/mall-brands-categories", adminOnly: true },
     { icon: ShoppingCart, label: t("nav.orders") || "注文管理", path: "/master/orders", adminOnly: true },
     { icon: UserCheck, label: t("nav.mallMembers") || "LCJ MALL会員様", path: "/master/mall-members", adminOnly: true },
+    { icon: Megaphone, label: "紹介コード管理", path: "/master/referral", adminOnly: true },
     { icon: Users, label: t("nav.staff"), path: "/master/staff" },
     { icon: Wallet, label: t("nav.finance") || "ファイナンス管理", path: "/master/finance" },
     { icon: Settings, label: t("nav.masterControl"), path: "/master/control" },

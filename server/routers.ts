@@ -12838,6 +12838,28 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         }));
       }),
   }),
+
+  // 紹介コード管理（admin）
+  referral: router({
+    getAll: protectedProcedure.query(async () => {
+      return await getAllReferralCodes();
+    }),
+    // 紹介ランキング（公開） - /livers ページ用
+    ranking: publicProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        const all = await getAllReferralCodes();
+        const ranked = all
+          .filter(r => r.isActive && (r.totalReferrals ?? 0) > 0)
+          .slice(0, input?.limit ?? 10);
+        return ranked.map(r => ({
+          liverName: r.liverName,
+          liverAvatarUrl: r.liverAvatarUrl,
+          totalReferrals: r.totalReferrals ?? 0,
+          totalPointsEarned: r.totalPointsEarned ?? 0,
+        }));
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

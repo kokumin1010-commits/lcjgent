@@ -27,6 +27,7 @@ import {
   getLiverById,
   getLineUserByLineId,
   getLineUserById,
+  getAllReferralCodes,
 } from "./db";
 
 const mockedGetReferralCodeByCode = vi.mocked(getReferralCodeByCode);
@@ -35,6 +36,29 @@ const mockedApplyReferralCode = vi.mocked(applyReferralCode);
 const mockedGetLiverById = vi.mocked(getLiverById);
 const mockedGetLineUserByLineId = vi.mocked(getLineUserByLineId);
 const mockedGetLineUserById = vi.mocked(getLineUserById);
+const mockedGetAllReferralCodes = vi.mocked(getAllReferralCodes);
+
+function createAuthenticatedContext(): TrpcContext {
+  return {
+    user: {
+      id: 1,
+      name: "Admin",
+      email: "admin@test.com",
+      role: "admin",
+      openId: "test-open-id",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as any,
+    req: {
+      headers: {},
+      cookies: {},
+    } as any,
+    res: {
+      cookie: vi.fn(),
+      clearCookie: vi.fn(),
+    } as any,
+  };
+}
 
 function createPublicContext(): TrpcContext {
   return {
@@ -333,6 +357,123 @@ describe("Referral Code System", () => {
         500,  // newUserPoints
         200   // referrerPoints
       );
+    });
+  });
+});
+
+
+describe("Referral Admin & Ranking", () => {
+  const mockReferralCodes = [
+    {
+      id: 1,
+      code: "1234",
+      liverId: 10,
+      liverName: "ライバーA",
+      liverAvatarUrl: "https://example.com/a.jpg",
+      isActive: true,
+      totalReferrals: 15,
+      totalPointsEarned: 3000,
+      createdAt: new Date(),
+    },
+    {
+      id: 2,
+      code: "5678",
+      liverId: 20,
+      liverName: "ライバーB",
+      liverAvatarUrl: null,
+      isActive: true,
+      totalReferrals: 8,
+      totalPointsEarned: 1600,
+      createdAt: new Date(),
+    },
+    {
+      id: 3,
+      code: "9012",
+      liverId: 30,
+      liverName: "ライバーC",
+      liverAvatarUrl: null,
+      isActive: true,
+      totalReferrals: 0,
+      totalPointsEarned: 0,
+      createdAt: new Date(),
+    },
+    {
+      id: 4,
+      code: "3456",
+      liverId: 40,
+      liverName: "ライバーD",
+      liverAvatarUrl: null,
+      isActive: false,
+      totalReferrals: 3,
+      totalPointsEarned: 600,
+      createdAt: new Date(),
+    },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe("referral.getAll", () => {
+    it("should return all referral codes for authenticated users", async () => {
+      mockedGetAllReferralCodes.mockResolvedValue(mockReferralCodes as any);
+      const ctx = createAuthenticatedContext();
+      const trpcCaller = caller(ctx);
+      const result = await trpcCaller.referral.getAll();
+      expect(result).toHaveLength(4);
+      expect(result[0].liverName).toBe("ライバーA");
+      expect(result[0].totalReferrals).toBe(15);
+    });
+
+    it("should reject unauthenticated users", async () => {
+      const ctx = createPublicContext();
+      const trpcCaller = caller(ctx);
+      await expect(trpcCaller.referral.getAll()).rejects.toThrow();
+    });
+  });
+
+  describe("referral.ranking", () => {
+    it("should return only active codes with referrals > 0", async () => {
+      mockedGetAllReferralCodes.mockResolvedValue(mockReferralCodes as any);
+      const ctx = createPublicContext();
+      const trpcCaller = caller(ctx);
+      const result = await trpcCaller.referral.ranking();
+      // Should exclude: ライバーC (0 referrals), ライバーD (inactive)
+      expect(result).toHaveLength(2);
+      expect(result[0].liverName).toBe("ライバーA");
+      expect(result[1].liverName).toBe("ライバーB");
+    });
+
+    it("should respect limit parameter", async () => {
+      mockedGetAllReferralCodes.mockResolvedValue(mockReferralCodes as any);
+      const ctx = createPublicContext();
+      const trpcCaller = caller(ctx);
+      const result = await trpcCaller.referral.ranking({ limit: 1 });
+      expect(result).toHaveLength(1);
+      expect(result[0].liverName).toBe("ライバーA");
+    });
+
+    it("should not expose referral code values in ranking", async () => {
+      mockedGetAllReferralCodes.mockResolvedValue(mockReferralCodes as any);
+      const ctx = createPublicContext();
+      const trpcCaller = caller(ctx);
+      const result = await trpcCaller.referral.ranking();
+      // Ensure code is not exposed in public ranking
+      result.forEach((item: any) => {
+        expect(item.code).toBeUndefined();
+        expect(item.id).toBeUndefined();
+        expect(item.liverId).toBeUndefined();
+      });
+    });
+
+    it("should return empty array when no qualifying codes exist", async () => {
+      mockedGetAllReferralCodes.mockResolvedValue([
+        { ...mockReferralCodes[2] }, // 0 referrals
+      ] as any);
+      const ctx = createPublicContext();
+      const trpcCaller = caller(ctx);
+      const result = await trpcCaller.referral.ranking();
+      expect(result).toHaveLength(0);
     });
   });
 });

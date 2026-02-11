@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Crown, Clock, TrendingUp, ChevronDown, ChevronUp, Users, DollarSign, Activity, Zap, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { Crown, Clock, TrendingUp, ChevronDown, ChevronUp, Users, DollarSign, Activity, Zap, ArrowUpRight, ArrowDownRight, Megaphone, Gift } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function LiverList() {
@@ -34,6 +34,7 @@ export default function LiverList() {
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].value);
   const [showAllSales, setShowAllSales] = useState(false);
   const [showAllDuration, setShowAllDuration] = useState(false);
+  const [showAllReferral, setShowAllReferral] = useState(false);
   
   const { data: rankings, isLoading } = trpc.liverManagement.rankings.useQuery({
     month: selectedMonth,
@@ -43,6 +44,13 @@ export default function LiverList() {
     month: selectedMonth,
   });
   
+  // Referral Ranking
+  const { data: referralRanking } = trpc.referral.ranking.useQuery({ limit: 20 });
+  
+  const referralRankingToShow = showAllReferral
+    ? referralRanking
+    : referralRanking?.slice(0, 5);
+
   // Total LCJ Liver Sales Summary
   const { data: totalSummary } = trpc.liverManagement.totalSalesSummary.useQuery({
     month: selectedMonth,
@@ -359,6 +367,76 @@ export default function LiverList() {
             )}
           </CardContent>
         </Card>
+        
+        {/* Referral Ranking */}
+        {referralRanking && referralRanking.length > 0 && (
+          <Card className="bg-gray-900/50 border-gray-800">
+            <CardContent className="p-4">
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Megaphone className="w-5 h-5 text-purple-500" />
+                紹介ランキング
+              </h2>
+              
+              <div className="space-y-3">
+                {referralRankingToShow?.map((item, index) => (
+                  <div
+                    key={item.liverName || index}
+                    className="flex items-center gap-4 p-3 rounded-lg hover:bg-gray-800/50 transition-colors"
+                  >
+                    {getRankIcon(index + 1)}
+                    <Avatar className="w-12 h-12">
+                      <AvatarImage src={item.liverAvatarUrl || undefined} />
+                      <AvatarFallback className="bg-purple-900 text-white">
+                        {item.liverName?.charAt(0) || "?"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <p className="font-medium text-white">{item.liverName || "不明"}</p>
+                      <div className="flex items-center gap-4 text-sm mt-1">
+                        <div className="flex items-center gap-1">
+                          <Users className="w-3.5 h-3.5 text-purple-400" />
+                          <span className="text-purple-400 font-bold">{item.totalReferrals}人</span>
+                          <span className="text-xs text-gray-500">紹介</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Gift className="w-3.5 h-3.5 text-pink-400" />
+                          <span className="text-pink-400">{item.totalPointsEarned.toLocaleString()}pt</span>
+                          <span className="text-xs text-gray-500">獲得</span>
+                        </div>
+                      </div>
+                      {/* Progress bar */}
+                      <div className="h-1 bg-purple-500/20 rounded mt-2">
+                        <div
+                          className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded"
+                          style={{
+                            width: `${Math.min(100, (item.totalReferrals / (referralRanking?.[0]?.totalReferrals || 1)) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {referralRanking.length > 5 && (
+                <div className="flex justify-center mt-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAllReferral(!showAllReferral)}
+                    className="border-gray-700 text-gray-300 hover:bg-gray-800"
+                  >
+                    {showAllReferral ? (
+                      <>閉じる <ChevronUp className="w-4 h-4 ml-1" /></>
+                    ) : (
+                      <>VIEW MORE <ChevronDown className="w-4 h-4 ml-1" /></>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
         
         {/* All Livers List */}
         <Card className="bg-gray-900/50 border-gray-800">

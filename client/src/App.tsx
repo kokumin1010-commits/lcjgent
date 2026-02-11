@@ -74,6 +74,7 @@ import ReceiptUpload from "./pages/ReceiptUpload";
 import MallBrandCategoryManagement from "./pages/MallBrandCategoryManagement";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
 import CheckoutCancel from "./pages/CheckoutCancel";
+import ReferralManagement from "./pages/ReferralManagement";
 
 function Router() {
   return (
@@ -289,6 +290,7 @@ function Router() {
           <HRManagement />
         </DashboardLayout>
       </Route>
+      <Route path={"/master/referral"} component={ReferralManagement} />
       
       {/* Public Pages - Proposal */}
       <Route path="/proposal/:token" component={ProposalPage} />
