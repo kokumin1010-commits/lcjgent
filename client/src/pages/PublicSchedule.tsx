@@ -16,10 +16,7 @@ import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
-// Helper function to convert UTC to JST
-function toJST(date: Date): Date {
-  return new Date(date.getTime() + 9 * 60 * 60 * 1000);
-}
+// toJST removed - use Intl API with timeZone: 'Asia/Tokyo' instead
 
 // Helper function to format time in JST
 function formatTimeJST(date: Date): string {
@@ -40,10 +37,9 @@ function formatTimeRangeJST(startDate: Date, endDate: Date | null): string {
   return `${startTime}-${endTime}`;
 }
 
-// Helper function to get JST date key
+// Helper function to get JST date key using Intl API
 function getJSTDateKey(date: Date): string {
-  const jst = toJST(date);
-  return `${jst.getUTCFullYear()}-${String(jst.getUTCMonth() + 1).padStart(2, "0")}-${String(jst.getUTCDate()).padStart(2, "0")}`;
+  return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' }); // YYYY-MM-DD format
 }
 
 // Helper function to format date for bottom sheet header
@@ -385,17 +381,17 @@ export default function PublicSchedule() {
           isMultiDay: false,
         } as Schedule & { isMultiDay: boolean });
       } else {
-        // 複数日予定 - 各日に展開
-        const current = new Date(toJST(startDate));
-        current.setUTCHours(0, 0, 0, 0);
-        const end = new Date(toJST(endDate));
-        end.setUTCHours(0, 0, 0, 0);
+        // 複数日予定 - 各日に展開 (JSTで日付を取得)
+        const startKeyStr = startDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
+        const endKeyStr = endDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
+        const current = new Date(startKeyStr + 'T00:00:00');
+        const end = new Date(endKeyStr + 'T00:00:00');
         
         const spanDays = Math.ceil((end.getTime() - current.getTime()) / (1000 * 60 * 60 * 24)) + 1;
         let dayIndex = 0;
         
         while (current <= end) {
-          const dateKey = `${current.getUTCFullYear()}-${String(current.getUTCMonth() + 1).padStart(2, "0")}-${String(current.getUTCDate()).padStart(2, "0")}`;
+          const dateKey = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, "0")}-${String(current.getDate()).padStart(2, "0")}`;
           
           if (!map.has(dateKey)) {
             map.set(dateKey, []);
@@ -411,7 +407,7 @@ export default function PublicSchedule() {
             spanDays,
           } as Schedule & { isMultiDay: boolean; isStart: boolean; isEnd: boolean; spanDays: number });
           
-          current.setUTCDate(current.getUTCDate() + 1);
+          current.setDate(current.getDate() + 1);
           dayIndex++;
         }
       }

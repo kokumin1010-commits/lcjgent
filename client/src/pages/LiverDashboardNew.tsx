@@ -1023,7 +1023,7 @@ export default function LiverDashboardNew() {
                                   <div className="flex items-center gap-3 text-xs">
                                     {set.livestreamDate && (
                                       <span className="text-cyan-500/50">
-                                        {new Date(set.livestreamDate).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}
+                                        {new Date(set.livestreamDate).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', timeZone: 'Asia/Tokyo' })}
                                       </span>
                                     )}
                                   </div>

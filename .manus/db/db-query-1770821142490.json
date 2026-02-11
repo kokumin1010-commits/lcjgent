@@ -1,0 +1,60 @@
+{
+  "query": "SELECT id, streamerName, livestreamDate, livestreamEndTime, UNIX_TIMESTAMP(livestreamDate) as unix_start, UNIX_TIMESTAMP(livestreamEndTime) as unix_end, CONVERT_TZ(livestreamDate, '+00:00', '+09:00') as jst_start, CONVERT_TZ(livestreamEndTime, '+00:00', '+09:00') as jst_end FROM brand_livestreams WHERE (streamerName LIKE '%NANA%' OR streamerName LIKE '%nana%') AND livestreamDate >= '2025-02-08' ORDER BY livestreamDate DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, streamerName, livestreamDate, livestreamEndTime, UNIX_TIMESTAMP(livestreamDate) as unix_start, UNIX_TIMESTAMP(livestreamEndTime) as unix_end, CONVERT_TZ(livestreamDate, '+00:00', '+09:00') as jst_start, CONVERT_TZ(livestreamEndTime, '+00:00', '+09:00') as jst_end FROM brand_livestreams WHERE (streamerName LIKE '%NANA%' OR streamerName LIKE '%nana%') AND livestreamDate >= '2025-02-08' ORDER BY livestreamDate DESC LIMIT 5;",
+  "rows": [
+    {
+      "id": "960005",
+      "streamerName": "NANA",
+      "livestreamDate": "2026-02-09 11:22:00",
+      "livestreamEndTime": "2026-02-09 13:01:00",
+      "unix_start": "1770636120",
+      "unix_end": "1770642060",
+      "jst_start": "2026-02-09 20:22:00.000000",
+      "jst_end": "2026-02-09 22:01:00.000000"
+    },
+    {
+      "id": "960009",
+      "streamerName": "NANA",
+      "livestreamDate": "2026-02-09 02:00:00",
+      "livestreamEndTime": "2026-02-09 03:00:00",
+      "unix_start": "1770602400",
+      "unix_end": "1770606000",
+      "jst_start": "2026-02-09 11:00:00.000000",
+      "jst_end": "2026-02-09 12:00:00.000000"
+    },
+    {
+      "id": "900001",
+      "streamerName": "NANA",
+      "livestreamDate": "2026-02-08 11:08:00",
+      "livestreamEndTime": "2026-02-08 13:26:00",
+      "unix_start": "1770548880",
+      "unix_end": "1770557160",
+      "jst_start": "2026-02-08 20:08:00.000000",
+      "jst_end": "2026-02-08 22:26:00.000000"
+    },
+    {
+      "id": "960007",
+      "streamerName": "NANA",
+      "livestreamDate": "2026-02-05 09:35:00",
+      "livestreamEndTime": "2026-02-05 14:03:00",
+      "unix_start": "1770284100",
+      "unix_end": "1770300180",
+      "jst_start": "2026-02-05 18:35:00.000000",
+      "jst_end": "2026-02-05 23:03:00.000000"
+    },
+    {
+      "id": "840475",
+      "streamerName": "NANA",
+      "livestreamDate": "2026-02-05 09:35:00",
+      "livestreamEndTime": "2026-02-06 14:03:00",
+      "unix_start": "1770284100",
+      "unix_end": "1770386580",
+      "jst_start": "2026-02-05 18:35:00.000000",
+      "jst_end": "2026-02-06 23:03:00.000000"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tstreamerName\tlivestreamDate\tlivestreamEndTime\tunix_start\tunix_end\tjst_start\tjst_end\n960005\tNANA\t2026-02-09 11:22:00\t2026-02-09 13:01:00\t1770636120\t1770642060\t2026-02-09 20:22:00.000000\t2026-02-09 22:01:00.000000\n960009\tNANA\t2026-02-09 02:00:00\t2026-02-09 03:00:00\t1770602400\t1770606000\t2026-02-09 11:00:00.000000\t2026-02-09 12:00:00.000000\n900001\tNANA\t2026-02-08 11:08:00\t2026-02-08 13:26:00\t1770548880\t1770557160\t2026-02-08 20:08:00.000000\t2026-02-08 22:26:00.000000\n960007\tNANA\t2026-02-05 09:35:00\t2026-02-05 14:03:00\t1770284100\t1770300180\t2026-02-05 18:35:00.000000\t2026-02-05 23:03:00.000000\n840475\tNANA\t2026-02-05 09:35:00\t2026-02-06 14:03:00\t1770284100\t1770386580\t2026-02-05 18:35:00.000000\t2026-02-06 23:03:00.000000\n",
+  "stderr": "",
+  "execution_time_ms": 1505
+}

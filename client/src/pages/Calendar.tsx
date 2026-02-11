@@ -471,7 +471,7 @@ export default function CalendarPage() {
                 const isCurrentMonth = date.getMonth() === currentDate.getMonth();
                 const isToday = date.toDateString() === new Date().toDateString();
                 // Use YYYY-MM-DD format in JST for matching with schedulesByDate
-                const dateKey = date.toLocaleDateString("en-CA"); // YYYY-MM-DD format
+                const dateKey = date.toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" }); // YYYY-MM-DD format
                 const daySchedules = schedulesByDate.get(dateKey) || [];
                 const dayOfWeek = date.getDay();
 
@@ -535,7 +535,7 @@ export default function CalendarPage() {
           <CardContent>
             {(() => {
               // Use YYYY-MM-DD format for today's date key
-              const todayKey = new Date().toLocaleDateString("en-CA");
+              const todayKey = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Tokyo" });
               const todaySchedules = schedulesByDate.get(todayKey) || [];
               if (todaySchedules.length === 0) {
                 return (

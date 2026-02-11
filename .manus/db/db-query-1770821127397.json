@@ -1,0 +1,45 @@
+{
+  "query": "SELECT id, streamerName, livestreamDate, livestreamEndTime, duration FROM brand_livestreams WHERE streamerName LIKE '%NANA%' OR streamerName LIKE '%nana%' ORDER BY livestreamDate DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, streamerName, livestreamDate, livestreamEndTime, duration FROM brand_livestreams WHERE streamerName LIKE '%NANA%' OR streamerName LIKE '%nana%' ORDER BY livestreamDate DESC LIMIT 5;",
+  "rows": [
+    {
+      "id": "960005",
+      "streamerName": "NANA",
+      "livestreamDate": "2026-02-09 11:22:00",
+      "livestreamEndTime": "2026-02-09 13:01:00",
+      "duration": "98"
+    },
+    {
+      "id": "960009",
+      "streamerName": "NANA",
+      "livestreamDate": "2026-02-09 02:00:00",
+      "livestreamEndTime": "2026-02-09 03:00:00",
+      "duration": "NULL"
+    },
+    {
+      "id": "900001",
+      "streamerName": "NANA",
+      "livestreamDate": "2026-02-08 11:08:00",
+      "livestreamEndTime": "2026-02-08 13:26:00",
+      "duration": "138"
+    },
+    {
+      "id": "960007",
+      "streamerName": "NANA",
+      "livestreamDate": "2026-02-05 09:35:00",
+      "livestreamEndTime": "2026-02-05 14:03:00",
+      "duration": "268"
+    },
+    {
+      "id": "840475",
+      "streamerName": "NANA",
+      "livestreamDate": "2026-02-05 09:35:00",
+      "livestreamEndTime": "2026-02-06 14:03:00",
+      "duration": "268"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tstreamerName\tlivestreamDate\tlivestreamEndTime\tduration\n960005\tNANA\t2026-02-09 11:22:00\t2026-02-09 13:01:00\t98\n960009\tNANA\t2026-02-09 02:00:00\t2026-02-09 03:00:00\tNULL\n900001\tNANA\t2026-02-08 11:08:00\t2026-02-08 13:26:00\t138\n960007\tNANA\t2026-02-05 09:35:00\t2026-02-05 14:03:00\t268\n840475\tNANA\t2026-02-05 09:35:00\t2026-02-06 14:03:00\t268\n",
+  "stderr": "",
+  "execution_time_ms": 1674
+}

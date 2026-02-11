@@ -19,32 +19,26 @@ import {
   AlertCircle
 } from "lucide-react";
 
-// Helper function to convert UTC to JST
-function toJST(date: Date): Date {
-  return new Date(date.getTime() + 9 * 60 * 60 * 1000);
-}
-
-// Helper function to format time in JST
+// Helper function to format time in JST using Intl API
 function formatTimeJST(date: Date | string): string {
   const d = new Date(date);
-  const jst = toJST(d);
-  return jst.toLocaleTimeString("ja-JP", {
+  return d.toLocaleTimeString("ja-JP", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
-    timeZone: "UTC",
+    timeZone: "Asia/Tokyo",
   });
 }
 
-// Helper function to get JST date parts
+// Helper function to get JST date parts using Intl API
 function getJSTDateParts(date: Date | string): { year: number; month: number; day: number; dayOfWeek: number } {
   const d = new Date(date);
-  const jst = toJST(d);
+  const options: Intl.DateTimeFormatOptions = { timeZone: 'Asia/Tokyo' };
   return {
-    year: jst.getUTCFullYear(),
-    month: jst.getUTCMonth(),
-    day: jst.getUTCDate(),
-    dayOfWeek: jst.getUTCDay(),
+    year: parseInt(d.toLocaleDateString('ja-JP', { ...options, year: 'numeric' })),
+    month: parseInt(d.toLocaleDateString('ja-JP', { ...options, month: 'numeric' })) - 1, // 0-indexed
+    day: parseInt(d.toLocaleDateString('ja-JP', { ...options, day: 'numeric' })),
+    dayOfWeek: new Date(d.toLocaleDateString('en-CA', { ...options })).getDay(),
   };
 }
 

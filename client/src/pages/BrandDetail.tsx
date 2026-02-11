@@ -385,7 +385,7 @@ const formatCurrency = (value: number | string | null | undefined) => {
 const formatDate = (date: Date | string | null | undefined) => {
   if (!date) return "-";
   const d = new Date(date);
-  return d.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" });
+  return d.toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Asia/Tokyo" });
 };
 
 // 編集ログセクションコンポーネント
@@ -4816,7 +4816,7 @@ ${proposal.proposalContent}
                       />
                       <div className="flex-1 min-w-0">
                         <div className="text-sm text-white truncate">
-                          {ls.livestreamDate ? new Date(ls.livestreamDate).toLocaleDateString('ja-JP') : ''} - {ls.streamerName || (language === 'zh' ? '未知主播' : '不明')}
+                          {ls.livestreamDate ? new Date(ls.livestreamDate).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' }) : ''} - {ls.streamerName || (language === 'zh' ? '未知主播' : '不明')}
                         </div>
                         <div className="text-xs text-gray-500">
                           GMV: ¥{(ls.gmv || ls.salesAmount || 0).toLocaleString()}

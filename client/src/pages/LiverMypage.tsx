@@ -289,7 +289,9 @@ export default function LiverMypage() {
     };
     const filtered = livestreams.filter((ls: LivestreamRecord) => {
       const date = new Date(ls.livestreamDate);
-      return date.getFullYear() === year && date.getMonth() + 1 === month;
+      const jstYear = parseInt(date.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric' }));
+      const jstMonth = parseInt(date.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric' }));
+      return jstYear === year && jstMonth === month;
     });
 
     const sales = filtered.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.salesAmount || 0), 0);
@@ -379,7 +381,9 @@ export default function LiverMypage() {
     return livestreams
       .filter((ls: { livestreamDate: string | Date }) => {
         const date = new Date(ls.livestreamDate);
-        return date.getFullYear() === year && date.getMonth() + 1 === month;
+        const jstYear = parseInt(date.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric' }));
+        const jstMonth = parseInt(date.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric' }));
+        return jstYear === year && jstMonth === month;
       })
       .sort((a: { livestreamDate: string | Date }, b: { livestreamDate: string | Date }) => new Date(b.livestreamDate).getTime() - new Date(a.livestreamDate).getTime());
   }, [livestreams, selectedMonth]);
@@ -393,7 +397,9 @@ export default function LiverMypage() {
     if (livestreams) {
       livestreams.forEach((ls: { livestreamDate: string | Date }) => {
         const date = new Date(ls.livestreamDate);
-        const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+        const jstYear = parseInt(date.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', year: 'numeric' }));
+        const jstMonth = parseInt(date.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric' }));
+        const value = `${jstYear}-${String(jstMonth).padStart(2, "0")}`;
         monthsWithData.add(value);
       });
     }
@@ -935,17 +941,17 @@ export default function LiverMypage() {
                         <div className="flex items-center gap-3">
                           <div className="text-center bg-gray-700/50 rounded px-2 py-1">
                             <p className="text-xs font-bold text-white">
-                              {startDate ? `${startDate.getMonth() + 1}/${startDate.getDate()}` : "-/-"}
+                              {startDate ? `${parseInt(startDate.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric' }))}/${parseInt(startDate.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', day: 'numeric' }))}` : "-/-"}
                             </p>
                             <p className="text-[10px] text-gray-400">
-                              {startDate ? startDate.toLocaleDateString("ja-JP", { weekday: "short" }) : "-"}
+                              {startDate ? startDate.toLocaleDateString("ja-JP", { weekday: "short", timeZone: "Asia/Tokyo" }) : "-"}
                             </p>
                           </div>
                           <div>
                             <div className="flex items-center gap-1">
                               <p className="text-xs text-gray-300">
-                                {startDate ? startDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }) : "--:--"}
-                                {endDate && ` - ${endDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}`}
+                                {startDate ? startDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tokyo" }) : "--:--"}
+                                {endDate && ` - ${endDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tokyo" })}`}
                               </p>
                               {hasAiAdvice && (
                                 <Sparkles className="h-3 w-3 text-yellow-500" />
@@ -1119,7 +1125,8 @@ export default function LiverMypage() {
                     const endDate = history.dateRangeEnd ? new Date(history.dateRangeEnd) : null;
                     const formatDate = (date: Date | null) => {
                       if (!date) return '';
-                      return `${date.getMonth() + 1}/${date.getDate()}`;
+                      const opts: Intl.DateTimeFormatOptions = { timeZone: 'Asia/Tokyo' };
+                      return `${parseInt(date.toLocaleDateString('ja-JP', { ...opts, month: 'numeric' }))}/${parseInt(date.toLocaleDateString('ja-JP', { ...opts, day: 'numeric' }))}`;
                     };
                     
                     return (
@@ -1139,7 +1146,7 @@ export default function LiverMypage() {
                               </span>
                             </div>
                             <div className="text-[10px] text-gray-500">
-                              {new Date(history.createdAt).toLocaleDateString('ja-JP')}
+                              {new Date(history.createdAt).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' })}
                               {history.totalGmv && (
                                 <span className="text-yellow-400 ml-2">
                                   ¥{Number(history.totalGmv).toLocaleString()}

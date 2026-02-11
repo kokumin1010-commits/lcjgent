@@ -1262,9 +1262,9 @@ export default function LineManagement() {
                               <div className="flex items-center gap-2">
                                 <Calendar className="h-4 w-4 text-muted-foreground" />
                                 <span className="font-medium">
-                                  {livestream.livestreamDate 
-                                    ? format(new Date(livestream.livestreamDate), "yyyy/MM/dd")
-                                    : "-"}
+                                   {livestream.livestreamDate 
+                                     ? new Date(livestream.livestreamDate).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Tokyo' })
+                                     : "-"}
                                 </span>
                                 {(advice || livestream.aiAdvice) && (
                                   <Badge variant="secondary" className="text-xs">

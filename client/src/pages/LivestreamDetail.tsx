@@ -80,12 +80,13 @@ export default function LivestreamDetail() {
       const formatDateTimeLocal = (date: Date | string | null) => {
         if (!date) return "";
         const d = new Date(date);
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, "0");
-        const day = String(d.getDate()).padStart(2, "0");
-        const hours = String(d.getHours()).padStart(2, "0");
-        const mins = String(d.getMinutes()).padStart(2, "0");
-        return `${year}-${month}-${day}T${hours}:${mins}`;
+        // Always use Asia/Tokyo timezone for consistent JST display
+        const options: Intl.DateTimeFormatOptions = { timeZone: 'Asia/Tokyo' };
+        const year = parseInt(d.toLocaleDateString('ja-JP', { ...options, year: 'numeric' }));
+        const month = String(parseInt(d.toLocaleDateString('ja-JP', { ...options, month: 'numeric' }))).padStart(2, '0');
+        const day = String(parseInt(d.toLocaleDateString('ja-JP', { ...options, day: 'numeric' }))).padStart(2, '0');
+        const time = d.toLocaleTimeString('ja-JP', { ...options, hour: '2-digit', minute: '2-digit', hour12: false });
+        return `${year}-${month}-${day}T${time}`;
       };
 
       setFormData({
@@ -173,16 +174,15 @@ export default function LivestreamDetail() {
 
   const formatDateTime = (date: Date | string | null) => {
     if (!date) return "-";
-    // JST（日本時間）で表示
+    // JST（日本時間）で表示 - toLocaleStringでタイムゾーンを指定
     const d = new Date(date);
-    const jstDate = new Date(d.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
-    const year = jstDate.getUTCFullYear();
-    const month = String(jstDate.getUTCMonth() + 1).padStart(2, "0");
-    const day = String(jstDate.getUTCDate()).padStart(2, "0");
-    const weekday = ["日", "月", "火", "水", "木", "金", "土"][jstDate.getUTCDay()];
-    const hours = String(jstDate.getUTCHours()).padStart(2, "0");
-    const mins = String(jstDate.getUTCMinutes()).padStart(2, "0");
-    return `${year}/${month}/${day}(${weekday}) ${hours}:${mins}`;
+    const options: Intl.DateTimeFormatOptions = { timeZone: 'Asia/Tokyo' };
+    const year = parseInt(d.toLocaleDateString('ja-JP', { ...options, year: 'numeric' }));
+    const month = String(parseInt(d.toLocaleDateString('ja-JP', { ...options, month: 'numeric' }))).padStart(2, '0');
+    const day = String(parseInt(d.toLocaleDateString('ja-JP', { ...options, day: 'numeric' }))).padStart(2, '0');
+    const weekdayStr = d.toLocaleDateString('ja-JP', { ...options, weekday: 'short' });
+    const time = d.toLocaleTimeString('ja-JP', { ...options, hour: '2-digit', minute: '2-digit', hour12: false });
+    return `${year}/${month}/${day}(${weekdayStr}) ${time}`;
   };
 
   const formatCurrency = (amount: number | string) => {

@@ -97,7 +97,10 @@ export default function LiverByName() {
   const formatDate = (dateStr: string | Date | null | undefined) => {
     if (!dateStr) return "-";
     const date = new Date(dateStr);
-    return `${date.getMonth() + 1}/${date.getDate()}`;
+    const options: Intl.DateTimeFormatOptions = { timeZone: 'Asia/Tokyo' };
+    const month = parseInt(date.toLocaleDateString('ja-JP', { ...options, month: 'numeric' }));
+    const day = parseInt(date.toLocaleDateString('ja-JP', { ...options, day: 'numeric' }));
+    return `${month}/${day}`;
   };
 
   if (isLoading) {

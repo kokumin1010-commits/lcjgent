@@ -7,35 +7,27 @@ import { Calendar, ChevronLeft, ChevronRight, Clock, User, ArrowLeft } from "luc
 import { cn } from "@/lib/utils";
 import { Link } from "wouter";
 
-// Helper function to convert UTC to JST
-function toJST(date: Date): Date {
-  return new Date(date.getTime() + 9 * 60 * 60 * 1000);
-}
-
-// Helper function to format time in JST
+// Helper function to format time in JST using Intl API
 function formatTimeJST(date: Date): string {
-  const jst = toJST(date);
-  return jst.toLocaleTimeString("ja-JP", {
+  return date.toLocaleTimeString("ja-JP", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
-    timeZone: "UTC",
+    timeZone: "Asia/Tokyo",
   });
 }
 
 // Helper function to get JST date key
 function getJSTDateKey(date: Date): string {
-  const jst = toJST(date);
-  return `${jst.getUTCFullYear()}-${String(jst.getUTCMonth() + 1).padStart(2, "0")}-${String(jst.getUTCDate()).padStart(2, "0")}`;
+  return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' }); // YYYY-MM-DD format
 }
 
 // Helper function to format date for display
 function formatDateDisplay(date: Date): string {
-  const jst = toJST(date);
-  const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
-  const month = jst.getUTCMonth() + 1;
-  const day = jst.getUTCDate();
-  const weekday = weekdays[jst.getUTCDay()];
+  const options: Intl.DateTimeFormatOptions = { timeZone: 'Asia/Tokyo' };
+  const month = parseInt(date.toLocaleDateString('ja-JP', { ...options, month: 'numeric' }));
+  const day = parseInt(date.toLocaleDateString('ja-JP', { ...options, day: 'numeric' }));
+  const weekday = date.toLocaleDateString('ja-JP', { ...options, weekday: 'short' });
   return `${month}/${day}(${weekday})`;
 }
 
