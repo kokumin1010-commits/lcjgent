@@ -37,6 +37,14 @@ export default function LineLogin() {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const refCode = urlParams.get('ref');
+    const mode = urlParams.get('mode');
+    
+    // If mode=register, switch to registration mode with email tab
+    if (mode === 'register') {
+      setIsRegistering(true);
+      setActiveTab('email');
+    }
+    
     if (refCode && /^\d{4}$/.test(refCode)) {
       setReferralCode(refCode);
       return;
