@@ -95,6 +95,10 @@ export default function LineLogin() {
       if (data.sessionToken) {
         localStorage.setItem('lcj_session_token', data.sessionToken);
       }
+      // Save referral bonus flag for mypage banner
+      if (data.referralApplied && data.referralPoints) {
+        localStorage.setItem('lcj_referral_bonus', String(data.referralPoints));
+      }
       
       // Check if coming from add_friend flow
       const urlParams = new URLSearchParams(window.location.search);
@@ -160,7 +164,13 @@ export default function LineLogin() {
       }
       // Clear saved referral code after successful registration
       localStorage.removeItem('lcj_referral_code');
-      toast.success("アカウントを作成しました");
+      if (data.referralApplied && data.referralPoints) {
+        toast.success(`アカウントを作成しました！紹介コード特典で${data.referralPoints}ptを獲得しました🎉`);
+        // Save flag for welcome banner on mypage
+        localStorage.setItem('lcj_referral_bonus', String(data.referralPoints));
+      } else {
+        toast.success("アカウントを作成しました");
+      }
       // Auto-login: redirect to mypage
       setTimeout(() => {
         window.location.href = "/mypage";

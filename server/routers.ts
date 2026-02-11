@@ -696,8 +696,9 @@ export const lineLoginRouter = router({
         return null;
       }
       
-      // Get point balance
-      const pointBalance = lineUser.lineUserId ? await getLinePointBalance(lineUser.lineUserId) : null;
+      // Get point balance - use lineUserId or email_${id} fallback for email-only users
+      const pointLookupId = lineUser.lineUserId || `email_${lineUser.id}`;
+      const pointBalance = await getLinePointBalance(pointLookupId);
       
       // Generate sessionToken for localStorage sync
       // This ensures that even if the user logged in via cookie,
@@ -844,6 +845,8 @@ export const lineLoginRouter = router({
       return {
         success: true,
         sessionToken, // Return token for localStorage fallback
+        referralApplied: !!input.referralCode,
+        referralPoints: input.referralCode ? 500 : 0,
         user: {
           lineUserId: profile.userId,
           displayName: profile.displayName,
@@ -979,6 +982,7 @@ export const lineLoginRouter = router({
         success: true,
         userId: newUser.id,
         referralApplied: !!referralData,
+        referralPoints: referralData ? 500 : 0,
         sessionToken,
       };
     }),
@@ -1209,8 +1213,9 @@ export const lineLoginRouter = router({
     }
     
     try {
-      const pointBalance = lineUser.lineUserId ? await getLinePointBalance(lineUser.lineUserId) : null;
-      const transactions = lineUser.lineUserId ? await getLinePointTransactions(lineUser.lineUserId, { limit: 50 }) : [];
+      const pointLookupId = lineUser.lineUserId || `email_${lineUser.id}`;
+      const pointBalance = await getLinePointBalance(pointLookupId);
+      const transactions = await getLinePointTransactions(pointLookupId, { limit: 50 });
       
       return {
         balance: pointBalance?.balance || 0,
@@ -11439,10 +11444,7 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         if (!result || !result.lineUser) {
           throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
         }
-        const lineUserId = result.lineUser.lineUserId;
-        if (!lineUserId) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "ポイント購入にはLINEアカウントの連携が必要です" });
-        }
+        const lineUserId = result.lineUser.lineUserId || `email_${result.lineUser.id}`;
 
         // 商品情報を取得
         const product = await getMallProductById(input.productId);

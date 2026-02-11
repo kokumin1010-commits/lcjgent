@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ShoppingBag, Coins, Receipt, LogOut, ArrowLeft, Clock, CheckCircle, XCircle, AlertCircle, TrendingUp, TrendingDown, ShoppingCart, History, Link2, Copy, RefreshCw, ExternalLink, Upload, Package, Truck, ChevronDown, ChevronUp, CreditCard } from "lucide-react";
+import { Loader2, ShoppingBag, Coins, Receipt, LogOut, ArrowLeft, Clock, CheckCircle, XCircle, AlertCircle, TrendingUp, TrendingDown, ShoppingCart, History, Link2, Copy, RefreshCw, ExternalLink, Upload, Package, Truck, ChevronDown, ChevronUp, CreditCard, Gift, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -16,6 +16,16 @@ export default function LineMypage() {
   const [, setLocation] = useLocation();
   const [historyFilter, setHistoryFilter] = useState<"all" | "earn" | "use">("all");
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
+  const [referralBonusBanner, setReferralBonusBanner] = useState<number | null>(null);
+  
+  // Check for referral bonus banner on mount
+  useEffect(() => {
+    const bonus = localStorage.getItem('lcj_referral_bonus');
+    if (bonus) {
+      setReferralBonusBanner(parseInt(bonus, 10));
+      localStorage.removeItem('lcj_referral_bonus');
+    }
+  }, []);
   
   const { data: user, isLoading: userLoading } = trpc.lineLogin.me.useQuery();
   
@@ -221,6 +231,30 @@ export default function LineMypage() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
+        {/* Referral Bonus Banner */}
+        {referralBonusBanner && (
+          <div className="mb-6 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-400 rounded-xl p-4 shadow-lg relative overflow-hidden">
+            <button
+              onClick={() => setReferralBonusBanner(null)}
+              className="absolute top-2 right-2 text-amber-800 hover:text-amber-900 z-10"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <div className="flex items-center gap-3 relative z-10">
+              <div className="h-12 w-12 bg-white/30 rounded-full flex items-center justify-center flex-shrink-0">
+                <Gift className="h-6 w-6 text-amber-800" />
+              </div>
+              <div>
+                <p className="text-amber-900 font-bold text-lg">
+                  {referralBonusBanner}pt 獲得しました！
+                </p>
+                <p className="text-amber-800 text-sm">
+                  紹介コード特典のポイントが付与されました。商品購入にご利用いただけます。
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Points Summary - 改善されたデザイン */}
         <Card className="mb-8 border-rose-200 bg-gradient-to-br from-rose-50 to-pink-50 shadow-lg">
           <CardHeader className="pb-2">
