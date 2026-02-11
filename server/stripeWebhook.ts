@@ -54,6 +54,21 @@ export async function handleStripeWebhook(req: any, res: any) {
 
           // LINE通知を送信
           await sendOrderConfirmationLine(order.id);
+          
+          // Check and confirm pending referral (award points on first purchase)
+          try {
+            const { confirmPendingReferral, getMallOrderById } = await import("./db");
+            const orderDetail = await getMallOrderById(order.id);
+            if (orderDetail?.lineUser) {
+              const lineUserId = orderDetail.lineUser.lineUserId || `email_${orderDetail.lineUser.id}`;
+              const result = await confirmPendingReferral(lineUserId, orderDetail.lineUser.id);
+              if (result) {
+                console.log(`[Referral] Confirmed referral for user ${orderDetail.lineUser.id}: new user +${result.newUserPoints}pt, referrer +${result.referrerPoints}pt`);
+              }
+            }
+          } catch (refErr: any) {
+            console.error(`[Referral] Error confirming referral on Stripe payment:`, refErr.message);
+          }
         } else {
           console.warn(`[Stripe Webhook] No order found for session ${session.id}`);
         }

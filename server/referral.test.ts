@@ -16,6 +16,8 @@ vi.mock("./db", async () => {
     getLineUserByLineId: vi.fn(),
     getLineUserById: vi.fn(),
     getLiverById: vi.fn(),
+    registerReferralCodeAtSignup: vi.fn(),
+    confirmPendingReferral: vi.fn(),
   };
 });
 
@@ -28,6 +30,8 @@ import {
   getLineUserByLineId,
   getLineUserById,
   getAllReferralCodes,
+  registerReferralCodeAtSignup,
+  confirmPendingReferral,
 } from "./db";
 
 const mockedGetReferralCodeByCode = vi.mocked(getReferralCodeByCode);
@@ -37,6 +41,8 @@ const mockedGetLiverById = vi.mocked(getLiverById);
 const mockedGetLineUserByLineId = vi.mocked(getLineUserByLineId);
 const mockedGetLineUserById = vi.mocked(getLineUserById);
 const mockedGetAllReferralCodes = vi.mocked(getAllReferralCodes);
+const mockedRegisterReferralCodeAtSignup = vi.mocked(registerReferralCodeAtSignup);
+const mockedConfirmPendingReferral = vi.mocked(confirmPendingReferral);
 
 function createAuthenticatedContext(): TrpcContext {
   return {
@@ -474,6 +480,62 @@ describe("Referral Admin & Ranking", () => {
       const trpcCaller = caller(ctx);
       const result = await trpcCaller.referral.ranking();
       expect(result).toHaveLength(0);
+    });
+  });
+});
+
+
+describe("Referral Code - Registration & Purchase Flow", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe("lineLogin.validateReferralCode", () => {
+    it("should return liver name for valid referral code", async () => {
+      mockedGetReferralCodeByCode.mockResolvedValue({
+        referralCode: {
+          id: 1,
+          liverId: 10,
+          code: "1234",
+          isActive: true,
+          totalReferrals: 5,
+          totalPointsEarned: 1000,
+          createdAt: new Date(),
+        },
+        liverName: "テストライバー",
+        liverAvatarUrl: "https://example.com/avatar.jpg",
+      } as any);
+
+      const ctx = createPublicContext();
+      const trpcCaller = caller(ctx);
+      const result = await trpcCaller.lineLogin.validateReferralCode({ code: "1234" });
+
+      expect(result.valid).toBe(true);
+      expect(result.liverName).toBe("テストライバー");
+    });
+
+    it("should throw error for invalid referral code", async () => {
+      mockedGetReferralCodeByCode.mockResolvedValue(null);
+
+      const ctx = createPublicContext();
+      const trpcCaller = caller(ctx);
+
+      await expect(
+        trpcCaller.lineLogin.validateReferralCode({ code: "9999" })
+      ).rejects.toThrow("無効な紹介コードです");
+    });
+
+    it("should reject non-4-digit codes", async () => {
+      const ctx = createPublicContext();
+      const trpcCaller = caller(ctx);
+
+      await expect(
+        trpcCaller.lineLogin.validateReferralCode({ code: "12" })
+      ).rejects.toThrow();
+
+      await expect(
+        trpcCaller.lineLogin.validateReferralCode({ code: "abcd" })
+      ).rejects.toThrow();
     });
   });
 });

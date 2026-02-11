@@ -10762,3 +10762,154 @@ export async function getAllReferralCodes() {
     .leftJoin(livers, eq(referralCodes.liverId, livers.id))
     .orderBy(desc(referralCodes.totalReferrals));
 }
+
+
+/**
+ * Register a pending referral at signup time (no points awarded yet)
+ * Points will be awarded when the user makes their first purchase
+ */
+export async function registerPendingReferral(
+  referralCodeId: number,
+  referrerLiverId: number,
+  referredLineUserId: number,
+  newUserPoints: number = 500,
+  referrerPoints: number = 200
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Check if this user has already used a referral code
+  const existingReferral = await db
+    .select()
+    .from(referralHistory)
+    .where(eq(referralHistory.referredLineUserId, referredLineUserId))
+    .limit(1);
+  
+  if (existingReferral.length > 0) {
+    throw new Error("このユーザーは既に紹介コードを使用済みです");
+  }
+  
+  // Create referral history record with pending status (no points awarded yet)
+  await db.insert(referralHistory).values({
+    referralCodeId,
+    referrerLiverId,
+    referredLineUserId,
+    status: "pending",
+    newUserPoints,
+    referrerPoints,
+    newUserPointAwarded: false,
+    referrerPointAwarded: false,
+  });
+  
+  return { success: true, status: "pending" };
+}
+
+/**
+ * Confirm a pending referral and award points (called on first purchase)
+ * Returns null if no pending referral exists for this user
+ */
+export async function confirmPendingReferral(
+  lineUserId: string, // LINE User ID string (for point system)
+  referredLineUserDbId: number // line_users.id
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Find pending referral for this user
+  const pendingReferral = await db
+    .select()
+    .from(referralHistory)
+    .where(
+      and(
+        eq(referralHistory.referredLineUserId, referredLineUserDbId),
+        eq(referralHistory.status, "pending")
+      )
+    )
+    .limit(1);
+  
+  if (pendingReferral.length === 0) {
+    return null; // No pending referral, nothing to do
+  }
+  
+  const referral = pendingReferral[0];
+  
+  // Get the referrer liver's LINE User ID for point system
+  const referrerLiver = await db
+    .select({ lineUserId: livers.lineUserId })
+    .from(livers)
+    .where(eq(livers.id, referral.referrerLiverId))
+    .limit(1);
+  
+  const referrerLineUserId = referrerLiver[0]?.lineUserId || null;
+  
+  // Update referral status to confirmed
+  await db
+    .update(referralHistory)
+    .set({
+      status: "confirmed",
+      confirmedAt: new Date(),
+      newUserPointAwarded: true,
+      referrerPointAwarded: !!referrerLineUserId,
+    })
+    .where(eq(referralHistory.id, referral.id));
+  
+  // Award points to new user
+  await createLinePointTransaction({
+    lineUserId: lineUserId,
+    type: "earn",
+    amount: referral.newUserPoints,
+    referenceType: "system",
+    description: `紹介コード特典: ${referral.newUserPoints}ポイント獲得（初回購入完了）`,
+  });
+  
+  // Award points to referrer liver (if they have a LINE User ID)
+  if (referrerLineUserId) {
+    await createLinePointTransaction({
+      lineUserId: referrerLineUserId,
+      type: "earn",
+      amount: referral.referrerPoints,
+      referenceType: "system",
+      description: `紹介報酬: 新規ユーザー初回購入で${referral.referrerPoints}ポイント獲得`,
+    });
+  }
+  
+  // Update referral code stats
+  await db
+    .update(referralCodes)
+    .set({
+      totalReferrals: sql`${referralCodes.totalReferrals} + 1`,
+      totalPointsEarned: sql`${referralCodes.totalPointsEarned} + ${referral.referrerPoints}`,
+    })
+    .where(eq(referralCodes.id, referral.referralCodeId));
+  
+  return {
+    newUserPoints: referral.newUserPoints,
+    referrerPoints: referral.referrerPoints,
+    referrerLineUserId,
+  };
+}
+
+/**
+ * Get pending referral for a user (to show status in UI)
+ */
+export async function getPendingReferral(referredLineUserId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db
+    .select({
+      id: referralHistory.id,
+      status: referralHistory.status,
+      newUserPoints: referralHistory.newUserPoints,
+      referrerPoints: referralHistory.referrerPoints,
+      liverName: livers.name,
+      createdAt: referralHistory.createdAt,
+      confirmedAt: referralHistory.confirmedAt,
+    })
+    .from(referralHistory)
+    .leftJoin(livers, eq(referralHistory.referrerLiverId, livers.id))
+    .where(eq(referralHistory.referredLineUserId, referredLineUserId))
+    .limit(1);
+  
+  return result[0] || null;
+}

@@ -2702,12 +2702,15 @@ export const referralHistory = mysqlTable("referral_history", {
   referralCodeId: int("referralCodeId").notNull(), // References referral_codes.id
   referrerLiverId: int("referrerLiverId").notNull(), // 紹介したライバーのID
   referredLineUserId: int("referredLineUserId").notNull(), // 紹介された新規ユーザーのline_users.id
+  // ステータス管理（不正防止）
+  status: mysqlEnum("status", ["pending", "confirmed", "cancelled"]).default("pending").notNull(), // pending=登録時紐付け, confirmed=購入完了時ポイント付与済, cancelled=キャンセル
   // ポイント付与記録
   newUserPoints: int("newUserPoints").default(500).notNull(), // 新規ユーザーに付与したポイント
   referrerPoints: int("referrerPoints").default(200).notNull(), // 紹介ライバーに付与したポイント
   newUserPointAwarded: boolean("newUserPointAwarded").default(false).notNull(), // 新規ユーザーへのポイント付与済みか
   referrerPointAwarded: boolean("referrerPointAwarded").default(false).notNull(), // ライバーへのポイント付与済みか
   // タイムスタンプ
+  confirmedAt: timestamp("confirmedAt"), // 購入完了・ポイント付与日時
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type ReferralHistoryRecord = typeof referralHistory.$inferSelect;

@@ -722,6 +722,7 @@ export const lineLoginRouter = router({
   liffCallback: publicProcedure
     .input(z.object({
       accessToken: z.string(),
+      referralCode: z.string().length(4).regex(/^\d{4}$/).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       // First try to get profile using access token
@@ -772,6 +773,32 @@ export const lineLoginRouter = router({
         });
       }
       
+      // Register pending referral if code provided (points awarded on first purchase)
+      if (input.referralCode) {
+        try {
+          const { getReferralCodeByCode, registerPendingReferral, hasUsedReferralCode, getLiverById } = await import("./db");
+          const alreadyUsed = await hasUsedReferralCode(lineUser.id);
+          if (!alreadyUsed) {
+            const referralResult = await getReferralCodeByCode(input.referralCode);
+            if (referralResult) {
+              const liver = await getLiverById(referralResult.referralCode.liverId);
+              if (!liver?.lineUserId || lineUser.lineUserId !== liver.lineUserId) {
+                await registerPendingReferral(
+                  referralResult.referralCode.id,
+                  referralResult.referralCode.liverId,
+                  lineUser.id,
+                  500,
+                  200
+                );
+                console.log(`[Referral] Pending referral registered for LINE user ${lineUser.id} via code ${input.referralCode}`);
+              }
+            }
+          }
+        } catch (err: any) {
+          console.error(`[Referral] Failed to register pending referral for LINE user:`, err.message);
+        }
+      }
+      
       // Create session token for LINE user
       const sessionData = {
         lineUserId: profile.userId,
@@ -802,12 +829,32 @@ export const lineLoginRouter = router({
       };
     }),
 
+  // Validate referral code (for registration form)
+  validateReferralCode: publicProcedure
+    .input(z.object({
+      code: z.string().length(4).regex(/^\d{4}$/),
+    }))
+    .mutation(async ({ input }) => {
+      const result = await getReferralCodeByCode(input.code);
+      if (!result) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "無効な紹介コードです",
+        });
+      }
+      return {
+        valid: true,
+        liverName: result.liverName || "ライバー",
+      };
+    }),
+
   // Email registration
   emailRegister: publicProcedure
     .input(z.object({
       email: z.string().email(),
       password: z.string().min(6),
       name: z.string().min(1),
+      referralCode: z.string().length(4).regex(/^\d{4}$/).optional(),
     }))
     .mutation(async ({ input }) => {
       // Check if email already exists
@@ -817,6 +864,20 @@ export const lineLoginRouter = router({
           code: "CONFLICT",
           message: "このメールアドレスは既に登録されています",
         });
+      }
+      
+      // Validate referral code before creating user
+      let referralData: { referralCode: any; liverName: string | null } | null = null;
+      if (input.referralCode) {
+        const { getReferralCodeByCode } = await import("./db");
+        const result = await getReferralCodeByCode(input.referralCode);
+        if (!result) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "無効な紹介コードです",
+          });
+        }
+        referralData = result;
       }
       
       // Hash password
@@ -830,9 +891,28 @@ export const lineLoginRouter = router({
         displayName: input.name,
       });
       
+      // Register pending referral (points awarded on first purchase)
+      if (referralData) {
+        try {
+          const { registerPendingReferral } = await import("./db");
+          await registerPendingReferral(
+            referralData.referralCode.id,
+            referralData.referralCode.liverId,
+            newUser.id,
+            500,
+            200
+          );
+          console.log(`[Referral] Pending referral registered for user ${newUser.id} via code ${input.referralCode}`);
+        } catch (err: any) {
+          console.error(`[Referral] Failed to register pending referral:`, err.message);
+          // Don't fail registration if referral fails
+        }
+      }
+      
       return {
         success: true,
         userId: newUser.id,
+        referralApplied: !!referralData,
       };
     }),
 
@@ -10603,7 +10683,7 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         if (ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
         }
-        const { getReceiptById, updateReceiptStatus, awardPointsForReceipt } = await import("./db");
+        const { getReceiptById, updateReceiptStatus, awardPointsForReceipt, confirmPendingReferral } = await import("./db");
         const receipt = await getReceiptById(input.id);
         if (!receipt) {
           throw new TRPCError({ code: "NOT_FOUND", message: "レシートが見つかりません" });
@@ -10616,6 +10696,10 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         if (pointsToAward > 0) {
           await awardPointsForReceipt(input.id, pointsToAward);
         }
+        
+        // Note: TikTok receipt system uses users.id, not line_users.id
+        // Referral confirmation is handled by LINE receipt approval and MALL order payment
+        
         return { success: true, pointsAwarded: pointsToAward };
       }),
     
@@ -10747,7 +10831,7 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         if (ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
         }
-        const { getLineReceiptById, updateLineReceiptStatus, awardPointsForLineReceipt, getLinePointBalance } = await import("./db");
+        const { getLineReceiptById, updateLineReceiptStatus, awardPointsForLineReceipt, getLinePointBalance, confirmPendingReferral, getLineUserByLineId } = await import("./db");
         const { pushMessage } = await import("./line");
         const receipt = await getLineReceiptById(input.id);
         if (!receipt) {
@@ -10760,6 +10844,19 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         await updateLineReceiptStatus(input.id, "approved", ctx.user.id, input.note);
         if (pointsToAward > 0) {
           await awardPointsForLineReceipt(input.id, pointsToAward);
+        }
+        
+        // Check and confirm pending referral (award points on first purchase)
+        try {
+          const lineUserRecord = await getLineUserByLineId(receipt.lineUserId);
+          if (lineUserRecord) {
+            const result = await confirmPendingReferral(receipt.lineUserId, lineUserRecord.id);
+            if (result) {
+              console.log(`[Referral] Confirmed referral for LINE user ${lineUserRecord.id}: new user +${result.newUserPoints}pt, referrer +${result.referrerPoints}pt`);
+            }
+          }
+        } catch (refErr: any) {
+          console.error(`[Referral] Error confirming referral on LINE receipt approval:`, refErr.message);
         }
         
         // Send LINE notification to user

@@ -26,6 +26,46 @@ export default function LineLogin() {
   const [isRegistering, setIsRegistering] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [activeTab, setActiveTab] = useState<"line" | "email">("line");
+  
+  // Referral code state
+  const [referralCode, setReferralCode] = useState("");
+  const [referralLiverName, setReferralLiverName] = useState<string | null>(null);
+  const [referralError, setReferralError] = useState<string | null>(null);
+  const [isValidatingReferral, setIsValidatingReferral] = useState(false);
+  
+  // Read referral code from URL params on mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const refCode = urlParams.get('ref');
+    if (refCode && /^\d{4}$/.test(refCode)) {
+      setReferralCode(refCode);
+    }
+  }, []);
+  
+  // Validate referral code API
+  const validateReferralMutation = trpc.lineLogin.validateReferralCode.useMutation({
+    onSuccess: (data) => {
+      setReferralLiverName(data.liverName);
+      setReferralError(null);
+      setIsValidatingReferral(false);
+    },
+    onError: (err) => {
+      setReferralLiverName(null);
+      setReferralError(err.message || "無効なコードです");
+      setIsValidatingReferral(false);
+    },
+  });
+  
+  // Validate referral code when it changes
+  useEffect(() => {
+    if (referralCode.length === 4 && /^\d{4}$/.test(referralCode)) {
+      setIsValidatingReferral(true);
+      validateReferralMutation.mutate({ code: referralCode });
+    } else {
+      setReferralLiverName(null);
+      setReferralError(null);
+    }
+  }, [referralCode]);
 
   const addDebug = (msg: string) => {
     console.log("[LIFF]", msg);
@@ -151,7 +191,7 @@ export default function LineLogin() {
             
             if (accessToken) {
               addDebug("Calling liffCallback mutation...");
-              liffCallbackMutation.mutate({ accessToken });
+              liffCallbackMutation.mutate({ accessToken, referralCode: referralCode.length === 4 ? referralCode : undefined });
             } else {
               // Access token is null, need to re-login
               addDebug("No access token, logging out and re-login");
@@ -214,8 +254,8 @@ export default function LineLogin() {
         
         if (accessToken) {
           addDebug(`Got token: ${accessToken.substring(0, 20)}...`);
-          hasProcessedLogin.current = true;
-          liffCallbackMutation.mutate({ accessToken });
+              hasProcessedLogin.current = true;
+              liffCallbackMutation.mutate({ accessToken, referralCode: referralCode.length === 4 ? referralCode : undefined });
         } else {
           addDebug("No token despite being logged in, re-login");
           try {
@@ -250,7 +290,12 @@ export default function LineLogin() {
         toast.error("名前を入力してください");
         return;
       }
-      emailRegisterMutation.mutate({ email, password, name });
+      emailRegisterMutation.mutate({ 
+        email, 
+        password, 
+        name,
+        referralCode: referralCode.length === 4 ? referralCode : undefined,
+      });
     } else {
       emailLoginMutation.mutate({ email, password });
     }
@@ -412,6 +457,36 @@ export default function LineLogin() {
               </div>
             )}
 
+            {/* Referral code input for LINE login */}
+            <div className="space-y-2">
+              <Label htmlFor="referral-line">紹介コード（任意）</Label>
+              <Input
+                id="referral-line"
+                type="text"
+                inputMode="numeric"
+                pattern="\\d{4}"
+                maxLength={4}
+                placeholder="4桁の数字"
+                value={referralCode}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                  setReferralCode(val);
+                }}
+                className={referralLiverName ? "border-green-500" : referralError ? "border-red-500" : ""}
+              />
+              {isValidatingReferral && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Loader2 className="h-3 w-3 animate-spin" />確認中...
+                </p>
+              )}
+              {referralLiverName && (
+                <p className="text-xs text-green-600">✅ {referralLiverName} さんからの紹介（初回購入時に500pt付与）</p>
+              )}
+              {referralError && (
+                <p className="text-xs text-red-500">{referralError}</p>
+              )}
+            </div>
+
             <Button
               size="lg"
               className="w-full bg-[#06C755] hover:bg-[#05b04c] text-white gap-2"
@@ -502,6 +577,37 @@ export default function LineLogin() {
                   </p>
                 )}
               </div>
+
+              {isRegistering && (
+                <div className="space-y-2">
+                  <Label htmlFor="referral-email">紹介コード（任意）</Label>
+                  <Input
+                    id="referral-email"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="\\d{4}"
+                    maxLength={4}
+                    placeholder="4桁の数字"
+                    value={referralCode}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                      setReferralCode(val);
+                    }}
+                    className={referralLiverName ? "border-green-500" : referralError ? "border-red-500" : ""}
+                  />
+                  {isValidatingReferral && (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" />確認中...
+                    </p>
+                  )}
+                  {referralLiverName && (
+                    <p className="text-xs text-green-600">✅ {referralLiverName} さんからの紹介（初回購入時に500pt付与）</p>
+                  )}
+                  {referralError && (
+                    <p className="text-xs text-red-500">{referralError}</p>
+                  )}
+                </div>
+              )}
 
               <Button
                 type="submit"
