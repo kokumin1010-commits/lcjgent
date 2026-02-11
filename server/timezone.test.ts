@@ -209,6 +209,63 @@ describe("Timezone Conversion", () => {
     });
   });
 
+  describe("getJSTMonthRange - JST-based month filtering", () => {
+    // Replicate the helper function from db.ts for testing
+    function getJSTMonthRange(month: string): { startDate: Date; endDate: Date } {
+      const [year, monthNum] = month.split('-').map(Number);
+      const startDate = new Date(Date.UTC(year, monthNum - 1, 1, 0, 0, 0) - 9 * 60 * 60 * 1000);
+      const lastDay = new Date(year, monthNum, 0).getDate();
+      const endDate = new Date(Date.UTC(year, monthNum - 1, lastDay, 23, 59, 59) - 9 * 60 * 60 * 1000);
+      return { startDate, endDate };
+    }
+
+    it("should return correct UTC range for Feb 2026 (JST)", () => {
+      const { startDate, endDate } = getJSTMonthRange('2026-02');
+      // JST Feb 1 00:00 = UTC Jan 31 15:00
+      expect(startDate.toISOString()).toBe('2026-01-31T15:00:00.000Z');
+      // JST Feb 28 23:59:59 = UTC Feb 28 14:59:59
+      expect(endDate.toISOString()).toBe('2026-02-28T14:59:59.000Z');
+    });
+
+    it("should include livestream on JST Feb 1 (UTC Jan 31 20:00)", () => {
+      const { startDate, endDate } = getJSTMonthRange('2026-02');
+      // yae's livestream: 2026-01-31T20:00:00Z = JST Feb 1 05:00
+      const livestreamDate = new Date('2026-01-31T20:00:00Z');
+      expect(livestreamDate >= startDate).toBe(true);
+      expect(livestreamDate <= endDate).toBe(true);
+    });
+
+    it("should NOT include livestream on JST Jan 31 (UTC Jan 31 12:00) in Feb range", () => {
+      const { startDate } = getJSTMonthRange('2026-02');
+      // UTC Jan 31 12:00 = JST Jan 31 21:00 (still January in JST)
+      const livestreamDate = new Date('2026-01-31T12:00:00Z');
+      expect(livestreamDate >= startDate).toBe(false);
+    });
+
+    it("should return correct UTC range for Jan 2026 (JST)", () => {
+      const { startDate, endDate } = getJSTMonthRange('2026-01');
+      // JST Jan 1 00:00 = UTC Dec 31 15:00
+      expect(startDate.toISOString()).toBe('2025-12-31T15:00:00.000Z');
+      // JST Jan 31 23:59:59 = UTC Jan 31 14:59:59
+      expect(endDate.toISOString()).toBe('2026-01-31T14:59:59.000Z');
+    });
+
+    it("should handle December correctly", () => {
+      const { startDate, endDate } = getJSTMonthRange('2025-12');
+      // JST Dec 1 00:00 = UTC Nov 30 15:00
+      expect(startDate.toISOString()).toBe('2025-11-30T15:00:00.000Z');
+      // JST Dec 31 23:59:59 = UTC Dec 31 14:59:59
+      expect(endDate.toISOString()).toBe('2025-12-31T14:59:59.000Z');
+    });
+
+    it("should handle leap year Feb correctly", () => {
+      const { endDate } = getJSTMonthRange('2024-02');
+      // 2024 is leap year, Feb has 29 days
+      // JST Feb 29 23:59:59 = UTC Feb 29 14:59:59
+      expect(endDate.toISOString()).toBe('2024-02-29T14:59:59.000Z');
+    });
+  });
+
   describe("Round-trip: save JST → store UTC → display JST", () => {
     it("should maintain time after save and display (20:22)", () => {
       const userInput = "2025-02-05T20:22";

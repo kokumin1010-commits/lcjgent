@@ -4,6 +4,19 @@ import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, In
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
+// JST (UTC+9) based month date range helper
+// Returns UTC dates that correspond to JST month boundaries
+// e.g., "2026-02" -> startDate = 2026-01-31T15:00:00Z (= JST 2/1 00:00), endDate = 2026-02-28T14:59:59Z (= JST 2/28 23:59:59)
+function getJSTMonthRange(month: string): { startDate: Date; endDate: Date } {
+  const [year, monthNum] = month.split('-').map(Number);
+  // JST month start: 1st day of month at 00:00 JST = previous day at 15:00 UTC
+  const startDate = new Date(Date.UTC(year, monthNum - 1, 1, 0, 0, 0) - 9 * 60 * 60 * 1000);
+  // JST month end: last day of month at 23:59:59 JST = last day at 14:59:59 UTC
+  const lastDay = new Date(year, monthNum, 0).getDate(); // last day of month
+  const endDate = new Date(Date.UTC(year, monthNum - 1, lastDay, 23, 59, 59) - 9 * 60 * 60 * 1000);
+  return { startDate, endDate };
+}
+
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
@@ -3714,9 +3727,7 @@ export async function getLivestreamsByLiverId(liverId: number, month?: string) {
   
   if (month) {
     // month format: "YYYY-MM"
-    const [year, monthNum] = month.split('-').map(Number);
-    const startDate = new Date(year, monthNum - 1, 1);
-    const endDate = new Date(year, monthNum, 0, 23, 59, 59);
+    const { startDate, endDate } = getJSTMonthRange(month);
     conditions.push(sql`${brandLivestreams.livestreamDate} >= ${startDate}`);
     conditions.push(sql`${brandLivestreams.livestreamDate} <= ${endDate}`);
   }
@@ -3736,9 +3747,7 @@ export async function getLiverStatistics(liverId: number, month?: string) {
   const conditions = [eq(brandLivestreams.liverId, liverId)];
   
   if (month) {
-    const [year, monthNum] = month.split('-').map(Number);
-    const startDate = new Date(year, monthNum - 1, 1);
-    const endDate = new Date(year, monthNum, 0, 23, 59, 59);
+    const { startDate, endDate } = getJSTMonthRange(month);
     conditions.push(sql`${brandLivestreams.livestreamDate} >= ${startDate}`);
     conditions.push(sql`${brandLivestreams.livestreamDate} <= ${endDate}`);
   }
@@ -3761,9 +3770,7 @@ export async function getLiverRankings(month: string) {
   const db = await getDb();
   if (!db) return { salesRanking: [], durationRanking: [] };
   
-  const [year, monthNum] = month.split('-').map(Number);
-  const startDate = new Date(year, monthNum - 1, 1);
-  const endDate = new Date(year, monthNum, 0, 23, 59, 59);
+  const { startDate, endDate } = getJSTMonthRange(month);
   
   // Sales ranking - group by liverId only, use MAX for streamerName
   const salesRanking = await db
@@ -3844,9 +3851,7 @@ export async function getLiversWithStats(month: string) {
   const db = await getDb();
   if (!db) return [];
   
-  const [year, monthNum] = month.split('-').map(Number);
-  const startDate = new Date(year, monthNum - 1, 1);
-  const endDate = new Date(year, monthNum, 0, 23, 59, 59);
+  const { startDate, endDate } = getJSTMonthRange(month);
   
   // Get all active livers
   const allLivers = await db
@@ -7187,9 +7192,7 @@ export async function getLivestreamsByStreamerName(streamerName: string, month?:
   let whereConditions = eq(brandLivestreams.streamerName, streamerName);
   
   if (month) {
-    const [year, monthNum] = month.split('-').map(Number);
-    const startDate = new Date(year, monthNum - 1, 1);
-    const endDate = new Date(year, monthNum, 0, 23, 59, 59);
+    const { startDate, endDate } = getJSTMonthRange(month);
     whereConditions = and(
       whereConditions,
       sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
@@ -7695,10 +7698,9 @@ export async function getLiverDashboardStats(liverId: number, yearMonth: string)
   // Get current month's goal
   const goal = await getLiverGoal(liverId, yearMonth);
   
-  // Parse yearMonth to get date range
+  // Parse yearMonth to get date range (JST-based)
   const [year, month] = yearMonth.split("-").map(Number);
-  const startDate = new Date(year, month - 1, 1);
-  const endDate = new Date(year, month, 0, 23, 59, 59);
+  const { startDate, endDate } = getJSTMonthRange(yearMonth);
   
   // Get current month's livestreams
   const currentMonthStreams = await db.select()
@@ -7715,11 +7717,9 @@ export async function getLiverDashboardStats(liverId: number, yearMonth: string)
   const currentMonthStreamCount = currentMonthStreams.length;
   const currentMonthDuration = currentMonthStreams.reduce((sum, s) => sum + (s.duration || 0), 0);
   
-  // Get previous month's stats for comparison
-  const prevMonth = month === 1 ? 12 : month - 1;
-  const prevYear = month === 1 ? year - 1 : year;
-  const prevStartDate = new Date(prevYear, prevMonth - 1, 1);
-  const prevEndDate = new Date(prevYear, prevMonth, 0, 23, 59, 59);
+  // Get previous month's stats for comparison (JST-based)
+  const prevMonthKey = month === 1 ? `${year - 1}-12` : `${year}-${String(month - 1).padStart(2, '0')}`;
+  const { startDate: prevStartDate, endDate: prevEndDate } = getJSTMonthRange(prevMonthKey);
   
   const prevMonthStreams = await db.select()
     .from(brandLivestreams)
@@ -7738,8 +7738,8 @@ export async function getLiverDashboardStats(liverId: number, yearMonth: string)
     const m = new Date(year, month - 1 - i, 1);
     const mYear = m.getFullYear();
     const mMonth = m.getMonth() + 1;
-    const mStartDate = new Date(mYear, mMonth - 1, 1);
-    const mEndDate = new Date(mYear, mMonth, 0, 23, 59, 59);
+    const mMonthKey = `${mYear}-${String(mMonth).padStart(2, '0')}`;
+    const { startDate: mStartDate, endDate: mEndDate } = getJSTMonthRange(mMonthKey);
     
     const monthStreams = await db.select()
       .from(brandLivestreams)
@@ -7884,13 +7884,12 @@ export async function getTotalLiverSalesSummary(month: string) {
   const db = await getDb();
   if (!db) return null;
   
-  const [year, monthNum] = month.split('-').map(Number);
-  const startDate = new Date(year, monthNum - 1, 1);
-  const endDate = new Date(year, monthNum, 0, 23, 59, 59);
+  const { startDate, endDate } = getJSTMonthRange(month);
   
   // Previous month for growth calculation
-  const prevStartDate = new Date(year, monthNum - 2, 1);
-  const prevEndDate = new Date(year, monthNum - 1, 0, 23, 59, 59);
+  const [year, monthNum] = month.split('-').map(Number);
+  const prevMonthStr = monthNum === 1 ? `${year - 1}-12` : `${year}-${String(monthNum - 1).padStart(2, '0')}`;
+  const { startDate: prevStartDate, endDate: prevEndDate } = getJSTMonthRange(prevMonthStr);
   
   // Current month totals
   const currentMonth = await db
@@ -7909,7 +7908,7 @@ export async function getTotalLiverSalesSummary(month: string) {
     );
   
   // Previous month totals
-  const prevMonth = await db
+  const prevMonthData = await db
     .select({
       totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
       totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
@@ -7925,7 +7924,7 @@ export async function getTotalLiverSalesSummary(month: string) {
     );
   
   const current = currentMonth[0];
-  const prev = prevMonth[0];
+  const prev = prevMonthData[0];
   
   // Calculate growth rates
   const salesGrowth = prev.totalSales > 0 
@@ -7969,8 +7968,8 @@ export async function getLiverMonthlySalesTrend() {
     const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const year = date.getFullYear();
     const month = date.getMonth() + 1;
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0, 23, 59, 59);
+    const loopMonthKey = `${year}-${String(month).padStart(2, '0')}`;
+    const { startDate, endDate } = getJSTMonthRange(loopMonthKey);
     
     const result = await db
       .select({
@@ -8025,10 +8024,12 @@ export async function getLiverDetailWithStats(liverId: number) {
     .from(brandLivestreams)
     .where(eq(brandLivestreams.liverId, liverId));
   
-  // Get current month statistics
+  // Get current month statistics (JST-based)
   const now = new Date();
-  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+  // Get current month in JST
+  const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const currentMonthKey = `${jstNow.getUTCFullYear()}-${String(jstNow.getUTCMonth() + 1).padStart(2, '0')}`;
+  const { startDate: currentMonthStart, endDate: currentMonthEnd } = getJSTMonthRange(currentMonthKey);
   
   const currentMonthStats = await db
     .select({
@@ -8043,9 +8044,11 @@ export async function getLiverDetailWithStats(liverId: number) {
       sql`${brandLivestreams.livestreamDate} <= ${currentMonthEnd}`
     ));
   
-  // Get previous month statistics for growth calculation
-  const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+  // Get previous month statistics for growth calculation (JST-based)
+  const jstPrevMonth = jstNow.getUTCMonth(); // 0-indexed, so this is prev month in 1-indexed
+  const jstPrevYear = jstPrevMonth === 0 ? jstNow.getUTCFullYear() - 1 : jstNow.getUTCFullYear();
+  const prevMonthKeyStr = `${jstPrevYear}-${String(jstPrevMonth === 0 ? 12 : jstPrevMonth).padStart(2, '0')}`;
+  const { startDate: prevMonthStart, endDate: prevMonthEnd } = getJSTMonthRange(prevMonthKeyStr);
   
   const prevMonthStats = await db
     .select({
@@ -8107,8 +8110,8 @@ export async function getLiverMonthlySalesTrendById(liverId: number) {
     const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const year = date.getFullYear();
     const month = date.getMonth() + 1;
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0, 23, 59, 59);
+    const loopMonthKey2 = `${year}-${String(month).padStart(2, '0')}`;
+    const { startDate, endDate } = getJSTMonthRange(loopMonthKey2);
     
     const result = await db
       .select({
@@ -8211,9 +8214,7 @@ export async function getTopSellingProducts(month: string, limit: number = 10) {
   const db = await getDb();
   if (!db) return [];
   
-  const [year, monthNum] = month.split('-').map(Number);
-  const startDate = new Date(year, monthNum - 1, 1);
-  const endDate = new Date(year, monthNum, 0, 23, 59, 59);
+  const { startDate, endDate } = getJSTMonthRange(month);
   
   // Get all livestreams for the month that have a liverId
   const livestreamsInMonth = await db
@@ -8331,9 +8332,7 @@ export async function getLiverProductMatrix(month: string, topProductsLimit: num
   const db = await getDb();
   if (!db) return { products: [], livers: [], matrix: [] };
   
-  const [year, monthNum] = month.split('-').map(Number);
-  const startDate = new Date(year, monthNum - 1, 1);
-  const endDate = new Date(year, monthNum, 0, 23, 59, 59);
+  const { startDate, endDate } = getJSTMonthRange(month);
   
   // Get all livestreams for the month with liverId
   const livestreamsInMonth = await db
@@ -8468,9 +8467,7 @@ export async function getLiverPerformanceForMatching(month?: string) {
   // Build date filter
   let dateFilter;
   if (month) {
-    const [year, monthNum] = month.split("-").map(Number);
-    const startDate = new Date(year, monthNum - 1, 1);
-    const endDate = new Date(year, monthNum, 0, 23, 59, 59);
+    const { startDate, endDate } = getJSTMonthRange(month);
     dateFilter = and(
       gte(brandLivestreams.livestreamDate, startDate),
       lte(brandLivestreams.livestreamDate, endDate)
@@ -8506,9 +8503,7 @@ export async function getProductPerformanceForMatching(month?: string) {
   // Build date filter
   let dateFilter;
   if (month) {
-    const [year, monthNum] = month.split("-").map(Number);
-    const startDate = new Date(year, monthNum - 1, 1);
-    const endDate = new Date(year, monthNum, 0, 23, 59, 59);
+    const { startDate, endDate } = getJSTMonthRange(month);
     dateFilter = and(
       gte(brandLivestreams.livestreamDate, startDate),
       lte(brandLivestreams.livestreamDate, endDate)
@@ -8542,9 +8537,7 @@ export async function getLiverProductPerformanceMatrix(month?: string) {
   // Build date filter
   let dateFilter;
   if (month) {
-    const [year, monthNum] = month.split("-").map(Number);
-    const startDate = new Date(year, monthNum - 1, 1);
-    const endDate = new Date(year, monthNum, 0, 23, 59, 59);
+    const { startDate, endDate } = getJSTMonthRange(month);
     dateFilter = and(
       gte(brandLivestreams.livestreamDate, startDate),
       lte(brandLivestreams.livestreamDate, endDate)
@@ -8854,9 +8847,7 @@ export async function getHourlySalesAnalysis(month?: string) {
   
   let dateFilter = sql`1=1`;
   if (month) {
-    const [year, monthNum] = month.split('-').map(Number);
-    const startDate = new Date(year, monthNum - 1, 1);
-    const endDate = new Date(year, monthNum, 0, 23, 59, 59);
+    const { startDate, endDate } = getJSTMonthRange(month);
     dateFilter = and(
       gte(brandLivestreams.livestreamDate, startDate),
       lte(brandLivestreams.livestreamDate, endDate)
@@ -8924,9 +8915,7 @@ export async function getDayOfWeekPerformance(month?: string) {
   
   let dateFilter = sql`1=1`;
   if (month) {
-    const [year, monthNum] = month.split('-').map(Number);
-    const startDate = new Date(year, monthNum - 1, 1);
-    const endDate = new Date(year, monthNum, 0, 23, 59, 59);
+    const { startDate, endDate } = getJSTMonthRange(month);
     dateFilter = and(
       gte(brandLivestreams.livestreamDate, startDate),
       lte(brandLivestreams.livestreamDate, endDate)

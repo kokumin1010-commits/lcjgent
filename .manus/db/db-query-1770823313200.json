@@ -1,0 +1,153 @@
+{
+  "query": "SELECT bl.id, bl.liverId, bl.streamerName, \n  bl.livestreamDate, \n  bl.livestreamEndTime, \n  bl.salesAmount, \n  bl.duration,\n  DATE(bl.livestreamDate) as dateOnly,\n  MONTH(bl.livestreamDate) as monthVal\nFROM brand_livestreams bl \nWHERE bl.streamerName LIKE '%yae%' OR bl.streamerName LIKE '%kumama%'\nORDER BY bl.livestreamDate DESC \nLIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT bl.id, bl.liverId, bl.streamerName, \n  bl.livestreamDate, \n  bl.livestreamEndTime, \n  bl.salesAmount, \n  bl.duration,\n  DATE(bl.livestreamDate) as dateOnly,\n  MONTH(bl.livestreamDate) as monthVal\nFROM brand_livestreams bl \nWHERE bl.streamerName LIKE '%yae%' OR bl.streamerName LIKE '%kumama%'\nORDER BY bl.livestreamDate DESC \nLIMIT 20;",
+  "rows": [
+    {
+      "id": "960015",
+      "liverId": "540003",
+      "streamerName": "yae",
+      "livestreamDate": "2026-02-11 01:01:00",
+      "livestreamEndTime": "2026-02-11 05:20:00",
+      "salesAmount": "465043",
+      "duration": "259",
+      "dateOnly": "2026-02-11",
+      "monthVal": "2"
+    },
+    {
+      "id": "960014",
+      "liverId": "540003",
+      "streamerName": "yae",
+      "livestreamDate": "2026-02-09 10:30:00",
+      "livestreamEndTime": "2026-02-09 13:50:00",
+      "salesAmount": "929943",
+      "duration": "200",
+      "dateOnly": "2026-02-09",
+      "monthVal": "2"
+    },
+    {
+      "id": "960012",
+      "liverId": "540003",
+      "streamerName": "yae",
+      "livestreamDate": "2026-02-09 01:34:00",
+      "livestreamEndTime": "2026-02-09 03:05:00",
+      "salesAmount": "699788",
+      "duration": "91",
+      "dateOnly": "2026-02-09",
+      "monthVal": "2"
+    },
+    {
+      "id": "960013",
+      "liverId": "540003",
+      "streamerName": "yae",
+      "livestreamDate": "2026-02-09 01:34:00",
+      "livestreamEndTime": "2026-02-09 03:58:00",
+      "salesAmount": "326152",
+      "duration": "60",
+      "dateOnly": "2026-02-09",
+      "monthVal": "2"
+    },
+    {
+      "id": "960011",
+      "liverId": "540003",
+      "streamerName": "yae",
+      "livestreamDate": "2026-02-08 10:08:00",
+      "livestreamEndTime": "2026-02-08 12:26:00",
+      "salesAmount": "803896",
+      "duration": "138",
+      "dateOnly": "2026-02-08",
+      "monthVal": "2"
+    },
+    {
+      "id": "840239",
+      "liverId": "540003",
+      "streamerName": "yae",
+      "livestreamDate": "2026-02-04 21:00:00",
+      "livestreamEndTime": "2025-12-04 23:42:00",
+      "salesAmount": "408784",
+      "duration": "222",
+      "dateOnly": "2026-02-04",
+      "monthVal": "2"
+    },
+    {
+      "id": "840238",
+      "liverId": "540003",
+      "streamerName": "yae",
+      "livestreamDate": "2026-02-04 00:01:00",
+      "livestreamEndTime": "2026-02-04 05:02:00",
+      "salesAmount": "203704",
+      "duration": "183",
+      "dateOnly": "2026-02-04",
+      "monthVal": "2"
+    },
+    {
+      "id": "840237",
+      "liverId": "540003",
+      "streamerName": "yae",
+      "livestreamDate": "2026-02-03 08:32:00",
+      "livestreamEndTime": "2026-02-03 11:15:00",
+      "salesAmount": "375800",
+      "duration": "162",
+      "dateOnly": "2026-02-03",
+      "monthVal": "2"
+    },
+    {
+      "id": "840235",
+      "liverId": "540003",
+      "streamerName": "yae",
+      "livestreamDate": "2026-02-03 08:00:00",
+      "livestreamEndTime": "2026-02-03 08:31:00",
+      "salesAmount": "57114",
+      "duration": "31",
+      "dateOnly": "2026-02-03",
+      "monthVal": "2"
+    },
+    {
+      "id": "840223",
+      "liverId": "540003",
+      "streamerName": "yae",
+      "livestreamDate": "2026-02-02 10:00:00",
+      "livestreamEndTime": "2026-02-02 13:07:00",
+      "salesAmount": "217236",
+      "duration": "186",
+      "dateOnly": "2026-02-02",
+      "monthVal": "2"
+    },
+    {
+      "id": "840315",
+      "liverId": "540003",
+      "streamerName": "yae",
+      "livestreamDate": "2026-01-31 15:00:00",
+      "livestreamEndTime": "2026-01-31 23:00:00",
+      "salesAmount": "1273509",
+      "duration": "185",
+      "dateOnly": "2026-01-31",
+      "monthVal": "1"
+    },
+    {
+      "id": "780371",
+      "liverId": "540003",
+      "streamerName": "yae",
+      "livestreamDate": "2026-01-31 07:00:00",
+      "livestreamEndTime": "2026-01-31 15:05:00",
+      "salesAmount": "1981233",
+      "duration": "844",
+      "dateOnly": "2026-01-31",
+      "monthVal": "1"
+    },
+    {
+      "id": "840313",
+      "liverId": "540003",
+      "streamerName": "yae",
+      "livestreamDate": "2026-01-31 01:00:00",
+      "livestreamEndTime": "2026-01-31 15:04:00",
+      "salesAmount": "1273509",
+      "duration": "844",
+      "dateOnly": "2026-01-31",
+      "monthVal": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tliverId\tstreamerName\tlivestreamDate\tlivestreamEndTime\tsalesAmount\tduration\tdateOnly\tmonthVal\n960015\t540003\tyae\t2026-02-11 01:01:00\t2026-02-11 05:20:00\t465043\t259\t2026-02-11\t2\n960014\t540003\tyae\t2026-02-09 10:30:00\t2026-02-09 13:50:00\t929943\t200\t2026-02-09\t2\n960012\t540003\tyae\t2026-02-09 01:34:00\t2026-02-09 03:05:00\t699788\t91\t2026-02-09\t2\n960013\t540003\tyae\t2026-02-09 01:34:00\t2026-02-09 03:58:00\t326152\t60\t2026-02-09\t2\n960011\t540003\tyae\t2026-02-08 10:08:00\t2026-02-08 12:26:00\t803896\t138\t2026-02-08\t2\n840239\t540003\tyae\t2026-02-04 21:00:00\t2025-12-04 23:42:00\t408784\t222\t2026-02-04\t2\n840238\t540003\tyae\t2026-02-04 00:01:00\t2026-02-04 05:02:00\t203704\t183\t2026-02-04\t2\n840237\t540003\tyae\t2026-02-03 08:32:00\t2026-02-03 11:15:00\t375800\t162\t2026-02-03\t2\n840235\t540003\tyae\t2026-02-03 08:00:00\t2026-02-03 08:31:00\t57114\t31\t2026-02-03\t2\n840223\t540003\tyae\t2026-02-02 10:00:00\t2026-02-02 13:07:00\t217236\t186\t2026-02-02\t2\n840315\t540003\tyae\t2026-01-31 15:00:00\t2026-01-31 23:00:00\t1273509\t185\t2026-01-31\t1\n780371\t540003\tyae\t2026-01-31 07:00:00\t2026-01-31 15:05:00\t1981233\t844\t2026-01-31\t1\n840313\t540003\tyae\t2026-01-31 01:00:00\t2026-01-31 15:04:00\t1273509\t844\t2026-01-31\t1\n",
+  "stderr": "",
+  "execution_time_ms": 1594
+}
