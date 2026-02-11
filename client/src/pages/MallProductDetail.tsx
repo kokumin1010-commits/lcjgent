@@ -42,10 +42,16 @@ import {
   User,
   Home,
   Building2,
-  Loader2
+  Loader2,
+  Star,
+  MessageSquare,
+  ImageIcon,
+  Trash2
 } from "lucide-react";
 import { Link, useParams, useLocation } from "wouter";
 import { toast } from "sonner";
+import { Textarea } from "@/components/ui/textarea";
+import { Progress } from "@/components/ui/progress";
 
 // 商品画像ギャラリーコンポーネント
 function ProductImageGallery({ product, isFavorite, setIsFavorite, handleShare }: {
@@ -233,11 +239,49 @@ export default function MallProductDetail() {
     { enabled: !!id }
   );
 
-  // 関連商品を取得
-  const { data: relatedProducts } = trpc.mall.getProducts.useQuery(
-    { status: "active", limit: 4 },
+  // 関連商品を取得（API版）
+  const { data: relatedProductsData } = trpc.mall.getRelatedProducts.useQuery(
+    { productId: Number(id) },
     { enabled: !!product }
   );
+
+  // レビュー取得
+  const { data: reviewData, refetch: refetchReviews } = trpc.mall.getReviews.useQuery(
+    { productId: Number(id) },
+    { enabled: !!id }
+  );
+
+  // 商品説明画像取得
+  const { data: descImages } = trpc.mall.getDescImages.useQuery(
+    { productId: Number(id) },
+    { enabled: !!id }
+  );
+
+  // レビュー投稿state
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewTitle, setReviewTitle] = useState("");
+  const [reviewContent, setReviewContent] = useState("");
+  const [hoverRating, setHoverRating] = useState(0);
+
+  const createReviewMutation = trpc.mall.createReview.useMutation({
+    onSuccess: () => {
+      toast.success("レビューを投稿しました");
+      setShowReviewForm(false);
+      setReviewRating(5);
+      setReviewTitle("");
+      setReviewContent("");
+      refetchReviews();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const deleteReviewMutation = trpc.mall.deleteReview.useMutation({
+    onSuccess: () => {
+      toast.success("レビューを削除しました");
+      refetchReviews();
+    },
+  });
 
   // LINEユーザー情報を取得（ポイント残高確認用）
   const { data: lineUser } = trpc.lineLogin.me.useQuery();
@@ -497,7 +541,7 @@ export default function MallProductDetail() {
   const selectedAddress = savedAddresses?.find(a => a.id === selectedAddressId);
 
   // 関連商品（現在の商品を除く）
-  const filteredRelatedProducts = relatedProducts?.filter(p => p.id !== product.id).slice(0, 3);
+  const filteredRelatedProducts = relatedProductsData?.slice(0, 6) || [];
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-pink-50 via-white to-pink-50/30">
@@ -709,11 +753,226 @@ export default function MallProductDetail() {
           </div>
         </div>
 
-        {/* 関連商品 */}
-        {filteredRelatedProducts && filteredRelatedProducts.length > 0 && (
+        {/* ===== 商品説明LP風セクション ===== */}
+        {descImages && descImages.length > 0 && (
+          <section className="mt-16">
+            <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+              <ImageIcon className="h-6 w-6 text-pink-500" />
+              商品について
+            </h2>
+            <div className="space-y-0">
+              {descImages.map((img) => (
+                <div key={img.id} className="w-full">
+                  <img
+                    src={img.imageUrl}
+                    alt={img.caption || `商品説明画像 ${img.sortOrder + 1}`}
+                    className="w-full h-auto"
+                    loading="lazy"
+                  />
+                  {img.caption && (
+                    <p className="text-center text-sm text-muted-foreground py-2">{img.caption}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ===== レビュー・星評価セクション ===== */}
+        <section className="mt-16">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold flex items-center gap-2">
+              <MessageSquare className="h-6 w-6 text-pink-500" />
+              カスタマーレビュー
+            </h2>
+            {lineUser && (
+              <Button
+                onClick={() => setShowReviewForm(!showReviewForm)}
+                variant="outline"
+                className="border-pink-300 text-pink-600 hover:bg-pink-50"
+              >
+                <Star className="h-4 w-4 mr-2" />
+                レビューを書く
+              </Button>
+            )}
+          </div>
+
+          {/* レビュー統計 */}
+          {reviewData?.stats && Number(reviewData.stats.totalReviews) > 0 && (
+            <Card className="mb-8 border-pink-100">
+              <CardContent className="p-6">
+                <div className="flex flex-col md:flex-row gap-8">
+                  <div className="flex flex-col items-center justify-center">
+                    <div className="text-5xl font-bold text-pink-600">
+                      {Number(reviewData.stats.avgRating).toFixed(1)}
+                    </div>
+                    <div className="flex mt-2">
+                      {[1,2,3,4,5].map(s => (
+                        <Star key={s} className={`h-5 w-5 ${s <= Math.round(Number(reviewData.stats.avgRating)) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} />
+                      ))}
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">{Number(reviewData.stats.totalReviews)}件のレビュー</p>
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    {[5,4,3,2,1].map(star => {
+                      const count = Number(reviewData.stats[`rating${star}` as keyof typeof reviewData.stats]) || 0;
+                      const total = Number(reviewData.stats.totalReviews) || 1;
+                      const pct = (count / total) * 100;
+                      return (
+                        <div key={star} className="flex items-center gap-3">
+                          <span className="text-sm w-8 text-right">{star}★</span>
+                          <Progress value={pct} className="flex-1 h-3" />
+                          <span className="text-sm text-muted-foreground w-10">{count}件</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* レビュー投稿フォーム */}
+          {showReviewForm && lineUser && (
+            <Card className="mb-8 border-pink-200 bg-pink-50/30">
+              <CardContent className="p-6">
+                <h3 className="font-bold text-lg mb-4">レビューを投稿</h3>
+                <div className="space-y-4">
+                  <div>
+                    <Label className="mb-2 block">評価</Label>
+                    <div className="flex gap-1">
+                      {[1,2,3,4,5].map(s => (
+                        <button
+                          key={s}
+                          type="button"
+                          onMouseEnter={() => setHoverRating(s)}
+                          onMouseLeave={() => setHoverRating(0)}
+                          onClick={() => setReviewRating(s)}
+                          className="transition-transform hover:scale-110"
+                        >
+                          <Star className={`h-8 w-8 ${s <= (hoverRating || reviewRating) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="review-title" className="mb-2 block">タイトル（任意）</Label>
+                    <Input
+                      id="review-title"
+                      value={reviewTitle}
+                      onChange={e => setReviewTitle(e.target.value)}
+                      placeholder="一言で感想を..."
+                      maxLength={100}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="review-content" className="mb-2 block">レビュー内容（任意）</Label>
+                    <Textarea
+                      id="review-content"
+                      value={reviewContent}
+                      onChange={e => setReviewContent(e.target.value)}
+                      placeholder="商品の使い心地、おすすめポイントなどを教えてください"
+                      rows={4}
+                      maxLength={2000}
+                    />
+                  </div>
+                  <div className="flex gap-3">
+                    <Button
+                      onClick={() => {
+                        createReviewMutation.mutate({
+                          productId: Number(id),
+                          rating: reviewRating,
+                          title: reviewTitle || undefined,
+                          content: reviewContent || undefined,
+                        });
+                      }}
+                      disabled={createReviewMutation.isPending}
+                      className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600"
+                    >
+                      {createReviewMutation.isPending ? "投稿中..." : "レビューを投稿"}
+                    </Button>
+                    <Button variant="outline" onClick={() => setShowReviewForm(false)}>キャンセル</Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* レビュー一覧 */}
+          {reviewData?.reviews && reviewData.reviews.length > 0 ? (
+            <div className="space-y-4">
+              {reviewData.reviews.map(({ review, user }) => (
+                <Card key={review.id} className="border-pink-50">
+                  <CardContent className="p-5">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        {user?.pictureUrl ? (
+                          <img src={user.pictureUrl} alt="" className="w-10 h-10 rounded-full" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-pink-100 flex items-center justify-center">
+                            <User className="h-5 w-5 text-pink-400" />
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-semibold text-sm">{user?.displayName || '匿名ユーザー'}</p>
+                          <div className="flex items-center gap-1">
+                            {[1,2,3,4,5].map(s => (
+                              <Star key={s} className={`h-4 w-4 ${s <= review.rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} />
+                            ))}
+                            <span className="text-xs text-muted-foreground ml-2">
+                              {new Date(review.createdAt).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' })}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      {lineUser && String(lineUser.lineUserId) === String(user?.id) && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deleteReviewMutation.mutate({ reviewId: review.id })}
+                          className="text-gray-400 hover:text-red-500"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                    {review.title && <p className="font-semibold mt-3">{review.title}</p>}
+                    {review.content && <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{review.content}</p>}
+                    {review.imageUrls && (review.imageUrls as string[]).length > 0 && (
+                      <div className="flex gap-2 mt-3 flex-wrap">
+                        {(review.imageUrls as string[]).map((url, i) => (
+                          <img key={i} src={url} alt="" className="w-20 h-20 rounded-lg object-cover border" />
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card className="border-pink-50">
+              <CardContent className="p-8 text-center">
+                <Star className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-muted-foreground">まだレビューがありません</p>
+                {lineUser && (
+                  <Button
+                    onClick={() => setShowReviewForm(true)}
+                    variant="outline"
+                    className="mt-4 border-pink-300 text-pink-600"
+                  >
+                    最初のレビューを書く
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </section>
+
+        {/* ===== 関連商品・おすすめ商品 ===== */}
+        {filteredRelatedProducts.length > 0 && (
           <section className="mt-16">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold">その他のおすすめ商品</h2>
+              <h2 className="text-2xl font-bold">関連商品・おすすめ</h2>
               <Link href="/mall/products">
                 <Button variant="ghost" className="text-pink-500 hover:text-pink-600">
                   すべて見る
@@ -721,36 +980,27 @@ export default function MallProductDetail() {
                 </Button>
               </Link>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredRelatedProducts.map((relatedProduct) => (
-                <Link key={relatedProduct.id} href={`/mall/products/${relatedProduct.id}`}>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {filteredRelatedProducts.map((rp) => (
+                <Link key={rp.id} href={`/mall/products/${rp.id}`}>
                   <Card className="overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer group border-pink-100">
                     <div className="aspect-square relative overflow-hidden bg-gray-50">
-                      {relatedProduct.imageUrl ? (
-                        <img
-                          src={relatedProduct.imageUrl}
-                          alt={relatedProduct.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
+                      {rp.imageUrl ? (
+                        <img src={rp.imageUrl} alt={rp.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
-                          <Package className="h-16 w-16 text-gray-300" />
+                          <Package className="h-12 w-12 text-gray-300" />
                         </div>
                       )}
-                      {relatedProduct.pointPrice && (
-                        <Badge className="absolute top-3 left-3 bg-gradient-to-r from-yellow-400 to-orange-400">
-                          <Coins className="h-3 w-3 mr-1" />
-                          {relatedProduct.pointPrice}pt
+                      {rp.pointPrice && (
+                        <Badge className="absolute top-2 left-2 bg-gradient-to-r from-yellow-400 to-orange-400 text-xs">
+                          <Coins className="h-3 w-3 mr-1" />{rp.pointPrice}pt
                         </Badge>
                       )}
                     </div>
-                    <CardContent className="p-4">
-                      <h3 className="font-semibold mb-2 line-clamp-1 group-hover:text-pink-500 transition-colors">
-                        {relatedProduct.name}
-                      </h3>
-                      <p className="text-xl font-bold text-pink-600">
-                        ¥{relatedProduct.price.toLocaleString()}
-                      </p>
+                    <CardContent className="p-3">
+                      <h3 className="font-semibold text-sm mb-1 line-clamp-2 group-hover:text-pink-500 transition-colors">{rp.name}</h3>
+                      <p className="text-lg font-bold text-pink-600">¥{rp.price.toLocaleString()}</p>
                     </CardContent>
                   </Card>
                 </Link>

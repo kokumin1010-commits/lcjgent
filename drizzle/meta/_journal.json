@@ -589,6 +589,13 @@
       "when": 1770745263992,
       "tag": "0083_chunky_madame_masque",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "5",
+      "when": 1770835527312,
+      "tag": "0084_lively_puppet_master",
+      "breakpoints": true
     }
   ]
 }

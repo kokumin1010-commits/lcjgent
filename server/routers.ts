@@ -405,6 +405,15 @@ import {
   getSimulationFeedbackHistory,
   getAllLiversSetAnalysis,
   getLiverSetAnalysis,
+  getProductReviews,
+  getProductReviewStats,
+  createProductReview,
+  deleteProductReview,
+  hasUserReviewedProduct,
+  getRelatedProducts,
+  getProductDescImages,
+  addProductDescImage,
+  deleteProductDescImage,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -11399,6 +11408,72 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         
         await setDefaultUserAddress(input.id, lineUser.id);
         return { success: true };
+      }),
+
+    // ===== レビュー API =====
+    getReviews: publicProcedure
+      .input(z.object({ productId: z.number() }))
+      .query(async ({ input }) => {
+        const [reviews, stats] = await Promise.all([
+          getProductReviews(input.productId),
+          getProductReviewStats(input.productId),
+        ]);
+        return { reviews, stats };
+      }),
+
+    createReview: publicProcedure
+      .input(z.object({
+        productId: z.number(),
+        rating: z.number().min(1).max(5),
+        title: z.string().max(100).optional(),
+        content: z.string().max(2000).optional(),
+        imageUrls: z.array(z.string()).max(5).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const result = await getLineUserFromSession(ctx);
+        if (!result || !result.lineUser) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+        }
+        const lineUser = result.lineUser;
+
+        const alreadyReviewed = await hasUserReviewedProduct(input.productId, lineUser.id);
+        if (alreadyReviewed) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "この商品は既にレビュー済みです" });
+        }
+
+        return await createProductReview({
+          productId: input.productId,
+          lineUserId: lineUser.id,
+          rating: input.rating,
+          title: input.title ?? undefined,
+          content: input.content ?? undefined,
+          imageUrls: input.imageUrls || [],
+        });
+      }),
+
+    deleteReview: publicProcedure
+      .input(z.object({ reviewId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const result = await getLineUserFromSession(ctx);
+        if (!result || !result.lineUser) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+        }
+        await deleteProductReview(input.reviewId, result.lineUser.id);
+        return { success: true };
+      }),
+
+    // ===== 関連商品 API =====
+    getRelatedProducts: publicProcedure
+      .input(z.object({ productId: z.number(), limit: z.number().optional() }))
+      .query(async ({ input }) => {
+        return await getRelatedProducts(input.productId, input.limit || 8);
+      }),
+
+    // ===== 商品説明画像 API =====
+    getDescImages: publicProcedure
+      .input(z.object({ productId: z.number() }))
+      .query(async ({ input }) => {
+        return await getProductDescImages(input.productId);
       }),
   }),
 

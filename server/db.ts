@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -10362,4 +10362,169 @@ export async function getLiverSetAnalysis(liverId: number) {
     sets: setsWithItems,
     topProducts,
   };
+}
+
+
+// ============================================
+// MALL Product Reviews
+// ============================================
+
+export async function getProductReviews(productId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const reviews = await db
+    .select({
+      review: mallProductReviews,
+      user: {
+        id: lineUsers.id,
+        displayName: lineUsers.displayName,
+        pictureUrl: lineUsers.pictureUrl,
+      },
+    })
+    .from(mallProductReviews)
+    .leftJoin(lineUsers, eq(mallProductReviews.lineUserId, lineUsers.id))
+    .where(eq(mallProductReviews.productId, productId))
+    .orderBy(desc(mallProductReviews.createdAt));
+
+  return reviews;
+}
+
+export async function getProductReviewStats(productId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const stats = await db
+    .select({
+      avgRating: sql<number>`AVG(rating)`,
+      totalReviews: sql<number>`COUNT(*)`,
+      rating1: sql<number>`SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END)`,
+      rating2: sql<number>`SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END)`,
+      rating3: sql<number>`SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END)`,
+      rating4: sql<number>`SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END)`,
+      rating5: sql<number>`SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END)`,
+    })
+    .from(mallProductReviews)
+    .where(eq(mallProductReviews.productId, productId));
+
+  return stats[0] || { avgRating: 0, totalReviews: 0, rating1: 0, rating2: 0, rating3: 0, rating4: 0, rating5: 0 };
+}
+
+export async function createProductReview(data: InsertMallProductReview) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const [inserted] = await db.insert(mallProductReviews).values(data).$returningId();
+  return inserted;
+}
+
+export async function deleteProductReview(reviewId: number, lineUserId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.delete(mallProductReviews).where(
+    and(eq(mallProductReviews.id, reviewId), eq(mallProductReviews.lineUserId, lineUserId))
+  );
+}
+
+export async function hasUserReviewedProduct(productId: number, lineUserId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(mallProductReviews)
+    .where(and(eq(mallProductReviews.productId, productId), eq(mallProductReviews.lineUserId, lineUserId)));
+
+  return (result[0]?.count || 0) > 0;
+}
+
+// ============================================
+// MALL Related Products
+// ============================================
+
+export async function getRelatedProducts(productId: number, limit: number = 8) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Get current product's category and brand
+  const currentProduct = await db
+    .select()
+    .from(mallProducts)
+    .where(eq(mallProducts.id, productId))
+    .limit(1);
+
+  if (!currentProduct[0]) return [];
+
+  const product = currentProduct[0];
+  const conditions: any[] = [
+    not(eq(mallProducts.id, productId)),
+    eq(mallProducts.status, "active"),
+  ];
+
+  // Same category or same brand
+  if (product.categoryId && product.brandId) {
+    conditions.push(or(
+      eq(mallProducts.categoryId, product.categoryId),
+      eq(mallProducts.brandId, product.brandId)
+    ));
+  } else if (product.categoryId) {
+    conditions.push(eq(mallProducts.categoryId, product.categoryId));
+  } else if (product.brandId) {
+    conditions.push(eq(mallProducts.brandId, product.brandId));
+  }
+
+  const related = await db
+    .select()
+    .from(mallProducts)
+    .where(and(...conditions))
+    .orderBy(desc(mallProducts.createdAt))
+    .limit(limit);
+
+  // If not enough, fill with other active products
+  if (related.length < limit) {
+    const existingIds = [productId, ...related.map(p => p.id)];
+    const more = await db
+      .select()
+      .from(mallProducts)
+      .where(and(
+        not(inArray(mallProducts.id, existingIds)),
+        eq(mallProducts.status, "active")
+      ))
+      .orderBy(desc(mallProducts.createdAt))
+      .limit(limit - related.length);
+    related.push(...more);
+  }
+
+  return related;
+}
+
+// ============================================
+// MALL Product Description Images
+// ============================================
+
+export async function getProductDescImages(productId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db
+    .select()
+    .from(mallProductDescImages)
+    .where(eq(mallProductDescImages.productId, productId))
+    .orderBy(asc(mallProductDescImages.sortOrder));
+}
+
+export async function addProductDescImage(data: InsertMallProductDescImage) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const [inserted] = await db.insert(mallProductDescImages).values(data).$returningId();
+  return inserted;
+}
+
+export async function deleteProductDescImage(imageId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.delete(mallProductDescImages).where(eq(mallProductDescImages.id, imageId));
 }

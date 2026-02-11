@@ -2636,3 +2636,36 @@ export const simulationFeedback = mysqlTable("simulation_feedback", {
 
 export type SimulationFeedback = typeof simulationFeedback.$inferSelect;
 export type InsertSimulationFeedback = typeof simulationFeedback.$inferInsert;
+
+
+// ============================================
+// LCJ MALL - 商品レビュー
+// ============================================
+export const mallProductReviews = mysqlTable("mall_product_reviews", {
+  id: int("id").autoincrement().primaryKey(),
+  productId: int("productId").notNull(),
+  lineUserId: int("lineUserId").notNull(),
+  rating: int("rating").notNull(), // 1-5
+  title: varchar("title", { length: 100 }),
+  content: text("content"),
+  imageUrls: json("imageUrls").$type<string[]>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type MallProductReview = typeof mallProductReviews.$inferSelect;
+export type InsertMallProductReview = typeof mallProductReviews.$inferInsert;
+
+// ============================================
+// LCJ MALL - 商品説明画像（LP風表示用）
+// ============================================
+export const mallProductDescImages = mysqlTable("mall_product_desc_images", {
+  id: int("id").autoincrement().primaryKey(),
+  productId: int("productId").notNull(),
+  imageUrl: text("imageUrl").notNull(),
+  imageKey: varchar("imageKey", { length: 500 }),
+  sortOrder: int("sortOrder").notNull().default(0),
+  caption: varchar("caption", { length: 200 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type MallProductDescImage = typeof mallProductDescImages.$inferSelect;
+export type InsertMallProductDescImage = typeof mallProductDescImages.$inferInsert;
