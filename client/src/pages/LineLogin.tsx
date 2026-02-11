@@ -33,12 +33,18 @@ export default function LineLogin() {
   const [referralError, setReferralError] = useState<string | null>(null);
   const [isValidatingReferral, setIsValidatingReferral] = useState(false);
   
-  // Read referral code from URL params on mount
+  // Read referral code from URL params or localStorage on mount
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const refCode = urlParams.get('ref');
     if (refCode && /^\d{4}$/.test(refCode)) {
       setReferralCode(refCode);
+      return;
+    }
+    // Fallback: read from localStorage (captured by useReferralCapture on any page)
+    const saved = localStorage.getItem('lcj_referral_code');
+    if (saved && /^\d{4}$/.test(saved)) {
+      setReferralCode(saved);
     }
   }, []);
   
@@ -76,6 +82,8 @@ export default function LineLogin() {
   const liffCallbackMutation = trpc.lineLogin.liffCallback.useMutation({
     onSuccess: async (data) => {
       addDebug(`Login successful: ${JSON.stringify(data)}`);
+      // Clear saved referral code after successful LINE login/registration
+      localStorage.removeItem('lcj_referral_code');
       // Save session token to localStorage for fallback authentication
       if (data.sessionToken) {
         localStorage.setItem('lcj_session_token', data.sessionToken);
@@ -140,6 +148,8 @@ export default function LineLogin() {
   const emailRegisterMutation = trpc.lineLogin.emailRegister.useMutation({
     onSuccess: () => {
       toast.success("アカウントを作成しました。ログインしてください。");
+      // Clear saved referral code after successful registration
+      localStorage.removeItem('lcj_referral_code');
       setIsRegistering(false);
       setPassword("");
     },

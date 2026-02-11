@@ -3,6 +3,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { useReferralCapture } from "./hooks/useReferralCapture";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import DashboardLayout from "./components/DashboardLayout";
 import Dashboard from "./pages/Dashboard";
@@ -330,6 +331,7 @@ function Router() {
 }
 
 function App() {
+  useReferralCapture();
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
