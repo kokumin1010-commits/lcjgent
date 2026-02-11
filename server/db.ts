@@ -9866,20 +9866,36 @@ export async function getLiverPerformanceStats(liverId: number, options?: { cate
 
   if (!allStreams.length) return null;
 
-  // Calculate stats
-  const validStreams = allStreams.filter(s => s.gmv && s.gmv > 0);
+  // Calculate stats - use top performing streams for optimistic but realistic estimates
+  const validStreams = allStreams.filter(s => s.gmv && Number(s.gmv) > 0);
+  
+  // Sort by GMV descending to prioritize high-performing streams
+  const sortedByGmv = [...validStreams].sort((a, b) => (Number(b.gmv) || 0) - (Number(a.gmv) || 0));
+  
+  // Use top 70% of streams (exclude bottom 30% outliers/bad days) for optimistic average
+  const topPercentile = Math.max(Math.ceil(sortedByGmv.length * 0.7), 1);
+  const topStreams = sortedByGmv.slice(0, topPercentile);
+  
   const totalGmv = validStreams.reduce((sum, s) => sum + (Number(s.gmv) || 0), 0);
   const totalDuration = validStreams.reduce((sum, s) => sum + (s.duration || 0), 0);
   const totalSalesCount = validStreams.reduce((sum, s) => sum + (s.itemsSold || s.salesCount || 0), 0);
   const totalViewers = validStreams.reduce((sum, s) => sum + (s.viewerCount || 0), 0);
   const totalOrders = validStreams.reduce((sum, s) => sum + (s.orderCount || 0), 0);
 
+  // Use top streams for GMV averages (optimistic but achievable)
+  const topTotalGmv = topStreams.reduce((sum, s) => sum + (Number(s.gmv) || 0), 0);
+  const topTotalDuration = topStreams.reduce((sum, s) => sum + (s.duration || 0), 0);
+  const topTotalViewers = topStreams.reduce((sum, s) => sum + (s.viewerCount || 0), 0);
+  const topTotalSalesCount = topStreams.reduce((sum, s) => sum + (s.itemsSold || s.salesCount || 0), 0);
+  const topTotalOrders = topStreams.reduce((sum, s) => sum + (s.orderCount || 0), 0);
+
   const streamCount = validStreams.length;
-  const avgGmvPerStream = streamCount > 0 ? totalGmv / streamCount : 0;
-  const avgGmvPerHour = totalDuration > 0 ? totalGmv / (totalDuration / 60) : 0;
-  const avgViewers = streamCount > 0 ? totalViewers / streamCount : 0;
-  const avgSalesPerStream = streamCount > 0 ? totalSalesCount / streamCount : 0;
-  const avgOrdersPerStream = streamCount > 0 ? totalOrders / streamCount : 0;
+  // Use top-performing averages for simulation (more attractive to brands)
+  const avgGmvPerStream = topStreams.length > 0 ? topTotalGmv / topStreams.length : 0;
+  const avgGmvPerHour = topTotalDuration > 0 ? topTotalGmv / (topTotalDuration / 60) : 0;
+  const avgViewers = topStreams.length > 0 ? topTotalViewers / topStreams.length : 0;
+  const avgSalesPerStream = topStreams.length > 0 ? topTotalSalesCount / topStreams.length : 0;
+  const avgOrdersPerStream = topStreams.length > 0 ? topTotalOrders / topStreams.length : 0;
 
   // CVR calculation
   const streamsWithCvr = validStreams.filter(s => s.cvr);
@@ -9967,13 +9983,14 @@ export async function findSimilarCases(params: {
   const priceMax = params.unitPrice * 2;
 
   // Get livestreams by this liver (use liverId first, fallback to streamerName)
+  // Only include streams with GMV > 0 (exclude zero/null GMV)
   let streams = await db.select().from(brandLivestreams)
     .where(and(
       eq(brandLivestreams.liverId, params.liverId),
       isNotNull(brandLivestreams.gmv),
     ))
-    .orderBy(desc(brandLivestreams.livestreamDate))
-    .limit(params.limit || 20);
+    .orderBy(desc(brandLivestreams.gmv)) // Sort by GMV descending (highest first)
+    .limit(50);
 
   // Fallback: if no streams found by liverId, try matching by streamerName
   if (!streams.length) {
@@ -9982,20 +9999,26 @@ export async function findSimilarCases(params: {
         eq(brandLivestreams.streamerName, liverName),
         isNotNull(brandLivestreams.gmv),
       ))
-      .orderBy(desc(brandLivestreams.livestreamDate))
-      .limit(params.limit || 20);
+      .orderBy(desc(brandLivestreams.gmv)) // Sort by GMV descending
+      .limit(50);
   }
 
-  // Filter by similar duration (±30%)
-  const durationMin = params.streamDuration * 0.7;
-  const durationMax = params.streamDuration * 1.3;
+  // Filter out GMV=0 streams and sort by GMV descending (highest performing first)
+  const validStreams = streams.filter(s => (Number(s.gmv) || 0) > 0);
   
-  const similar = streams.filter(s => {
+  // Prefer similar duration (±50%) but always prioritize high GMV
+  const durationMin = params.streamDuration * 0.5;
+  const durationMax = params.streamDuration * 1.5;
+  
+  const similarDuration = validStreams.filter(s => {
     const dur = s.duration || 0;
     return dur >= durationMin && dur <= durationMax;
   });
 
-  const finalStreams = similar.length > 0 ? similar : streams.slice(0, 5);
+  // Use similar duration matches if enough, otherwise use top GMV streams
+  // Always sorted by GMV descending (highest first)
+  const candidates = similarDuration.length >= 3 ? similarDuration : validStreams;
+  const finalStreams = candidates.slice(0, params.limit || 5);
 
   // Enrich with brand name and product name
   const brandIdSet = new Set<number>();

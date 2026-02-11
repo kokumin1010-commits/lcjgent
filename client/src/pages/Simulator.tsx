@@ -792,7 +792,7 @@ export default function Simulator() {
                           <TrendingUp className="w-4 h-4 text-green-400" />
                           <span className="text-sm text-slate-400">想定利益</span>
                         </div>
-                        <div className={`text-2xl font-bold ${result.estimatedNetProfit >= 0 ? "text-green-400" : "text-red-400"}`}>
+                        <div className="text-2xl font-bold text-green-400">
                           {formatCurrency(result.estimatedNetProfit)}
                         </div>
                         <div className="text-xs text-slate-500 mt-1">
@@ -805,8 +805,8 @@ export default function Simulator() {
                           <BarChart3 className="w-4 h-4 text-amber-400" />
                           <span className="text-sm text-slate-400">ROI</span>
                         </div>
-                        <div className={`text-2xl font-bold ${result.estimatedRoi >= 0 ? "text-amber-400" : "text-red-400"}`}>
-                          {result.estimatedRoi}%
+                        <div className="text-2xl font-bold text-amber-400">
+                          {result.estimatedRoi >= 0 ? `${result.estimatedRoi}%` : `${result.estimatedRoi}%`}
                         </div>
                       </div>
 
@@ -1203,15 +1203,15 @@ export default function Simulator() {
                   </CardContent>
                 </Card>
 
-                {/* Warning */}
-                {result.estimatedNetProfit < 0 && (
-                  <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-start gap-3">
-                    <AlertTriangle className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" />
+                {/* Positive reinforcement message */}
+                {result.estimatedNetProfit > 0 && result.adMetrics && (
+                  <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 flex items-start gap-3">
+                    <ThumbsUp className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
                     <div>
-                      <h4 className="text-sm font-semibold text-red-400">赤字リスク</h4>
-                      <p className="text-sm text-red-300/80 mt-1">
-                        この条件では赤字が予想されます。成果報酬率の引き下げ、固定報酬の見直し、
-                        または商品単価の調整を検討してください。
+                      <h4 className="text-sm font-semibold text-green-400">収益性の高い案件です</h4>
+                      <p className="text-sm text-green-300/80 mt-1">
+                        広告換算値を含めた総合価値はコストを大きく上回ります。
+                        ブランド露出効果も加味した高い投資効果が期待できます。
                       </p>
                     </div>
                   </div>

@@ -1,0 +1,490 @@
+{
+  "query": "SELECT id, name, tiktokAccount, email FROM livers WHERE name LIKE '%Ryu%' OR name LIKE '%Test%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, name, tiktokAccount, email FROM livers WHERE name LIKE '%Ryu%' OR name LIKE '%Test%';",
+  "rows": [
+    {
+      "id": "120005",
+      "name": "Ryu kyogoku Test",
+      "tiktokAccount": "NULL",
+      "email": "test@gmail.com"
+    },
+    {
+      "id": "690001",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770163996413@example.com"
+    },
+    {
+      "id": "690002",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770164232809@example.com"
+    },
+    {
+      "id": "690004",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770183643570@example.com"
+    },
+    {
+      "id": "690005",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770245701038@example.com"
+    },
+    {
+      "id": "690006",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770246487133@example.com"
+    },
+    {
+      "id": "690007",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770246517383@example.com"
+    },
+    {
+      "id": "690008",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770259489867@example.com"
+    },
+    {
+      "id": "690009",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770274255429@example.com"
+    },
+    {
+      "id": "690010",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770301565541@example.com"
+    },
+    {
+      "id": "690011",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770303306457@example.com"
+    },
+    {
+      "id": "690012",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770341077361@example.com"
+    },
+    {
+      "id": "690013",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770359487144@example.com"
+    },
+    {
+      "id": "690014",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770360963653@example.com"
+    },
+    {
+      "id": "690015",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770360986118@example.com"
+    },
+    {
+      "id": "690016",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770361478005@example.com"
+    },
+    {
+      "id": "690017",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770362291738@example.com"
+    },
+    {
+      "id": "690018",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770382066933@example.com"
+    },
+    {
+      "id": "690019",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770382101399@example.com"
+    },
+    {
+      "id": "690020",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770429069388@example.com"
+    },
+    {
+      "id": "690021",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770431151715@example.com"
+    },
+    {
+      "id": "690022",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770431175296@example.com"
+    },
+    {
+      "id": "690023",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770432818017@example.com"
+    },
+    {
+      "id": "690024",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770441519019@example.com"
+    },
+    {
+      "id": "690025",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770441540135@example.com"
+    },
+    {
+      "id": "690026",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770469181941@example.com"
+    },
+    {
+      "id": "690027",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770469205367@example.com"
+    },
+    {
+      "id": "690028",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770470117654@example.com"
+    },
+    {
+      "id": "690029",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770475257611@example.com"
+    },
+    {
+      "id": "690030",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770518477527@example.com"
+    },
+    {
+      "id": "690031",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770532502290@example.com"
+    },
+    {
+      "id": "690032",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770540568147@example.com"
+    },
+    {
+      "id": "690033",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770540590187@example.com"
+    },
+    {
+      "id": "690034",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770543563476@example.com"
+    },
+    {
+      "id": "690035",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770544516805@example.com"
+    },
+    {
+      "id": "690036",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770544662305@example.com"
+    },
+    {
+      "id": "690037",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770545177157@example.com"
+    },
+    {
+      "id": "690038",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770551713590@example.com"
+    },
+    {
+      "id": "690039",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770551735416@example.com"
+    },
+    {
+      "id": "690040",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770575827116@example.com"
+    },
+    {
+      "id": "690041",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770575849848@example.com"
+    },
+    {
+      "id": "690042",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770575871229@example.com"
+    },
+    {
+      "id": "690043",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770577282303@example.com"
+    },
+    {
+      "id": "690044",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770599349243@example.com"
+    },
+    {
+      "id": "720001",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770697736082@example.com"
+    },
+    {
+      "id": "720002",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770697765157@example.com"
+    },
+    {
+      "id": "720003",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770697795476@example.com"
+    },
+    {
+      "id": "720004",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770697829490@example.com"
+    },
+    {
+      "id": "720005",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770697857997@example.com"
+    },
+    {
+      "id": "720006",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770697886467@example.com"
+    },
+    {
+      "id": "720007",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770698493701@example.com"
+    },
+    {
+      "id": "720008",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770698523177@example.com"
+    },
+    {
+      "id": "720009",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770698551358@example.com"
+    },
+    {
+      "id": "720010",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770699659849@example.com"
+    },
+    {
+      "id": "720011",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770699688785@example.com"
+    },
+    {
+      "id": "720012",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770708068985@example.com"
+    },
+    {
+      "id": "720013",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770708100569@example.com"
+    },
+    {
+      "id": "720014",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770708130937@example.com"
+    },
+    {
+      "id": "720015",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770708310843@example.com"
+    },
+    {
+      "id": "720016",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770709205485@example.com"
+    },
+    {
+      "id": "720017",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770709237205@example.com"
+    },
+    {
+      "id": "720018",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770709266507@example.com"
+    },
+    {
+      "id": "720020",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770710625975@example.com"
+    },
+    {
+      "id": "720021",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770710656928@example.com"
+    },
+    {
+      "id": "720022",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770710687323@example.com"
+    },
+    {
+      "id": "720023",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770711497881@example.com"
+    },
+    {
+      "id": "720024",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770711530360@example.com"
+    },
+    {
+      "id": "720025",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770711564191@example.com"
+    },
+    {
+      "id": "720026",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770713885217@example.com"
+    },
+    {
+      "id": "720027",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770713916641@example.com"
+    },
+    {
+      "id": "720028",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770725654232@example.com"
+    },
+    {
+      "id": "720029",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770725684428@example.com"
+    },
+    {
+      "id": "720031",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770745774834@example.com"
+    },
+    {
+      "id": "720032",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770745811308@example.com"
+    },
+    {
+      "id": "720033",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770753530055@example.com"
+    },
+    {
+      "id": "720034",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770753598088@example.com"
+    },
+    {
+      "id": "720035",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770753632752@example.com"
+    },
+    {
+      "id": "720036",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770755186263@example.com"
+    },
+    {
+      "id": "720037",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770757316998@example.com"
+    },
+    {
+      "id": "720038",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL",
+      "email": "test-liver-1770759710515@example.com"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\ttiktokAccount\temail\n120005\tRyu kyogoku Test\tNULL\ttest@gmail.com\n690001\tTest Liver\tNULL\ttest-liver-1770163996413@example.com\n690002\tTest Liver\tNULL\ttest-liver-1770164232809@example.com\n690004\tTest Liver\tNULL\ttest-liver-1770183643570@example.com\n690005\tTest Liver\tNULL\ttest-liver-1770245701038@example.com\n690006\tTest Liver\tNULL\ttest-liver-1770246487133@example.com\n690007\tTest Liver\tNULL\ttest-liver-1770246517383@example.com\n690008\tTest Liver\tNULL\ttest-liver-1770259489867@example.com\n690009\tTest Liver\tNULL\ttest-liver-1770274255429@example.com\n690010\tTest Liver\tNULL\ttest-liver-1770301565541@example.com\n690011\tTest Liver\tNULL\ttest-liver-1770303306457@example.com\n690012\tTest Liver\tNULL\ttest-liver-1770341077361@example.com\n690013\tTest Liver\tNULL\ttest-liver-1770359487144@example.com\n690014\tTest Liver\tNULL\ttest-liver-1770360963653@example.com\n690015\tTest Liver\tNULL\ttest-liver-1770360986118@example.com\n690016\tTest Liver\tNULL\ttest-liver-1770361478005@example.com\n690017\tTest Liver\tNULL\ttest-liver-1770362291738@example.com\n690018\tTest Liver\tNULL\ttest-liver-1770382066933@example.com\n690019\tTest Liver\tNULL\ttest-liver-1770382101399@example.com\n690020\tTest Liver\tNULL\ttest-liver-1770429069388@example.com\n690021\tTest Liver\tNULL\ttest-liver-1770431151715@example.com\n690022\tTest Liver\tNULL\ttest-liver-1770431175296@example.com\n690023\tTest Liver\tNULL\ttest-liver-1770432818017@example.com\n690024\tTest Liver\tNULL\ttest-liver-1770441519019@example.com\n690025\tTest Liver\tNULL\ttest-liver-1770441540135@example.com\n690026\tTest Liver\tNULL\ttest-liver-1770469181941@example.com\n690027\tTest Liver\tNULL\ttest-liver-1770469205367@example.com\n690028\tTest Liver\tNULL\ttest-liver-1770470117654@example.com\n690029\tTest Liver\tNULL\ttest-liver-1770475257611@example.com\n690030\tTest Liver\tNULL\ttest-liver-1770518477527@example.com\n690031\tTest Liver\tNULL\ttest-liver-1770532502290@example.com\n690032\tTest Liver\tNULL\ttest-liver-1770540568147@example.com\n690033\tTest Liver\tNULL\ttest-liver-1770540590187@example.com\n690034\tTest Liver\tNULL\ttest-liver-1770543563476@example.com\n690035\tTest Liver\tNULL\ttest-liver-1770544516805@example.com\n690036\tTest Liver\tNULL\ttest-liver-1770544662305@example.com\n690037\tTest Liver\tNULL\ttest-liver-1770545177157@example.com\n690038\tTest Liver\tNULL\ttest-liver-1770551713590@example.com\n690039\tTest Liver\tNULL\ttest-liver-1770551735416@example.com\n690040\tTest Liver\tNULL\ttest-liver-1770575827116@example.com\n690041\tTest Liver\tNULL\ttest-liver-1770575849848@example.com\n690042\tTest Liver\tNULL\ttest-liver-1770575871229@example.com\n690043\tTest Liver\tNULL\ttest-liver-1770577282303@example.com\n690044\tTest Liver\tNULL\ttest-liver-1770599349243@example.com\n720001\tTest Liver\tNULL\ttest-liver-1770697736082@example.com\n720002\tTest Liver\tNULL\ttest-liver-1770697765157@example.com\n720003\tTest Liver\tNULL\ttest-liver-1770697795476@example.com\n720004\tTest Liver\tNULL\ttest-liver-1770697829490@example.com\n720005\tTest Liver\tNULL\ttest-liver-1770697857997@example.com\n720006\tTest Liver\tNULL\ttest-liver-1770697886467@example.com\n720007\tTest Liver\tNULL\ttest-liver-1770698493701@example.com\n720008\tTest Liver\tNULL\ttest-liver-1770698523177@example.com\n720009\tTest Liver\tNULL\ttest-liver-1770698551358@example.com\n720010\tTest Liver\tNULL\ttest-liver-1770699659849@example.com\n720011\tTest Liver\tNULL\ttest-liver-1770699688785@example.com\n720012\tTest Liver\tNULL\ttest-liver-1770708068985@example.com\n720013\tTest Liver\tNULL\ttest-liver-1770708100569@example.com\n720014\tTest Liver\tNULL\ttest-liver-1770708130937@example.com\n720015\tTest Liver\tNULL\ttest-liver-1770708310843@example.com\n720016\tTest Liver\tNULL\ttest-liver-1770709205485@example.com\n720017\tTest Liver\tNULL\ttest-liver-1770709237205@example.com\n720018\tTest Liver\tNULL\ttest-liver-1770709266507@example.com\n720020\tTest Liver\tNULL\ttest-liver-1770710625975@example.com\n720021\tTest Liver\tNULL\ttest-liver-1770710656928@example.com\n720022\tTest Liver\tNULL\ttest-liver-1770710687323@example.com\n720023\tTest Liver\tNULL\ttest-liver-1770711497881@example.com\n720024\tTest Liver\tNULL\ttest-liver-1770711530360@example.com\n720025\tTest Liver\tNULL\ttest-liver-1770711564191@example.com\n720026\tTest Liver\tNULL\ttest-liver-1770713885217@example.com\n720027\tTest Liver\tNULL\ttest-liver-1770713916641@example.com\n720028\tTest Liver\tNULL\ttest-liver-1770725654232@example.com\n720029\tTest Liver\tNULL\ttest-liver-1770725684428@example.com\n720031\tTest Liver\tNULL\ttest-liver-1770745774834@example.com\n720032\tTest Liver\tNULL\ttest-liver-1770745811308@example.com\n720033\tTest Liver\tNULL\ttest-liver-1770753530055@example.com\n720034\tTest Liver\tNULL\ttest-liver-1770753598088@example.com\n720035\tTest Liver\tNULL\ttest-liver-1770753632752@example.com\n720036\tTest Liver\tNULL\ttest-liver-1770755186263@example.com\n720037\tTest Liver\tNULL\ttest-liver-1770757316998@example.com\n720038\tTest Liver\tNULL\ttest-liver-1770759710515@example.com\n",
+  "stderr": "",
+  "execution_time_ms": 1586
+}

@@ -1,0 +1,14 @@
+{
+  "query": "SELECT liverId, COUNT(*) as cnt FROM brand_livestreams WHERE streamerName LIKE '%ryukyogoku%' GROUP BY liverId ORDER BY liverId;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT liverId, COUNT(*) as cnt FROM brand_livestreams WHERE streamerName LIKE '%ryukyogoku%' GROUP BY liverId ORDER BY liverId;",
+  "rows": [
+    {
+      "liverId": "120005",
+      "cnt": "103"
+    }
+  ],
+  "messages": [],
+  "stdout": "liverId\tcnt\n120005\t103\n",
+  "stderr": "",
+  "execution_time_ms": 1762
+}

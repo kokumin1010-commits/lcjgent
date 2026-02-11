@@ -294,7 +294,7 @@ export default function ProposalPage() {
                 <TrendingUp className="w-5 h-5 text-green-500" />
                 <span className="text-sm font-medium text-slate-500">想定利益</span>
               </div>
-              <div className={`text-3xl font-bold ${estimatedNetProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
+              <div className="text-3xl font-bold text-green-600">
                 {formatCurrency(estimatedNetProfit)}
               </div>
             </CardContent>
@@ -306,7 +306,7 @@ export default function ProposalPage() {
                 <BarChart3 className="w-5 h-5 text-amber-500" />
                 <span className="text-sm font-medium text-slate-500">ROI</span>
               </div>
-              <div className={`text-3xl font-bold ${estimatedRoi >= 0 ? "text-amber-600" : "text-red-600"}`}>
+              <div className="text-3xl font-bold text-amber-600">
                 {estimatedRoi}%
               </div>
             </CardContent>

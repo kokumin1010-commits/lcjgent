@@ -1,0 +1,70 @@
+{
+  "query": "SELECT id, streamerName, liverId, livestreamDate FROM brand_livestreams WHERE brandId = 30001 ORDER BY livestreamDate DESC LIMIT 15;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, streamerName, liverId, livestreamDate FROM brand_livestreams WHERE brandId = 30001 ORDER BY livestreamDate DESC LIMIT 15;",
+  "rows": [
+    {
+      "id": "240020",
+      "streamerName": "@ryukyogoku",
+      "liverId": "120005",
+      "livestreamDate": "2026-01-26 00:00:00"
+    },
+    {
+      "id": "240019",
+      "streamerName": "@ryukyogoku",
+      "liverId": "120005",
+      "livestreamDate": "2026-01-26 00:00:00"
+    },
+    {
+      "id": "240018",
+      "streamerName": "@ryukyogoku",
+      "liverId": "120005",
+      "livestreamDate": "2026-01-26 00:00:00"
+    },
+    {
+      "id": "270002",
+      "streamerName": "@ryukyogoku",
+      "liverId": "120005",
+      "livestreamDate": "2025-12-24 00:00:00"
+    },
+    {
+      "id": "150003",
+      "streamerName": "@ryukyogoku",
+      "liverId": "120005",
+      "livestreamDate": "2025-12-24 00:00:00"
+    },
+    {
+      "id": "180001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "120005",
+      "livestreamDate": "2025-12-24 00:00:00"
+    },
+    {
+      "id": "150004",
+      "streamerName": "@ryukyogoku",
+      "liverId": "120005",
+      "livestreamDate": "2025-12-24 00:00:00"
+    },
+    {
+      "id": "300003",
+      "streamerName": "@ryukyogoku",
+      "liverId": "120005",
+      "livestreamDate": "2025-11-26 00:00:00"
+    },
+    {
+      "id": "300002",
+      "streamerName": "@ryukyogoku",
+      "liverId": "120005",
+      "livestreamDate": "2025-11-26 00:00:00"
+    },
+    {
+      "id": "300001",
+      "streamerName": "@ryukrogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-26 00:00:00"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tstreamerName\tliverId\tlivestreamDate\n240020\t@ryukyogoku\t120005\t2026-01-26 00:00:00\n240019\t@ryukyogoku\t120005\t2026-01-26 00:00:00\n240018\t@ryukyogoku\t120005\t2026-01-26 00:00:00\n270002\t@ryukyogoku\t120005\t2025-12-24 00:00:00\n150003\t@ryukyogoku\t120005\t2025-12-24 00:00:00\n180001\t@ryukyogoku\t120005\t2025-12-24 00:00:00\n150004\t@ryukyogoku\t120005\t2025-12-24 00:00:00\n300003\t@ryukyogoku\t120005\t2025-11-26 00:00:00\n300002\t@ryukyogoku\t120005\t2025-11-26 00:00:00\n300001\t@ryukrogoku\tNULL\t2025-11-26 00:00:00\n",
+  "stderr": "",
+  "execution_time_ms": 1563
+}

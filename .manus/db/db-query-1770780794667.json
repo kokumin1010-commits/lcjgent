@@ -1,0 +1,110 @@
+{
+  "query": "SELECT id, name, tiktokAccount FROM livers LIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, name, tiktokAccount FROM livers LIMIT 20;",
+  "rows": [
+    {
+      "id": "120005",
+      "name": "Ryu kyogoku Test",
+      "tiktokAccount": "NULL"
+    },
+    {
+      "id": "360009",
+      "name": "はづき",
+      "tiktokAccount": "hazuki__924"
+    },
+    {
+      "id": "360012",
+      "name": "三宅あゆみ",
+      "tiktokAccount": "NULL"
+    },
+    {
+      "id": "360013",
+      "name": "NANA",
+      "tiktokAccount": "https://www.tiktok.com/@nana.tokyoselect.no1?_r=1&_t=ZS-93UiWSIVxAH"
+    },
+    {
+      "id": "360029",
+      "name": "SHIHO",
+      "tiktokAccount": "NULL"
+    },
+    {
+      "id": "540001",
+      "name": "けいちゃん",
+      "tiktokAccount": "@ tiktok.king438"
+    },
+    {
+      "id": "540002",
+      "name": "みぃ",
+      "tiktokAccount": "NULL"
+    },
+    {
+      "id": "540003",
+      "name": "yae",
+      "tiktokAccount": "NULL"
+    },
+    {
+      "id": "600001",
+      "name": "yuko",
+      "tiktokAccount": "NULL"
+    },
+    {
+      "id": "630001",
+      "name": "テストライバー",
+      "tiktokAccount": "NULL"
+    },
+    {
+      "id": "630002",
+      "name": "..",
+      "tiktokAccount": "NULL"
+    },
+    {
+      "id": "660001",
+      "name": "hanaco",
+      "tiktokAccount": "NULL"
+    },
+    {
+      "id": "660004",
+      "name": "chiaki",
+      "tiktokAccount": "NULL"
+    },
+    {
+      "id": "690001",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL"
+    },
+    {
+      "id": "690002",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL"
+    },
+    {
+      "id": "690003",
+      "name": "。",
+      "tiktokAccount": "NULL"
+    },
+    {
+      "id": "690004",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL"
+    },
+    {
+      "id": "690005",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL"
+    },
+    {
+      "id": "690006",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL"
+    },
+    {
+      "id": "690007",
+      "name": "Test Liver",
+      "tiktokAccount": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\ttiktokAccount\n120005\tRyu kyogoku Test\tNULL\n360009\tはづき\thazuki__924\n360012\t三宅あゆみ\tNULL\n360013\tNANA\thttps://www.tiktok.com/@nana.tokyoselect.no1?_r=1&_t=ZS-93UiWSIVxAH\n360029\tSHIHO\tNULL\n540001\tけいちゃん\t@ tiktok.king438\n540002\tみぃ\tNULL\n540003\tyae\tNULL\n600001\tyuko\tNULL\n630001\tテストライバー\tNULL\n630002\t..\tNULL\n660001\thanaco\tNULL\n660004\tchiaki\tNULL\n690001\tTest Liver\tNULL\n690002\tTest Liver\tNULL\n690003\t。\tNULL\n690004\tTest Liver\tNULL\n690005\tTest Liver\tNULL\n690006\tTest Liver\tNULL\n690007\tTest Liver\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1538
+}

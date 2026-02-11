@@ -1,0 +1,40 @@
+{
+  "query": "SELECT id, liverId, streamerName, CASE WHEN liverId IS NULL THEN 'NULL' WHEN liverId = 0 THEN 'ZERO' ELSE CAST(liverId AS CHAR) END as liver_status FROM brand_livestreams WHERE streamerName LIKE '%ryukyogoku%' LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, liverId, streamerName, CASE WHEN liverId IS NULL THEN 'NULL' WHEN liverId = 0 THEN 'ZERO' ELSE CAST(liverId AS CHAR) END as liver_status FROM brand_livestreams WHERE streamerName LIKE '%ryukyogoku%' LIMIT 5;",
+  "rows": [
+    {
+      "id": "3",
+      "liverId": "120005",
+      "streamerName": "@ryukyogoku",
+      "liver_status": "120005"
+    },
+    {
+      "id": "4",
+      "liverId": "120005",
+      "streamerName": "@ryukyogoku",
+      "liver_status": "120005"
+    },
+    {
+      "id": "150001",
+      "liverId": "120005",
+      "streamerName": "@ryukyogoku",
+      "liver_status": "120005"
+    },
+    {
+      "id": "150002",
+      "liverId": "120005",
+      "streamerName": "@ryukyogoku",
+      "liver_status": "120005"
+    },
+    {
+      "id": "150003",
+      "liverId": "120005",
+      "streamerName": "@ryukyogoku",
+      "liver_status": "120005"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tliverId\tstreamerName\tliver_status\n3\t120005\t@ryukyogoku\t120005\n4\t120005\t@ryukyogoku\t120005\n150001\t120005\t@ryukyogoku\t120005\n150002\t120005\t@ryukyogoku\t120005\n150003\t120005\t@ryukyogoku\t120005\n",
+  "stderr": "",
+  "execution_time_ms": 1584
+}

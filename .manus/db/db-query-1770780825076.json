@@ -1,0 +1,731 @@
+{
+  "query": "SELECT id, brandId, streamerName, liverId, livestreamDate FROM brand_livestreams WHERE streamerName LIKE '%ryukyogoku%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, brandId, streamerName, liverId, livestreamDate FROM brand_livestreams WHERE streamerName LIKE '%ryukyogoku%';",
+  "rows": [
+    {
+      "id": "3",
+      "brandId": "120001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-12-25 00:00:00"
+    },
+    {
+      "id": "4",
+      "brandId": "120001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-12-25 00:00:00"
+    },
+    {
+      "id": "150001",
+      "brandId": "90009",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-12-23 00:00:00"
+    },
+    {
+      "id": "150002",
+      "brandId": "90009",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-12-23 00:00:00"
+    },
+    {
+      "id": "150003",
+      "brandId": "30001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-12-24 00:00:00"
+    },
+    {
+      "id": "150004",
+      "brandId": "30001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-12-24 00:00:00"
+    },
+    {
+      "id": "150021",
+      "brandId": "90005",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-12-23 00:00:00"
+    },
+    {
+      "id": "150026",
+      "brandId": "90006",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-12-24 00:00:00"
+    },
+    {
+      "id": "180001",
+      "brandId": "30001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-12-24 00:00:00"
+    },
+    {
+      "id": "210001",
+      "brandId": "90008",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-12-25 00:00:00"
+    },
+    {
+      "id": "210006",
+      "brandId": "90008",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-12-25 00:00:00"
+    },
+    {
+      "id": "210007",
+      "brandId": "90008",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-12-25 00:00:00"
+    },
+    {
+      "id": "210011",
+      "brandId": "90007",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2023-12-23 00:00:00"
+    },
+    {
+      "id": "240009",
+      "brandId": "90001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-12-25 00:00:00"
+    },
+    {
+      "id": "240010",
+      "brandId": "90001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-12-25 00:00:00"
+    },
+    {
+      "id": "240011",
+      "brandId": "90001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-12-25 00:00:00"
+    },
+    {
+      "id": "240012",
+      "brandId": "90004",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-12-23 00:00:00"
+    },
+    {
+      "id": "240014",
+      "brandId": "150001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-26 00:00:00"
+    },
+    {
+      "id": "240015",
+      "brandId": "150001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-26 00:00:00"
+    },
+    {
+      "id": "240016",
+      "brandId": "150001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-26 00:00:00"
+    },
+    {
+      "id": "240018",
+      "brandId": "30001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-26 00:00:00"
+    },
+    {
+      "id": "240019",
+      "brandId": "30001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-26 00:00:00"
+    },
+    {
+      "id": "240020",
+      "brandId": "30001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-26 00:00:00"
+    },
+    {
+      "id": "240022",
+      "brandId": "120001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-26 00:00:00"
+    },
+    {
+      "id": "240023",
+      "brandId": "120001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-26 00:00:00"
+    },
+    {
+      "id": "240024",
+      "brandId": "120001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-26 00:00:00"
+    },
+    {
+      "id": "240025",
+      "brandId": "120001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-26 00:00:00"
+    },
+    {
+      "id": "270001",
+      "brandId": "90002",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-12-25 00:00:00"
+    },
+    {
+      "id": "270002",
+      "brandId": "30001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-12-24 00:00:00"
+    },
+    {
+      "id": "300002",
+      "brandId": "30001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-26 00:00:00"
+    },
+    {
+      "id": "300003",
+      "brandId": "30001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-26 00:00:00"
+    },
+    {
+      "id": "300004",
+      "brandId": "120001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-25 00:00:00"
+    },
+    {
+      "id": "300005",
+      "brandId": "120001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-25 00:00:00"
+    },
+    {
+      "id": "300007",
+      "brandId": "180001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-26 00:00:00"
+    },
+    {
+      "id": "300008",
+      "brandId": "120001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-25 00:00:00"
+    },
+    {
+      "id": "300011",
+      "brandId": "120005",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-25 00:00:00"
+    },
+    {
+      "id": "300012",
+      "brandId": "120005",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-25 00:00:00"
+    },
+    {
+      "id": "300013",
+      "brandId": "120005",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-25 00:00:00"
+    },
+    {
+      "id": "300015",
+      "brandId": "120005",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-25 00:00:00"
+    },
+    {
+      "id": "300016",
+      "brandId": "120005",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-25 00:00:00"
+    },
+    {
+      "id": "300017",
+      "brandId": "120005",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-25 00:00:00"
+    },
+    {
+      "id": "330001",
+      "brandId": "120007",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-28 00:00:00"
+    },
+    {
+      "id": "330002",
+      "brandId": "120007",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-28 00:00:00"
+    },
+    {
+      "id": "330003",
+      "brandId": "90001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-27 00:00:00"
+    },
+    {
+      "id": "330004",
+      "brandId": "90001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-27 00:00:00"
+    },
+    {
+      "id": "360001",
+      "brandId": "90005",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-27 00:00:00"
+    },
+    {
+      "id": "360002",
+      "brandId": "90005",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-27 00:00:00"
+    },
+    {
+      "id": "360003",
+      "brandId": "180003",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-27 00:00:00"
+    },
+    {
+      "id": "360004",
+      "brandId": "180003",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-27 00:00:00"
+    },
+    {
+      "id": "360005",
+      "brandId": "180004",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-27 00:00:00"
+    },
+    {
+      "id": "360006",
+      "brandId": "180004",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-27 00:00:00"
+    },
+    {
+      "id": "360007",
+      "brandId": "180004",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-27 00:00:00"
+    },
+    {
+      "id": "360008",
+      "brandId": "180005",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2027-01-27 00:00:00"
+    },
+    {
+      "id": "360009",
+      "brandId": "180005",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-27 00:00:00"
+    },
+    {
+      "id": "360011",
+      "brandId": "90001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2027-01-28 00:00:00"
+    },
+    {
+      "id": "360012",
+      "brandId": "90001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2027-01-28 00:00:00"
+    },
+    {
+      "id": "360013",
+      "brandId": "180006",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-28 00:00:00"
+    },
+    {
+      "id": "360014",
+      "brandId": "360001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-28 00:00:00"
+    },
+    {
+      "id": "360015",
+      "brandId": "90001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-18 00:00:00"
+    },
+    {
+      "id": "360017",
+      "brandId": "60001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-25 00:00:00"
+    },
+    {
+      "id": "360018",
+      "brandId": "60001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-25 00:00:00"
+    },
+    {
+      "id": "360020",
+      "brandId": "60001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-25 00:00:00"
+    },
+    {
+      "id": "360021",
+      "brandId": "60001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-25 00:00:00"
+    },
+    {
+      "id": "360022",
+      "brandId": "60001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-25 00:00:00"
+    },
+    {
+      "id": "360023",
+      "brandId": "60001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-25 00:00:00"
+    },
+    {
+      "id": "360025",
+      "brandId": "60001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-25 00:00:00"
+    },
+    {
+      "id": "360026",
+      "brandId": "120005",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-05 00:00:00"
+    },
+    {
+      "id": "360027",
+      "brandId": "120005",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-25 00:00:00"
+    },
+    {
+      "id": "360028",
+      "brandId": "120006",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-26 00:00:00"
+    },
+    {
+      "id": "360029",
+      "brandId": "120006",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-26 00:00:00"
+    },
+    {
+      "id": "360030",
+      "brandId": "120006",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-26 00:00:00"
+    },
+    {
+      "id": "360031",
+      "brandId": "120006",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-26 00:00:00"
+    },
+    {
+      "id": "360032",
+      "brandId": "120006",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-26 00:00:00"
+    },
+    {
+      "id": "360033",
+      "brandId": "120006",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-26 00:00:00"
+    },
+    {
+      "id": "360034",
+      "brandId": "120006",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-26 00:00:00"
+    },
+    {
+      "id": "360035",
+      "brandId": "120006",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-26 00:00:00"
+    },
+    {
+      "id": "360036",
+      "brandId": "120006",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-26 00:00:00"
+    },
+    {
+      "id": "360037",
+      "brandId": "120006",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-26 00:00:00"
+    },
+    {
+      "id": "360038",
+      "brandId": "120006",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-26 00:00:00"
+    },
+    {
+      "id": "360039",
+      "brandId": "120006",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-26 00:00:00"
+    },
+    {
+      "id": "360040",
+      "brandId": "90008",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-28 00:00:00"
+    },
+    {
+      "id": "360041",
+      "brandId": "120006",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-26 00:00:00"
+    },
+    {
+      "id": "360042",
+      "brandId": "120006",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-26 00:00:00"
+    },
+    {
+      "id": "360043",
+      "brandId": "90008",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-28 00:00:00"
+    },
+    {
+      "id": "360044",
+      "brandId": "90008",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-28 00:00:00"
+    },
+    {
+      "id": "360045",
+      "brandId": "90008",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-28 00:00:00"
+    },
+    {
+      "id": "360046",
+      "brandId": "90008",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-28 00:00:00"
+    },
+    {
+      "id": "360047",
+      "brandId": "90008",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-28 00:00:00"
+    },
+    {
+      "id": "360050",
+      "brandId": "90008",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-28 00:00:00"
+    },
+    {
+      "id": "360051",
+      "brandId": "90008",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-28 00:00:00"
+    },
+    {
+      "id": "360052",
+      "brandId": "90008",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-28 00:00:00"
+    },
+    {
+      "id": "360053",
+      "brandId": "90008",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-11-28 00:00:00"
+    },
+    {
+      "id": "390001",
+      "brandId": "180005",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2027-01-27 00:00:00"
+    },
+    {
+      "id": "390002",
+      "brandId": "360001",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-28 00:00:00"
+    },
+    {
+      "id": "450118",
+      "brandId": "90003",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-12-24 00:00:00"
+    },
+    {
+      "id": "450119",
+      "brandId": "90003",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2025-12-24 00:00:00"
+    },
+    {
+      "id": "510001",
+      "brandId": "180006",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-30 00:00:00"
+    },
+    {
+      "id": "510002",
+      "brandId": "90003",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-30 00:00:00"
+    },
+    {
+      "id": "510003",
+      "brandId": "90003",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-30 00:00:00"
+    },
+    {
+      "id": "750001",
+      "brandId": "540021",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-30 00:00:00"
+    },
+    {
+      "id": "750002",
+      "brandId": "540021",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-30 00:00:00"
+    },
+    {
+      "id": "750003",
+      "brandId": "540021",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-30 00:00:00"
+    },
+    {
+      "id": "750004",
+      "brandId": "540021",
+      "streamerName": "@ryukyogoku",
+      "liverId": "NULL",
+      "livestreamDate": "2026-01-30 00:00:00"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tbrandId\tstreamerName\tliverId\tlivestreamDate\n3\t120001\t@ryukyogoku\tNULL\t2025-12-25 00:00:00\n4\t120001\t@ryukyogoku\tNULL\t2025-12-25 00:00:00\n150001\t90009\t@ryukyogoku\tNULL\t2025-12-23 00:00:00\n150002\t90009\t@ryukyogoku\tNULL\t2025-12-23 00:00:00\n150003\t30001\t@ryukyogoku\tNULL\t2025-12-24 00:00:00\n150004\t30001\t@ryukyogoku\tNULL\t2025-12-24 00:00:00\n150021\t90005\t@ryukyogoku\tNULL\t2025-12-23 00:00:00\n150026\t90006\t@ryukyogoku\tNULL\t2025-12-24 00:00:00\n180001\t30001\t@ryukyogoku\tNULL\t2025-12-24 00:00:00\n210001\t90008\t@ryukyogoku\tNULL\t2025-12-25 00:00:00\n210006\t90008\t@ryukyogoku\tNULL\t2025-12-25 00:00:00\n210007\t90008\t@ryukyogoku\tNULL\t2025-12-25 00:00:00\n210011\t90007\t@ryukyogoku\tNULL\t2023-12-23 00:00:00\n240009\t90001\t@ryukyogoku\tNULL\t2025-12-25 00:00:00\n240010\t90001\t@ryukyogoku\tNULL\t2025-12-25 00:00:00\n240011\t90001\t@ryukyogoku\tNULL\t2025-12-25 00:00:00\n240012\t90004\t@ryukyogoku\tNULL\t2025-12-23 00:00:00\n240014\t150001\t@ryukyogoku\tNULL\t2026-01-26 00:00:00\n240015\t150001\t@ryukyogoku\tNULL\t2026-01-26 00:00:00\n240016\t150001\t@ryukyogoku\tNULL\t2026-01-26 00:00:00\n240018\t30001\t@ryukyogoku\tNULL\t2026-01-26 00:00:00\n240019\t30001\t@ryukyogoku\tNULL\t2026-01-26 00:00:00\n240020\t30001\t@ryukyogoku\tNULL\t2026-01-26 00:00:00\n240022\t120001\t@ryukyogoku\tNULL\t2026-01-26 00:00:00\n240023\t120001\t@ryukyogoku\tNULL\t2026-01-26 00:00:00\n240024\t120001\t@ryukyogoku\tNULL\t2026-01-26 00:00:00\n240025\t120001\t@ryukyogoku\tNULL\t2026-01-26 00:00:00\n270001\t90002\t@ryukyogoku\tNULL\t2025-12-25 00:00:00\n270002\t30001\t@ryukyogoku\tNULL\t2025-12-24 00:00:00\n300002\t30001\t@ryukyogoku\tNULL\t2025-11-26 00:00:00\n300003\t30001\t@ryukyogoku\tNULL\t2025-11-26 00:00:00\n300004\t120001\t@ryukyogoku\tNULL\t2025-11-25 00:00:00\n300005\t120001\t@ryukyogoku\tNULL\t2025-11-25 00:00:00\n300007\t180001\t@ryukyogoku\tNULL\t2026-01-26 00:00:00\n300008\t120001\t@ryukyogoku\tNULL\t2025-11-25 00:00:00\n300011\t120005\t@ryukyogoku\tNULL\t2025-11-25 00:00:00\n300012\t120005\t@ryukyogoku\tNULL\t2025-11-25 00:00:00\n300013\t120005\t@ryukyogoku\tNULL\t2025-11-25 00:00:00\n300015\t120005\t@ryukyogoku\tNULL\t2025-11-25 00:00:00\n300016\t120005\t@ryukyogoku\tNULL\t2025-11-25 00:00:00\n300017\t120005\t@ryukyogoku\tNULL\t2025-11-25 00:00:00\n330001\t120007\t@ryukyogoku\tNULL\t2025-11-28 00:00:00\n330002\t120007\t@ryukyogoku\tNULL\t2025-11-28 00:00:00\n330003\t90001\t@ryukyogoku\tNULL\t2025-11-27 00:00:00\n330004\t90001\t@ryukyogoku\tNULL\t2025-11-27 00:00:00\n360001\t90005\t@ryukyogoku\tNULL\t2026-01-27 00:00:00\n360002\t90005\t@ryukyogoku\tNULL\t2026-01-27 00:00:00\n360003\t180003\t@ryukyogoku\tNULL\t2026-01-27 00:00:00\n360004\t180003\t@ryukyogoku\tNULL\t2026-01-27 00:00:00\n360005\t180004\t@ryukyogoku\tNULL\t2026-01-27 00:00:00\n360006\t180004\t@ryukyogoku\tNULL\t2026-01-27 00:00:00\n360007\t180004\t@ryukyogoku\tNULL\t2026-01-27 00:00:00\n360008\t180005\t@ryukyogoku\tNULL\t2027-01-27 00:00:00\n360009\t180005\t@ryukyogoku\tNULL\t2026-01-27 00:00:00\n360011\t90001\t@ryukyogoku\tNULL\t2027-01-28 00:00:00\n360012\t90001\t@ryukyogoku\tNULL\t2027-01-28 00:00:00\n360013\t180006\t@ryukyogoku\tNULL\t2026-01-28 00:00:00\n360014\t360001\t@ryukyogoku\tNULL\t2026-01-28 00:00:00\n360015\t90001\t@ryukyogoku\tNULL\t2026-01-18 00:00:00\n360017\t60001\t@ryukyogoku\tNULL\t2025-11-25 00:00:00\n360018\t60001\t@ryukyogoku\tNULL\t2025-11-25 00:00:00\n360020\t60001\t@ryukyogoku\tNULL\t2025-11-25 00:00:00\n360021\t60001\t@ryukyogoku\tNULL\t2025-11-25 00:00:00\n360022\t60001\t@ryukyogoku\tNULL\t2025-11-25 00:00:00\n360023\t60001\t@ryukyogoku\tNULL\t2025-11-25 00:00:00\n360025\t60001\t@ryukyogoku\tNULL\t2025-11-25 00:00:00\n360026\t120005\t@ryukyogoku\tNULL\t2025-11-05 00:00:00\n360027\t120005\t@ryukyogoku\tNULL\t2025-11-25 00:00:00\n360028\t120006\t@ryukyogoku\tNULL\t2025-11-26 00:00:00\n360029\t120006\t@ryukyogoku\tNULL\t2025-11-26 00:00:00\n360030\t120006\t@ryukyogoku\tNULL\t2025-11-26 00:00:00\n360031\t120006\t@ryukyogoku\tNULL\t2025-11-26 00:00:00\n360032\t120006\t@ryukyogoku\tNULL\t2025-11-26 00:00:00\n360033\t120006\t@ryukyogoku\tNULL\t2025-11-26 00:00:00\n360034\t120006\t@ryukyogoku\tNULL\t2025-11-26 00:00:00\n360035\t120006\t@ryukyogoku\tNULL\t2025-11-26 00:00:00\n360036\t120006\t@ryukyogoku\tNULL\t2025-11-26 00:00:00\n360037\t120006\t@ryukyogoku\tNULL\t2025-11-26 00:00:00\n360038\t120006\t@ryukyogoku\tNULL\t2025-11-26 00:00:00\n360039\t120006\t@ryukyogoku\tNULL\t2025-11-26 00:00:00\n360040\t90008\t@ryukyogoku\tNULL\t2025-11-28 00:00:00\n360041\t120006\t@ryukyogoku\tNULL\t2025-11-26 00:00:00\n360042\t120006\t@ryukyogoku\tNULL\t2025-11-26 00:00:00\n360043\t90008\t@ryukyogoku\tNULL\t2025-11-28 00:00:00\n360044\t90008\t@ryukyogoku\tNULL\t2025-11-28 00:00:00\n360045\t90008\t@ryukyogoku\tNULL\t2025-11-28 00:00:00\n360046\t90008\t@ryukyogoku\tNULL\t2025-11-28 00:00:00\n360047\t90008\t@ryukyogoku\tNULL\t2025-11-28 00:00:00\n360050\t90008\t@ryukyogoku\tNULL\t2025-11-28 00:00:00\n360051\t90008\t@ryukyogoku\tNULL\t2025-11-28 00:00:00\n360052\t90008\t@ryukyogoku\tNULL\t2025-11-28 00:00:00\n360053\t90008\t@ryukyogoku\tNULL\t2025-11-28 00:00:00\n390001\t180005\t@ryukyogoku\tNULL\t2027-01-27 00:00:00\n390002\t360001\t@ryukyogoku\tNULL\t2026-01-28 00:00:00\n450118\t90003\t@ryukyogoku\tNULL\t2025-12-24 00:00:00\n450119\t90003\t@ryukyogoku\tNULL\t2025-12-24 00:00:00\n510001\t180006\t@ryukyogoku\tNULL\t2026-01-30 00:00:00\n510002\t90003\t@ryukyogoku\tNULL\t2026-01-30 00:00:00\n510003\t90003\t@ryukyogoku\tNULL\t2026-01-30 00:00:00\n750001\t540021\t@ryukyogoku\tNULL\t2026-01-30 00:00:00\n750002\t540021\t@ryukyogoku\tNULL\t2026-01-30 00:00:00\n750003\t540021\t@ryukyogoku\tNULL\t2026-01-30 00:00:00\n750004\t540021\t@ryukyogoku\tNULL\t2026-01-30 00:00:00\n",
+  "stderr": "",
+  "execution_time_ms": 1602
+}

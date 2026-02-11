@@ -1,0 +1,35 @@
+{
+  "query": "SELECT id, liverId, streamerName FROM brand_livestreams WHERE streamerName LIKE '%ryukyogoku%' LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, liverId, streamerName FROM brand_livestreams WHERE streamerName LIKE '%ryukyogoku%' LIMIT 5;",
+  "rows": [
+    {
+      "id": "3",
+      "liverId": "120005",
+      "streamerName": "@ryukyogoku"
+    },
+    {
+      "id": "4",
+      "liverId": "120005",
+      "streamerName": "@ryukyogoku"
+    },
+    {
+      "id": "150001",
+      "liverId": "120005",
+      "streamerName": "@ryukyogoku"
+    },
+    {
+      "id": "150002",
+      "liverId": "120005",
+      "streamerName": "@ryukyogoku"
+    },
+    {
+      "id": "150003",
+      "liverId": "120005",
+      "streamerName": "@ryukyogoku"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tliverId\tstreamerName\n3\t120005\t@ryukyogoku\n4\t120005\t@ryukyogoku\n150001\t120005\t@ryukyogoku\n150002\t120005\t@ryukyogoku\n150003\t120005\t@ryukyogoku\n",
+  "stderr": "",
+  "execution_time_ms": 1509
+}

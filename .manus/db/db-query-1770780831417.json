@@ -1,0 +1,15 @@
+{
+  "query": "SELECT COUNT(*) as total, SUM(CASE WHEN liverId IS NULL THEN 1 ELSE 0 END) as null_liver_id, SUM(CASE WHEN liverId IS NOT NULL THEN 1 ELSE 0 END) as has_liver_id FROM brand_livestreams WHERE streamerName LIKE '%ryukyogoku%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT COUNT(*) as total, SUM(CASE WHEN liverId IS NULL THEN 1 ELSE 0 END) as null_liver_id, SUM(CASE WHEN liverId IS NOT NULL THEN 1 ELSE 0 END) as has_liver_id FROM brand_livestreams WHERE streamerName LIKE '%ryukyogoku%';",
+  "rows": [
+    {
+      "total": "103",
+      "null_liver_id": "103",
+      "has_liver_id": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\tnull_liver_id\thas_liver_id\n103\t103\t0\n",
+  "stderr": "",
+  "execution_time_ms": 1515
+}
