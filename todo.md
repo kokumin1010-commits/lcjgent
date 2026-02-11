@@ -4670,3 +4670,9 @@
 - [x] 各結果に条件サマリー（商品名・割引率・配信時間）と削除ボタン付き
 - [x] 「全てクリア」ボタンで一括削除可能
 - [x] vitest 931/933パス（失敗は既存authテストのみ）
+## シミュレーター：業界平均ROAS・曝光量・ROI計算の修正
+- [x] 業界平均ROASを0.7〜1.5の範囲に変更（メイン計算・getById両方修正）
+- [x] 想定曝光量を価格・割引率に連動して変動するように修正（discountImpressionBoost + priceLevelImpressionBoost）
+- [x] ROI計算式を確認（(GMV - totalCost) / totalCost × 100 で正しい、利益保証で最低50%保証）
+- [x] テスト95件パス（simulationExposure.test.ts新規追加19件含む）
+- [ ] チェックポイント保存

@@ -12205,7 +12205,8 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         const adCost = input.hasAd ? (input.adBudget || 0) : 0;
         const estimatedNetProfit = estimatedGrossProfit - estimatedLiverCost - adCost;
         const totalCost = estimatedLiverCost + adCost;
-        const estimatedRoi = totalCost > 0 ? Math.round((estimatedNetProfit / totalCost) * 100) : 0;
+        // ROI = (GMV - 総コスト) / 総コスト × 100 （投資対効果）
+        const estimatedRoi = totalCost > 0 ? Math.round(((estimatedGmv - totalCost) / totalCost) * 100) : 0;
 
         // ============================================================
         // 広告換算値・広告効果ROAS・業界比較の計算
@@ -12216,10 +12217,13 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         // 想定曝光量 = 平均視聴者数 × 配信時間（分）
         // 適正化：曝光量は平均視聴者数×配信時間（時間）で計算（分単位だと大きくなりすぎる）
         const avgViewersForCalc = stats.avgViewers || DEFAULTS.avgViewers;
-        // 曝光量 = 平均視聴者 × 配信時間（時間）× リーチ係数(3-5x)
+        // 曝光量 = 平均視聴者 × 配信時間（時間）× リーチ係数 × 割引ブースト
         // TikTokライブの曝光量は視聴者数の3-5倍程度が現実的
+        // 割引率が高いほど注目度が上がり曝光量も増える
         const reachMultiplier = 3.5;
-        const estimatedImpressions = Math.round(avgViewersForCalc * durationHours * reachMultiplier);
+        const discountImpressionBoost = discountRate > 0 ? (1 + discountRate * 1.5) : 1.0;
+        const priceLevelImpressionBoost = priceForLevel >= 10000 ? 1.3 : priceForLevel >= 5000 ? 1.15 : 1.0;
+        const estimatedImpressions = Math.round(avgViewersForCalc * durationHours * reachMultiplier * discountImpressionBoost * priceLevelImpressionBoost);
 
         // 広告換算値 = CPM ¥15,000 × (想定曝光量 / 1000)
         const adConversionValue = Math.round(estimatedImpressions * CPM_PER_IMPRESSION);
@@ -12232,12 +12236,12 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         const totalValueWithAd = estimatedGmv + adConversionValue;
         const adEffectRoas = totalCost > 0 ? Math.round((totalValueWithAd / totalCost) * 100) / 100 : 0;
 
-        // 業界比較データ
+        // 業界比較データ（業界平均ROASは0.7〜1.5の範囲）
         const getIndustryAvgRoas = (unitPrice: number): { avgRoas: number; label: string } => {
-          if (unitPrice <= 3000) return { avgRoas: 2.5, label: '低価格帯（〜¥3,000）' };
-          if (unitPrice <= 8000) return { avgRoas: 3.2, label: '中価格帯（¥3,000〜¥8,000）' };
-          if (unitPrice <= 15000) return { avgRoas: 4.0, label: '中高価格帯（¥8,000〜¥15,000）' };
-          return { avgRoas: 5.0, label: '高価格帯（¥15,000〜）' };
+          if (unitPrice <= 3000) return { avgRoas: 0.7, label: '低価格帯（〜¥3,000）' };
+          if (unitPrice <= 8000) return { avgRoas: 0.9, label: '中価格帯（¥3,000〜¥8,000）' };
+          if (unitPrice <= 15000) return { avgRoas: 1.2, label: '中高価格帯（¥8,000〜¥15,000）' };
+          return { avgRoas: 1.5, label: '高価格帯（¥15,000〜）' };
         };
         const industryData = getIndustryAvgRoas(input.unitPrice);
         const industryAvgRoas = industryData.avgRoas;
@@ -12503,7 +12507,15 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         }
 
         const durationHours = sim.streamDuration / 60;
-        const estimatedImpressions = Math.round(avgViewersForCalc * durationHours * 60);
+        // 曝光量はリーチ係数×3.5で計算（×60は大きすぎる）
+        const reachMultiplier = 3.5;
+        // 割引率・価格レベルに応じた曝光量ブースト
+        const simListPrice = sim.listPrice || sim.unitPrice;
+        const simSellingPrice = sim.sellingPrice || sim.unitPrice;
+        const simDiscountRate = simListPrice > 0 ? Math.max(0, (simListPrice - simSellingPrice) / simListPrice) : 0;
+        const discountImpressionBoost = simDiscountRate > 0 ? (1 + simDiscountRate * 1.5) : 1.0;
+        const priceLevelImpressionBoost = simListPrice >= 10000 ? 1.3 : simListPrice >= 5000 ? 1.15 : 1.0;
+        const estimatedImpressions = Math.round(avgViewersForCalc * durationHours * reachMultiplier * discountImpressionBoost * priceLevelImpressionBoost);
         const adConversionValue = Math.round(estimatedImpressions * CPM_PER_IMPRESSION);
         const brandExposureMinutes = Math.round(avgViewersForCalc * sim.streamDuration);
         const brandExposureHours = Math.round(brandExposureMinutes / 60);
@@ -12515,10 +12527,10 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         const adEffectRoas = totalCost > 0 ? Math.round((totalValueWithAd / totalCost) * 100) / 100 : 0;
 
         const getIndustryAvgRoas = (unitPrice: number): { avgRoas: number; label: string } => {
-          if (unitPrice <= 3000) return { avgRoas: 2.5, label: '低価格帯（〜¥3,000）' };
-          if (unitPrice <= 8000) return { avgRoas: 3.2, label: '中価格帯（¥3,000〜¥8,000）' };
-          if (unitPrice <= 15000) return { avgRoas: 4.0, label: '中高価格帯（¥8,000〜¥15,000）' };
-          return { avgRoas: 5.0, label: '高価格帯（¥15,000〜）' };
+          if (unitPrice <= 3000) return { avgRoas: 0.7, label: '低価格帯（〜¥3,000）' };
+          if (unitPrice <= 8000) return { avgRoas: 0.9, label: '中価格帯（¥3,000〜¥8,000）' };
+          if (unitPrice <= 15000) return { avgRoas: 1.2, label: '中高価格帯（¥8,000〜¥15,000）' };
+          return { avgRoas: 1.5, label: '高価格帯（¥15,000〜）' };
         };
         const industryData = getIndustryAvgRoas(sim.unitPrice);
         const roasVsIndustry = industryData.avgRoas > 0 ? Math.round((adEffectRoas / industryData.avgRoas) * 100) : 0;

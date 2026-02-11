@@ -614,49 +614,49 @@ describe("Ad Metrics Calculation (広告換算値・広告効果ROAS・業界比
 
   describe("Industry Comparison (業界比較)", () => {
     const getIndustryAvgRoas = (unitPrice: number): { avgRoas: number; label: string } => {
-      if (unitPrice <= 3000) return { avgRoas: 2.5, label: '低価格帯（〜¥3,000）' };
-      if (unitPrice <= 8000) return { avgRoas: 3.2, label: '中価格帯（¥3,000〜¥8,000）' };
-      if (unitPrice <= 15000) return { avgRoas: 4.0, label: '中高価格帯（¥8,000〜¥15,000）' };
-      return { avgRoas: 5.0, label: '高価格帯（¥15,000〜）' };
+      if (unitPrice <= 3000) return { avgRoas: 0.7, label: '低価格帯（〜¥3,000）' };
+      if (unitPrice <= 8000) return { avgRoas: 0.9, label: '中価格帯（¥3,000〜¥8,000）' };
+      if (unitPrice <= 15000) return { avgRoas: 1.2, label: '中高価格帯（¥8,000〜¥15,000）' };
+      return { avgRoas: 1.5, label: '高価格帯（¥15,000〜）' };
     };
 
     it("should return correct ROAS for low price range", () => {
       const result = getIndustryAvgRoas(2000);
-      expect(result.avgRoas).toBe(2.5);
+      expect(result.avgRoas).toBe(0.7);
       expect(result.label).toContain('低価格帯');
     });
 
     it("should return correct ROAS for mid price range", () => {
       const result = getIndustryAvgRoas(5000);
-      expect(result.avgRoas).toBe(3.2);
+      expect(result.avgRoas).toBe(0.9);
       expect(result.label).toContain('中価格帯');
     });
 
     it("should return correct ROAS for mid-high price range", () => {
       const result = getIndustryAvgRoas(10000);
-      expect(result.avgRoas).toBe(4.0);
+      expect(result.avgRoas).toBe(1.2);
       expect(result.label).toContain('中高価格帯');
     });
 
     it("should return correct ROAS for high price range", () => {
       const result = getIndustryAvgRoas(20000);
-      expect(result.avgRoas).toBe(5.0);
+      expect(result.avgRoas).toBe(1.5);
       expect(result.label).toContain('高価格帯');
     });
 
     it("should calculate roasVsIndustry percentage correctly", () => {
       const adEffectRoas = 15.8;
-      const industryAvgRoas = 3.2;
+      const industryAvgRoas = 0.9;
       const roasVsIndustry = Math.round((adEffectRoas / industryAvgRoas) * 100);
-      expect(roasVsIndustry).toBe(494);
+      expect(roasVsIndustry).toBe(1756);
     });
 
     it("should generate correct label when above average", () => {
-      const roasVsIndustry = 494;
+      const roasVsIndustry = 1756;
       const label = roasVsIndustry >= 100
         ? `業界平均の${Math.round(roasVsIndustry / 100 * 10) / 10}倍`
         : `業界平均の${roasVsIndustry}%`;
-      expect(label).toBe('業界平均の4.9倍');
+      expect(label).toBe('業界平均の17.6倍');
     });
 
     it("should generate correct label when below average", () => {
@@ -685,10 +685,10 @@ describe("Ad Metrics Calculation (広告換算値・広告効果ROAS・業界比
       const adEffectRoas = totalCost > 0 ? Math.round((totalValueWithAd / totalCost) * 100) / 100 : 0;
 
       const getIndustryAvgRoas = (price: number) => {
-        if (price <= 3000) return { avgRoas: 2.5, label: '低価格帯' };
-        if (price <= 8000) return { avgRoas: 3.2, label: '中価格帯' };
-        if (price <= 15000) return { avgRoas: 4.0, label: '中高価格帯' };
-        return { avgRoas: 5.0, label: '高価格帯' };
+        if (price <= 3000) return { avgRoas: 0.7, label: '低価格帯' };
+        if (price <= 8000) return { avgRoas: 0.9, label: '中価格帯' };
+        if (price <= 15000) return { avgRoas: 1.2, label: '中高価格帯' };
+        return { avgRoas: 1.5, label: '高価格帯' };
       };
       const industryData = getIndustryAvgRoas(unitPrice);
       const roasVsIndustry = Math.round((adEffectRoas / industryData.avgRoas) * 100);
@@ -717,7 +717,7 @@ describe("Ad Metrics Calculation (広告換算値・広告効果ROAS・業界比
       expect(adMetrics.adConversionValue).toBe(1080000);
       expect(adMetrics.brandExposure.totalPersonMinutes).toBe(72000);
       expect(adMetrics.adEffectRoas).toBe(15.8);
-      expect(adMetrics.industryComparison.industryAvgRoas).toBe(3.2);
+      expect(adMetrics.industryComparison.industryAvgRoas).toBe(0.9);
       expect(adMetrics.industryComparison.isAboveAverage).toBe(true);
       expect(adMetrics.cpmRate).toBe(15000);
     });
