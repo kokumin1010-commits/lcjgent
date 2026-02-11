@@ -159,6 +159,12 @@ export default function LiverDetailNew() {
     liverId,
   });
 
+  // Set Analysis (セット戦略分析)
+  const { data: setAnalysis, isLoading: setAnalysisLoading } = trpc.livestreamSets.liverSetAnalysis.useQuery({
+    liverId,
+  });
+  const [expandedSetId, setExpandedSetId] = useState<number | null>(null);
+
   // Category mapping queries and mutations
   const utils = trpc.useUtils();
   const { data: distinctCategories } = trpc.liverManagement.getDistinctCategories.useQuery();
@@ -293,6 +299,23 @@ export default function LiverDetailNew() {
       growth: "成長率",
       totalStreams: "配信数",
       recordStream: "配信内容の記録",
+      setStrategy: "セット戦略分析",
+      setStrategyDesc: "このライバーのセット作成実績と売れ筋セットを分析",
+      totalSets: "セット数",
+      totalSetRevenue: "セット売上合計",
+      avgDiscount: "平均割引率",
+      avgQuantity: "平均販売数",
+      setName: "セット名",
+      setPrice: "売値",
+      quantitySold: "販売数",
+      setRevenue: "セット売上",
+      discountRate: "割引率",
+      streamDate: "配信日",
+      setContents: "セット内容",
+      originalTotal: "元値合計",
+      bestSet: "ベスト",
+      popular: "人気",
+      noSetData: "セットデータがありません",
     },
     zh: {
       title: "主播详情",
@@ -319,6 +342,23 @@ export default function LiverDetailNew() {
       growth: "增长率",
       totalStreams: "直播数",
       recordStream: "记录直播内容",
+      setStrategy: "套装战略分析",
+      setStrategyDesc: "分析该主播的套装创建实绩和热销套装",
+      totalSets: "套装数",
+      totalSetRevenue: "套装销售总额",
+      avgDiscount: "平均折扣率",
+      avgQuantity: "平均销量",
+      setName: "套装名",
+      setPrice: "售价",
+      quantitySold: "销量",
+      setRevenue: "套装销售额",
+      discountRate: "折扣率",
+      streamDate: "直播日",
+      setContents: "套装内容",
+      originalTotal: "原价合计",
+      bestSet: "最佳",
+      popular: "热门",
+      noSetData: "暂无套装数据",
     },
   };
   
@@ -990,6 +1030,136 @@ export default function LiverDetailNew() {
           </div>
         )}
         
+        {/* セット戦略分析 */}
+        <Card className="bg-[#0a1a2a]/80 border-cyan-500/20 backdrop-blur-sm">
+          <CardContent className="p-6">
+            <h3 className="text-lg font-bold text-cyan-100 flex items-center gap-2 mb-2">
+              <Package className="w-5 h-5 text-pink-400" />
+              {tr.setStrategy}
+            </h3>
+            <p className="text-sm text-cyan-500/60 mb-6">{tr.setStrategyDesc}</p>
+
+            {setAnalysisLoading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-20 w-full bg-cyan-900/20" />
+                <Skeleton className="h-20 w-full bg-cyan-900/20" />
+              </div>
+            ) : setAnalysis && setAnalysis.summary && setAnalysis.summary.totalSets > 0 ? (
+              <div className="space-y-6">
+                {/* Summary Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="p-3 rounded-xl bg-[#0a1520]/60 border border-pink-500/20 text-center">
+                    <div className="text-xs text-cyan-500/50 mb-1">{tr.totalSets}</div>
+                    <div className="text-xl font-bold text-pink-400">{setAnalysis.summary.totalSets}<span className="text-sm font-normal">個</span></div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-[#0a1520]/60 border border-emerald-500/20 text-center">
+                    <div className="text-xs text-cyan-500/50 mb-1">{tr.totalSetRevenue}</div>
+                    <div className="text-xl font-bold text-emerald-400">{formatCurrency(setAnalysis.summary.totalSetRevenue)}</div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-[#0a1520]/60 border border-orange-500/20 text-center">
+                    <div className="text-xs text-cyan-500/50 mb-1">{tr.avgDiscount}</div>
+                    <div className="text-xl font-bold text-orange-400">{Math.round(setAnalysis.summary.avgDiscountRate)}%<span className="text-sm font-normal">OFF</span></div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-[#0a1520]/60 border border-cyan-500/20 text-center">
+                    <div className="text-xs text-cyan-500/50 mb-1">{tr.avgQuantity}</div>
+                    <div className="text-xl font-bold text-cyan-300">{setAnalysis.summary.avgQuantityPerSet.toFixed(1)}<span className="text-sm font-normal">個</span></div>
+                  </div>
+                </div>
+
+                {/* Set List */}
+                <div className="space-y-3">
+                  {setAnalysis.sets.map((set, index) => {
+                    const isBest = index === 0 && setAnalysis.sets.length > 1;
+                    const isPopular = setAnalysis.sets.length > 1 && 
+                      set.quantitySold === Math.max(...setAnalysis.sets.map(s => s.quantitySold)) && 
+                      index !== 0;
+                    return (
+                      <div
+                        key={set.id}
+                        className="rounded-xl bg-[#0a1520]/40 border border-cyan-500/10 hover:border-pink-400/20 transition-all overflow-hidden"
+                      >
+                        <div
+                          className="p-4 cursor-pointer"
+                          onClick={() => setExpandedSetId(expandedSetId === set.id ? null : set.id)}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <span className="text-lg">\uD83D\uDCE6</span>
+                              <span className="text-cyan-100 font-semibold truncate">{set.setName}</span>
+                              {set.discountRate != null && (
+                                <Badge className="bg-pink-500/20 text-pink-300 border-pink-500/30 text-xs shrink-0">
+                                  {Math.round(Number(set.discountRate))}%OFF
+                                </Badge>
+                              )}
+                              {isBest && (
+                                <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/30 text-xs shrink-0">
+                                  \uD83C\uDFC6 {tr.bestSet}
+                                </Badge>
+                              )}
+                              {isPopular && (
+                                <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-xs shrink-0">
+                                  \uD83D\uDD25 {tr.popular}
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-4 text-sm shrink-0">
+                              <div className="text-center">
+                                <div className="text-cyan-500/50 text-xs">{tr.setPrice}</div>
+                                <div className="text-cyan-200 font-mono">{formatCurrency(set.setPrice)}</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-cyan-500/50 text-xs">{tr.quantitySold}</div>
+                                <div className="text-cyan-300 font-bold">{set.quantitySold}個</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-cyan-500/50 text-xs">{tr.setRevenue}</div>
+                                <div className="text-emerald-400 font-mono font-bold">{formatCurrency(set.totalRevenue ?? 0)}</div>
+                              </div>
+                              {expandedSetId === set.id ? (
+                                <ChevronUp className="w-4 h-4 text-cyan-500/50" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4 text-cyan-500/50" />
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Expanded: Set Contents */}
+                        {expandedSetId === set.id && (
+                          <div className="px-4 pb-4 border-t border-cyan-500/10">
+                            <div className="pt-3">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Tag className="w-4 h-4 text-cyan-500/50" />
+                                <span className="text-xs text-cyan-500/50">{tr.setContents}（{tr.originalTotal}: {formatCurrency(set.items.reduce((sum, item) => sum + item.originalPrice, 0))}）</span>
+                              </div>
+                              <div className="space-y-1">
+                                {set.items.map((item, i) => (
+                                  <div key={i} className="flex justify-between text-sm px-2 py-1 rounded bg-[#0a1520]/40">
+                                    <span className="text-cyan-200">{item.productName}</span>
+                                    <span className="text-cyan-500/70 font-mono">{formatCurrency(item.originalPrice)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                              {set.livestreamDate && (
+                                <div className="mt-2 text-xs text-cyan-500/40 flex items-center gap-1">
+                                  <Calendar className="w-3 h-3" />
+                                  {tr.streamDate}: {new Date(set.livestreamDate).toLocaleDateString('ja-JP')}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <p className="text-cyan-500/50 text-center py-8">{tr.noSetData}</p>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Delivery History */}
         <Card className="bg-[#0a1a2a]/80 border-cyan-500/20 backdrop-blur-sm">
           <CardContent className="p-6">

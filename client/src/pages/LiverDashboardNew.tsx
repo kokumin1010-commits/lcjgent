@@ -160,6 +160,9 @@ export default function LiverDashboardNew() {
     month: selectedMonth,
   });
   
+  // Set Analysis (セット活用ランキング)
+  const { data: setAnalysisData } = trpc.livestreamSets.allLiversSetAnalysis.useQuery();
+
   // AI Matching Suggestions
   const aiMatchingMutation = trpc.liverManagement.getAiMatchingSuggestions.useMutation({
     onSuccess: (data) => {
@@ -263,6 +266,14 @@ export default function LiverDashboardNew() {
       avgSales: "平均売上",
       avgViewers: "平均視聴者",
       livestreamCount: "配信数",
+      setAnalysis: "セット活用ランキング",
+      setAnalysisDesc: "各ライバーのセット作成数・売上を一覧で確認",
+      totalSets: "セット数",
+      setRevenue: "セット売上",
+      avgDiscount: "平均割引率",
+      quantitySold: "販売数",
+      noSetData: "セットデータがありません",
+      setNotUsed: "未使用",
     },
     zh: {
       title: "主播指挥中心",
@@ -306,6 +317,14 @@ export default function LiverDashboardNew() {
       avgSales: "平均销售额",
       avgViewers: "平均观众",
       livestreamCount: "直播数",
+      setAnalysis: "套装活用排行榜",
+      setAnalysisDesc: "各主播的套装创建数量和销售额一览",
+      totalSets: "套装数",
+      setRevenue: "套装销售额",
+      avgDiscount: "平均折扣率",
+      quantitySold: "销量",
+      noSetData: "暂无套装数据",
+      setNotUsed: "未使用",
     },
   };
   
@@ -885,6 +904,64 @@ export default function LiverDashboardNew() {
               </div>
             ) : (
               <p className="text-cyan-500/50 text-center py-8">{tr.noData}</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* セット活用ランキング */}
+        <Card className="bg-[#0a1a2a]/80 border-cyan-500/20 backdrop-blur-sm">
+          <CardContent className="p-6">
+            <h2 className="text-lg font-bold mb-4 flex items-center gap-3">
+              <Package className="w-6 h-6 text-pink-400" />
+              <span className="text-cyan-100">{tr.setAnalysis}</span>
+            </h2>
+            <p className="text-sm text-cyan-500/60 mb-6">{tr.setAnalysisDesc}</p>
+
+            {setAnalysisData && setAnalysisData.length > 0 ? (
+              <div className="space-y-3">
+                {setAnalysisData.map((liver, index) => (
+                  <Link
+                    key={liver.liverId || index}
+                    href={`/master/livers/${liver.liverId}`}
+                    className="block"
+                  >
+                    <div className="p-4 rounded-xl bg-[#0a1520]/40 border border-cyan-500/10 hover:border-pink-400/30 transition-all cursor-pointer">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className={`font-bold text-lg ${
+                            index === 0 ? 'text-yellow-400' :
+                            index === 1 ? 'text-gray-300' :
+                            index === 2 ? 'text-amber-600' : 'text-cyan-400'
+                          }`}>
+                            #{index + 1}
+                          </span>
+                          <span className="text-cyan-100 font-semibold">{liver.streamerName || '不明'}</span>
+                        </div>
+                        <div className="flex items-center gap-4 text-sm">
+                          <div className="text-center">
+                            <div className="text-cyan-500/50 text-xs">{tr.totalSets}</div>
+                            <div className="text-pink-400 font-bold">{Number(liver.totalSets)}個</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-cyan-500/50 text-xs">{tr.setRevenue}</div>
+                            <div className="text-emerald-400 font-mono font-bold">{formatCurrency(Number(liver.totalSetRevenue))}</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-cyan-500/50 text-xs">{tr.quantitySold}</div>
+                            <div className="text-cyan-300 font-bold">{Number(liver.totalQuantitySold)}個</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-cyan-500/50 text-xs">{tr.avgDiscount}</div>
+                            <div className="text-orange-400 font-bold">{Math.round(Number(liver.avgDiscountRate))}%OFF</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="text-cyan-500/50 text-center py-8">{tr.noSetData}</p>
             )}
           </CardContent>
         </Card>

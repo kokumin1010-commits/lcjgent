@@ -10267,3 +10267,110 @@ export async function getReportCountByReportStaffId(reportStaffId: number) {
   return result[0]?.count || 0;
 }
 
+
+// ========================================
+// セット分析関連関数
+// Set Analysis Functions
+// ========================================
+
+/**
+ * Get set analysis summary for all livers (for ライバー司令塔一覧)
+ */
+export async function getAllLiversSetAnalysis() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const result = await db
+    .select({
+      liverId: brandLivestreams.liverId,
+      streamerName: brandLivestreams.streamerName,
+      totalSets: sql<number>`COUNT(DISTINCT ${livestreamSets.id})`,
+      totalSetRevenue: sql<number>`COALESCE(SUM(${livestreamSets.totalRevenue}), 0)`,
+      totalQuantitySold: sql<number>`COALESCE(SUM(${livestreamSets.quantitySold}), 0)`,
+      avgDiscountRate: sql<number>`COALESCE(AVG(${livestreamSets.discountRate}), 0)`,
+      livestreamsWithSets: sql<number>`COUNT(DISTINCT ${brandLivestreams.id})`,
+    })
+    .from(livestreamSets)
+    .innerJoin(brandLivestreams, eq(livestreamSets.livestreamId, brandLivestreams.id))
+    .groupBy(brandLivestreams.liverId, brandLivestreams.streamerName)
+    .orderBy(desc(sql`COALESCE(SUM(${livestreamSets.totalRevenue}), 0)`));
+  
+  return result;
+}
+
+/**
+ * Get detailed set analysis for a specific liver (for ライバー個別ページ)
+ */
+export async function getLiverSetAnalysis(liverId: number) {
+  const db = await getDb();
+  if (!db) return { summary: null, sets: [], topProducts: [] };
+  
+  const sets = await db
+    .select({
+      id: livestreamSets.id,
+      livestreamId: livestreamSets.livestreamId,
+      setName: livestreamSets.setName,
+      setPrice: livestreamSets.setPrice,
+      quantitySold: livestreamSets.quantitySold,
+      totalOriginalPrice: livestreamSets.totalOriginalPrice,
+      discountRate: livestreamSets.discountRate,
+      totalRevenue: livestreamSets.totalRevenue,
+      livestreamDate: brandLivestreams.livestreamDate,
+      streamerName: brandLivestreams.streamerName,
+    })
+    .from(livestreamSets)
+    .innerJoin(brandLivestreams, eq(livestreamSets.livestreamId, brandLivestreams.id))
+    .where(eq(brandLivestreams.liverId, liverId))
+    .orderBy(desc(livestreamSets.totalRevenue));
+  
+  const setsWithItems = await Promise.all(sets.map(async (set) => {
+    const items = await db!.select().from(livestreamSetItems)
+      .where(eq(livestreamSetItems.setId, set.id))
+      .orderBy(asc(livestreamSetItems.sortOrder));
+    return { ...set, items };
+  }));
+  
+  const totalSets = sets.length;
+  const totalSetRevenue = sets.reduce((sum, s) => sum + (s.totalRevenue || 0), 0);
+  const totalQuantitySold = sets.reduce((sum, s) => sum + (s.quantitySold || 0), 0);
+  const avgDiscountRate = totalSets > 0
+    ? Math.round(sets.reduce((sum, s) => sum + (s.discountRate || 0), 0) / totalSets)
+    : 0;
+  const avgQuantityPerSet = totalSets > 0
+    ? Math.round((totalQuantitySold / totalSets) * 10) / 10
+    : 0;
+  
+  const bestSet = sets.length > 0 ? sets[0] : null;
+  const mostPopular = sets.length > 0
+    ? sets.reduce((best, s) => (s.quantitySold || 0) > (best.quantitySold || 0) ? s : best, sets[0])
+    : null;
+  
+  const productFrequency: Record<string, { count: number; totalRevenue: number }> = {};
+  for (const set of setsWithItems) {
+    for (const item of set.items) {
+      if (!productFrequency[item.productName]) {
+        productFrequency[item.productName] = { count: 0, totalRevenue: 0 };
+      }
+      productFrequency[item.productName].count += 1;
+      productFrequency[item.productName].totalRevenue += (set.totalRevenue || 0);
+    }
+  }
+  const topProducts = Object.entries(productFrequency)
+    .map(([name, data]) => ({ productName: name, ...data }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+  
+  return {
+    summary: {
+      totalSets,
+      totalSetRevenue,
+      totalQuantitySold,
+      avgDiscountRate,
+      avgQuantityPerSet,
+      bestSetId: bestSet?.id || null,
+      mostPopularSetId: mostPopular?.id || null,
+    },
+    sets: setsWithItems,
+    topProducts,
+  };
+}

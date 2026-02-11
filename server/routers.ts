@@ -403,6 +403,8 @@ import {
   deleteSimulation,
   createSimulationFeedback,
   getSimulationFeedbackHistory,
+  getAllLiversSetAnalysis,
+  getLiverSetAnalysis,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -11958,6 +11960,19 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
       .mutation(async ({ input }) => {
         await deleteLivestreamSetsByLivestreamId(input.livestreamId);
         return { success: true };
+      }),
+
+    // セット分析: 全ライバーのセット活用状況（ライバー司令塔一覧用）
+    allLiversSetAnalysis: publicProcedure
+      .query(async () => {
+        return await getAllLiversSetAnalysis();
+      }),
+
+    // セット分析: 特定ライバーのセット戦略詳細（ライバー個別ページ用）
+    liverSetAnalysis: publicProcedure
+      .input(z.object({ liverId: z.number() }))
+      .query(async ({ input }) => {
+        return await getLiverSetAnalysis(input.liverId);
       }),
   }),
 
