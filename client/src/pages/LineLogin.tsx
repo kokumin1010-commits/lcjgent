@@ -481,7 +481,6 @@ export default function LineLogin() {
                 id="referral-line"
                 type="text"
                 inputMode="numeric"
-                pattern="\\d{4}"
                 maxLength={4}
                 placeholder="4桁の数字"
                 value={referralCode}
@@ -602,7 +601,6 @@ export default function LineLogin() {
                     id="referral-email"
                     type="text"
                     inputMode="numeric"
-                    pattern="\\d{4}"
                     maxLength={4}
                     placeholder="4桁の数字"
                     value={referralCode}
