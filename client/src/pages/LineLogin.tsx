@@ -302,9 +302,22 @@ export default function LineLogin() {
   const handleEmailSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!email.trim()) {
+      toast.error("メールアドレスを入力してください");
+      return;
+    }
+    if (!password) {
+      toast.error("パスワードを入力してください");
+      return;
+    }
+    
     if (isRegistering) {
       if (!name.trim()) {
         toast.error("名前を入力してください");
+        return;
+      }
+      if (password.length < 6) {
+        toast.error("パスワードは6文字以上で入力してください");
         return;
       }
       emailRegisterMutation.mutate({ 
@@ -533,7 +546,7 @@ export default function LineLogin() {
           </TabsContent>
 
           <TabsContent value="email" className="space-y-4">
-            <form onSubmit={handleEmailSubmit} className="space-y-4">
+            <form onSubmit={handleEmailSubmit} className="space-y-4" noValidate>
               {isRegistering && (
                 <div className="space-y-2">
                   <Label htmlFor="name">お名前</Label>
@@ -570,7 +583,6 @@ export default function LineLogin() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    minLength={6}
                     className="pr-10"
                   />
                   <Button
