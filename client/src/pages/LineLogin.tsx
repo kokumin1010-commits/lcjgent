@@ -153,12 +153,18 @@ export default function LineLogin() {
 
   // Email register mutation
   const emailRegisterMutation = trpc.lineLogin.emailRegister.useMutation({
-    onSuccess: () => {
-      toast.success("アカウントを作成しました。ログインしてください。");
+    onSuccess: (data) => {
+      // Save session token to localStorage for fallback authentication
+      if (data.sessionToken) {
+        localStorage.setItem('lcj_session_token', data.sessionToken);
+      }
       // Clear saved referral code after successful registration
       localStorage.removeItem('lcj_referral_code');
-      setIsRegistering(false);
-      setPassword("");
+      toast.success("アカウントを作成しました");
+      // Auto-login: redirect to mypage
+      setTimeout(() => {
+        window.location.href = "/mypage";
+      }, 500);
     },
     onError: (err) => {
       toast.error(err.message || "登録に失敗しました");

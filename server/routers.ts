@@ -869,7 +869,7 @@ export const lineLoginRouter = router({
       name: z.string().min(1),
       referralCode: z.string().length(4).regex(/^\d{4}$/).optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       // Check if email already exists
       const existingUser = await getLineUserByEmail(input.email);
       if (existingUser) {
@@ -937,10 +937,29 @@ export const lineLoginRouter = router({
         }
       }
       
+      // Auto-login: create session after registration
+      const sessionData = {
+        lineUserId: `email_${newUser.id}`,
+        userId: newUser.id,
+        displayName: input.name,
+        pictureUrl: null,
+        email: input.email,
+        createdAt: Date.now(),
+        expiresAt: Date.now() + 3650 * 24 * 60 * 60 * 1000,
+      };
+      
+      const sessionToken = Buffer.from(JSON.stringify(sessionData)).toString('base64');
+      
+      ctx.res.cookie("line_session", JSON.stringify(sessionData), {
+        ...getSessionCookieOptions(ctx.req),
+        maxAge: 3650 * 24 * 60 * 60 * 1000,
+      });
+      
       return {
         success: true,
         userId: newUser.id,
         referralApplied: !!referralData,
+        sessionToken,
       };
     }),
 
