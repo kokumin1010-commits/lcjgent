@@ -497,7 +497,7 @@ export default function LiverSchedule() {
                               {ls.livestreamEndTime && ` - ${formatTimeJST(ls.livestreamEndTime)}`}
                             </p>
                             <p className="text-sm text-gray-400">
-                              売上: ¥{(ls.salesAmount || ls.gmv || 0).toLocaleString()}
+                              売上: ¥{Number(ls.salesAmount || ls.gmv || 0).toLocaleString()}
                             </p>
                           </div>
                         </div>

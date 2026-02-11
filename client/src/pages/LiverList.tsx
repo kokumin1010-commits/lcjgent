@@ -94,8 +94,8 @@ export default function LiverList() {
   
   const tr = translations[language as keyof typeof translations] || translations.ja;
   
-  const formatCurrency = (amount: number) => {
-    return `¥${amount.toLocaleString()}`;
+  const formatCurrency = (amount: number | string) => {
+    return `¥${Number(amount).toLocaleString()}`;
   };
   
   const formatDuration = (minutes: number) => {
@@ -180,7 +180,7 @@ export default function LiverList() {
                     <span className="text-white/70 text-sm">{tr.totalSales}</span>
                   </div>
                   <p className="text-2xl font-bold text-yellow-400">
-                    ¥{totalSummary.totalSales.toLocaleString()}
+                    ¥{Number(totalSummary.totalSales).toLocaleString()}
                   </p>
                   <div className={`flex items-center gap-1 mt-1 text-sm ${totalSummary.salesGrowth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {totalSummary.salesGrowth >= 0 ? (

@@ -1205,7 +1205,7 @@ export default function LiverSelfRecord() {
                           <div className="bg-gray-800/50 rounded-lg p-2 space-y-1">
                             <div className="flex justify-between text-xs">
                               <span className="text-gray-400">元値合計</span>
-                              <span className="text-white">¥{totalOriginalPrice.toLocaleString()}</span>
+                              <span className="text-white">¥{Number(totalOriginalPrice).toLocaleString()}</span>
                             </div>
                             <div className="flex justify-between text-xs">
                               <span className="text-gray-400">お得率</span>
@@ -1215,7 +1215,7 @@ export default function LiverSelfRecord() {
                             </div>
                             <div className="flex justify-between text-xs">
                               <span className="text-gray-400">セット売上合計</span>
-                              <span className="text-yellow-400 font-medium">¥{totalRevenue.toLocaleString()}</span>
+                              <span className="text-yellow-400 font-medium">¥{Number(totalRevenue).toLocaleString()}</span>
                             </div>
                           </div>
                         )}
@@ -1306,7 +1306,7 @@ export default function LiverSelfRecord() {
               }
               // Use native confirm for better LINE browser compatibility
               const brandName = brands?.find(b => b.id.toString() === formData.brandId)?.name || '';
-              const confirmMessage = `${tr.confirmTitle}\n\n${tr.selectBrand}: ${brandName}\n${tr.livestreamDate}: ${formData.livestreamDate}\n${tr.startTime}: ${formData.livestreamStartTime}\n${formData.salesAmount ? `${tr.salesAmount}: ¥${parseInt(formData.salesAmount).toLocaleString()}` : ''}\n\n${tr.confirmDescription}`;
+              const confirmMessage = `${tr.confirmTitle}\n\n${tr.selectBrand}: ${brandName}\n${tr.livestreamDate}: ${formData.livestreamDate}\n${tr.startTime}: ${formData.livestreamStartTime}\n${formData.salesAmount ? `${tr.salesAmount}: ¥${Number(parseInt(formData.salesAmount)).toLocaleString()}` : ''}\n\n${tr.confirmDescription}`;
               if (window.confirm(confirmMessage)) {
                 handleSubmit(e as unknown as React.FormEvent);
               }
@@ -1381,7 +1381,7 @@ export default function LiverSelfRecord() {
                     {tr.salesAmount}
                   </span>
                   <span className="text-green-400 font-bold">
-                    ¥{parseInt(formData.salesAmount).toLocaleString()}
+                    ¥{Number(parseInt(formData.salesAmount)).toLocaleString()}
                   </span>
                 </div>
               )}
@@ -1392,7 +1392,7 @@ export default function LiverSelfRecord() {
                     {tr.viewerCount}
                   </span>
                   <span className="text-white font-medium">
-                    {parseInt(formData.viewerCount).toLocaleString()}
+                    {Number(parseInt(formData.viewerCount)).toLocaleString()}
                   </span>
                 </div>
               )}
@@ -1403,7 +1403,7 @@ export default function LiverSelfRecord() {
                     {tr.peakViewerCount}
                   </span>
                   <span className="text-white font-medium">
-                    {parseInt(formData.peakViewerCount).toLocaleString()}
+                    {Number(parseInt(formData.peakViewerCount)).toLocaleString()}
                   </span>
                 </div>
               )}
@@ -1425,7 +1425,7 @@ export default function LiverSelfRecord() {
                     {tr.productClicks}
                   </span>
                   <span className="text-white font-medium">
-                    {parseInt(formData.productClicks).toLocaleString()}
+                    {Number(parseInt(formData.productClicks)).toLocaleString()}
                   </span>
                 </div>
               )}
@@ -1436,7 +1436,7 @@ export default function LiverSelfRecord() {
                     {tr.orderCount}
                   </span>
                   <span className="text-white font-medium">
-                    {parseInt(formData.orderCount).toLocaleString()}
+                    {Number(parseInt(formData.orderCount)).toLocaleString()}
                   </span>
                 </div>
               )}

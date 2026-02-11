@@ -81,7 +81,7 @@ export default function LiverByName() {
   
   const formatCurrency = (amount: number | null | undefined) => {
     if (amount == null) return "¥0";
-    return `¥${amount.toLocaleString()}`;
+    return `¥${Number(amount).toLocaleString()}`;
   };
   
   const formatDuration = (minutes: number | null | undefined) => {

@@ -151,8 +151,8 @@ export default function LiverDetail() {
   
   const tr = translations[language as keyof typeof translations] || translations.ja;
   
-  const formatCurrency = (amount: number) => {
-    return `¥${amount.toLocaleString()}`;
+  const formatCurrency = (amount: number | string) => {
+    return `¥${Number(amount).toLocaleString()}`;
   };
   
   const formatDuration = (minutes: number) => {

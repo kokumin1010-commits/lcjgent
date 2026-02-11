@@ -624,7 +624,7 @@ export default function LiverMypage() {
                   <div className="flex items-center justify-between text-xs mb-1">
                     <span className="text-gray-400">売上目標</span>
                     <span className="text-white">
-                      ¥{monthlyStats.sales.toLocaleString()} / ¥{currentGoal.salesGoal.toLocaleString()}
+                      ¥{Number(monthlyStats.sales).toLocaleString()} / ¥{Number(currentGoal.salesGoal).toLocaleString()}
                     </span>
                   </div>
                   <Progress 
@@ -639,7 +639,7 @@ export default function LiverMypage() {
                       <span className="text-green-400">🎉 目標達成！</span>
                     ) : (
                       <span className="text-gray-500">
-                        残り ¥{(currentGoal.salesGoal - monthlyStats.sales).toLocaleString()}
+                        残り ¥{Number(currentGoal.salesGoal - monthlyStats.sales).toLocaleString()}
                       </span>
                     )}
                   </div>
@@ -730,7 +730,7 @@ export default function LiverMypage() {
                     <DollarSign className="h-4 w-4" />
                     <span className="text-xs">月間売上</span>
                   </div>
-                  <p className="text-2xl font-bold text-white">¥{monthlyStats.sales.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-white">¥{Number(monthlyStats.sales).toLocaleString()}</p>
                 </CardContent>
               </Card>
               <Card className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border-blue-500/30">
@@ -763,14 +763,14 @@ export default function LiverMypage() {
               <Card className="bg-gray-800/50 border-gray-700">
                 <CardContent className="p-2 text-center">
                   <Eye className="h-3 w-3 mx-auto text-gray-400 mb-1" />
-                  <p className="text-lg font-bold text-white">{monthlyStats.viewerCount.toLocaleString()}</p>
+                  <p className="text-lg font-bold text-white">{Number(monthlyStats.viewerCount).toLocaleString()}</p>
                   <p className="text-[10px] text-gray-500">視聴者</p>
                 </CardContent>
               </Card>
               <Card className="bg-gray-800/50 border-gray-700">
                 <CardContent className="p-2 text-center">
                   <ShoppingCart className="h-3 w-3 mx-auto text-gray-400 mb-1" />
-                  <p className="text-lg font-bold text-white">{monthlyStats.orderCount.toLocaleString()}</p>
+                  <p className="text-lg font-bold text-white">{Number(monthlyStats.orderCount).toLocaleString()}</p>
                   <p className="text-[10px] text-gray-500">注文</p>
                 </CardContent>
               </Card>
@@ -802,7 +802,7 @@ export default function LiverMypage() {
             <p className="text-xs text-gray-500 mb-2">累計実績</p>
             <div className="grid grid-cols-3 gap-2 text-center">
               <div>
-                <p className="text-sm font-bold text-red-400">¥{allTimeStats.totalSales.toLocaleString()}</p>
+                <p className="text-sm font-bold text-red-400">¥{Number(allTimeStats.totalSales).toLocaleString()}</p>
                 <p className="text-[10px] text-gray-500">総売上</p>
               </div>
               <div>
@@ -967,12 +967,12 @@ export default function LiverMypage() {
                               {ls.viewerCount && (
                                 <span className="text-xs text-gray-400 flex items-center gap-0.5">
                                   <Eye className="h-3 w-3" />
-                                  {ls.viewerCount.toLocaleString()}
+                                  {Number(ls.viewerCount).toLocaleString()}
                                 </span>
                               )}
                               {ls.likes && (
                                 <span className="text-xs text-pink-400 flex items-center gap-0.5">
-                                  ❤ {ls.likes.toLocaleString()}
+                                  ❤ {Number(ls.likes).toLocaleString()}
                                 </span>
                               )}
                             </div>
@@ -981,7 +981,7 @@ export default function LiverMypage() {
                         <div className="flex flex-col items-end">
                           <div className="flex items-center gap-2">
                             <p className={`text-sm font-bold ${getSalesColor(currentSales)}`}>
-                              ¥{currentSales.toLocaleString()}
+                              ¥{Number(currentSales).toLocaleString()}
                             </p>
                             <ChevronRight className="h-4 w-4 text-gray-500" />
                           </div>
@@ -1142,7 +1142,7 @@ export default function LiverMypage() {
                               {new Date(history.createdAt).toLocaleDateString('ja-JP')}
                               {history.totalGmv && (
                                 <span className="text-yellow-400 ml-2">
-                                  ¥{history.totalGmv.toLocaleString()}
+                                  ¥{Number(history.totalGmv).toLocaleString()}
                                 </span>
                               )}
                             </div>
@@ -1232,7 +1232,7 @@ export default function LiverMypage() {
                 className="bg-gray-800 border-gray-600 text-white mt-1"
               />
               <p className="text-xs text-gray-500 mt-1">
-                現在の売上: ¥{monthlyStats.sales.toLocaleString()}
+                現在の売上: ¥{Number(monthlyStats.sales).toLocaleString()}
               </p>
             </div>
 

@@ -185,8 +185,8 @@ export default function LivestreamDetail() {
     return `${year}/${month}/${day}(${weekday}) ${hours}:${mins}`;
   };
 
-  const formatCurrency = (amount: number) => {
-    return amount.toLocaleString();
+  const formatCurrency = (amount: number | string) => {
+    return Number(amount).toLocaleString();
   };
 
   const getImpactFactorIcon = (factor: string | null) => {
@@ -815,7 +815,7 @@ export default function LivestreamDetail() {
                                       return (
                                         <div className="bg-gray-800 border border-gray-600 rounded-lg p-3 shadow-lg">
                                           <p className="text-white text-sm font-medium mb-1">{data.fullName}</p>
-                                          <p className="text-yellow-400 font-bold">¥{data.value.toLocaleString()}</p>
+                                          <p className="text-yellow-400 font-bold">¥{Number(data.value).toLocaleString()}</p>
                                           <p className="text-gray-400 text-xs">構成比: {data.percentage}%</p>
                                         </div>
                                       );
@@ -861,7 +861,7 @@ export default function LivestreamDetail() {
                               {/* 売上金額と構成比 */}
                               <div className="flex items-center justify-between mb-2">
                                 <span className="text-xl font-bold text-yellow-400">
-                                  ¥{sales.toLocaleString()}
+                                  ¥{Number(sales).toLocaleString()}
                                 </span>
                                 <span className="text-sm text-gray-400">
                                   売上構成比 {percentage.toFixed(1)}%
@@ -898,13 +898,13 @@ export default function LivestreamDetail() {
                                 {product.productClicks !== null && product.productClicks !== undefined && (
                                   <span className="flex items-center gap-1 text-gray-300">
                                     <MousePointer className="w-3 h-3 text-gray-500" />
-                                    クリック Clicks: {product.productClicks.toLocaleString()}回
+                                    クリック Clicks: {Number(product.productClicks).toLocaleString()}回
                                   </span>
                                 )}
                                 {product.productImpressions !== null && product.productImpressions !== undefined && (
                                   <span className="flex items-center gap-1 text-gray-300">
                                     <Eye className="w-3 h-3 text-gray-500" />
-                                    インプ Impressions: {product.productImpressions.toLocaleString()}回
+                                    インプ Impressions: {Number(product.productImpressions).toLocaleString()}回
                                   </span>
                                 )}
                               </div>
@@ -992,7 +992,7 @@ export default function LivestreamDetail() {
                         </h3>
                         <div className="flex items-center gap-3 text-xs">
                           <span className="text-gray-400">{livestreamSets.length}セット</span>
-                          <span className="text-violet-300 font-medium">合計 ¥{totalSetRevenue.toLocaleString()}</span>
+                          <span className="text-violet-300 font-medium">合計 ¥{Number(totalSetRevenue).toLocaleString()}</span>
                         </div>
                       </div>
                       <p className="text-[10px] text-gray-500 mb-3">※ セット売上は配信全体の売上の内訳参考です。売上金額には加算されません。</p>
@@ -1014,7 +1014,7 @@ export default function LivestreamDetail() {
                             <div className="grid grid-cols-3 gap-2 mb-2">
                               <div className="text-center">
                                 <p className="text-[10px] text-gray-400">売値</p>
-                                <p className="text-yellow-400 font-bold text-sm">¥{(set.setPrice || 0).toLocaleString()}</p>
+                                <p className="text-yellow-400 font-bold text-sm">¥{Number(set.setPrice || 0).toLocaleString()}</p>
                               </div>
                               <div className="text-center">
                                 <p className="text-[10px] text-gray-400">販売数</p>
@@ -1022,7 +1022,7 @@ export default function LivestreamDetail() {
                               </div>
                               <div className="text-center">
                                 <p className="text-[10px] text-gray-400">セット売上</p>
-                                <p className="text-emerald-400 font-bold text-sm">¥{(set.totalRevenue || 0).toLocaleString()}</p>
+                                <p className="text-emerald-400 font-bold text-sm">¥{Number(set.totalRevenue || 0).toLocaleString()}</p>
                               </div>
                             </div>
                             {/* セット内商品 */}
@@ -1030,13 +1030,13 @@ export default function LivestreamDetail() {
                               <div className="border-t border-gray-700/50 pt-2 mt-2">
                                 <p className="text-[10px] text-gray-500 mb-1 flex items-center gap-1">
                                   <Tag className="w-3 h-3" />
-                                  セット内容（元値合計: ¥{(set.totalOriginalPrice || 0).toLocaleString()}）
+                                  セット内容（元値合計: ¥{Number(set.totalOriginalPrice || 0).toLocaleString()}）
                                 </p>
                                 <div className="space-y-1">
                                   {set.items.map((item: any, iIdx: number) => (
                                     <div key={item.id || iIdx} className="flex justify-between items-center text-xs">
                                       <span className="text-gray-300">{item.productName}</span>
-                                      <span className="text-gray-400">¥{(item.originalPrice || 0).toLocaleString()}</span>
+                                      <span className="text-gray-400">¥{Number(item.originalPrice || 0).toLocaleString()}</span>
                                     </div>
                                   ))}
                                 </div>
@@ -1070,7 +1070,7 @@ export default function LivestreamDetail() {
                     <div className="bg-gray-900/50 rounded p-3">
                       <p className="text-gray-300 text-xs">視聴者数</p>
                       <p className="text-white font-bold text-lg">
-                        {livestream.viewerCount?.toLocaleString() || "-"}
+                        {Number(livestream.viewerCount || 0).toLocaleString() || "-"}
                       </p>
                     </div>
                     
@@ -1081,7 +1081,7 @@ export default function LivestreamDetail() {
                         商品クリック数
                       </p>
                       <p className="text-white font-bold text-lg">
-                        {livestream.productClicks?.toLocaleString() || "-"}
+                        {Number(livestream.productClicks || 0).toLocaleString() || "-"}
                       </p>
                     </div>
                     
@@ -1092,7 +1092,7 @@ export default function LivestreamDetail() {
                         注文数
                       </p>
                       <p className="text-white font-bold text-lg">
-                        {livestream.orderCount?.toLocaleString() || "-"}
+                        {Number(livestream.orderCount || 0).toLocaleString() || "-"}
                       </p>
                     </div>
                     
@@ -1101,7 +1101,7 @@ export default function LivestreamDetail() {
                       <div className="bg-gray-900/50 rounded p-3">
                         <p className="text-gray-300 text-xs">インプレッション</p>
                         <p className="text-white font-bold text-lg">
-                          {livestream.impressions?.toLocaleString()}
+                          {Number(livestream.impressions || 0).toLocaleString()}
                         </p>
                       </div>
                     )}
@@ -1144,7 +1144,7 @@ export default function LivestreamDetail() {
                             いいね
                           </p>
                           <p className="text-white font-bold text-lg">
-                            {livestream.likes.toLocaleString()}
+                            {Number(livestream.likes).toLocaleString()}
                           </p>
                         </div>
                       )}
@@ -1157,7 +1157,7 @@ export default function LivestreamDetail() {
                             コメント
                           </p>
                           <p className="text-white font-bold text-lg">
-                            {livestream.comments.toLocaleString()}
+                            {Number(livestream.comments).toLocaleString()}
                           </p>
                         </div>
                       )}
@@ -1170,7 +1170,7 @@ export default function LivestreamDetail() {
                             シェア
                           </p>
                           <p className="text-white font-bold text-lg">
-                            {livestream.shares.toLocaleString()}
+                            {Number(livestream.shares).toLocaleString()}
                           </p>
                         </div>
                       )}
@@ -1183,7 +1183,7 @@ export default function LivestreamDetail() {
                             新規フォロワー
                           </p>
                           <p className="text-white font-bold text-lg">
-                            {livestream.newFollowers.toLocaleString()}
+                            {Number(livestream.newFollowers).toLocaleString()}
                           </p>
                         </div>
                       )}
@@ -1220,7 +1220,7 @@ export default function LivestreamDetail() {
                             販売数
                           </p>
                           <p className="text-white font-bold text-lg">
-                            {livestream.itemsSold.toLocaleString()}個
+                            {Number(livestream.itemsSold).toLocaleString()}個
                           </p>
                         </div>
                       )}
@@ -1233,7 +1233,7 @@ export default function LivestreamDetail() {
                             購入者数
                           </p>
                           <p className="text-white font-bold text-lg">
-                            {livestream.customerCount.toLocaleString()}人
+                            {Number(livestream.customerCount).toLocaleString()}人
                           </p>
                         </div>
                       )}
@@ -1246,7 +1246,7 @@ export default function LivestreamDetail() {
                             平均単価
                           </p>
                           <p className="text-white font-bold text-lg">
-                            ¥{livestream.avgPrice.toLocaleString()}
+                            ¥{Number(livestream.avgPrice).toLocaleString()}
                           </p>
                         </div>
                       )}

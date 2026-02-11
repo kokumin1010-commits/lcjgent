@@ -1276,7 +1276,7 @@ export default function LineManagement() {
                               <div className="text-sm">
                                 {livestream.salesAmount || livestream.gmv ? (
                                   <span className="font-bold text-green-600">
-                                    ¥{(livestream.salesAmount || livestream.gmv || 0).toLocaleString()}
+                                    ¥{Number(livestream.salesAmount || livestream.gmv || 0).toLocaleString()}
                                   </span>
                                 ) : (
                                   <span className="text-muted-foreground">-</span>

@@ -353,8 +353,8 @@ export default function LiverDashboardNew() {
   
   const tr = translations[language as keyof typeof translations] || translations.ja;
   
-  const formatCurrency = (amount: number) => {
-    return `¥${amount.toLocaleString()}`;
+  const formatCurrency = (amount: number | string) => {
+    return `¥${Number(amount).toLocaleString()}`;
   };
   
   const formatDuration = (minutes: number) => {
@@ -470,7 +470,7 @@ export default function LiverDashboardNew() {
                     <span className="text-cyan-300/70 text-sm">{tr.totalSales}</span>
                   </div>
                   <p className="text-2xl font-bold text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.5)]">
-                    ¥{totalSummary.totalSales.toLocaleString()}
+                    ¥{Number(totalSummary.totalSales).toLocaleString()}
                   </p>
                   <div className={`flex items-center gap-1 mt-2 text-sm ${totalSummary.salesGrowth >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                     {totalSummary.salesGrowth >= 0 ? (
@@ -713,7 +713,7 @@ export default function LiverDashboardNew() {
                                       ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
                                       : 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/20'
                                   }`}
-                                  title={`¥${liver.sales.toLocaleString()}`}
+                                  title={`¥${Number(liver.sales).toLocaleString()}`}
                                 >
                                   {liver.liverName}
                                 </span>
@@ -729,7 +729,7 @@ export default function LiverDashboardNew() {
                             </span>
                           </td>
                           <td className="py-3 px-2 text-right text-cyan-300">
-                            {product.soldCount.toLocaleString()}個
+                            {Number(product.soldCount).toLocaleString()}個
                           </td>
                           <td className="py-3 px-2 text-right text-cyan-400">
                             {formatCurrency(Math.round(product.avgPrice))}
@@ -811,8 +811,8 @@ export default function LiverDashboardNew() {
                         <TooltipContent className="bg-[#0a1a2a] border-cyan-500/30">
                           <div className="text-sm">
                             <p className="font-bold text-cyan-100">{hourData.hour}:00 - {hourData.hour}:59</p>
-                            <p className="text-yellow-400">{tr.avgSales}: ¥{hourData.avgSales.toLocaleString()}</p>
-                            <p className="text-cyan-300">{tr.avgViewers}: {hourData.avgViewers.toLocaleString()}人</p>
+                            <p className="text-yellow-400">{tr.avgSales}: ¥{Number(hourData.avgSales).toLocaleString()}</p>
+                            <p className="text-cyan-300">{tr.avgViewers}: {Number(hourData.avgViewers).toLocaleString()}人</p>
                             <p className="text-cyan-500/70">{tr.livestreamCount}: {hourData.livestreamCount}回</p>
                           </div>
                         </TooltipContent>
@@ -899,7 +899,7 @@ export default function LiverDashboardNew() {
                         }`}>
                           ¥{dayData.avgSales >= 10000 
                             ? `${(dayData.avgSales / 10000).toFixed(1)}万`
-                            : dayData.avgSales.toLocaleString()
+                            : Number(dayData.avgSales).toLocaleString()
                           }
                         </div>
                       </div>
@@ -910,7 +910,7 @@ export default function LiverDashboardNew() {
                         <div className="text-sm font-mono text-cyan-300">
                           {dayData.avgViewers >= 1000 
                             ? `${(dayData.avgViewers / 1000).toFixed(1)}k`
-                            : dayData.avgViewers.toLocaleString()
+                            : Number(dayData.avgViewers).toLocaleString()
                           }人
                         </div>
                       </div>
@@ -1444,7 +1444,7 @@ export default function LiverDashboardNew() {
                               </TooltipContent>
                             </Tooltip>
                             <div className="text-right flex-shrink-0">
-                              <span className="text-yellow-400 text-sm font-mono">¥{product.totalSales.toLocaleString()}</span>
+                              <span className="text-yellow-400 text-sm font-mono">¥{Number(product.totalSales).toLocaleString()}</span>
                               <span className="text-cyan-500/50 text-xs ml-2">/ {product.totalQuantity}個</span>
                             </div>
                           </div>

@@ -377,9 +377,9 @@ const serviceTypeTranslations: Record<string, Record<string, string>> = {
   },
 };
 
-const formatCurrency = (value: number | null | undefined) => {
+const formatCurrency = (value: number | string | null | undefined) => {
   if (value === null || value === undefined) return "-";
-  return `¥${value.toLocaleString()}`;
+  return `¥${Number(value).toLocaleString()}`;
 };
 
 const formatDate = (date: Date | string | null | undefined) => {
