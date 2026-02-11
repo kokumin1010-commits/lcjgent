@@ -776,7 +776,7 @@ export const lineLoginRouter = router({
       // Register pending referral if code provided (points awarded on first purchase)
       if (input.referralCode) {
         try {
-          const { getReferralCodeByCode, registerPendingReferral, hasUsedReferralCode, getLiverById } = await import("./db");
+          const { getReferralCodeByCode, registerPendingReferral, hasUsedReferralCode, getLiverById, createLinePointTransaction } = await import("./db");
           const alreadyUsed = await hasUsedReferralCode(lineUser.id);
           if (!alreadyUsed) {
             const referralResult = await getReferralCodeByCode(input.referralCode);
@@ -790,7 +790,17 @@ export const lineLoginRouter = router({
                   500,
                   200
                 );
-                console.log(`[Referral] Pending referral registered for LINE user ${lineUser.id} via code ${input.referralCode}`);
+                
+                // Award 500pt to new user immediately at registration
+                await createLinePointTransaction({
+                  lineUserId: lineUser.lineUserId || `email_${lineUser.id}`,
+                  type: "earn",
+                  amount: 500,
+                  referenceType: "system",
+                  description: `紹介コード特典: 500ポイント獲得（新規登録ボーナス）`,
+                });
+                console.log(`[Referral] 500pt awarded to LINE user ${lineUser.id} at registration via code ${input.referralCode}`);
+                
                 // ライバーにLINE通知を送信（紹介コードが使われた）
                 try {
                   if (liver?.lineUserId) {
@@ -798,7 +808,7 @@ export const lineLoginRouter = router({
                     const appUrl = process.env.APP_URL || "https://lcjmall.com";
                     await pushMessage(liver.lineUserId, [{
                       type: "text",
-                      text: `🎉 紹介コードが使われました！\n\nあなたの紹介コード「${input.referralCode}」で新しいユーザーが登録しました。\n\n※ ポイントはこのユーザーが初回購入を完了した時点で付与されます。\n\n📊 紹介実績を確認\n${appUrl}/liver-mypage`
+                      text: `🎉 紹介コードが使われました！\n\nあなたの紹介コード「${input.referralCode}」で新しいユーザーが登録しました。\n\n※ あなたへの200ptはこのユーザーが初回購入を完了した時点で付与されます。\n\n📊 紹介実績を確認\n${appUrl}/liver-mypage`
                     }]);
                   }
                 } catch (notifyErr: any) {
@@ -907,7 +917,7 @@ export const lineLoginRouter = router({
       // Register pending referral (points awarded on first purchase)
       if (referralData) {
         try {
-          const { registerPendingReferral } = await import("./db");
+          const { registerPendingReferral, createLinePointTransaction } = await import("./db");
           await registerPendingReferral(
             referralData.referralCode.id,
             referralData.referralCode.liverId,
@@ -915,7 +925,17 @@ export const lineLoginRouter = router({
             500,
             200
           );
-          console.log(`[Referral] Pending referral registered for user ${newUser.id} via code ${input.referralCode}`);
+          
+          // Award 500pt to new user immediately at registration
+          await createLinePointTransaction({
+            lineUserId: `email_${newUser.id}`,
+            type: "earn",
+            amount: 500,
+            referenceType: "system",
+            description: `紹介コード特典: 500ポイント獲得（新規登録ボーナス）`,
+          });
+          console.log(`[Referral] 500pt awarded to user ${newUser.id} at registration via code ${input.referralCode}`);
+          
           // ライバーにLINE通知を送信（紹介コードが使われた）
           try {
             const { getLiverById } = await import("./db");
@@ -925,7 +945,7 @@ export const lineLoginRouter = router({
               const appUrl = process.env.APP_URL || "https://lcjmall.com";
               await pushMessage(liver.lineUserId, [{
                 type: "text",
-                text: `🎉 紹介コードが使われました！\n\nあなたの紹介コード「${input.referralCode}」で新しいユーザーが登録しました。\n\n※ ポイントはこのユーザーが初回購入を完了した時点で付与されます。\n\n📊 紹介実績を確認\n${appUrl}/liver-mypage`
+                text: `🎉 紹介コードが使われました！\n\nあなたの紹介コード「${input.referralCode}」で新しいユーザーが登録しました。\n\n※ あなたへの200ptはこのユーザーが初回購入を完了した時点で付与されます。\n\n📊 紹介実績を確認\n${appUrl}/liver-mypage`
               }]);
             }
           } catch (notifyErr: any) {

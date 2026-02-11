@@ -515,7 +515,7 @@ export default function LineLogin() {
                 </p>
               )}
               {referralLiverName && (
-                <p className="text-xs text-green-600">✅ {referralLiverName} さんからの紹介（初回購入時に500pt付与）</p>
+                <p className="text-xs text-green-600">✅ {referralLiverName} さんからの紹介（登録で500pt付与）</p>
               )}
               {referralError && (
                 <p className="text-xs text-red-500">{referralError}</p>
@@ -634,7 +634,7 @@ export default function LineLogin() {
                     </p>
                   )}
                   {referralLiverName && (
-                    <p className="text-xs text-green-600">✅ {referralLiverName} さんからの紹介（初回購入時に500pt付与）</p>
+                    <p className="text-xs text-green-600">✅ {referralLiverName} さんからの紹介（登録で500pt付与）</p>
                   )}
                   {referralError && (
                     <p className="text-xs text-red-500">{referralError}</p>

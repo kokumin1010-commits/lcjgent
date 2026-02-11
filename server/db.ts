@@ -10789,19 +10789,19 @@ export async function registerPendingReferral(
     throw new Error("このユーザーは既に紹介コードを使用済みです");
   }
   
-  // Create referral history record with pending status (no points awarded yet)
+  // Create referral history record - new user points awarded immediately, referrer points pending
   await db.insert(referralHistory).values({
     referralCodeId,
     referrerLiverId,
     referredLineUserId,
-    status: "pending",
+    status: "pending", // pending = waiting for first purchase to award referrer points
     newUserPoints,
     referrerPoints,
-    newUserPointAwarded: false,
-    referrerPointAwarded: false,
+    newUserPointAwarded: true, // 500pt awarded immediately at registration
+    referrerPointAwarded: false, // 200pt awarded on first purchase
   });
   
-  return { success: true, status: "pending" };
+  return { success: true, status: "pending", newUserPoints };
 }
 
 /**
@@ -10848,28 +10848,20 @@ export async function confirmPendingReferral(
     .set({
       status: "confirmed",
       confirmedAt: new Date(),
-      newUserPointAwarded: true,
+      newUserPointAwarded: true, // Already awarded at registration
       referrerPointAwarded: !!referrerLineUserId,
     })
     .where(eq(referralHistory.id, referral.id));
   
-  // Award points to new user
-  await createLinePointTransaction({
-    lineUserId: lineUserId,
-    type: "earn",
-    amount: referral.newUserPoints,
-    referenceType: "system",
-    description: `紹介コード特典: ${referral.newUserPoints}ポイント獲得（初回購入完了）`,
-  });
-  
-  // Award points to referrer liver (if they have a LINE User ID)
+  // Note: 500pt for new user was already awarded at registration time
+  // Only award 200pt to referrer liver on first purchase
   if (referrerLineUserId) {
     await createLinePointTransaction({
       lineUserId: referrerLineUserId,
       type: "earn",
       amount: referral.referrerPoints,
       referenceType: "system",
-      description: `紹介報酬: 新規ユーザー初回購入で${referral.referrerPoints}ポイント獲得`,
+      description: `紹介報酬: 紹介ユーザーの初回購入で${referral.referrerPoints}ポイント獲得`,
     });
   }
   
