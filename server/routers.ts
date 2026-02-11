@@ -12079,9 +12079,33 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         let adjustedGmv = baseGmv;
         const adjustmentFactors: Record<string, number> = {};
 
-        // Price-based adjustment (higher price products tend to have higher GMV)
-        if (!hasRealData) {
-          const priceAdjust = input.unitPrice > 10000 ? 1.2 : input.unitPrice > 5000 ? 1.1 : 1.0;
+        // ============================================================
+        // 割引率補正：割引率が高いほどCVRが上がり、GMVが増える
+        // ============================================================
+        const sellingPrice = input.sellingPrice || input.unitPrice;
+        const listPrice = input.listPrice || input.unitPrice;
+        const discountRate = listPrice > 0 ? Math.max(0, (listPrice - sellingPrice) / listPrice) : 0;
+        
+        if (discountRate > 0) {
+          // 割引率に応じた補正係数（割引率が高いほどCVRが大幅に上がる）
+          // 10%OFF → 1.15倍, 30%OFF → 1.5倍, 50%OFF → 2.0倍, 70%OFF → 2.8倍, 80%OFF → 3.2倍
+          // 指数的に跳ね上がるカーブ: 割引が大きいほど爆発的に売れる
+          const discountBoost = 1 + Math.pow(discountRate, 0.7) * 3.0;
+          adjustmentFactors['discountRate'] = discountBoost;
+          adjustmentFactors['discountPercentage'] = Math.round(discountRate * 100);
+          adjustedGmv *= discountBoost;
+        }
+
+        // ============================================================
+        // 商品価格レベル補正：定価（listPrice）ベースで判定（割引で逆転しない）
+        // ============================================================
+        const priceForLevel = listPrice; // 定価ベースで判定
+        const priceAdjust = priceForLevel >= 15000 ? 1.5 
+          : priceForLevel >= 10000 ? 1.35 
+          : priceForLevel >= 5000 ? 1.2 
+          : priceForLevel >= 3000 ? 1.1 
+          : 1.0;
+        if (priceAdjust > 1.0) {
           adjustmentFactors['priceLevel'] = priceAdjust;
           adjustedGmv *= priceAdjust;
         }
@@ -12275,7 +12299,10 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
                     dataSource: hasRealData ? '過去実績ベース' : '業界平均値ベース',
                   },
                   inputConditions: {
+                    listPrice: listPrice,
+                    sellingPrice: sellingPrice,
                     unitPrice: input.unitPrice,
+                    discountRate: `${Math.round(discountRate * 100)}%OFF`,
                     streamDuration: input.streamDuration,
                     commissionRate: input.commissionRate,
                     hasAd: input.hasAd,
