@@ -11576,6 +11576,7 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
             usePoints: true,
           }],
           pointsToUse: totalPoints,
+          isFullPointPurchase: true, // ポイント全額購入
         });
 
         // 注文確認通知を送信

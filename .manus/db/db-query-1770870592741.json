@@ -1,0 +1,19 @@
+{
+  "query": "SELECT id, orderNumber, status, paymentMethod, pointsUsed, cashAmount, totalAmount FROM mall_orders WHERE pointsUsed > 0 LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, orderNumber, status, paymentMethod, pointsUsed, cashAmount, totalAmount FROM mall_orders WHERE pointsUsed > 0 LIMIT 5;",
+  "rows": [
+    {
+      "id": "30001",
+      "orderNumber": "LCJ20260212N41QAK",
+      "status": "paid",
+      "paymentMethod": "points",
+      "pointsUsed": "550",
+      "cashAmount": "0",
+      "totalAmount": "1210"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\torderNumber\tstatus\tpaymentMethod\tpointsUsed\tcashAmount\ttotalAmount\n30001\tLCJ20260212N41QAK\tpaid\tpoints\t550\t0\t1210\n",
+  "stderr": "",
+  "execution_time_ms": 1617
+}

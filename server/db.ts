@@ -5903,6 +5903,7 @@ export async function createMallOrder(data: {
     usePoints: boolean;
   }>;
   pointsToUse: number;
+  isFullPointPurchase?: boolean; // ポイント全額購入フラグ
   shippingInfo?: {
     name?: string;
     phone?: string;
@@ -5953,13 +5954,27 @@ export async function createMallOrder(data: {
   }
 
   // ポイント使用を計算
-  const pointsUsed = Math.min(data.pointsToUse, totalAmount);
-  const cashAmount = totalAmount - pointsUsed;
+  let pointsUsed: number;
+  let cashAmount: number;
+  let paymentMethod: "stripe" | "points" | "cod";
+  let status: "pending" | "paid" | "confirmed" | "shipped" | "delivered" | "cancelled" | "refunded";
+
+  if (data.isFullPointPurchase) {
+    // ポイント全額購入: ポイント価格ベースで計算（円価格との差額は不要）
+    pointsUsed = data.pointsToUse;
+    cashAmount = 0;
+    paymentMethod = "points";
+    status = "paid"; // ポイント全額購入は即決済完了
+  } else {
+    // 通常購入（Stripe等）: 円価格ベースで計算
+    pointsUsed = Math.min(data.pointsToUse, totalAmount);
+    cashAmount = totalAmount - pointsUsed;
+    paymentMethod = cashAmount === 0 ? "points" : "stripe";
+    status = cashAmount === 0 ? "paid" : "pending";
+  }
 
   // 注文を作成
   const orderNumber = generateOrderNumber();
-  const paymentMethod = cashAmount === 0 ? "points" : "stripe";
-  const status = cashAmount === 0 ? "paid" : "pending"; // ポイント全額なら即決済完了
   const [orderResult] = await db.insert(mallOrders).values({
     orderNumber,
     lineUserId: data.lineUserId,
