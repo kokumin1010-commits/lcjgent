@@ -356,14 +356,15 @@ export default function ReceiptManagement() {
                     {(() => {
                       const orderNum = extractOrderNumber(item.receipt.ocrRawText);
                       return orderNum ? (
-                        <div className="text-xs mt-1 flex items-center gap-1">
-                          <Hash className="w-3 h-3 text-muted-foreground" />
-                          <span className="font-mono text-muted-foreground">{orderNum}</span>
+                        <div className="mt-1.5 flex items-center gap-1.5 text-sm bg-blue-50 border border-blue-200 rounded px-2 py-1 w-fit">
+                          <Hash className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
+                          <span className="text-blue-600 font-medium">注文番号:</span>
+                          <span className="font-mono text-sm font-bold text-blue-800">{orderNum}</span>
                         </div>
                       ) : (
-                        <div className="text-xs mt-1 flex items-center gap-1 text-red-500">
-                          <AlertTriangle className="w-3 h-3" />
-                          <span>注文番号なし</span>
+                        <div className="mt-1.5 flex items-center gap-1.5 text-sm bg-red-50 border border-red-200 rounded px-2 py-1 w-fit">
+                          <AlertTriangle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+                          <span className="text-red-600 font-medium">注文番号なし</span>
                         </div>
                       );
                     })()}

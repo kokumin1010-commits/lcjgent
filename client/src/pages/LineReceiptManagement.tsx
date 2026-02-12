@@ -477,12 +477,17 @@ export default function LineReceiptManagement() {
                               {(() => {
                                 const orderNum = getOrderNumber(receipt);
                                 return orderNum ? (
-                                  <div className="flex items-center gap-1.5 text-sm">
-                                    <Hash className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                                    <span className="text-muted-foreground">注文番号:</span>
-                                    <span className="font-mono text-xs font-medium text-foreground">{orderNum}</span>
+                                  <div className="flex items-center gap-1.5 text-sm bg-blue-50 border border-blue-200 rounded px-2 py-1 w-fit">
+                                    <Hash className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
+                                    <span className="text-blue-600 font-medium">注文番号:</span>
+                                    <span className="font-mono text-sm font-bold text-blue-800">{orderNum}</span>
                                   </div>
-                                ) : null;
+                                ) : (
+                                  <div className="flex items-center gap-1.5 text-sm bg-red-50 border border-red-200 rounded px-2 py-1 w-fit">
+                                    <AlertTriangle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+                                    <span className="text-red-600 font-medium">注文番号なし</span>
+                                  </div>
+                                );
                               })()}
 
                               {/* Receipt Details Grid */}
