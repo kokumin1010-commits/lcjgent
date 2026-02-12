@@ -4859,3 +4859,10 @@
 - [x] サーバー側の商品登録・編集・画像アップロードAPIの権限をadminからprotectedに変更
 - [x] フロントエンド側の権限チェックを調整（DashboardLayoutの商品管理メニューからadminOnly削除）
 - [x] テスト作成と実行（7件パス）
+
+## ブランド・カテゴリ・注文管理の権限を全ユーザーに開放
+- [x] サーバー側のブランド管理APIの管理者権限チェックを削除（元々protectedProcedureのみで制限なし）
+- [x] サーバー側のカテゴリ管理APIの管理者権限チェックを削除（元々protectedProcedureのみで制限なし）
+- [x] サーバー側の注文管理APIの管理者権限チェックを削除（getOrders, getOrderById, updateOrderStatus）
+- [x] フロントエンド側のadminOnlyフラグを削除（ブランド・カテゴリ、注文管理のサイドバーメニュー）
+- [x] テスト作成と実行（6件パス）

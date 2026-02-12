@@ -11210,7 +11210,7 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         return { success: true };
       }),
 
-    // 注文一覧取得（管理者のみ）
+    // 注文一覧取得
     getOrders: protectedProcedure
       .input(z.object({
         status: z.enum(["pending", "paid", "confirmed", "shipped", "delivered", "cancelled", "refunded"]).optional(),
@@ -11218,23 +11218,17 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         offset: z.number().optional(),
       }).optional())
       .query(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") {
-          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
-        }
         return await getMallOrders(input);
       }),
 
-    // 注文詳細取得（管理者のみ）
+    // 注文詳細取得
     getOrderById: protectedProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") {
-          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
-        }
         return await getMallOrderById(input.id);
       }),
 
-    // 注文ステータス更新（管理者のみ）
+    // 注文ステータス更新
     updateOrderStatus: protectedProcedure
       .input(z.object({
         id: z.number(),
@@ -11244,9 +11238,6 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         trackingNumber: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") {
-          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
-        }
         await updateMallOrderStatus(input.id, input.status, input.adminNotes, {
           shippingCarrier: input.shippingCarrier,
           trackingNumber: input.trackingNumber,
