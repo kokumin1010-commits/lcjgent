@@ -11154,7 +11154,7 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
 
     // ===== 商品管理API =====
 
-    // 商品作成（管理者のみ）
+    // 商品作成（ログインユーザー全員可）
     createProduct: protectedProcedure
       .input(z.object({
         name: z.string().min(1),
@@ -11173,14 +11173,11 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         sortOrder: z.number().default(0),
       }))
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") {
-          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
-        }
         await createMallProduct(input);
         return { success: true };
       }),
 
-    // 商品更新（管理者のみ）
+    // 商品更新（ログインユーザー全員可）
     updateProduct: protectedProcedure
       .input(z.object({
         id: z.number(),
@@ -11200,21 +11197,15 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         sortOrder: z.number().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") {
-          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
-        }
         const { id, ...data } = input;
         await updateMallProduct(id, data);
         return { success: true };
       }),
 
-    // 商品削除（管理者のみ）
+    // 商品削除（ログインユーザー全員可）
     deleteProduct: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") {
-          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
-        }
         await deleteMallProduct(input.id);
         return { success: true };
       }),
@@ -11639,9 +11630,6 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
       }))
       .mutation(async ({ ctx, input }) => {
         console.log(`[Upload] Starting upload for user ${ctx.user.id}, role: ${ctx.user.role}, filename: ${input.filename}, base64 length: ${input.base64.length}`);
-        if (ctx.user.role !== "admin") {
-          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
-        }
 
         try {
           const buffer = Buffer.from(input.base64, "base64");
@@ -11702,7 +11690,7 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         }
       }),
 
-    // 商品画像の並び替え・削除（管理者のみ）
+    // 商品画像の並び替え・削除（ログインユーザー全員可）
     updateProductImages: protectedProcedure
       .input(z.object({
         productId: z.number(),
@@ -11710,9 +11698,6 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         imageKeys: z.array(z.string()),
       }))
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") {
-          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
-        }
         await updateMallProduct(input.productId, {
           imageUrl: input.imageUrls[0] || null,
           imageKey: input.imageKeys[0] || null,

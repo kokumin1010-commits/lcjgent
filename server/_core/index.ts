@@ -839,10 +839,10 @@ async function startServer() {
   // Product image upload REST API (avoids tRPC base64 size issues)
   app.post("/api/upload-product-image", upload.single("file"), async (req: any, res) => {
     try {
-      // Authenticate user
+      // Authenticate user (any logged-in user can upload)
       const user = await sdk.authenticateRequest(req);
-      if (!user || user.role !== "admin") {
-        return res.status(403).json({ error: "管理者権限が必要です" });
+      if (!user) {
+        return res.status(401).json({ error: "ログインが必要です" });
       }
 
       if (!req.file) {
