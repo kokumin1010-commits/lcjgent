@@ -741,14 +741,23 @@ async function processMultipleImagesOcr(
 以下の情報を抽出してJSON形式で返してください：
 
 {
-  "isTikTokShop": true/false,  // TikTok Shopの注文詳細画面かどうか
-  "isDelivered": true/false,   // 配達済みステータスが確認できるか
-  "orderNumber": "string",     // 注文番号（17桁程度の数字）
-  "totalAmount": number,       // 合計金額（数値のみ）
-  "orderDate": "string",       // 注文日時
-  "shopName": "string",        // ショップ名
-  "productName": "string"      // 商品名
+  "isTikTokShop": true/false,
+  "isDelivered": true/false,
+  "orderNumber": "string",
+  "totalAmount": number,
+  "orderDate": "string",
+  "shopName": "string",
+  "productName": "string"
 }
+
+【注文番号の抽出ルール（最重要）】
+TikTok Shopの注文番号は通常17桁前後の数字です（例: 57892614937351xxxxx）。
+以下の場所に表示されることが多いです：
+- 画面上部の「注文番号」「注文ID」「Order ID」「订单编号」ラベルの横
+- 「注文番号: XXXXXXXXXXXXXXXXX」の形式
+- 画面の上部やヘッダー付近に小さく表示されている場合もあります
+- 「#」記号の後に続く数字列
+注文番号が見つからない場合でも、画像内の長い数字列（15〜20桁）を注文番号として抽出してください。
 
 【配達済みの判定基準】
 以下のいずれかが確認できれば isDelivered = true としてください：
@@ -758,7 +767,13 @@ async function processMultipleImagesOcr(
 - 「已签收」「Delivered」
 - 配達ステータスのプログレスバーで最後のステップが完了している
 
+【金額の抽出ルール】
+- 「合計」「支払い金額」「お支払い合計」の横にある金額を totalAmount として抽出
+- 通貨記号（¥、￥）は除去し、数値のみを返してください
+- カンマ区切りも除去してください（例: ¥1,234 → 1234）
+
 【重要】
+- 注文番号の抽出を最優先してください。画像のどこかに必ず注文番号があるはずです
 - 抽出できない項目はnullを返してください
 - 必ずJSON形式のみで回答してください（説明文は不要）
 - 複数画像から情報を統合してください`,

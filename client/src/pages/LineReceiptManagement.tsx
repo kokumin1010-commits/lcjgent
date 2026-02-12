@@ -34,6 +34,8 @@ import {
   ThumbsUp,
   ThumbsDown,
   Bot,
+  Hash,
+  Gift,
 } from "lucide-react";
 
 type ReceiptStatus = "pending" | "approved" | "rejected" | "on_hold";
@@ -190,6 +192,19 @@ export default function LineReceiptManagement() {
     }
   };
   
+  // Extract order number from ocrRawText JSON
+  const getOrderNumber = (receipt: any): string | null => {
+    try {
+      if (receipt.ocrRawText) {
+        const data = typeof receipt.ocrRawText === "string" ? JSON.parse(receipt.ocrRawText) : receipt.ocrRawText;
+        return data.orderNumber || null;
+      }
+    } catch {
+      // ignore parse errors
+    }
+    return null;
+  };
+
   // Get all images for a receipt
   const getReceiptImages = (receipt: any): string[] => {
     const images: string[] = [];
@@ -458,6 +473,18 @@ export default function LineReceiptManagement() {
                                 )}
                               </div>
                               
+                              {/* Order Number */}
+                              {(() => {
+                                const orderNum = getOrderNumber(receipt);
+                                return orderNum ? (
+                                  <div className="flex items-center gap-1.5 text-sm">
+                                    <Hash className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                                    <span className="text-muted-foreground">注文番号:</span>
+                                    <span className="font-mono text-xs font-medium text-foreground">{orderNum}</span>
+                                  </div>
+                                ) : null;
+                              })()}
+
                               {/* Receipt Details Grid */}
                               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                                 <div className="flex items-center gap-1.5 text-muted-foreground">
@@ -473,8 +500,18 @@ export default function LineReceiptManagement() {
                                   <span className="font-medium text-foreground">{formatCurrency(receipt.totalAmount, receipt.currency || "JPY")}</span>
                                 </div>
                                 <div className="flex items-center gap-1.5">
-                                  <span className="text-muted-foreground">ポイント:</span>
-                                  <span className="font-bold text-blue-600">{receipt.pointsCalculated || 0} pt</span>
+                                  {receipt.status === "approved" && receipt.pointsAwarded != null ? (
+                                    <>
+                                      <Gift className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />
+                                      <span className="text-muted-foreground">付与済:</span>
+                                      <span className="font-bold text-green-600">{receipt.pointsAwarded} pt</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className="text-muted-foreground">計算ポイント:</span>
+                                      <span className="font-bold text-blue-600">{receipt.pointsCalculated || 0} pt</span>
+                                    </>
+                                  )}
                                 </div>
                               </div>
                               
@@ -739,6 +776,16 @@ export default function LineReceiptManagement() {
                 ) : (
                   <Card>
                     <CardContent className="pt-4 space-y-3">
+                      {/* Order Number */}
+                      {(() => {
+                        const orderNum = getOrderNumber(receiptDetails.receipt);
+                        return orderNum ? (
+                          <div className="flex justify-between py-2 border-b">
+                            <span className="text-muted-foreground">注文番号</span>
+                            <span className="font-mono text-sm font-medium">{orderNum}</span>
+                          </div>
+                        ) : null;
+                      })()}
                       <div className="flex justify-between py-2 border-b">
                         <span className="text-muted-foreground">店舗名</span>
                         <span className="font-medium">{receiptDetails.receipt.storeName || "-"}</span>
