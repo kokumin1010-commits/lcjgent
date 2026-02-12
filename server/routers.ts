@@ -10813,6 +10813,30 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         if (receipt.status === "approved") {
           throw new TRPCError({ code: "BAD_REQUEST", message: "既に承認済みです" });
         }
+        
+        // 注文番号の必須チェック（ocrRawTextから抽出）
+        let orderNumber: string | null = null;
+        if (receipt.ocrRawText) {
+          try {
+            const parsed = JSON.parse(receipt.ocrRawText);
+            orderNumber = parsed.orderNumber || null;
+          } catch {
+            // regex fallback
+            const match = receipt.ocrRawText.match(/\b(\d{16,19})\b/);
+            orderNumber = match ? match[1] : null;
+          }
+        }
+        if (!orderNumber) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "注文番号が検出されていません。OCRデータを編集して注文番号を含めてから承認してください。" });
+        }
+        
+        // 承認時にも注文番号の重複チェック
+        const { checkDuplicateOrderNumberGlobal } = await import("./db");
+        const duplicateOrder = await checkDuplicateOrderNumberGlobal(orderNumber, input.id);
+        if (duplicateOrder) {
+          throw new TRPCError({ code: "CONFLICT", message: `注文番号 ${orderNumber} は既に他のレシートで使用されています。重複申請のため承認できません。` });
+        }
+        
         const pointsToAward = input.pointsOverride ?? receipt.pointsCalculated ?? 0;
         await updateReceiptStatus(input.id, "approved", ctx.user.id, input.note);
         if (pointsToAward > 0) {
@@ -10962,6 +10986,29 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         if (receipt.status === "approved") {
           throw new TRPCError({ code: "BAD_REQUEST", message: "既に承認済みです" });
         }
+        
+        // 注文番号の必須チェック（ocrRawTextから抽出）
+        let orderNumber: string | null = null;
+        if (receipt.ocrRawText) {
+          try {
+            const parsed = JSON.parse(receipt.ocrRawText);
+            orderNumber = parsed.orderNumber || null;
+          } catch {
+            const match = receipt.ocrRawText.match(/\b(\d{16,19})\b/);
+            orderNumber = match ? match[1] : null;
+          }
+        }
+        if (!orderNumber) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "注文番号が検出されていません。OCRデータを編集して注文番号を含めてから承認してください。" });
+        }
+        
+        // 承認時にも注文番号の重複チェック
+        const { checkDuplicateOrderNumberGlobal } = await import("./db");
+        const duplicateOrder = await checkDuplicateOrderNumberGlobal(orderNumber, input.id);
+        if (duplicateOrder) {
+          throw new TRPCError({ code: "CONFLICT", message: `注文番号 ${orderNumber} は既に他のレシートで使用されています。重複申請のため承認できません。` });
+        }
+        
         const pointsToAward = input.pointsOverride ?? receipt.pointsCalculated ?? 0;
         await updateLineReceiptStatus(input.id, "approved", ctx.user.id, input.note);
         if (pointsToAward > 0) {

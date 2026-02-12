@@ -18,7 +18,9 @@ import {
   AlertTriangle,
   Eye,
   Edit,
-  Loader2
+  Loader2,
+  Hash,
+  Gift
 } from "lucide-react";
 
 type ReceiptStatus = "pending" | "approved" | "rejected" | "on_hold";
@@ -38,6 +40,7 @@ interface ReceiptData {
     fraudFlags: string[] | null;
     fraudScore: string | null;
     reviewNote: string | null;
+    ocrRawText: string | null;
     submittedAt: Date;
     reviewedAt: Date | null;
   };
@@ -224,6 +227,19 @@ export default function ReceiptManagement() {
     }).format(amount);
   };
 
+  const extractOrderNumber = (ocrRawText: string | null): string | null => {
+    if (!ocrRawText) return null;
+    try {
+      const parsed = JSON.parse(ocrRawText);
+      if (parsed.orderNumber) return parsed.orderNumber;
+    } catch {
+      // not JSON, try regex
+    }
+    // Try to find 16-19 digit number in text
+    const match = ocrRawText.match(/\b(\d{16,19})\b/);
+    return match ? match[1] : null;
+  };
+
   return (
     <div className="container py-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -336,17 +352,35 @@ export default function ReceiptManagement() {
                       <span className="mx-2">•</span>
                       <span>{formatDate(item.receipt.purchaseDate)}</span>
                     </div>
-                    <div className="text-sm mt-1">
+                    {/* 注文番号 */}
+                    {(() => {
+                      const orderNum = extractOrderNumber(item.receipt.ocrRawText);
+                      return orderNum ? (
+                        <div className="text-xs mt-1 flex items-center gap-1">
+                          <Hash className="w-3 h-3 text-muted-foreground" />
+                          <span className="font-mono text-muted-foreground">{orderNum}</span>
+                        </div>
+                      ) : (
+                        <div className="text-xs mt-1 flex items-center gap-1 text-red-500">
+                          <AlertTriangle className="w-3 h-3" />
+                          <span>注文番号なし</span>
+                        </div>
+                      );
+                    })()}
+                    {/* ポイント表示 */}
+                    <div className="text-sm mt-1 flex items-center gap-2">
                       <span className="font-medium">
                         {formatCurrency(item.receipt.totalAmount, item.receipt.currency)}
                       </span>
-                      <span className="mx-2">→</span>
-                      <span className="text-primary font-medium">
-                        {item.receipt.pointsCalculated ?? 0}pt
-                      </span>
-                      {item.receipt.pointsAwarded !== null && (
-                        <span className="text-green-600 ml-2">
-                          (付与済: {item.receipt.pointsAwarded}pt)
+                      <span>→</span>
+                      {item.receipt.status === "approved" && item.receipt.pointsAwarded !== null ? (
+                        <span className="text-green-600 font-bold flex items-center gap-1">
+                          <Gift className="w-3.5 h-3.5" />
+                          {item.receipt.pointsAwarded}pt 付与済
+                        </span>
+                      ) : (
+                        <span className="text-blue-600 font-medium">
+                          {item.receipt.pointsCalculated ?? 0}pt（計算値）
                         </span>
                       )}
                     </div>
@@ -434,8 +468,24 @@ export default function ReceiptManagement() {
                   </p>
                 </div>
                 <div>
+                  <Label className="text-muted-foreground">注文番号</Label>
+                  <p className="font-mono font-medium">
+                    {extractOrderNumber(selectedReceipt.receipt.ocrRawText) || <span className="text-red-500">未検出</span>}
+                  </p>
+                </div>
+                <div>
                   <Label className="text-muted-foreground">{t("receipts.calculatedPoints")}</Label>
                   <p className="font-medium">{selectedReceipt.receipt.pointsCalculated ?? 0}pt</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">付与済みポイント</Label>
+                  <p className="font-medium">
+                    {selectedReceipt.receipt.pointsAwarded !== null ? (
+                      <span className="text-green-600 font-bold">{selectedReceipt.receipt.pointsAwarded}pt</span>
+                    ) : (
+                      <span className="text-muted-foreground">未付与</span>
+                    )}
+                  </p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">{t("receipts.status")}</Label>
