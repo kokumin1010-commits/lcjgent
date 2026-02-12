@@ -5180,7 +5180,67 @@ export async function getLinePointBalance(lineUserId: string) {
     .where(eq(linePointBalances.lineUserId, lineUserId))
     .limit(1);
   
-  return result[0] || null;
+  const primaryBalance = result[0] || null;
+  
+  // Safety net: If lineUserId is a real LINE userId (starts with "U"),
+  // also check for any orphaned email_${id} balance that wasn't merged during LINE linking.
+  // This prevents points from "disappearing" if the merge failed or was skipped.
+  if (lineUserId.startsWith("U")) {
+    try {
+      // Find the line_users record for this LINE userId to get the email user id
+      const lineUserResult = await db
+        .select({ id: lineUsers.id })
+        .from(lineUsers)
+        .where(eq(lineUsers.lineUserId, lineUserId))
+        .limit(1);
+      
+      if (lineUserResult[0]) {
+        const emailKey = `email_${lineUserResult[0].id}`;
+        const emailBalanceResult = await db
+          .select()
+          .from(linePointBalances)
+          .where(eq(linePointBalances.lineUserId, emailKey))
+          .limit(1);
+        
+        const emailBalance = emailBalanceResult[0];
+        
+        if (emailBalance && emailBalance.balance > 0) {
+          // Auto-merge: move email_ balance into LINE userId balance
+          console.log(`[PointBalance] Auto-merging orphaned balance: ${emailKey} (${emailBalance.balance}pt) -> ${lineUserId}`);
+          
+          if (primaryBalance) {
+            // Add email_ balance to existing LINE balance
+            await db.update(linePointBalances)
+              .set({
+                balance: primaryBalance.balance + emailBalance.balance,
+                totalEarned: primaryBalance.totalEarned + emailBalance.totalEarned,
+              })
+              .where(eq(linePointBalances.lineUserId, lineUserId));
+            
+            primaryBalance.balance += emailBalance.balance;
+            primaryBalance.totalEarned += emailBalance.totalEarned;
+          } else {
+            // Rename email_ record to LINE userId
+            await db.update(linePointBalances)
+              .set({ lineUserId: lineUserId })
+              .where(eq(linePointBalances.lineUserId, emailKey));
+            
+            return { ...emailBalance, lineUserId: lineUserId };
+          }
+          
+          // Zero out the email_ balance to prevent double-merge
+          await db.update(linePointBalances)
+            .set({ balance: 0, totalEarned: 0, totalUsed: 0 })
+            .where(eq(linePointBalances.lineUserId, emailKey));
+        }
+      }
+    } catch (err) {
+      // Don't let the safety net break normal operation
+      console.error(`[PointBalance] Auto-merge check failed for ${lineUserId}:`, err);
+    }
+  }
+  
+  return primaryBalance;
 }
 
 /**

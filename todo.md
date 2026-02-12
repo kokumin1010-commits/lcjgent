@@ -4843,3 +4843,7 @@
 - [x] バグの原因を特定して修正（linkLineAccountToEmailUserにポイントマージロジック追加）
 - [x] 既存の影響ユーザー6件のポイント残高を手動マージ済み
 - [x] テスト5件パス
+
+## 防御的対策：getLinePointBalanceの統合検索（ポイント消失再発防止）
+- [x] getLinePointBalance関数にemail_${id}の残高合算ロジックを追加
+- [x] テスト5件パス
