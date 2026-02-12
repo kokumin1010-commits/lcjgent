@@ -278,6 +278,31 @@ export default function OrderManagement() {
                           </div>
                         )}
                       </div>
+                      {/* 配送先住所 */}
+                      {(item.order.shippingName || item.order.shippingAddress) && (
+                        <div className="mt-2 pt-2 border-t border-dashed border-gray-200 text-sm text-muted-foreground">
+                          <div className="flex items-start gap-1">
+                            <MapPin className="h-4 w-4 mt-0.5 shrink-0 text-rose-400" />
+                            <div className="space-y-0.5">
+                              {item.order.shippingName && (
+                                <span className="font-medium text-foreground">{item.order.shippingName}</span>
+                              )}
+                              {item.order.shippingPhone && (
+                                <span className="ml-2">
+                                  <Phone className="h-3 w-3 inline mr-0.5" />
+                                  {item.order.shippingPhone}
+                                </span>
+                              )}
+                              {item.order.shippingPostalCode && (
+                                <p className="text-xs">〒{item.order.shippingPostalCode}</p>
+                              )}
+                              {item.order.shippingAddress && (
+                                <p className="text-xs">{item.order.shippingAddress}</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div className="flex gap-2">
                       <Button
