@@ -43,8 +43,6 @@ import LiverSelfRecord from "./pages/LiverSelfRecord";
 import LivestreamEdit from "./pages/LivestreamEdit";
 import LiverSchedule from "./pages/LiverSchedule";
 import LiverProfile from "./pages/LiverProfile";
-import MyPoints from "./pages/MyPoints";
-import ReceiptManagement from "./pages/ReceiptManagement";
 import LineReceiptManagement from "./pages/LineReceiptManagement";
 import MallHome from "./pages/MallHome";
 import LineLogin from "./pages/LineLogin";
@@ -244,16 +242,6 @@ function Router() {
       <Route path={"/master/livers/:id/record"}>
         <DashboardLayout>
           <LiverRecord />
-        </DashboardLayout>
-      </Route>
-      <Route path={"/master/points"}>
-        <DashboardLayout>
-          <MyPoints />
-        </DashboardLayout>
-      </Route>
-      <Route path={"/master/receipts"}>
-        <DashboardLayout>
-          <ReceiptManagement />
         </DashboardLayout>
       </Route>
       <Route path={"/master/line-receipts"}>
