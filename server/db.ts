@@ -6091,12 +6091,13 @@ export async function getMallOrderById(id: number) {
 export async function updateMallOrderStatus(
   id: number, 
   status: "pending" | "paid" | "confirmed" | "shipped" | "delivered" | "cancelled" | "refunded",
-  adminNotes?: string
+  adminNotes?: string,
+  shippingInfo?: { shippingCarrier?: string; trackingNumber?: string }
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const updateData: Partial<InsertMallOrder> = { status };
+  const updateData: Record<string, any> = { status };
   
   if (status === "shipped") {
     updateData.shippedAt = new Date();
@@ -6106,6 +6107,13 @@ export async function updateMallOrderStatus(
   
   if (adminNotes !== undefined) {
     updateData.adminNotes = adminNotes;
+  }
+  
+  if (shippingInfo?.shippingCarrier !== undefined) {
+    updateData.shippingCarrier = shippingInfo.shippingCarrier;
+  }
+  if (shippingInfo?.trackingNumber !== undefined) {
+    updateData.trackingNumber = shippingInfo.trackingNumber;
   }
 
   await db.update(mallOrders).set(updateData).where(eq(mallOrders.id, id));

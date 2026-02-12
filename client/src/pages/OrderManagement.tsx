@@ -65,6 +65,8 @@ export default function OrderManagement() {
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
   const [newStatus, setNewStatus] = useState<OrderStatus>("pending");
   const [adminNotes, setAdminNotes] = useState("");
+  const [shippingCarrier, setShippingCarrier] = useState("");
+  const [trackingNumber, setTrackingNumber] = useState("");
 
   const { data: orders, isLoading, refetch } = trpc.mall.getOrders.useQuery(
     statusFilter === "all" ? undefined : { status: statusFilter }
@@ -96,6 +98,8 @@ export default function OrderManagement() {
     setSelectedOrderId(orderId);
     setNewStatus(currentStatus);
     setAdminNotes("");
+    setShippingCarrier("");
+    setTrackingNumber("");
     setIsStatusDialogOpen(true);
   };
 
@@ -105,6 +109,8 @@ export default function OrderManagement() {
       id: selectedOrderId,
       status: newStatus,
       adminNotes: adminNotes || undefined,
+      shippingCarrier: shippingCarrier || undefined,
+      trackingNumber: trackingNumber || undefined,
     });
   };
 
@@ -518,6 +524,41 @@ export default function OrderManagement() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* 配送情報（発送済みまたは配達完了時に表示） */}
+            {(newStatus === 'shipped' || newStatus === 'delivered') && (
+              <div className="space-y-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <p className="text-sm font-medium text-blue-700 flex items-center gap-1">
+                  <Truck className="h-4 w-4" />
+                  配送情報
+                </p>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">配送業者</label>
+                  <Select value={shippingCarrier} onValueChange={setShippingCarrier}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="配送業者を選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ヤマト運輸">ヤマト運輸</SelectItem>
+                      <SelectItem value="佐川急便">佐川急便</SelectItem>
+                      <SelectItem value="日本郵便">日本郵便</SelectItem>
+                      <SelectItem value="西濃運輸">西濃運輸</SelectItem>
+                      <SelectItem value="その他">その他</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">追跡番号</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border rounded-md text-sm"
+                    placeholder="追跡番号を入力..."
+                    value={trackingNumber}
+                    onChange={(e) => setTrackingNumber(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <label className="text-sm font-medium">管理者メモ（任意）</label>

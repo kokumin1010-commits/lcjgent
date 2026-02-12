@@ -8018,6 +8018,29 @@ ${conversationText}
         return { success: true };
       }),
 
+    // 管理者によるポイント調整（付与・削除）
+    adminAdjustPoints: protectedProcedure
+      .input(z.object({
+        lineUserId: z.string(),
+        amount: z.number(), // 正の値=付与、負の値=削除
+        description: z.string().min(1),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        const { createLinePointTransaction } = await import("./db");
+        const type = input.amount >= 0 ? "earn" : "use";
+        const result = await createLinePointTransaction({
+          lineUserId: input.lineUserId,
+          type: type === "earn" ? "earn" : "adjustment",
+          amount: input.amount,
+          referenceType: "manual",
+          description: `[管理者操作] ${input.description}`,
+        });
+        return { success: true, balanceAfter: result.balanceAfter };
+      }),
+
     // Get member point history (for admin)
     getMemberPointHistory: protectedProcedure
       .input(z.object({ lineUserId: z.string() }))
@@ -11210,12 +11233,17 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         id: z.number(),
         status: z.enum(["pending", "paid", "confirmed", "shipped", "delivered", "cancelled", "refunded"]),
         adminNotes: z.string().optional(),
+        shippingCarrier: z.string().optional(),
+        trackingNumber: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
         }
-        await updateMallOrderStatus(input.id, input.status, input.adminNotes);
+        await updateMallOrderStatus(input.id, input.status, input.adminNotes, {
+          shippingCarrier: input.shippingCarrier,
+          trackingNumber: input.trackingNumber,
+        });
         return { success: true };
       }),
 
@@ -11483,6 +11511,32 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           }],
           pointsToUse: totalPoints,
         });
+
+        // 注文確認通知を送信
+        try {
+          const lineUser = result.lineUser;
+          const orderDate = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+          const notificationText = `📦 注文確認\n\nご注文ありがとうございます！\n\n■ 商品: ${product.name}\n■ 数量: ${input.quantity}\n■ ポイント: ${totalPoints.toLocaleString()} pt\n■ 注文番号: ${orderResult.orderNumber}\n■ 注文日時: ${orderDate}\n\n発送準備ができ次第、お知らせいたします。`;
+
+          // LINE通知（LINEユーザーの場合）
+          if (lineUser.lineUserId && !lineUser.lineUserId.startsWith('email_')) {
+            const { pushMessage } = await import("./line");
+            await pushMessage(lineUser.lineUserId, [{ type: "text", text: notificationText }]);
+          }
+
+          // メール通知（メールアドレスがある場合）
+          if (lineUser.email) {
+            const { sendEmail } = await import("./emailService");
+            await sendEmail({
+              to: [lineUser.email],
+              subject: `【LCJ MALL】注文確認 - ${orderResult.orderNumber}`,
+              content: `${lineUser.displayName || lineUser.email} 様\n\nご注文ありがとうございます。\n\n■ 商品: ${product.name}\n■ 数量: ${input.quantity}\n■ ポイント: ${totalPoints.toLocaleString()} pt\n■ 注文番号: ${orderResult.orderNumber}\n■ 注文日時: ${orderDate}\n\n発送準備ができ次第、お知らせいたします。\n\n---\nLCJ MALL`,
+            });
+          }
+        } catch (notifyError) {
+          console.error("[PurchaseWithPoints] 通知送信エラー:", notifyError);
+          // 通知失敗でも購入自体は成功とする
+        }
 
         return { success: true, pointsUsed: totalPoints, orderNumber: orderResult.orderNumber };
       }),

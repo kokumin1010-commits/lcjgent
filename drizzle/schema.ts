@@ -1640,6 +1640,10 @@ export const mallOrders = mysqlTable("mall_orders", {
   stripeSessionId: varchar("stripeSessionId", { length: 255 }),
   stripePaymentIntentId: varchar("stripePaymentIntentId", { length: 255 }),
   
+  // 配送情報
+  shippingCarrier: varchar("shippingCarrier", { length: 100 }), // 配送業者（ヤマト運輸、佐川急便等）
+  trackingNumber: varchar("trackingNumber", { length: 255 }), // 追跡番号
+  
   // メモ
   notes: text("notes"),
   adminNotes: text("adminNotes"), // 管理者用メモ

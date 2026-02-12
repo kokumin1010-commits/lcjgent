@@ -429,6 +429,62 @@ export default function LineMypage() {
                                 </div>
                               )}
 
+                              {/* 配送状況 */}
+                              {(order.status === 'shipped' || order.status === 'delivered' || order.trackingNumber || order.shippingCarrier) && (
+                                <div>
+                                  <p className="text-sm font-medium text-muted-foreground mb-2">配送状況</p>
+                                  <div className="bg-white rounded-lg p-3 text-sm space-y-2">
+                                    {/* 配送ステップ */}
+                                    <div className="flex items-center gap-3">
+                                      <div className="flex flex-col items-center">
+                                        <div className={`h-6 w-6 rounded-full flex items-center justify-center ${order.status === 'pending' ? 'bg-gray-200' : 'bg-green-500'}`}>
+                                          <CheckCircle className={`h-3 w-3 ${order.status === 'pending' ? 'text-gray-400' : 'text-white'}`} />
+                                        </div>
+                                        <div className={`w-0.5 h-4 ${['shipped', 'delivered'].includes(order.status) ? 'bg-green-500' : 'bg-gray-200'}`} />
+                                        <div className={`h-6 w-6 rounded-full flex items-center justify-center ${['shipped', 'delivered'].includes(order.status) ? 'bg-blue-500' : 'bg-gray-200'}`}>
+                                          <Truck className={`h-3 w-3 ${['shipped', 'delivered'].includes(order.status) ? 'text-white' : 'text-gray-400'}`} />
+                                        </div>
+                                        <div className={`w-0.5 h-4 ${order.status === 'delivered' ? 'bg-green-500' : 'bg-gray-200'}`} />
+                                        <div className={`h-6 w-6 rounded-full flex items-center justify-center ${order.status === 'delivered' ? 'bg-green-500' : 'bg-gray-200'}`}>
+                                          <Package className={`h-3 w-3 ${order.status === 'delivered' ? 'text-white' : 'text-gray-400'}`} />
+                                        </div>
+                                      </div>
+                                      <div className="flex flex-col gap-3">
+                                        <div>
+                                          <p className={`text-xs font-medium ${order.status !== 'pending' ? 'text-green-700' : 'text-gray-400'}`}>注文確認</p>
+                                          <p className="text-xs text-muted-foreground">{format(new Date(order.createdAt), "M/d HH:mm")}</p>
+                                        </div>
+                                        <div>
+                                          <p className={`text-xs font-medium ${['shipped', 'delivered'].includes(order.status) ? 'text-blue-700' : 'text-gray-400'}`}>発送済み</p>
+                                          {order.shippedAt && <p className="text-xs text-muted-foreground">{format(new Date(order.shippedAt), "M/d HH:mm")}</p>}
+                                        </div>
+                                        <div>
+                                          <p className={`text-xs font-medium ${order.status === 'delivered' ? 'text-green-700' : 'text-gray-400'}`}>お届け済み</p>
+                                          {order.deliveredAt && <p className="text-xs text-muted-foreground">{format(new Date(order.deliveredAt), "M/d HH:mm")}</p>}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    {/* 配送業者・追跡番号 */}
+                                    {(order.shippingCarrier || order.trackingNumber) && (
+                                      <div className="border-t pt-2 mt-2 space-y-1">
+                                        {order.shippingCarrier && (
+                                          <div className="flex justify-between">
+                                            <span className="text-muted-foreground">配送業者</span>
+                                            <span>{order.shippingCarrier}</span>
+                                          </div>
+                                        )}
+                                        {order.trackingNumber && (
+                                          <div className="flex justify-between">
+                                            <span className="text-muted-foreground">追跡番号</span>
+                                            <span className="font-mono text-xs">{order.trackingNumber}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
                               {/* 注文情報 */}
                               <div>
                                 <p className="text-sm font-medium text-muted-foreground mb-1">注文情報</p>

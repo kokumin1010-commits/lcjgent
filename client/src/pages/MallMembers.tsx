@@ -5,7 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, Search, Users, Mail, Calendar, Coins, UserCheck, UserX, RefreshCw, Receipt, ArrowUpCircle, ArrowDownCircle, Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { Loader2, Search, Users, Mail, Calendar, Coins, UserCheck, UserX, RefreshCw, Receipt, ArrowUpCircle, ArrowDownCircle, Clock, CheckCircle, XCircle, AlertCircle, Plus, Minus } from "lucide-react";
+import { toast } from "sonner";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import {
@@ -24,8 +27,28 @@ export default function MallMembers() {
   const [selectedMember, setSelectedMember] = useState<any>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("info");
-
+  const [pointAmount, setPointAmount] = useState("");
+  const [pointDescription, setPointDescription] = useState("");
+  const [pointAction, setPointAction] = useState<"add" | "remove">("add");
   const { data: members, isLoading, refetch } = trpc.line.listUsers.useQuery();
+  const utils = trpc.useUtils();
+
+  const adjustPointsMutation = trpc.line.adminAdjustPoints.useMutation({
+    onSuccess: (data) => {
+      toast.success(pointAction === "add" ? "ポイント付与完了" : "ポイント削除完了", {
+        description: `残高: ${data.balanceAfter.toLocaleString()} pt`,
+      });
+      setPointAmount("");
+      setPointDescription("");
+      // ポイント履歴を再取得
+      if (selectedMember?.lineUserId) {
+        utils.line.getMemberPointHistory.invalidate({ lineUserId: selectedMember.lineUserId });
+      }
+    },
+    onError: (error) => {
+      toast.error("エラー", { description: error.message });
+    },
+  });
 
   // Get point history when member is selected
   const { data: pointHistory, isLoading: isLoadingPoints } = trpc.line.getMemberPointHistory.useQuery(
@@ -375,6 +398,70 @@ export default function MallMembers() {
                         </CardContent>
                       </Card>
                     </div>
+
+                    {/* ポイント操作 */}
+                    <Card className="border-dashed">
+                      <CardContent className="pt-4">
+                        <h4 className="font-medium mb-3">ポイント操作</h4>
+                        <div className="space-y-3">
+                          <div className="flex gap-2">
+                            <Select value={pointAction} onValueChange={(v: "add" | "remove") => setPointAction(v)}>
+                              <SelectTrigger className="w-[120px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="add">付与</SelectItem>
+                                <SelectItem value="remove">削除</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Input
+                              type="number"
+                              placeholder="ポイント数"
+                              value={pointAmount}
+                              onChange={(e) => setPointAmount(e.target.value)}
+                              className="w-[120px]"
+                              min={1}
+                            />
+                          </div>
+                          <Textarea
+                            placeholder="理由を入力（例: キャンペーン特典、不具合補償等）"
+                            value={pointDescription}
+                            onChange={(e) => setPointDescription(e.target.value)}
+                            rows={2}
+                          />
+                          <Button
+                            onClick={() => {
+                              const amount = parseInt(pointAmount);
+                              if (!amount || amount <= 0) {
+                                toast.error("ポイント数を正しく入力してください");
+                                return;
+                              }
+                              if (!pointDescription.trim()) {
+                                toast.error("理由を入力してください");
+                                return;
+                              }
+                              const lineUserId = selectedMember?.lineUserId || `email_${selectedMember?.id}`;
+                              adjustPointsMutation.mutate({
+                                lineUserId,
+                                amount: pointAction === "add" ? amount : -amount,
+                                description: pointDescription,
+                              });
+                            }}
+                            disabled={adjustPointsMutation.isPending}
+                            className={pointAction === "add" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}
+                          >
+                            {adjustPointsMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            ) : pointAction === "add" ? (
+                              <Plus className="h-4 w-4 mr-2" />
+                            ) : (
+                              <Minus className="h-4 w-4 mr-2" />
+                            )}
+                            {pointAction === "add" ? "ポイントを付与" : "ポイントを削除"}
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
 
                     {/* Transaction History */}
                     <div>
