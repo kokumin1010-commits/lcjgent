@@ -6657,6 +6657,72 @@ export async function linkLineAccountToEmailUser(emailUserId: number, lineUserId
     })
     .where(eq(lineUsers.id, emailUserId));
   
+  // === Merge point balances: email_${id} → LINE userId ===
+  const emailPointId = `email_${emailUserId}`;
+  const emailBalance = await db.select()
+    .from(linePointBalances)
+    .where(eq(linePointBalances.lineUserId, emailPointId))
+    .limit(1);
+  
+  if (emailBalance.length > 0 && emailBalance[0].balance > 0) {
+    // Get or create LINE userId balance
+    let lineBalance = await db.select()
+      .from(linePointBalances)
+      .where(eq(linePointBalances.lineUserId, lineUserId))
+      .limit(1);
+    
+    if (lineBalance.length === 0) {
+      // Create new balance record for LINE userId
+      await db.insert(linePointBalances).values({
+        lineUserId,
+        balance: 0,
+        totalEarned: 0,
+        totalUsed: 0,
+      });
+      lineBalance = await db.select()
+        .from(linePointBalances)
+        .where(eq(linePointBalances.lineUserId, lineUserId))
+        .limit(1);
+    }
+    
+    // Transfer balance from email_ to LINE userId
+    const transferAmount = emailBalance[0].balance;
+    const transferTotalEarned = emailBalance[0].totalEarned;
+    const transferTotalUsed = emailBalance[0].totalUsed;
+    
+    // Add to LINE userId balance
+    await db.update(linePointBalances)
+      .set({
+        balance: sql`${linePointBalances.balance} + ${transferAmount}`,
+        totalEarned: sql`${linePointBalances.totalEarned} + ${transferTotalEarned}`,
+        totalUsed: sql`${linePointBalances.totalUsed} + ${transferTotalUsed}`,
+      })
+      .where(eq(linePointBalances.lineUserId, lineUserId));
+    
+    // Zero out email_ balance
+    await db.update(linePointBalances)
+      .set({
+        balance: 0,
+        totalEarned: 0,
+        totalUsed: 0,
+      })
+      .where(eq(linePointBalances.lineUserId, emailPointId));
+    
+    // Migrate all transactions from email_ to LINE userId
+    await db.update(linePointTransactions)
+      .set({ lineUserId })
+      .where(eq(linePointTransactions.lineUserId, emailPointId));
+    
+    console.log(`[LINE Link] Merged point balance: email_${emailUserId} (${transferAmount} pt) → ${lineUserId}`);
+  } else if (emailBalance.length > 0) {
+    // Balance is 0 but record exists - just migrate transactions
+    await db.update(linePointTransactions)
+      .set({ lineUserId })
+      .where(eq(linePointTransactions.lineUserId, emailPointId));
+    
+    console.log(`[LINE Link] Migrated point transactions: email_${emailUserId} → ${lineUserId}`);
+  }
+  
   return true;
 }
 

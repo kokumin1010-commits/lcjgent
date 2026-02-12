@@ -1,0 +1,8 @@
+{
+  "query": "SELECT lu.id, lu.display_name, lu.email, lu.line_user_id \nFROM line_users lu \nWHERE lu.email = 'zhuzhenyan0103@gmail.com';\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT lu.id, lu.display_name, lu.email, lu.line_user_id \nFROM line_users lu \nWHERE lu.email = 'zhuzhenyan0103@gmail.com';\n",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'lu.display_name' in 'field list'"
+  ]
+}

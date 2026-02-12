@@ -1,0 +1,9 @@
+{
+  "query": "\nUPDATE line_point_balances \nSET balance = balance + 500, totalEarned = totalEarned + 500 \nWHERE lineUserId = 'U02ea91375a184a5922b077ffb61bd55e';\n\nUPDATE line_point_balances \nSET balance = 0, totalEarned = 0, totalUsed = 0 \nWHERE lineUserId = 'email_900026';\n\nUPDATE line_point_transactions \nSET lineUserId = 'U02ea91375a184a5922b077ffb61bd55e' \nWHERE lineUserId = 'email_900026';\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute \nUPDATE line_point_balances \nSET balance = balance + 500, totalEarned = totalEarned + 500 \nWHERE lineUserId = 'U02ea91375a184a5922b077ffb61bd55e';\n\nUPDATE line_point_balances \nSET balance = 0, totalEarned = 0, totalUsed = 0 \nWHERE lineUserId = 'email_900026';\n\nUPDATE line_point_transactions \nSET lineUserId = 'U02ea91375a184a5922b077ffb61bd55e' \nWHERE lineUserId = 'email_900026';\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 2088
+}

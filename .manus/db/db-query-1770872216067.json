@@ -1,0 +1,27 @@
+{
+  "query": "SELECT * FROM line_users WHERE email = 'zhuzhenyan0103@gmail.com';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT * FROM line_users WHERE email = 'zhuzhenyan0103@gmail.com';",
+  "rows": [
+    {
+      "id": "900026",
+      "lineUserId": "U02ea91375a184a5922b077ffb61bd55e",
+      "displayName": "Ryanzhu",
+      "pictureUrl": "https://profile.line-scdn.net/0m0789c8277251a3672955205cb65e92d710f8ded68adc",
+      "statusMessage": "NULL",
+      "brandId": "NULL",
+      "staffId": "NULL",
+      "liverId": "NULL",
+      "userType": "customer",
+      "isBlocked": "0",
+      "lastMessageAt": "2026-02-12 04:50:39",
+      "createdAt": "2026-02-12 04:44:52",
+      "updatedAt": "2026-02-12 04:50:38",
+      "email": "zhuzhenyan0103@gmail.com",
+      "password": "$2b$10$mbOIErWT1p5VHLLojMJnO.8HGEQ6uV9fdOpyTn4cAXi3h.eUgE.py"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tlineUserId\tdisplayName\tpictureUrl\tstatusMessage\tbrandId\tstaffId\tliverId\tuserType\tisBlocked\tlastMessageAt\tcreatedAt\tupdatedAt\temail\tpassword\n900026\tU02ea91375a184a5922b077ffb61bd55e\tRyanzhu\thttps://profile.line-scdn.net/0m0789c8277251a3672955205cb65e92d710f8ded68adc\tNULL\tNULL\tNULL\tNULL\tcustomer\t0\t2026-02-12 04:50:39\t2026-02-12 04:44:52\t2026-02-12 04:50:38\tzhuzhenyan0103@gmail.com\t$2b$10$mbOIErWT1p5VHLLojMJnO.8HGEQ6uV9fdOpyTn4cAXi3h.eUgE.py\n",
+  "stderr": "",
+  "execution_time_ms": 1579
+}

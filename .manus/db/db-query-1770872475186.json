@@ -1,0 +1,170 @@
+{
+  "query": "SELECT lpb.lineUserId, lpb.balance, lpb.totalEarned, lpb.totalUsed, lu.lineUserId as actualLineUserId, lu.email\nFROM line_point_balances lpb\nLEFT JOIN line_users lu ON lpb.lineUserId = CONCAT('email_', lu.id)\nWHERE lpb.lineUserId LIKE 'email_%' AND lpb.balance > 0;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT lpb.lineUserId, lpb.balance, lpb.totalEarned, lpb.totalUsed, lu.lineUserId as actualLineUserId, lu.email\nFROM line_point_balances lpb\nLEFT JOIN line_users lu ON lpb.lineUserId = CONCAT('email_', lu.id)\nWHERE lpb.lineUserId LIKE 'email_%' AND lpb.balance > 0;",
+  "rows": [
+    {
+      "lineUserId": "email_900001",
+      "balance": "500",
+      "totalEarned": "500",
+      "totalUsed": "0",
+      "actualLineUserId": "U8a2f52ff529b45f1fbc2be3bf808091f",
+      "email": "youkaimura@gmail.com"
+    },
+    {
+      "lineUserId": "email_900003",
+      "balance": "450",
+      "totalEarned": "1000",
+      "totalUsed": "550",
+      "actualLineUserId": "NULL",
+      "email": "kokumin1010@gmail.com"
+    },
+    {
+      "lineUserId": "email_900004",
+      "balance": "500",
+      "totalEarned": "500",
+      "totalUsed": "0",
+      "actualLineUserId": "NULL",
+      "email": "ryuhairartist+@gmail.com"
+    },
+    {
+      "lineUserId": "email_900005",
+      "balance": "500",
+      "totalEarned": "500",
+      "totalUsed": "0",
+      "actualLineUserId": "NULL",
+      "email": "ryuhair11@gmail.com"
+    },
+    {
+      "lineUserId": "email_900006",
+      "balance": "50",
+      "totalEarned": "500",
+      "totalUsed": "450",
+      "actualLineUserId": "NULL",
+      "email": "test++@gmail.com"
+    },
+    {
+      "lineUserId": "email_900007",
+      "balance": "500",
+      "totalEarned": "500",
+      "totalUsed": "0",
+      "actualLineUserId": "NULL",
+      "email": "kisa.hyu.7@icloud.com"
+    },
+    {
+      "lineUserId": "email_900008",
+      "balance": "500",
+      "totalEarned": "500",
+      "totalUsed": "0",
+      "actualLineUserId": "U1dfbc41f2a69109c018e222c9275105f",
+      "email": "nana.k1210@icloud.com"
+    },
+    {
+      "lineUserId": "email_900009",
+      "balance": "500",
+      "totalEarned": "500",
+      "totalUsed": "0",
+      "actualLineUserId": "NULL",
+      "email": "taisei.01128877@gmail.com"
+    },
+    {
+      "lineUserId": "email_900010",
+      "balance": "500",
+      "totalEarned": "500",
+      "totalUsed": "0",
+      "actualLineUserId": "NULL",
+      "email": "maimai-pooh.v_v.-1975-0417@docomo.ne.jp"
+    },
+    {
+      "lineUserId": "email_900011",
+      "balance": "500",
+      "totalEarned": "500",
+      "totalUsed": "0",
+      "actualLineUserId": "Ub760c3258a79484844ba9948a903a9d5",
+      "email": "shii.rii.2022@i.softbank.jp"
+    },
+    {
+      "lineUserId": "email_900012",
+      "balance": "500",
+      "totalEarned": "500",
+      "totalUsed": "0",
+      "actualLineUserId": "Ua2f7db749e5fcd1fceb17ff0e938e783",
+      "email": "t.minnaohana0512@gmail.com"
+    },
+    {
+      "lineUserId": "email_900015",
+      "balance": "500",
+      "totalEarned": "500",
+      "totalUsed": "0",
+      "actualLineUserId": "NULL",
+      "email": "hello-hello.sora@ezweb.ne.jp"
+    },
+    {
+      "lineUserId": "email_900016",
+      "balance": "500",
+      "totalEarned": "500",
+      "totalUsed": "0",
+      "actualLineUserId": "U30e29cd6432d1f55afea920e7b958d5c",
+      "email": "chiroogu@icloud.com"
+    },
+    {
+      "lineUserId": "email_900018",
+      "balance": "500",
+      "totalEarned": "500",
+      "totalUsed": "0",
+      "actualLineUserId": "NULL",
+      "email": "Kaotankaotan7@gmail.com"
+    },
+    {
+      "lineUserId": "email_900019",
+      "balance": "500",
+      "totalEarned": "500",
+      "totalUsed": "0",
+      "actualLineUserId": "NULL",
+      "email": "tenten.tt.tenten@icloud.com"
+    },
+    {
+      "lineUserId": "email_900021",
+      "balance": "500",
+      "totalEarned": "500",
+      "totalUsed": "0",
+      "actualLineUserId": "NULL",
+      "email": "izumi.tjm.may15@gmail.com"
+    },
+    {
+      "lineUserId": "email_900023",
+      "balance": "500",
+      "totalEarned": "500",
+      "totalUsed": "0",
+      "actualLineUserId": "NULL",
+      "email": "miho.masa.2.5@ezweb.ne.jp"
+    },
+    {
+      "lineUserId": "email_900024",
+      "balance": "500",
+      "totalEarned": "500",
+      "totalUsed": "0",
+      "actualLineUserId": "Ub129a075d368111c305371e5040a87b9",
+      "email": "shihot03-001@yahoo.co.jp"
+    },
+    {
+      "lineUserId": "email_900027",
+      "balance": "500",
+      "totalEarned": "500",
+      "totalUsed": "0",
+      "actualLineUserId": "NULL",
+      "email": "marmin-k.yun11_16@ezweb.ne.jp"
+    },
+    {
+      "lineUserId": "email_900029",
+      "balance": "500",
+      "totalEarned": "500",
+      "totalUsed": "0",
+      "actualLineUserId": "NULL",
+      "email": "k04040424k030@gmail.com"
+    }
+  ],
+  "messages": [],
+  "stdout": "lineUserId\tbalance\ttotalEarned\ttotalUsed\tactualLineUserId\temail\nemail_900001\t500\t500\t0\tU8a2f52ff529b45f1fbc2be3bf808091f\tyoukaimura@gmail.com\nemail_900003\t450\t1000\t550\tNULL\tkokumin1010@gmail.com\nemail_900004\t500\t500\t0\tNULL\tryuhairartist+@gmail.com\nemail_900005\t500\t500\t0\tNULL\tryuhair11@gmail.com\nemail_900006\t50\t500\t450\tNULL\ttest++@gmail.com\nemail_900007\t500\t500\t0\tNULL\tkisa.hyu.7@icloud.com\nemail_900008\t500\t500\t0\tU1dfbc41f2a69109c018e222c9275105f\tnana.k1210@icloud.com\nemail_900009\t500\t500\t0\tNULL\ttaisei.01128877@gmail.com\nemail_900010\t500\t500\t0\tNULL\tmaimai-pooh.v_v.-1975-0417@docomo.ne.jp\nemail_900011\t500\t500\t0\tUb760c3258a79484844ba9948a903a9d5\tshii.rii.2022@i.softbank.jp\nemail_900012\t500\t500\t0\tUa2f7db749e5fcd1fceb17ff0e938e783\tt.minnaohana0512@gmail.com\nemail_900015\t500\t500\t0\tNULL\thello-hello.sora@ezweb.ne.jp\nemail_900016\t500\t500\t0\tU30e29cd6432d1f55afea920e7b958d5c\tchiroogu@icloud.com\nemail_900018\t500\t500\t0\tNULL\tKaotankaotan7@gmail.com\nemail_900019\t500\t500\t0\tNULL\ttenten.tt.tenten@icloud.com\nemail_900021\t500\t500\t0\tNULL\tizumi.tjm.may15@gmail.com\nemail_900023\t500\t500\t0\tNULL\tmiho.masa.2.5@ezweb.ne.jp\nemail_900024\t500\t500\t0\tUb129a075d368111c305371e5040a87b9\tshihot03-001@yahoo.co.jp\nemail_900027\t500\t500\t0\tNULL\tmarmin-k.yun11_16@ezweb.ne.jp\nemail_900029\t500\t500\t0\tNULL\tk04040424k030@gmail.com\n",
+  "stderr": "",
+  "execution_time_ms": 1585
+}
