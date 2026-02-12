@@ -11615,33 +11615,43 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         productId: z.number().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
+        console.log(`[Upload] Starting upload for user ${ctx.user.id}, role: ${ctx.user.role}, filename: ${input.filename}, base64 length: ${input.base64.length}`);
         if (ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
         }
 
-        const buffer = Buffer.from(input.base64, "base64");
-        // 拡張子を安全に取得（長いファイル名やクエリパラメータ付きにも対応）
-        const filenameParts = input.filename.split(".");
-        let ext = filenameParts.length > 1 ? filenameParts.pop()!.toLowerCase().replace(/[^a-z0-9]/g, "") : "png";
-        // 有効な画像拡張子のみ許可
-        const validExts = ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico"];
-        if (!validExts.includes(ext)) {
-          ext = "png";
-        }
-        const key = `mall/products/${nanoid()}.${ext}`;
-        const contentTypeMap: Record<string, string> = {
-          jpg: "image/jpeg",
-          jpeg: "image/jpeg",
-          png: "image/png",
-          gif: "image/gif",
-          webp: "image/webp",
-          svg: "image/svg+xml",
-          bmp: "image/bmp",
-          ico: "image/x-icon",
-        };
-        const contentType = contentTypeMap[ext] || "image/png";
-        
-        const { url } = await storagePut(key, buffer, contentType);
+        try {
+          const buffer = Buffer.from(input.base64, "base64");
+          console.log(`[Upload] Buffer size: ${buffer.length} bytes`);
+          
+          if (buffer.length === 0) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "画像データが空です" });
+          }
+          
+          // 拡張子を安全に取得（長いファイル名やクエリパラメータ付きにも対応）
+          const filenameParts = input.filename.split(".");
+          let ext = filenameParts.length > 1 ? filenameParts.pop()!.toLowerCase().replace(/[^a-z0-9]/g, "") : "png";
+          // 有効な画像拡張子のみ許可
+          const validExts = ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico"];
+          if (!validExts.includes(ext)) {
+            ext = "png";
+          }
+          const key = `mall/products/${nanoid()}.${ext}`;
+          const contentTypeMap: Record<string, string> = {
+            jpg: "image/jpeg",
+            jpeg: "image/jpeg",
+            png: "image/png",
+            gif: "image/gif",
+            webp: "image/webp",
+            svg: "image/svg+xml",
+            bmp: "image/bmp",
+            ico: "image/x-icon",
+          };
+          const contentType = contentTypeMap[ext] || "image/png";
+          
+          console.log(`[Upload] Uploading to S3: key=${key}, contentType=${contentType}, size=${buffer.length}`);
+          const { url } = await storagePut(key, buffer, contentType);
+          console.log(`[Upload] S3 upload success: ${url}`);
         
         // 既存商品への画像追加（imageUrlsに追記）
         if (input.productId) {
@@ -11659,6 +11669,14 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         }
         
         return { url, key };
+        } catch (error) {
+          console.error(`[Upload] Error:`, error);
+          if (error instanceof TRPCError) throw error;
+          throw new TRPCError({ 
+            code: "INTERNAL_SERVER_ERROR", 
+            message: `画像アップロードに失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}` 
+          });
+        }
       }),
 
     // 商品画像の並び替え・削除（管理者のみ）

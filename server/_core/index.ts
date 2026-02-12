@@ -836,6 +836,74 @@ async function startServer() {
     }
   });
 
+  // Product image upload REST API (avoids tRPC base64 size issues)
+  app.post("/api/upload-product-image", upload.single("file"), async (req: any, res) => {
+    try {
+      // Authenticate user
+      const user = await sdk.authenticateRequest(req);
+      if (!user || user.role !== "admin") {
+        return res.status(403).json({ error: "管理者権限が必要です" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: "ファイルが選択されていません" });
+      }
+
+      const file = req.file as Express.Multer.File;
+
+      // Validate file type
+      if (!file.mimetype.startsWith("image/")) {
+        return res.status(400).json({ error: "画像ファイルのみアップロード可能です" });
+      }
+
+      // Validate file size (5MB max)
+      if (file.size > 5 * 1024 * 1024) {
+        return res.status(400).json({ error: "ファイルサイズは5MB以下にしてください" });
+      }
+
+      // Get file extension
+      const validExts = ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico"];
+      const extMatch = file.originalname.match(/\.([a-zA-Z0-9]+)$/);
+      let ext = extMatch ? extMatch[1].toLowerCase() : "png";
+      if (!validExts.includes(ext)) ext = "png";
+
+      const { nanoid: genId } = await import("nanoid");
+      const key = `mall/products/${genId()}.${ext}`;
+      const contentTypeMap: Record<string, string> = {
+        jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
+        gif: "image/gif", webp: "image/webp", svg: "image/svg+xml",
+        bmp: "image/bmp", ico: "image/x-icon",
+      };
+      const contentType = contentTypeMap[ext] || file.mimetype;
+
+      console.log(`[Product Image Upload] Uploading: key=${key}, size=${file.size}, type=${contentType}`);
+      const result = await storagePut(key, file.buffer, contentType);
+      console.log(`[Product Image Upload] Success: ${result.url}`);
+
+      // If productId is provided, update the product
+      const productId = req.body.productId ? parseInt(req.body.productId, 10) : null;
+      if (productId) {
+        const { getMallProductById, updateMallProduct } = await import("../db");
+        const product = await getMallProductById(productId);
+        if (product) {
+          const existingUrls = product.imageUrls || [];
+          const existingKeys = product.imageKeys || [];
+          await updateMallProduct(productId, {
+            imageUrl: existingUrls.length === 0 ? result.url : product.imageUrl,
+            imageKey: existingKeys.length === 0 ? key : product.imageKey,
+            imageUrls: [...existingUrls, result.url],
+            imageKeys: [...existingKeys, key],
+          });
+        }
+      }
+
+      res.json({ url: result.url, key });
+    } catch (error) {
+      console.error("[Product Image Upload] Error:", error);
+      res.status(500).json({ error: `画像アップロードに失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}` });
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",

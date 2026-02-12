@@ -282,12 +282,6 @@ export default function ProductManagement() {
     }
   };
 
-  const uploadImage = trpc.mall.uploadProductImage.useMutation({
-    onError: (error) => {
-      toast.error(error.message || "画像のアップロードに失敗しました");
-    },
-  });
-
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -316,37 +310,32 @@ export default function ProductManagement() {
       }
 
       try {
-        const base64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const result = reader.result as string;
-            const base64Data = result.split(",")[1];
-            if (!base64Data) {
-              reject(new Error("画像の変換に失敗しました"));
-              return;
-            }
-            resolve(base64Data);
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
+        // Use REST API with FormData (avoids tRPC base64 size issues)
+        const formDataUpload = new FormData();
+        formDataUpload.append("file", file);
+
+        const response = await fetch("/api/upload-product-image", {
+          method: "POST",
+          body: formDataUpload,
+          credentials: "include",
         });
 
-        // ファイル名をサニタイズ（拡張子のみ保持）
-        const extMatch = file.name.match(/\.([a-zA-Z0-9]+)$/);
-        const safeFilename = `image.${extMatch ? extMatch[1].toLowerCase() : "png"}`;
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+          throw new Error(errorData.error || `アップロード失敗 (${response.status})`);
+        }
 
-        const result = await uploadImage.mutateAsync({
-          base64,
-          filename: safeFilename,
-        });
+        const result = await response.json();
 
         setFormData(prev => ({
           ...prev,
           images: [...prev.images, { url: result.url, key: result.key }],
         }));
         uploadedCount++;
-      } catch (error) {
-        toast.error(`${file.name}: アップロード失敗`);
+      } catch (error: any) {
+        const errorMsg = error?.message || '不明なエラー';
+        console.error(`[Upload] Failed for ${file.name}:`, error);
+        toast.error(`${file.name}: アップロード失敗 - ${errorMsg}`);
       }
     }
 
