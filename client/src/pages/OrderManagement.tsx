@@ -103,6 +103,86 @@ export default function OrderManagement() {
     setIsStatusDialogOpen(true);
   };
 
+  // ワンタップでステータスを次の段階に進める
+  const quickStatusMutation = trpc.mall.updateOrderStatus.useMutation({
+    onSuccess: () => {
+      toast.success("ステータスを更新しました");
+      refetch();
+    },
+    onError: (error) => {
+      toast.error(`エラー: ${error.message}`);
+    },
+  });
+
+  const getNextStatus = (current: OrderStatus): OrderStatus | null => {
+    const flow: Record<string, OrderStatus> = {
+      pending: "paid",
+      paid: "confirmed",
+      confirmed: "shipped",
+      shipped: "delivered",
+    };
+    return flow[current] || null;
+  };
+
+  const getQuickActionButton = (orderId: number, status: OrderStatus) => {
+    const nextStatus = getNextStatus(status);
+    if (!nextStatus) return null;
+
+    const actionConfig: Record<OrderStatus, { label: string; icon: React.ReactNode; color: string }> = {
+      paid: { label: "決済済み", icon: <CreditCard className="h-3.5 w-3.5" />, color: "bg-emerald-500 hover:bg-emerald-600 text-white" },
+      confirmed: { label: "確認済み", icon: <CheckCircle className="h-3.5 w-3.5" />, color: "bg-blue-500 hover:bg-blue-600 text-white" },
+      shipped: { label: "発送済み", icon: <Truck className="h-3.5 w-3.5" />, color: "bg-purple-500 hover:bg-purple-600 text-white" },
+      delivered: { label: "配達完了", icon: <CheckCircle className="h-3.5 w-3.5" />, color: "bg-green-500 hover:bg-green-600 text-white" },
+      pending: { label: "", icon: null, color: "" },
+      cancelled: { label: "", icon: null, color: "" },
+      refunded: { label: "", icon: null, color: "" },
+    };
+
+    const config = actionConfig[nextStatus];
+    if (!config.label) return null;
+
+    // 発送済みにする場合は配送情報が必要なのでダイアログを開く
+    if (nextStatus === "shipped") {
+      return (
+        <Button
+          size="sm"
+          className={`gap-1.5 ${config.color}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedOrderId(orderId);
+            setNewStatus("shipped");
+            setAdminNotes("");
+            setShippingCarrier("");
+            setTrackingNumber("");
+            setIsStatusDialogOpen(true);
+          }}
+        >
+          {config.icon}
+          {config.label}にする
+        </Button>
+      );
+    }
+
+    return (
+      <Button
+        size="sm"
+        className={`gap-1.5 ${config.color}`}
+        disabled={quickStatusMutation.isPending}
+        onClick={(e) => {
+          e.stopPropagation();
+          quickStatusMutation.mutate({ id: orderId, status: nextStatus });
+        }}
+      >
+        {quickStatusMutation.isPending ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          config.icon
+        )}
+        {config.label}にする
+      </Button>
+    );
+  };
+
   const handleUpdateStatus = () => {
     if (!selectedOrderId) return;
     updateStatusMutation.mutate({
@@ -304,7 +384,8 @@ export default function OrderManagement() {
                         </div>
                       )}
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2 items-center">
+                      {getQuickActionButton(item.order.id, item.order.status as OrderStatus)}
                       <Button
                         variant="outline"
                         size="sm"
@@ -313,12 +394,12 @@ export default function OrderManagement() {
                         詳細
                       </Button>
                       <Button
-                        variant="default"
+                        variant="ghost"
                         size="sm"
-                        className="bg-rose-500 hover:bg-rose-600"
+                        className="text-muted-foreground"
                         onClick={() => handleOpenStatusDialog(item.order.id, item.order.status as OrderStatus)}
                       >
-                        ステータス変更
+                        その他
                       </Button>
                     </div>
                   </div>
