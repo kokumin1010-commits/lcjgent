@@ -278,6 +278,7 @@ import {
   getMallOrders,
   getMallOrderById,
   updateMallOrderStatus,
+  cancelMallOrder,
   getMallOrdersByLineUser,
   updateMallOrderStripeInfo,
   getMallOrderByOrderNumber,
@@ -11454,6 +11455,71 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
       }
       return await getMallOrdersByLineUser(result.lineUser.id);
     }),
+
+    // ユーザーによる注文キャンセル
+    cancelMyOrder: publicProcedure
+      .input(z.object({
+        orderId: z.number(),
+        reason: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const result = await getLineUserFromSession(ctx);
+        if (!result || !result.lineUser) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+        }
+
+        // 注文がこのユーザーのものか確認
+        const order = await getMallOrderById(input.orderId);
+        if (!order) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "注文が見つかりません" });
+        }
+        if (order.order.lineUserId !== result.lineUser.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "この注文をキャンセルする権限がありません" });
+        }
+
+        // キャンセル可能なステータスか確認
+        const cancellableStatuses = ["pending", "paid", "confirmed"];
+        if (!cancellableStatuses.includes(order.order.status)) {
+          throw new TRPCError({ 
+            code: "BAD_REQUEST", 
+            message: "この注文はキャンセルできません（発送済みまたは完了済み）" 
+          });
+        }
+
+        // キャンセル実行（ポイント返還・在庫戻し含む）
+        const cancelResult = await cancelMallOrder(input.orderId, input.reason);
+
+        // キャンセル通知を送信
+        try {
+          const lineUser = result.lineUser;
+          const cancelDate = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+          const notificationText = `\u274c 注文キャンセル\n\n注文番号: ${order.order.orderNumber}\nキャンセル日時: ${cancelDate}${cancelResult.pointsRefunded > 0 ? `\n返還ポイント: ${cancelResult.pointsRefunded.toLocaleString()} pt` : ''}\n\nご注文のキャンセルが完了しました。`;
+
+          if (lineUser.lineUserId && !lineUser.lineUserId.startsWith('email_')) {
+            const { pushMessage } = await import("./line");
+            await pushMessage(lineUser.lineUserId, [{ type: "text", text: notificationText }]);
+          }
+
+          if (lineUser.email) {
+            const { sendEmail } = await import("./emailService");
+            await sendEmail({
+              to: [lineUser.email],
+              subject: `【LCJ MALL】注文キャンセル完了 - ${order.order.orderNumber}`,
+              content: `${lineUser.displayName || lineUser.email} 様\n\n注文番号: ${order.order.orderNumber} のキャンセルが完了しました。${cancelResult.pointsRefunded > 0 ? `\n返還ポイント: ${cancelResult.pointsRefunded.toLocaleString()} pt` : ''}\n\n---\nLCJ MALL`,
+            });
+          }
+        } catch (notifyError) {
+          console.error("[CancelOrder] 通知送信エラー:", notifyError);
+        }
+
+        return { 
+          success: true, 
+          pointsRefunded: cancelResult.pointsRefunded,
+          message: cancelResult.pointsRefunded > 0 
+            ? `注文をキャンセルしました。${cancelResult.pointsRefunded.toLocaleString()}ポイントを返還しました。`
+            : "注文をキャンセルしました。"
+        };
+      }),
 
     // 公開商品一覧取得（アクティブな商品のみ）
     getPublicProducts: publicProcedure.query(async () => {

@@ -17,6 +17,9 @@ export default function LineMypage() {
   const [historyFilter, setHistoryFilter] = useState<"all" | "earn" | "use">("all");
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
   const [referralBonusBanner, setReferralBonusBanner] = useState<number | null>(null);
+  const [cancelOrderId, setCancelOrderId] = useState<number | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   
   // Check for referral bonus banner on mount
   useEffect(() => {
@@ -44,8 +47,21 @@ export default function LineMypage() {
   const { data: receipts, isLoading: receiptsLoading } = trpc.lineLogin.getMyReceipts.useQuery(undefined, {
     enabled: !!user,
   });
-  const { data: orders, isLoading: ordersLoading } = trpc.mall.getMyOrders.useQuery(undefined, {
+  const { data: orders, isLoading: ordersLoading, refetch: refetchOrders } = trpc.mall.getMyOrders.useQuery(undefined, {
     enabled: !!user,
+  });
+
+  const cancelOrderMutation = trpc.mall.cancelMyOrder.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+      setIsCancelDialogOpen(false);
+      setCancelOrderId(null);
+      setCancelReason("");
+      refetchOrders();
+    },
+    onError: (error) => {
+      toast.error(`キャンセルに失敗しました: ${error.message}`);
+    },
   });
   
   // LINE連携状態
@@ -512,6 +528,26 @@ export default function LineMypage() {
                                   </div>
                                 </div>
                               </div>
+
+                              {/* キャンセルボタン（未発送の注文のみ） */}
+                              {['pending', 'paid', 'confirmed'].includes(order.status) && (
+                                <div className="pt-2 border-t">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setCancelOrderId(order.id);
+                                      setCancelReason("");
+                                      setIsCancelDialogOpen(true);
+                                    }}
+                                  >
+                                    <XCircle className="h-4 w-4 mr-2" />
+                                    この注文をキャンセル
+                                  </Button>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -850,6 +886,98 @@ export default function LineMypage() {
           </CardContent>
         </Card>
       </main>
+
+      {/* 注文キャンセル確認ダイアログ */}
+      <Dialog open={isCancelDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          setIsCancelDialogOpen(false);
+          setCancelOrderId(null);
+          setCancelReason("");
+        }
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertCircle className="h-5 w-5" />
+              注文キャンセルの確認
+            </DialogTitle>
+            <DialogDescription>
+              この操作は取り消せません。本当にキャンセルしますか？
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {cancelOrderId && orders && (() => {
+              const targetOrder = orders.find((o: any) => o.id === cancelOrderId);
+              if (!targetOrder) return null;
+              return (
+                <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">注文番号</span>
+                    <span className="font-mono text-xs">{targetOrder.orderNumber}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">合計</span>
+                    <span className="font-medium text-rose-600">
+                      {targetOrder.paymentMethod === 'points'
+                        ? `${targetOrder.pointsUsed?.toLocaleString()} pt`
+                        : `¥${targetOrder.totalAmount?.toLocaleString()}`}
+                    </span>
+                  </div>
+                  {targetOrder.pointsUsed > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>返還予定ポイント</span>
+                      <span className="font-medium">+{targetOrder.pointsUsed.toLocaleString()} pt</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+            <div>
+              <label className="text-sm font-medium text-muted-foreground block mb-1">キャンセル理由（任意）</label>
+              <textarea
+                className="w-full border rounded-lg p-2 text-sm resize-none focus:ring-2 focus:ring-rose-200 focus:border-rose-300 outline-none"
+                rows={3}
+                placeholder="キャンセル理由を入力してください..."
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => {
+                  setIsCancelDialogOpen(false);
+                  setCancelOrderId(null);
+                  setCancelReason("");
+                }}
+                disabled={cancelOrderMutation.isPending}
+              >
+                戻る
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1"
+                onClick={() => {
+                  if (cancelOrderId) {
+                    cancelOrderMutation.mutate({
+                      orderId: cancelOrderId,
+                      reason: cancelReason || undefined,
+                    });
+                  }
+                }}
+                disabled={cancelOrderMutation.isPending}
+              >
+                {cancelOrderMutation.isPending ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />キャンセル中...</>
+                ) : (
+                  "キャンセルする"
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

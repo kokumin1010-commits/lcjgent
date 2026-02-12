@@ -1653,6 +1653,8 @@ export const mallOrders = mysqlTable("mall_orders", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   shippedAt: timestamp("shippedAt"),
   deliveredAt: timestamp("deliveredAt"),
+  cancelledAt: timestamp("cancelledAt"),
+  cancelReason: text("cancelReason"), // キャンセル理由
 });
 
 export type MallOrder = typeof mallOrders.$inferSelect;

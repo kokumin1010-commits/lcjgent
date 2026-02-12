@@ -452,6 +452,29 @@ export default function OrderManagement() {
                 </Card>
               )}
 
+              {/* キャンセル情報 */}
+              {orderDetail.order.status === 'cancelled' && (
+                <Card className="border-red-200 bg-red-50">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center gap-2 text-red-700">
+                      <XCircle className="h-4 w-4" />
+                      キャンセル情報
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-sm space-y-1">
+                    {(orderDetail.order as any).cancelledAt && (
+                      <p><strong>キャンセル日時:</strong> {format(new Date((orderDetail.order as any).cancelledAt), "yyyy/MM/dd HH:mm:ss", { locale: ja })}</p>
+                    )}
+                    {(orderDetail.order as any).cancelReason && (
+                      <p><strong>キャンセル理由:</strong> {(orderDetail.order as any).cancelReason}</p>
+                    )}
+                    {orderDetail.order.pointsUsed > 0 && (
+                      <p className="text-green-700"><strong>返還ポイント:</strong> {orderDetail.order.pointsUsed.toLocaleString()} pt</p>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
               {/* タイムスタンプ */}
               <div className="text-xs text-muted-foreground space-y-1">
                 <p>注文日時: {format(new Date(orderDetail.order.createdAt), "yyyy/MM/dd HH:mm:ss", { locale: ja })}</p>
@@ -460,6 +483,9 @@ export default function OrderManagement() {
                 )}
                 {orderDetail.order.deliveredAt && (
                   <p>配達完了: {format(new Date(orderDetail.order.deliveredAt), "yyyy/MM/dd HH:mm:ss", { locale: ja })}</p>
+                )}
+                {(orderDetail.order as any).cancelledAt && (
+                  <p>キャンセル日時: {format(new Date((orderDetail.order as any).cancelledAt), "yyyy/MM/dd HH:mm:ss", { locale: ja })}</p>
                 )}
               </div>
             </div>
