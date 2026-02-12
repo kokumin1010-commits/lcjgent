@@ -437,9 +437,28 @@ export default function MallProductDetail() {
 
       setIsPurchasing(true);
       try {
+        // 配送先情報を取得
+        let shippingInfo: { name: string; phone: string; postalCode: string; address: string } | undefined;
+        if (selectedAddress) {
+          shippingInfo = {
+            name: selectedAddress.recipientName,
+            phone: selectedAddress.phoneNumber,
+            postalCode: selectedAddress.postalCode,
+            address: `${selectedAddress.prefecture}${selectedAddress.city}${selectedAddress.addressLine1}${selectedAddress.addressLine2 ? " " + selectedAddress.addressLine2 : ""}`,
+          };
+        } else if (addressForm.recipientName) {
+          shippingInfo = {
+            name: addressForm.recipientName,
+            phone: addressForm.phoneNumber,
+            postalCode: addressForm.postalCode,
+            address: `${addressForm.prefecture}${addressForm.city}${addressForm.addressLine1}${addressForm.addressLine2 ? " " + addressForm.addressLine2 : ""}`,
+          };
+        }
+
         await purchaseWithPoints.mutateAsync({
           productId: product.id,
           quantity: quantity,
+          shippingInfo,
         });
       } finally {
         setIsPurchasing(false);

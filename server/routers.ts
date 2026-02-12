@@ -11531,6 +11531,12 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
       .input(z.object({
         productId: z.number(),
         quantity: z.number().min(1).default(1),
+        shippingInfo: z.object({
+          name: z.string().min(1),
+          phone: z.string().min(1),
+          postalCode: z.string().min(1),
+          address: z.string().min(1),
+        }).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         // LINEセッションからユーザー情報を取得
@@ -11577,6 +11583,7 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           }],
           pointsToUse: totalPoints,
           isFullPointPurchase: true, // ポイント全額購入
+          shippingInfo: input.shippingInfo,
         });
 
         // 注文確認通知を送信
