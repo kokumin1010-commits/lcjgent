@@ -57,7 +57,7 @@ import { Progress } from "@/components/ui/progress";
 function ProductImageGallery({ product, isFavorite, setIsFavorite, handleShare }: {
   product: { imageUrl: string | null; imageUrls: string[] | null; name: string; pointPrice: number | null; stock: number };
   isFavorite: boolean;
-  setIsFavorite: (v: boolean) => void;
+  setIsFavorite: () => void;
   handleShare: () => void;
 }) {
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -173,7 +173,7 @@ function ProductImageGallery({ product, isFavorite, setIsFavorite, handleShare }
         <Button
           variant="outline"
           className={`flex-1 ${isFavorite ? 'bg-pink-50 border-pink-300 text-pink-600' : ''}`}
-          onClick={() => setIsFavorite(!isFavorite)}
+          onClick={setIsFavorite}
         >
           <Heart className={`h-5 w-5 mr-2 ${isFavorite ? 'fill-current' : ''}`} />
           お気に入り
@@ -218,7 +218,57 @@ export default function MallProductDetail() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("points");
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [quantity, setQuantity] = useState(1);
-  const [isFavorite, setIsFavorite] = useState(false);
+  // お気に入り状態はAPIから取得
+  const { data: favoriteIds = [] } = trpc.mall.getFavoriteIds.useQuery();
+  const utils = trpc.useUtils();
+
+  const addFavoriteMutation = trpc.mall.addFavorite.useMutation({
+    onMutate: async ({ productId }) => {
+      await utils.mall.getFavoriteIds.cancel();
+      const prev = utils.mall.getFavoriteIds.getData() ?? [];
+      utils.mall.getFavoriteIds.setData(undefined, [...prev, productId]);
+      return { prev };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.prev) utils.mall.getFavoriteIds.setData(undefined, context.prev);
+      toast.error("ログインが必要です");
+    },
+    onSettled: () => {
+      utils.mall.getFavoriteIds.invalidate();
+      utils.mall.getFavoriteCounts.invalidate();
+    },
+  });
+
+  const removeFavoriteMutation = trpc.mall.removeFavorite.useMutation({
+    onMutate: async ({ productId }) => {
+      await utils.mall.getFavoriteIds.cancel();
+      const prev = utils.mall.getFavoriteIds.getData() ?? [];
+      utils.mall.getFavoriteIds.setData(undefined, prev.filter((fid) => fid !== productId));
+      return { prev };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.prev) utils.mall.getFavoriteIds.setData(undefined, context.prev);
+      toast.error("エラーが発生しました");
+    },
+    onSettled: () => {
+      utils.mall.getFavoriteIds.invalidate();
+      utils.mall.getFavoriteCounts.invalidate();
+    },
+  });
+
+  const isFavorite = id ? favoriteIds.includes(Number(id)) : false;
+
+  const handleToggleFavorite = () => {
+    if (!id) return;
+    const productId = Number(id);
+    if (isFavorite) {
+      removeFavoriteMutation.mutate({ productId });
+      toast.success("お気に入りから削除しました", { duration: 1500 });
+    } else {
+      addFavoriteMutation.mutate({ productId });
+      toast.success("お気に入りに追加しました", { duration: 1500 });
+    }
+  };
   const [purchaseStep, setPurchaseStep] = useState<PurchaseStep>("payment");
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
   const [isNewAddress, setIsNewAddress] = useState(false);
@@ -622,7 +672,7 @@ export default function MallProductDetail() {
 
         <div className="grid lg:grid-cols-2 gap-8 lg:gap-12">
           {/* 商品画像ギャラリーセクション */}
-          <ProductImageGallery product={product} isFavorite={isFavorite} setIsFavorite={setIsFavorite} handleShare={handleShare} />
+          <ProductImageGallery product={product} isFavorite={isFavorite} setIsFavorite={handleToggleFavorite} handleShare={handleShare} />
 
           {/* 商品情報セクション */}
           <div className="space-y-6">
