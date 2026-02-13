@@ -45,6 +45,9 @@ import {
   Zap,
   PartyPopper,
   SkipForward,
+  RefreshCw,
+  Loader2,
+  Save,
 } from "lucide-react";
 
 type ReceiptStatus = "pending" | "approved" | "rejected" | "on_hold";
@@ -86,6 +89,9 @@ export default function LineReceiptManagement() {
   const [calcReceiptId, setCalcReceiptId] = useState<number | null>(null);
   const [calcAmount, setCalcAmount] = useState<string>("");
   const [calcPoints, setCalcPoints] = useState<number>(0);
+  const [calcOrderNumber, setCalcOrderNumber] = useState<string>("");
+  const [isOrderNumberEditing, setIsOrderNumberEditing] = useState(false);
+  const [isAiRecognizing, setIsAiRecognizing] = useState(false);
   
   // Reject/Hold dialog state (separate from calculator approve flow)
   const [actionDialog, setActionDialog] = useState<{ type: "reject" | "hold"; id: number; receipt?: any } | null>(null);
@@ -275,6 +281,39 @@ export default function LineReceiptManagement() {
     setOrderNumberInput(currentOrderNum || "");
   };
   
+  // AI re-recognize order number
+  const reRecognizeMutation = trpc.point.adminReRecognizeOrderNumber.useMutation({
+    onSuccess: (data) => {
+      if (data.orderNumber) {
+        setCalcOrderNumber(data.orderNumber);
+        // Also auto-fill amount if detected
+        if (data.totalAmount && !calcAmount) {
+          setCalcAmount(String(data.totalAmount));
+        }
+      }
+      setIsAiRecognizing(false);
+    },
+    onError: () => {
+      setIsAiRecognizing(false);
+    },
+  });
+  
+  const handleAiReRecognize = () => {
+    if (!calcReceiptId) return;
+    setIsAiRecognizing(true);
+    reRecognizeMutation.mutate({ id: calcReceiptId });
+  };
+  
+  // Save order number from calculator panel (inline)
+  const handleCalcOrderNumberSave = () => {
+    if (!calcReceiptId || !calcOrderNumber.trim()) return;
+    updateOrderNumberMutation.mutate({
+      id: calcReceiptId,
+      orderNumber: calcOrderNumber.trim(),
+    });
+    setIsOrderNumberEditing(false);
+  };
+  
   // Handle approve from calculator panel
   const handleCalcApprove = () => {
     if (!calcReceiptId) return;
@@ -433,6 +472,15 @@ export default function LineReceiptManagement() {
   const selectForCalc = (receiptId: number) => {
     setCalcReceiptId(receiptId);
     setActionNote("");
+    setIsOrderNumberEditing(false);
+    // Initialize order number from receipt data
+    const receiptData = receipts?.find((r: any) => r.receipt.id === receiptId);
+    if (receiptData) {
+      const orderNum = getOrderNumber(receiptData.receipt);
+      setCalcOrderNumber(orderNum || "");
+    } else {
+      setCalcOrderNumber("");
+    }
   };
   
   // Extract order number from ocrRawText JSON
@@ -732,25 +780,82 @@ export default function LineReceiptManagement() {
                               {getStatusBadge(selectedCalcReceipt.receipt.status as ReceiptStatus)}
                             </div>
                             
-                            {/* Order Number */}
-                            {(() => {
-                              const orderNum = getOrderNumber(selectedCalcReceipt.receipt);
-                              return orderNum ? (
-                                <div className="flex items-center gap-1.5 text-xs bg-blue-50 border border-blue-200 rounded px-2 py-1 w-fit">
-                                  <Hash className="w-3 h-3 text-blue-600" />
-                                  <span className="font-mono font-bold text-blue-800">{orderNum}</span>
+                            {/* Order Number - Inline Edit */}
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <Hash className="w-3.5 h-3.5 text-blue-600" />
+                                <span className="text-xs font-medium text-muted-foreground">注文番号</span>
+                                {!isOrderNumberEditing && calcOrderNumber && (
+                                  <button
+                                    onClick={() => setIsOrderNumberEditing(true)}
+                                    className="text-xs text-blue-500 hover:text-blue-700 ml-auto"
+                                  >
+                                    <Edit className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                              {isOrderNumberEditing || !calcOrderNumber ? (
+                                <div className="flex items-center gap-1.5">
+                                  <Input
+                                    value={calcOrderNumber}
+                                    onChange={(e) => setCalcOrderNumber(e.target.value)}
+                                    placeholder="注文番号を入力"
+                                    className="h-8 text-xs font-mono flex-1"
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter" && calcOrderNumber.trim()) {
+                                        e.stopPropagation();
+                                        handleCalcOrderNumberSave();
+                                      }
+                                    }}
+                                  />
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-8 w-8 p-0 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                                    onClick={handleAiReRecognize}
+                                    disabled={isAiRecognizing}
+                                    title="AIで注文番号を再認識"
+                                  >
+                                    {isAiRecognizing ? (
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    ) : (
+                                      <RefreshCw className="w-3.5 h-3.5" />
+                                    )}
+                                  </Button>
+                                  {calcOrderNumber.trim() && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-8 w-8 p-0 text-green-600 hover:text-green-800 hover:bg-green-50"
+                                      onClick={handleCalcOrderNumberSave}
+                                      disabled={updateOrderNumberMutation.isPending}
+                                      title="注文番号を保存"
+                                    >
+                                      <Save className="w-3.5 h-3.5" />
+                                    </Button>
+                                  )}
                                 </div>
                               ) : (
-                                <button 
-                                  onClick={() => openOrderNumberDialog(selectedCalcReceipt.receipt)}
-                                  className="flex items-center gap-1.5 text-xs bg-red-50 border border-red-200 rounded px-2 py-1 w-fit hover:bg-red-100 transition-colors"
+                                <div className="flex items-center gap-1.5 text-xs bg-blue-50 border border-blue-200 rounded px-2 py-1">
+                                  <span className="font-mono font-bold text-blue-800 truncate">{calcOrderNumber}</span>
+                                </div>
+                              )}
+                              {!calcOrderNumber && !isAiRecognizing && (
+                                <button
+                                  onClick={handleAiReRecognize}
+                                  className="flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-700"
                                 >
-                                  <AlertTriangle className="w-3 h-3 text-red-500" />
-                                  <span className="text-red-600 font-medium">注文番号なし</span>
-                                  <Edit className="w-3 h-3 text-red-400" />
+                                  <Brain className="w-3 h-3" />
+                                  AIで画像から再認識
                                 </button>
-                              );
-                            })()}
+                              )}
+                              {isAiRecognizing && (
+                                <p className="text-[10px] text-blue-500 flex items-center gap-1">
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                  AIが画像を解析中...
+                                </p>
+                              )}
+                            </div>
                             
                             {/* Store & Date */}
                             <div className="flex items-center gap-3 text-xs text-muted-foreground">

@@ -11072,6 +11072,91 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         return { success: true, orderNumber: input.orderNumber };
       }),
     
+    // AI re-recognize order number from receipt images
+    adminReRecognizeOrderNumber: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        const { getLineReceiptById } = await import("./db");
+        const { invokeLLM } = await import("./_core/llm");
+        
+        const receipt = await getLineReceiptById(input.id);
+        if (!receipt) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "レシートが見つかりません" });
+        }
+        
+        // Collect all image URLs
+        const allImageUrls: string[] = [];
+        if (receipt.imageUrls && Array.isArray(receipt.imageUrls)) {
+          allImageUrls.push(...receipt.imageUrls);
+        } else if (receipt.imageUrl) {
+          allImageUrls.push(receipt.imageUrl);
+        }
+        
+        if (allImageUrls.length === 0) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "レシート画像が見つかりません" });
+        }
+        
+        // Build image contents for LLM
+        const imageContents: any[] = allImageUrls.map(url => ({
+          type: "image_url" as const,
+          image_url: { url, detail: "high" as const },
+        }));
+        imageContents.push({
+          type: "text" as const,
+          text: `これらの${allImageUrls.length}枚の画像から注文番号を抽出してください。TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数字列です。`,
+        });
+        
+        const ocrResult = await invokeLLM({
+          messages: [
+            {
+              role: "system",
+              content: `あなたはTikTok Shopの注文詳細画面のスクリーンショットから注文番号を抽出する専門AIです。
+
+注文番号の特徴：
+- 「5」または「6」で始まる16〜19桁の数字列
+- 例: 5819000585822287971, 5824489836811172498
+- 「注文番号」ラベルの横、合計金額の下、コピーアイコンの左側などに表示
+
+画像を隅々までスキャンし、注文番号を見つけてください。
+
+以下のJSON形式のみで回答してください（説明文は不要）：
+{
+  "orderNumber": "string or null",
+  "totalAmount": number or null,
+  "confidence": number (0-100)
+}`,
+            },
+            {
+              role: "user",
+              content: imageContents,
+            },
+          ],
+        });
+        
+        const messageContent = ocrResult.choices[0].message.content as string;
+        let parsed: any = {};
+        try {
+          const jsonMatch = messageContent?.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            parsed = JSON.parse(jsonMatch[0]);
+          }
+        } catch {
+          // ignore parse errors
+        }
+        
+        return {
+          success: true,
+          orderNumber: parsed.orderNumber || null,
+          totalAmount: parsed.totalAmount || null,
+          confidence: parsed.confidence || 0,
+        };
+      }),
+    
     // Approve LINE receipt (admin only)
     adminApproveLineReceipt: protectedProcedure
       .input(z.object({
