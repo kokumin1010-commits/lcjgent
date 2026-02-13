@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ShoppingBag, Gift, ArrowRight, Coins, Receipt, Check, ChevronDown, ChevronUp, ShieldCheck, HelpCircle, Sparkles, MessageCircle, UserPlus } from "lucide-react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 
 export default function MallHome() {
   const [, setLocation] = useLocation();
@@ -344,6 +344,10 @@ export default function MallHome() {
           <div className="flex items-center justify-center gap-2 mb-3 md:mb-4">
             <ShoppingBag className="h-5 w-5 md:h-6 md:w-6 text-rose-400" />
             <span className="text-base md:text-lg font-bold">LCJ MALL</span>
+          </div>
+          <div className="flex items-center justify-center gap-4 mb-3 text-xs md:text-sm text-gray-400">
+            <Link href="/mall/products" className="hover:text-white transition-colors">商品一覧</Link>
+            <Link href="/legal/tokushoho" className="hover:text-white transition-colors">特定商取引法</Link>
           </div>
           <p className="text-xs md:text-sm text-gray-400">
             © 2024 LCJ MALL. All rights reserved.
