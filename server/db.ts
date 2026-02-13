@@ -7745,6 +7745,132 @@ export async function checkDuplicateOrderNumberGlobal(
 }
 
 
+/**
+ * Find similar order numbers (1-2 digits different) for fraud detection
+ * 類似注文番号を検出（不正防止）
+ * 
+ * Algorithm: Fetch all order numbers from DB, then compare using
+ * Levenshtein-like digit difference count
+ */
+export async function findSimilarOrderNumbers(
+  orderNumber: string,
+  excludeId?: number
+): Promise<Array<{
+  id: number;
+  lineUserId: string | null;
+  storeName: string | null;
+  totalAmount: number | null;
+  status: string;
+  orderNumber: string;
+  submittedAt: Date | null;
+  diffCount: number;
+}>> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Get all receipts that have order numbers
+  let conditions = sql`JSON_EXTRACT(${lineReceipts.ocrRawText}, '$.orderNumber') IS NOT NULL`;
+  if (excludeId) {
+    conditions = sql`${conditions} AND ${lineReceipts.id} != ${excludeId}`;
+  }
+  
+  const allReceipts = await db
+    .select({
+      id: lineReceipts.id,
+      lineUserId: lineReceipts.lineUserId,
+      storeName: lineReceipts.storeName,
+      totalAmount: lineReceipts.totalAmount,
+      status: lineReceipts.status,
+      ocrRawText: lineReceipts.ocrRawText,
+      submittedAt: lineReceipts.submittedAt,
+    })
+    .from(lineReceipts)
+    .where(conditions);
+  
+  const similar: Array<{
+    id: number;
+    lineUserId: string | null;
+    storeName: string | null;
+    totalAmount: number | null;
+    status: string;
+    orderNumber: string;
+    submittedAt: Date | null;
+    diffCount: number;
+  }> = [];
+  
+  for (const receipt of allReceipts) {
+    try {
+      const ocrData = typeof receipt.ocrRawText === "string" 
+        ? JSON.parse(receipt.ocrRawText) 
+        : receipt.ocrRawText;
+      const existingOrderNumber = String(ocrData?.orderNumber || "").replace(/[^0-9]/g, "");
+      
+      if (!existingOrderNumber || existingOrderNumber === orderNumber) continue;
+      
+      // Compare digit by digit
+      const diffCount = countDigitDifferences(orderNumber, existingOrderNumber);
+      
+      // 1-2桁の差異 = 類似（タイプミスや改ざんの可能性）
+      if (diffCount > 0 && diffCount <= 2) {
+        similar.push({
+          id: receipt.id,
+          lineUserId: receipt.lineUserId,
+          storeName: receipt.storeName,
+          totalAmount: receipt.totalAmount,
+          status: receipt.status,
+          orderNumber: existingOrderNumber,
+          submittedAt: receipt.submittedAt,
+          diffCount,
+        });
+      }
+    } catch {
+      // Skip receipts with invalid JSON
+    }
+  }
+  
+  return similar.sort((a, b) => a.diffCount - b.diffCount);
+}
+
+/**
+ * Count the number of digit differences between two order numbers
+ * 桁数が同じ場合は各桁を比較、異なる場合はレーベンシュタイン距離風に計算
+ */
+export function countDigitDifferences(a: string, b: string): number {
+  // 桁数が3桁以上違う場合は類似とみなさない
+  if (Math.abs(a.length - b.length) > 2) return 999;
+  
+  // 桁数が同じ場合は単純な桁比較
+  if (a.length === b.length) {
+    let diff = 0;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) diff++;
+    }
+    return diff;
+  }
+  
+  // 桁数が1-2桁違う場合はレーベンシュタイン距離
+  const len1 = a.length;
+  const len2 = b.length;
+  const dp: number[][] = Array.from({ length: len1 + 1 }, () => Array(len2 + 1).fill(0));
+  
+  for (let i = 0; i <= len1; i++) dp[i][0] = i;
+  for (let j = 0; j <= len2; j++) dp[0][j] = j;
+  
+  for (let i = 1; i <= len1; i++) {
+    for (let j = 1; j <= len2; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost
+      );
+    }
+  }
+  
+  return dp[len1][len2];
+}
+
+
 // ============================================
 // LINE Reminder functions
 // ============================================

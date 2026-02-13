@@ -1633,25 +1633,35 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         }
         
         // Check duplicate order number globally
-        const { checkDuplicateOrderNumberGlobal } = await import("./db");
-        const duplicateOrder = await checkDuplicateOrderNumberGlobal(ocrData.orderNumber, receiptId);
-        if (duplicateOrder) {
-          fraudFlags.push("duplicate_order");
-          fraudScore += 100;
+        if (ocrData.orderNumber) {
+          const { checkDuplicateOrderNumberGlobal, findSimilarOrderNumbers } = await import("./db");
+          const duplicateOrder = await checkDuplicateOrderNumberGlobal(ocrData.orderNumber, receiptId);
+          if (duplicateOrder) {
+            fraudFlags.push("duplicate_order");
+            fraudScore += 100;
+            
+            const { deleteLineReceipt } = await import("./db");
+            await deleteLineReceipt(receiptId);
+            
+            const isSameUser = duplicateOrder.lineUserId === lineUserId;
+            return {
+              receiptId: null,
+              status: "duplicate" as const,
+              message: isSameUser
+                ? `この注文は既にポイント申請済みです。注文番号: ${ocrData.orderNumber}`
+                : `この注文番号は既に他の方が申請済みです。注文番号: ${ocrData.orderNumber}`,
+              ocrData,
+              imageUrls: uploadedImages.map(i => i.url),
+            };
+          }
           
-          const { deleteLineReceipt } = await import("./db");
-          await deleteLineReceipt(receiptId);
-          
-          const isSameUser = duplicateOrder.lineUserId === lineUserId;
-          return {
-            receiptId: null,
-            status: "duplicate" as const,
-            message: isSameUser
-              ? `この注文は既にポイント申請済みです。注文番号: ${ocrData.orderNumber}`
-              : `この注文番号は既に他の方が申請済みです。注文番号: ${ocrData.orderNumber}`,
-            ocrData,
-            imageUrls: uploadedImages.map(i => i.url),
-          };
+          // Check for similar order numbers (1-2 digits different)
+          const similarOrders = await findSimilarOrderNumbers(ocrData.orderNumber, receiptId);
+          if (similarOrders.length > 0) {
+            fraudFlags.push("similar_order_number");
+            fraudScore += 40; // 類似番号は要確認
+            console.log(`[Web Receipt] Similar order numbers detected for ${ocrData.orderNumber}: ${similarOrders.map(s => `${s.orderNumber}(diff:${s.diffCount})`).join(", ")}`);
+          }
         }
         
         // Check high amount

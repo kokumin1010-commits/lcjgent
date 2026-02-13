@@ -985,6 +985,23 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         ]);
         return; // 重複の場合はここで終了
       }
+      
+      // Check for similar order numbers (1-2 digits different)
+      const { findSimilarOrderNumbers } = await import("./db");
+      const similarOrders = await findSimilarOrderNumbers(ocrData.orderNumber, primaryReceiptId);
+      if (similarOrders.length > 0) {
+        fraudFlags.push("similar_order_number");
+        fraudScore += 40;
+        await createLineFraudDetectionLog({
+          receiptId: primaryReceiptId,
+          lineUserId,
+          checkType: "similar_order_number",
+          detected: true,
+          severity: "medium",
+          details: `類似注文番号検出: ${similarOrders.map(s => `${s.orderNumber}(diff:${s.diffCount})`).join(", ")}`,
+        });
+        console.log(`[LINE Agent] Similar order numbers detected for ${ocrData.orderNumber}: ${similarOrders.map(s => `${s.orderNumber}(diff:${s.diffCount})`).join(", ")}`);
+      }
     }
     
     // Check for unusually high amount (over 100,000 JPY)

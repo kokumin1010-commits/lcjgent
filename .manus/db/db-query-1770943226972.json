@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE `fraud_detection_logs` MODIFY COLUMN `checkType` enum('duplicate_image','duplicate_receipt','expired_receipt','high_frequency','high_amount','suspicious_pattern','similar_order_number') NOT NULL;\nALTER TABLE `line_fraud_detection_logs` MODIFY COLUMN `checkType` enum('duplicate_image','duplicate_receipt','expired_receipt','high_frequency','high_amount','suspicious_pattern','similar_order_number') NOT NULL;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute ALTER TABLE `fraud_detection_logs` MODIFY COLUMN `checkType` enum('duplicate_image','duplicate_receipt','expired_receipt','high_frequency','high_amount','suspicious_pattern','similar_order_number') NOT NULL;\nALTER TABLE `line_fraud_detection_logs` MODIFY COLUMN `checkType` enum('duplicate_image','duplicate_receipt','expired_receipt','high_frequency','high_amount','suspicious_pattern','similar_order_number') NOT NULL;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 2170
+}

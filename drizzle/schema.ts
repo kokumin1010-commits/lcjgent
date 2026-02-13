@@ -1350,6 +1350,7 @@ export const fraudDetectionLogs = mysqlTable("fraud_detection_logs", {
     "high_frequency",       // Too many submissions in short time
     "high_amount",          // Unusually high amount
     "suspicious_pattern",   // Other suspicious patterns
+    "similar_order_number", // Order number similar to existing one (1-2 digits different)
   ]).notNull(),
   
   // Result
@@ -1493,6 +1494,7 @@ export const lineFraudDetectionLogs = mysqlTable("line_fraud_detection_logs", {
     "high_frequency",       // Too many submissions in short time
     "high_amount",          // Unusually high amount
     "suspicious_pattern",   // Other suspicious patterns
+    "similar_order_number", // Order number similar to existing one (1-2 digits different)
   ]).notNull(),
   
   // Result

@@ -1,0 +1,2 @@
+ALTER TABLE `fraud_detection_logs` MODIFY COLUMN `checkType` enum('duplicate_image','duplicate_receipt','expired_receipt','high_frequency','high_amount','suspicious_pattern','similar_order_number') NOT NULL;--> statement-breakpoint
+ALTER TABLE `line_fraud_detection_logs` MODIFY COLUMN `checkType` enum('duplicate_image','duplicate_receipt','expired_receipt','high_frequency','high_amount','suspicious_pattern','similar_order_number') NOT NULL;

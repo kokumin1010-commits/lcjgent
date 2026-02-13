@@ -492,10 +492,24 @@ export default function LineReceiptManagement() {
                                 </Badge>
                                 
                                 {receipt.fraudFlags && (receipt.fraudFlags as string[]).length > 0 && (
-                                  <Badge variant="destructive" className="text-xs">
-                                    <AlertTriangle className="w-3 h-3 mr-1" />
-                                    不正フラグ
-                                  </Badge>
+                                  <>
+                                    {(receipt.fraudFlags as string[]).includes("similar_order_number") ? (
+                                      <Badge variant="destructive" className="text-xs bg-orange-500 hover:bg-orange-600">
+                                        <AlertTriangle className="w-3 h-3 mr-1" />
+                                        類似注文番号
+                                      </Badge>
+                                    ) : (receipt.fraudFlags as string[]).includes("duplicate_order") ? (
+                                      <Badge variant="destructive" className="text-xs">
+                                        <AlertTriangle className="w-3 h-3 mr-1" />
+                                        重複注文
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="destructive" className="text-xs">
+                                        <AlertTriangle className="w-3 h-3 mr-1" />
+                                        不正フラグ
+                                      </Badge>
+                                    )}
+                                  </>
                                 )}
                               </div>
                               
@@ -874,14 +888,26 @@ export default function LineReceiptManagement() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2">
-                      {receiptDetails.fraudLogs.map((log: any, i: number) => (
-                        <div key={i} className="text-sm">
-                          <Badge variant="outline" className="mr-2">
-                            {log.checkType}
-                          </Badge>
-                          <span className="text-muted-foreground">{log.details}</span>
-                        </div>
-                      ))}
+                      {receiptDetails.fraudLogs.map((log: any, i: number) => {
+                        const checkTypeLabels: Record<string, string> = {
+                          duplicate_image: "重複画像",
+                          duplicate_receipt: "重複レシート",
+                          expired_receipt: "期限切れ",
+                          high_frequency: "高頻度申請",
+                          high_amount: "高額購入",
+                          suspicious_pattern: "不審パターン",
+                          similar_order_number: "類似注文番号",
+                        };
+                        const isSimilar = log.checkType === "similar_order_number";
+                        return (
+                          <div key={i} className={`text-sm p-2 rounded ${isSimilar ? "bg-orange-100 border border-orange-300" : ""}`}>
+                            <Badge variant="outline" className={`mr-2 ${isSimilar ? "border-orange-500 text-orange-700" : ""}`}>
+                              {checkTypeLabels[log.checkType] || log.checkType}
+                            </Badge>
+                            <span className={isSimilar ? "text-orange-800 font-medium" : "text-muted-foreground"}>{log.details}</span>
+                          </div>
+                        );
+                      })}
                     </CardContent>
                   </Card>
                 )}
