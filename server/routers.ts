@@ -10966,6 +10966,53 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         return { success: true };
       }),
     
+    // Update LINE receipt order number manually (admin only)
+    adminUpdateLineReceiptOrderNumber: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        orderNumber: z.string().min(1, "注文番号を入力してください"),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        const { getLineReceiptById, updateLineReceiptOcr, checkDuplicateOrderNumberGlobal } = await import("./db");
+        
+        // Check duplicate order number
+        const duplicate = await checkDuplicateOrderNumberGlobal(input.orderNumber, input.id);
+        if (duplicate) {
+          throw new TRPCError({ 
+            code: "CONFLICT", 
+            message: `注文番号 ${input.orderNumber} は既に他のレシートで使用されています。` 
+          });
+        }
+        
+        // Get current receipt to update ocrRawText JSON
+        const receipt = await getLineReceiptById(input.id);
+        if (!receipt) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "レシートが見つかりません" });
+        }
+        
+        // Parse existing ocrRawText or create new object
+        let ocrData: any = {};
+        if (receipt.ocrRawText) {
+          try {
+            ocrData = typeof receipt.ocrRawText === "string" ? JSON.parse(receipt.ocrRawText) : receipt.ocrRawText;
+          } catch {
+            ocrData = {};
+          }
+        }
+        
+        // Update order number in ocrRawText
+        ocrData.orderNumber = input.orderNumber;
+        
+        await updateLineReceiptOcr(input.id, {
+          ocrRawText: JSON.stringify(ocrData),
+        });
+        
+        return { success: true, orderNumber: input.orderNumber };
+      }),
+    
     // Approve LINE receipt (admin only)
     adminApproveLineReceipt: protectedProcedure
       .input(z.object({

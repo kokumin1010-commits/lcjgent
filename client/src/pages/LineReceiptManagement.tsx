@@ -72,6 +72,8 @@ export default function LineReceiptManagement() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [viewerImages, setViewerImages] = useState<string[]>([]);
   const [aiAutoMode, setAiAutoMode] = useState(false);
+  const [orderNumberDialog, setOrderNumberDialog] = useState<{ id: number; currentOrderNumber: string | null; images: string[] } | null>(null);
+  const [orderNumberInput, setOrderNumberInput] = useState("");
   
   // Edit form state
   const [editForm, setEditForm] = useState({
@@ -135,6 +137,30 @@ export default function LineReceiptManagement() {
       setActionNote("");
     },
   });
+  
+  const updateOrderNumberMutation = trpc.point.adminUpdateLineReceiptOrderNumber.useMutation({
+    onSuccess: () => {
+      utils.point.adminGetLineReceipts.invalidate();
+      utils.point.adminGetLineReceipt.invalidate();
+      setOrderNumberDialog(null);
+      setOrderNumberInput("");
+    },
+  });
+  
+  const handleOrderNumberSave = () => {
+    if (!orderNumberDialog || !orderNumberInput.trim()) return;
+    updateOrderNumberMutation.mutate({
+      id: orderNumberDialog.id,
+      orderNumber: orderNumberInput.trim(),
+    });
+  };
+  
+  const openOrderNumberDialog = (receipt: any) => {
+    const images = getReceiptImages(receipt);
+    const currentOrderNum = getOrderNumber(receipt);
+    setOrderNumberDialog({ id: receipt.id, currentOrderNumber: currentOrderNum, images });
+    setOrderNumberInput(currentOrderNum || "");
+  };
   
   const handleAction = () => {
     if (!actionDialog) return;
@@ -483,10 +509,15 @@ export default function LineReceiptManagement() {
                                     <span className="font-mono text-sm font-bold text-blue-800">{orderNum}</span>
                                   </div>
                                 ) : (
-                                  <div className="flex items-center gap-1.5 text-sm bg-red-50 border border-red-200 rounded px-2 py-1 w-fit">
+                                  <button 
+                                    onClick={(e) => { e.stopPropagation(); openOrderNumberDialog(receipt); }}
+                                    className="flex items-center gap-1.5 text-sm bg-red-50 border border-red-200 rounded px-2 py-1 w-fit hover:bg-red-100 hover:border-red-300 transition-colors cursor-pointer"
+                                    title="クリックして注文番号を手動入力"
+                                  >
                                     <AlertTriangle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
                                     <span className="text-red-600 font-medium">注文番号なし</span>
-                                  </div>
+                                    <Edit className="w-3 h-3 text-red-400" />
+                                  </button>
                                 );
                               })()}
 
@@ -1000,6 +1031,73 @@ export default function LineReceiptManagement() {
                   {actionDialog?.type === "hold" && "保留にする"}
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Order Number Manual Input Dialog */}
+      <Dialog open={!!orderNumberDialog} onOpenChange={(open) => { if (!open) { setOrderNumberDialog(null); setOrderNumberInput(""); } }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Hash className="w-5 h-5 text-blue-600" />
+              注文番号を手動入力
+            </DialogTitle>
+            <DialogDescription>
+              レシート画像を確認して、注文番号を入力してください。
+            </DialogDescription>
+          </DialogHeader>
+          
+          {/* Receipt Images */}
+          {orderNumberDialog?.images && orderNumberDialog.images.length > 0 && (
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">レシート画像（クリックで拡大）</Label>
+              <div className="grid grid-cols-1 gap-2">
+                {orderNumberDialog.images.map((img, idx) => (
+                  <a key={idx} href={img} target="_blank" rel="noopener noreferrer" className="block">
+                    <img 
+                      src={img} 
+                      alt={`レシート画像 ${idx + 1}`}
+                      className="w-full max-h-[400px] object-contain rounded-lg border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all cursor-zoom-in bg-gray-50"
+                    />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {/* Order Number Input */}
+          <div className="space-y-2">
+            <Label htmlFor="orderNumber">注文番号</Label>
+            <Input
+              id="orderNumber"
+              value={orderNumberInput}
+              onChange={(e) => setOrderNumberInput(e.target.value)}
+              placeholder="例: 581900058582287971"
+              className="font-mono text-lg"
+            />
+            {orderNumberDialog?.currentOrderNumber && (
+              <p className="text-xs text-muted-foreground">現在の注文番号: {orderNumberDialog.currentOrderNumber}</p>
+            )}
+          </div>
+          
+          {updateOrderNumberMutation.isError && (
+            <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2">
+              {updateOrderNumberMutation.error?.message || "エラーが発生しました"}
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setOrderNumberDialog(null); setOrderNumberInput(""); }}>
+              キャンセル
+            </Button>
+            <Button 
+              onClick={handleOrderNumberSave}
+              disabled={!orderNumberInput.trim() || updateOrderNumberMutation.isPending}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {updateOrderNumberMutation.isPending ? "保存中..." : "注文番号を保存"}
             </Button>
           </DialogFooter>
         </DialogContent>
