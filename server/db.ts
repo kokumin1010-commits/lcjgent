@@ -6315,12 +6315,23 @@ export async function getMallOrdersByLineUser(lineUserId: number) {
     .where(eq(mallOrders.lineUserId, lineUserId))
     .orderBy(desc(mallOrders.createdAt));
 
-  // 各注文の明細を取得
+  // 各注文の明細を取得（商品画像URLをJOINで取得）
   const ordersWithItems = await Promise.all(
     orders.map(async (order) => {
-      const items = await db.select()
+      const itemsRaw = await db.select({
+        item: mallOrderItems,
+        productImageUrl: mallProducts.imageUrl,
+        productImageUrls: mallProducts.imageUrls,
+      })
         .from(mallOrderItems)
+        .leftJoin(mallProducts, eq(mallOrderItems.productId, mallProducts.id))
         .where(eq(mallOrderItems.orderId, order.id));
+      
+      const items = itemsRaw.map(row => ({
+        ...row.item,
+        productImageUrl: row.productImageUrl || null,
+        productImageUrls: row.productImageUrls || null,
+      }));
       return { ...order, items };
     })
   );

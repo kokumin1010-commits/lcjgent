@@ -20,6 +20,7 @@ export default function LineMypage() {
   const [cancelOrderId, setCancelOrderId] = useState<number | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [orderStatusFilter, setOrderStatusFilter] = useState<"all" | "active" | "shipped" | "delivered" | "cancelled">("all");
   
   // Check for referral bonus banner on mount
   useEffect(() => {
@@ -50,6 +51,30 @@ export default function LineMypage() {
   const { data: orders, isLoading: ordersLoading, refetch: refetchOrders } = trpc.mall.getMyOrders.useQuery(undefined, {
     enabled: !!user,
   });
+
+  // 注文フィルタリング
+  const filteredOrders = orders?.filter((order: any) => {
+    if (orderStatusFilter === 'all') return true;
+    if (orderStatusFilter === 'active') return ['pending', 'paid', 'confirmed'].includes(order.status);
+    if (orderStatusFilter === 'shipped') return order.status === 'shipped';
+    if (orderStatusFilter === 'delivered') return order.status === 'delivered';
+    if (orderStatusFilter === 'cancelled') return ['cancelled', 'refunded'].includes(order.status);
+    return true;
+  });
+
+  // 配送業者の追跡URLを生成
+  const getTrackingUrl = (carrier: string, trackingNumber: string): string | null => {
+    const carrierLower = carrier.toLowerCase();
+    if (carrierLower.includes('ヤマト') || carrierLower.includes('yamato') || carrierLower.includes('クロネコ'))
+      return `https://toi.kuronekoyamato.co.jp/cgi-bin/tneko?number=${trackingNumber}`;
+    if (carrierLower.includes('佐川') || carrierLower.includes('sagawa'))
+      return `https://k2k.sagawa-exp.co.jp/p/web/okurijosearch.do?okurijoNo=${trackingNumber}`;
+    if (carrierLower.includes('日本郵便') || carrierLower.includes('ユーパック') || carrierLower.includes('japan post'))
+      return `https://trackings.post.japanpost.jp/services/srv/search/?requestNo1=${trackingNumber}`;
+    if (carrierLower.includes('西濃') || carrierLower.includes('seino'))
+      return `https://track.seino.co.jp/cgi-bin/gnpquery.pgm?GNPNO1=${trackingNumber}`;
+    return null;
+  };
 
   const cancelOrderMutation = trpc.mall.cancelMyOrder.useMutation({
     onSuccess: (data) => {
@@ -372,41 +397,64 @@ export default function LineMypage() {
           <TabsContent value="orders">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Package className="h-5 w-5 text-rose-500" />
-                  注文履歴
-                </CardTitle>
-                <CardDescription>商品の購入履歴と配送状況</CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Package className="h-5 w-5 text-rose-500" />
+                      注文履歴
+                    </CardTitle>
+                    <CardDescription>商品の購入履歴と配送状況</CardDescription>
+                  </div>
+                  <Select value={orderStatusFilter} onValueChange={(v) => setOrderStatusFilter(v as any)}>
+                    <SelectTrigger className="w-[130px]">
+                      <SelectValue placeholder="すべて" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">すべて</SelectItem>
+                      <SelectItem value="active">進行中</SelectItem>
+                      <SelectItem value="shipped">発送済み</SelectItem>
+                      <SelectItem value="delivered">配達完了</SelectItem>
+                      <SelectItem value="cancelled">キャンセル</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </CardHeader>
               <CardContent>
                 {ordersLoading ? (
                   <div className="flex justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin" />
                   </div>
-                ) : orders && orders.length > 0 ? (
+                ) : filteredOrders && filteredOrders.length > 0 ? (
                   <div className="space-y-4">
-                    {orders.map((order: any) => {
+                    {filteredOrders.map((order: any) => {
                       const isExpanded = expandedOrderId === order.id;
+                      // 商品小計と送料を計算
+                      const itemsSubtotal = order.items?.reduce((sum: number, item: any) => sum + (item.subtotal || 0), 0) || 0;
+                      const shippingFee = order.totalAmount - itemsSubtotal;
+                      const pointsItemsSubtotal = order.items?.reduce((sum: number, item: any) => sum + (item.pointSubtotal || 0), 0) || 0;
                       return (
-                        <div key={order.id} className="border rounded-lg overflow-hidden">
+                        <div key={order.id} className={`border rounded-lg overflow-hidden transition-shadow ${
+                          isExpanded ? 'shadow-md border-rose-200' : 'hover:shadow-sm'
+                        }`}>
                           {/* 注文ヘッダー */}
                           <button
                             className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors text-left"
                             onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
                           >
                             <div className="flex items-start gap-3 flex-1 min-w-0">
-                              <div className={`h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                                order.status === 'delivered' ? 'bg-green-100' :
-                                order.status === 'shipped' ? 'bg-blue-100' :
-                                order.status === 'paid' || order.status === 'confirmed' ? 'bg-yellow-100' :
-                                order.status === 'cancelled' || order.status === 'refunded' ? 'bg-red-100' :
-                                'bg-gray-100'
-                              }`}>
-                                {order.status === 'delivered' ? <CheckCircle className="h-5 w-5 text-green-600" /> :
-                                 order.status === 'shipped' ? <Truck className="h-5 w-5 text-blue-600" /> :
-                                 order.status === 'paid' || order.status === 'confirmed' ? <Package className="h-5 w-5 text-yellow-600" /> :
-                                 order.status === 'cancelled' || order.status === 'refunded' ? <XCircle className="h-5 w-5 text-red-600" /> :
-                                 <Clock className="h-5 w-5 text-gray-600" />}
+                              {/* 商品サムネイル（最初の商品画像） */}
+                              <div className="h-12 w-12 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
+                                {order.items?.[0]?.productImageUrl ? (
+                                  <img 
+                                    src={order.items[0].productImageUrl} 
+                                    alt={order.items[0].productName}
+                                    className="h-full w-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="h-full w-full flex items-center justify-center">
+                                    <ShoppingBag className="h-6 w-6 text-gray-400" />
+                                  </div>
+                                )}
                               </div>
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2 flex-wrap">
@@ -441,22 +489,155 @@ export default function LineMypage() {
                           {/* 注文詳細（展開時） */}
                           {isExpanded && (
                             <div className="border-t bg-gray-50/50 p-4 space-y-4">
+                              {/* 配送ステータスバー（常に表示） */}
+                              {!['cancelled', 'refunded'].includes(order.status) && (
+                                <div>
+                                  <p className="text-sm font-medium text-muted-foreground mb-3">配送状況</p>
+                                  <div className="bg-white rounded-lg p-4">
+                                    {/* 横型ステップインジケーター */}
+                                    <div className="flex items-center justify-between mb-3">
+                                      {[
+                                        { key: 'ordered', label: '注文受付', icon: CheckCircle, activeStatuses: ['pending', 'paid', 'confirmed', 'shipped', 'delivered'] },
+                                        { key: 'confirmed', label: '確認済み', icon: Package, activeStatuses: ['confirmed', 'shipped', 'delivered'] },
+                                        { key: 'shipped', label: '発送済み', icon: Truck, activeStatuses: ['shipped', 'delivered'] },
+                                        { key: 'delivered', label: 'お届け済み', icon: CheckCircle, activeStatuses: ['delivered'] },
+                                      ].map((step, idx, arr) => {
+                                        const isActive = step.activeStatuses.includes(order.status);
+                                        const StepIcon = step.icon;
+                                        return (
+                                          <div key={step.key} className="flex items-center flex-1">
+                                            <div className="flex flex-col items-center">
+                                              <div className={`h-8 w-8 rounded-full flex items-center justify-center transition-colors ${
+                                                isActive 
+                                                  ? step.key === 'delivered' ? 'bg-green-500' : 'bg-rose-500'
+                                                  : 'bg-gray-200'
+                                              }`}>
+                                                <StepIcon className={`h-4 w-4 ${isActive ? 'text-white' : 'text-gray-400'}`} />
+                                              </div>
+                                              <p className={`text-[10px] mt-1 text-center leading-tight ${
+                                                isActive ? 'text-gray-900 font-medium' : 'text-gray-400'
+                                              }`}>{step.label}</p>
+                                            </div>
+                                            {idx < arr.length - 1 && (
+                                              <div className={`flex-1 h-0.5 mx-1 mt-[-16px] ${
+                                                arr[idx + 1].activeStatuses.includes(order.status) ? 'bg-rose-500' : 'bg-gray-200'
+                                              }`} />
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                    {/* タイムライン */}
+                                    <div className="text-xs text-muted-foreground space-y-1 border-t pt-2">
+                                      <div className="flex justify-between">
+                                        <span>注文日時</span>
+                                        <span>{format(new Date(order.createdAt), "yyyy/MM/dd HH:mm")}</span>
+                                      </div>
+                                      {order.shippedAt && (
+                                        <div className="flex justify-between">
+                                          <span>発送日時</span>
+                                          <span>{format(new Date(order.shippedAt), "yyyy/MM/dd HH:mm")}</span>
+                                        </div>
+                                      )}
+                                      {order.deliveredAt && (
+                                        <div className="flex justify-between">
+                                          <span>配達日時</span>
+                                          <span>{format(new Date(order.deliveredAt), "yyyy/MM/dd HH:mm")}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                    {/* 配送業者・追跡番号 */}
+                                    {(order.shippingCarrier || order.trackingNumber) && (
+                                      <div className="border-t pt-2 mt-2 space-y-1 text-sm">
+                                        {order.shippingCarrier && (
+                                          <div className="flex justify-between">
+                                            <span className="text-muted-foreground">配送業者</span>
+                                            <span className="font-medium">{order.shippingCarrier}</span>
+                                          </div>
+                                        )}
+                                        {order.trackingNumber && (
+                                          <div className="flex justify-between items-center">
+                                            <span className="text-muted-foreground">追跡番号</span>
+                                            <div className="flex items-center gap-2">
+                                              <span className="font-mono text-xs">{order.trackingNumber}</span>
+                                              {order.shippingCarrier && (() => {
+                                                const trackingUrl = getTrackingUrl(order.shippingCarrier, order.trackingNumber);
+                                                return trackingUrl ? (
+                                                  <a 
+                                                    href={trackingUrl} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className="text-rose-500 hover:text-rose-600"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                  >
+                                                    <ExternalLink className="h-3.5 w-3.5" />
+                                                  </a>
+                                                ) : null;
+                                              })()}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* キャンセル情報 */}
+                              {['cancelled', 'refunded'].includes(order.status) && (
+                                <div className="bg-red-50 rounded-lg p-3 text-sm">
+                                  <div className="flex items-center gap-2 text-red-700 font-medium mb-1">
+                                    <XCircle className="h-4 w-4" />
+                                    {order.status === 'cancelled' ? 'キャンセル済み' : '返金済み'}
+                                  </div>
+                                  {order.cancelledAt && (
+                                    <p className="text-red-600 text-xs">
+                                      {format(new Date(order.cancelledAt), "yyyy年M月d日 HH:mm", { locale: ja })}
+                                    </p>
+                                  )}
+                                  {order.cancelReason && (
+                                    <p className="text-red-600 text-xs mt-1">理由: {order.cancelReason}</p>
+                                  )}
+                                </div>
+                              )}
+
                               {/* 商品一覧 */}
                               <div>
-                                <p className="text-sm font-medium text-muted-foreground mb-2">注文商品</p>
+                                <p className="text-sm font-medium text-muted-foreground mb-2">注文商品（{order.items?.length || 0}点）</p>
                                 <div className="space-y-2">
                                   {order.items?.map((item: any) => (
-                                    <div key={item.id} className="flex items-center justify-between bg-white rounded-lg p-3">
+                                    <div 
+                                      key={item.id} 
+                                      className="flex items-center justify-between bg-white rounded-lg p-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setLocation(`/mall/products/${item.productId}`);
+                                      }}
+                                    >
                                       <div className="flex items-center gap-3">
-                                        <div className="h-12 w-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                                          <ShoppingBag className="h-6 w-6 text-gray-400" />
+                                        <div className="h-14 w-14 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100">
+                                          {item.productImageUrl ? (
+                                            <img 
+                                              src={item.productImageUrl} 
+                                              alt={item.productName}
+                                              className="h-full w-full object-cover"
+                                            />
+                                          ) : (
+                                            <div className="h-full w-full flex items-center justify-center">
+                                              <ShoppingBag className="h-6 w-6 text-gray-400" />
+                                            </div>
+                                          )}
                                         </div>
                                         <div>
                                           <p className="font-medium text-sm">{item.productName}</p>
-                                          <p className="text-xs text-muted-foreground">数量: {item.quantity}</p>
+                                          <p className="text-xs text-muted-foreground">
+                                            {order.paymentMethod === 'points'
+                                              ? `${item.productPointPrice?.toLocaleString()} pt × ${item.quantity}`
+                                              : `¥${item.productPrice?.toLocaleString()} × ${item.quantity}`}
+                                          </p>
                                         </div>
                                       </div>
-                                      <p className="font-medium text-sm">
+                                      <p className="font-medium text-sm flex-shrink-0">
                                         {order.paymentMethod === 'points'
                                           ? `${item.pointSubtotal?.toLocaleString()} pt`
                                           : `¥${item.subtotal?.toLocaleString()}`}
@@ -482,63 +663,7 @@ export default function LineMypage() {
                                 </div>
                               )}
 
-                              {/* 配送状況 */}
-                              {(order.status === 'shipped' || order.status === 'delivered' || order.trackingNumber || order.shippingCarrier) && (
-                                <div>
-                                  <p className="text-sm font-medium text-muted-foreground mb-2">配送状況</p>
-                                  <div className="bg-white rounded-lg p-3 text-sm space-y-2">
-                                    {/* 配送ステップ */}
-                                    <div className="flex items-center gap-3">
-                                      <div className="flex flex-col items-center">
-                                        <div className={`h-6 w-6 rounded-full flex items-center justify-center ${order.status === 'pending' ? 'bg-gray-200' : 'bg-green-500'}`}>
-                                          <CheckCircle className={`h-3 w-3 ${order.status === 'pending' ? 'text-gray-400' : 'text-white'}`} />
-                                        </div>
-                                        <div className={`w-0.5 h-4 ${['shipped', 'delivered'].includes(order.status) ? 'bg-green-500' : 'bg-gray-200'}`} />
-                                        <div className={`h-6 w-6 rounded-full flex items-center justify-center ${['shipped', 'delivered'].includes(order.status) ? 'bg-blue-500' : 'bg-gray-200'}`}>
-                                          <Truck className={`h-3 w-3 ${['shipped', 'delivered'].includes(order.status) ? 'text-white' : 'text-gray-400'}`} />
-                                        </div>
-                                        <div className={`w-0.5 h-4 ${order.status === 'delivered' ? 'bg-green-500' : 'bg-gray-200'}`} />
-                                        <div className={`h-6 w-6 rounded-full flex items-center justify-center ${order.status === 'delivered' ? 'bg-green-500' : 'bg-gray-200'}`}>
-                                          <Package className={`h-3 w-3 ${order.status === 'delivered' ? 'text-white' : 'text-gray-400'}`} />
-                                        </div>
-                                      </div>
-                                      <div className="flex flex-col gap-3">
-                                        <div>
-                                          <p className={`text-xs font-medium ${order.status !== 'pending' ? 'text-green-700' : 'text-gray-400'}`}>注文確認</p>
-                                          <p className="text-xs text-muted-foreground">{format(new Date(order.createdAt), "M/d HH:mm")}</p>
-                                        </div>
-                                        <div>
-                                          <p className={`text-xs font-medium ${['shipped', 'delivered'].includes(order.status) ? 'text-blue-700' : 'text-gray-400'}`}>発送済み</p>
-                                          {order.shippedAt && <p className="text-xs text-muted-foreground">{format(new Date(order.shippedAt), "M/d HH:mm")}</p>}
-                                        </div>
-                                        <div>
-                                          <p className={`text-xs font-medium ${order.status === 'delivered' ? 'text-green-700' : 'text-gray-400'}`}>お届け済み</p>
-                                          {order.deliveredAt && <p className="text-xs text-muted-foreground">{format(new Date(order.deliveredAt), "M/d HH:mm")}</p>}
-                                        </div>
-                                      </div>
-                                    </div>
-                                    {/* 配送業者・追跡番号 */}
-                                    {(order.shippingCarrier || order.trackingNumber) && (
-                                      <div className="border-t pt-2 mt-2 space-y-1">
-                                        {order.shippingCarrier && (
-                                          <div className="flex justify-between">
-                                            <span className="text-muted-foreground">配送業者</span>
-                                            <span>{order.shippingCarrier}</span>
-                                          </div>
-                                        )}
-                                        {order.trackingNumber && (
-                                          <div className="flex justify-between">
-                                            <span className="text-muted-foreground">追跡番号</span>
-                                            <span className="font-mono text-xs">{order.trackingNumber}</span>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* 注文情報 */}
+                              {/* 注文情報（内訳付き） */}
                               <div>
                                 <p className="text-sm font-medium text-muted-foreground mb-1">注文情報</p>
                                 <div className="bg-white rounded-lg p-3 text-sm space-y-1">
@@ -555,7 +680,29 @@ export default function LineMypage() {
                                        order.paymentMethod === 'stripe' ? 'クレジットカード' : '代引き'}
                                     </span>
                                   </div>
-                                  <div className="flex justify-between font-medium">
+                                  <div className="border-t pt-1 mt-1">
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">商品小計</span>
+                                      <span>
+                                        {order.paymentMethod === 'points'
+                                          ? `${pointsItemsSubtotal.toLocaleString()} pt`
+                                          : `¥${itemsSubtotal.toLocaleString()}`}
+                                      </span>
+                                    </div>
+                                    {order.paymentMethod !== 'points' && shippingFee > 0 && (
+                                      <div className="flex justify-between">
+                                        <span className="text-muted-foreground">送料</span>
+                                        <span>¥{shippingFee.toLocaleString()}</span>
+                                      </div>
+                                    )}
+                                    {order.paymentMethod !== 'points' && shippingFee === 0 && (
+                                      <div className="flex justify-between">
+                                        <span className="text-muted-foreground">送料</span>
+                                        <span className="text-green-600 font-medium">無料</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="flex justify-between font-bold border-t pt-1">
                                     <span>合計</span>
                                     <span className="text-rose-600">
                                       {order.paymentMethod === 'points'
@@ -594,7 +741,7 @@ export default function LineMypage() {
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
                     <Package className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                    <p>注文履歴がありません</p>
+                    <p>{orderStatusFilter === 'all' ? '注文履歴がありません' : '該当する注文がありません'}</p>
                     <p className="text-sm mt-2">商品を購入すると、ここに表示されます</p>
                     <Button
                       variant="outline"
