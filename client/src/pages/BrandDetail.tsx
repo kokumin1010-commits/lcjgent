@@ -1947,7 +1947,7 @@ ${proposal.proposalContent}
                     <SelectTrigger className="w-[180px] bg-black/60 border-red-900/50 text-white hover:border-red-500/50 transition-colors">
                       <SelectValue placeholder="ブランドを選択" />
                     </SelectTrigger>
-                    <SelectContent className="bg-black/95 border-red-900/50 backdrop-blur-xl">
+                    <SelectContent className="bg-black/95 border-red-900/50 backdrop-blur-xl text-white">
                       {allBrands.map((b) => (
                         <SelectItem 
                           key={b.id} 
@@ -3374,12 +3374,12 @@ ${proposal.proposalContent}
                     <SelectTrigger className="bg-black/60 border-red-900/50 text-white mt-1">
                       <SelectValue placeholder={language === 'ja' ? 'ライバーを選択' : '选择主播'} />
                     </SelectTrigger>
-                    <SelectContent className="bg-black/95 border-red-900/50">
+                    <SelectContent className="bg-black/95 border-red-900/50 text-white">
                       <SelectItem value="manual">
                         <span className="text-gray-400">{language === 'ja' ? '手入力（ライバー未選択）' : '手动输入'}</span>
                       </SelectItem>
                       {allLivers.filter(l => l.isActive).map((liver) => (
-                        <SelectItem key={liver.id} value={String(liver.id)}>
+                        <SelectItem key={liver.id} value={String(liver.id)} className="text-white focus:text-white">
                           <span className="flex items-center gap-2">
                             {liver.avatarUrl ? (
                               <img src={liver.avatarUrl} alt={liver.name} className="w-5 h-5 rounded-full object-cover inline-block" />
@@ -3388,7 +3388,7 @@ ${proposal.proposalContent}
                                 {liver.name?.charAt(0) || '?'}
                               </span>
                             )}
-                            {liver.name}{liver.tiktokAccount ? ` (${liver.tiktokAccount})` : ''}
+                            <span className="text-white">{liver.name}{liver.tiktokAccount ? ` (${liver.tiktokAccount})` : ''}</span>
                           </span>
                         </SelectItem>
                       ))}
@@ -3412,11 +3412,11 @@ ${proposal.proposalContent}
                     <SelectTrigger className="bg-black/60 border-red-900/50 text-white mt-1">
                       <SelectValue placeholder="選択" />
                     </SelectTrigger>
-                    <SelectContent className="bg-black/95 border-red-900/50">
-                      <SelectItem value="TikTok">TikTok</SelectItem>
-                      <SelectItem value="Instagram">Instagram</SelectItem>
-                      <SelectItem value="YouTube">YouTube</SelectItem>
-                      <SelectItem value="その他">その他</SelectItem>
+                    <SelectContent className="bg-black/95 border-red-900/50 text-white">
+                      <SelectItem value="TikTok" className="text-white focus:text-white">TikTok</SelectItem>
+                      <SelectItem value="Instagram" className="text-white focus:text-white">Instagram</SelectItem>
+                      <SelectItem value="YouTube" className="text-white focus:text-white">YouTube</SelectItem>
+                      <SelectItem value="その他" className="text-white focus:text-white">その他</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -4398,9 +4398,9 @@ ${proposal.proposalContent}
                   <SelectTrigger className="bg-black/60 border-red-900/50 text-white mt-1">
                     <SelectValue placeholder={language === 'ja' ? 'ライバーを選択' : '选择主播'} />
                   </SelectTrigger>
-                  <SelectContent className="bg-black/95 border-red-900/50">
+                  <SelectContent className="bg-black/95 border-red-900/50 text-white">
                     {allLivers.filter(l => l.isActive).map((liver) => (
-                      <SelectItem key={liver.id} value={String(liver.id)}>
+                      <SelectItem key={liver.id} value={String(liver.id)} className="text-white focus:text-white">
                         <span className="flex items-center gap-2">
                           {liver.avatarUrl ? (
                             <img src={liver.avatarUrl} alt={liver.name} className="w-5 h-5 rounded-full object-cover inline-block" />
@@ -4409,7 +4409,7 @@ ${proposal.proposalContent}
                               {liver.name?.charAt(0) || '?'}
                             </span>
                           )}
-                          {liver.name}{liver.tiktokAccount ? ` (${liver.tiktokAccount})` : ''}
+                          <span className="text-white">{liver.name}{liver.tiktokAccount ? ` (${liver.tiktokAccount})` : ''}</span>
                         </span>
                       </SelectItem>
                     ))}
@@ -4425,11 +4425,11 @@ ${proposal.proposalContent}
                   <SelectTrigger className="bg-black/60 border-red-900/50 text-white mt-1">
                     <SelectValue placeholder={language === 'ja' ? '選択' : '选择'} />
                   </SelectTrigger>
-                  <SelectContent className="bg-black/95 border-red-900/50">
-                    <SelectItem value="TikTok">TikTok</SelectItem>
-                    <SelectItem value="Instagram">Instagram</SelectItem>
-                    <SelectItem value="YouTube">YouTube</SelectItem>
-                    <SelectItem value="その他">{language === 'ja' ? 'その他' : '其他'}</SelectItem>
+                  <SelectContent className="bg-black/95 border-red-900/50 text-white">
+                    <SelectItem value="TikTok" className="text-white focus:text-white">TikTok</SelectItem>
+                    <SelectItem value="Instagram" className="text-white focus:text-white">Instagram</SelectItem>
+                    <SelectItem value="YouTube" className="text-white focus:text-white">YouTube</SelectItem>
+                    <SelectItem value="その他" className="text-white focus:text-white">{language === 'ja' ? 'その他' : '其他'}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

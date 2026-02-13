@@ -1,0 +1,43 @@
+{
+  "query": "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE COLUMN_NAME = 'liverId' AND TABLE_SCHEMA = DATABASE();",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT TABLE_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE COLUMN_NAME = 'liverId' AND TABLE_SCHEMA = DATABASE();",
+  "rows": [
+    {
+      "TABLE_NAME": "simulations"
+    },
+    {
+      "TABLE_NAME": "brand_livestreams"
+    },
+    {
+      "TABLE_NAME": "line_users"
+    },
+    {
+      "TABLE_NAME": "schedules"
+    },
+    {
+      "TABLE_NAME": "livestream_csv_import_history"
+    },
+    {
+      "TABLE_NAME": "screenshot_analysis_history"
+    },
+    {
+      "TABLE_NAME": "schedule_group_members"
+    },
+    {
+      "TABLE_NAME": "liver_password_reset_tokens"
+    },
+    {
+      "TABLE_NAME": "product_livers"
+    },
+    {
+      "TABLE_NAME": "liver_goals"
+    },
+    {
+      "TABLE_NAME": "referral_codes"
+    }
+  ],
+  "messages": [],
+  "stdout": "TABLE_NAME\nsimulations\nbrand_livestreams\nline_users\nschedules\nlivestream_csv_import_history\nscreenshot_analysis_history\nschedule_group_members\nliver_password_reset_tokens\nproduct_livers\nliver_goals\nreferral_codes\n",
+  "stderr": "",
+  "execution_time_ms": 1654
+}
