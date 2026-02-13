@@ -6242,9 +6242,58 @@ export async function updateMallOrderStatus(
   status: "pending" | "paid" | "confirmed" | "shipped" | "delivered" | "cancelled" | "refunded",
   adminNotes?: string,
   shippingInfo?: { shippingCarrier?: string; trackingNumber?: string }
-) {
+): Promise<{ pointsRefunded: number; stockRestored: boolean }> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+
+  let pointsRefunded = 0;
+  let stockRestored = false;
+
+  // キャンセル・返金時のポイント返還・在庫戻し処理
+  if (status === "cancelled" || status === "refunded") {
+    // 注文情報を取得
+    const [order] = await db.select().from(mallOrders).where(eq(mallOrders.id, id)).limit(1);
+    if (order && order.status !== "cancelled" && order.status !== "refunded") {
+      // 1. 在庫を戻す
+      const items = await db.select().from(mallOrderItems).where(eq(mallOrderItems.orderId, id));
+      for (const item of items) {
+        await db.update(mallProducts)
+          .set({ stock: sql`${mallProducts.stock} + ${item.quantity}` })
+          .where(eq(mallProducts.id, item.productId));
+      }
+      stockRestored = items.length > 0;
+
+      // 2. ポイントを返還（ポイント使用があった場合）
+      if (order.pointsUsed > 0) {
+        const [lineUser] = await db.select().from(lineUsers).where(eq(lineUsers.id, order.lineUserId)).limit(1);
+        if (lineUser) {
+          const pointLineUserId = lineUser.lineUserId || `email_${lineUser.id}`;
+
+          // ポイント残高を戻す
+          await db.update(linePointBalances)
+            .set({
+              balance: sql`${linePointBalances.balance} + ${order.pointsUsed}`,
+              totalUsed: sql`${linePointBalances.totalUsed} - ${order.pointsUsed}`,
+            })
+            .where(eq(linePointBalances.lineUserId, pointLineUserId));
+
+          // ポイント取引履歴に返還記録を追加
+          const currentBalance = await db.select().from(linePointBalances).where(eq(linePointBalances.lineUserId, pointLineUserId)).limit(1);
+          await db.insert(linePointTransactions).values({
+            lineUserId: pointLineUserId,
+            type: "refund",
+            amount: order.pointsUsed,
+            balanceAfter: currentBalance[0]?.balance ?? order.pointsUsed,
+            description: `管理者による注文${status === "cancelled" ? "キャンセル" : "返金"}でのポイント返還 (注文番号: ${order.orderNumber})`,
+            referenceType: "order",
+            referenceId: id,
+          });
+
+          pointsRefunded = order.pointsUsed;
+        }
+      }
+    }
+  }
 
   const updateData: Record<string, any> = { status };
   
@@ -6252,6 +6301,11 @@ export async function updateMallOrderStatus(
     updateData.shippedAt = new Date();
   } else if (status === "delivered") {
     updateData.deliveredAt = new Date();
+  } else if (status === "cancelled" || status === "refunded") {
+    updateData.cancelledAt = new Date();
+    if (adminNotes) {
+      updateData.cancelReason = adminNotes;
+    }
   }
   
   if (adminNotes !== undefined) {
@@ -6266,6 +6320,8 @@ export async function updateMallOrderStatus(
   }
 
   await db.update(mallOrders).set(updateData).where(eq(mallOrders.id, id));
+
+  return { pointsRefunded, stockRestored };
 }
 
 // Stripe情報で注文を更新

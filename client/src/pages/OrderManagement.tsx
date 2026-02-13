@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Package, Truck, CheckCircle, XCircle, Clock, ShoppingBag, User, MapPin, Phone, Calendar, Coins, CreditCard, FileText, RefreshCw, Bell, BellOff } from "lucide-react";
+import { Loader2, Package, Truck, CheckCircle, XCircle, Clock, ShoppingBag, User, MapPin, Phone, Calendar, Coins, CreditCard, FileText, RefreshCw, Bell, BellOff, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import { toast } from "sonner";
@@ -79,14 +79,23 @@ export default function OrderManagement() {
   );
 
   const updateStatusMutation = trpc.mall.updateOrderStatus.useMutation({
-    onSuccess: (_data, variables) => {
+    onSuccess: (data: any, variables) => {
       const statusLabel: Record<string, string> = { shipped: "発送済み", delivered: "配達完了", cancelled: "キャンセル", refunded: "返金" };
       const label = statusLabel[variables.status] || "更新";
-      if (variables.sendNotification !== false && ["shipped", "delivered", "cancelled", "refunded"].includes(variables.status)) {
-        toast.success(`ステータスを${label}に変更し、お客様にLINE/メール通知を送信しました`);
-      } else {
-        toast.success("ステータスを更新しました");
+      
+      // ポイント返還・在庫戻しの通知
+      const messages: string[] = [`ステータスを${label}に変更しました`];
+      if (data?.pointsRefunded > 0) {
+        messages.push(`${data.pointsRefunded.toLocaleString()}ポイントを返還しました`);
       }
+      if (data?.stockRestored) {
+        messages.push(`在庫を戻しました`);
+      }
+      if (variables.sendNotification !== false && ["shipped", "delivered", "cancelled", "refunded"].includes(variables.status)) {
+        messages.push(`お客様にLINE/メール通知を送信しました`);
+      }
+      toast.success(messages.join("。"));
+      
       refetch();
       setIsStatusDialogOpen(false);
       setAdminNotes("");
@@ -642,6 +651,21 @@ export default function OrderManagement() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* キャンセル時の警告表示 */}
+            {newStatus === 'cancelled' && (
+              <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+                <p className="text-sm font-medium text-red-700 flex items-center gap-1 mb-2">
+                  <AlertCircle className="h-4 w-4" />
+                  キャンセル時の自動処理
+                </p>
+                <ul className="text-xs text-red-600 space-y-1 ml-5 list-disc">
+                  <li>ポイント決済の場合、使用ポイントが自動で返還されます</li>
+                  <li>商品の在庫が自動で戻されます</li>
+                  <li>Stripe決済の場合、返金はStripe管理画面から手動で行ってください</li>
+                </ul>
+              </div>
+            )}
 
             {/* 配送情報（発送済みまたは配達完了時に表示） */}
             {(newStatus === 'shipped' || newStatus === 'delivered') && (

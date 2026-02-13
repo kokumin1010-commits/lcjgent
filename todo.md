@@ -5135,3 +5135,10 @@
 - [x] App.tsxにルート追加
 - [x] フッターや関連ページからのリンク追加（MallHome, MallProductDetail, Tokushoho, PrivacyPolicy）
 - [x] 動作確認
+
+## 注文キャンセル時のポイント返還処理
+- [x] 既存コード（キャンセル処理・ポイント管理・DB関数）の確認（cancelMallOrderはポイント返還済み、管理者用updateOrderStatusが未対応）
+- [x] ポイント返還・在庫戻しロジックをupdateMallOrderStatusに統合
+- [x] updateOrderStatus APIにポイント返還情報の返却を追加
+- [x] 管理者UIにポイント返還・在庫戻し表示を追加（トースト通知＋キャンセル時の警告パネル）
+- [x] テスト作成と動作確認（22テスト全パス）

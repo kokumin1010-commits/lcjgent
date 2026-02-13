@@ -11560,7 +11560,7 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         sendNotification: z.boolean().optional().default(true),
       }))
       .mutation(async ({ ctx, input }) => {
-        await updateMallOrderStatus(input.id, input.status, input.adminNotes, {
+        const result = await updateMallOrderStatus(input.id, input.status, input.adminNotes, {
           shippingCarrier: input.shippingCarrier,
           trackingNumber: input.trackingNumber,
         });
@@ -11582,7 +11582,19 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           }
         }
 
-        return { success: true };
+        // ポイント返還情報をログ出力
+        if (result.pointsRefunded > 0) {
+          console.log(`[OrderStatus] 注文ID:${input.id} ポイント返還: ${result.pointsRefunded}pt`);
+        }
+        if (result.stockRestored) {
+          console.log(`[OrderStatus] 注文ID:${input.id} 在庫戻し完了`);
+        }
+
+        return { 
+          success: true, 
+          pointsRefunded: result.pointsRefunded,
+          stockRestored: result.stockRestored,
+        };
       }),
 
     // Stripe Checkoutセッション作成
