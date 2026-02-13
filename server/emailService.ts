@@ -4,6 +4,7 @@ interface EmailMessage {
   to: string[];
   subject: string;
   content: string;
+  html?: string;
   cc?: string[];
   bcc?: string[];
   attachments?: Array<{
@@ -51,6 +52,7 @@ export async function sendEmail(message: EmailMessage): Promise<{ success: boole
       bcc: message.bcc?.join(", "),
       subject: message.subject,
       text: message.content,
+      ...(message.html && { html: message.html }),
     };
 
     if (message.attachments) {

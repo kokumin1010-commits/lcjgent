@@ -1,9 +1,15 @@
 /**
  * 注文関連の通知ヘルパー
- * 注文確定時・発送時・配達完了時にLINE/メール通知を送信する
+ * 注文確定時・発送時・配達完了時にLINE通知 + HTML形式メール通知を送信する
  */
 import { getMallOrderById } from "./db";
 import { pushMessage } from "./line";
+import {
+  buildOrderConfirmationHtml,
+  buildShippedHtml,
+  buildDeliveredHtml,
+  buildCancelledHtml,
+} from "./orderEmailTemplates";
 
 // 配送業者の追跡URLを生成
 function getTrackingUrl(carrier: string, trackingNumber: string): string | null {
@@ -74,16 +80,34 @@ export async function sendOrderConfirmationNotification(orderId: number) {
       }
     }
 
-    // メール通知
+    // HTML形式メール通知
     if (lineUser.email) {
       try {
         const { sendEmail } = await import("./emailService");
+        const customerName = lineUser.displayName || lineUser.email;
+        const html = buildOrderConfirmationHtml(customerName, {
+          orderNumber: order.orderNumber,
+          totalAmount: order.totalAmount,
+          pointsUsed: order.pointsUsed || 0,
+          shippingFee: (order as any).shippingFee || 0,
+          paymentMethod: order.paymentMethod,
+          shippingName: order.shippingName || undefined,
+          shippingPostalCode: order.shippingPostalCode || undefined,
+          shippingAddress: order.shippingAddress || undefined,
+        }, items.map((item: any) => ({
+          productName: item.productName,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice || 0,
+          subtotal: item.subtotal || 0,
+        })));
+
         await sendEmail({
           to: [lineUser.email],
           subject: `【LCJ MALL】ご注文確認 - ${order.orderNumber}`,
-          content: `${lineUser.displayName || lineUser.email} 様\n\n${message}\n\n---\nLCJ MALL`,
+          content: `${customerName} 様\n\n${message}\n\n---\nLCJ MALL`,
+          html,
         });
-        console.log(`[OrderNotify] 注文確定メール送信成功: ${order.orderNumber} → ${lineUser.email}`);
+        console.log(`[OrderNotify] 注文確定HTMLメール送信成功: ${order.orderNumber} → ${lineUser.email}`);
       } catch (emailErr) {
         console.error(`[OrderNotify] 注文確定メール送信失敗:`, emailErr);
       }
@@ -161,16 +185,31 @@ export async function sendShippedNotification(
       }
     }
 
-    // メール通知
+    // HTML形式メール通知
     if (lineUser.email) {
       try {
         const { sendEmail } = await import("./emailService");
+        const customerName = lineUser.displayName || lineUser.email;
+        const html = buildShippedHtml(customerName, {
+          orderNumber: order.orderNumber,
+          totalAmount: order.totalAmount,
+          shippingName: order.shippingName || undefined,
+          shippingPostalCode: order.shippingPostalCode || undefined,
+          shippingAddress: order.shippingAddress || undefined,
+          shippingCarrier: carrier || undefined,
+          trackingNumber: tracking || undefined,
+        }, items.map((item: any) => ({
+          productName: item.productName,
+          quantity: item.quantity,
+        })), carrier || undefined, tracking || undefined);
+
         await sendEmail({
           to: [lineUser.email],
           subject: `【LCJ MALL】商品発送のお知らせ - ${order.orderNumber}`,
-          content: `${lineUser.displayName || lineUser.email} 様\n\n${message}\n\n---\nLCJ MALL`,
+          content: `${customerName} 様\n\n${message}\n\n---\nLCJ MALL`,
+          html,
         });
-        console.log(`[OrderNotify] 発送メール送信成功: ${order.orderNumber} → ${lineUser.email}`);
+        console.log(`[OrderNotify] 発送HTMLメール送信成功: ${order.orderNumber} → ${lineUser.email}`);
       } catch (emailErr) {
         console.error(`[OrderNotify] 発送メール送信失敗:`, emailErr);
       }
@@ -227,16 +266,26 @@ export async function sendDeliveredNotification(orderId: number) {
       }
     }
 
-    // メール通知
+    // HTML形式メール通知
     if (lineUser.email) {
       try {
         const { sendEmail } = await import("./emailService");
+        const customerName = lineUser.displayName || lineUser.email;
+        const html = buildDeliveredHtml(customerName, {
+          orderNumber: order.orderNumber,
+          totalAmount: order.totalAmount,
+        }, items.map((item: any) => ({
+          productName: item.productName,
+          quantity: item.quantity,
+        })));
+
         await sendEmail({
           to: [lineUser.email],
           subject: `【LCJ MALL】配達完了のお知らせ - ${order.orderNumber}`,
-          content: `${lineUser.displayName || lineUser.email} 様\n\n${message}\n\n---\nLCJ MALL`,
+          content: `${customerName} 様\n\n${message}\n\n---\nLCJ MALL`,
+          html,
         });
-        console.log(`[OrderNotify] 配達完了メール送信成功: ${order.orderNumber} → ${lineUser.email}`);
+        console.log(`[OrderNotify] 配達完了HTMLメール送信成功: ${order.orderNumber} → ${lineUser.email}`);
       } catch (emailErr) {
         console.error(`[OrderNotify] 配達完了メール送信失敗:`, emailErr);
       }
@@ -297,15 +346,27 @@ export async function sendCancelledNotification(orderId: number, reason?: string
       }
     }
 
-    // メール通知
+    // HTML形式メール通知
     if (lineUser.email) {
       try {
         const { sendEmail } = await import("./emailService");
+        const customerName = lineUser.displayName || lineUser.email;
+        const html = buildCancelledHtml(customerName, {
+          orderNumber: order.orderNumber,
+          totalAmount: order.totalAmount,
+          paymentMethod: order.paymentMethod,
+        }, items.map((item: any) => ({
+          productName: item.productName,
+          quantity: item.quantity,
+        })), reason);
+
         await sendEmail({
           to: [lineUser.email],
           subject: `【LCJ MALL】注文キャンセルのお知らせ - ${order.orderNumber}`,
-          content: `${lineUser.displayName || lineUser.email} 様\n\n${message}\n\n---\nLCJ MALL`,
+          content: `${customerName} 様\n\n${message}\n\n---\nLCJ MALL`,
+          html,
         });
+        console.log(`[OrderNotify] キャンセルHTMLメール送信成功: ${order.orderNumber} → ${lineUser.email}`);
       } catch (emailErr) {
         console.error(`[OrderNotify] キャンセルメール送信失敗:`, emailErr);
       }
