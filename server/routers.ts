@@ -11257,16 +11257,41 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         }
         await updateLineReceiptStatus(input.id, "rejected", ctx.user.id, input.note);
         
-        // Send LINE notification to user
+        // Send LINE notification to user with guide image
         try {
           const storeName = receipt.storeName || "不明";
           const reason = input.note || "理由は記載されていません";
           
           const appUrl = process.env.APP_URL || "https://lcjmall.com";
-          const message = `❌ レシートが却下されました\n\n🏪 店舗名: ${storeName}\n\n📝 却下理由:\n${reason}\n\n正しいレシート画像を再度送信してください。\n\n📋 マイページで確認する\n${appUrl}/mypage`;
           
+          // Build specific guidance based on rejection category
+          let guidance = "";
+          if (input.note.includes("画像が不鮮明")) {
+            guidance = "\n\n💡 ヒント: スクリーンショットが鮮明に撮れるよう、画面全体をキャプチャしてください。";
+          } else if (input.note.includes("レシートではない")) {
+            guidance = "\n\n💡 ヒント: TikTok Shopの注文詳細画面のスクリーンショットを送信してください。";
+          } else if (input.note.includes("重複申請")) {
+            guidance = "\n\n💡 この注文は既に申請済みです。別の注文のスクリーンショットを送信してください。";
+          } else if (input.note.includes("金額不一致")) {
+            guidance = "\n\n💡 ヒント: 合計金額（税込）が見えるようにスクリーンショットを撮ってください。";
+          }
+          
+          const message = `❌ レシートが却下されました\n\n🏪 店舗名: ${storeName}\n\n📝 却下理由:\n${reason}${guidance}\n\n📸 下の画像を参考に、以下の3つが見えるようにスクリーンショットを撮り直してください:\n① 配達ステータス（配達済み）\n② 注文番号\n③ 合計金額（税込）\n\n※ 1枚に収まらない場合は2〜3枚に分けて送信OK\n\n📋 マイページで確認する\n${appUrl}/mypage`;
+          
+          // Send text message
           await pushMessage(receipt.lineUserId, [{ type: "text", text: message }]);
-          console.log(`[LINE Receipt] Sent rejection notification to ${receipt.lineUserId}`);
+          
+          // Send guide image
+          const guideImageUrl = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663045992616/GbfvQYedFwWUdlAN.png";
+          await pushMessage(receipt.lineUserId, [
+            {
+              type: "image" as any,
+              originalContentUrl: guideImageUrl,
+              previewImageUrl: guideImageUrl,
+            } as any,
+          ]);
+          
+          console.log(`[LINE Receipt] Sent rejection notification with guide image to ${receipt.lineUserId}`);
         } catch (notifyError) {
           console.error("[LINE Receipt] Failed to send rejection notification:", notifyError);
           // Don't throw - notification failure shouldn't fail the rejection

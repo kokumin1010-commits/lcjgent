@@ -1482,7 +1482,7 @@ export default function LineReceiptManagement() {
               {actionDialog?.type === "hold" && <><AlertTriangle className="w-5 h-5 text-orange-600" /> レシートを保留</>}
             </DialogTitle>
             <DialogDescription>
-              {actionDialog?.type === "reject" && "このレシートを却下しますか？理由を選択・入力してください。"}
+              {actionDialog?.type === "reject" && "このレシートを却下しますか？理由を選択・入力してください。却下するとお客様のLINEに案内メッセージとスクリーンショットの撮り方ガイド画像が自動送信されます。"}
               {actionDialog?.type === "hold" && "このレシートを保留にしますか？理由を入力してください。"}
             </DialogDescription>
           </DialogHeader>
@@ -1565,7 +1565,7 @@ export default function LineReceiptManagement() {
                 "処理中..."
               ) : (
                 <>
-                  {actionDialog?.type === "reject" && "却下する"}
+                  {actionDialog?.type === "reject" && <><MessageCircle className="w-4 h-4 mr-1" />却下する（LINE送信）</>}
                   {actionDialog?.type === "hold" && "保留にする"}
                 </>
               )}
