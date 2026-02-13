@@ -1426,14 +1426,14 @@ export const lineLoginRouter = router({
         }
         imageContents.push({
           type: "text",
-          text: `これらの${uploadedImages.length}枚の画像はTikTok Shopの注文詳細画面のスクリーンショットです。\nすべての画像を統合して、以下の情報を抽出してください。\n情報が複数の画像に分散している場合は、すべての画像から情報を収集してください。`,
+          text: `これらの${uploadedImages.length}枚の画像はTikTok Shopの注文詳細画面のスクリーンショットです。\n\n【最重要】まず注文番号（16〜19桁の数字、「5」か「6」で始まる）を探してください。\n画面の下部に「注文番号」というラベルと共に表示されていることが多いです。\n「さらに表示」ボタンの直上や、合計金額の下にも表示されます。\n\nすべての画像を統合して情報を抽出してください。`,
         });
         
         const ocrResult = await invokeLLM({
           messages: [
             {
               role: "system",
-              content: `あなたはTikTok Shopの注文詳細画面のスクリーンショットを解析するAIです。
+              content: `あなたはTikTok Shopの注文詳細画面のスクリーンショットを解析する専門AIです。
 複数の画像が送信された場合、すべての画像を統合して情報を抽出してください。
 
 以下の情報を抽出してJSON形式で返してください：
@@ -1445,47 +1445,58 @@ export const lineLoginRouter = router({
   "totalAmount": number,
   "orderDate": "string",
   "shopName": "string",
-  "productName": "string"
+  "productName": "string",
+  "orderNumberSource": "string"
 }
 
-【注文番号の抽出ルール（最重要・最優先）】
-TikTok Shopの注文番号は16〜19桁の数字です（例: 5824489836811172498, 582307265940784437）。
+=== 最重要タスク: 注文番号の抽出 ===
 
-★ 注文番号が表示される場所（すべてチェックすること）：
-1. 画面下部の「注文番号」「注文番号:」ラベルの横（最も一般的）
-2. 「合計金額（税込）」の下に表示される
-3. コピーアイコン（📋）の左側に表示される数字列
-4. 「さらに表示 ∨」の直上に表示される
-5. 画面上部の「注文番号」「注文ID」「Order ID」「订单编号」ラベルの横
-6. 「#」記号の後に続く数字列
-7. 画面のどこかに小さく表示されている場合もある
+注文番号の抽出が最も重要なタスクです。他の全フィールドより優先してください。
 
-★ 抽出のコツ：
-- 画像の上部だけでなく、中央や下部も必ず確認すること
-- 「注文番号」というラベルが見えたら、その横の数字を必ず抽出すること
-- 16〜19桁の連続した数字列が見つかったら、それが注文番号である可能性が高い
-- 商品の価格（4〜6桁）や電話番号（10〜11桁）とは区別すること
-- 注文番号が見つからない場合でも、画像内の最も長い数字列（15桁以上）を注文番号として抽出すること
+TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数字列です。
+例: 5819000585822287971, 5824489836811172498, 682307265940784437
 
-【配達済みの判定基準】
-以下のいずれかが確認できれば isDelivered = true としてください：
+【ステップ1: 画像全体をスキャンして長い数字列を全て列挙する】
+画像内に存在する10桁以上の数字列を全て見つけてください。
+特に以下の場所を重点的にチェック：
+- 画面の最下部（「さらに表示」の直上、スクロール可能エリアの末端）
+- 「注文番号」「注文番号:」というラベルの右側
+- 「合計金額（税込）」の行の下
+- コピーアイコン（📋 🔗 ⧉）の左側
+- 画面上部のヘッダー付近
+
+【ステップ2: 注文番号を特定する】
+見つけた数字列の中から、以下の条件に合うものを注文番号として選択：
+- 16〜19桁の数字列
+- 「5」または「6」で始まる
+- 「注文番号」ラベルの近くにある
+- 電話番号（080/090/070で始まる11桁）ではない
+- 郵便番号（3桁-4桁）ではない
+- 商品価格（4〜6桁）ではない
+
+【ステップ3: どうしても見つからない場合】
+- 画像内で最も長い数字列（15桁以上）を注文番号として採用
+- それでも見つからない場合のみnullを返す
+
+「orderNumberSource」には注文番号をどこで見つけたか記載（例: "画面下部の注文番号ラベル横", "合計金額の下"）
+
+=== 配達済みの判定 ===
+以下のいずれかが確認できれば isDelivered = true：
 - 「配達済み」という文字
-- 「X月X日に配達」（例：「2月7日に配達」「1月28日に配達」）
+- 「X月X日に配達」（例：「1月27日に配達」）
 - 「お荷物が最終目的地に到着しました」
 - 「已签收」「Delivered」
-- 配達ステータスのプログレスバーで「配達済み」ステップが完了している（緑色のチェックマーク）
+- プログレスバーで「配達済み」が完了（緑/ティールのチェックマーク）
 
-【金額の抽出ルール】
-- 「合計金額（税込）」「合計」「支払い金額」「お支払い合計」の横にある金額を totalAmount として抽出
-- 通貨記号（¥、￥）は除去し、数値のみを返してください
-- カンマ区切りも除去してください（例: ¥10,570 → 10570）
+=== 金額の抽出 ===
+- 「合計金額（税込）」「合計」「支払い金額」の横の金額 → totalAmount
+- 通貨記号（¥￥）とカンマを除去して数値のみ（例: ¥2,832 → 2832）
 
-【重要】
-- 注文番号の抽出を最優先してください。画像のどこかに必ず注文番号があるはずです
-- 画像全体をくまなくスキャンし、特に画面下部の注文番号を見逃さないでください
-- 抽出できない項目はnullを返してください
-- 必ずJSON形式のみで回答してください（説明文は不要）
-- 複数画像から情報を統合してください`,
+=== 出力ルール ===
+- 注文番号の抽出を最優先。画像を隅々までスキャンすること
+- 抽出できない項目はnullを返す
+- 必ずJSON形式のみで回答（説明文は不要）
+- 複数画像がある場合は統合して回答`,
             },
             {
               role: "user",
@@ -1515,6 +1526,39 @@ TikTok Shopの注文番号は16〜19桁の数字です（例: 582448983681117249
           };
         }
         
+        // === 注文番号のバリデーション・フォールバック処理 ===
+        if (ocrData.orderNumber) {
+          // 数字以外の文字を除去（スペース、ハイフン等）
+          const cleanedOrderNumber = String(ocrData.orderNumber).replace(/[^0-9]/g, "");
+          // 16〜19桁の数字列かチェック
+          if (/^[56]\d{15,18}$/.test(cleanedOrderNumber)) {
+            ocrData.orderNumber = cleanedOrderNumber;
+          } else if (/^\d{16,19}$/.test(cleanedOrderNumber)) {
+            // 5/6以外で始まるが桁数は合っている場合はそのまま採用
+            ocrData.orderNumber = cleanedOrderNumber;
+            console.log(`[Web Receipt] Order number doesn't start with 5/6 but has valid length: ${cleanedOrderNumber}`);
+          } else if (cleanedOrderNumber.length >= 15) {
+            // 15桁以上ならフォールバックとして採用
+            ocrData.orderNumber = cleanedOrderNumber;
+            console.log(`[Web Receipt] Order number has unusual length (${cleanedOrderNumber.length}): ${cleanedOrderNumber}`);
+          } else {
+            // 短すぎる場合は無効（価格や電話番号の可能性）
+            console.log(`[Web Receipt] Rejected invalid order number: ${ocrData.orderNumber} (cleaned: ${cleanedOrderNumber})`);
+            ocrData.orderNumber = null;
+          }
+        }
+        
+        // フォールバック: ocrRawText全体から長い数字列を探す
+        if (!ocrData.orderNumber && typeof messageContent === "string") {
+          const longNumbers = messageContent.match(/\d{15,19}/g);
+          if (longNumbers && longNumbers.length > 0) {
+            // 最も長い数字列を採用
+            const bestMatch = longNumbers.sort((a, b) => b.length - a.length)[0];
+            ocrData.orderNumber = bestMatch;
+            console.log(`[Web Receipt] Fallback: extracted order number from raw response: ${bestMatch}`);
+          }
+        }
+        
         // Validate TikTok Shop
         if (!ocrData.isTikTokShop) {
           const { deleteLineReceipt } = await import("./db");
@@ -1540,17 +1584,22 @@ TikTok Shopの注文番号は16〜19桁の数字です（例: 582448983681117249
           };
         }
         
-        // Validate required fields
-        if (!ocrData.orderNumber || !ocrData.totalAmount) {
+        // Validate required fields - 金額は必須、注文番号は後から手動入力可能
+        if (!ocrData.totalAmount) {
           const { deleteLineReceipt } = await import("./db");
           await deleteLineReceipt(receiptId);
           return {
             receiptId: null,
             status: "incomplete" as const,
-            message: "注文番号または金額を読み取れませんでした。注文番号と金額が見える画像をアップロードしてください。",
+            message: "金額を読み取れませんでした。金額が見える画像をアップロードしてください。",
             ocrData,
             imageUrls: uploadedImages.map(i => i.url),
           };
+        }
+        
+        // 注文番号がない場合は警告ログ（レシート自体は保存し、後から手動入力可能）
+        if (!ocrData.orderNumber) {
+          console.log(`[Web Receipt] Warning: Order number not detected for receipt ${receiptId}. Manual input will be required.`);
         }
         
         // Calculate points (1% return)
