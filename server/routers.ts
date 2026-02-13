@@ -12395,6 +12395,298 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         const count = items.reduce((sum: number, item: any) => sum + (item.cart?.quantity || 0), 0);
         return { count };
       }),
+
+    // カートからStripe一括チェックアウト
+    cartCheckoutStripe: publicProcedure
+      .input(z.object({
+        shippingInfo: z.object({
+          name: z.string().min(1),
+          phone: z.string().min(1),
+          postalCode: z.string().min(1),
+          address: z.string().min(1),
+        }).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const result = await getLineUserFromSession(ctx);
+        if (!result || !result.lineUser) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+        }
+        const lineUser = result.lineUser;
+
+        // カート内容を取得
+        const cartItems = await getMallCart(lineUser.id);
+        if (cartItems.length === 0) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "カートが空です" });
+        }
+
+        // 商品のバリデーション & Stripe line_items構築
+        const lineItems: Array<{
+          price_data: {
+            currency: string;
+            product_data: { name: string; images?: string[] };
+            unit_amount: number;
+          };
+          quantity: number;
+        }> = [];
+        let totalAmount = 0;
+        const orderItemsData: Array<{
+          productId: number;
+          quantity: number;
+          usePoints: boolean;
+        }> = [];
+
+        for (const item of cartItems) {
+          const product = item.product;
+          const qty = item.cart.quantity;
+
+          if (product.status !== "active") {
+            throw new TRPCError({ code: "BAD_REQUEST", message: `${product.name} は現在販売中ではありません` });
+          }
+          if (product.stock < qty) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: `${product.name} の在庫が不足しています（残り${product.stock}点）` });
+          }
+
+          const productImages: string[] = [];
+          if (product.imageUrls && Array.isArray(product.imageUrls) && product.imageUrls.length > 0) {
+            productImages.push(String(product.imageUrls[0]));
+          }
+
+          lineItems.push({
+            price_data: {
+              currency: "jpy",
+              product_data: {
+                name: product.name,
+                ...(productImages.length > 0 ? { images: productImages } : {}),
+              },
+              unit_amount: product.price,
+            },
+            quantity: qty,
+          });
+
+          totalAmount += product.price * qty;
+          orderItemsData.push({
+            productId: product.id,
+            quantity: qty,
+            usePoints: false,
+          });
+        }
+
+        // 送料計算: 5,000円未満は880円、5,000円以上は送料無料
+        const SHIPPING_FEE = 880;
+        const FREE_SHIPPING_THRESHOLD = 5000;
+        const shippingFee = totalAmount < FREE_SHIPPING_THRESHOLD ? SHIPPING_FEE : 0;
+
+        // 注文を作成（pendingステータス）
+        const orderResult = await createMallOrder({
+          lineUserId: lineUser.id,
+          items: orderItemsData,
+          pointsToUse: 0,
+          shippingInfo: input.shippingInfo,
+        });
+
+        // Stripe Checkoutセッションを作成
+        const Stripe = (await import("stripe")).default;
+        const stripeClient = new Stripe(ENV.stripeSecretKey, {
+          apiVersion: "2025-01-27.acacia" as any,
+        });
+
+        const origin = ctx.req.headers.origin || ctx.req.headers.referer?.replace(/\/$/, "") || "";
+
+        // 送料がある場合はline_itemsに追加
+        if (shippingFee > 0) {
+          lineItems.push({
+            price_data: {
+              currency: "jpy",
+              product_data: {
+                name: "送料",
+              },
+              unit_amount: shippingFee,
+            },
+            quantity: 1,
+          });
+        }
+
+        const session = await stripeClient.checkout.sessions.create({
+          payment_method_types: ["card"],
+          line_items: lineItems,
+          mode: "payment",
+          success_url: `${origin}/mall/checkout/success?session_id={CHECKOUT_SESSION_ID}&order=${orderResult.orderNumber}`,
+          cancel_url: `${origin}/mall/checkout/cancel?order=${orderResult.orderNumber}`,
+          client_reference_id: lineUser.id.toString(),
+          customer_email: lineUser.email || undefined,
+          allow_promotion_codes: true,
+          metadata: {
+            user_id: lineUser.id.toString(),
+            order_number: orderResult.orderNumber,
+            customer_name: lineUser.displayName || "",
+            source: "cart",
+          },
+        });
+
+        // 注文にStripeセッションIDを保存
+        await updateMallOrderStripeInfo(orderResult.orderId, {
+          stripeSessionId: session.id,
+          paymentMethod: "stripe",
+        });
+
+        return {
+          checkoutUrl: session.url,
+          orderNumber: orderResult.orderNumber,
+          totalAmount,
+          shippingFee,
+          itemCount: cartItems.length,
+        };
+      }),
+
+    // カートからポイント一括購入
+    cartCheckoutPoints: publicProcedure
+      .input(z.object({
+        shippingInfo: z.object({
+          name: z.string().min(1),
+          phone: z.string().min(1),
+          postalCode: z.string().min(1),
+          address: z.string().min(1),
+        }).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const result = await getLineUserFromSession(ctx);
+        if (!result || !result.lineUser) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+        }
+        const lineUser = result.lineUser;
+        const lineUserId = lineUser.lineUserId || `email_${lineUser.id}`;
+
+        // カート内容を取得
+        const cartItems = await getMallCart(lineUser.id);
+        if (cartItems.length === 0) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "カートが空です" });
+        }
+
+        // 全商品がポイント購入対応か確認 & 合計ポイント計算
+        let totalPoints = 0;
+        const orderItemsData: Array<{
+          productId: number;
+          quantity: number;
+          usePoints: boolean;
+        }> = [];
+
+        for (const item of cartItems) {
+          const product = item.product;
+          const qty = item.cart.quantity;
+
+          if (product.status !== "active") {
+            throw new TRPCError({ code: "BAD_REQUEST", message: `${product.name} は現在販売中ではありません` });
+          }
+          if (product.stock < qty) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: `${product.name} の在庫が不足しています（残り${product.stock}点）` });
+          }
+          if (!product.pointPrice) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: `${product.name} はポイント購入に対応していません` });
+          }
+
+          totalPoints += product.pointPrice * qty;
+          orderItemsData.push({
+            productId: product.id,
+            quantity: qty,
+            usePoints: true,
+          });
+        }
+
+        // ポイント残高を確認
+        const balance = await getLinePointBalance(lineUserId);
+        if (!balance || balance.balance < totalPoints) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `ポイントが不足しています（必要: ${totalPoints.toLocaleString()} pt / 残高: ${(balance?.balance || 0).toLocaleString()} pt）` });
+        }
+
+        // 注文レコードを作成（ポイント消費・在庫減算・注文履歴作成を一括で実行）
+        const orderResult = await createMallOrder({
+          lineUserId: lineUser.id,
+          pointLineUserId: lineUserId,
+          items: orderItemsData,
+          pointsToUse: totalPoints,
+          isFullPointPurchase: true,
+          shippingInfo: input.shippingInfo,
+        });
+
+        // 注文確認通知を送信
+        try {
+          const itemNames = cartItems.map(i => `${i.product.name} ×${i.cart.quantity}`).join("\n  ");
+          const orderDate = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+          const notificationText = `📦 注文確認\n\nご注文ありがとうございます！\n\n■ 商品:\n  ${itemNames}\n■ ポイント: ${totalPoints.toLocaleString()} pt\n■ 注文番号: ${orderResult.orderNumber}\n■ 注文日時: ${orderDate}\n\n発送準備ができ次第、お知らせいたします。`;
+
+          if (lineUser.lineUserId && !lineUser.lineUserId.startsWith('email_')) {
+            const { pushMessage } = await import("./line");
+            await pushMessage(lineUser.lineUserId, [{ type: "text", text: notificationText }]);
+          }
+
+          if (lineUser.email) {
+            const { sendEmail } = await import("./emailService");
+            await sendEmail({
+              to: [lineUser.email],
+              subject: `【LCJ MALL】注文確認 - ${orderResult.orderNumber}`,
+              content: `${lineUser.displayName || lineUser.email} 様\n\nご注文ありがとうございます。\n\n■ 商品:\n  ${itemNames}\n■ ポイント: ${totalPoints.toLocaleString()} pt\n■ 注文番号: ${orderResult.orderNumber}\n■ 注文日時: ${orderDate}\n\n発送準備ができ次第、お知らせいたします。\n\n---\nLCJ MALL`,
+            });
+          }
+        } catch (notifyError) {
+          console.error("[CartCheckoutPoints] 通知送信エラー:", notifyError);
+        }
+
+        return {
+          success: true,
+          pointsUsed: totalPoints,
+          orderNumber: orderResult.orderNumber,
+          itemCount: cartItems.length,
+        };
+      }),
+
+    // カートの合計情報取得（チェックアウト画面用）
+    getCartSummary: publicProcedure
+      .query(async ({ ctx }) => {
+        const result = await getLineUserFromSession(ctx);
+        if (!result || !result.lineUser) {
+          return { items: [], subtotal: 0, totalPoints: 0, shippingFee: 0, allPointEligible: false, pointBalance: 0 };
+        }
+        const lineUser = result.lineUser;
+        const lineUserId = lineUser.lineUserId || `email_${lineUser.id}`;
+
+        const cartItems = await getMallCart(lineUser.id);
+        let subtotal = 0;
+        let totalPoints = 0;
+        let allPointEligible = cartItems.length > 0;
+
+        const items = cartItems.map((item: any) => {
+          const price = item.product.price * item.cart.quantity;
+          subtotal += price;
+          if (item.product.pointPrice) {
+            totalPoints += item.product.pointPrice * item.cart.quantity;
+          } else {
+            allPointEligible = false;
+          }
+          return {
+            productId: item.product.id,
+            name: item.product.name,
+            price: item.product.price,
+            pointPrice: item.product.pointPrice,
+            quantity: item.cart.quantity,
+            imageUrl: item.product.imageUrl,
+          };
+        });
+
+        const SHIPPING_FEE = 880;
+        const FREE_SHIPPING_THRESHOLD = 5000;
+        const shippingFee = subtotal < FREE_SHIPPING_THRESHOLD ? SHIPPING_FEE : 0;
+
+        const balance = await getLinePointBalance(lineUserId);
+
+        return {
+          items,
+          subtotal,
+          totalPoints,
+          shippingFee,
+          allPointEligible,
+          pointBalance: balance?.balance || 0,
+        };
+      }),
   }),
 
   // ===== TikTok Shopポイント申請API =====

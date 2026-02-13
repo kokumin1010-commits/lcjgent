@@ -5079,7 +5079,7 @@
 - [x] 現在のカート・購入フローの実装状況を確認
 - [x] カートテーブル（mall_carts）をDBスキーマに追加
 - [x] カートCRUD API（追加・数量変更・削除・一覧取得）を実装（tRPC mall.getCartItems/addToCart/updateCartQuantity/removeFromCart/clearCart/getCartCount）
-- [ ] 複数商品一括購入APIを実装
+- [x] 複数商品一括購入APIを実装（cartCheckoutStripe / cartCheckoutPoints）
 - [x] カートページUIの実装（数量変更・削除・合計表示・一括購入）
 - [x] 商品詳細ページの「カートに入れる」ボタンを強化
 - [x] 商品一覧ページのカードにカートボタンを追加
@@ -5093,3 +5093,15 @@
 - [x] App.tsxにルート追加
 - [x] フッターやマイページからのリンク追加（MallHome, MallProductDetail, Tokushoho）
 - [x] テスト・動作確認
+
+## 複数商品一括購入チェックアウトフロー
+- [x] 既存コード（DB関数・routers・カートページ・既存購入フロー）の確認
+- [x] 注文テーブル（mall_orders / mall_order_items）のスキーマ設計（既存）
+- [x] 一括購入DB関数の実装（注文作成・在庫減算・ポイント処理）（既存createMallOrder活用）
+- [x] tRPC API実装（mall.cartCheckoutStripe / mall.cartCheckoutPoints / mall.getCartSummary）
+- [x] Stripe一括チェックアウトセッション作成（複数line_items対応）
+- [x] ポイント一括決済API実装
+- [x] カートページUIにチェックアウトフロー（決済方法選択・配送先・確認・レジに進む）を実装
+- [x] チェックアウト成功/キャンセルページの更新（既存実装が一括購入に対応済み）
+- [x] Webhookでの一括注文処理対応（既存実装が対応済み）
+- [x] テスト作成と動作確認（20テスト全パス）
