@@ -5128,3 +5128,10 @@
 - [x] HTML形式メールテンプレートの作成（注文確定・発送・配達完了・キャンセル）
 - [x] orderNotificationsにメール送信を統合
 - [x] テスト作成と動作確認（22テスト全パス）
+
+## プライバシーポリシーページの作成
+- [x] 既存の特商法ページのデザインを確認
+- [x] プライバシーポリシーページのUI作成（/legal/privacy）
+- [x] App.tsxにルート追加
+- [x] フッターや関連ページからのリンク追加（MallHome, MallProductDetail, Tokushoho, PrivacyPolicy）
+- [x] 動作確認

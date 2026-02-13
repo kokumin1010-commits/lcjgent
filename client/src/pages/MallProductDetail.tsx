@@ -1716,6 +1716,7 @@ export default function MallProductDetail() {
               <Link href="/mall/products" className="hover:text-white transition-colors">商品一覧</Link>
               <Link href="/mypage" className="hover:text-white transition-colors">マイページ</Link>
               <Link href="/legal/tokushoho" className="hover:text-white transition-colors">特定商取引法</Link>
+              <Link href="/legal/privacy" className="hover:text-white transition-colors">プライバシーポリシー</Link>
               <Link href="/" className="hover:text-white transition-colors">トップ</Link>
             </div>
             <p className="text-gray-500 text-sm">© 2024 LCJ MALL. All rights reserved.</p>

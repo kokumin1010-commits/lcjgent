@@ -76,6 +76,7 @@ import CheckoutCancel from "./pages/CheckoutCancel";
 import ReferralManagement from "./pages/ReferralManagement";
 import MallCart from "./pages/MallCart";
 import Tokushoho from "./pages/Tokushoho";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 
 function Router() {
   return (
@@ -91,6 +92,7 @@ function Router() {
       <Route path="/mall/products/:id" component={MallProductDetail} />
       <Route path="/mall/cart" component={MallCart} />
       <Route path="/legal/tokushoho" component={Tokushoho} />
+      <Route path="/legal/privacy" component={PrivacyPolicy} />
       <Route path="/mall/checkout/success" component={CheckoutSuccess} />
       <Route path="/mall/checkout/cancel" component={CheckoutCancel} />
       <Route path="/point-request" component={PointRequest} />

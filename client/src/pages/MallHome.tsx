@@ -348,6 +348,7 @@ export default function MallHome() {
           <div className="flex items-center justify-center gap-4 mb-3 text-xs md:text-sm text-gray-400">
             <Link href="/mall/products" className="hover:text-white transition-colors">商品一覧</Link>
             <Link href="/legal/tokushoho" className="hover:text-white transition-colors">特定商取引法</Link>
+            <Link href="/legal/privacy" className="hover:text-white transition-colors">プライバシーポリシー</Link>
           </div>
           <p className="text-xs md:text-sm text-gray-400">
             © 2024 LCJ MALL. All rights reserved.
