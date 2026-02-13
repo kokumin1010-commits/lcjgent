@@ -653,10 +653,10 @@ export default function LineReceiptManagement() {
               </CardContent>
             </Card>
           ) : (
-            /* ===== 2-COLUMN LAYOUT ===== */
-            <div className="flex gap-6">
+            /* ===== 3-COLUMN LAYOUT ===== */
+            <div className="flex gap-4">
               {/* LEFT COLUMN: Calculator + Approve Panel */}
-              <div className="w-[380px] flex-shrink-0">
+              <div className="w-[320px] flex-shrink-0">
                 <div className="sticky top-4 space-y-4">
                   {/* Calculator Card */}
                   <Card className={`border-2 transition-colors ${calcReceiptId ? "border-green-300 shadow-lg" : "border-dashed border-muted-foreground/30"}`}>
@@ -764,26 +764,7 @@ export default function LineReceiptManagement() {
                               </span>
                             </div>
                             
-                            {/* Receipt Images (thumbnails) */}
-                            {(() => {
-                              const images = getReceiptImages(selectedCalcReceipt.receipt);
-                              return images.length > 0 ? (
-                                <div className="flex gap-2 mt-2">
-                                  {images.map((url, idx) => (
-                                    <div 
-                                      key={idx}
-                                      className="relative w-16 h-16 rounded overflow-hidden cursor-pointer group border hover:border-primary transition-colors"
-                                      onClick={() => openImageViewer(images, idx)}
-                                    >
-                                      <img src={url} alt={`レシート ${idx + 1}`} className="w-full h-full object-cover" />
-                                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                                        <ZoomIn className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : null;
-                            })()}
+
                             
                             {/* AI Confidence */}
                             {(() => {
@@ -914,9 +895,94 @@ export default function LineReceiptManagement() {
                 </div>
               </div>
               
-              {/* RIGHT COLUMN: Receipt Card List */}
+              {/* CENTER COLUMN: Image Preview */}
               <div className="flex-1 min-w-0">
-                <div className="grid gap-3">
+                <div className="sticky top-4">
+                  {selectedCalcReceipt ? (() => {
+                    const images = getReceiptImages(selectedCalcReceipt.receipt);
+                    return images.length > 0 ? (
+                      <Card className="border-2 border-blue-200 shadow-lg">
+                        <CardHeader className="pb-2 pt-3 px-4">
+                          <CardTitle className="text-sm flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Images className="w-4 h-4 text-blue-600" />
+                              レシート画像
+                              <Badge variant="secondary" className="text-xs">{currentImageIndex + 1} / {images.length}</Badge>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => openImageViewer(images, currentImageIndex)}
+                            >
+                              <ZoomIn className="w-3.5 h-3.5 mr-1" />
+                              拡大
+                            </Button>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-4 pb-3">
+                          <div className="relative bg-gray-50 rounded-lg overflow-hidden" style={{ minHeight: '400px' }}>
+                            <img 
+                              src={images[currentImageIndex]} 
+                              alt={`レシート画像 ${currentImageIndex + 1}`}
+                              className="w-full h-auto max-h-[65vh] object-contain mx-auto"
+                            />
+                            {images.length > 1 && (
+                              <>
+                                <button
+                                  className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white transition-colors shadow-lg"
+                                  onClick={() => setCurrentImageIndex(prev => prev > 0 ? prev - 1 : images.length - 1)}
+                                >
+                                  <ChevronLeft className="w-5 h-5" />
+                                </button>
+                                <button
+                                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white transition-colors shadow-lg"
+                                  onClick={() => setCurrentImageIndex(prev => prev < images.length - 1 ? prev + 1 : 0)}
+                                >
+                                  <ChevronRight className="w-5 h-5" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                          {images.length > 1 && (
+                            <div className="flex gap-2 mt-2 justify-center">
+                              {images.map((url, idx) => (
+                                <button
+                                  key={idx}
+                                  className={`w-14 h-14 rounded-lg overflow-hidden border-2 transition-all ${
+                                    idx === currentImageIndex ? "border-blue-500 shadow-md scale-105" : "border-transparent opacity-60 hover:opacity-100"
+                                  }`}
+                                  onClick={() => setCurrentImageIndex(idx)}
+                                >
+                                  <img src={url} alt="" className="w-full h-full object-cover" />
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      <Card className="border-2 border-dashed border-muted-foreground/30">
+                        <CardContent className="py-20 text-center">
+                          <ImageIcon className="w-12 h-12 mx-auto mb-3 text-muted-foreground/40" />
+                          <p className="text-sm text-muted-foreground">画像がありません</p>
+                        </CardContent>
+                      </Card>
+                    );
+                  })() : (
+                    <Card className="border-2 border-dashed border-muted-foreground/30">
+                      <CardContent className="py-20 text-center">
+                        <ImageIcon className="w-12 h-12 mx-auto mb-3 text-muted-foreground/40" />
+                        <p className="text-sm text-muted-foreground">レシートを選択すると<br />画像がここに表示されます</p>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              </div>
+              
+              {/* RIGHT COLUMN: Receipt Card List (Compact) */}
+              <div className="w-[360px] flex-shrink-0">
+                <div className="grid gap-2 max-h-[calc(100vh-200px)] overflow-y-auto pr-1">
                   {receipts?.map(({ receipt, lineUser }) => {
                     const images = getReceiptImages(receipt);
                     const aiScore = getAiConfidence(receipt);
@@ -932,147 +998,51 @@ export default function LineReceiptManagement() {
                         }`}
                         onClick={() => selectForCalc(receipt.id)}
                       >
-                        <CardContent className="p-0">
-                          <div className="flex">
-                            {/* Image Thumbnail - Left Side */}
-                            <div className="flex-shrink-0 bg-muted/30 p-2 border-r">
-                              <div className="flex gap-1.5">
-                                {images.length > 0 ? (
-                                  images.slice(0, 2).map((url, idx) => (
-                                    <div 
-                                      key={idx}
-                                      className="relative w-20 h-20 rounded-lg overflow-hidden group border-2 border-transparent hover:border-primary transition-colors"
-                                      onClick={(e) => { e.stopPropagation(); openImageViewer(images, idx); }}
-                                    >
-                                      <img 
-                                        src={url} 
-                                        alt={`レシート ${idx + 1}`}
-                                        className="w-full h-full object-cover"
-                                      />
-                                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                                        <ZoomIn className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                                      </div>
-                                      {images.length > 1 && idx === 0 && (
-                                        <div className="absolute top-0.5 right-0.5 bg-black/60 text-white text-[10px] px-1 py-0.5 rounded">
-                                          {images.length}枚
-                                        </div>
-                                      )}
-                                    </div>
-                                  ))
-                                ) : (
-                                  <div className="w-20 h-20 rounded-lg bg-muted flex items-center justify-center">
-                                    <ImageIcon className="w-6 h-6 text-muted-foreground" />
-                                  </div>
-                                )}
-                              </div>
+                        <CardContent className="p-2.5">
+                          <div className="space-y-1.5">
+                            {/* Row 1: User + Status + AI */}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-semibold text-xs truncate max-w-[100px]">{lineUser?.displayName || "不明"}</span>
+                              {getStatusBadge(receipt.status as ReceiptStatus)}
+                              <Badge variant="outline" className={`${confidence.color} text-[10px] px-1 py-0`}>
+                                <Bot className="w-2.5 h-2.5 mr-0.5" />
+                                {aiScore}%
+                              </Badge>
+                              {receipt.fraudFlags && (receipt.fraudFlags as string[]).length > 0 && (
+                                <Badge variant="destructive" className="text-[10px] px-1 py-0">
+                                  <AlertTriangle className="w-2.5 h-2.5 mr-0.5" />
+                                  {(receipt.fraudFlags as string[]).includes("similar_order_number") ? "類似" : (receipt.fraudFlags as string[]).includes("duplicate_order") ? "重複" : "不正"}
+                                </Badge>
+                              )}
                             </div>
-                            
-                            {/* Info - Center */}
-                            <div className="flex-1 p-3 min-w-0">
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="space-y-1.5 flex-1 min-w-0">
-                                  {/* User & Status Row */}
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <div className="flex items-center gap-1.5">
-                                      <User className="w-3.5 h-3.5 text-muted-foreground" />
-                                      <span className="font-semibold text-sm">{lineUser?.displayName || "不明"}</span>
-                                    </div>
-                                    {getStatusBadge(receipt.status as ReceiptStatus)}
-                                    
-                                    {/* AI Confidence Badge */}
-                                    <Badge variant="outline" className={`${confidence.color} text-xs`}>
-                                      <Bot className="w-3 h-3 mr-1" />
-                                      AI {confidence.label} ({aiScore}%)
-                                    </Badge>
-                                    
-                                    {receipt.fraudFlags && (receipt.fraudFlags as string[]).length > 0 && (
-                                      <>
-                                        {(receipt.fraudFlags as string[]).includes("similar_order_number") ? (
-                                          <Badge variant="destructive" className="text-xs bg-orange-500 hover:bg-orange-600">
-                                            <AlertTriangle className="w-3 h-3 mr-1" />
-                                            類似注文番号
-                                          </Badge>
-                                        ) : (receipt.fraudFlags as string[]).includes("duplicate_order") ? (
-                                          <Badge variant="destructive" className="text-xs">
-                                            <AlertTriangle className="w-3 h-3 mr-1" />
-                                            重複注文
-                                          </Badge>
-                                        ) : (
-                                          <Badge variant="destructive" className="text-xs">
-                                            <AlertTriangle className="w-3 h-3 mr-1" />
-                                            不正フラグ
-                                          </Badge>
-                                        )}
-                                      </>
-                                    )}
-                                  </div>
-                                  
-                                  {/* Order Number */}
-                                  {(() => {
-                                    const orderNum = getOrderNumber(receipt);
-                                    return orderNum ? (
-                                      <div className="flex items-center gap-1.5 text-xs bg-blue-50 border border-blue-200 rounded px-2 py-0.5 w-fit">
-                                        <Hash className="w-3 h-3 text-blue-600 flex-shrink-0" />
-                                        <span className="font-mono text-xs font-bold text-blue-800">{orderNum}</span>
-                                      </div>
-                                    ) : (
-                                      <button 
-                                        onClick={(e) => { e.stopPropagation(); openOrderNumberDialog(receipt); }}
-                                        className="flex items-center gap-1.5 text-xs bg-red-50 border border-red-200 rounded px-2 py-0.5 w-fit hover:bg-red-100 transition-colors"
-                                      >
-                                        <AlertTriangle className="w-3 h-3 text-red-500" />
-                                        <span className="text-red-600 font-medium">注文番号なし</span>
-                                        <Edit className="w-3 h-3 text-red-400" />
-                                      </button>
-                                    );
-                                  })()}
-
-                                  {/* Receipt Details Grid */}
-                                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                                    <div className="flex items-center gap-1 text-muted-foreground">
-                                      <Store className="w-3 h-3 flex-shrink-0" />
-                                      <span className="truncate font-medium text-foreground">{receipt.storeName || "店舗不明"}</span>
-                                    </div>
-                                    <div className="flex items-center gap-1 text-muted-foreground">
-                                      <Calendar className="w-3 h-3 flex-shrink-0" />
-                                      <span className="font-medium text-foreground">{receipt.purchaseDate ? new Date(receipt.purchaseDate).toLocaleDateString("ja-JP") : "-"}</span>
-                                    </div>
-                                    <div className="flex items-center gap-1 text-muted-foreground">
-                                      <DollarSign className="w-3 h-3 flex-shrink-0" />
-                                      <span className="font-medium text-foreground">{formatCurrency(receipt.totalAmount, receipt.currency || "JPY")}</span>
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                      {receipt.status === "approved" && receipt.pointsAwarded != null ? (
-                                        <>
-                                          <Gift className="w-3 h-3 text-green-600 flex-shrink-0" />
-                                          <span className="font-bold text-green-600 text-xs">{receipt.pointsAwarded} pt</span>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <span className="text-muted-foreground">計算:</span>
-                                          <span className="font-bold text-blue-600 text-xs">{receipt.pointsCalculated || 0} pt</span>
-                                        </>
-                                      )}
-                                    </div>
-                                  </div>
-                                  
-                                  {/* Submission Time */}
-                                  <div className="text-[11px] text-muted-foreground">
-                                    申請: {formatDate(receipt.submittedAt)}
-                                  </div>
-                                </div>
-                                
-                                {/* Detail Button */}
-                                <Button 
-                                  variant="outline" 
-                                  size="sm"
-                                  className="flex-shrink-0"
-                                  onClick={(e) => { e.stopPropagation(); openReceiptDetails(receipt.id); }}
-                                >
-                                  <Eye className="w-4 h-4 mr-1" />
-                                  詳細
-                                </Button>
-                              </div>
+                            {/* Row 2: Amount + Points + Images count */}
+                            <div className="flex items-center gap-2 text-xs">
+                              <span className="font-bold">{formatCurrency(receipt.totalAmount, receipt.currency || "JPY")}</span>
+                              <span className="text-muted-foreground">→</span>
+                              {receipt.status === "approved" && receipt.pointsAwarded != null ? (
+                                <span className="font-bold text-green-600">{receipt.pointsAwarded}pt</span>
+                              ) : (
+                                <span className="text-blue-600">{receipt.pointsCalculated || 0}pt</span>
+                              )}
+                              {images.length > 0 && (
+                                <span className="text-muted-foreground ml-auto flex items-center gap-0.5">
+                                  <ImageIcon className="w-3 h-3" />{images.length}
+                                </span>
+                              )}
+                            </div>
+                            {/* Row 3: Store + Date */}
+                            <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                              <span className="truncate">{receipt.storeName || "店舗不明"}</span>
+                              <span>·</span>
+                              <span className="flex-shrink-0">{receipt.purchaseDate ? new Date(receipt.purchaseDate).toLocaleDateString("ja-JP", { month: "short", day: "numeric" }) : "-"}</span>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                className="ml-auto h-6 px-1.5 text-[10px]"
+                                onClick={(e) => { e.stopPropagation(); openReceiptDetails(receipt.id); }}
+                              >
+                                <Eye className="w-3 h-3" />
+                              </Button>
                             </div>
                           </div>
                         </CardContent>
