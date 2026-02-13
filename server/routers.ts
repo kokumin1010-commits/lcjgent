@@ -411,6 +411,7 @@ import {
   createProductReview,
   deleteProductReview,
   hasUserReviewedProduct,
+  getAllProductReviewStats,
   getRelatedProducts,
   getProductDescImages,
   addProductDescImage,
@@ -12281,6 +12282,33 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
     getFavoriteCounts: publicProcedure
       .query(async () => {
         return await getMallFavoriteCounts();
+      }),
+
+    // ===== レビュー画像アップロード API =====
+    uploadReviewImage: publicProcedure
+      .input(z.object({
+        base64: z.string(),
+        mimeType: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const result = await getLineUserFromSession(ctx);
+        if (!result || !result.lineUser) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+        }
+        const buffer = Buffer.from(input.base64, "base64");
+        if (buffer.length > 5 * 1024 * 1024) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "画像サイズは5MB以下にしてください" });
+        }
+        const ext = input.mimeType.split("/")[1] || "jpg";
+        const key = `review-images/${result.lineUser.id}/${Date.now()}-${nanoid(8)}.${ext}`;
+        const { url } = await storagePut(key, buffer, input.mimeType);
+        return { url, key };
+      }),
+
+    // ===== 全商品レビュー統計 API =====
+    getAllReviewStats: publicProcedure
+      .query(async () => {
+        return await getAllProductReviewStats();
       }),
 
     // ===== 閲覧履歴 API =====

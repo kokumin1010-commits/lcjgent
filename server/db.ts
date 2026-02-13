@@ -11398,3 +11398,29 @@ export async function getMallViewHistoryByUser(lineUserId: number, limit: number
     .limit(limit);
   return history;
 }
+
+// ============================================
+// MALL Product Reviews - 全商品レビュー統計（一覧表示用）
+// ============================================
+export async function getAllProductReviewStats() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const stats = await db
+    .select({
+      productId: mallProductReviews.productId,
+      avgRating: sql<number>`AVG(rating)`,
+      totalReviews: sql<number>`COUNT(*)`,
+    })
+    .from(mallProductReviews)
+    .groupBy(mallProductReviews.productId);
+
+  const result: Record<number, { avgRating: number; totalReviews: number }> = {};
+  for (const s of stats) {
+    result[s.productId] = {
+      avgRating: Number(s.avgRating) || 0,
+      totalReviews: Number(s.totalReviews) || 0,
+    };
+  }
+  return result;
+}

@@ -5,6 +5,7 @@ import {
   getRelatedProducts,
   getProductDescImages,
   hasUserReviewedProduct,
+  getAllProductReviewStats,
 } from "./db";
 
 describe("Mall Product Reviews API", () => {
@@ -35,6 +36,27 @@ describe("Mall Product Reviews API", () => {
   it("hasUserReviewedProduct returns false for non-existent user", async () => {
     const result = await hasUserReviewedProduct(30023, 999999);
     expect(result).toBe(false);
+  });
+});
+
+describe("All Product Review Stats API", () => {
+  it("getAllProductReviewStats returns object with product IDs as keys", async () => {
+    const stats = await getAllProductReviewStats();
+    expect(typeof stats).toBe("object");
+    expect(stats).not.toBeNull();
+  });
+
+  it("getAllProductReviewStats values have avgRating and totalReviews", async () => {
+    const stats = await getAllProductReviewStats();
+    const keys = Object.keys(stats);
+    if (keys.length > 0) {
+      const firstKey = Number(keys[0]);
+      expect(stats[firstKey]).toHaveProperty("avgRating");
+      expect(stats[firstKey]).toHaveProperty("totalReviews");
+      expect(Number(stats[firstKey].avgRating)).toBeGreaterThanOrEqual(0);
+      expect(Number(stats[firstKey].avgRating)).toBeLessThanOrEqual(5);
+      expect(Number(stats[firstKey].totalReviews)).toBeGreaterThanOrEqual(0);
+    }
   });
 });
 

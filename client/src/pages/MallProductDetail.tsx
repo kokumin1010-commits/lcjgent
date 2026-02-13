@@ -313,6 +313,74 @@ export default function MallProductDetail() {
   const [reviewTitle, setReviewTitle] = useState("");
   const [reviewContent, setReviewContent] = useState("");
   const [hoverRating, setHoverRating] = useState(0);
+  const [reviewImages, setReviewImages] = useState<{ file: File; preview: string }[]>([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const [expandedReviewImage, setExpandedReviewImage] = useState<string | null>(null);
+
+  const uploadReviewImageMutation = trpc.mall.uploadReviewImage.useMutation();
+
+  const handleReviewImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    const newImages: { file: File; preview: string }[] = [];
+    for (let i = 0; i < files.length; i++) {
+      if (reviewImages.length + newImages.length >= 5) {
+        toast.error("画像は最大5枚までです");
+        break;
+      }
+      if (files[i].size > 5 * 1024 * 1024) {
+        toast.error(`${files[i].name}は5MBを超えています`);
+        continue;
+      }
+      newImages.push({ file: files[i], preview: URL.createObjectURL(files[i]) });
+    }
+    setReviewImages(prev => [...prev, ...newImages]);
+    e.target.value = "";
+  };
+
+  const removeReviewImage = (index: number) => {
+    setReviewImages(prev => {
+      const removed = prev[index];
+      if (removed) URL.revokeObjectURL(removed.preview);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  const submitReview = async () => {
+    try {
+      let imageUrls: string[] = [];
+      if (reviewImages.length > 0) {
+        setUploadingImages(true);
+        const uploadPromises = reviewImages.map(async (img) => {
+          const reader = new FileReader();
+          const base64 = await new Promise<string>((resolve) => {
+            reader.onload = () => {
+              const result = reader.result as string;
+              resolve(result.split(",")[1]);
+            };
+            reader.readAsDataURL(img.file);
+          });
+          const res = await uploadReviewImageMutation.mutateAsync({
+            base64,
+            mimeType: img.file.type,
+          });
+          return res.url;
+        });
+        imageUrls = await Promise.all(uploadPromises);
+        setUploadingImages(false);
+      }
+      createReviewMutation.mutate({
+        productId: Number(id),
+        rating: reviewRating,
+        title: reviewTitle || undefined,
+        content: reviewContent || undefined,
+        imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
+      });
+    } catch {
+      setUploadingImages(false);
+      toast.error("画像のアップロードに失敗しました");
+    }
+  };
 
   const createReviewMutation = trpc.mall.createReview.useMutation({
     onSuccess: () => {
@@ -321,6 +389,8 @@ export default function MallProductDetail() {
       setReviewRating(5);
       setReviewTitle("");
       setReviewContent("");
+      reviewImages.forEach(img => URL.revokeObjectURL(img.preview));
+      setReviewImages([]);
       refetchReviews();
     },
     onError: (err) => toast.error(err.message),
@@ -958,22 +1028,46 @@ export default function MallProductDetail() {
                       maxLength={2000}
                     />
                   </div>
+                  {/* 画像アップロード */}
+                  <div>
+                    <Label className="mb-2 block">写真を追加（最大5枚、各最大5MB）</Label>
+                    <div className="flex gap-2 flex-wrap">
+                      {reviewImages.map((img, i) => (
+                        <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border-2 border-pink-200 group">
+                          <img src={img.preview} alt="" className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => removeReviewImage(i)}
+                            className="absolute top-0 right-0 bg-red-500 text-white rounded-bl-lg p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                      {reviewImages.length < 5 && (
+                        <label className="w-20 h-20 rounded-lg border-2 border-dashed border-pink-300 flex flex-col items-center justify-center cursor-pointer hover:bg-pink-50 transition-colors">
+                          <ImageIcon className="h-5 w-5 text-pink-400" />
+                          <span className="text-[10px] text-pink-400 mt-1">追加</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            className="hidden"
+                            onChange={handleReviewImageSelect}
+                          />
+                        </label>
+                      )}
+                    </div>
+                  </div>
                   <div className="flex gap-3">
                     <Button
-                      onClick={() => {
-                        createReviewMutation.mutate({
-                          productId: Number(id),
-                          rating: reviewRating,
-                          title: reviewTitle || undefined,
-                          content: reviewContent || undefined,
-                        });
-                      }}
-                      disabled={createReviewMutation.isPending}
+                      onClick={submitReview}
+                      disabled={createReviewMutation.isPending || uploadingImages}
                       className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600"
                     >
-                      {createReviewMutation.isPending ? "投稿中..." : "レビューを投稿"}
+                      {uploadingImages ? "画像アップロード中..." : createReviewMutation.isPending ? "投稿中..." : "レビューを投稿"}
                     </Button>
-                    <Button variant="outline" onClick={() => setShowReviewForm(false)}>キャンセル</Button>
+                    <Button variant="outline" onClick={() => { setShowReviewForm(false); reviewImages.forEach(img => URL.revokeObjectURL(img.preview)); setReviewImages([]); }}>キャンセル</Button>
                   </div>
                 </div>
               </CardContent>
@@ -1023,7 +1117,9 @@ export default function MallProductDetail() {
                     {review.imageUrls && (review.imageUrls as string[]).length > 0 && (
                       <div className="flex gap-2 mt-3 flex-wrap">
                         {(review.imageUrls as string[]).map((url, i) => (
-                          <img key={i} src={url} alt="" className="w-20 h-20 rounded-lg object-cover border" />
+                          <button key={i} type="button" onClick={() => setExpandedReviewImage(url)} className="focus:outline-none">
+                            <img src={url} alt="" className="w-20 h-20 rounded-lg object-cover border hover:opacity-80 transition-opacity cursor-zoom-in" />
+                          </button>
                         ))}
                       </div>
                     )}
@@ -1049,6 +1145,19 @@ export default function MallProductDetail() {
             </Card>
           )}
         </section>
+
+        {/* レビュー画像拡大ダイアログ */}
+        {expandedReviewImage && (
+          <Dialog open={!!expandedReviewImage} onOpenChange={() => setExpandedReviewImage(null)}>
+            <DialogContent className="max-w-2xl p-2">
+              <DialogHeader className="sr-only">
+                <DialogTitle>レビュー画像</DialogTitle>
+                <DialogDescription>レビューに添付された画像</DialogDescription>
+              </DialogHeader>
+              <img src={expandedReviewImage} alt="レビュー画像" className="w-full h-auto rounded-lg" />
+            </DialogContent>
+          </Dialog>
+        )}
 
         {/* ===== 関連商品・おすすめ商品 ===== */}
         {filteredRelatedProducts.length > 0 && (

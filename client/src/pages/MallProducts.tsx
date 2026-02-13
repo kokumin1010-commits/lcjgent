@@ -35,6 +35,7 @@ export default function MallProducts() {
   const { data: products, isLoading } = trpc.mall.getProducts.useQuery({ status: "active" });
   const { data: favoriteIds = [] } = trpc.mall.getFavoriteIds.useQuery();
   const { data: favoriteCounts = {} } = trpc.mall.getFavoriteCounts.useQuery();
+  const { data: reviewStats = {} } = trpc.mall.getAllReviewStats.useQuery();
   const utils = trpc.useUtils();
 
   const addFavoriteMutation = trpc.mall.addFavorite.useMutation({
@@ -337,9 +338,22 @@ export default function MallProducts() {
                   {/* 商品情報 */}
                   <div className="p-2.5">
                     {/* 商品名 - 2行まで */}
-                    <h3 className="text-xs font-medium text-gray-800 line-clamp-2 leading-tight mb-1.5 group-hover:text-pink-600 transition-colors">
+                    <h3 className="text-xs font-medium text-gray-800 line-clamp-2 leading-tight mb-1 group-hover:text-pink-600 transition-colors">
                       {product.name}
                     </h3>
+
+                    {/* レビュー評価 */}
+                    {reviewStats[product.id] && reviewStats[product.id].totalReviews > 0 && (
+                      <div className="flex items-center gap-0.5 mb-1">
+                        <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                        <span className="text-[11px] font-semibold text-gray-700">
+                          {reviewStats[product.id].avgRating.toFixed(1)}
+                        </span>
+                        <span className="text-[10px] text-gray-400">
+                          ({reviewStats[product.id].totalReviews})
+                        </span>
+                      </div>
+                    )}
 
                     {/* 価格エリア */}
                     <div className="flex items-end justify-between gap-1">
