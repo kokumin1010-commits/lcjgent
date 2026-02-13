@@ -1,0 +1,1 @@
+ALTER TABLE `livers` MODIFY COLUMN `lineLinkCode` varchar(10);

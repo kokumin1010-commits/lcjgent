@@ -631,6 +631,13 @@
       "when": 1770943202589,
       "tag": "0089_useful_radioactive_man",
       "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "5",
+      "when": 1770957069993,
+      "tag": "0090_fuzzy_vargas",
+      "breakpoints": true
     }
   ]
 }

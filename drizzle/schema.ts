@@ -835,7 +835,7 @@ export const livers = mysqlTable("livers", {
   // LINE連携
   lineUserId: varchar("lineUserId", { length: 255 }), // LINE User ID（個別通知用）
   lineNotificationEnabled: boolean("lineNotificationEnabled").default(true), // LINE通知有効/無効
-  lineLinkCode: varchar("lineLinkCode", { length: 6 }), // LINE連携コード（6桁）
+  lineLinkCode: varchar("lineLinkCode", { length: 10 }), // LINE連携コード（L-XXXXXX形式、8文字）
   lineLinkCodeExpiresAt: timestamp("lineLinkCodeExpiresAt"), // LINE連携コードの有効期限
   // タイムスタンプ
   createdAt: timestamp("createdAt").defaultNow().notNull(),
