@@ -239,74 +239,43 @@ export default function OrderManagement() {
         </Button>
       </div>
 
-      {/* 統計カード */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setStatusFilter("all")}>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold">{stats.total}</div>
-            <div className="text-sm text-muted-foreground">全注文</div>
-          </CardContent>
-        </Card>
-        <Card className={`cursor-pointer hover:shadow-md transition-shadow ${statusFilter === "pending" ? "ring-2 ring-yellow-500" : ""}`} onClick={() => setStatusFilter("pending")}>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
-            <div className="text-sm text-muted-foreground">注文受付</div>
-          </CardContent>
-        </Card>
-        <Card className={`cursor-pointer hover:shadow-md transition-shadow ${statusFilter === "paid" ? "ring-2 ring-emerald-500" : ""}`} onClick={() => setStatusFilter("paid")}>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-emerald-600">{stats.paid}</div>
-            <div className="text-sm text-muted-foreground">決済完了</div>
-          </CardContent>
-        </Card>
-        <Card className={`cursor-pointer hover:shadow-md transition-shadow ${statusFilter === "confirmed" ? "ring-2 ring-blue-500" : ""}`} onClick={() => setStatusFilter("confirmed")}>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-blue-600">{stats.confirmed}</div>
-            <div className="text-sm text-muted-foreground">確認済み</div>
-          </CardContent>
-        </Card>
-        <Card className={`cursor-pointer hover:shadow-md transition-shadow ${statusFilter === "shipped" ? "ring-2 ring-purple-500" : ""}`} onClick={() => setStatusFilter("shipped")}>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-purple-600">{stats.shipped}</div>
-            <div className="text-sm text-muted-foreground">発送済み</div>
-          </CardContent>
-        </Card>
-        <Card className={`cursor-pointer hover:shadow-md transition-shadow ${statusFilter === "delivered" ? "ring-2 ring-green-500" : ""}`} onClick={() => setStatusFilter("delivered")}>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-green-600">{stats.delivered}</div>
-            <div className="text-sm text-muted-foreground">配達完了</div>
-          </CardContent>
-        </Card>
-        <Card className={`cursor-pointer hover:shadow-md transition-shadow ${statusFilter === "cancelled" ? "ring-2 ring-red-500" : ""}`} onClick={() => setStatusFilter("cancelled")}>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-red-600">{stats.cancelled}</div>
-            <div className="text-sm text-muted-foreground">キャンセル</div>
-          </CardContent>
-        </Card>
+      {/* ステータスフィルタータブ */}
+      <div className="bg-white rounded-xl border shadow-sm p-1.5">
+        <div className="flex overflow-x-auto gap-1 scrollbar-hide">
+          {[
+            { key: "all" as const, label: "すべて", count: stats.total, color: "bg-gray-100 text-gray-700", activeColor: "bg-gray-800 text-white", icon: <Package className="h-3.5 w-3.5" /> },
+            { key: "paid" as const, label: "決済完了", count: stats.paid, color: "bg-emerald-50 text-emerald-700", activeColor: "bg-emerald-500 text-white", icon: <CreditCard className="h-3.5 w-3.5" /> },
+            { key: "confirmed" as const, label: "確認済み", count: stats.confirmed, color: "bg-blue-50 text-blue-700", activeColor: "bg-blue-500 text-white", icon: <CheckCircle className="h-3.5 w-3.5" /> },
+            { key: "shipped" as const, label: "発送済み", count: stats.shipped, color: "bg-purple-50 text-purple-700", activeColor: "bg-purple-500 text-white", icon: <Truck className="h-3.5 w-3.5" /> },
+            { key: "delivered" as const, label: "配達完了", count: stats.delivered, color: "bg-green-50 text-green-700", activeColor: "bg-green-500 text-white", icon: <CheckCircle className="h-3.5 w-3.5" /> },
+            { key: "cancelled" as const, label: "キャンセル", count: stats.cancelled, color: "bg-red-50 text-red-700", activeColor: "bg-red-500 text-white", icon: <XCircle className="h-3.5 w-3.5" /> },
+            { key: "pending" as const, label: "受付", count: stats.pending, color: "bg-yellow-50 text-yellow-700", activeColor: "bg-yellow-500 text-white", icon: <Clock className="h-3.5 w-3.5" /> },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setStatusFilter(tab.key)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all duration-200 ${
+                statusFilter === tab.key
+                  ? `${tab.activeColor} shadow-sm`
+                  : `${tab.color} hover:opacity-80`
+              }`}
+            >
+              {tab.icon}
+              {tab.label}
+              {tab.count > 0 && (
+                <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-xs font-bold ${
+                  statusFilter === tab.key
+                    ? "bg-white/25"
+                    : "bg-black/5"
+                }`}>
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* フィルター */}
-      <div className="flex items-center gap-4">
-        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as OrderStatus | "all")}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="ステータスで絞り込み" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">すべて</SelectItem>
-            <SelectItem value="pending">注文受付</SelectItem>
-            <SelectItem value="paid">決済完了</SelectItem>
-            <SelectItem value="confirmed">確認済み</SelectItem>
-            <SelectItem value="shipped">発送済み</SelectItem>
-            <SelectItem value="delivered">配達完了</SelectItem>
-            <SelectItem value="cancelled">キャンセル</SelectItem>
-          </SelectContent>
-        </Select>
-        {statusFilter !== "all" && (
-          <Button variant="ghost" size="sm" onClick={() => setStatusFilter("all")}>
-            フィルターをクリア
-          </Button>
-        )}
-      </div>
 
       {/* 注文一覧 */}
       <Card>
