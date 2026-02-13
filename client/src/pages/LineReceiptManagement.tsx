@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,6 +37,11 @@ import {
   Hash,
   Gift,
   Calculator,
+  Keyboard,
+  HelpCircle,
+  ArrowUp,
+  ArrowDown,
+  CornerDownLeft,
 } from "lucide-react";
 
 type ReceiptStatus = "pending" | "approved" | "rejected" | "on_hold";
@@ -81,6 +86,12 @@ export default function LineReceiptManagement() {
   
   // Reject/Hold dialog state (separate from calculator approve flow)
   const [actionDialog, setActionDialog] = useState<{ type: "reject" | "hold"; id: number; receipt?: any } | null>(null);
+  
+  // Keyboard shortcut help
+  const [showShortcutHelp, setShowShortcutHelp] = useState(false);
+  
+  // Ref to track if any dialog/input is active
+  const containerRef = useRef<HTMLDivElement>(null);
   
   // Edit form state
   const [editForm, setEditForm] = useState({
@@ -247,6 +258,100 @@ export default function LineReceiptManagement() {
     setEditMode(false);
   };
   
+  // Keyboard shortcuts
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    // Skip if any dialog is open
+    if (selectedReceipt || actionDialog || imageViewerOpen || orderNumberDialog || showShortcutHelp) return;
+    
+    // Skip if user is typing in an input/textarea/select
+    const target = e.target as HTMLElement;
+    const tagName = target.tagName.toLowerCase();
+    if (tagName === "input" || tagName === "textarea" || tagName === "select" || target.isContentEditable) return;
+    
+    const receiptList = receipts || [];
+    const currentIndex = receiptList.findIndex(r => r.receipt.id === calcReceiptId);
+    
+    switch (e.key) {
+      case "ArrowDown":
+      case "j": {
+        e.preventDefault();
+        if (receiptList.length === 0) return;
+        const nextIndex = currentIndex < 0 ? 0 : Math.min(currentIndex + 1, receiptList.length - 1);
+        selectForCalc(receiptList[nextIndex].receipt.id);
+        setTimeout(() => {
+          const card = document.querySelector(`[data-receipt-id="${receiptList[nextIndex].receipt.id}"]`);
+          card?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }, 50);
+        break;
+      }
+      case "ArrowUp":
+      case "k": {
+        e.preventDefault();
+        if (receiptList.length === 0) return;
+        const prevIndex = currentIndex <= 0 ? 0 : currentIndex - 1;
+        selectForCalc(receiptList[prevIndex].receipt.id);
+        setTimeout(() => {
+          const card = document.querySelector(`[data-receipt-id="${receiptList[prevIndex].receipt.id}"]`);
+          card?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }, 50);
+        break;
+      }
+      case "Enter": {
+        e.preventDefault();
+        if (calcReceiptId && calcPoints > 0 && selectedCalcReceipt && 
+            (selectedCalcReceipt.receipt.status === "pending" || selectedCalcReceipt.receipt.status === "on_hold") &&
+            !approveMutation.isPending) {
+          handleCalcApprove();
+        }
+        break;
+      }
+      case "r":
+      case "R": {
+        e.preventDefault();
+        if (selectedCalcReceipt && (selectedCalcReceipt.receipt.status === "pending" || selectedCalcReceipt.receipt.status === "on_hold")) {
+          setActionDialog({ type: "reject", id: selectedCalcReceipt.receipt.id, receipt: selectedCalcReceipt.receipt });
+        }
+        break;
+      }
+      case "h":
+      case "H": {
+        e.preventDefault();
+        if (selectedCalcReceipt && selectedCalcReceipt.receipt.status === "pending") {
+          setActionDialog({ type: "hold", id: selectedCalcReceipt.receipt.id, receipt: selectedCalcReceipt.receipt });
+        }
+        break;
+      }
+      case "d":
+      case "D": {
+        e.preventDefault();
+        if (calcReceiptId) {
+          openReceiptDetails(calcReceiptId);
+        }
+        break;
+      }
+      case "Escape": {
+        e.preventDefault();
+        if (calcReceiptId) {
+          setCalcReceiptId(null);
+          setCalcAmount("");
+          setCalcPoints(0);
+          setActionNote("");
+        }
+        break;
+      }
+      case "?": {
+        e.preventDefault();
+        setShowShortcutHelp(true);
+        break;
+      }
+    }
+  }, [receipts, calcReceiptId, calcPoints, selectedCalcReceipt, approveMutation.isPending, selectedReceipt, actionDialog, imageViewerOpen, orderNumberDialog, showShortcutHelp]);
+  
+  useEffect(() => {
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
+  
   const startEdit = () => {
     if (receiptDetails?.receipt) {
       const r = receiptDetails.receipt;
@@ -354,6 +459,18 @@ export default function LineReceiptManagement() {
             LINEから送信されたレシートの審査・ポイント付与管理
           </p>
         </div>
+        
+        {/* Keyboard Shortcut Help Button */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5 text-muted-foreground hover:text-foreground"
+          onClick={() => setShowShortcutHelp(true)}
+        >
+          <Keyboard className="w-4 h-4" />
+          <span className="hidden sm:inline">ショートカット</span>
+          <kbd className="ml-1 px-1.5 py-0.5 text-[10px] font-mono bg-muted rounded border">?</kbd>
+        </Button>
         
         {/* AI Auto Mode Toggle */}
         <div className="flex items-center gap-3 p-3 rounded-lg border bg-card">
@@ -490,6 +607,21 @@ export default function LineReceiptManagement() {
                         <div className="text-center py-8 text-muted-foreground">
                           <Receipt className="w-10 h-10 mx-auto mb-3 opacity-40" />
                           <p className="text-sm">右のレシート一覧から<br />レシートを選択してください</p>
+                          <div className="mt-4 flex flex-col items-center gap-1.5 text-xs">
+                            <div className="flex items-center gap-1.5">
+                              <kbd className="px-1.5 py-0.5 font-mono bg-muted rounded border text-[10px]">↓</kbd>
+                              <kbd className="px-1.5 py-0.5 font-mono bg-muted rounded border text-[10px]">↑</kbd>
+                              <span>で選択</span>
+                              <kbd className="px-1.5 py-0.5 font-mono bg-muted rounded border text-[10px]">Enter</kbd>
+                              <span>で承認</span>
+                            </div>
+                            <button 
+                              onClick={() => setShowShortcutHelp(true)}
+                              className="text-blue-500 hover:text-blue-700 underline underline-offset-2"
+                            >
+                              全てのショートカットを見る
+                            </button>
+                          </div>
                         </div>
                       ) : selectedCalcReceipt ? (
                         <>
@@ -694,7 +826,8 @@ export default function LineReceiptManagement() {
                     
                     return (
                       <Card 
-                        key={receipt.id} 
+                        key={receipt.id}
+                        data-receipt-id={receipt.id}
                         className={`hover:shadow-md transition-all overflow-hidden cursor-pointer ${
                           isSelected ? "ring-2 ring-green-500 shadow-md bg-green-50/30" : ""
                         }`}
@@ -1329,6 +1462,97 @@ export default function LineReceiptManagement() {
               {updateOrderNumberMutation.isPending ? "保存中..." : "注文番号を保存"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Keyboard Shortcut Help Dialog */}
+      <Dialog open={showShortcutHelp} onOpenChange={setShowShortcutHelp}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Keyboard className="w-5 h-5 text-blue-600" />
+              キーボードショートカット
+            </DialogTitle>
+            <DialogDescription>
+              キーボードだけでレシートを高速処理できます
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1">
+            {/* Navigation */}
+            <div className="px-3 py-2 bg-muted/50 rounded-md">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">ナビゲーション</p>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">次のレシートを選択</span>
+                  <div className="flex gap-1">
+                    <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">↓</kbd>
+                    <span className="text-xs text-muted-foreground">or</span>
+                    <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">J</kbd>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">前のレシートを選択</span>
+                  <div className="flex gap-1">
+                    <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">↑</kbd>
+                    <span className="text-xs text-muted-foreground">or</span>
+                    <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">K</kbd>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">選択解除</span>
+                  <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">Esc</kbd>
+                </div>
+              </div>
+            </div>
+            
+            {/* Actions */}
+            <div className="px-3 py-2 bg-muted/50 rounded-md">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">アクション</p>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm flex items-center gap-1.5">
+                    <CheckCircle className="w-3.5 h-3.5 text-green-600" />
+                    承認する
+                  </span>
+                  <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">Enter</kbd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm flex items-center gap-1.5">
+                    <XCircle className="w-3.5 h-3.5 text-red-600" />
+                    却下する
+                  </span>
+                  <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">R</kbd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-orange-500" />
+                    保留にする
+                  </span>
+                  <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">H</kbd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm flex items-center gap-1.5">
+                    <Eye className="w-3.5 h-3.5 text-blue-600" />
+                    詳細を開く
+                  </span>
+                  <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">D</kbd>
+                </div>
+              </div>
+            </div>
+            
+            {/* Other */}
+            <div className="px-3 py-2 bg-muted/50 rounded-md">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">その他</p>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">このヘルプを表示</span>
+                <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">?</kbd>
+              </div>
+            </div>
+            
+            <p className="text-xs text-muted-foreground text-center pt-2">
+              ※ 入力フィールドやダイアログが開いているときは無効になります
+            </p>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
