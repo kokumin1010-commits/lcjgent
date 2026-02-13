@@ -12327,6 +12327,74 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         if (!result || !result.lineUser) return [];
         return await getMallViewHistoryByUser(result.lineUser.id, input?.limit ?? 20);
       }),
+
+    // ===== カートAPI =====
+    getCartItems: publicProcedure
+      .query(async ({ ctx }) => {
+        const result = await getLineUserFromSession(ctx);
+        if (!result || !result.lineUser) return [];
+        return await getMallCart(result.lineUser.id);
+      }),
+
+    addToCart: publicProcedure
+      .input(z.object({
+        productId: z.number(),
+        quantity: z.number().min(1).default(1),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const result = await getLineUserFromSession(ctx);
+        if (!result || !result.lineUser) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+        }
+        await addToMallCart(result.lineUser.id, input.productId, input.quantity);
+        return { success: true };
+      }),
+
+    updateCartQuantity: publicProcedure
+      .input(z.object({
+        productId: z.number(),
+        quantity: z.number().min(0),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const result = await getLineUserFromSession(ctx);
+        if (!result || !result.lineUser) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+        }
+        await updateMallCartQuantity(result.lineUser.id, input.productId, input.quantity);
+        return { success: true };
+      }),
+
+    removeFromCart: publicProcedure
+      .input(z.object({
+        productId: z.number(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const result = await getLineUserFromSession(ctx);
+        if (!result || !result.lineUser) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+        }
+        await removeFromMallCart(result.lineUser.id, input.productId);
+        return { success: true };
+      }),
+
+    clearCart: publicProcedure
+      .mutation(async ({ ctx }) => {
+        const result = await getLineUserFromSession(ctx);
+        if (!result || !result.lineUser) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+        }
+        await clearMallCart(result.lineUser.id);
+        return { success: true };
+      }),
+
+    getCartCount: publicProcedure
+      .query(async ({ ctx }) => {
+        const result = await getLineUserFromSession(ctx);
+        if (!result || !result.lineUser) return { count: 0 };
+        const items = await getMallCart(result.lineUser.id);
+        const count = items.reduce((sum: number, item: any) => sum + (item.cart?.quantity || 0), 0);
+        return { count };
+      }),
   }),
 
   // ===== TikTok Shopポイント申請API =====

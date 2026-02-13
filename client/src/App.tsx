@@ -74,6 +74,7 @@ import MallBrandCategoryManagement from "./pages/MallBrandCategoryManagement";
 import CheckoutSuccess from "./pages/CheckoutSuccess";
 import CheckoutCancel from "./pages/CheckoutCancel";
 import ReferralManagement from "./pages/ReferralManagement";
+import MallCart from "./pages/MallCart";
 
 function Router() {
   return (
@@ -87,6 +88,7 @@ function Router() {
       <Route path="/mypage" component={LineMypage} />
       <Route path="/mall/products" component={MallProducts} />
       <Route path="/mall/products/:id" component={MallProductDetail} />
+      <Route path="/mall/cart" component={MallCart} />
       <Route path="/mall/checkout/success" component={CheckoutSuccess} />
       <Route path="/mall/checkout/cancel" component={CheckoutCancel} />
       <Route path="/point-request" component={PointRequest} />

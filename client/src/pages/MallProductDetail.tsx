@@ -256,6 +256,18 @@ export default function MallProductDetail() {
     },
   });
 
+  const { data: cartCount } = trpc.mall.getCartCount.useQuery();
+
+  const addToCartMutation = trpc.mall.addToCart.useMutation({
+    onSuccess: () => {
+      toast.success("カートに追加しました", { duration: 1500 });
+      utils.mall.getCartCount.invalidate();
+    },
+    onError: () => {
+      toast.error("ログインが必要です");
+    },
+  });
+
   const isFavorite = id ? favoriteIds.includes(Number(id)) : false;
 
   const handleToggleFavorite = () => {
@@ -720,6 +732,14 @@ export default function MallProductDetail() {
                   <span className="text-xs text-yellow-600">pt</span>
                 </div>
               )}
+              <Link href="/mall/cart" className="relative">
+                <ShoppingCart className="h-5 w-5 text-gray-600 hover:text-pink-500 transition-colors" />
+                {(cartCount?.count ?? 0) > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-pink-500 text-white text-[10px] font-bold min-w-[16px] h-4 rounded-full flex items-center justify-center px-1">
+                    {cartCount!.count > 99 ? "99+" : cartCount!.count}
+                  </span>
+                )}
+              </Link>
               <Link href="/mypage">
                 <Button variant="outline" size="sm" className="border-pink-200 hover:bg-pink-50">
                   マイページ
@@ -852,17 +872,30 @@ export default function MallProductDetail() {
 
                 {/* 購入ボタン */}
                 {product.stock > 0 && (
-                  <Button
-                    size="lg"
-                    className="w-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-lg py-7 rounded-xl shadow-lg hover:shadow-xl transition-all"
-                    onClick={() => {
-                      resetDialog();
-                      setIsPurchaseDialogOpen(true);
-                    }}
-                  >
-                    <ShoppingCart className="h-6 w-6 mr-2" />
-                    今すぐ購入する
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      className="flex-1 border-pink-300 text-pink-500 hover:bg-pink-50 text-base py-7 rounded-xl transition-all"
+                      onClick={() => {
+                        addToCartMutation.mutate({ productId: product.id, quantity });
+                      }}
+                      disabled={addToCartMutation.isPending}
+                    >
+                      <ShoppingCart className="h-5 w-5 mr-2" />
+                      カートに入れる
+                    </Button>
+                    <Button
+                      size="lg"
+                      className="flex-1 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-base py-7 rounded-xl shadow-lg hover:shadow-xl transition-all"
+                      onClick={() => {
+                        resetDialog();
+                        setIsPurchaseDialogOpen(true);
+                      }}
+                    >
+                      今すぐ購入
+                    </Button>
+                  </div>
                 )}
               </CardContent>
             </Card>

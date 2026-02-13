@@ -38,6 +38,24 @@ export default function MallProducts() {
   const { data: reviewStats = {} } = trpc.mall.getAllReviewStats.useQuery();
   const utils = trpc.useUtils();
 
+  const { data: cartCount } = trpc.mall.getCartCount.useQuery();
+
+  const addToCartMutation = trpc.mall.addToCart.useMutation({
+    onSuccess: () => {
+      toast.success("カートに追加しました", { duration: 1500 });
+      utils.mall.getCartCount.invalidate();
+    },
+    onError: () => {
+      toast.error("ログインが必要です");
+    },
+  });
+
+  const handleAddToCart = (e: React.MouseEvent, productId: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    addToCartMutation.mutate({ productId, quantity: 1 });
+  };
+
   const addFavoriteMutation = trpc.mall.addFavorite.useMutation({
     onMutate: async ({ productId }) => {
       await utils.mall.getFavoriteIds.cancel();
@@ -156,6 +174,15 @@ export default function MallProducts() {
                 </button>
               )}
             </div>
+
+            <Link href="/mall/cart" className="relative">
+              <ShoppingCart className="h-5 w-5 text-gray-700" />
+              {(cartCount?.count ?? 0) > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-pink-500 text-white text-[10px] font-bold min-w-[16px] h-4 rounded-full flex items-center justify-center px-1">
+                  {cartCount!.count > 99 ? "99+" : cartCount!.count}
+                </span>
+              )}
+            </Link>
 
             <Link href="/mypage" className="text-sm font-medium text-pink-500 whitespace-nowrap">
               マイページ
@@ -327,11 +354,14 @@ export default function MallProducts() {
 
                     {/* カートボタン - 右下 */}
                     {product.stock > 0 && (
-                      <div className="absolute bottom-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      <button
+                        onClick={(e) => handleAddToCart(e, product.id)}
+                        className="absolute bottom-1.5 right-1.5 opacity-0 group-hover:opacity-100 sm:opacity-100 transition-all duration-200 active:scale-90 z-10"
+                      >
                         <div className="bg-pink-500 text-white p-1.5 rounded-full shadow-lg hover:bg-pink-600 transition-colors">
                           <ShoppingCart className="h-3.5 w-3.5" />
                         </div>
-                      </div>
+                      </button>
                     )}
                   </div>
 
