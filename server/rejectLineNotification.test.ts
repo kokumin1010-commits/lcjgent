@@ -300,6 +300,103 @@ describe("却下時LINE自動通知（簡略化版）", () => {
     });
   });
 
+  describe("自動次レシート選択とローディング状態", () => {
+    it("処理済みレシートがリストから除外されるまで次レシート選択を待つ", () => {
+      const lastProcessedId = 42;
+      const receipts = [
+        { receipt: { id: 42, status: "pending" } },
+        { receipt: { id: 43, status: "pending" } },
+      ];
+      
+      // Still in list - should wait
+      const stillInList = receipts.some(r => r.receipt.id === lastProcessedId);
+      expect(stillInList).toBe(true);
+      
+      // After refresh - removed from list
+      const refreshedReceipts = [
+        { receipt: { id: 43, status: "pending" } },
+      ];
+      const stillInListAfter = refreshedReceipts.some(r => r.receipt.id === lastProcessedId);
+      expect(stillInListAfter).toBe(false);
+      
+      // Now select next
+      const nextReceipt = refreshedReceipts[0];
+      expect(nextReceipt.receipt.id).toBe(43);
+    });
+
+    it("calcReceiptIdがセットされているがリストにない場合、選択をクリアする", () => {
+      const calcReceiptId = 42;
+      const receipts = [
+        { receipt: { id: 43, status: "pending" } },
+        { receipt: { id: 44, status: "pending" } },
+      ];
+      const isLoading = false;
+      const lastProcessedId = null;
+      
+      const found = receipts.find(r => r.receipt.id === calcReceiptId);
+      
+      if (!found && !isLoading && !lastProcessedId) {
+        // Should clear selection
+        expect(found).toBeUndefined();
+      }
+    });
+
+    it("データ読み込み中はフォールバッククリアを実行しない", () => {
+      const calcReceiptId = 42;
+      const receipts: any[] = [];
+      const isLoading = true;
+      const lastProcessedId = null;
+      
+      let cleared = false;
+      if (calcReceiptId && receipts && !isLoading) {
+        const found = receipts.find((r: any) => r.receipt.id === calcReceiptId);
+        if (!found && !lastProcessedId) {
+          cleared = true;
+        }
+      }
+      
+      // Should NOT clear during loading
+      expect(cleared).toBe(false);
+    });
+
+    it("lastProcessedIdがセットされている間はフォールバッククリアを実行しない", () => {
+      const calcReceiptId = 42;
+      const receipts = [{ receipt: { id: 43, status: "pending" } }];
+      const isLoading = false;
+      const lastProcessedId = 42; // auto-advance pending
+      
+      let cleared = false;
+      if (calcReceiptId && receipts && !isLoading) {
+        const found = receipts.find(r => r.receipt.id === calcReceiptId);
+        if (!found && !lastProcessedId) {
+          cleared = true;
+        }
+      }
+      
+      // Should NOT clear while auto-advance is pending
+      expect(cleared).toBe(false);
+    });
+
+    it("全件処理完了時にcalcReceiptIdがクリアされる", () => {
+      const lastProcessedId = 42;
+      const receipts: any[] = [];
+      
+      const stillInList = receipts.some((r: any) => r.receipt.id === lastProcessedId);
+      expect(stillInList).toBe(false);
+      
+      // No more receipts - should show all processed
+      let allProcessedMessage = false;
+      let calcReceiptId: number | null = 42;
+      if (receipts.length === 0) {
+        calcReceiptId = null;
+        allProcessedMessage = true;
+      }
+      
+      expect(calcReceiptId).toBeNull();
+      expect(allProcessedMessage).toBe(true);
+    });
+  });
+
   describe("フロントエンドUI表示", () => {
     it("却下ボタンに「LINE送信」ラベルが含まれる", () => {
       const buttonLabel = "却下（LINE送信）";

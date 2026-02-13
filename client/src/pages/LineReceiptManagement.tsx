@@ -147,6 +147,10 @@ export default function LineReceiptManagement() {
   useEffect(() => {
     if (!autoAdvanceEnabled || !lastProcessedId || !receipts) return;
     
+    // Wait until the processed receipt is actually removed from the list
+    const stillInList = receipts.some(r => r.receipt.id === lastProcessedId);
+    if (stillInList) return; // Data hasn't refreshed yet, wait for next render
+    
     // If current tab still has receipts, select the first one
     if (receipts.length > 0) {
       const nextReceipt = receipts[0];
@@ -169,6 +173,23 @@ export default function LineReceiptManagement() {
     // Reset the trigger
     setLastProcessedId(null);
   }, [receipts, lastProcessedId, autoAdvanceEnabled]);
+  
+  // Fallback: if calcReceiptId is set but selectedCalcReceipt is null (receipt was removed from list),
+  // clear the selection to avoid stuck "loading" state
+  useEffect(() => {
+    if (calcReceiptId && receipts && !isLoading) {
+      const found = receipts.find(r => r.receipt.id === calcReceiptId);
+      if (!found) {
+        // The selected receipt is no longer in the current list
+        // If auto-advance hasn't picked it up, clear the selection
+        if (!lastProcessedId) {
+          setCalcReceiptId(null);
+          setCalcAmount("");
+          setCalcPoints(0);
+        }
+      }
+    }
+  }, [calcReceiptId, receipts, isLoading, lastProcessedId]);
   
   // Reset session counter when tab changes
   useEffect(() => {
