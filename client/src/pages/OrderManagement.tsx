@@ -117,8 +117,7 @@ export default function OrderManagement() {
   const getNextStatus = (current: OrderStatus): OrderStatus | null => {
     const flow: Record<string, OrderStatus> = {
       pending: "paid",
-      paid: "confirmed",
-      confirmed: "shipped",
+      paid: "shipped",
       shipped: "delivered",
     };
     return flow[current] || null;
@@ -141,7 +140,7 @@ export default function OrderManagement() {
     const config = actionConfig[nextStatus];
     if (!config.label) return null;
 
-    // 発送済みにする場合は配送情報が必要なのでダイアログを開く
+    // 発送済みにする場合は配送情報（伝票番号）が必要なのでダイアログを開く
     if (nextStatus === "shipped") {
       return (
         <Button
@@ -157,8 +156,8 @@ export default function OrderManagement() {
             setIsStatusDialogOpen(true);
           }}
         >
-          {config.icon}
-          {config.label}にする
+          <Truck className="h-3.5 w-3.5" />
+          発送処理
         </Button>
       );
     }
@@ -603,9 +602,17 @@ export default function OrderManagement() {
       <Dialog open={isStatusDialogOpen} onOpenChange={setIsStatusDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>ステータス変更</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              {newStatus === 'shipped' ? (
+                <><Truck className="h-5 w-5 text-purple-500" /> 発送処理</>
+              ) : (
+                'ステータス変更'
+              )}
+            </DialogTitle>
             <DialogDescription>
-              注文のステータスを変更します
+              {newStatus === 'shipped' 
+                ? '配送業者と伝票番号を入力して発送済みにします' 
+                : '注文のステータスを変更します'}
             </DialogDescription>
           </DialogHeader>
           
@@ -659,13 +666,13 @@ export default function OrderManagement() {
 
             {/* 配送情報（発送済みまたは配達完了時に表示） */}
             {(newStatus === 'shipped' || newStatus === 'delivered') && (
-              <div className="space-y-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <p className="text-sm font-medium text-blue-700 flex items-center gap-1">
+              <div className="space-y-3 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                <p className="text-sm font-medium text-purple-700 flex items-center gap-1">
                   <Truck className="h-4 w-4" />
-                  配送情報
+                  発送情報
                 </p>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">配送業者</label>
+                  <label className="text-sm font-medium">配送業者 <span className="text-red-500">*</span></label>
                   <Select value={shippingCarrier} onValueChange={setShippingCarrier}>
                     <SelectTrigger>
                       <SelectValue placeholder="配送業者を選択" />
@@ -680,14 +687,15 @@ export default function OrderManagement() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">追跡番号</label>
+                  <label className="text-sm font-medium">伝票番号（追跡番号） <span className="text-red-500">*</span></label>
                   <input
                     type="text"
-                    className="w-full px-3 py-2 border rounded-md text-sm"
-                    placeholder="追跡番号を入力..."
+                    className="w-full px-3 py-2 border rounded-md text-sm font-mono"
+                    placeholder="伝票番号を入力..."
                     value={trackingNumber}
                     onChange={(e) => setTrackingNumber(e.target.value)}
                   />
+                  <p className="text-xs text-muted-foreground">配送業者から発行された伝票番号を入力してください</p>
                 </div>
               </div>
             )}
@@ -709,13 +717,15 @@ export default function OrderManagement() {
             </Button>
             <Button 
               onClick={handleUpdateStatus}
-              disabled={updateStatusMutation.isPending}
-              className="bg-rose-500 hover:bg-rose-600"
+              disabled={updateStatusMutation.isPending || (newStatus === 'shipped' && (!shippingCarrier || !trackingNumber))}
+              className={newStatus === 'shipped' ? "bg-purple-500 hover:bg-purple-600" : "bg-rose-500 hover:bg-rose-600"}
             >
               {updateStatusMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : newStatus === 'shipped' ? (
+                <Truck className="h-4 w-4 mr-2" />
               ) : null}
-              更新
+              {newStatus === 'shipped' ? '発送済みにする' : '更新'}
             </Button>
           </DialogFooter>
         </DialogContent>
