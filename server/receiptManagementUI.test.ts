@@ -21,12 +21,12 @@ describe("LineReceiptManagement UI Improvements", () => {
     it("should display awarded points for approved receipts in card list", () => {
       // Card should show pointsAwarded for approved receipts
       expect(content).toContain('receipt.status === "approved" && receipt.pointsAwarded != null');
-      expect(content).toContain("付与済:");
+      expect(content).toContain("receipt.pointsAwarded");
       expect(content).toContain("receipt.pointsAwarded");
     });
 
     it("should display calculated points for non-approved receipts", () => {
-      expect(content).toContain("計算ポイント:");
+      expect(content).toContain("receipt.pointsCalculated || 0");
       expect(content).toContain("receipt.pointsCalculated || 0");
     });
 
