@@ -78,32 +78,30 @@ describe("AI OCR Prompt Improvements", () => {
       content = fs.readFileSync(filePath, "utf-8");
     });
 
-    it("should include order number extraction rules", () => {
-      expect(content).toContain("注文番号の抽出ルール（最重要）");
+    it("should include order number extraction section", () => {
+      expect(content).toContain("最重要タスク: 注文番号の抽出");
     });
 
-    it("should specify TikTok Shop order number format (17 digits)", () => {
-      expect(content).toContain("17桁前後の数字");
+    it("should specify TikTok Shop order number format (16-19 digits)", () => {
+      expect(content).toContain("16〜19桁の数字列");
     });
 
     it("should mention common order number locations", () => {
       expect(content).toContain("注文番号");
-      expect(content).toContain("注文ID");
-      expect(content).toContain("Order ID");
-      expect(content).toContain("订单编号");
+      expect(content).toContain("注文番号:");
     });
 
     it("should include fallback for long digit strings", () => {
-      expect(content).toContain("15〜20桁");
+      expect(content).toContain("15桁以上");
     });
 
     it("should prioritize order number extraction", () => {
       expect(content).toContain("注文番号の抽出を最優先");
     });
 
-    it("should include amount extraction rules", () => {
-      expect(content).toContain("金額の抽出ルール");
-      expect(content).toContain("カンマ区切りも除去");
+    it("should include amount extraction section", () => {
+      expect(content).toContain("金額の抽出");
+      expect(content).toContain("カンマを除去");
     });
   });
 
@@ -115,16 +113,16 @@ describe("AI OCR Prompt Improvements", () => {
       content = fs.readFileSync(filePath, "utf-8");
     });
 
-    it("should include order number extraction rules in LINE agent", () => {
-      expect(content).toContain("注文番号の抽出ルール（最重要）");
+    it("should include order number extraction steps in LINE agent", () => {
+      expect(content).toContain("16〜19桁の数字列");
     });
 
     it("should specify TikTok Shop order number format in LINE agent", () => {
-      expect(content).toContain("17桁前後の数字");
+      expect(content).toContain("「5」または「6」で始まる");
     });
 
-    it("should include amount extraction rules in LINE agent", () => {
-      expect(content).toContain("金額の抽出ルール");
+    it("should include amount extraction section in LINE agent", () => {
+      expect(content).toContain("金額の抽出");
     });
 
     it("should prioritize order number extraction in LINE agent", () => {

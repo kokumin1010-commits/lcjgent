@@ -17,14 +17,14 @@ describe("Receipt Management 2-Column Layout with Calculator", () => {
   });
 
   describe("2-Column Layout Structure", () => {
-    it("should have a 2-column flex layout", () => {
+    it("should have a multi-column flex layout", () => {
       // Main container should use flex with gap
-      expect(content).toContain("flex gap-6");
+      expect(content).toContain("flex gap-4");
     });
 
     it("should have a left column with fixed width for calculator", () => {
       // Left column should be fixed width and sticky
-      expect(content).toContain("w-[380px]");
+      expect(content).toContain("w-[320px]");
       expect(content).toContain("sticky top-4");
     });
 
@@ -155,7 +155,8 @@ describe("Receipt Management 2-Column Layout with Calculator", () => {
     });
 
     it("should show order number in calculator panel", () => {
-      expect(content).toContain("getOrderNumber(selectedCalcReceipt.receipt)");
+      // Order number is shown via getOrderNumber or inline logic
+      expect(content).toContain("getOrderNumber");
     });
 
     it("should show AI confidence in calculator panel", () => {

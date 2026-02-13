@@ -28,11 +28,10 @@ describe("Order Number Display in Receipt Management", () => {
       expect(lineReceiptMgmt).toContain("font-bold text-blue-800");
     });
 
-    it("should show red warning when order number is missing", () => {
-      expect(lineReceiptMgmt).toContain("注文番号なし");
-      expect(lineReceiptMgmt).toContain("bg-red-50");
-      expect(lineReceiptMgmt).toContain("border-red-200");
-      expect(lineReceiptMgmt).toContain("text-red-600");
+    it("should show input field when order number is missing", () => {
+      // When no order number, an input field is shown for entry
+      expect(lineReceiptMgmt).toContain("注文番号を入力");
+      expect(lineReceiptMgmt).toContain("calcOrderNumber");
     });
 
     it("should use Hash icon for order number display", () => {

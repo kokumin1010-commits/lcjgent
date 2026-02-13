@@ -1,106 +1,134 @@
 import { describe, it, expect } from "vitest";
 
 /**
- * 却下時LINE自動通知機能テスト
- * - 却下理由に応じたガイダンスメッセージの生成
- * - ガイド画像URLの正当性
- * - LINE Messaging APIのメッセージフォーマット
+ * 却下時LINE自動通知機能テスト（簡略化版）
+ * - ダイアログなし・ワンタップ却下
+ * - レシート画像送り返し + 固定メッセージ + ガイド画像
+ * - noteは任意（バックエンドで「不承認」がデフォルト）
  */
 
-describe("却下時LINE自動通知", () => {
-  // ガイド画像URL
+describe("却下時LINE自動通知（簡略化版）", () => {
   const GUIDE_IMAGE_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663045992616/GbfvQYedFwWUdlAN.png";
 
-  describe("却下理由に応じたガイダンス生成", () => {
-    function generateGuidance(note: string): string {
-      let guidance = "";
-      if (note.includes("画像が不鮮明")) {
-        guidance = "\n\n💡 ヒント: スクリーンショットが鮮明に撮れるよう、画面全体をキャプチャしてください。";
-      } else if (note.includes("レシートではない")) {
-        guidance = "\n\n💡 ヒント: TikTok Shopの注文詳細画面のスクリーンショットを送信してください。";
-      } else if (note.includes("重複申請")) {
-        guidance = "\n\n💡 この注文は既に申請済みです。別の注文のスクリーンショットを送信してください。";
-      } else if (note.includes("金額不一致")) {
-        guidance = "\n\n💡 ヒント: 合計金額（税込）が見えるようにスクリーンショットを撮ってください。";
-      }
-      return guidance;
-    }
+  describe("固定却下メッセージのフォーマット", () => {
+    const REJECTION_MESSAGE = `❌ 不承認です
 
-    it("画像が不鮮明の場合、適切なガイダンスが生成される", () => {
-      const guidance = generateGuidance("画像が不鮮明で確認できません");
-      expect(guidance).toContain("画面全体をキャプチャ");
-    });
+上の写真の内容をご確認の上、以下の情報が見えるようにスクリーンショットを撮り直してください🙏
 
-    it("レシートではない場合、適切なガイダンスが生成される", () => {
-      const guidance = generateGuidance("レシートではない画像です");
-      expect(guidance).toContain("TikTok Shop");
-      expect(guidance).toContain("注文詳細画面");
-    });
+① 配達ステータス（配達済み）
+② 注文番号
+③ 合計金額（税込）
 
-    it("重複申請の場合、適切なガイダンスが生成される", () => {
-      const guidance = generateGuidance("重複申請です");
-      expect(guidance).toContain("既に申請済み");
-      expect(guidance).toContain("別の注文");
-    });
+※ 1枚に収まらない場合は2〜3枚に分けて送信OK
 
-    it("金額不一致の場合、適切なガイダンスが生成される", () => {
-      const guidance = generateGuidance("金額不一致のため確認できません");
-      expect(guidance).toContain("合計金額（税込）");
-    });
+下の画像を参考にしてください⬇️`;
 
-    it("その他の理由の場合、追加ガイダンスは空文字", () => {
-      const guidance = generateGuidance("その他の理由で却下します");
-      expect(guidance).toBe("");
-    });
-  });
-
-  describe("却下通知メッセージのフォーマット", () => {
-    function buildRejectionMessage(storeName: string, reason: string, guidance: string, appUrl: string): string {
-      return `❌ レシートが却下されました\n\n🏪 店舗名: ${storeName}\n\n📝 却下理由:\n${reason}${guidance}\n\n📸 下の画像を参考に、以下の3つが見えるようにスクリーンショットを撮り直してください:\n① 配達ステータス（配達済み）\n② 注文番号\n③ 合計金額（税込）\n\n※ 1枚に収まらない場合は2〜3枚に分けて送信OK\n\n📋 マイページで確認する\n${appUrl}/mypage`;
-    }
-
-    it("メッセージに店舗名が含まれる", () => {
-      const msg = buildRejectionMessage("TikTok Shop", "画像が不鮮明", "", "https://lcjmall.com");
-      expect(msg).toContain("TikTok Shop");
-    });
-
-    it("メッセージに却下理由が含まれる", () => {
-      const msg = buildRejectionMessage("TikTok Shop", "画像が不鮮明で確認できません", "", "https://lcjmall.com");
-      expect(msg).toContain("画像が不鮮明で確認できません");
+    it("メッセージに「不承認です」が含まれる", () => {
+      expect(REJECTION_MESSAGE).toContain("不承認です");
     });
 
     it("メッセージにスクリーンショット撮り方の案内が含まれる", () => {
-      const msg = buildRejectionMessage("TikTok Shop", "理由", "", "https://lcjmall.com");
-      expect(msg).toContain("① 配達ステータス（配達済み）");
-      expect(msg).toContain("② 注文番号");
-      expect(msg).toContain("③ 合計金額（税込）");
-    });
-
-    it("メッセージにマイページURLが含まれる", () => {
-      const msg = buildRejectionMessage("TikTok Shop", "理由", "", "https://lcjmall.com");
-      expect(msg).toContain("https://lcjmall.com/mypage");
+      expect(REJECTION_MESSAGE).toContain("① 配達ステータス（配達済み）");
+      expect(REJECTION_MESSAGE).toContain("② 注文番号");
+      expect(REJECTION_MESSAGE).toContain("③ 合計金額（税込）");
     });
 
     it("メッセージに複数枚送信OKの案内が含まれる", () => {
-      const msg = buildRejectionMessage("TikTok Shop", "理由", "", "https://lcjmall.com");
-      expect(msg).toContain("2〜3枚に分けて送信OK");
+      expect(REJECTION_MESSAGE).toContain("2〜3枚に分けて送信OK");
     });
 
-    it("店舗名が不明の場合、「不明」と表示される", () => {
-      const msg = buildRejectionMessage("不明", "理由", "", "https://lcjmall.com");
-      expect(msg).toContain("🏪 店舗名: 不明");
+    it("メッセージにガイド画像参照の案内が含まれる", () => {
+      expect(REJECTION_MESSAGE).toContain("下の画像を参考にしてください");
     });
 
-    it("ガイダンスが含まれる場合、メッセージに追加される", () => {
-      const guidance = "\n\n💡 ヒント: 画面全体をキャプチャしてください。";
-      const msg = buildRejectionMessage("TikTok Shop", "画像が不鮮明", guidance, "https://lcjmall.com");
-      expect(msg).toContain("💡 ヒント: 画面全体をキャプチャしてください。");
+    it("メッセージに写真確認の案内が含まれる", () => {
+      expect(REJECTION_MESSAGE).toContain("上の写真の内容をご確認の上");
+    });
+  });
+
+  describe("レシート画像送り返しロジック", () => {
+    function getReceiptImages(receipt: { imageUrls?: string[] | null; imageUrl?: string | null }): string[] {
+      const images: string[] = [];
+      if (receipt.imageUrls && Array.isArray(receipt.imageUrls)) {
+        images.push(...receipt.imageUrls);
+      } else if (receipt.imageUrl) {
+        images.push(receipt.imageUrl);
+      }
+      return images;
+    }
+
+    it("imageUrlsがある場合、全ての画像を返す", () => {
+      const receipt = { imageUrls: ["https://example.com/1.jpg", "https://example.com/2.jpg"] };
+      const images = getReceiptImages(receipt);
+      expect(images).toHaveLength(2);
+      expect(images[0]).toBe("https://example.com/1.jpg");
+      expect(images[1]).toBe("https://example.com/2.jpg");
+    });
+
+    it("imageUrlsがなくimageUrlがある場合、1枚を返す", () => {
+      const receipt = { imageUrl: "https://example.com/single.jpg" };
+      const images = getReceiptImages(receipt);
+      expect(images).toHaveLength(1);
+      expect(images[0]).toBe("https://example.com/single.jpg");
+    });
+
+    it("画像がない場合、空配列を返す", () => {
+      const receipt = {};
+      const images = getReceiptImages(receipt);
+      expect(images).toHaveLength(0);
+    });
+
+    it("imageUrlsが空配列の場合、空配列を返す", () => {
+      const receipt = { imageUrls: [] };
+      const images = getReceiptImages(receipt);
+      expect(images).toHaveLength(0);
+    });
+  });
+
+  describe("LINE送信メッセージ順序", () => {
+    it("送信順序: レシート画像 → テキストメッセージ → ガイド画像", () => {
+      // Simulate the message sending order
+      const sentMessages: { type: string; content: string }[] = [];
+      const receiptImages = ["https://example.com/receipt1.jpg", "https://example.com/receipt2.jpg"];
+
+      // 1. Send receipt images
+      for (const imgUrl of receiptImages) {
+        sentMessages.push({ type: "image", content: imgUrl });
+      }
+
+      // 2. Send rejection text
+      sentMessages.push({ type: "text", content: "❌ 不承認です..." });
+
+      // 3. Send guide image
+      sentMessages.push({ type: "image", content: GUIDE_IMAGE_URL });
+
+      expect(sentMessages).toHaveLength(4);
+      expect(sentMessages[0].type).toBe("image"); // receipt image 1
+      expect(sentMessages[1].type).toBe("image"); // receipt image 2
+      expect(sentMessages[2].type).toBe("text");  // rejection message
+      expect(sentMessages[3].type).toBe("image"); // guide image
+      expect(sentMessages[3].content).toBe(GUIDE_IMAGE_URL);
+    });
+
+    it("レシート画像がない場合でもテキスト+ガイド画像は送信される", () => {
+      const sentMessages: { type: string }[] = [];
+      const receiptImages: string[] = [];
+
+      for (const imgUrl of receiptImages) {
+        sentMessages.push({ type: "image" });
+      }
+      sentMessages.push({ type: "text" });
+      sentMessages.push({ type: "image" });
+
+      expect(sentMessages).toHaveLength(2);
+      expect(sentMessages[0].type).toBe("text");
+      expect(sentMessages[1].type).toBe("image");
     });
   });
 
   describe("LINE Messaging APIメッセージフォーマット", () => {
     it("テキストメッセージのフォーマットが正しい", () => {
-      const textMessage = { type: "text", text: "テストメッセージ" };
+      const textMessage = { type: "text", text: "❌ 不承認です" };
       expect(textMessage.type).toBe("text");
       expect(textMessage.text).toBeTruthy();
     });
@@ -123,15 +151,25 @@ describe("却下時LINE自動通知", () => {
     it("画像URLが有効な拡張子を持つ", () => {
       expect(GUIDE_IMAGE_URL).toMatch(/\.(jpg|jpeg|png|gif)$/i);
     });
+  });
 
-    it("テキスト+画像の2メッセージ送信パターン", () => {
-      const messages = [
-        { type: "text", text: "却下メッセージ" },
-        { type: "image", originalContentUrl: GUIDE_IMAGE_URL, previewImageUrl: GUIDE_IMAGE_URL },
-      ];
-      expect(messages).toHaveLength(2);
-      expect(messages[0].type).toBe("text");
-      expect(messages[1].type).toBe("image");
+  describe("バックエンドAPI入力バリデーション", () => {
+    it("noteが省略可能（undefinedでOK）", () => {
+      const input = { id: 1 };
+      expect(input).toHaveProperty("id");
+      expect((input as any).note).toBeUndefined();
+    });
+
+    it("noteが空文字の場合、デフォルト「不承認」が使われる", () => {
+      const note = "";
+      const savedNote = note || "不承認";
+      expect(savedNote).toBe("不承認");
+    });
+
+    it("noteが指定されている場合、そのまま保存される", () => {
+      const note = "カスタム理由";
+      const savedNote = note || "不承認";
+      expect(savedNote).toBe("カスタム理由");
     });
   });
 
@@ -155,19 +193,15 @@ describe("却下時LINE自動通知", () => {
     });
 
     it("通知失敗でも却下処理自体は成功する（try-catch設計）", () => {
-      // This tests the design principle: notification failure shouldn't fail rejection
       let rejectionSuccess = false;
       let notificationFailed = false;
       
-      // Simulate rejection
       rejectionSuccess = true;
       
-      // Simulate notification failure
       try {
         throw new Error("LINE API error");
       } catch {
         notificationFailed = true;
-        // Don't re-throw - this is the expected behavior
       }
       
       expect(rejectionSuccess).toBe(true);
@@ -175,110 +209,111 @@ describe("却下時LINE自動通知", () => {
     });
   });
 
+  describe("ワンタップ却下（ダイアログなし）", () => {
+    it("handleDirectRejectが呼ばれるとrejectMutationが即座に実行される", () => {
+      let mutationCalled = false;
+      let mutationInput: any = null;
+      
+      // Mock rejectMutation.mutate
+      const mutate = (input: { id: number; note?: string }) => {
+        mutationCalled = true;
+        mutationInput = input;
+      };
+      
+      // Simulate handleDirectReject
+      const receiptId = 42;
+      mutate({ id: receiptId });
+      
+      expect(mutationCalled).toBe(true);
+      expect(mutationInput.id).toBe(42);
+      expect(mutationInput.note).toBeUndefined();
+    });
+
+    it("キーボードショートカットRキーで直接却下が実行される", () => {
+      let directRejectCalled = false;
+      let rejectedId: number | null = null;
+      
+      const handleDirectReject = (id: number) => {
+        directRejectCalled = true;
+        rejectedId = id;
+      };
+      
+      // Simulate R key press with selected receipt
+      const selectedReceipt = { receipt: { id: 99, status: "pending" } };
+      const isPending = false;
+      
+      if (selectedReceipt && (selectedReceipt.receipt.status === "pending" || selectedReceipt.receipt.status === "on_hold") && !isPending) {
+        handleDirectReject(selectedReceipt.receipt.id);
+      }
+      
+      expect(directRejectCalled).toBe(true);
+      expect(rejectedId).toBe(99);
+    });
+
+    it("rejectMutation処理中はキーボードショートカットが無効化される", () => {
+      let directRejectCalled = false;
+      
+      const handleDirectReject = () => {
+        directRejectCalled = true;
+      };
+      
+      const selectedReceipt = { receipt: { id: 99, status: "pending" } };
+      const isPending = true; // mutation is pending
+      
+      if (selectedReceipt && selectedReceipt.receipt.status === "pending" && !isPending) {
+        handleDirectReject();
+      }
+      
+      expect(directRejectCalled).toBe(false);
+    });
+  });
+
   describe("AI再認識後の注文番号反映", () => {
-    it("AI再認識成功時に注文番号がDBに保存される（updateOrderNumberが呼ばれる）", () => {
-      // Simulate: reRecognize returns orderNumber -> updateOrderNumber should be called
+    it("AI再認識成功時に注文番号がDBに保存される", () => {
       const recognizedOrderNumber = "5825320077212071733";
       const calcReceiptId = 42;
       let savedOrderNumber: string | null = null;
       let savedReceiptId: number | null = null;
       
-      // Mock updateOrderNumber
       const updateOrderNumber = (id: number, orderNumber: string) => {
         savedReceiptId = id;
         savedOrderNumber = orderNumber;
       };
       
-      // Simulate onSuccess callback
-      if (recognizedOrderNumber) {
-        if (calcReceiptId) {
-          updateOrderNumber(calcReceiptId, recognizedOrderNumber);
-        }
+      if (recognizedOrderNumber && calcReceiptId) {
+        updateOrderNumber(calcReceiptId, recognizedOrderNumber);
       }
       
       expect(savedReceiptId).toBe(42);
       expect(savedOrderNumber).toBe("5825320077212071733");
     });
 
-    it("AI再認識失敗時は注文番号が保存されない", () => {
-      const recognizedOrderNumber: string | null = null;
-      const calcReceiptId = 42;
-      let updateCalled = false;
-      
-      const updateOrderNumber = () => {
-        updateCalled = true;
-      };
-      
-      if (recognizedOrderNumber) {
-        if (calcReceiptId) {
-          updateOrderNumber();
-        }
-      }
-      
-      expect(updateCalled).toBe(false);
-    });
-
     it("承認時にcalcOrderNumberがバックエンドに渡される", () => {
       const calcOrderNumber = "5825320077212071733";
-      const calcReceiptId = 42;
-      const calcPoints = 148;
-      
-      // Simulate handleCalcApprove building mutation input
       const mutationInput = {
-        id: calcReceiptId,
-        pointsOverride: calcPoints > 0 ? calcPoints : undefined,
-        note: undefined as string | undefined,
+        id: 42,
+        pointsOverride: 148,
         orderNumber: calcOrderNumber.trim() || undefined,
       };
       
       expect(mutationInput.orderNumber).toBe("5825320077212071733");
-      expect(mutationInput.id).toBe(42);
-      expect(mutationInput.pointsOverride).toBe(148);
-    });
-
-    it("承認時にcalcOrderNumberが空の場合、orderNumberはundefined", () => {
-      const calcOrderNumber = "";
-      const mutationInput = {
-        id: 42,
-        orderNumber: calcOrderNumber.trim() || undefined,
-      };
-      expect(mutationInput.orderNumber).toBeUndefined();
-    });
-
-    it("バックエンドが注文番号を受け取った場合、ocrRawTextに保存してから承認処理を行う", () => {
-      // Simulate backend logic when orderNumber is passed
-      const inputOrderNumber = "5825320077212071733";
-      let ocrData: any = { storeName: "TikTok Shop" };
-      
-      // Backend saves orderNumber to ocrRawText
-      ocrData.orderNumber = inputOrderNumber;
-      const savedOcrRawText = JSON.stringify(ocrData);
-      
-      // Then reads it back for validation
-      const parsed = JSON.parse(savedOcrRawText);
-      expect(parsed.orderNumber).toBe("5825320077212071733");
-      expect(parsed.storeName).toBe("TikTok Shop");
-    });
-
-    it("バックエンドが注文番号を直接使用して重複チェックを行う", () => {
-      const inputOrderNumber = "5825320077212071733";
-      // Backend should use input.orderNumber directly (not re-parse from DB)
-      let orderNumber: string | null = inputOrderNumber || null;
-      expect(orderNumber).toBe("5825320077212071733");
     });
   });
 
   describe("フロントエンドUI表示", () => {
-    it("却下ダイアログにLINE送信案内が表示される", () => {
-      const dialogDescription = "このレシートを却下しますか？理由を選択・入力してください。却下するとお客様のLINEに案内メッセージとスクリーンショットの撮り方ガイド画像が自動送信されます。";
-      expect(dialogDescription).toContain("LINE");
-      expect(dialogDescription).toContain("ガイド画像");
-      expect(dialogDescription).toContain("自動送信");
+    it("却下ボタンに「LINE送信」ラベルが含まれる", () => {
+      const buttonLabel = "却下（LINE送信）";
+      expect(buttonLabel).toContain("LINE送信");
     });
 
-    it("却下ボタンに「LINE送信」ラベルが含まれる", () => {
-      const buttonLabel = "却下する（LINE送信）";
-      expect(buttonLabel).toContain("LINE送信");
+    it("却下ボタンに処理中表示がある", () => {
+      const loadingLabel = "送信中...";
+      expect(loadingLabel).toContain("送信中");
+    });
+
+    it("保留ダイアログは引き続き理由入力が必要", () => {
+      const holdDialogDescription = "このレシートを保留にしますか？理由を入力してください。";
+      expect(holdDialogDescription).toContain("理由を入力");
     });
   });
 });

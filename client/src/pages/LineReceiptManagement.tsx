@@ -216,14 +216,14 @@ export default function LineReceiptManagement() {
     },
   });
   
+  // Track the last rejected receipt ID for auto-advance
+  const lastRejectedIdRef = useRef<number | null>(null);
+  
   const rejectMutation = trpc.point.adminRejectLineReceipt.useMutation({
     onSuccess: () => {
       utils.point.adminGetLineReceipts.invalidate();
       utils.point.adminGetLineStatistics.invalidate();
-      const rejectedId = actionDialog?.id;
-      setActionDialog(null);
-      setActionNote("");
-      setRejectionCategory("");
+      const rejectedId = lastRejectedIdRef.current;
       // Track processing count
       setSessionProcessedCount(prev => prev + 1);
       // Trigger auto-advance to next receipt
@@ -234,8 +234,15 @@ export default function LineReceiptManagement() {
         setCalcAmount("");
         setCalcPoints(0);
       }
+      lastRejectedIdRef.current = null;
     },
   });
+  
+  // Direct reject handler (no dialog)
+  const handleDirectReject = (receiptId: number) => {
+    lastRejectedIdRef.current = receiptId;
+    rejectMutation.mutate({ id: receiptId });
+  };
   
   const holdMutation = trpc.point.adminHoldLineReceipt.useMutation({
     onSuccess: () => {
@@ -332,28 +339,13 @@ export default function LineReceiptManagement() {
     });
   };
   
-  // Handle reject/hold from action dialog
+  // Handle hold from action dialog
   const handleAction = () => {
-    if (!actionDialog) return;
-    
-    const noteWithCategory = actionDialog.type === "reject" && rejectionCategory
-      ? `[${REJECTION_CATEGORIES.find(c => c.value === rejectionCategory)?.label || rejectionCategory}] ${actionNote}`
-      : actionNote;
-    
-    switch (actionDialog.type) {
-      case "reject":
-        rejectMutation.mutate({
-          id: actionDialog.id,
-          note: noteWithCategory,
-        });
-        break;
-      case "hold":
-        holdMutation.mutate({
-          id: actionDialog.id,
-          note: noteWithCategory,
-        });
-        break;
-    }
+    if (!actionDialog || actionDialog.type !== "hold") return;
+    holdMutation.mutate({
+      id: actionDialog.id,
+      note: actionNote,
+    });
   };
   
   const handleEditSave = () => {
@@ -419,8 +411,8 @@ export default function LineReceiptManagement() {
       case "r":
       case "R": {
         e.preventDefault();
-        if (selectedCalcReceipt && (selectedCalcReceipt.receipt.status === "pending" || selectedCalcReceipt.receipt.status === "on_hold")) {
-          setActionDialog({ type: "reject", id: selectedCalcReceipt.receipt.id, receipt: selectedCalcReceipt.receipt });
+        if (selectedCalcReceipt && (selectedCalcReceipt.receipt.status === "pending" || selectedCalcReceipt.receipt.status === "on_hold") && !rejectMutation.isPending) {
+          handleDirectReject(selectedCalcReceipt.receipt.id);
         }
         break;
       }
@@ -961,10 +953,14 @@ export default function LineReceiptManagement() {
                                   variant="destructive" 
                                   size="sm"
                                   className="flex-1"
-                                  onClick={() => setActionDialog({ type: "reject", id: selectedCalcReceipt.receipt.id, receipt: selectedCalcReceipt.receipt })}
+                                  onClick={() => handleDirectReject(selectedCalcReceipt.receipt.id)}
+                                  disabled={rejectMutation.isPending}
                                 >
-                                  <XCircle className="w-4 h-4 mr-1" />
-                                  却下
+                                  {rejectMutation.isPending && lastRejectedIdRef.current === selectedCalcReceipt.receipt.id ? (
+                                    <><Loader2 className="w-4 h-4 mr-1 animate-spin" />送信中...</>
+                                  ) : (
+                                    <><XCircle className="w-4 h-4 mr-1" />却下（LINE送信）</>
+                                  )}
                                 </Button>
                                 {selectedCalcReceipt.receipt.status === "pending" && (
                                   <Button 
@@ -1467,11 +1463,15 @@ export default function LineReceiptManagement() {
                       className="flex-1"
                       onClick={() => {
                         setSelectedReceipt(null);
-                        setActionDialog({ type: "reject", id: receiptDetails.receipt.id, receipt: receiptDetails.receipt });
+                        handleDirectReject(receiptDetails.receipt.id);
                       }}
+                      disabled={rejectMutation.isPending}
                     >
-                      <XCircle className="w-4 h-4 mr-2" />
-                      却下
+                      {rejectMutation.isPending ? (
+                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" />送信中...</>
+                      ) : (
+                        <><XCircle className="w-4 h-4 mr-2" />却下（LINE送信）</>
+                      )}
                     </Button>
                   </div>
                 )}
@@ -1481,69 +1481,19 @@ export default function LineReceiptManagement() {
         </DialogContent>
       </Dialog>
       
-      {/* Reject/Hold Action Dialog */}
-      <Dialog open={!!actionDialog} onOpenChange={(open) => !open && setActionDialog(null)}>
+      {/* Hold Action Dialog (reject no longer uses dialog) */}
+      <Dialog open={!!actionDialog && actionDialog.type === "hold"} onOpenChange={(open) => !open && setActionDialog(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              {actionDialog?.type === "reject" && <><XCircle className="w-5 h-5 text-red-600" /> レシートを却下</>}
-              {actionDialog?.type === "hold" && <><AlertTriangle className="w-5 h-5 text-orange-600" /> レシートを保留</>}
+              <AlertTriangle className="w-5 h-5 text-orange-600" /> レシートを保留
             </DialogTitle>
             <DialogDescription>
-              {actionDialog?.type === "reject" && "このレシートを却下しますか？理由を選択・入力してください。却下するとお客様のLINEに案内メッセージとスクリーンショットの撮り方ガイド画像が自動送信されます。"}
-              {actionDialog?.type === "hold" && "このレシートを保留にしますか？理由を入力してください。"}
+              このレシートを保留にしますか？理由を入力してください。
             </DialogDescription>
           </DialogHeader>
           
-          {/* AI Suggestion */}
-          {actionDialog?.receipt && (
-            <Card className="border-purple-200 bg-purple-50/50">
-              <CardContent className="py-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <Sparkles className="w-4 h-4 text-purple-600" />
-                  <span className="text-sm font-medium text-purple-700">AI提案</span>
-                </div>
-                <div className="text-sm text-purple-600">
-                  {(() => {
-                    const score = getAiConfidence(actionDialog.receipt);
-                    if (score >= 90) return "高信頼度のレシートです。承認を推奨します。";
-                    if (score >= 70) return "中程度の信頼度です。内容を確認の上、判断してください。";
-                    return "低信頼度のレシートです。慎重に確認してください。";
-                  })()}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-          
           <div className="space-y-4">
-            {/* Rejection Category (for AI learning) */}
-            {actionDialog?.type === "reject" && (
-              <div>
-                <Label className="flex items-center gap-2">
-                  却下理由カテゴリ
-                  <Badge variant="outline" className="text-xs bg-purple-50 text-purple-600 border-purple-200">
-                    <Brain className="w-3 h-3 mr-1" />
-                    AI学習用
-                  </Badge>
-                </Label>
-                <Select value={rejectionCategory} onValueChange={setRejectionCategory}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="カテゴリを選択..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {REJECTION_CATEGORIES.map(cat => (
-                      <SelectItem key={cat.value} value={cat.value}>
-                        {cat.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  カテゴリを選択すると、AIが将来的に同様のパターンを自動判定できるようになります
-                </p>
-              </div>
-            )}
-            
             <div>
               <Label>詳細理由</Label>
               <Textarea 
@@ -1561,22 +1511,9 @@ export default function LineReceiptManagement() {
             </Button>
             <Button 
               onClick={handleAction}
-              disabled={
-                (actionDialog?.type === "reject" && (!actionNote || !rejectionCategory)) ||
-                (actionDialog?.type === "hold" && !actionNote) ||
-                rejectMutation.isPending ||
-                holdMutation.isPending
-              }
-              variant={actionDialog?.type === "reject" ? "destructive" : "default"}
+              disabled={!actionNote || holdMutation.isPending}
             >
-              {rejectMutation.isPending || holdMutation.isPending ? (
-                "処理中..."
-              ) : (
-                <>
-                  {actionDialog?.type === "reject" && <><MessageCircle className="w-4 h-4 mr-1" />却下する（LINE送信）</>}
-                  {actionDialog?.type === "hold" && "保留にする"}
-                </>
-              )}
+              {holdMutation.isPending ? "処理中..." : "保留にする"}
             </Button>
           </DialogFooter>
         </DialogContent>

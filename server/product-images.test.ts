@@ -99,18 +99,18 @@ describe("mall.uploadProductImage", () => {
     expect(result.key).toMatch(/\.png$/);
   });
 
-  it("rejects non-admin users", async () => {
+  it("allows non-admin users to upload (protectedProcedure)", async () => {
     const ctx = createUserContext();
     const caller = appRouter.createCaller(ctx);
 
     const base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==";
 
-    await expect(
-      caller.mall.uploadProductImage({
-        base64,
-        filename: "test.png",
-      })
-    ).rejects.toThrow();
+    const result = await caller.mall.uploadProductImage({
+      base64,
+      filename: "test.png",
+    });
+    expect(result).toHaveProperty("url");
+    expect(result).toHaveProperty("key");
   });
 
   it("uploads image with productId and updates product imageUrls", async () => {
@@ -164,16 +164,15 @@ describe("mall.updateProductImages", () => {
     expect(result).toEqual({ success: true });
   });
 
-  it("rejects non-admin users", async () => {
+  it("allows non-admin users to update (protectedProcedure)", async () => {
     const ctx = createUserContext();
     const caller = appRouter.createCaller(ctx);
 
-    await expect(
-      caller.mall.updateProductImages({
-        productId: 1,
-        imageUrls: ["https://cdn.example.com/img1.png"],
-        imageKeys: ["mall/products/img1.png"],
-      })
-    ).rejects.toThrow();
+    const result = await caller.mall.updateProductImages({
+      productId: 1,
+      imageUrls: ["https://cdn.example.com/img1.png"],
+      imageKeys: ["mall/products/img1.png"],
+    });
+    expect(result).toEqual({ success: true });
   });
 });

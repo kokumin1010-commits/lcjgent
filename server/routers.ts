@@ -11265,7 +11265,7 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
     adminRejectLineReceipt: protectedProcedure
       .input(z.object({
         id: z.number(),
-        note: z.string(),
+        note: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") {
@@ -11277,33 +11277,50 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         if (!receipt) {
           throw new TRPCError({ code: "NOT_FOUND", message: "レシートが見つかりません" });
         }
-        await updateLineReceiptStatus(input.id, "rejected", ctx.user.id, input.note);
+        await updateLineReceiptStatus(input.id, "rejected", ctx.user.id, input.note || "不承認");
         
-        // Send LINE notification to user with guide image
+        // Send LINE notification: receipt images + rejection message + guide image
         try {
-          const storeName = receipt.storeName || "不明";
-          const reason = input.note || "理由は記載されていません";
-          
           const appUrl = process.env.APP_URL || "https://lcjmall.com";
           
-          // Build specific guidance based on rejection category
-          let guidance = "";
-          if (input.note.includes("画像が不鮮明")) {
-            guidance = "\n\n💡 ヒント: スクリーンショットが鮮明に撮れるよう、画面全体をキャプチャしてください。";
-          } else if (input.note.includes("レシートではない")) {
-            guidance = "\n\n💡 ヒント: TikTok Shopの注文詳細画面のスクリーンショットを送信してください。";
-          } else if (input.note.includes("重複申請")) {
-            guidance = "\n\n💡 この注文は既に申請済みです。別の注文のスクリーンショットを送信してください。";
-          } else if (input.note.includes("金額不一致")) {
-            guidance = "\n\n💡 ヒント: 合計金額（税込）が見えるようにスクリーンショットを撮ってください。";
+          // 1. Send back the customer's receipt images
+          const allImageUrls: string[] = [];
+          if (receipt.imageUrls && Array.isArray(receipt.imageUrls)) {
+            allImageUrls.push(...receipt.imageUrls);
+          } else if (receipt.imageUrl) {
+            allImageUrls.push(receipt.imageUrl);
           }
           
-          const message = `❌ レシートが却下されました\n\n🏪 店舗名: ${storeName}\n\n📝 却下理由:\n${reason}${guidance}\n\n📸 下の画像を参考に、以下の3つが見えるようにスクリーンショットを撮り直してください:\n① 配達ステータス（配達済み）\n② 注文番号\n③ 合計金額（税込）\n\n※ 1枚に収まらない場合は2〜3枚に分けて送信OK\n\n📋 マイページで確認する\n${appUrl}/mypage`;
+          for (const imgUrl of allImageUrls) {
+            try {
+              await pushMessage(receipt.lineUserId, [
+                {
+                  type: "image" as any,
+                  originalContentUrl: imgUrl,
+                  previewImageUrl: imgUrl,
+                } as any,
+              ]);
+            } catch (imgErr) {
+              console.error("[LINE Receipt] Failed to send receipt image:", imgErr);
+            }
+          }
           
-          // Send text message
+          // 2. Send rejection message with instructions
+          const message = `❌ 不承認です
+
+上の写真の内容をご確認の上、以下の情報が見えるようにスクリーンショットを撮り直してください🙏
+
+① 配達ステータス（配達済み）
+② 注文番号
+③ 合計金額（税込）
+
+※ 1枚に収まらない場合は2〜3枚に分けて送信OK
+
+下の画像を参考にしてください⬇️`;
+          
           await pushMessage(receipt.lineUserId, [{ type: "text", text: message }]);
           
-          // Send guide image
+          // 3. Send guide image
           const guideImageUrl = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663045992616/GbfvQYedFwWUdlAN.png";
           await pushMessage(receipt.lineUserId, [
             {
@@ -11313,7 +11330,7 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
             } as any,
           ]);
           
-          console.log(`[LINE Receipt] Sent rejection notification with guide image to ${receipt.lineUserId}`);
+          console.log(`[LINE Receipt] Sent rejection notification (images + message + guide) to ${receipt.lineUserId}`);
         } catch (notifyError) {
           console.error("[LINE Receipt] Failed to send rejection notification:", notifyError);
           // Don't throw - notification failure shouldn't fail the rejection
