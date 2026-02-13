@@ -11163,12 +11163,13 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         id: z.number(),
         pointsOverride: z.number().optional(),
         note: z.string().optional(),
+        orderNumber: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
         }
-        const { getLineReceiptById, updateLineReceiptStatus, awardPointsForLineReceipt, getLinePointBalance, confirmPendingReferral, getLineUserByLineId } = await import("./db");
+        const { getLineReceiptById, updateLineReceiptStatus, awardPointsForLineReceipt, getLinePointBalance, confirmPendingReferral, getLineUserByLineId, updateLineReceiptOcr } = await import("./db");
         const { pushMessage } = await import("./line");
         const receipt = await getLineReceiptById(input.id);
         if (!receipt) {
@@ -11178,9 +11179,30 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           throw new TRPCError({ code: "BAD_REQUEST", message: "既に承認済みです" });
         }
         
+        // If orderNumber is passed from frontend, save it to DB first
+        if (input.orderNumber) {
+          let ocrData: any = {};
+          if (receipt.ocrRawText) {
+            try {
+              ocrData = typeof receipt.ocrRawText === "string" ? JSON.parse(receipt.ocrRawText) : receipt.ocrRawText;
+            } catch {
+              ocrData = {};
+            }
+          }
+          ocrData.orderNumber = input.orderNumber;
+          await updateLineReceiptOcr(input.id, {
+            ocrRawText: JSON.stringify(ocrData),
+          });
+          // Re-fetch receipt with updated data
+          const updatedReceipt = await getLineReceiptById(input.id);
+          if (updatedReceipt) {
+            Object.assign(receipt, updatedReceipt);
+          }
+        }
+        
         // 注文番号の必須チェック（ocrRawTextから抽出）
-        let orderNumber: string | null = null;
-        if (receipt.ocrRawText) {
+        let orderNumber: string | null = input.orderNumber || null;
+        if (!orderNumber && receipt.ocrRawText) {
           try {
             const parsed = JSON.parse(receipt.ocrRawText);
             orderNumber = parsed.orderNumber || null;

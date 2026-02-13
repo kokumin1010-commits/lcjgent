@@ -286,6 +286,13 @@ export default function LineReceiptManagement() {
     onSuccess: (data) => {
       if (data.orderNumber) {
         setCalcOrderNumber(data.orderNumber);
+        // Auto-save order number to DB so it persists for approval
+        if (calcReceiptId) {
+          updateOrderNumberMutation.mutate({
+            id: calcReceiptId,
+            orderNumber: data.orderNumber,
+          });
+        }
         // Also auto-fill amount if detected
         if (data.totalAmount && !calcAmount) {
           setCalcAmount(String(data.totalAmount));
@@ -321,6 +328,7 @@ export default function LineReceiptManagement() {
       id: calcReceiptId,
       pointsOverride: calcPoints > 0 ? calcPoints : undefined,
       note: actionNote || undefined,
+      orderNumber: calcOrderNumber.trim() || undefined,
     });
   };
   

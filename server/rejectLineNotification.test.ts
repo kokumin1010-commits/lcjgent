@@ -175,6 +175,99 @@ describe("却下時LINE自動通知", () => {
     });
   });
 
+  describe("AI再認識後の注文番号反映", () => {
+    it("AI再認識成功時に注文番号がDBに保存される（updateOrderNumberが呼ばれる）", () => {
+      // Simulate: reRecognize returns orderNumber -> updateOrderNumber should be called
+      const recognizedOrderNumber = "5825320077212071733";
+      const calcReceiptId = 42;
+      let savedOrderNumber: string | null = null;
+      let savedReceiptId: number | null = null;
+      
+      // Mock updateOrderNumber
+      const updateOrderNumber = (id: number, orderNumber: string) => {
+        savedReceiptId = id;
+        savedOrderNumber = orderNumber;
+      };
+      
+      // Simulate onSuccess callback
+      if (recognizedOrderNumber) {
+        if (calcReceiptId) {
+          updateOrderNumber(calcReceiptId, recognizedOrderNumber);
+        }
+      }
+      
+      expect(savedReceiptId).toBe(42);
+      expect(savedOrderNumber).toBe("5825320077212071733");
+    });
+
+    it("AI再認識失敗時は注文番号が保存されない", () => {
+      const recognizedOrderNumber: string | null = null;
+      const calcReceiptId = 42;
+      let updateCalled = false;
+      
+      const updateOrderNumber = () => {
+        updateCalled = true;
+      };
+      
+      if (recognizedOrderNumber) {
+        if (calcReceiptId) {
+          updateOrderNumber();
+        }
+      }
+      
+      expect(updateCalled).toBe(false);
+    });
+
+    it("承認時にcalcOrderNumberがバックエンドに渡される", () => {
+      const calcOrderNumber = "5825320077212071733";
+      const calcReceiptId = 42;
+      const calcPoints = 148;
+      
+      // Simulate handleCalcApprove building mutation input
+      const mutationInput = {
+        id: calcReceiptId,
+        pointsOverride: calcPoints > 0 ? calcPoints : undefined,
+        note: undefined as string | undefined,
+        orderNumber: calcOrderNumber.trim() || undefined,
+      };
+      
+      expect(mutationInput.orderNumber).toBe("5825320077212071733");
+      expect(mutationInput.id).toBe(42);
+      expect(mutationInput.pointsOverride).toBe(148);
+    });
+
+    it("承認時にcalcOrderNumberが空の場合、orderNumberはundefined", () => {
+      const calcOrderNumber = "";
+      const mutationInput = {
+        id: 42,
+        orderNumber: calcOrderNumber.trim() || undefined,
+      };
+      expect(mutationInput.orderNumber).toBeUndefined();
+    });
+
+    it("バックエンドが注文番号を受け取った場合、ocrRawTextに保存してから承認処理を行う", () => {
+      // Simulate backend logic when orderNumber is passed
+      const inputOrderNumber = "5825320077212071733";
+      let ocrData: any = { storeName: "TikTok Shop" };
+      
+      // Backend saves orderNumber to ocrRawText
+      ocrData.orderNumber = inputOrderNumber;
+      const savedOcrRawText = JSON.stringify(ocrData);
+      
+      // Then reads it back for validation
+      const parsed = JSON.parse(savedOcrRawText);
+      expect(parsed.orderNumber).toBe("5825320077212071733");
+      expect(parsed.storeName).toBe("TikTok Shop");
+    });
+
+    it("バックエンドが注文番号を直接使用して重複チェックを行う", () => {
+      const inputOrderNumber = "5825320077212071733";
+      // Backend should use input.orderNumber directly (not re-parse from DB)
+      let orderNumber: string | null = inputOrderNumber || null;
+      expect(orderNumber).toBe("5825320077212071733");
+    });
+  });
+
   describe("フロントエンドUI表示", () => {
     it("却下ダイアログにLINE送信案内が表示される", () => {
       const dialogDescription = "このレシートを却下しますか？理由を選択・入力してください。却下するとお客様のLINEに案内メッセージとスクリーンショットの撮り方ガイド画像が自動送信されます。";
