@@ -2723,3 +2723,24 @@ export const referralHistory = mysqlTable("referral_history", {
 });
 export type ReferralHistoryRecord = typeof referralHistory.$inferSelect;
 export type InsertReferralHistory = typeof referralHistory.$inferInsert;
+
+
+// ============================================
+// LCJ MALL - お気に入り
+// ============================================
+import { uniqueIndex } from "drizzle-orm/mysql-core";
+
+/**
+ * Mall Favorites table
+ * お気に入り商品（ユーザーが気になる商品を保存）
+ */
+export const mallFavorites = mysqlTable("mall_favorites", {
+  id: int("id").autoincrement().primaryKey(),
+  lineUserId: int("lineUserId").notNull(),
+  productId: int("productId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("unique_favorite").on(table.lineUserId, table.productId),
+]);
+export type MallFavorite = typeof mallFavorites.$inferSelect;
+export type InsertMallFavorite = typeof mallFavorites.$inferInsert;

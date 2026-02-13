@@ -1,6 +1,5 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   ShoppingCart,
@@ -13,8 +12,10 @@ import {
   SlidersHorizontal,
   ChevronDown,
   X,
+  Heart,
 } from "lucide-react";
 import { Link } from "wouter";
+import { toast } from "sonner";
 
 type SortOption = "newest" | "price_asc" | "price_desc" | "popular";
 
@@ -32,6 +33,51 @@ export default function MallProducts() {
   const [showSortMenu, setShowSortMenu] = useState(false);
 
   const { data: products, isLoading } = trpc.mall.getProducts.useQuery({ status: "active" });
+  const { data: favoriteIds = [] } = trpc.mall.getFavoriteIds.useQuery();
+  const utils = trpc.useUtils();
+
+  const addFavoriteMutation = trpc.mall.addFavorite.useMutation({
+    onMutate: async ({ productId }) => {
+      await utils.mall.getFavoriteIds.cancel();
+      const prev = utils.mall.getFavoriteIds.getData() ?? [];
+      utils.mall.getFavoriteIds.setData(undefined, [...prev, productId]);
+      return { prev };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.prev) utils.mall.getFavoriteIds.setData(undefined, context.prev);
+      toast.error("ログインが必要です");
+    },
+    onSettled: () => {
+      utils.mall.getFavoriteIds.invalidate();
+    },
+  });
+
+  const removeFavoriteMutation = trpc.mall.removeFavorite.useMutation({
+    onMutate: async ({ productId }) => {
+      await utils.mall.getFavoriteIds.cancel();
+      const prev = utils.mall.getFavoriteIds.getData() ?? [];
+      utils.mall.getFavoriteIds.setData(undefined, prev.filter((id) => id !== productId));
+      return { prev };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.prev) utils.mall.getFavoriteIds.setData(undefined, context.prev);
+      toast.error("エラーが発生しました");
+    },
+    onSettled: () => {
+      utils.mall.getFavoriteIds.invalidate();
+    },
+  });
+
+  const toggleFavorite = (e: React.MouseEvent, productId: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (favoriteIds.includes(productId)) {
+      removeFavoriteMutation.mutate({ productId });
+    } else {
+      addFavoriteMutation.mutate({ productId });
+      toast.success("お気に入りに追加しました", { duration: 1500 });
+    }
+  };
 
   // カテゴリ一覧を取得
   const categories = useMemo(
@@ -255,6 +301,20 @@ export default function MallProducts() {
                         </div>
                       </div>
                     )}
+
+                    {/* お気に入りハートアイコン - 左上 */}
+                    <button
+                      onClick={(e) => toggleFavorite(e, product.id)}
+                      className="absolute top-1.5 left-1.5 p-1.5 rounded-full bg-white/80 backdrop-blur-sm shadow-sm hover:bg-white transition-all duration-200 active:scale-90 z-10"
+                    >
+                      <Heart
+                        className={`h-4 w-4 transition-all duration-300 ${
+                          favoriteIds.includes(product.id)
+                            ? "fill-pink-500 text-pink-500 scale-110"
+                            : "text-gray-400 hover:text-pink-400"
+                        }`}
+                      />
+                    </button>
 
                     {/* カートボタン - 右下 */}
                     {product.stock > 0 && (

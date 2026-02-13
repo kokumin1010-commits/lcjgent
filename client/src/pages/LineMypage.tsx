@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ShoppingBag, Coins, Receipt, LogOut, ArrowLeft, Clock, CheckCircle, XCircle, AlertCircle, TrendingUp, TrendingDown, ShoppingCart, History, Link2, Copy, RefreshCw, ExternalLink, Upload, Package, Truck, ChevronDown, ChevronUp, CreditCard, Gift, X } from "lucide-react";
+import { Loader2, ShoppingBag, Coins, Receipt, LogOut, ArrowLeft, Clock, CheckCircle, XCircle, AlertCircle, TrendingUp, TrendingDown, ShoppingCart, History, Link2, Copy, RefreshCw, ExternalLink, Upload, Package, Truck, ChevronDown, ChevronUp, CreditCard, Gift, X, Heart } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -355,8 +355,12 @@ export default function LineMypage() {
 
         {/* Tabs */}
         <Tabs defaultValue="orders" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="orders">注文履歴</TabsTrigger>
+            <TabsTrigger value="favorites" className="flex items-center gap-1">
+              <Heart className="h-3.5 w-3.5" />
+              お気に入り
+            </TabsTrigger>
             <TabsTrigger value="history">ポイント履歴</TabsTrigger>
             <TabsTrigger value="receipts">レシート申請</TabsTrigger>
           </TabsList>
@@ -600,6 +604,10 @@ export default function LineMypage() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="favorites">
+            <FavoritesSection />
           </TabsContent>
 
           <TabsContent value="history">
@@ -977,5 +985,119 @@ export default function LineMypage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function FavoritesSection() {
+  const [, setLocation] = useLocation();
+  const { data: favorites, isLoading } = trpc.mall.getFavorites.useQuery();
+  const utils = trpc.useUtils();
+
+  const removeFavoriteMutation = trpc.mall.removeFavorite.useMutation({
+    onSuccess: () => {
+      utils.mall.getFavorites.invalidate();
+      utils.mall.getFavoriteIds.invalidate();
+      toast.success("お気に入りから削除しました");
+    },
+    onError: () => {
+      toast.error("エラーが発生しました");
+    },
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg flex items-center gap-2">
+          <Heart className="h-5 w-5 text-pink-500 fill-pink-500" />
+          お気に入り商品
+        </CardTitle>
+        <CardDescription>
+          気になる商品をチェック
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-pink-500" />
+          </div>
+        ) : !favorites || favorites.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <Heart className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+            <p className="font-medium">お気に入りはまだありません</p>
+            <p className="text-sm mt-1 text-gray-400">商品一覧でハートをタップして追加しましょう</p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-4 text-pink-500 border-pink-200 hover:bg-pink-50"
+              onClick={() => setLocation("/mall/products")}
+            >
+              <ShoppingBag className="h-4 w-4 mr-1" />
+              商品を見る
+            </Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {favorites.map((fav) => (
+              <div
+                key={fav.id}
+                className="group relative bg-white rounded-lg border border-gray-100 overflow-hidden hover:shadow-md transition-all cursor-pointer"
+                onClick={() => setLocation(`/mall/products/${fav.productId}`)}
+              >
+                {/* 商品画像 */}
+                <div className="aspect-square relative overflow-hidden bg-gray-50">
+                  {fav.product.imageUrl ? (
+                    <img
+                      src={fav.product.imageUrl}
+                      alt={fav.product.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <Package className="h-8 w-8 text-gray-300" />
+                    </div>
+                  )}
+
+                  {/* 売り切れ */}
+                  {fav.product.stock === 0 && (
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                      <span className="text-white font-bold text-xs bg-black/60 px-2 py-0.5 rounded-full">
+                        SOLD OUT
+                      </span>
+                    </div>
+                  )}
+
+                  {/* 削除ボタン */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeFavoriteMutation.mutate({ productId: fav.productId });
+                    }}
+                    className="absolute top-1.5 right-1.5 p-1.5 rounded-full bg-white/90 shadow-sm hover:bg-white transition-all active:scale-90 z-10"
+                  >
+                    <Heart className="h-4 w-4 fill-pink-500 text-pink-500" />
+                  </button>
+                </div>
+
+                {/* 商品情報 */}
+                <div className="p-2">
+                  <h4 className="text-xs font-medium text-gray-800 line-clamp-2 leading-tight mb-1">
+                    {fav.product.name}
+                  </h4>
+                  <p className="text-sm font-bold text-pink-600">
+                    ¥{fav.product.price.toLocaleString()}
+                  </p>
+                  {fav.product.pointPrice && (
+                    <p className="text-[10px] text-amber-600 font-medium">
+                      {fav.product.pointPrice.toLocaleString()} pt
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

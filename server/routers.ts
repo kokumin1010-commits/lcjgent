@@ -419,6 +419,10 @@ import {
   applyReferralCode,
   hasUsedReferralCode,
   getAllReferralCodes,
+  addMallFavorite,
+  removeMallFavorite,
+  getMallFavoritesByUser,
+  getMallFavoriteProductIds,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -12234,6 +12238,41 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
       .input(z.object({ productId: z.number() }))
       .query(async ({ input }) => {
         return await getProductDescImages(input.productId);
+      }),
+
+    // ===== お気に入り API =====
+    getFavoriteIds: publicProcedure
+      .query(async ({ ctx }) => {
+        try {
+          const result = await getLineUserFromSession(ctx);
+          if (!result || !result.lineUser) return [];
+          return await getMallFavoriteProductIds(result.lineUser.id);
+        } catch {
+          return [];
+        }
+      }),
+
+    addFavorite: publicProcedure
+      .input(z.object({ productId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const result = await getLineUserFromSession(ctx);
+        if (!result || !result.lineUser) throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+        return await addMallFavorite(result.lineUser.id, input.productId);
+      }),
+
+    removeFavorite: publicProcedure
+      .input(z.object({ productId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const result = await getLineUserFromSession(ctx);
+        if (!result || !result.lineUser) throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+        return await removeMallFavorite(result.lineUser.id, input.productId);
+      }),
+
+    getFavorites: publicProcedure
+      .query(async ({ ctx }) => {
+        const result = await getLineUserFromSession(ctx);
+        if (!result || !result.lineUser) throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+        return await getMallFavoritesByUser(result.lineUser.id);
       }),
   }),
 
