@@ -42,6 +42,9 @@ import {
   ArrowUp,
   ArrowDown,
   CornerDownLeft,
+  Zap,
+  PartyPopper,
+  SkipForward,
 } from "lucide-react";
 
 type ReceiptStatus = "pending" | "approved" | "rejected" | "on_hold";
@@ -90,6 +93,12 @@ export default function LineReceiptManagement() {
   // Keyboard shortcut help
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
   
+  // Continuous processing state
+  const [sessionProcessedCount, setSessionProcessedCount] = useState(0);
+  const [lastProcessedId, setLastProcessedId] = useState<number | null>(null);
+  const [autoAdvanceEnabled, setAutoAdvanceEnabled] = useState(true);
+  const [allProcessedMessage, setAllProcessedMessage] = useState(false);
+  
   // Ref to track if any dialog/input is active
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -128,6 +137,39 @@ export default function LineReceiptManagement() {
     }
   }, [calcAmount]);
   
+  // Auto-advance to next receipt after processing
+  useEffect(() => {
+    if (!autoAdvanceEnabled || !lastProcessedId || !receipts) return;
+    
+    // If current tab still has receipts, select the first one
+    if (receipts.length > 0) {
+      const nextReceipt = receipts[0];
+      setCalcReceiptId(nextReceipt.receipt.id);
+      setActionNote("");
+      setAllProcessedMessage(false);
+      // Scroll to the selected card
+      setTimeout(() => {
+        const card = document.querySelector(`[data-receipt-id="${nextReceipt.receipt.id}"]`);
+        card?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }, 100);
+    } else {
+      // All receipts in this tab have been processed
+      setCalcReceiptId(null);
+      setCalcAmount("");
+      setCalcPoints(0);
+      setAllProcessedMessage(true);
+    }
+    
+    // Reset the trigger
+    setLastProcessedId(null);
+  }, [receipts, lastProcessedId, autoAdvanceEnabled]);
+  
+  // Reset session counter when tab changes
+  useEffect(() => {
+    setSessionProcessedCount(0);
+    setAllProcessedMessage(false);
+  }, [activeTab]);
+  
   // When a receipt is selected for calculator, pre-fill amount
   const selectedCalcReceipt = useMemo(() => {
     if (!calcReceiptId || !receipts) return null;
@@ -154,10 +196,16 @@ export default function LineReceiptManagement() {
     onSuccess: () => {
       utils.point.adminGetLineReceipts.invalidate();
       utils.point.adminGetLineStatistics.invalidate();
-      // Clear calculator after successful approval
-      setCalcReceiptId(null);
-      setCalcAmount("");
-      setCalcPoints(0);
+      // Track processing count
+      setSessionProcessedCount(prev => prev + 1);
+      // Trigger auto-advance to next receipt
+      if (autoAdvanceEnabled) {
+        setLastProcessedId(calcReceiptId);
+      } else {
+        setCalcReceiptId(null);
+        setCalcAmount("");
+        setCalcPoints(0);
+      }
       setActionNote("");
     },
   });
@@ -166,11 +214,16 @@ export default function LineReceiptManagement() {
     onSuccess: () => {
       utils.point.adminGetLineReceipts.invalidate();
       utils.point.adminGetLineStatistics.invalidate();
+      const rejectedId = actionDialog?.id;
       setActionDialog(null);
       setActionNote("");
       setRejectionCategory("");
-      // Clear calculator selection if rejected receipt was selected
-      if (actionDialog && actionDialog.id === calcReceiptId) {
+      // Track processing count
+      setSessionProcessedCount(prev => prev + 1);
+      // Trigger auto-advance to next receipt
+      if (autoAdvanceEnabled && rejectedId) {
+        setLastProcessedId(rejectedId);
+      } else if (rejectedId === calcReceiptId) {
         setCalcReceiptId(null);
         setCalcAmount("");
         setCalcPoints(0);
@@ -182,8 +235,19 @@ export default function LineReceiptManagement() {
     onSuccess: () => {
       utils.point.adminGetLineReceipts.invalidate();
       utils.point.adminGetLineStatistics.invalidate();
+      const heldId = actionDialog?.id;
       setActionDialog(null);
       setActionNote("");
+      // Track processing count
+      setSessionProcessedCount(prev => prev + 1);
+      // Trigger auto-advance to next receipt
+      if (autoAdvanceEnabled && heldId) {
+        setLastProcessedId(heldId);
+      } else if (heldId === calcReceiptId) {
+        setCalcReceiptId(null);
+        setCalcAmount("");
+        setCalcPoints(0);
+      }
     },
   });
   
@@ -597,13 +661,47 @@ export default function LineReceiptManagement() {
                   {/* Calculator Card */}
                   <Card className={`border-2 transition-colors ${calcReceiptId ? "border-green-300 shadow-lg" : "border-dashed border-muted-foreground/30"}`}>
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <Calculator className="w-5 h-5 text-blue-600" />
-                        ポイント計算機
+                      <CardTitle className="text-base flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Calculator className="w-5 h-5 text-blue-600" />
+                          ポイント計算機
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {sessionProcessedCount > 0 && (
+                            <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200 text-xs font-normal">
+                              <Zap className="w-3 h-3 mr-1" />
+                              {sessionProcessedCount}件処理
+                            </Badge>
+                          )}
+                        </div>
                       </CardTitle>
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-xs text-muted-foreground">自動次レシート選択</span>
+                        <Switch
+                          checked={autoAdvanceEnabled}
+                          onCheckedChange={setAutoAdvanceEnabled}
+                          className="scale-75"
+                        />
+                      </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       {!calcReceiptId ? (
+                        allProcessedMessage ? (
+                        <div className="text-center py-8">
+                          <div className="p-4 rounded-full bg-green-50 w-fit mx-auto mb-3">
+                            <PartyPopper className="w-10 h-10 text-green-500" />
+                          </div>
+                          <p className="text-lg font-bold text-green-700">全件処理完了！</p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            このセッションで <span className="font-bold text-blue-600">{sessionProcessedCount}件</span> 処理しました
+                          </p>
+                          {(activeTab === "pending" || activeTab === "on_hold") && (
+                            <p className="text-xs text-muted-foreground mt-3">
+                              他のタブに未処理のレシートがあるか確認してください
+                            </p>
+                          )}
+                        </div>
+                        ) : (
                         <div className="text-center py-8 text-muted-foreground">
                           <Receipt className="w-10 h-10 mx-auto mb-3 opacity-40" />
                           <p className="text-sm">右のレシート一覧から<br />レシートを選択してください</p>
@@ -623,6 +721,7 @@ export default function LineReceiptManagement() {
                             </button>
                           </div>
                         </div>
+                        )
                       ) : selectedCalcReceipt ? (
                         <>
                           {/* Selected Receipt Info */}
