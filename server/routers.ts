@@ -11557,12 +11557,31 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         adminNotes: z.string().optional(),
         shippingCarrier: z.string().optional(),
         trackingNumber: z.string().optional(),
+        sendNotification: z.boolean().optional().default(true),
       }))
       .mutation(async ({ ctx, input }) => {
         await updateMallOrderStatus(input.id, input.status, input.adminNotes, {
           shippingCarrier: input.shippingCarrier,
           trackingNumber: input.trackingNumber,
         });
+
+        // ステータス変更時に自動通知を送信
+        if (input.sendNotification !== false) {
+          try {
+            const { sendShippedNotification, sendDeliveredNotification, sendCancelledNotification } = await import("./orderNotifications");
+            if (input.status === "shipped") {
+              await sendShippedNotification(input.id, input.shippingCarrier, input.trackingNumber);
+            } else if (input.status === "delivered") {
+              await sendDeliveredNotification(input.id);
+            } else if (input.status === "cancelled" || input.status === "refunded") {
+              await sendCancelledNotification(input.id, input.adminNotes);
+            }
+          } catch (notifyError) {
+            console.error(`[OrderNotify] ステータス変更通知エラー:`, notifyError);
+            // 通知失敗でもステータス更新自体は成功とする
+          }
+        }
+
         return { success: true };
       }),
 

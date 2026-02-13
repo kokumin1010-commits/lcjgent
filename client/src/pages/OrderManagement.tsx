@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Package, Truck, CheckCircle, XCircle, Clock, ShoppingBag, User, MapPin, Phone, Calendar, Coins, CreditCard, FileText, RefreshCw } from "lucide-react";
+import { Loader2, Package, Truck, CheckCircle, XCircle, Clock, ShoppingBag, User, MapPin, Phone, Calendar, Coins, CreditCard, FileText, RefreshCw, Bell, BellOff } from "lucide-react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import { toast } from "sonner";
@@ -67,6 +67,7 @@ export default function OrderManagement() {
   const [adminNotes, setAdminNotes] = useState("");
   const [shippingCarrier, setShippingCarrier] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
+  const [sendNotification, setSendNotification] = useState(true);
 
   const { data: orders, isLoading, refetch } = trpc.mall.getOrders.useQuery(
     statusFilter === "all" ? undefined : { status: statusFilter }
@@ -78,11 +79,18 @@ export default function OrderManagement() {
   );
 
   const updateStatusMutation = trpc.mall.updateOrderStatus.useMutation({
-    onSuccess: () => {
-      toast.success("ステータスを更新しました");
+    onSuccess: (_data, variables) => {
+      const statusLabel: Record<string, string> = { shipped: "発送済み", delivered: "配達完了", cancelled: "キャンセル", refunded: "返金" };
+      const label = statusLabel[variables.status] || "更新";
+      if (variables.sendNotification !== false && ["shipped", "delivered", "cancelled", "refunded"].includes(variables.status)) {
+        toast.success(`ステータスを${label}に変更し、お客様にLINE/メール通知を送信しました`);
+      } else {
+        toast.success("ステータスを更新しました");
+      }
       refetch();
       setIsStatusDialogOpen(false);
       setAdminNotes("");
+      setSendNotification(true);
     },
     onError: (error) => {
       toast.error(`エラー: ${error.message}`);
@@ -100,6 +108,7 @@ export default function OrderManagement() {
     setAdminNotes("");
     setShippingCarrier("");
     setTrackingNumber("");
+    setSendNotification(true);
     setIsStatusDialogOpen(true);
   };
 
@@ -190,6 +199,7 @@ export default function OrderManagement() {
       adminNotes: adminNotes || undefined,
       shippingCarrier: shippingCarrier || undefined,
       trackingNumber: trackingNumber || undefined,
+      sendNotification,
     });
   };
 
@@ -678,6 +688,41 @@ export default function OrderManagement() {
                 rows={3}
               />
             </div>
+
+            {/* 通知送信オプション */}
+            {["shipped", "delivered", "cancelled", "refunded"].includes(newStatus) && (
+              <div 
+                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  sendNotification 
+                    ? "bg-blue-50 border-blue-200 hover:bg-blue-100" 
+                    : "bg-gray-50 border-gray-200 hover:bg-gray-100"
+                }`}
+                onClick={() => setSendNotification(!sendNotification)}
+              >
+                {sendNotification ? (
+                  <Bell className="h-5 w-5 text-blue-600 shrink-0" />
+                ) : (
+                  <BellOff className="h-5 w-5 text-gray-400 shrink-0" />
+                )}
+                <div className="flex-1">
+                  <p className={`text-sm font-medium ${sendNotification ? "text-blue-700" : "text-gray-600"}`}>
+                    {sendNotification ? "お客様にLINE/メール通知を送信する" : "通知を送信しない"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {newStatus === "shipped" && "発送完了・追跡番号をお客様にお知らせします"}
+                    {newStatus === "delivered" && "配達完了をお客様にお知らせします"}
+                    {(newStatus === "cancelled" || newStatus === "refunded") && "キャンセル/返金をお客様にお知らせします"}
+                  </p>
+                </div>
+                <div className={`w-10 h-6 rounded-full transition-colors relative ${
+                  sendNotification ? "bg-blue-500" : "bg-gray-300"
+                }`}>
+                  <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                    sendNotification ? "translate-x-4" : "translate-x-0.5"
+                  }`} />
+                </div>
+              </div>
+            )}
           </div>
 
           <DialogFooter>

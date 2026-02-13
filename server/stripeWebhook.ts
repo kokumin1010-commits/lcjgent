@@ -6,6 +6,7 @@ import {
   updateMallOrderStripeInfo,
 } from "./db";
 import { pushMessage } from "./line";
+import { sendOrderConfirmationNotification } from "./orderNotifications";
 
 const stripe = new Stripe(ENV.stripeSecretKey, {
   apiVersion: "2025-01-27.acacia" as any,
@@ -52,8 +53,8 @@ export async function handleStripeWebhook(req: any, res: any) {
           });
           console.log(`[Stripe Webhook] Order ${order.orderNumber} marked as paid`);
 
-          // LINE通知を送信
-          await sendOrderConfirmationLine(order.id);
+          // LINE/メール通知を送信
+          await sendOrderConfirmationNotification(order.id);
           
           // Check and confirm pending referral (award points on first purchase)
           try {
