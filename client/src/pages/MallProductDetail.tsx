@@ -326,6 +326,15 @@ export default function MallProductDetail() {
     }
   }, [savedAddresses, selectedAddressId]);
 
+  // 閲覧履歴を記録
+  const recordViewMutation = trpc.mall.recordView.useMutation();
+  useEffect(() => {
+    if (product?.id) {
+      recordViewMutation.mutate({ productId: product.id });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product?.id]);
+
   const purchaseWithPoints = trpc.mall.purchaseWithPoints.useMutation({
     onSuccess: () => {
       toast.success("購入が完了しました！", {

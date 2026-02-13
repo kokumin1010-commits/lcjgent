@@ -2744,3 +2744,19 @@ export const mallFavorites = mysqlTable("mall_favorites", {
 ]);
 export type MallFavorite = typeof mallFavorites.$inferSelect;
 export type InsertMallFavorite = typeof mallFavorites.$inferInsert;
+
+// ============================================
+// LCJ MALL - 閲覧履歴
+// ============================================
+/**
+ * Mall View History table
+ * 商品閲覧履歴（最近チェックした商品を記録）
+ */
+export const mallViewHistory = mysqlTable("mall_view_history", {
+  id: int("id").autoincrement().primaryKey(),
+  lineUserId: int("lineUserId").notNull(),
+  productId: int("productId").notNull(),
+  viewedAt: timestamp("viewedAt").defaultNow().notNull(),
+});
+export type MallViewHistory = typeof mallViewHistory.$inferSelect;
+export type InsertMallViewHistory = typeof mallViewHistory.$inferInsert;

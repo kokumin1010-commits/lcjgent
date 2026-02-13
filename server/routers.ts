@@ -423,6 +423,9 @@ import {
   removeMallFavorite,
   getMallFavoritesByUser,
   getMallFavoriteProductIds,
+  getMallFavoriteCounts,
+  recordMallViewHistory,
+  getMallViewHistoryByUser,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -12273,6 +12276,28 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         const result = await getLineUserFromSession(ctx);
         if (!result || !result.lineUser) throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
         return await getMallFavoritesByUser(result.lineUser.id);
+      }),
+
+    getFavoriteCounts: publicProcedure
+      .query(async () => {
+        return await getMallFavoriteCounts();
+      }),
+
+    // ===== 閲覧履歴 API =====
+    recordView: publicProcedure
+      .input(z.object({ productId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const result = await getLineUserFromSession(ctx);
+        if (!result || !result.lineUser) return { success: false }; // 未ログインでもエラーにしない
+        return await recordMallViewHistory(result.lineUser.id, input.productId);
+      }),
+
+    getViewHistory: publicProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        const result = await getLineUserFromSession(ctx);
+        if (!result || !result.lineUser) return [];
+        return await getMallViewHistoryByUser(result.lineUser.id, input?.limit ?? 20);
       }),
   }),
 

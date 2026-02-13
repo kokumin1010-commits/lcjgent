@@ -34,6 +34,7 @@ export default function MallProducts() {
 
   const { data: products, isLoading } = trpc.mall.getProducts.useQuery({ status: "active" });
   const { data: favoriteIds = [] } = trpc.mall.getFavoriteIds.useQuery();
+  const { data: favoriteCounts = {} } = trpc.mall.getFavoriteCounts.useQuery();
   const utils = trpc.useUtils();
 
   const addFavoriteMutation = trpc.mall.addFavorite.useMutation({
@@ -49,6 +50,7 @@ export default function MallProducts() {
     },
     onSettled: () => {
       utils.mall.getFavoriteIds.invalidate();
+      utils.mall.getFavoriteCounts.invalidate();
     },
   });
 
@@ -65,6 +67,7 @@ export default function MallProducts() {
     },
     onSettled: () => {
       utils.mall.getFavoriteIds.invalidate();
+      utils.mall.getFavoriteCounts.invalidate();
     },
   });
 
@@ -110,7 +113,7 @@ export default function MallProducts() {
             case "price_desc":
               return b.price - a.price;
             case "popular":
-              return (b.pointPrice ?? 0) - (a.pointPrice ?? 0);
+              return (favoriteCounts[b.id] ?? 0) - (favoriteCounts[a.id] ?? 0);
             case "newest":
             default:
               return (
@@ -119,7 +122,7 @@ export default function MallProducts() {
               );
           }
         }),
-    [products, category, searchQuery, sortBy]
+    [products, category, searchQuery, sortBy, favoriteCounts]
   );
 
   const resultCount = filteredProducts?.length ?? 0;
@@ -305,7 +308,7 @@ export default function MallProducts() {
                     {/* お気に入りハートアイコン - 左上 */}
                     <button
                       onClick={(e) => toggleFavorite(e, product.id)}
-                      className="absolute top-1.5 left-1.5 p-1.5 rounded-full bg-white/80 backdrop-blur-sm shadow-sm hover:bg-white transition-all duration-200 active:scale-90 z-10"
+                      className="absolute top-1.5 left-1.5 flex items-center gap-0.5 px-1.5 py-1 rounded-full bg-white/80 backdrop-blur-sm shadow-sm hover:bg-white transition-all duration-200 active:scale-90 z-10"
                     >
                       <Heart
                         className={`h-4 w-4 transition-all duration-300 ${
@@ -314,6 +317,11 @@ export default function MallProducts() {
                             : "text-gray-400 hover:text-pink-400"
                         }`}
                       />
+                      {(favoriteCounts[product.id] ?? 0) > 0 && (
+                        <span className="text-[10px] font-semibold text-gray-600 leading-none">
+                          {favoriteCounts[product.id]}
+                        </span>
+                      )}
                     </button>
 
                     {/* カートボタン - 右下 */}

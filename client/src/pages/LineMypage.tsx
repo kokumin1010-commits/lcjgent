@@ -355,14 +355,18 @@ export default function LineMypage() {
 
         {/* Tabs */}
         <Tabs defaultValue="orders" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="orders">注文履歴</TabsTrigger>
-            <TabsTrigger value="favorites" className="flex items-center gap-1">
-              <Heart className="h-3.5 w-3.5" />
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="orders" className="text-xs px-1">注文履歴</TabsTrigger>
+            <TabsTrigger value="favorites" className="text-xs px-1 flex items-center gap-0.5">
+              <Heart className="h-3 w-3" />
               お気に入り
             </TabsTrigger>
-            <TabsTrigger value="history">ポイント履歴</TabsTrigger>
-            <TabsTrigger value="receipts">レシート申請</TabsTrigger>
+            <TabsTrigger value="viewed" className="text-xs px-1 flex items-center gap-0.5">
+              <Clock className="h-3 w-3" />
+              最近見た
+            </TabsTrigger>
+            <TabsTrigger value="history" className="text-xs px-1">ポイント</TabsTrigger>
+            <TabsTrigger value="receipts" className="text-xs px-1">レシート</TabsTrigger>
           </TabsList>
 
           <TabsContent value="orders">
@@ -608,6 +612,10 @@ export default function LineMypage() {
 
           <TabsContent value="favorites">
             <FavoritesSection />
+          </TabsContent>
+
+          <TabsContent value="viewed">
+            <ViewHistorySection />
           </TabsContent>
 
           <TabsContent value="history">
@@ -1100,4 +1108,113 @@ function FavoritesSection() {
       </CardContent>
     </Card>
   );
+}
+
+
+function ViewHistorySection() {
+  const { data: viewHistory, isLoading } = trpc.mall.getViewHistory.useQuery({ limit: 20 });
+  const [, setLocation] = useLocation();
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="p-6 flex justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg flex items-center gap-2">
+          <Clock className="h-5 w-5 text-blue-500" />
+          最近チェックした商品
+        </CardTitle>
+        <CardDescription>閲覧した商品の履歴です</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {!viewHistory || viewHistory.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <Clock className="h-10 w-10 mx-auto mb-3 text-gray-300" />
+            <p className="font-medium">閲覧履歴はありません</p>
+            <p className="text-sm text-gray-400 mt-1">商品を見ると、ここに履歴が表示されます</p>
+            <Button
+              variant="outline"
+              className="mt-4"
+              onClick={() => setLocation("/mall/products")}
+            >
+              <ShoppingBag className="h-4 w-4 mr-2" />
+              商品を見る
+            </Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {viewHistory.map((item) => (
+              <div
+                key={item.id}
+                className="cursor-pointer rounded-lg overflow-hidden border border-gray-100 hover:shadow-md transition-all active:scale-[0.97]"
+                onClick={() => setLocation(`/mall/products/${item.productId}`)}
+              >
+                <div className="aspect-square relative overflow-hidden bg-gray-50">
+                  {item.product.imageUrl ? (
+                    <img
+                      src={item.product.imageUrl}
+                      alt={item.product.name}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <Package className="h-8 w-8 text-gray-300" />
+                    </div>
+                  )}
+                  {item.product.stock === 0 && (
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                      <span className="text-white font-bold text-xs bg-black/60 px-2 py-0.5 rounded-full">SOLD OUT</span>
+                    </div>
+                  )}
+                  {/* 閲覧時間バッジ */}
+                  <div className="absolute bottom-1 left-1">
+                    <span className="text-[9px] bg-black/50 text-white px-1.5 py-0.5 rounded-full backdrop-blur-sm">
+                      {formatViewedAt(item.viewedAt)}
+                    </span>
+                  </div>
+                </div>
+                <div className="p-2">
+                  <h4 className="text-xs font-medium text-gray-800 line-clamp-2 leading-tight mb-1">
+                    {item.product.name}
+                  </h4>
+                  <p className="text-sm font-bold text-pink-600">
+                    ¥{item.product.price.toLocaleString()}
+                  </p>
+                  {item.product.pointPrice && (
+                    <p className="text-[10px] text-amber-600 font-medium">
+                      {item.product.pointPrice.toLocaleString()} pt
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function formatViewedAt(date: Date | string): string {
+  const now = new Date();
+  const viewed = new Date(date);
+  const diffMs = now.getTime() - viewed.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffHour = Math.floor(diffMs / 3600000);
+  const diffDay = Math.floor(diffMs / 86400000);
+
+  if (diffMin < 1) return "たった今";
+  if (diffMin < 60) return `${diffMin}分前`;
+  if (diffHour < 24) return `${diffHour}時間前`;
+  if (diffDay < 7) return `${diffDay}日前`;
+  return format(viewed, "M/d", { locale: ja });
 }
