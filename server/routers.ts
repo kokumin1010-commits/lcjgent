@@ -406,6 +406,7 @@ import {
   getSimulationFeedbackHistory,
   getAllLiversSetAnalysis,
   getLiverSetAnalysis,
+  searchSets,
   getProductReviews,
   getProductReviewStats,
   createProductReview,
@@ -13562,6 +13563,13 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
     allLiversSetAnalysis: publicProcedure
       .query(async () => {
         return await getAllLiversSetAnalysis();
+      }),
+
+    // セット検索: キーワードでセットを検索
+    search: publicProcedure
+      .input(z.object({ keyword: z.string().min(1) }))
+      .query(async ({ input }) => {
+        return await searchSets(input.keyword);
       }),
 
     // セット分析: 特定ライバーのセット戦略詳細（ライバー個別ページ用）

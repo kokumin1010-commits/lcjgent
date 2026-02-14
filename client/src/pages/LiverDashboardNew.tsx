@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Crown, Clock, TrendingUp, ChevronDown, ChevronUp, Users, DollarSign, Activity, Zap, ArrowUpRight, ArrowDownRight, Sparkles, Radio, BarChart3, Package, Grid3X3, Brain, Loader2, Plus, Link2, X, Check, AlertCircle } from "lucide-react";
+import { Crown, Clock, TrendingUp, ChevronDown, ChevronUp, Users, DollarSign, Activity, Zap, ArrowUpRight, ArrowDownRight, Sparkles, Radio, BarChart3, Package, Grid3X3, Brain, Loader2, Plus, Link2, X, Check, AlertCircle, Search } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -163,6 +163,12 @@ export default function LiverDashboardNew() {
   // Set Analysis (セット活用ランキング)
   const { data: setAnalysisData } = trpc.livestreamSets.allLiversSetAnalysis.useQuery();
   const [expandedLiverId, setExpandedLiverId] = useState<number | null>(null);
+  const [setSearchKeyword, setSetSearchKeyword] = useState("");
+  const [setSearchInput, setSetSearchInput] = useState("");
+  const { data: setSearchResults, isLoading: isSearchingSets } = trpc.livestreamSets.search.useQuery(
+    { keyword: setSearchKeyword },
+    { enabled: setSearchKeyword.length > 0 }
+  );
   const { data: expandedLiverSets } = trpc.livestreamSets.liverSetAnalysis.useQuery(
     { liverId: expandedLiverId! },
     { enabled: expandedLiverId !== null }
@@ -938,7 +944,109 @@ export default function LiverDashboardNew() {
               <Package className="w-6 h-6 text-pink-400" />
               <span className="text-cyan-100">{tr.setAnalysis}</span>
             </h2>
-            <p className="text-sm text-cyan-500/60 mb-6">{tr.setAnalysisDesc}</p>
+            <p className="text-sm text-cyan-300/70 mb-4">{tr.setAnalysisDesc}</p>
+
+            {/* セット検索バー */}
+            <div className="relative mb-6">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-cyan-400/60" />
+              <input
+                type="text"
+                value={setSearchInput}
+                onChange={(e) => setSetSearchInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && setSearchInput.trim()) {
+                    setSetSearchKeyword(setSearchInput.trim());
+                  }
+                }}
+                placeholder="セット名・ライバー名・商品名で検索..."
+                className="w-full pl-10 pr-20 py-2.5 rounded-xl bg-[#0a1520]/60 border border-cyan-500/20 text-cyan-100 placeholder:text-cyan-500/40 focus:outline-none focus:border-pink-400/50 focus:ring-1 focus:ring-pink-400/20 text-sm transition-all"
+              />
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                {setSearchKeyword && (
+                  <button
+                    onClick={() => { setSetSearchKeyword(""); setSetSearchInput(""); }}
+                    className="p-1 rounded-lg hover:bg-cyan-500/10 text-cyan-400/60 hover:text-cyan-300 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+                <button
+                  onClick={() => { if (setSearchInput.trim()) setSetSearchKeyword(setSearchInput.trim()); }}
+                  className="px-3 py-1 rounded-lg bg-pink-500/20 text-pink-300 text-xs font-bold hover:bg-pink-500/30 transition-colors"
+                >
+                  検索
+                </button>
+              </div>
+            </div>
+
+            {/* 検索結果表示 */}
+            {setSearchKeyword && (
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-cyan-300/70 text-sm">「{setSearchKeyword}」の検索結果</span>
+                  {setSearchResults && <span className="text-pink-400 text-sm font-bold">{setSearchResults.length}件</span>}
+                </div>
+                {isSearchingSets ? (
+                  <div className="p-4 text-center text-cyan-300/60 text-sm">
+                    <Loader2 className="w-4 h-4 animate-spin inline mr-2" />検索中...
+                  </div>
+                ) : setSearchResults && setSearchResults.length > 0 ? (
+                  <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
+                    {setSearchResults.map((set) => (
+                      <div key={set.id} className="p-3 rounded-lg bg-[#0a1a2a]/60 border border-cyan-500/10 hover:border-pink-400/30 transition-all">
+                        <div className="flex items-start justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Package className="w-4 h-4 text-pink-400 shrink-0" />
+                            <span className="text-cyan-100 font-semibold text-sm">{set.setName}</span>
+                            {set.discountRate != null && set.discountRate > 0 && (
+                              <span className="px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 text-xs font-bold">
+                                {Math.round(Number(set.discountRate))}%OFF
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 text-xs">
+                            <span className="text-cyan-300/60">{set.streamerName}</span>
+                            {set.livestreamDate && (
+                              <span className="text-cyan-300/50">
+                                {new Date(set.livestreamDate).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', timeZone: 'Asia/Tokyo' })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4 mt-2 text-xs">
+                          <div>
+                            <span className="text-cyan-300/70">売値: </span>
+                            <span className="text-yellow-400 font-bold">{formatCurrency(Number(set.setPrice) || 0)}</span>
+                          </div>
+                          <div>
+                            <span className="text-cyan-300/70">販売数: </span>
+                            <span className="text-cyan-300 font-bold">{set.quantitySold || 0}セット</span>
+                          </div>
+                          <div>
+                            <span className="text-cyan-300/70">売上: </span>
+                            <span className="text-emerald-400 font-mono font-bold">{formatCurrency(Number(set.totalRevenue) || 0)}</span>
+                          </div>
+                        </div>
+                        {set.items && set.items.length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-cyan-500/10">
+                            <div className="text-cyan-300/60 text-xs mb-1">セット内容:</div>
+                            <div className="flex flex-wrap gap-1">
+                              {set.items.map((item, idx) => (
+                                <span key={idx} className="px-2 py-0.5 rounded bg-[#0a1520]/60 text-cyan-200/70 text-xs">
+                                  {item.productName}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-cyan-300/60 text-center py-4 text-sm">該当するセットが見つかりませんでした</p>
+                )}
+              </div>
+            )}
 
             {setAnalysisData && setAnalysisData.length > 0 ? (
               <div className="space-y-3">
@@ -964,24 +1072,24 @@ export default function LiverDashboardNew() {
                           <span className="text-cyan-100 font-semibold">{liver.streamerName || '不明'}</span>
                           {expandedLiverId === liver.liverId
                             ? <ChevronUp className="w-4 h-4 text-pink-400" />
-                            : <ChevronDown className="w-4 h-4 text-cyan-500/50" />
+                            : <ChevronDown className="w-4 h-4 text-cyan-300/60" />
                           }
                         </div>
                         <div className="flex items-center gap-4 text-sm">
                           <div className="text-center">
-                            <div className="text-cyan-500/50 text-xs">{tr.totalSets}</div>
+                            <div className="text-cyan-300/70 text-xs">{tr.totalSets}</div>
                             <div className="text-pink-400 font-bold">{Number(liver.totalSets)}個</div>
                           </div>
                           <div className="text-center">
-                            <div className="text-cyan-500/50 text-xs">{tr.setRevenue}</div>
+                            <div className="text-cyan-300/70 text-xs">{tr.setRevenue}</div>
                             <div className="text-emerald-400 font-mono font-bold">{formatCurrency(Number(liver.totalSetRevenue))}</div>
                           </div>
                           <div className="text-center">
-                            <div className="text-cyan-500/50 text-xs">{tr.quantitySold}</div>
+                            <div className="text-cyan-300/70 text-xs">{tr.quantitySold}</div>
                             <div className="text-cyan-300 font-bold">{Number(liver.totalQuantitySold)}個</div>
                           </div>
                           <div className="text-center">
-                            <div className="text-cyan-500/50 text-xs">{tr.avgDiscount}</div>
+                            <div className="text-cyan-300/70 text-xs">{tr.avgDiscount}</div>
                             <div className="text-orange-400 font-bold">{Math.round(Number(liver.avgDiscountRate))}%OFF</div>
                           </div>
                         </div>
@@ -1022,7 +1130,7 @@ export default function LiverDashboardNew() {
                                   </div>
                                   <div className="flex items-center gap-3 text-xs">
                                     {set.livestreamDate && (
-                                      <span className="text-cyan-500/50">
+                                      <span className="text-cyan-300/60">
                                         {new Date(set.livestreamDate).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', timeZone: 'Asia/Tokyo' })}
                                       </span>
                                     )}
@@ -1031,15 +1139,15 @@ export default function LiverDashboardNew() {
 
                                 <div className="flex items-center gap-4 mt-2 text-xs">
                                   <div>
-                                    <span className="text-cyan-500/50">{tr.setPrice}: </span>
+                                    <span className="text-cyan-300/70">{tr.setPrice}: </span>
                                     <span className="text-yellow-400 font-bold">{formatCurrency(set.setPrice || 0)}</span>
                                   </div>
                                   <div>
-                                    <span className="text-cyan-500/50">{tr.quantitySold}: </span>
+                                    <span className="text-cyan-300/70">{tr.quantitySold}: </span>
                                     <span className="text-cyan-300 font-bold">{set.quantitySold || 0}セット</span>
                                   </div>
                                   <div>
-                                    <span className="text-cyan-500/50">{tr.setRevenueSingle}: </span>
+                                    <span className="text-cyan-300/70">{tr.setRevenueSingle}: </span>
                                     <span className="text-emerald-400 font-mono font-bold">{formatCurrency(set.totalRevenue || 0)}</span>
                                   </div>
                                 </div>
@@ -1047,17 +1155,17 @@ export default function LiverDashboardNew() {
                                 {/* セット内容（構成商品） */}
                                 {set.items && set.items.length > 0 && (
                                   <div className="mt-2 pt-2 border-t border-cyan-500/10">
-                                    <div className="text-cyan-500/40 text-xs mb-1 flex items-center gap-1">
+                                    <div className="text-cyan-300/60 text-xs mb-1 flex items-center gap-1">
                                       <span>{tr.setContent}</span>
                                       {set.totalOriginalPrice != null && set.totalOriginalPrice > 0 && (
-                                        <span className="text-cyan-500/30">({tr.originalPrice}: {formatCurrency(set.totalOriginalPrice)})</span>
+                                        <span className="text-cyan-300/50">({tr.originalPrice}: {formatCurrency(set.totalOriginalPrice)})</span>
                                       )}
                                     </div>
                                     <div className="space-y-0.5">
                                       {set.items.map((item, idx) => (
                                         <div key={idx} className="flex items-center justify-between text-xs">
                                           <span className="text-cyan-200/70">{item.productName}</span>
-                                          <span className="text-cyan-500/40 font-mono">{formatCurrency(item.originalPrice || 0)}</span>
+                                          <span className="text-cyan-300/60 font-mono">{formatCurrency(item.originalPrice || 0)}</span>
                                         </div>
                                       ))}
                                     </div>
@@ -1067,7 +1175,7 @@ export default function LiverDashboardNew() {
                             );
                           })
                         ) : (
-                          <div className="p-4 text-center text-cyan-500/40 text-sm">
+                          <div className="p-4 text-center text-cyan-300/60 text-sm">
                             <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
                             読み込み中...
                           </div>
@@ -1085,7 +1193,7 @@ export default function LiverDashboardNew() {
                 ))}
               </div>
             ) : (
-              <p className="text-cyan-500/50 text-center py-8">{tr.noSetData}</p>
+              <p className="text-cyan-300/60 text-center py-8">{tr.noSetData}</p>
             )}
           </CardContent>
         </Card>
