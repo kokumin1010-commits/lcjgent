@@ -1,6 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, ClipboardList, Clock, CheckCircle2, Users, Plus, AlertTriangle, FileText, ShoppingBag } from "lucide-react";
+import { Loader2, ClipboardList, Clock, CheckCircle2, Users, Plus, AlertTriangle, FileText, ShoppingBag, Store } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -39,7 +39,7 @@ export default function Dashboard() {
       </div>
 
       {/* Action Buttons */}
-      <div className="grid gap-3 grid-cols-2">
+      <div className="grid gap-3 grid-cols-3">
         <Button
           size="lg"
           className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-md"
@@ -55,6 +55,14 @@ export default function Dashboard() {
         >
           <ShoppingBag className="h-5 w-5 mr-2" />
           {t("nav.products")}
+        </Button>
+        <Button
+          size="lg"
+          className="w-full bg-gradient-to-r from-orange-400 to-amber-500 hover:from-orange-500 hover:to-amber-600 text-white shadow-md"
+          onClick={() => setLocation("/master/mall")}
+        >
+          <Store className="h-5 w-5 mr-2" />
+          LCJ MALL
         </Button>
       </div>
 
