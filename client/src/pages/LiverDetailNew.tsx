@@ -1036,7 +1036,7 @@ export default function LiverDetailNew() {
               <Package className="w-5 h-5 text-pink-400" />
               {tr.setStrategy}
             </h3>
-            <p className="text-sm text-cyan-500/60 mb-6">{tr.setStrategyDesc}</p>
+            <p className="text-sm text-cyan-300/70 mb-6">{tr.setStrategyDesc}</p>
 
             {setAnalysisLoading ? (
               <div className="space-y-3">
@@ -1048,19 +1048,19 @@ export default function LiverDetailNew() {
                 {/* Summary Cards */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="p-3 rounded-xl bg-[#0a1520]/60 border border-pink-500/20 text-center">
-                    <div className="text-xs text-cyan-500/50 mb-1">{tr.totalSets}</div>
+                    <div className="text-xs text-cyan-300/70 mb-1">{tr.totalSets}</div>
                     <div className="text-xl font-bold text-pink-400">{setAnalysis.summary.totalSets}<span className="text-sm font-normal">個</span></div>
                   </div>
                   <div className="p-3 rounded-xl bg-[#0a1520]/60 border border-emerald-500/20 text-center">
-                    <div className="text-xs text-cyan-500/50 mb-1">{tr.totalSetRevenue}</div>
+                    <div className="text-xs text-cyan-300/70 mb-1">{tr.totalSetRevenue}</div>
                     <div className="text-xl font-bold text-emerald-400">{formatCurrency(setAnalysis.summary.totalSetRevenue)}</div>
                   </div>
                   <div className="p-3 rounded-xl bg-[#0a1520]/60 border border-orange-500/20 text-center">
-                    <div className="text-xs text-cyan-500/50 mb-1">{tr.avgDiscount}</div>
+                    <div className="text-xs text-cyan-300/70 mb-1">{tr.avgDiscount}</div>
                     <div className="text-xl font-bold text-orange-400">{Math.round(setAnalysis.summary.avgDiscountRate)}%<span className="text-sm font-normal">OFF</span></div>
                   </div>
                   <div className="p-3 rounded-xl bg-[#0a1520]/60 border border-cyan-500/20 text-center">
-                    <div className="text-xs text-cyan-500/50 mb-1">{tr.avgQuantity}</div>
+                    <div className="text-xs text-cyan-300/70 mb-1">{tr.avgQuantity}</div>
                     <div className="text-xl font-bold text-cyan-300">{setAnalysis.summary.avgQuantityPerSet.toFixed(1)}<span className="text-sm font-normal">個</span></div>
                   </div>
                 </div>
@@ -1083,7 +1083,7 @@ export default function LiverDetailNew() {
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3 flex-1 min-w-0">
-                              <span className="text-lg">\uD83D\uDCE6</span>
+                              <span className="text-lg">📦</span>
                               <span className="text-cyan-100 font-semibold truncate">{set.setName}</span>
                               {set.discountRate != null && (
                                 <Badge className="bg-pink-500/20 text-pink-300 border-pink-500/30 text-xs shrink-0">
@@ -1092,32 +1092,32 @@ export default function LiverDetailNew() {
                               )}
                               {isBest && (
                                 <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/30 text-xs shrink-0">
-                                  \uD83C\uDFC6 {tr.bestSet}
+                                  🏆 {tr.bestSet}
                                 </Badge>
                               )}
                               {isPopular && (
                                 <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-xs shrink-0">
-                                  \uD83D\uDD25 {tr.popular}
+                                  🔥 {tr.popular}
                                 </Badge>
                               )}
                             </div>
                             <div className="flex items-center gap-4 text-sm shrink-0">
                               <div className="text-center">
-                                <div className="text-cyan-500/50 text-xs">{tr.setPrice}</div>
+                                <div className="text-cyan-300/70 text-xs">{tr.setPrice}</div>
                                 <div className="text-cyan-200 font-mono">{formatCurrency(set.setPrice)}</div>
                               </div>
                               <div className="text-center">
-                                <div className="text-cyan-500/50 text-xs">{tr.quantitySold}</div>
+                                <div className="text-cyan-300/70 text-xs">{tr.quantitySold}</div>
                                 <div className="text-cyan-300 font-bold">{set.quantitySold}個</div>
                               </div>
                               <div className="text-center">
-                                <div className="text-cyan-500/50 text-xs">{tr.setRevenue}</div>
+                                <div className="text-cyan-300/70 text-xs">{tr.setRevenue}</div>
                                 <div className="text-emerald-400 font-mono font-bold">{formatCurrency(set.totalRevenue ?? 0)}</div>
                               </div>
                               {expandedSetId === set.id ? (
-                                <ChevronUp className="w-4 h-4 text-cyan-500/50" />
+                                <ChevronUp className="w-4 h-4 text-cyan-300/60" />
                               ) : (
-                                <ChevronDown className="w-4 h-4 text-cyan-500/50" />
+                                <ChevronDown className="w-4 h-4 text-cyan-300/60" />
                               )}
                             </div>
                           </div>
@@ -1128,8 +1128,8 @@ export default function LiverDetailNew() {
                           <div className="px-4 pb-4 border-t border-cyan-500/10">
                             <div className="pt-3">
                               <div className="flex items-center gap-2 mb-2">
-                                <Tag className="w-4 h-4 text-cyan-500/50" />
-                                <span className="text-xs text-cyan-500/50">{tr.setContents}（{tr.originalTotal}: {formatCurrency(set.items.reduce((sum, item) => sum + item.originalPrice, 0))}）</span>
+                                <Tag className="w-4 h-4 text-cyan-300/60" />
+                                <span className="text-xs text-cyan-300/70">{tr.setContents}（{tr.originalTotal}: {formatCurrency(set.items.reduce((sum, item) => sum + item.originalPrice, 0))}）</span>
                               </div>
                               <div className="space-y-1">
                                 {set.items.map((item, i) => (
@@ -1140,7 +1140,7 @@ export default function LiverDetailNew() {
                                 ))}
                               </div>
                               {set.livestreamDate && (
-                                <div className="mt-2 text-xs text-cyan-500/40 flex items-center gap-1">
+                                <div className="mt-2 text-xs text-cyan-300/60 flex items-center gap-1">
                                   <Calendar className="w-3 h-3" />
                                   {tr.streamDate}: {new Date(set.livestreamDate).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' })}
                                 </div>
@@ -1154,7 +1154,7 @@ export default function LiverDetailNew() {
                 </div>
               </div>
             ) : (
-              <p className="text-cyan-500/50 text-center py-8">{tr.noSetData}</p>
+              <p className="text-cyan-300/60 text-center py-8">{tr.noSetData}</p>
             )}
           </CardContent>
         </Card>
