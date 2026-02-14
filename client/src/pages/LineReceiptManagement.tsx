@@ -224,6 +224,18 @@ export default function LineReceiptManagement() {
       } else {
         setCalcAmount("");
       }
+      // Set order number from next receipt data
+      const nextOrderNum = (() => {
+        try {
+          if (nextReceipt.receipt.ocrRawText) {
+            const data = typeof nextReceipt.receipt.ocrRawText === "string" ? JSON.parse(nextReceipt.receipt.ocrRawText) : nextReceipt.receipt.ocrRawText;
+            return data.orderNumber || "";
+          }
+        } catch { /* ignore */ }
+        return "";
+      })();
+      setCalcOrderNumber(nextOrderNum);
+      setIsOrderNumberEditing(false);
       // Scroll to the selected card
       setTimeout(() => {
         const card = document.querySelector(`[data-receipt-id="${nextReceipt.receipt.id}"]`);
@@ -234,6 +246,8 @@ export default function LineReceiptManagement() {
       setCalcReceiptId(null);
       setCalcAmount("");
       setCalcPoints(0);
+      setCalcOrderNumber("");
+      setIsOrderNumberEditing(false);
       setAllProcessedMessage(true);
     }
     
@@ -289,6 +303,10 @@ export default function LineReceiptManagement() {
       setCalcAmount(amount ? String(amount) : "");
       // Reset image index when switching receipts
       setCurrentImageIndex(0);
+      // Update order number from receipt data
+      const orderNum = getOrderNumber(selectedCalcReceipt.receipt);
+      setCalcOrderNumber(orderNum || "");
+      setIsOrderNumberEditing(false);
     }
   }, [selectedCalcReceipt]);
   
@@ -317,6 +335,8 @@ export default function LineReceiptManagement() {
         setCalcPoints(0);
       }
       setActionNote("");
+      setCalcOrderNumber("");
+      setIsOrderNumberEditing(false);
     },
   });
   
@@ -339,6 +359,8 @@ export default function LineReceiptManagement() {
         setCalcAmount("");
         setCalcPoints(0);
       }
+      setCalcOrderNumber("");
+      setIsOrderNumberEditing(false);
       lastRejectedIdRef.current = null;
     },
   });
@@ -366,6 +388,8 @@ export default function LineReceiptManagement() {
         setCalcAmount("");
         setCalcPoints(0);
       }
+      setCalcOrderNumber("");
+      setIsOrderNumberEditing(false);
     },
   });
   

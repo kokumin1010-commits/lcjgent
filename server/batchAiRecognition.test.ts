@@ -306,3 +306,74 @@ describe("Batch processing sequential execution", () => {
     expect(failedIds).toEqual([2]);
   });
 });
+
+describe("Order number clear on approve/reject/hold (bug fix)", () => {
+  const lineReceiptMgmt = readFileSync(
+    join(__dirname, "../client/src/pages/LineReceiptManagement.tsx"),
+    "utf-8"
+  );
+
+  describe("Approve mutation clears order number", () => {
+    it("should clear calcOrderNumber after approval", () => {
+      // In approveMutation onSuccess, calcOrderNumber should be reset
+      const approveSection = lineReceiptMgmt.slice(
+        lineReceiptMgmt.indexOf("const approveMutation"),
+        lineReceiptMgmt.indexOf("const rejectMutation") || lineReceiptMgmt.indexOf("// Track the last rejected")
+      );
+      expect(approveSection).toContain('setCalcOrderNumber("")');
+      expect(approveSection).toContain("setIsOrderNumberEditing(false)");
+    });
+  });
+
+  describe("Reject mutation clears order number", () => {
+    it("should clear calcOrderNumber after rejection", () => {
+      const rejectSection = lineReceiptMgmt.slice(
+        lineReceiptMgmt.indexOf("const rejectMutation"),
+        lineReceiptMgmt.indexOf("const holdMutation")
+      );
+      expect(rejectSection).toContain('setCalcOrderNumber("")');
+      expect(rejectSection).toContain("setIsOrderNumberEditing(false)");
+    });
+  });
+
+  describe("Hold mutation clears order number", () => {
+    it("should clear calcOrderNumber after hold", () => {
+      const holdSection = lineReceiptMgmt.slice(
+        lineReceiptMgmt.indexOf("const holdMutation"),
+        lineReceiptMgmt.indexOf("const updateOrderNumberMutation")
+      );
+      expect(holdSection).toContain('setCalcOrderNumber("")');
+      expect(holdSection).toContain("setIsOrderNumberEditing(false)");
+    });
+  });
+
+  describe("Auto-advance sets next receipt's order number", () => {
+    it("should set order number from next receipt's ocrRawText during auto-advance", () => {
+      // The auto-advance useEffect should parse ocrRawText for next receipt
+      expect(lineReceiptMgmt).toContain("nextReceipt.receipt.ocrRawText");
+      expect(lineReceiptMgmt).toContain("setCalcOrderNumber(nextOrderNum)");
+    });
+
+    it("should clear order number when all receipts processed", () => {
+      // When no more receipts, order number should be cleared
+      const allProcessedSection = lineReceiptMgmt.slice(
+        lineReceiptMgmt.indexOf("// All receipts in this tab have been processed"),
+        lineReceiptMgmt.indexOf("// Reset the trigger")
+      );
+      expect(allProcessedSection).toContain('setCalcOrderNumber("")');
+    });
+  });
+
+  describe("selectedCalcReceipt effect updates order number", () => {
+    it("should update order number when selectedCalcReceipt changes", () => {
+      // The useEffect for selectedCalcReceipt should also update order number
+      const effectSection = lineReceiptMgmt.slice(
+        lineReceiptMgmt.indexOf("useEffect(() => {\n    if (selectedCalcReceipt)"),
+        lineReceiptMgmt.indexOf("// Mutations")
+      );
+      expect(effectSection).toContain("getOrderNumber(selectedCalcReceipt.receipt)");
+      expect(effectSection).toContain("setCalcOrderNumber(orderNum");
+      expect(effectSection).toContain("setIsOrderNumberEditing(false)");
+    });
+  });
+});
