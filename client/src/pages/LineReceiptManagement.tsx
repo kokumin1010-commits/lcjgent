@@ -48,6 +48,7 @@ import {
   SkipForward,
   RefreshCw,
   Loader2,
+  Search,
   Save,
 } from "lucide-react";
 
@@ -103,6 +104,9 @@ export default function LineReceiptManagement() {
   
   // Keyboard shortcut help
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
+  
+  // Order number search
+  const [orderNumberSearch, setOrderNumberSearch] = useState("");
   
   // Continuous processing state
   const [sessionProcessedCount, setSessionProcessedCount] = useState(0);
@@ -675,13 +679,13 @@ export default function LineReceiptManagement() {
   const getStatusBadge = (status: ReceiptStatus) => {
     switch (status) {
       case "pending":
-        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300"><Clock className="w-3 h-3 mr-1" />{t("receiptStatusPending")}</Badge>;
+        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300"><Clock className="w-3 h-3 mr-1" />{t("receipts.pending")}</Badge>;
       case "approved":
-        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300"><CheckCircle className="w-3 h-3 mr-1" />{t("receiptStatusApproved")}</Badge>;
+        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300"><CheckCircle className="w-3 h-3 mr-1" />{t("receipts.approved")}</Badge>;
       case "rejected":
-        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300"><XCircle className="w-3 h-3 mr-1" />{t("receiptStatusRejected")}</Badge>;
+        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300"><XCircle className="w-3 h-3 mr-1" />{t("receipts.rejected")}</Badge>;
       case "on_hold":
-        return <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-300"><AlertTriangle className="w-3 h-3 mr-1" />{t("receiptStatusOnHold")}</Badge>;
+        return <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-300"><AlertTriangle className="w-3 h-3 mr-1" />{t("receipts.onHold")}</Badge>;
     }
   };
   
@@ -783,13 +787,33 @@ export default function LineReceiptManagement() {
         </div>
       )}
       
+      {/* Order Number Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          type="text"
+          value={orderNumberSearch}
+          onChange={(e) => setOrderNumberSearch(e.target.value)}
+          placeholder="注文管理番号で検索..."
+          className="pl-10 pr-10"
+        />
+        {orderNumberSearch && (
+          <button
+            onClick={() => setOrderNumberSearch("")}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            <XCircle className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
       {/* Statistics */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-yellow-500" />
-              <span className="text-sm text-muted-foreground">{t("receiptStatusPending")}</span>
+              <span className="text-sm text-muted-foreground">{t("receipts.pendingCount")}</span>
             </div>
             <p className="text-2xl font-bold mt-1">{stats?.pending || 0}</p>
           </CardContent>
@@ -798,7 +822,7 @@ export default function LineReceiptManagement() {
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
               <CheckCircle className="w-4 h-4 text-green-500" />
-              <span className="text-sm text-muted-foreground">{t("receiptStatusApproved")}</span>
+              <span className="text-sm text-muted-foreground">{t("receipts.approvedCount")}</span>
             </div>
             <p className="text-2xl font-bold mt-1">{stats?.approved || 0}</p>
           </CardContent>
@@ -807,7 +831,7 @@ export default function LineReceiptManagement() {
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
               <XCircle className="w-4 h-4 text-red-500" />
-              <span className="text-sm text-muted-foreground">{t("receiptStatusRejected")}</span>
+              <span className="text-sm text-muted-foreground">{t("receipts.rejectedCount")}</span>
             </div>
             <p className="text-2xl font-bold mt-1">{stats?.rejected || 0}</p>
           </CardContent>
@@ -816,7 +840,7 @@ export default function LineReceiptManagement() {
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-orange-500" />
-              <span className="text-sm text-muted-foreground">{t("receiptStatusOnHold")}</span>
+              <span className="text-sm text-muted-foreground">{t("receipts.onHold")}</span>
             </div>
             <p className="text-2xl font-bold mt-1">{stats?.onHold || 0}</p>
           </CardContent>
@@ -825,7 +849,7 @@ export default function LineReceiptManagement() {
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
               <DollarSign className="w-4 h-4 text-blue-500" />
-              <span className="text-sm text-muted-foreground">{t("totalPointsAwarded")}</span>
+              <span className="text-sm text-muted-foreground">{t("receipts.totalPoints")}</span>
             </div>
             <p className="text-2xl font-bold mt-1">{(stats?.totalPointsAwarded || 0).toLocaleString()} pt</p>
           </CardContent>
@@ -856,20 +880,20 @@ export default function LineReceiptManagement() {
         <TabsList>
           <TabsTrigger value="pending" className="flex items-center gap-1">
             <Clock className="w-4 h-4" />
-            {t("receiptStatusPending")}
+            {t("receipts.pendingCount")}
             {stats?.pending ? <Badge variant="secondary" className="ml-1">{stats.pending}</Badge> : null}
           </TabsTrigger>
           <TabsTrigger value="on_hold" className="flex items-center gap-1">
             <AlertTriangle className="w-4 h-4" />
-            {t("receiptStatusOnHold")}
+            {t("receipts.onHold")}
           </TabsTrigger>
           <TabsTrigger value="approved" className="flex items-center gap-1">
             <CheckCircle className="w-4 h-4" />
-            {t("receiptStatusApproved")}
+            {t("receipts.approvedCount")}
           </TabsTrigger>
           <TabsTrigger value="rejected" className="flex items-center gap-1">
             <XCircle className="w-4 h-4" />
-            {t("receiptStatusRejected")}
+            {t("receipts.rejectedCount")}
           </TabsTrigger>
         </TabsList>
         
@@ -1275,7 +1299,11 @@ export default function LineReceiptManagement() {
               {/* RIGHT COLUMN: Receipt Card List (Compact) */}
               <div className="w-[360px] flex-shrink-0">
                 <div className="grid gap-2 max-h-[calc(100vh-200px)] overflow-y-auto pr-1">
-                  {receipts?.map(({ receipt, lineUser }) => {
+                  {receipts?.filter(({ receipt }) => {
+                    if (!orderNumberSearch.trim()) return true;
+                    const orderNum = getOrderNumber(receipt);
+                    return orderNum?.includes(orderNumberSearch.trim()) || false;
+                  }).map(({ receipt, lineUser }) => {
                     const images = getReceiptImages(receipt);
                     const aiScore = getAiConfidence(receipt);
                     const confidence = getConfidenceLabel(aiScore);
@@ -1322,6 +1350,13 @@ export default function LineReceiptManagement() {
                                 </span>
                               )}
                             </div>
+                            {/* Row 2.5: Order Number */}
+                            {getOrderNumber(receipt) && (
+                              <div className="flex items-center gap-1 text-[11px]">
+                                <Hash className="w-3 h-3 text-blue-400" />
+                                <span className="text-blue-600 font-mono text-[10px] truncate">{getOrderNumber(receipt)}</span>
+                              </div>
+                            )}
                             {/* Row 3: Store + Date */}
                             <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                               <span className="truncate">{receipt.storeName || "店舗不明"}</span>

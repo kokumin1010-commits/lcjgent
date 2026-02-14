@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Package, Truck, CheckCircle, XCircle, Clock, ShoppingBag, User, MapPin, Phone, Calendar, Coins, CreditCard, FileText, RefreshCw, Bell, BellOff, AlertCircle, Send } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Loader2, Package, Truck, CheckCircle, XCircle, Clock, ShoppingBag, User, MapPin, Phone, Calendar, Coins, CreditCard, FileText, RefreshCw, Bell, BellOff, AlertCircle, Send, Search, Hash, Copy } from "lucide-react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import { toast } from "sonner";
@@ -74,6 +75,7 @@ export default function OrderManagement() {
   const [shippingCarrier, setShippingCarrier] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
   const [sendNotification, setSendNotification] = useState(true);
+  const [orderSearch, setOrderSearch] = useState("");
 
   // 各注文カードのインライン配送情報
   const [inlineShipping, setInlineShipping] = useState<Record<number, InlineShippingState>>({});
@@ -291,6 +293,26 @@ export default function OrderManagement() {
         </Button>
       </div>
 
+      {/* 注文番号検索 */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          type="text"
+          value={orderSearch}
+          onChange={(e) => setOrderSearch(e.target.value)}
+          placeholder="注文番号・購入者名で検索..."
+          className="pl-10 pr-10"
+        />
+        {orderSearch && (
+          <button
+            onClick={() => setOrderSearch("")}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            <XCircle className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
       {/* ステータスフィルタータブ */}
       <div className="bg-white rounded-xl border shadow-sm p-1.5">
         <div className="flex overflow-x-auto gap-1 scrollbar-hide">
@@ -344,7 +366,14 @@ export default function OrderManagement() {
             </div>
           ) : orders && orders.length > 0 ? (
             <div className="space-y-4">
-              {orders.map((item) => {
+              {orders.filter((item) => {
+                if (!orderSearch.trim()) return true;
+                const q = orderSearch.trim().toLowerCase();
+                const orderNum = item.order.orderNumber?.toLowerCase() || "";
+                const userName = (item.lineUser?.displayName || "").toLowerCase();
+                const shippingName = (item.order.shippingName || "").toLowerCase();
+                return orderNum.includes(q) || userName.includes(q) || shippingName.includes(q);
+              }).map((item) => {
                 const orderStatus = item.order.status as OrderStatus;
                 const isPaidOrConfirmed = orderStatus === "paid" || orderStatus === "confirmed";
                 const inlineData = getInlineShipping(item.order.id);
@@ -359,9 +388,23 @@ export default function OrderManagement() {
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
-                          <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">
-                            #{item.order.orderNumber}
-                          </span>
+                          <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-md">
+                            <Hash className="h-3.5 w-3.5 text-blue-500" />
+                            <span className="font-mono text-sm font-bold text-blue-700">
+                              {item.order.orderNumber}
+                            </span>
+                            <button
+                              className="ml-1 text-blue-400 hover:text-blue-600 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigator.clipboard.writeText(item.order.orderNumber || "");
+                                toast.success("注文番号をコピーしました");
+                              }}
+                              title="注文番号をコピー"
+                            >
+                              <Copy className="h-3 w-3" />
+                            </button>
+                          </div>
                           {getStatusBadge(orderStatus)}
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
