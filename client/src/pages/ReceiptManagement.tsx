@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Receipt, 
   CheckCircle, 
@@ -22,6 +23,18 @@ import {
   Hash,
   Gift
 } from "lucide-react";
+
+const REJECTION_CATEGORIES = [
+  { value: "blurry_image", label: "画像が不鮮明" },
+  { value: "missing_order_number", label: "注文番号がない" },
+  { value: "missing_amount", label: "金額が不明" },
+  { value: "not_delivered", label: "配達未完了" },
+  { value: "duplicate", label: "重複申請" },
+  { value: "wrong_store", label: "対象外の店舗" },
+  { value: "suspicious", label: "不正の疑い" },
+  { value: "incomplete_info", label: "情報不足" },
+  { value: "other", label: "その他" },
+] as const;
 
 type ReceiptStatus = "pending" | "approved" | "rejected" | "on_hold";
 
@@ -57,6 +70,7 @@ export default function ReceiptManagement() {
   const [actionDialogOpen, setActionDialogOpen] = useState(false);
   const [actionType, setActionType] = useState<"approve" | "reject" | "hold">("approve");
   const [reviewNote, setReviewNote] = useState("");
+  const [rejectionCategory, setRejectionCategory] = useState<string>("other");
   const [pointsOverride, setPointsOverride] = useState<number | undefined>();
   const [editData, setEditData] = useState({
     storeName: "",
@@ -163,6 +177,7 @@ export default function ReceiptManagement() {
     setSelectedReceipt(receipt);
     setActionType(action);
     setReviewNote("");
+    setRejectionCategory("other");
     setPointsOverride(receipt.receipt.pointsCalculated || undefined);
     setActionDialogOpen(true);
   };
@@ -186,6 +201,7 @@ export default function ReceiptManagement() {
         rejectMutation.mutate({
           id: selectedReceipt.receipt.id,
           note: reviewNote,
+          rejectionCategory: rejectionCategory as any,
         });
         break;
       case "hold":
@@ -599,6 +615,23 @@ export default function ReceiptManagement() {
                 <p className="text-xs text-muted-foreground mt-1">
                   空欄の場合、算出ポイント（{selectedReceipt?.receipt.pointsCalculated ?? 0}pt）が付与されます
                 </p>
+              </div>
+            )}
+            {actionType === "reject" && (
+              <div>
+                <Label>却下理由カテゴリ</Label>
+                <Select value={rejectionCategory} onValueChange={setRejectionCategory}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="カテゴリを選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REJECTION_CATEGORIES.map((cat) => (
+                      <SelectItem key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             )}
             <div>

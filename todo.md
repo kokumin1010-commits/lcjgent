@@ -5233,3 +5233,26 @@
 - [x] Webポイント申請却下時のLINE通知を追加
 - [x] LINE未連携ユーザーの場合はスキップする制御（lineUserIdがnullの場合はスキップ）
 - [x] テスト・動作確認（130ファイル・1612テスト全パス）
+
+## レシート学習データ蓄積基盤（フェーズ1）
+- [x] 学習データテーブル（receipt_review_logs）のスキーマ設計・作成
+- [x] LINE receipt承認時に学習データを自動記録
+- [x] LINE receipt却下時に学習データを自動記録（却下理由カテゴリ付き）
+- [x] LINE receipt保留時に学習データを自動記録
+- [x] TikTok receipt承認時に学習データを自動記録
+- [x] TikTok receipt却下時に学習データを自動記録
+- [x] pointRequest承認時に学習データを自動記録
+- [x] pointRequest却下時に学習データを自動記録（rejectionCategoryフィールド追加）
+- [x] 管理画面の却下UIに理由カテゴリ選択を追加（ReceiptManagement, LineReceiptManagement, PointRequestAdmin）
+- [x] テスト・動作確認（131ファイル・1634テスト全パス）
+
+## AI学習ダッシュボード（フェーズ2）
+- [x] 承認率・却下率の推移チャート（日別スタックドバー + 期間選択）
+- [x] 却下理由の分布（プロポーショナルバー + レジェンド）
+- [x] OCR信頼度と承認率の相関チャート（範囲別承認率バー）
+- [x] 「自動承認に切り替え可能なレシートの割合」の試算表示（閾値別シミュレーションテーブル）
+- [x] tRPCエンドポイント作成（summary, dailyTrend, rejectionDistribution, ocrCorrelation, autoApprovalSimulation）
+- [x] フロントエンドページ作成（/master/ai-learning）
+- [x] サイドバーナビゲーションに「AI学習ダッシュボード」を追加
+- [x] データ蓄積状況モニター（100件目標の進捗バー）
+- [x] テスト・動作確認（131ファイル・1634テスト全パス）

@@ -9,8 +9,21 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { CheckCircle, Clock, XCircle, Eye, Image, ExternalLink } from "lucide-react";
+
+const REJECTION_CATEGORIES = [
+  { value: "blurry_image", label: "画像が不鮮明" },
+  { value: "missing_order_number", label: "注文番号がない" },
+  { value: "missing_amount", label: "金額が不明" },
+  { value: "not_delivered", label: "配達未完了" },
+  { value: "duplicate", label: "重複申請" },
+  { value: "wrong_store", label: "対象外の店舗" },
+  { value: "suspicious", label: "不正の疑い" },
+  { value: "incomplete_info", label: "情報不足" },
+  { value: "other", label: "その他" },
+] as const;
 
 type PointRequest = {
   id: number;
@@ -35,6 +48,7 @@ export default function PointRequestAdmin() {
   const [viewImageUrl, setViewImageUrl] = useState<string | null>(null);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [rejectionCategory, setRejectionCategory] = useState<string>("other");
   const [approvePoints, setApprovePoints] = useState<number>(0);
 
   const utils = trpc.useUtils();
@@ -89,11 +103,14 @@ export default function PointRequestAdmin() {
     rejectMutation.mutate({
       requestId: selectedRequest.id,
       reason: rejectReason,
+      rejectionCategory: rejectionCategory as any,
     });
   };
 
   const openRejectDialog = (request: PointRequest) => {
     setSelectedRequest(request);
+    setRejectReason("");
+    setRejectionCategory("other");
     setRejectDialogOpen(true);
   };
 
@@ -344,7 +361,22 @@ export default function PointRequestAdmin() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>却下理由</Label>
+              <Label>却下理由カテゴリ</Label>
+              <Select value={rejectionCategory} onValueChange={setRejectionCategory}>
+                <SelectTrigger>
+                  <SelectValue placeholder="カテゴリを選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  {REJECTION_CATEGORIES.map((cat) => (
+                    <SelectItem key={cat.value} value={cat.value}>
+                      {cat.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>却下理由（詳細）</Label>
               <Textarea
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}

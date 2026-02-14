@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -11924,4 +11924,363 @@ export async function getMallMemberGrowthChart(months: number = 6) {
     date: r.date,
     count: Number(r.count),
   }));
+}
+
+
+// =====================================================
+// Receipt Review Logs - 学習データ蓄積・集計
+// =====================================================
+
+/**
+ * Create a receipt review log entry (called automatically on approve/reject/hold)
+ */
+export async function createReceiptReviewLog(data: InsertReceiptReviewLog) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(receiptReviewLogs).values(data);
+}
+
+/**
+ * Get review logs with pagination
+ */
+export async function getReceiptReviewLogs(limit: number = 50, offset: number = 0) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(receiptReviewLogs)
+    .orderBy(desc(receiptReviewLogs.createdAt))
+    .limit(limit)
+    .offset(offset);
+}
+
+/**
+ * AI Learning Dashboard: Approval/Rejection rate over time (weekly)
+ */
+export async function getReviewDecisionTrend(months: number = 3) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const startDate = new Date();
+  startDate.setMonth(startDate.getMonth() - months);
+  
+  const result = await db.select({
+    week: sql<string>`DATE_FORMAT(${receiptReviewLogs.createdAt}, '%Y-%u')`,
+    weekStart: sql<string>`DATE(DATE_SUB(${receiptReviewLogs.createdAt}, INTERVAL WEEKDAY(${receiptReviewLogs.createdAt}) DAY))`,
+    total: sql<number>`COUNT(*)`,
+    approved: sql<number>`SUM(CASE WHEN ${receiptReviewLogs.decision} = 'approved' THEN 1 ELSE 0 END)`,
+    rejected: sql<number>`SUM(CASE WHEN ${receiptReviewLogs.decision} = 'rejected' THEN 1 ELSE 0 END)`,
+    onHold: sql<number>`SUM(CASE WHEN ${receiptReviewLogs.decision} = 'on_hold' THEN 1 ELSE 0 END)`,
+  })
+    .from(receiptReviewLogs)
+    .where(gte(receiptReviewLogs.createdAt, startDate))
+    .groupBy(
+      sql`DATE_FORMAT(${receiptReviewLogs.createdAt}, '%Y-%u')`,
+      sql`DATE(DATE_SUB(${receiptReviewLogs.createdAt}, INTERVAL WEEKDAY(${receiptReviewLogs.createdAt}) DAY))`
+    )
+    .orderBy(sql`DATE_FORMAT(${receiptReviewLogs.createdAt}, '%Y-%u')`);
+  
+  return result.map(r => ({
+    week: r.week,
+    weekStart: r.weekStart,
+    total: Number(r.total),
+    approved: Number(r.approved),
+    rejected: Number(r.rejected),
+    onHold: Number(r.onHold),
+    approvalRate: Number(r.total) > 0 ? Math.round((Number(r.approved) / Number(r.total)) * 100) : 0,
+  }));
+}
+
+/**
+ * AI Learning Dashboard: Rejection reason distribution
+ */
+export async function getRejectionCategoryDistribution() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const result = await db.select({
+    category: receiptReviewLogs.rejectionCategory,
+    count: sql<number>`COUNT(*)`,
+  })
+    .from(receiptReviewLogs)
+    .where(eq(receiptReviewLogs.decision, "rejected"))
+    .groupBy(receiptReviewLogs.rejectionCategory)
+    .orderBy(desc(sql`COUNT(*)`));
+  
+  return result.map(r => ({
+    category: r.category || "unknown",
+    count: Number(r.count),
+  }));
+}
+
+/**
+ * AI Learning Dashboard: OCR confidence vs approval rate correlation
+ */
+export async function getOcrConfidenceCorrelation() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // Group by OCR confidence ranges (0-10, 10-20, ..., 90-100)
+  const result = await db.select({
+    confidenceRange: sql<string>`CONCAT(FLOOR(CAST(${receiptReviewLogs.ocrConfidence} AS DECIMAL(5,2)) / 10) * 10, '-', FLOOR(CAST(${receiptReviewLogs.ocrConfidence} AS DECIMAL(5,2)) / 10) * 10 + 10)`,
+    confidenceMin: sql<number>`FLOOR(CAST(${receiptReviewLogs.ocrConfidence} AS DECIMAL(5,2)) / 10) * 10`,
+    total: sql<number>`COUNT(*)`,
+    approved: sql<number>`SUM(CASE WHEN ${receiptReviewLogs.decision} = 'approved' THEN 1 ELSE 0 END)`,
+    rejected: sql<number>`SUM(CASE WHEN ${receiptReviewLogs.decision} = 'rejected' THEN 1 ELSE 0 END)`,
+  })
+    .from(receiptReviewLogs)
+    .where(isNotNull(receiptReviewLogs.ocrConfidence))
+    .groupBy(
+      sql`FLOOR(CAST(${receiptReviewLogs.ocrConfidence} AS DECIMAL(5,2)) / 10) * 10`
+    )
+    .orderBy(sql`FLOOR(CAST(${receiptReviewLogs.ocrConfidence} AS DECIMAL(5,2)) / 10) * 10`);
+  
+  return result.map(r => ({
+    range: r.confidenceRange,
+    confidenceMin: Number(r.confidenceMin),
+    total: Number(r.total),
+    approved: Number(r.approved),
+    rejected: Number(r.rejected),
+    approvalRate: Number(r.total) > 0 ? Math.round((Number(r.approved) / Number(r.total)) * 100) : 0,
+  }));
+}
+
+/**
+ * AI Learning Dashboard: Auto-approval eligibility estimation
+ * Calculates what percentage of receipts could be auto-approved
+ * based on configurable thresholds
+ */
+export async function getAutoApprovalEstimation(
+  minConfidence: number = 80,
+  maxFraudScore: number = 0,
+  maxAmount: number = 10000
+) {
+  const db = await getDb();
+  if (!db) return { eligible: 0, total: 0, percentage: 0, correctRate: 0 };
+  
+  // Total reviewed receipts
+  const [totalResult] = await db.select({
+    count: sql<number>`COUNT(*)`,
+  }).from(receiptReviewLogs);
+  
+  const total = Number(totalResult.count);
+  if (total === 0) return { eligible: 0, total: 0, percentage: 0, correctRate: 0 };
+  
+  // Receipts that would qualify for auto-approval
+  const [eligibleResult] = await db.select({
+    count: sql<number>`COUNT(*)`,
+  })
+    .from(receiptReviewLogs)
+    .where(
+      and(
+        gte(receiptReviewLogs.ocrConfidence, String(minConfidence)),
+        lte(receiptReviewLogs.fraudScore, String(maxFraudScore)),
+        eq(receiptReviewLogs.hasOrderNumber, "yes"),
+        lte(receiptReviewLogs.totalAmount, maxAmount)
+      )
+    );
+  
+  const eligible = Number(eligibleResult.count);
+  
+  // Of those eligible, how many were actually approved by admin?
+  const [correctResult] = await db.select({
+    count: sql<number>`COUNT(*)`,
+  })
+    .from(receiptReviewLogs)
+    .where(
+      and(
+        gte(receiptReviewLogs.ocrConfidence, String(minConfidence)),
+        lte(receiptReviewLogs.fraudScore, String(maxFraudScore)),
+        eq(receiptReviewLogs.hasOrderNumber, "yes"),
+        lte(receiptReviewLogs.totalAmount, maxAmount),
+        eq(receiptReviewLogs.decision, "approved")
+      )
+    );
+  
+  const correct = Number(correctResult.count);
+  
+  return {
+    eligible,
+    total,
+    percentage: total > 0 ? Math.round((eligible / total) * 100) : 0,
+    correctRate: eligible > 0 ? Math.round((correct / eligible) * 100) : 0,
+  };
+}
+
+/**
+ * AI Learning Dashboard: Summary statistics
+ */
+export async function getReviewLogsSummary() {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const [stats] = await db.select({
+    total: sql<number>`COUNT(*)`,
+    approved: sql<number>`SUM(CASE WHEN ${receiptReviewLogs.decision} = 'approved' THEN 1 ELSE 0 END)`,
+    rejected: sql<number>`SUM(CASE WHEN ${receiptReviewLogs.decision} = 'rejected' THEN 1 ELSE 0 END)`,
+    onHold: sql<number>`SUM(CASE WHEN ${receiptReviewLogs.decision} = 'on_hold' THEN 1 ELSE 0 END)`,
+    avgOcrConfidence: sql<number>`AVG(CAST(${receiptReviewLogs.ocrConfidence} AS DECIMAL(5,2)))`,
+    avgFraudScore: sql<number>`AVG(CAST(${receiptReviewLogs.fraudScore} AS DECIMAL(5,2)))`,
+    avgAmount: sql<number>`AVG(${receiptReviewLogs.totalAmount})`,
+    lineReceiptCount: sql<number>`SUM(CASE WHEN ${receiptReviewLogs.receiptType} = 'line_receipt' THEN 1 ELSE 0 END)`,
+    webReceiptCount: sql<number>`SUM(CASE WHEN ${receiptReviewLogs.receiptType} = 'web_receipt' THEN 1 ELSE 0 END)`,
+    pointRequestCount: sql<number>`SUM(CASE WHEN ${receiptReviewLogs.receiptType} = 'point_request' THEN 1 ELSE 0 END)`,
+  }).from(receiptReviewLogs);
+  
+  return {
+    total: Number(stats.total),
+    approved: Number(stats.approved),
+    rejected: Number(stats.rejected),
+    onHold: Number(stats.onHold),
+    approvalRate: Number(stats.total) > 0 ? Math.round((Number(stats.approved) / Number(stats.total)) * 100) : 0,
+    avgOcrConfidence: Math.round(Number(stats.avgOcrConfidence) || 0),
+    avgFraudScore: Math.round((Number(stats.avgFraudScore) || 0) * 100) / 100,
+    avgAmount: Math.round(Number(stats.avgAmount) || 0),
+    byType: {
+      lineReceipt: Number(stats.lineReceiptCount),
+      webReceipt: Number(stats.webReceiptCount),
+      pointRequest: Number(stats.pointRequestCount),
+    },
+  };
+}
+
+// === AI Learning Dashboard: Daily trend ===
+export async function getReviewLogsDailyTrend(days: number = 30) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const rows = await db.select({
+    date: sql<string>`DATE(${receiptReviewLogs.createdAt})`,
+    total: sql<number>`COUNT(*)`,
+    approved: sql<number>`SUM(CASE WHEN ${receiptReviewLogs.decision} = 'approved' THEN 1 ELSE 0 END)`,
+    rejected: sql<number>`SUM(CASE WHEN ${receiptReviewLogs.decision} = 'rejected' THEN 1 ELSE 0 END)`,
+    onHold: sql<number>`SUM(CASE WHEN ${receiptReviewLogs.decision} = 'on_hold' THEN 1 ELSE 0 END)`,
+  })
+  .from(receiptReviewLogs)
+  .where(sql`${receiptReviewLogs.createdAt} >= DATE_SUB(NOW(), INTERVAL ${days} DAY)`)
+  .groupBy(sql`DATE(${receiptReviewLogs.createdAt})`)
+  .orderBy(sql`DATE(${receiptReviewLogs.createdAt})`);
+  
+  return rows.map(r => ({
+    date: String(r.date),
+    total: Number(r.total),
+    approved: Number(r.approved),
+    rejected: Number(r.rejected),
+    onHold: Number(r.onHold),
+    approvalRate: Number(r.total) > 0 ? Math.round((Number(r.approved) / Number(r.total)) * 100) : 0,
+  }));
+}
+
+// === AI Learning Dashboard: Rejection category distribution ===
+export async function getReviewLogsRejectionDistribution() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const rows = await db.select({
+    category: receiptReviewLogs.rejectionCategory,
+    count: sql<number>`COUNT(*)`,
+  })
+  .from(receiptReviewLogs)
+  .where(eq(receiptReviewLogs.decision, "rejected"))
+  .groupBy(receiptReviewLogs.rejectionCategory)
+  .orderBy(sql`COUNT(*) DESC`);
+  
+  return rows.map(r => ({
+    category: r.category || "other",
+    count: Number(r.count),
+  }));
+}
+
+// === AI Learning Dashboard: OCR confidence vs approval rate ===
+export async function getReviewLogsOcrCorrelation() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // Group by OCR confidence ranges: 0-20, 20-40, 40-60, 60-80, 80-100
+  const rows = await db.select({
+    confidenceRange: sql<string>`CASE 
+      WHEN CAST(${receiptReviewLogs.ocrConfidence} AS DECIMAL(5,2)) < 20 THEN '0-20'
+      WHEN CAST(${receiptReviewLogs.ocrConfidence} AS DECIMAL(5,2)) < 40 THEN '20-40'
+      WHEN CAST(${receiptReviewLogs.ocrConfidence} AS DECIMAL(5,2)) < 60 THEN '40-60'
+      WHEN CAST(${receiptReviewLogs.ocrConfidence} AS DECIMAL(5,2)) < 80 THEN '60-80'
+      ELSE '80-100'
+    END`,
+    total: sql<number>`COUNT(*)`,
+    approved: sql<number>`SUM(CASE WHEN ${receiptReviewLogs.decision} = 'approved' THEN 1 ELSE 0 END)`,
+    rejected: sql<number>`SUM(CASE WHEN ${receiptReviewLogs.decision} = 'rejected' THEN 1 ELSE 0 END)`,
+  })
+  .from(receiptReviewLogs)
+  .where(sql`${receiptReviewLogs.ocrConfidence} IS NOT NULL`)
+  .groupBy(sql`CASE 
+      WHEN CAST(${receiptReviewLogs.ocrConfidence} AS DECIMAL(5,2)) < 20 THEN '0-20'
+      WHEN CAST(${receiptReviewLogs.ocrConfidence} AS DECIMAL(5,2)) < 40 THEN '20-40'
+      WHEN CAST(${receiptReviewLogs.ocrConfidence} AS DECIMAL(5,2)) < 60 THEN '40-60'
+      WHEN CAST(${receiptReviewLogs.ocrConfidence} AS DECIMAL(5,2)) < 80 THEN '60-80'
+      ELSE '80-100'
+    END`)
+  .orderBy(sql`CASE 
+      WHEN CAST(${receiptReviewLogs.ocrConfidence} AS DECIMAL(5,2)) < 20 THEN 1
+      WHEN CAST(${receiptReviewLogs.ocrConfidence} AS DECIMAL(5,2)) < 40 THEN 2
+      WHEN CAST(${receiptReviewLogs.ocrConfidence} AS DECIMAL(5,2)) < 60 THEN 3
+      WHEN CAST(${receiptReviewLogs.ocrConfidence} AS DECIMAL(5,2)) < 80 THEN 4
+      ELSE 5
+    END`);
+  
+  return rows.map(r => ({
+    confidenceRange: String(r.confidenceRange),
+    total: Number(r.total),
+    approved: Number(r.approved),
+    rejected: Number(r.rejected),
+    approvalRate: Number(r.total) > 0 ? Math.round((Number(r.approved) / Number(r.total)) * 100) : 0,
+  }));
+}
+
+// === AI Learning Dashboard: Auto-approval simulation ===
+export async function getAutoApprovalSimulation() {
+  const db = await getDb();
+  if (!db) return null;
+  
+  // Simulate: what if we auto-approved receipts with high confidence + no fraud flags?
+  const thresholds = [60, 70, 80, 90];
+  const results = [];
+  
+  for (const threshold of thresholds) {
+    const [row] = await db.select({
+      totalEligible: sql<number>`SUM(CASE 
+        WHEN CAST(${receiptReviewLogs.ocrConfidence} AS DECIMAL(5,2)) >= ${threshold}
+        AND (${receiptReviewLogs.fraudFlagCount} = 0 OR ${receiptReviewLogs.fraudFlagCount} IS NULL)
+        AND ${receiptReviewLogs.hasOrderNumber} = 'yes'
+        THEN 1 ELSE 0 END)`,
+      wouldBeCorrect: sql<number>`SUM(CASE 
+        WHEN CAST(${receiptReviewLogs.ocrConfidence} AS DECIMAL(5,2)) >= ${threshold}
+        AND (${receiptReviewLogs.fraudFlagCount} = 0 OR ${receiptReviewLogs.fraudFlagCount} IS NULL)
+        AND ${receiptReviewLogs.hasOrderNumber} = 'yes'
+        AND ${receiptReviewLogs.decision} = 'approved'
+        THEN 1 ELSE 0 END)`,
+      wouldBeWrong: sql<number>`SUM(CASE 
+        WHEN CAST(${receiptReviewLogs.ocrConfidence} AS DECIMAL(5,2)) >= ${threshold}
+        AND (${receiptReviewLogs.fraudFlagCount} = 0 OR ${receiptReviewLogs.fraudFlagCount} IS NULL)
+        AND ${receiptReviewLogs.hasOrderNumber} = 'yes'
+        AND ${receiptReviewLogs.decision} != 'approved'
+        THEN 1 ELSE 0 END)`,
+      total: sql<number>`COUNT(*)`,
+    }).from(receiptReviewLogs);
+    
+    const eligible = Number(row.totalEligible) || 0;
+    const correct = Number(row.wouldBeCorrect) || 0;
+    const wrong = Number(row.wouldBeWrong) || 0;
+    const total = Number(row.total) || 0;
+    
+    results.push({
+      confidenceThreshold: threshold,
+      eligibleCount: eligible,
+      correctCount: correct,
+      wrongCount: wrong,
+      totalCount: total,
+      coverageRate: total > 0 ? Math.round((eligible / total) * 100) : 0,
+      accuracy: eligible > 0 ? Math.round((correct / eligible) * 100) : 0,
+    });
+  }
+  
+  return results;
 }

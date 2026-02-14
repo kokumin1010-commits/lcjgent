@@ -78,6 +78,7 @@ import MallCart from "./pages/MallCart";
 import Tokushoho from "./pages/Tokushoho";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import MallDashboardPage from "./pages/MallDashboardPage";
+import AiLearningDashboard from "./pages/AiLearningDashboard";
 
 function Router() {
   return (
@@ -263,6 +264,11 @@ function Router() {
         </DashboardLayout>
       </Route>
       <Route path={"/master/referral"} component={ReferralManagement} />
+      <Route path={"/master/ai-learning"}>
+        <DashboardLayout>
+          <AiLearningDashboard />
+        </DashboardLayout>
+      </Route>
       
       {/* Public Pages - Proposal */}
       <Route path="/proposal/:token" component={ProposalPage} />

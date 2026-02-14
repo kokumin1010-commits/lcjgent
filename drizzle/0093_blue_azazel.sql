@@ -1,0 +1,20 @@
+CREATE TABLE `receipt_review_logs` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`receiptType` enum('line_receipt','web_receipt','point_request') NOT NULL,
+	`receiptId` int NOT NULL,
+	`decision` enum('approved','rejected','on_hold') NOT NULL,
+	`rejectionCategory` enum('blurry_image','missing_order_number','missing_amount','not_delivered','duplicate','wrong_store','suspicious','incomplete_info','other'),
+	`rejectionNote` text,
+	`ocrConfidence` decimal(5,2),
+	`totalAmount` bigint,
+	`hasOrderNumber` enum('yes','no') DEFAULT 'no',
+	`imageCount` int DEFAULT 1,
+	`fraudScore` decimal(5,2) DEFAULT '0',
+	`fraudFlagCount` int DEFAULT 0,
+	`pointsCalculated` bigint,
+	`pointsAwarded` bigint,
+	`reviewedBy` int NOT NULL,
+	`reviewDurationMs` bigint,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	CONSTRAINT `receipt_review_logs_id` PRIMARY KEY(`id`)
+);

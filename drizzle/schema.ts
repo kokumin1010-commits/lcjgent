@@ -2760,3 +2760,55 @@ export const mallViewHistory = mysqlTable("mall_view_history", {
 });
 export type MallViewHistory = typeof mallViewHistory.$inferSelect;
 export type InsertMallViewHistory = typeof mallViewHistory.$inferInsert;
+
+
+/**
+ * Receipt Review Logs - レシート審査の学習データ蓄積テーブル
+ * 管理者がレシートを承認・却下するたびに自動記録し、
+ * 将来の自動承認判定の学習データとして活用する
+ */
+export const receiptReviewLogs = mysqlTable("receipt_review_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // レシート情報
+  receiptType: mysqlEnum("receiptType", ["line_receipt", "web_receipt", "point_request"]).notNull(),
+  receiptId: int("receiptId").notNull(), // 各テーブルのID
+  
+  // 審査結果
+  decision: mysqlEnum("decision", ["approved", "rejected", "on_hold"]).notNull(),
+  
+  // 却下理由カテゴリ（却下時のみ）
+  rejectionCategory: mysqlEnum("rejectionCategory", [
+    "blurry_image",        // 画像が不鮮明
+    "missing_order_number", // 注文番号が見えない
+    "missing_amount",       // 金額が見えない
+    "not_delivered",        // 配達未完了
+    "duplicate",            // 重複申請
+    "wrong_store",          // 対象外の店舗
+    "suspicious",           // 不正の疑い
+    "incomplete_info",      // 情報不足
+    "other",                // その他
+  ]),
+  rejectionNote: text("rejectionNote"), // 自由記述の却下理由
+  
+  // OCR関連の特徴量（学習用）
+  ocrConfidence: decimal("ocrConfidence", { precision: 5, scale: 2 }), // OCR信頼度 (0-100)
+  totalAmount: bigint("totalAmount", { mode: "number" }), // 購入金額
+  hasOrderNumber: mysqlEnum("hasOrderNumber", ["yes", "no"]).default("no"), // 注文番号の有無
+  imageCount: int("imageCount").default(1), // 画像枚数
+  fraudScore: decimal("fraudScore", { precision: 5, scale: 2 }).default("0"), // 不正スコア
+  fraudFlagCount: int("fraudFlagCount").default(0), // 不正フラグ数
+  
+  // ポイント情報
+  pointsCalculated: bigint("pointsCalculated", { mode: "number" }), // 計算されたポイント
+  pointsAwarded: bigint("pointsAwarded", { mode: "number" }), // 実際に付与されたポイント
+  
+  // 審査者情報
+  reviewedBy: int("reviewedBy").notNull(), // 管理者のUser ID
+  reviewDurationMs: bigint("reviewDurationMs", { mode: "number" }), // 審査にかかった時間（ミリ秒）
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ReceiptReviewLog = typeof receiptReviewLogs.$inferSelect;
+export type InsertReceiptReviewLog = typeof receiptReviewLogs.$inferInsert;

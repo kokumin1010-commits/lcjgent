@@ -431,6 +431,16 @@ import {
   getMallDashboardStats,
   getMallSalesChart,
   getMallMemberGrowthChart,
+  createReceiptReviewLog,
+  getReviewDecisionTrend,
+  getRejectionCategoryDistribution,
+  getOcrConfidenceCorrelation,
+  getAutoApprovalEstimation,
+  getReviewLogsSummary,
+  getReviewLogsDailyTrend,
+  getReviewLogsRejectionDistribution,
+  getReviewLogsOcrCorrelation,
+  getAutoApprovalSimulation,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -10917,6 +10927,26 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         // Note: TikTok receipt system uses users.id, not line_users.id
         // Referral confirmation is handled by LINE receipt approval and MALL order payment
         
+        // Record review log for AI learning
+        try {
+          await createReceiptReviewLog({
+            receiptType: "web_receipt",
+            receiptId: input.id,
+            decision: "approved",
+            ocrConfidence: receipt.ocrConfidence ?? undefined,
+            totalAmount: receipt.totalAmount ?? undefined,
+            hasOrderNumber: orderNumber ? "yes" : "no",
+            imageCount: 1,
+            fraudScore: receipt.fraudScore ?? undefined,
+            fraudFlagCount: receipt.fraudFlags?.length ?? 0,
+            pointsCalculated: receipt.pointsCalculated ?? undefined,
+            pointsAwarded: pointsToAward,
+            reviewedBy: ctx.user.id,
+          });
+        } catch (logErr) {
+          console.error("[ReviewLog] Failed to record approval log:", logErr);
+        }
+        
         return { success: true, pointsAwarded: pointsToAward };
       }),
     
@@ -10925,6 +10955,11 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
       .input(z.object({
         id: z.number(),
         note: z.string(),
+        rejectionCategory: z.enum([
+          "blurry_image", "missing_order_number", "missing_amount",
+          "not_delivered", "duplicate", "wrong_store",
+          "suspicious", "incomplete_info", "other",
+        ]).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") {
@@ -10936,6 +10971,28 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           throw new TRPCError({ code: "NOT_FOUND", message: "レシートが見つかりません" });
         }
         await updateReceiptStatus(input.id, "rejected", ctx.user.id, input.note);
+        
+        // Record review log for AI learning
+        try {
+          await createReceiptReviewLog({
+            receiptType: "web_receipt",
+            receiptId: input.id,
+            decision: "rejected",
+            rejectionCategory: input.rejectionCategory ?? "other",
+            rejectionNote: input.note,
+            ocrConfidence: receipt.ocrConfidence ?? undefined,
+            totalAmount: receipt.totalAmount ?? undefined,
+            hasOrderNumber: receipt.ocrRawText ? "yes" : "no",
+            imageCount: 1,
+            fraudScore: receipt.fraudScore ?? undefined,
+            fraudFlagCount: receipt.fraudFlags?.length ?? 0,
+            pointsCalculated: receipt.pointsCalculated ?? undefined,
+            reviewedBy: ctx.user.id,
+          });
+        } catch (logErr) {
+          console.error("[ReviewLog] Failed to record rejection log:", logErr);
+        }
+        
         return { success: true };
       }),
     
@@ -10955,6 +11012,26 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           throw new TRPCError({ code: "NOT_FOUND", message: "レシートが見つかりません" });
         }
         await updateReceiptStatus(input.id, "on_hold", ctx.user.id, input.note);
+        
+        // Record review log for AI learning
+        try {
+          await createReceiptReviewLog({
+            receiptType: "web_receipt",
+            receiptId: input.id,
+            decision: "on_hold",
+            ocrConfidence: receipt.ocrConfidence ?? undefined,
+            totalAmount: receipt.totalAmount ?? undefined,
+            hasOrderNumber: receipt.ocrRawText ? "yes" : "no",
+            imageCount: 1,
+            fraudScore: receipt.fraudScore ?? undefined,
+            fraudFlagCount: receipt.fraudFlags?.length ?? 0,
+            pointsCalculated: receipt.pointsCalculated ?? undefined,
+            reviewedBy: ctx.user.id,
+          });
+        } catch (logErr) {
+          console.error("[ReviewLog] Failed to record hold log:", logErr);
+        }
+        
         return { success: true };
       }),
     
@@ -11505,6 +11582,26 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           console.error(`[Referral] Error confirming referral on LINE receipt approval:`, refErr.message);
         }
         
+        // Record review log for AI learning
+        try {
+          await createReceiptReviewLog({
+            receiptType: "line_receipt",
+            receiptId: input.id,
+            decision: "approved",
+            ocrConfidence: receipt.ocrConfidence ?? undefined,
+            totalAmount: receipt.totalAmount ?? undefined,
+            hasOrderNumber: orderNumber ? "yes" : "no",
+            imageCount: receipt.imageUrls?.length ?? 1,
+            fraudScore: receipt.fraudScore ?? undefined,
+            fraudFlagCount: receipt.fraudFlags?.length ?? 0,
+            pointsCalculated: receipt.pointsCalculated ?? undefined,
+            pointsAwarded: pointsToAward,
+            reviewedBy: ctx.user.id,
+          });
+        } catch (logErr) {
+          console.error("[ReviewLog] Failed to record LINE receipt approval log:", logErr);
+        }
+        
         // Send LINE notification to user
         try {
           const balance = await getLinePointBalance(receipt.lineUserId);
@@ -11513,7 +11610,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           const amount = receipt.totalAmount ? `¥${receipt.totalAmount.toLocaleString()}` : "不明";
           
           const appUrl = process.env.APP_URL || "https://lcjmall.com";
-          const message = `🎉 レシートが承認されました！\n\n🏪 店舗名: ${storeName}\n💰 購入金額: ${amount}\n⭐ 獲得ポイント: ${pointsToAward}ポイント\n\n📊 現在の残高: ${newBalance}ポイント\n\nご利用ありがとうございます！\n\n📋 ポイント履歴を確認する\n${appUrl}/mypage`;
+          const message = `🎉 レシートが承認されました！\n\n🏠 店舗名: ${storeName}\n💰 購入金額: ${amount}\n⭐ 獲得ポイント: ${pointsToAward}ポイント\n\n📊 現在の残高: ${newBalance}ポイント\n\nご利用ありがとうございます！\n\n📋 ポイント履歴を確認する\n${appUrl}/mypage`;
           
           await pushMessage(receipt.lineUserId, [{ type: "text", text: message }]);
           console.log(`[LINE Receipt] Sent approval notification to ${receipt.lineUserId}`);
@@ -11530,6 +11627,11 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .input(z.object({
         id: z.number(),
         note: z.string().optional(),
+        rejectionCategory: z.enum([
+          "blurry_image", "missing_order_number", "missing_amount",
+          "not_delivered", "duplicate", "wrong_store",
+          "suspicious", "incomplete_info", "other",
+        ]).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") {
@@ -11600,6 +11702,34 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           // Don't throw - notification failure shouldn't fail the rejection
         }
         
+        // Record review log for AI learning
+        try {
+          let hasOrder: "yes" | "no" = "no";
+          if (receipt.ocrRawText) {
+            try {
+              const parsed = JSON.parse(receipt.ocrRawText);
+              if (parsed.orderNumber) hasOrder = "yes";
+            } catch { /* ignore */ }
+          }
+          await createReceiptReviewLog({
+            receiptType: "line_receipt",
+            receiptId: input.id,
+            decision: "rejected",
+            rejectionCategory: input.rejectionCategory ?? "other",
+            rejectionNote: input.note || "不承認",
+            ocrConfidence: receipt.ocrConfidence ?? undefined,
+            totalAmount: receipt.totalAmount ?? undefined,
+            hasOrderNumber: hasOrder,
+            imageCount: receipt.imageUrls?.length ?? 1,
+            fraudScore: receipt.fraudScore ?? undefined,
+            fraudFlagCount: receipt.fraudFlags?.length ?? 0,
+            pointsCalculated: receipt.pointsCalculated ?? undefined,
+            reviewedBy: ctx.user.id,
+          });
+        } catch (logErr) {
+          console.error("[ReviewLog] Failed to record LINE receipt rejection log:", logErr);
+        }
+        
         return { success: true };
       }),
     
@@ -11629,6 +11759,25 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           console.log(`[LINE Receipt] Sent hold notification to ${receipt.lineUserId}`);
         } catch (notifyError) {
           console.error("[LINE Receipt] Failed to send hold notification:", notifyError);
+        }
+        
+        // Record review log for AI learning
+        try {
+          await createReceiptReviewLog({
+            receiptType: "line_receipt",
+            receiptId: input.id,
+            decision: "on_hold",
+            ocrConfidence: receipt.ocrConfidence ?? undefined,
+            totalAmount: receipt.totalAmount ?? undefined,
+            hasOrderNumber: receipt.ocrRawText ? "yes" : "no",
+            imageCount: receipt.imageUrls?.length ?? 1,
+            fraudScore: receipt.fraudScore ?? undefined,
+            fraudFlagCount: receipt.fraudFlags?.length ?? 0,
+            pointsCalculated: receipt.pointsCalculated ?? undefined,
+            reviewedBy: ctx.user.id,
+          });
+        } catch (logErr) {
+          console.error("[ReviewLog] Failed to record LINE receipt hold log:", logErr);
         }
         
         return { success: true };
@@ -13186,6 +13335,23 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           // 通知失敗しても承認処理は成功とする
         }
 
+        // Record review log for AI learning
+        try {
+          await createReceiptReviewLog({
+            receiptType: "point_request",
+            receiptId: input.requestId,
+            decision: "approved",
+            totalAmount: request.orderAmount ?? undefined,
+            hasOrderNumber: request.orderNumber ? "yes" : "no",
+            imageCount: request.deliveryImageUrl ? 2 : 1,
+            pointsCalculated: request.pointsRequested ?? undefined,
+            pointsAwarded: pointsToApprove,
+            reviewedBy: ctx.user.id,
+          });
+        } catch (logErr) {
+          console.error("[ReviewLog] Failed to record point request approval log:", logErr);
+        }
+
         return { success: true, pointsApproved: pointsToApprove };
       }),
 
@@ -13194,6 +13360,11 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .input(z.object({
         requestId: z.number(),
         reason: z.string().min(1, "却下理由を入力してください"),
+        rejectionCategory: z.enum([
+          "blurry_image", "missing_order_number", "missing_amount",
+          "not_delivered", "duplicate", "wrong_store",
+          "suspicious", "incomplete_info", "other",
+        ]).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") {
@@ -13225,6 +13396,24 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         } catch (notifyError) {
           console.error("[PointRequest] LINE通知エラー:", notifyError);
           // 通知失敗しても却下処理は成功とする
+        }
+
+        // Record review log for AI learning
+        try {
+          await createReceiptReviewLog({
+            receiptType: "point_request",
+            receiptId: input.requestId,
+            decision: "rejected",
+            rejectionCategory: input.rejectionCategory ?? "other",
+            rejectionNote: input.reason,
+            totalAmount: request.orderAmount ?? undefined,
+            hasOrderNumber: request.orderNumber ? "yes" : "no",
+            imageCount: request.deliveryImageUrl ? 2 : 1,
+            pointsCalculated: request.pointsRequested ?? undefined,
+            reviewedBy: ctx.user.id,
+          });
+        } catch (logErr) {
+          console.error("[ReviewLog] Failed to record point request rejection log:", logErr);
         }
 
         return { success: true };
@@ -14307,6 +14496,31 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           totalPointsEarned: r.totalPointsEarned ?? 0,
         }));
       }),
+  }),
+
+  // AI Learning Dashboard
+  aiLearning: router({
+    summary: protectedProcedure.query(async () => {
+      return await getReviewLogsSummary();
+    }),
+
+    dailyTrend: protectedProcedure
+      .input(z.object({ days: z.number().min(7).max(90).optional() }).optional())
+      .query(async ({ input }) => {
+        return await getReviewLogsDailyTrend(input?.days ?? 30);
+      }),
+
+    rejectionDistribution: protectedProcedure.query(async () => {
+      return await getReviewLogsRejectionDistribution();
+    }),
+
+    ocrCorrelation: protectedProcedure.query(async () => {
+      return await getReviewLogsOcrCorrelation();
+    }),
+
+    autoApprovalSimulation: protectedProcedure.query(async () => {
+      return await getAutoApprovalSimulation();
+    }),
   }),
 });
 

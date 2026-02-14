@@ -390,7 +390,7 @@ export default function LineReceiptManagement() {
   // Direct reject handler (no dialog)
   const handleDirectReject = (receiptId: number) => {
     lastRejectedIdRef.current = receiptId;
-    rejectMutation.mutate({ id: receiptId });
+    rejectMutation.mutate({ id: receiptId, rejectionCategory: (rejectionCategory || "other") as any });
   };
   
   const holdMutation = trpc.point.adminHoldLineReceipt.useMutation({
