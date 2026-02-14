@@ -5685,15 +5685,16 @@ export async function getLineReceiptStatistics() {
 
 
 /**
- * 注文番号で重複レシートを検出する
+ * Detect duplicate LINE receipts by order number (with detailed info for cross-linking)
  * ocrRawTextから注文番号を抽出し、同じ注文番号を持つレシートをグループ化して返す
+ * 各レシートの詳細情報（ステータス・金額・ユーザー名・画像・ソース）も含めて返す
  */
 export async function detectDuplicateLineReceipts() {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  // Get all receipts with ocrRawText
-  const allReceipts = await db
+  // Get all LINE receipts with ocrRawText
+  const allLineReceipts = await db
     .select({
       id: lineReceipts.id,
       lineUserId: lineReceipts.lineUserId,
@@ -5701,14 +5702,66 @@ export async function detectDuplicateLineReceipts() {
       status: lineReceipts.status,
       totalAmount: lineReceipts.totalAmount,
       submittedAt: lineReceipts.submittedAt,
+      imageUrl: lineReceipts.imageUrl,
     })
     .from(lineReceipts)
     .where(isNotNull(lineReceipts.ocrRawText));
   
-  // Extract order numbers and group by them
-  const orderNumberMap = new Map<string, number[]>();
+  // Get all point requests with order numbers
+  const allPointRequests = await db
+    .select({
+      id: pointRequests.id,
+      userId: pointRequests.userId,
+      orderNumber: pointRequests.orderNumber,
+      orderAmount: pointRequests.orderAmount,
+      status: pointRequests.status,
+      createdAt: pointRequests.createdAt,
+      receiptImageUrl: pointRequests.receiptImageUrl,
+    })
+    .from(pointRequests);
   
-  for (const receipt of allReceipts) {
+  // Get LINE user display names for lookup
+  const lineUserRows = await db
+    .select({
+      lineUserId: lineUsers.lineUserId,
+      displayName: lineUsers.displayName,
+    })
+    .from(lineUsers);
+  const lineUserNameMap = new Map<string, string>();
+  for (const u of lineUserRows) {
+    if (u.lineUserId && u.displayName) {
+      lineUserNameMap.set(u.lineUserId, u.displayName);
+    }
+  }
+  
+  // Get user display names for point requests
+  const userRows = await db
+    .select({
+      id: users.id,
+      name: users.name,
+    })
+    .from(users);
+  const userNameMap = new Map<number, string>();
+  for (const u of userRows) {
+    if (u.name) {
+      userNameMap.set(u.id, u.name);
+    }
+  }
+  
+  type DuplicateReceiptDetail = {
+    id: number;
+    source: "line_receipt" | "point_request";
+    status: string;
+    totalAmount: number | null;
+    userName: string;
+    imageUrl: string | null;
+    submittedAt: Date | string | null;
+  };
+  
+  // Build order number -> receipt details map
+  const orderNumberMap = new Map<string, DuplicateReceiptDetail[]>();
+  
+  for (const receipt of allLineReceipts) {
     let orderNumber: string | null = null;
     if (receipt.ocrRawText) {
       try {
@@ -5721,16 +5774,45 @@ export async function detectDuplicateLineReceipts() {
     }
     if (orderNumber) {
       const existing = orderNumberMap.get(orderNumber) || [];
-      existing.push(receipt.id);
+      existing.push({
+        id: receipt.id,
+        source: "line_receipt",
+        status: receipt.status,
+        totalAmount: receipt.totalAmount,
+        userName: lineUserNameMap.get(receipt.lineUserId) || receipt.lineUserId,
+        imageUrl: receipt.imageUrl,
+        submittedAt: receipt.submittedAt,
+      });
       orderNumberMap.set(orderNumber, existing);
     }
   }
   
+  // Also add point requests to the map
+  for (const pr of allPointRequests) {
+    if (pr.orderNumber) {
+      const existing = orderNumberMap.get(pr.orderNumber) || [];
+      existing.push({
+        id: pr.id,
+        source: "point_request",
+        status: pr.status,
+        totalAmount: pr.orderAmount,
+        userName: userNameMap.get(pr.userId) || `User#${pr.userId}`,
+        imageUrl: pr.receiptImageUrl,
+        submittedAt: pr.createdAt,
+      });
+      orderNumberMap.set(pr.orderNumber, existing);
+    }
+  }
+  
   // Filter to only duplicates (2+ receipts with same order number)
-  const duplicates: { orderNumber: string; receiptIds: number[] }[] = [];
-  orderNumberMap.forEach((ids, orderNumber) => {
-    if (ids.length >= 2) {
-      duplicates.push({ orderNumber, receiptIds: ids });
+  const duplicates: { orderNumber: string; receiptIds: number[]; receipts: DuplicateReceiptDetail[] }[] = [];
+  orderNumberMap.forEach((details, orderNumber) => {
+    if (details.length >= 2) {
+      duplicates.push({
+        orderNumber,
+        receiptIds: details.filter(d => d.source === "line_receipt").map(d => d.id),
+        receipts: details,
+      });
     }
   });
   

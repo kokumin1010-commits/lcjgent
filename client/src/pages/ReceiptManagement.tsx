@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,7 +21,9 @@ import {
   Edit,
   Loader2,
   Hash,
-  Gift
+  Gift,
+  ExternalLink,
+  Link2
 } from "lucide-react";
 
 const REJECTION_CATEGORIES = [
@@ -88,6 +90,24 @@ export default function ReceiptManagement() {
 
   const { data: pendingCount } = trpc.point.adminGetPendingCount.useQuery();
   const { data: statistics } = trpc.point.adminGetStatistics.useQuery();
+  
+  // Fetch duplicate receipts detection (cross-source: LINE receipts + point requests)
+  const { data: duplicateData } = trpc.point.adminDetectDuplicateReceipts.useQuery();
+  
+  type DupReceiptDetail = { id: number; source: "line_receipt" | "point_request"; status: string; totalAmount: number | null; userName: string; imageUrl: string | null; submittedAt: string | null };
+  const duplicateInfo = useMemo(() => {
+    // Map: orderNumber -> duplicate details for point_request receipts
+    const orderMap = new Map<string, DupReceiptDetail[]>();
+    if (duplicateData) {
+      for (const dup of duplicateData) {
+        const receipts = (dup as any).receipts as DupReceiptDetail[] | undefined;
+        if (receipts) {
+          orderMap.set(dup.orderNumber, receipts);
+        }
+      }
+    }
+    return { orderMap };
+  }, [duplicateData]);
 
   // Mutations
   const updateOcrMutation = trpc.point.adminUpdateReceiptOcr.useMutation({
@@ -368,20 +388,58 @@ export default function ReceiptManagement() {
                       <span className="mx-2">•</span>
                       <span>{formatDate(item.receipt.purchaseDate)}</span>
                     </div>
-                    {/* 注文番号 */}
+                    {/* 注文番号 + 重複検出 */}
                     {(() => {
                       const orderNum = extractOrderNumber(item.receipt.ocrRawText);
-                      return orderNum ? (
-                        <div className="mt-1.5 flex items-center gap-1.5 text-sm bg-blue-50 border border-blue-200 rounded px-2 py-1 w-fit">
-                          <Hash className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
-                          <span className="text-blue-600 font-medium">注文番号:</span>
-                          <span className="font-mono text-sm font-bold text-blue-800">{orderNum}</span>
-                        </div>
-                      ) : (
-                        <div className="mt-1.5 flex items-center gap-1.5 text-sm bg-red-50 border border-red-200 rounded px-2 py-1 w-fit">
-                          <AlertTriangle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
-                          <span className="text-red-600 font-medium">注文番号なし</span>
-                        </div>
+                      const dupReceipts = orderNum ? duplicateInfo.orderMap.get(orderNum) : undefined;
+                      const hasDuplicate = dupReceipts && dupReceipts.length >= 2;
+                      const otherDups = hasDuplicate ? dupReceipts.filter(d => !(d.source === "point_request" && d.id === item.receipt.id)) : [];
+                      return (
+                        <>
+                          {orderNum ? (
+                            <div className="mt-1.5 flex items-center gap-1.5 text-sm bg-blue-50 border border-blue-200 rounded px-2 py-1 w-fit">
+                              <Hash className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
+                              <span className="text-blue-600 font-medium">注文番号:</span>
+                              <span className="font-mono text-sm font-bold text-blue-800">{orderNum}</span>
+                              {hasDuplicate && (
+                                <Badge variant="destructive" className="text-[10px] px-1 py-0 bg-orange-100 text-orange-700 border-orange-300 ml-1">
+                                  <AlertTriangle className="w-2.5 h-2.5 mr-0.5" />
+                                  重複({otherDups.length})
+                                </Badge>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="mt-1.5 flex items-center gap-1.5 text-sm bg-red-50 border border-red-200 rounded px-2 py-1 w-fit">
+                              <AlertTriangle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+                              <span className="text-red-600 font-medium">注文番号なし</span>
+                            </div>
+                          )}
+                          {hasDuplicate && otherDups.length > 0 && (
+                            <div className="mt-1 bg-orange-50 border border-orange-200 rounded p-2 space-y-1">
+                              <div className="flex items-center gap-1 text-xs text-orange-700 font-medium">
+                                <Link2 className="w-3 h-3" />
+                                重複レシート:
+                              </div>
+                              {otherDups.map((dup, idx) => (
+                                <div key={`${dup.source}-${dup.id}-${idx}`} className="flex items-center gap-2 text-xs bg-white rounded px-2 py-1 border border-orange-100">
+                                  {dup.imageUrl && (
+                                    <img src={dup.imageUrl} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0 border" />
+                                  )}
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0">
+                                    {dup.source === "line_receipt" ? "LINE" : "Web"}
+                                  </Badge>
+                                  <Badge variant={dup.status === "approved" ? "default" : dup.status === "rejected" ? "destructive" : "secondary"} className="text-[9px] px-1 py-0">
+                                    {dup.status === "approved" ? "承認済" : dup.status === "rejected" ? "却下" : dup.status === "on_hold" ? "保留" : "待機"}
+                                  </Badge>
+                                  <span className="text-muted-foreground truncate">{dup.userName}</span>
+                                  {dup.totalAmount != null && (
+                                    <span className="font-semibold">{formatCurrency(dup.totalAmount, "JPY")}</span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </>
                       );
                     })()}
                     {/* ポイント表示 */}

@@ -50,6 +50,8 @@ import {
   Loader2,
   Search,
   Save,
+  ExternalLink,
+  Copy,
 } from "lucide-react";
 
 type ReceiptStatus = "pending" | "approved" | "rejected" | "on_hold";
@@ -136,19 +138,34 @@ export default function LineReceiptManagement() {
   // Fetch duplicate receipts detection
   const { data: duplicateData } = trpc.point.adminDetectDuplicateReceipts.useQuery();
   
-  // Build a Set of receipt IDs that are duplicates and a map of orderNumber -> receiptIds
+  // Build a Set of receipt IDs that are duplicates and maps for cross-linking
+  type DupReceiptDetail = { id: number; source: "line_receipt" | "point_request"; status: string; totalAmount: number | null; userName: string; imageUrl: string | null; submittedAt: string | null };
   const duplicateReceiptIds = useMemo(() => {
     const ids = new Set<number>();
     const orderMap = new Map<string, number[]>();
+    // Map: receiptId -> array of OTHER duplicate receipts (for cross-linking)
+    const crossLinkMap = new Map<number, { orderNumber: string; others: DupReceiptDetail[] }>();
     if (duplicateData) {
       for (const dup of duplicateData) {
         orderMap.set(dup.orderNumber, dup.receiptIds);
         for (const id of dup.receiptIds) {
           ids.add(id);
         }
+        // Build cross-link for each LINE receipt in this duplicate group
+        const receipts = (dup as any).receipts as DupReceiptDetail[] | undefined;
+        if (receipts) {
+          for (const r of receipts) {
+            if (r.source === "line_receipt") {
+              crossLinkMap.set(r.id, {
+                orderNumber: dup.orderNumber,
+                others: receipts.filter(o => !(o.source === r.source && o.id === r.id)),
+              });
+            }
+          }
+        }
       }
     }
-    return { ids, orderMap };
+    return { ids, orderMap, crossLinkMap };
   }, [duplicateData]);
   
   // Batch AI re-recognize mutation (one at a time)
@@ -1004,15 +1021,72 @@ export default function LineReceiptManagement() {
                               <span className="font-semibold text-sm">{selectedCalcReceipt.lineUser?.displayName || "不明"}</span>
                               {getStatusBadge(selectedCalcReceipt.receipt.status as ReceiptStatus)}
                             </div>
-                            {duplicateReceiptIds.ids.has(selectedCalcReceipt.receipt.id) && (
-                              <div className="bg-orange-50 border border-orange-300 rounded-lg p-2 flex items-center gap-2">
-                                <AlertTriangle className="w-4 h-4 text-orange-600 flex-shrink-0" />
-                                <div className="text-xs">
-                                  <span className="font-bold text-orange-700">重複注文検出</span>
-                                  <span className="text-orange-600 ml-1">同じ注文番号のレシートが他にもあります。慎重に確認してください。</span>
+                            {duplicateReceiptIds.ids.has(selectedCalcReceipt.receipt.id) && (() => {
+                              const crossLink = duplicateReceiptIds.crossLinkMap.get(selectedCalcReceipt.receipt.id);
+                              const others = crossLink?.others || [];
+                              return (
+                                <div className="bg-orange-50 border border-orange-300 rounded-lg p-2 space-y-2">
+                                  <div className="flex items-center gap-2">
+                                    <AlertTriangle className="w-4 h-4 text-orange-600 flex-shrink-0" />
+                                    <span className="font-bold text-orange-700 text-xs">重複注文検出</span>
+                                    <span className="text-orange-600 text-xs">同じ注文番号のレシートが{others.length}件あります</span>
+                                  </div>
+                                  {others.length > 0 && (
+                                    <div className="space-y-1.5">
+                                      {others.map((other, idx) => (
+                                        <div key={`${other.source}-${other.id}-${idx}`} className="bg-white border border-orange-200 rounded p-2 flex items-center gap-2">
+                                          {other.imageUrl && (
+                                            <img src={other.imageUrl} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0 border" />
+                                          )}
+                                          <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                              <Badge variant="outline" className="text-[9px] px-1 py-0">
+                                                {other.source === "line_receipt" ? "LINE" : "Web"}
+                                              </Badge>
+                                              <Badge variant={other.status === "approved" ? "default" : other.status === "rejected" ? "destructive" : "secondary"} className="text-[9px] px-1 py-0">
+                                                {other.status === "approved" ? "承認済" : other.status === "rejected" ? "却下" : other.status === "on_hold" ? "保留" : "待機"}
+                                              </Badge>
+                                              <span className="text-[10px] text-muted-foreground truncate">{other.userName}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2 mt-0.5">
+                                              {other.totalAmount != null && (
+                                                <span className="text-xs font-semibold">{formatCurrency(other.totalAmount)}</span>
+                                              )}
+                                              {other.submittedAt && (
+                                                <span className="text-[10px] text-muted-foreground">
+                                                  {new Date(other.submittedAt).toLocaleDateString("ja-JP", { month: "short", day: "numeric" })}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+                                          {other.source === "line_receipt" && (
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-7 px-2 text-xs"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                // Find and select this receipt in the list
+                                                const target = receipts?.find((r: any) => r.id === other.id);
+                                                if (target) {
+                                                  setCalcReceiptId(other.id);
+                                                  toast.info(`レシート #${other.id} に切り替えました`);
+                                                } else {
+                                                  toast.info(`レシート #${other.id} は別のタブ（${other.status === "approved" ? "承認済" : other.status === "rejected" ? "却下" : "保留"}）にあります`);
+                                                }
+                                              }}
+                                            >
+                                              <ExternalLink className="w-3 h-3 mr-1" />
+                                              表示
+                                            </Button>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
-                              </div>
-                            )}
+                              );
+                            })()}
                             
                             {/* Order Number - Inline Edit */}
                             <div className="space-y-1">
@@ -1423,12 +1497,25 @@ export default function LineReceiptManagement() {
                                   {(receipt.fraudFlags as string[]).includes("similar_order_number") ? "類似" : (receipt.fraudFlags as string[]).includes("duplicate_order") ? "重複" : "不正"}
                                 </Badge>
                               )}
-                              {duplicateReceiptIds.ids.has(receipt.id) && (
-                                <Badge variant="destructive" className="text-[10px] px-1 py-0 bg-orange-100 text-orange-700 border-orange-300">
-                                  <AlertTriangle className="w-2.5 h-2.5 mr-0.5" />
-                                  重複注文
-                                </Badge>
-                              )}
+                              {duplicateReceiptIds.ids.has(receipt.id) && (() => {
+                                const crossLink = duplicateReceiptIds.crossLinkMap.get(receipt.id);
+                                const others = crossLink?.others || [];
+                                const otherSummary = others.map(o => {
+                                  const src = o.source === "line_receipt" ? "LINE" : "Web";
+                                  const st = o.status === "approved" ? "承認" : o.status === "rejected" ? "却下" : o.status === "on_hold" ? "保留" : "待機";
+                                  return `${src}#${o.id}(${st})`;
+                                }).join(", ");
+                                return (
+                                  <Badge 
+                                    variant="destructive" 
+                                    className="text-[10px] px-1 py-0 bg-orange-100 text-orange-700 border-orange-300 cursor-help"
+                                    title={otherSummary ? `重複: ${otherSummary}` : "重複注文"}
+                                  >
+                                    <AlertTriangle className="w-2.5 h-2.5 mr-0.5" />
+                                    重複{others.length > 0 ? `(${others.length})` : ""}
+                                  </Badge>
+                                );
+                              })()}
                             </div>
                             {/* Row 2: Amount + Points + Images count */}
                             <div className="flex items-center gap-2 text-xs">
