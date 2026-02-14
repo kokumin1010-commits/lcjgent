@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Package, Truck, CheckCircle, XCircle, Clock, ShoppingBag, User, MapPin, Phone, Calendar, Coins, CreditCard, FileText, RefreshCw, Bell, BellOff, AlertCircle } from "lucide-react";
+import { Loader2, Package, Truck, CheckCircle, XCircle, Clock, ShoppingBag, User, MapPin, Phone, Calendar, Coins, CreditCard, FileText, RefreshCw, Bell, BellOff, AlertCircle, Send } from "lucide-react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import { toast } from "sonner";
@@ -58,6 +58,12 @@ const statusConfig: Record<OrderStatus, { label: string; color: string; icon: Re
   },
 };
 
+// 各注文カードのインライン配送情報を管理するための型
+type InlineShippingState = {
+  carrier: string;
+  trackingNumber: string;
+};
+
 export default function OrderManagement() {
   const [statusFilter, setStatusFilter] = useState<OrderStatus | "all">("all");
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
@@ -68,6 +74,27 @@ export default function OrderManagement() {
   const [shippingCarrier, setShippingCarrier] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
   const [sendNotification, setSendNotification] = useState(true);
+
+  // 各注文カードのインライン配送情報
+  const [inlineShipping, setInlineShipping] = useState<Record<number, InlineShippingState>>({});
+
+  const getInlineShipping = (orderId: number): InlineShippingState => {
+    return inlineShipping[orderId] || { carrier: "", trackingNumber: "" };
+  };
+
+  const setInlineCarrier = (orderId: number, carrier: string) => {
+    setInlineShipping(prev => ({
+      ...prev,
+      [orderId]: { ...getInlineShipping(orderId), carrier },
+    }));
+  };
+
+  const setInlineTrackingNumber = (orderId: number, trackingNumber: string) => {
+    setInlineShipping(prev => ({
+      ...prev,
+      [orderId]: { ...getInlineShipping(orderId), trackingNumber },
+    }));
+  };
 
   const { data: orders, isLoading, refetch } = trpc.mall.getOrders.useQuery(
     statusFilter === "all" ? undefined : { status: statusFilter }
@@ -96,6 +123,15 @@ export default function OrderManagement() {
       }
       toast.success(messages.join("。"));
       
+      // インライン配送情報をクリア
+      if (variables.id) {
+        setInlineShipping(prev => {
+          const next = { ...prev };
+          delete next[variables.id];
+          return next;
+        });
+      }
+      
       refetch();
       setIsStatusDialogOpen(false);
       setAdminNotes("");
@@ -119,6 +155,22 @@ export default function OrderManagement() {
     setTrackingNumber("");
     setSendNotification(true);
     setIsStatusDialogOpen(true);
+  };
+
+  // インラインで発送処理を実行
+  const handleInlineShip = (orderId: number) => {
+    const shipping = getInlineShipping(orderId);
+    if (!shipping.carrier || !shipping.trackingNumber) {
+      toast.error("配送業者と伝票番号を入力してください");
+      return;
+    }
+    updateStatusMutation.mutate({
+      id: orderId,
+      status: "shipped",
+      shippingCarrier: shipping.carrier,
+      trackingNumber: shipping.trackingNumber,
+      sendNotification: true,
+    });
   };
 
   // ワンタップでステータスを次の段階に進める
@@ -145,6 +197,9 @@ export default function OrderManagement() {
     const nextStatus = getNextStatus(status);
     if (!nextStatus) return null;
 
+    // 発送済みにする場合はインライン入力を使うのでボタンは不要
+    if (nextStatus === "shipped") return null;
+
     const actionConfig: Record<OrderStatus, { label: string; icon: React.ReactNode; color: string }> = {
       paid: { label: "決済済み", icon: <CreditCard className="h-3.5 w-3.5" />, color: "bg-emerald-500 hover:bg-emerald-600 text-white" },
       confirmed: { label: "確認済み", icon: <CheckCircle className="h-3.5 w-3.5" />, color: "bg-blue-500 hover:bg-blue-600 text-white" },
@@ -157,28 +212,6 @@ export default function OrderManagement() {
 
     const config = actionConfig[nextStatus];
     if (!config.label) return null;
-
-    // 発送済みにする場合は配送情報（伝票番号）が必要なのでダイアログを開く
-    if (nextStatus === "shipped") {
-      return (
-        <Button
-          size="sm"
-          className={`gap-1.5 ${config.color}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            setSelectedOrderId(orderId);
-            setNewStatus("shipped");
-            setAdminNotes("");
-            setShippingCarrier("");
-            setTrackingNumber("");
-            setIsStatusDialogOpen(true);
-          }}
-        >
-          <Truck className="h-3.5 w-3.5" />
-          発送処理
-        </Button>
-      );
-    }
 
     return (
       <Button
@@ -268,15 +301,14 @@ export default function OrderManagement() {
             { key: "shipped" as const, label: "発送済み", count: stats.shipped, color: "bg-purple-50 text-purple-700", activeColor: "bg-purple-500 text-white", icon: <Truck className="h-3.5 w-3.5" /> },
             { key: "delivered" as const, label: "配達完了", count: stats.delivered, color: "bg-green-50 text-green-700", activeColor: "bg-green-500 text-white", icon: <CheckCircle className="h-3.5 w-3.5" /> },
             { key: "cancelled" as const, label: "キャンセル", count: stats.cancelled, color: "bg-red-50 text-red-700", activeColor: "bg-red-500 text-white", icon: <XCircle className="h-3.5 w-3.5" /> },
-            { key: "pending" as const, label: "受付", count: stats.pending, color: "bg-yellow-50 text-yellow-700", activeColor: "bg-yellow-500 text-white", icon: <Clock className="h-3.5 w-3.5" /> },
           ].map((tab) => (
             <button
               key={tab.key}
               onClick={() => setStatusFilter(tab.key)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all duration-200 ${
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
                 statusFilter === tab.key
-                  ? `${tab.activeColor} shadow-sm`
-                  : `${tab.color} hover:opacity-80`
+                  ? tab.activeColor + " shadow-sm"
+                  : tab.color + " hover:opacity-80"
               }`}
             >
               {tab.icon}
@@ -312,86 +344,172 @@ export default function OrderManagement() {
             </div>
           ) : orders && orders.length > 0 ? (
             <div className="space-y-4">
-              {orders.map((item) => (
-                <div
-                  key={item.order.id}
-                  className="border rounded-lg p-4 hover:shadow-md transition-shadow"
-                >
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">
-                          #{item.order.orderNumber}
-                        </span>
-                        {getStatusBadge(item.order.status as OrderStatus)}
-                      </div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <User className="h-4 w-4" />
-                          {item.lineUser?.displayName || "不明"}
+              {orders.map((item) => {
+                const orderStatus = item.order.status as OrderStatus;
+                const isPaidOrConfirmed = orderStatus === "paid" || orderStatus === "confirmed";
+                const inlineData = getInlineShipping(item.order.id);
+                const canInlineShip = isPaidOrConfirmed && inlineData.carrier && inlineData.trackingNumber;
+
+                return (
+                  <div
+                    key={item.order.id}
+                    className="border rounded-lg p-4 hover:shadow-md transition-shadow"
+                  >
+                    {/* 上部: 注文情報 */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">
+                            #{item.order.orderNumber}
+                          </span>
+                          {getStatusBadge(orderStatus)}
                         </div>
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <Calendar className="h-4 w-4" />
-                          {format(new Date(item.order.createdAt), "yyyy/MM/dd HH:mm", { locale: ja })}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <CreditCard className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">¥{item.order.totalAmount.toLocaleString()}</span>
-                        </div>
-                        {item.order.pointsUsed > 0 && (
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <User className="h-4 w-4" />
+                            {item.lineUser?.displayName || "不明"}
+                          </div>
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <Calendar className="h-4 w-4" />
+                            {format(new Date(item.order.createdAt), "yyyy/MM/dd HH:mm", { locale: ja })}
+                          </div>
                           <div className="flex items-center gap-1">
-                            <Coins className="h-4 w-4 text-rose-500" />
-                            <span className="text-rose-600">{item.order.pointsUsed.toLocaleString()} pt</span>
+                            <CreditCard className="h-4 w-4 text-muted-foreground" />
+                            <span className="font-medium">¥{item.order.totalAmount.toLocaleString()}</span>
+                          </div>
+                          {item.order.pointsUsed > 0 && (
+                            <div className="flex items-center gap-1">
+                              <Coins className="h-4 w-4 text-rose-500" />
+                              <span className="text-rose-600">{item.order.pointsUsed.toLocaleString()} pt</span>
+                            </div>
+                          )}
+                        </div>
+                        {/* 配送先住所 */}
+                        {(item.order.shippingName || item.order.shippingAddress) && (
+                          <div className="mt-2 pt-2 border-t border-dashed border-gray-200 text-sm text-muted-foreground">
+                            <div className="flex items-start gap-1">
+                              <MapPin className="h-4 w-4 mt-0.5 shrink-0 text-rose-400" />
+                              <div className="space-y-0.5">
+                                {item.order.shippingName && (
+                                  <span className="font-medium text-foreground">{item.order.shippingName}</span>
+                                )}
+                                {item.order.shippingPhone && (
+                                  <span className="ml-2">
+                                    <Phone className="h-3 w-3 inline mr-0.5" />
+                                    {item.order.shippingPhone}
+                                  </span>
+                                )}
+                                {item.order.shippingPostalCode && (
+                                  <p className="text-xs">〒{item.order.shippingPostalCode}</p>
+                                )}
+                                {item.order.shippingAddress && (
+                                  <p className="text-xs">{item.order.shippingAddress}</p>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         )}
                       </div>
-                      {/* 配送先住所 */}
-                      {(item.order.shippingName || item.order.shippingAddress) && (
-                        <div className="mt-2 pt-2 border-t border-dashed border-gray-200 text-sm text-muted-foreground">
-                          <div className="flex items-start gap-1">
-                            <MapPin className="h-4 w-4 mt-0.5 shrink-0 text-rose-400" />
-                            <div className="space-y-0.5">
-                              {item.order.shippingName && (
-                                <span className="font-medium text-foreground">{item.order.shippingName}</span>
-                              )}
-                              {item.order.shippingPhone && (
-                                <span className="ml-2">
-                                  <Phone className="h-3 w-3 inline mr-0.5" />
-                                  {item.order.shippingPhone}
-                                </span>
-                              )}
-                              {item.order.shippingPostalCode && (
-                                <p className="text-xs">〒{item.order.shippingPostalCode}</p>
-                              )}
-                              {item.order.shippingAddress && (
-                                <p className="text-xs">{item.order.shippingAddress}</p>
-                              )}
+                      <div className="flex flex-wrap gap-2 items-center">
+                        {getQuickActionButton(item.order.id, orderStatus)}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleViewDetail(item.order.id)}
+                        >
+                          詳細
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-muted-foreground"
+                          onClick={() => handleOpenStatusDialog(item.order.id, orderStatus)}
+                        >
+                          その他
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* 下部: 配送情報インライン入力（決済完了・確認済みの注文のみ） */}
+                    {isPaidOrConfirmed && (
+                      <div className="mt-3 pt-3 border-t border-purple-100">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2">
+                          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-xs font-medium text-purple-700 mb-1 block flex items-center gap-1">
+                                <Truck className="h-3 w-3" />
+                                配送業者
+                              </label>
+                              <Select
+                                value={inlineData.carrier}
+                                onValueChange={(v) => setInlineCarrier(item.order.id, v)}
+                              >
+                                <SelectTrigger className="h-9 text-sm">
+                                  <SelectValue placeholder="選択..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="ヤマト運輸">ヤマト運輸</SelectItem>
+                                  <SelectItem value="佐川急便">佐川急便</SelectItem>
+                                  <SelectItem value="日本郵便">日本郵便</SelectItem>
+                                  <SelectItem value="西濃運輸">西濃運輸</SelectItem>
+                                  <SelectItem value="その他">その他</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <label className="text-xs font-medium text-purple-700 mb-1 block">
+                                伝票番号（追跡番号）
+                              </label>
+                              <input
+                                type="text"
+                                className="w-full h-9 px-3 border rounded-md text-sm font-mono bg-white focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-purple-400"
+                                placeholder="伝票番号を入力..."
+                                value={inlineData.trackingNumber}
+                                onChange={(e) => setInlineTrackingNumber(item.order.id, e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && canInlineShip) {
+                                    handleInlineShip(item.order.id);
+                                  }
+                                }}
+                              />
                             </div>
                           </div>
+                          <Button
+                            size="sm"
+                            className="gap-1.5 bg-purple-500 hover:bg-purple-600 text-white h-9 px-4 shrink-0"
+                            disabled={!canInlineShip || updateStatusMutation.isPending}
+                            onClick={() => handleInlineShip(item.order.id)}
+                          >
+                            {updateStatusMutation.isPending ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Send className="h-3.5 w-3.5" />
+                            )}
+                            発送する
+                          </Button>
                         </div>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap gap-2 items-center">
-                      {getQuickActionButton(item.order.id, item.order.status as OrderStatus)}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleViewDetail(item.order.id)}
-                      >
-                        詳細
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-muted-foreground"
-                        onClick={() => handleOpenStatusDialog(item.order.id, item.order.status as OrderStatus)}
-                      >
-                        その他
-                      </Button>
-                    </div>
+                      </div>
+                    )}
+
+                    {/* 発送済みの注文には配送情報を表示 */}
+                    {(orderStatus === "shipped" || orderStatus === "delivered") && (item.order.shippingCarrier || item.order.trackingNumber) && (
+                      <div className="mt-3 pt-3 border-t border-purple-100">
+                        <div className="flex items-center gap-3 text-sm">
+                          <Truck className="h-4 w-4 text-purple-500 shrink-0" />
+                          {item.order.shippingCarrier && (
+                            <span className="text-purple-700 font-medium">{item.order.shippingCarrier}</span>
+                          )}
+                          {item.order.trackingNumber && (
+                            <span className="font-mono text-purple-600 bg-purple-50 px-2 py-0.5 rounded">
+                              {item.order.trackingNumber}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="text-center py-8 text-muted-foreground">
@@ -586,7 +704,7 @@ export default function OrderManagement() {
         </DialogContent>
       </Dialog>
 
-      {/* ステータス変更ダイアログ */}
+      {/* ステータス変更ダイアログ（その他ボタン用） */}
       <Dialog open={isStatusDialogOpen} onOpenChange={setIsStatusDialogOpen}>
         <DialogContent>
           <DialogHeader>
