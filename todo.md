@@ -5280,3 +5280,16 @@
 - [x] LineReceiptManagement.tsxの重複警告に「もう一方のレシート」の情報とリンクを表示（サムネイル・ステータス・金額・ユーザー名・切り替えボタン）
 - [x] ReceiptManagement.tsxにも同様の重複レシート相互リンクを表示（注文番号横に重複バッジ+詳細カード）
 - [x] テスト・動作確認（TypeScriptエラーなし）
+
+## レシート学習分析ダッシュボード
+- [x] バックエンドAPIの構造確認（サマリー・日次トレンド・却下理由分布・OCR相関・自動承認シミュレーション）
+- [x] AiLearningDashboard.tsxが既に実装済み（サマリー・トレンド・却下分布・OCR相関・自動承認シミュレーション）
+- [x] 統合レシート管理ページのAI学習分析タブに組み込み済み
+
+## レシート管理ページの統合
+- [x] 統合レシート管理ページ（ReceiptHub.tsx）を作成（タブ切替: LINEレシート / Webレシート / ポイント申請 / AI学習分析）
+- [x] 既存のLineReceiptManagement・ReceiptManagement・PointRequestAdmin・AiLearningDashboardをタブコンテンツとして統合
+- [x] 各コンポーネントにembedded propを追加してヘッダー重複を解消
+- [x] App.tsxに/master/receiptsルートを追加、/master/ai-learningもReceiptHubに統合
+- [x] サイドバーメニューを「レシート管理」（Receiptアイコン）に統合
+- [x] テスト・動作確認（131ファイル・1635テスト全パス）

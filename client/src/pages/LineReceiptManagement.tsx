@@ -75,7 +75,7 @@ const getConfidenceLabel = (score: number) => {
   return { label: "低信頼", color: "text-red-600 bg-red-50 border-red-200" };
 };
 
-export default function LineReceiptManagement() {
+export default function LineReceiptManagement({ embedded = false }: { embedded?: boolean } = {}) {
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<ReceiptStatus>("pending");
   const [selectedReceipt, setSelectedReceipt] = useState<number | null>(null);
@@ -746,29 +746,32 @@ export default function LineReceiptManagement() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <MessageCircle className="w-6 h-6 text-green-500" />
-            {t("lineReceiptManagement")}
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            LINEから送信されたレシートの審査・ポイント付与管理
-          </p>
+      {!embedded && (
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <MessageCircle className="w-6 h-6 text-green-500" />
+              {t("lineReceiptManagement")}
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              LINEから送信されたレシートの審査・ポイント付与管理
+            </p>
+          </div>
+          
+          {/* Keyboard Shortcut Help Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-muted-foreground hover:text-foreground"
+            onClick={() => setShowShortcutHelp(true)}
+          >
+            <Keyboard className="w-4 h-4" />
+            <span className="hidden sm:inline">ショートカット</span>
+            <kbd className="ml-1 px-1.5 py-0.5 text-[10px] font-mono bg-muted rounded border">?</kbd>
+          </Button>
         </div>
-        
-        {/* Keyboard Shortcut Help Button */}
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5 text-muted-foreground hover:text-foreground"
-          onClick={() => setShowShortcutHelp(true)}
-        >
-          <Keyboard className="w-4 h-4" />
-          <span className="hidden sm:inline">ショートカット</span>
-          <kbd className="ml-1 px-1.5 py-0.5 text-[10px] font-mono bg-muted rounded border">?</kbd>
-        </Button>
-        
+      )}
+
         {/* AI Auto Mode Toggle */}
         <div className="flex items-center gap-3 p-3 rounded-lg border bg-card">
           <div className="flex items-center gap-2">
@@ -783,7 +786,6 @@ export default function LineReceiptManagement() {
             onCheckedChange={setAiAutoMode}
           />
         </div>
-      </div>
       
       {/* Batch AI Recognition Progress */}
       {batchAiProgress.running && (

@@ -42,7 +42,7 @@ type PointRequest = {
   createdAt: Date;
 };
 
-export default function PointRequestAdmin() {
+export default function PointRequestAdmin({ embedded = false }: { embedded?: boolean } = {}) {
   const { user, loading: authLoading } = useAuth();
   const [selectedRequest, setSelectedRequest] = useState<PointRequest | null>(null);
   const [viewImageUrl, setViewImageUrl] = useState<string | null>(null);
@@ -268,10 +268,12 @@ export default function PointRequestAdmin() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">ポイント申請管理</h1>
-        <p className="text-gray-500">TikTok Shopレシートによるポイント申請の承認・却下</p>
-      </div>
+      {!embedded && (
+        <div>
+          <h1 className="text-2xl font-bold">ポイント申請管理</h1>
+          <p className="text-gray-500">TikTok Shopレシートによるポイント申請の承認・却下</p>
+        </div>
+      )}
 
       <Tabs defaultValue="pending">
         <TabsList>

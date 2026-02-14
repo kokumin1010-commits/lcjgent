@@ -63,7 +63,7 @@ interface ReceiptData {
   userEmail: string | null;
 }
 
-export default function ReceiptManagement() {
+export default function ReceiptManagement({ embedded = false }: { embedded?: boolean } = {}) {
   const { t } = useLanguage();
   const [selectedTab, setSelectedTab] = useState<ReceiptStatus | "all">("pending");
   const [selectedReceipt, setSelectedReceipt] = useState<ReceiptData | null>(null);
@@ -278,17 +278,19 @@ export default function ReceiptManagement() {
 
   return (
     <div className="container py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Receipt className="w-6 h-6" />
-            {t("receipts.title")}
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            レシート申請の審査・承認を行います
-          </p>
+      {!embedded && (
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <Receipt className="w-6 h-6" />
+              {t("receipts.title")}
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              レシート申請の審査・承認を行います
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

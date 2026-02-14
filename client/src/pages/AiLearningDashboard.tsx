@@ -88,7 +88,7 @@ function SimpleBarChart({ data, labelKey, valueKey, colorFn }: {
   );
 }
 
-export default function AiLearningDashboard() {
+export default function AiLearningDashboard({ embedded = false }: { embedded?: boolean } = {}) {
   const [trendDays, setTrendDays] = useState<number>(30);
 
   const { data: summary, isLoading: summaryLoading } = trpc.aiLearning.summary.useQuery();
@@ -126,15 +126,17 @@ export default function AiLearningDashboard() {
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Brain className="h-6 w-6" />
-          AI学習ダッシュボード
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          レシート承認・却下の判断データを蓄積し、自動承認への移行準備状況を可視化します
-        </p>
-      </div>
+      {!embedded && (
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Brain className="h-6 w-6" />
+            AI学習ダッシュボード
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            レシート承認・却下の判断データを蓄積し、自動承認への移行準備状況を可視化します
+          </p>
+        </div>
+      )}
 
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

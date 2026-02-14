@@ -79,6 +79,7 @@ import Tokushoho from "./pages/Tokushoho";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import MallDashboardPage from "./pages/MallDashboardPage";
 import AiLearningDashboard from "./pages/AiLearningDashboard";
+import ReceiptHub from "./pages/ReceiptHub";
 
 function Router() {
   return (
@@ -102,6 +103,11 @@ function Router() {
       <Route path="/master/point-requests">
         <DashboardLayout>
           <PointRequestAdmin />
+        </DashboardLayout>
+      </Route>
+      <Route path="/master/receipts">
+        <DashboardLayout>
+          <ReceiptHub />
         </DashboardLayout>
       </Route>
       
@@ -266,7 +272,7 @@ function Router() {
       <Route path={"/master/referral"} component={ReferralManagement} />
       <Route path={"/master/ai-learning"}>
         <DashboardLayout>
-          <AiLearningDashboard />
+          <ReceiptHub />
         </DashboardLayout>
       </Route>
       

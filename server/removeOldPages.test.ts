@@ -8,16 +8,8 @@ describe("旧レシート管理・旧ポイント管理ページの削除", () =
   describe("App.tsx ルーティング", () => {
     const appContent = fs.readFileSync(path.join(clientSrcPath, "App.tsx"), "utf-8");
 
-    it("旧レシート管理ルート(/master/receipts)が削除されている", () => {
-      expect(appContent).not.toContain('path={"/master/receipts"}');
-    });
-
     it("旧ポイント管理ルート(/master/points)が削除されている", () => {
       expect(appContent).not.toContain('path={"/master/points"}');
-    });
-
-    it("ReceiptManagementのimportが削除されている", () => {
-      expect(appContent).not.toContain('import ReceiptManagement from');
     });
 
     it("MyPointsのimportが削除されている", () => {
@@ -31,6 +23,14 @@ describe("旧レシート管理・旧ポイント管理ページの削除", () =
     it("LineReceiptManagementのimportが残っている", () => {
       expect(appContent).toContain('import LineReceiptManagement from');
     });
+
+    it("統合レシート管理ページ(ReceiptHub)のimportが存在する", () => {
+      expect(appContent).toContain('import ReceiptHub from');
+    });
+
+    it("統合レシート管理ルート(/master/receipts)が存在する", () => {
+      expect(appContent).toContain('/master/receipts');
+    });
   });
 
   describe("DashboardLayout サイドバー", () => {
@@ -39,8 +39,12 @@ describe("旧レシート管理・旧ポイント管理ページの削除", () =
       "utf-8"
     );
 
-    it("旧レシート管理メニュー(/master/receipts)がサイドバーから削除されている", () => {
-      expect(layoutContent).not.toContain('path: "/master/receipts"');
+    it("統合レシート管理メニュー(/master/receipts)がサイドバーに存在する", () => {
+      expect(layoutContent).toContain('path: "/master/receipts"');
+    });
+
+    it("レシート管理ラベルがサイドバーに存在する", () => {
+      expect(layoutContent).toContain('label: "レシート管理"');
     });
 
     it("旧ポイント管理メニュー(/master/points)がサイドバーから削除されている", () => {
