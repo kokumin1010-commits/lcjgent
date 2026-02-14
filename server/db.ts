@@ -7144,17 +7144,34 @@ export async function getAllPointRequests(limit: number = 100) {
 
 /**
  * Check if order number already exists (for duplicate prevention)
+ * Checks both pointRequests and lineReceipts tables for cross-system duplicate detection
  */
-export async function checkOrderNumberExists(orderNumber: string): Promise<boolean> {
+export async function checkOrderNumberExists(orderNumber: string): Promise<{ exists: boolean; source?: "pointRequest" | "lineReceipt" }> {
   const db = await getDb();
-  if (!db) return false;
+  if (!db) return { exists: false };
   
-  const result = await db.select({ id: pointRequests.id })
+  // Check pointRequests table
+  const prResult = await db.select({ id: pointRequests.id })
     .from(pointRequests)
     .where(eq(pointRequests.orderNumber, orderNumber))
     .limit(1);
   
-  return result.length > 0;
+  if (prResult.length > 0) {
+    return { exists: true, source: "pointRequest" };
+  }
+  
+  // Also check lineReceipts table (cross-system duplicate detection)
+  const lrResult = await db
+    .select({ id: lineReceipts.id })
+    .from(lineReceipts)
+    .where(sql`JSON_EXTRACT(${lineReceipts.ocrRawText}, '$.orderNumber') = ${orderNumber}`)
+    .limit(1);
+  
+  if (lrResult.length > 0) {
+    return { exists: true, source: "lineReceipt" };
+  }
+  
+  return { exists: false };
 }
 
 /**
@@ -7881,6 +7898,7 @@ export async function getLiverSalesStatsByBrand(brandId: number) {
 /**
  * Check for duplicate TikTok Shop order number across ALL users
  * 全ユーザー間でTikTok Shop注文番号の重複をチェック
+ * Checks both lineReceipts and pointRequests tables for cross-system duplicate detection
  */
 export async function checkDuplicateOrderNumberGlobal(
   orderNumber: string,
@@ -7889,15 +7907,14 @@ export async function checkDuplicateOrderNumberGlobal(
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  // Search for the order number in ocrRawText JSON field
-  // ocrRawText contains: {"orderNumber": "...", "shopName": "...", ...}
+  // 1. Search lineReceipts table (ocrRawText JSON field)
   let conditions = sql`JSON_EXTRACT(${lineReceipts.ocrRawText}, '$.orderNumber') = ${orderNumber}`;
   
   if (excludeId) {
     conditions = sql`${conditions} AND ${lineReceipts.id} != ${excludeId}`;
   }
   
-  const result = await db
+  const lrResult = await db
     .select({
       id: lineReceipts.id,
       lineUserId: lineReceipts.lineUserId,
@@ -7911,7 +7928,37 @@ export async function checkDuplicateOrderNumberGlobal(
     .where(conditions)
     .limit(1);
   
-  return result[0] || null;
+  if (lrResult[0]) {
+    return { ...lrResult[0], source: "lineReceipt" as const };
+  }
+  
+  // 2. Also check pointRequests table (cross-system duplicate detection)
+  const prResult = await db
+    .select({
+      id: pointRequests.id,
+      orderNumber: pointRequests.orderNumber,
+      orderAmount: pointRequests.orderAmount,
+      status: pointRequests.status,
+      createdAt: pointRequests.createdAt,
+    })
+    .from(pointRequests)
+    .where(eq(pointRequests.orderNumber, orderNumber))
+    .limit(1);
+  
+  if (prResult[0]) {
+    return {
+      id: prResult[0].id,
+      lineUserId: "pointRequest",
+      storeName: "TikTok Shop",
+      totalAmount: prResult[0].orderAmount,
+      status: prResult[0].status,
+      submittedAt: prResult[0].createdAt,
+      ocrRawText: null,
+      source: "pointRequest" as const,
+    };
+  }
+  
+  return null;
 }
 
 

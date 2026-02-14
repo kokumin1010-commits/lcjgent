@@ -5217,3 +5217,19 @@
 - [x] 連携完了メッセージも「Webフォームからアップロード」に修正
 - [x] ポイント履歴の空メッセージからTikTok Shop/スクリーンショット送信を削除
 - [x] テスト・動作確認（10テスト全パス）
+
+## 重複レシート検出機能の強化
+- [x] checkOrderNumberExistsをpointRequests + lineReceipts横断チェックに拡張
+- [x] checkDuplicateOrderNumberGlobalをlineReceipts + pointRequests横断チェックに拡張
+- [x] 重複検出時にソース（LINEレシート/Webフォーム）を含む警告メッセージを表示
+- [x] 管理画面の重複表示は既存実装で対応済み（fraudFlags + バッジ表示）
+- [x] テスト・動作確認（130ファイル・1612テスト全パス）
+
+## LINE通知の拡充
+- [x] LINE receipt承認時のLINE通知（既存実装済み）
+- [x] LINE receipt却下時のLINE通知（既存実装済み）
+- [x] LINE receipt保留時のLINE通知を追加
+- [x] Webポイント申請承認時のLINE通知（既存実装済み）
+- [x] Webポイント申請却下時のLINE通知を追加
+- [x] LINE未連携ユーザーの場合はスキップする制御（lineUserIdがnullの場合はスキップ）
+- [x] テスト・動作確認（130ファイル・1612テスト全パス）

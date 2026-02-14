@@ -11619,6 +11619,18 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           throw new TRPCError({ code: "NOT_FOUND", message: "レシートが見つかりません" });
         }
         await updateLineReceiptStatus(input.id, "on_hold", ctx.user.id, input.note);
+        
+        // Send LINE notification to user about hold status
+        try {
+          const { pushMessage } = await import("./line");
+          const storeName = receipt.storeName || "TikTok Shop";
+          const message = `お送りいただいたレシートを確認中です。\n\n🏠 店舗名: ${storeName}\n📝 理由: ${input.note}\n\n確認が完了しましたら結果をお知らせします。\nしばらくお待ちください。`;
+          await pushMessage(receipt.lineUserId, [{ type: "text", text: message }]);
+          console.log(`[LINE Receipt] Sent hold notification to ${receipt.lineUserId}`);
+        } catch (notifyError) {
+          console.error("[LINE Receipt] Failed to send hold notification:", notifyError);
+        }
+        
         return { success: true };
       }),
     
@@ -13035,12 +13047,13 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           });
         }
 
-        // 重複注文番号チェック
-        const exists = await checkOrderNumberExists(input.orderNumber);
-        if (exists) {
+        // 重複注文番号チェック（pointRequests + lineReceipts 横断チェック）
+        const duplicateCheck = await checkOrderNumberExists(input.orderNumber);
+        if (duplicateCheck.exists) {
+          const sourceLabel = duplicateCheck.source === "lineReceipt" ? "LINEレシート" : "Webフォーム";
           throw new TRPCError({ 
             code: "BAD_REQUEST", 
-            message: "この注文番号は既に申請済みです。" 
+            message: `この注文番号は既に${sourceLabel}から申請済みです。` 
           });
         }
 
@@ -13197,6 +13210,22 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         }
 
         await rejectPointRequest(input.requestId, ctx.user.id, input.reason);
+
+        // LINE通知を送信（ユーザーがLINEユーザーの場合）
+        try {
+          const lineUser = await getLineUserById(request.userId);
+          if (lineUser?.lineUserId) {
+            await pushMessage(lineUser.lineUserId, [
+              {
+                type: "text",
+                text: `ポイント申請が承認されませんでした。\n\n注文番号: ${request.orderNumber}\n理由: ${input.reason}\n\n内容をご確認の上、再度申請いただくか、\nご不明な点があればお問い合わせください。`,
+              },
+            ]);
+          }
+        } catch (notifyError) {
+          console.error("[PointRequest] LINE通知エラー:", notifyError);
+          // 通知失敗しても却下処理は成功とする
+        }
 
         return { success: true };
       }),
