@@ -10949,11 +10949,11 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           throw new TRPCError({ code: "BAD_REQUEST", message: "注文番号が検出されていません。OCRデータを編集して注文番号を含めてから承認してください。" });
         }
         
-        // 承認時にも注文番号の重複チェック
+        // 承認時にも注文番号の重複チェック（承認済みレシートとの重複のみブロック、未承認同士は警告のみ）
         const { checkDuplicateOrderNumberGlobal } = await import("./db");
         const duplicateOrder = await checkDuplicateOrderNumberGlobal(orderNumber, input.id);
-        if (duplicateOrder) {
-          throw new TRPCError({ code: "CONFLICT", message: `注文番号 ${orderNumber} は既に他のレシートで使用されています。重複申請のため承認できません。` });
+        if (duplicateOrder && duplicateOrder.status === "approved") {
+          throw new TRPCError({ code: "CONFLICT", message: `注文番号 ${orderNumber} は既に承認済みのレシートで使用されています。重複申請のため承認できません。` });
         }
         
         const pointsToAward = input.pointsOverride ?? receipt.pointsCalculated ?? 0;
@@ -11594,11 +11594,11 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           throw new TRPCError({ code: "BAD_REQUEST", message: "注文番号が検出されていません。OCRデータを編集して注文番号を含めてから承認してください。" });
         }
         
-        // 承認時にも注文番号の重複チェック
+        // 承認時にも注文番号の重複チェック（承認済みレシートとの重複のみブロック、未承認同士は警告のみ）
         const { checkDuplicateOrderNumberGlobal } = await import("./db");
         const duplicateOrder = await checkDuplicateOrderNumberGlobal(orderNumber, input.id);
-        if (duplicateOrder) {
-          throw new TRPCError({ code: "CONFLICT", message: `注文番号 ${orderNumber} は既に他のレシートで使用されています。重複申請のため承認できません。` });
+        if (duplicateOrder && duplicateOrder.status === "approved") {
+          throw new TRPCError({ code: "CONFLICT", message: `注文番号 ${orderNumber} は既に承認済みのレシートで使用されています。重複申請のため承認できません。` });
         }
         
         const pointsToAward = input.pointsOverride ?? receipt.pointsCalculated ?? 0;
