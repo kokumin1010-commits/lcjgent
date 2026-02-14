@@ -1,4 +1,4 @@
-import { eq, and, desc, asc, sql, or, like, inArray, not, isNotNull, gte, lte } from "drizzle-orm";
+import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory } from "../drizzle/schema";
 
@@ -11490,4 +11490,202 @@ export async function getAllProductReviewStats() {
     };
   }
   return result;
+}
+
+
+// ===== LCJ MALL ダッシュボード統計 =====
+
+export async function getMallDashboardStats() {
+  const db = await getDb();
+  if (!db) return null;
+
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+
+  // 総売上（キャンセル・返金以外）
+  const [totalSalesResult] = await db.select({
+    total: sql<number>`COALESCE(SUM(${mallOrders.totalAmount}), 0)`,
+    count: sql<number>`COUNT(*)`,
+  }).from(mallOrders).where(
+    and(
+      notInArray(mallOrders.status, ["cancelled", "refunded", "pending"])
+    )
+  );
+
+  // 今月の売上
+  const [thisMonthSales] = await db.select({
+    total: sql<number>`COALESCE(SUM(${mallOrders.totalAmount}), 0)`,
+    count: sql<number>`COUNT(*)`,
+  }).from(mallOrders).where(
+    and(
+      notInArray(mallOrders.status, ["cancelled", "refunded", "pending"]),
+      gte(mallOrders.createdAt, thisMonthStart)
+    )
+  );
+
+  // 先月の売上
+  const [lastMonthSales] = await db.select({
+    total: sql<number>`COALESCE(SUM(${mallOrders.totalAmount}), 0)`,
+    count: sql<number>`COUNT(*)`,
+  }).from(mallOrders).where(
+    and(
+      notInArray(mallOrders.status, ["cancelled", "refunded", "pending"]),
+      gte(mallOrders.createdAt, lastMonthStart),
+      lte(mallOrders.createdAt, lastMonthEnd)
+    )
+  );
+
+  // 今日の売上
+  const [todaySales] = await db.select({
+    total: sql<number>`COALESCE(SUM(${mallOrders.totalAmount}), 0)`,
+    count: sql<number>`COUNT(*)`,
+  }).from(mallOrders).where(
+    and(
+      notInArray(mallOrders.status, ["cancelled", "refunded", "pending"]),
+      gte(mallOrders.createdAt, todayStart)
+    )
+  );
+
+  // 総会員数
+  const [totalMembers] = await db.select({
+    count: sql<number>`COUNT(*)`,
+  }).from(lineUsers);
+
+  // 今月の新規会員
+  const [thisMonthMembers] = await db.select({
+    count: sql<number>`COUNT(*)`,
+  }).from(lineUsers).where(
+    gte(lineUsers.createdAt, thisMonthStart)
+  );
+
+  // 先月の新規会員
+  const [lastMonthMembers] = await db.select({
+    count: sql<number>`COUNT(*)`,
+  }).from(lineUsers).where(
+    and(
+      gte(lineUsers.createdAt, lastMonthStart),
+      lte(lineUsers.createdAt, lastMonthEnd)
+    )
+  );
+
+  // 注文ステータス別の件数
+  const orderStatusCounts = await db.select({
+    status: mallOrders.status,
+    count: sql<number>`COUNT(*)`,
+  }).from(mallOrders).groupBy(mallOrders.status);
+
+  // 決済方法別の売上
+  const paymentMethodSales = await db.select({
+    paymentMethod: mallOrders.paymentMethod,
+    total: sql<number>`COALESCE(SUM(${mallOrders.totalAmount}), 0)`,
+    count: sql<number>`COUNT(*)`,
+  }).from(mallOrders).where(
+    notInArray(mallOrders.status, ["cancelled", "refunded", "pending"])
+  ).groupBy(mallOrders.paymentMethod);
+
+  // 商品数
+  const [productCount] = await db.select({
+    total: sql<number>`COUNT(*)`,
+    active: sql<number>`SUM(CASE WHEN ${mallProducts.status} = 'active' THEN 1 ELSE 0 END)`,
+  }).from(mallProducts);
+
+  return {
+    sales: {
+      total: Number(totalSalesResult.total),
+      totalOrders: Number(totalSalesResult.count),
+      thisMonth: Number(thisMonthSales.total),
+      thisMonthOrders: Number(thisMonthSales.count),
+      lastMonth: Number(lastMonthSales.total),
+      lastMonthOrders: Number(lastMonthSales.count),
+      today: Number(todaySales.total),
+      todayOrders: Number(todaySales.count),
+    },
+    members: {
+      total: Number(totalMembers.count),
+      thisMonth: Number(thisMonthMembers.count),
+      lastMonth: Number(lastMonthMembers.count),
+    },
+    orderStatus: orderStatusCounts.map(s => ({
+      status: s.status,
+      count: Number(s.count),
+    })),
+    paymentMethods: paymentMethodSales.map(p => ({
+      method: p.paymentMethod,
+      total: Number(p.total),
+      count: Number(p.count),
+    })),
+    products: {
+      total: Number(productCount.total),
+      active: Number(productCount.active),
+    },
+  };
+}
+
+export async function getMallSalesChart(period: "daily" | "monthly", months: number = 6) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const now = new Date();
+  const startDate = new Date(now.getFullYear(), now.getMonth() - months, 1);
+
+  if (period === "daily") {
+    // 直近30日の日別売上
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const result = await db.select({
+      date: sql<string>`DATE(${mallOrders.createdAt})`,
+      total: sql<number>`COALESCE(SUM(${mallOrders.totalAmount}), 0)`,
+      count: sql<number>`COUNT(*)`,
+    }).from(mallOrders).where(
+      and(
+        notInArray(mallOrders.status, ["cancelled", "refunded", "pending"]),
+        gte(mallOrders.createdAt, thirtyDaysAgo)
+      )
+    ).groupBy(sql`DATE(${mallOrders.createdAt})`).orderBy(sql`DATE(${mallOrders.createdAt})`);
+
+    return result.map(r => ({
+      date: r.date,
+      total: Number(r.total),
+      count: Number(r.count),
+    }));
+  } else {
+    // 月別売上
+    const result = await db.select({
+      date: sql<string>`DATE_FORMAT(${mallOrders.createdAt}, '%Y-%m')`,
+      total: sql<number>`COALESCE(SUM(${mallOrders.totalAmount}), 0)`,
+      count: sql<number>`COUNT(*)`,
+    }).from(mallOrders).where(
+      and(
+        notInArray(mallOrders.status, ["cancelled", "refunded", "pending"]),
+        gte(mallOrders.createdAt, startDate)
+      )
+    ).groupBy(sql`DATE_FORMAT(${mallOrders.createdAt}, '%Y-%m')`).orderBy(sql`DATE_FORMAT(${mallOrders.createdAt}, '%Y-%m')`);
+
+    return result.map(r => ({
+      date: r.date,
+      total: Number(r.total),
+      count: Number(r.count),
+    }));
+  }
+}
+
+export async function getMallMemberGrowthChart(months: number = 6) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const startDate = new Date(new Date().getFullYear(), new Date().getMonth() - months, 1);
+
+  const result = await db.select({
+    date: sql<string>`DATE_FORMAT(${lineUsers.createdAt}, '%Y-%m')`,
+    count: sql<number>`COUNT(*)`,
+  }).from(lineUsers).where(
+    gte(lineUsers.createdAt, startDate)
+  ).groupBy(sql`DATE_FORMAT(${lineUsers.createdAt}, '%Y-%m')`).orderBy(sql`DATE_FORMAT(${lineUsers.createdAt}, '%Y-%m')`);
+
+  return result.map(r => ({
+    date: r.date,
+    count: Number(r.count),
+  }));
 }

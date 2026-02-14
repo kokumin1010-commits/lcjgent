@@ -24,8 +24,8 @@ describe("旧レシート管理・旧ポイント管理ページの削除", () =
       expect(appContent).not.toContain('import MyPoints from');
     });
 
-    it("LINEレシート管理ルート(/master/line-receipts)は残っている", () => {
-      expect(appContent).toContain('path={"/master/line-receipts"}');
+    it("LCJ MALL統合ページルート(/master/mall)が存在する", () => {
+      expect(appContent).toContain('/master/mall');
     });
 
     it("LineReceiptManagementのimportが残っている", () => {
@@ -47,17 +47,17 @@ describe("旧レシート管理・旧ポイント管理ページの削除", () =
       expect(layoutContent).not.toContain('path: "/master/points"');
     });
 
-    it("LINEレシート管理メニュー(/master/line-receipts)は残っている", () => {
-      expect(layoutContent).toContain('path: "/master/line-receipts"');
+    it("LCJ MALLメニュー(/master/mall)がサイドバーに存在する", () => {
+      expect(layoutContent).toContain('path: "/master/mall"');
     });
 
-    it("未使用のCoins, Receiptアイコンのimportが削除されている", () => {
-      const importLine = layoutContent.match(/import\s*{[^}]*}\s*from\s*["']lucide-react["']/);
-      expect(importLine).toBeTruthy();
-      if (importLine) {
-        expect(importLine[0]).not.toContain("Coins");
-        expect(importLine[0]).not.toContain("Receipt");
-      }
+    it("個別のMALL関連メニューがサイドバーから統合されている", () => {
+      // 個別メニューは/master/mallに統合されたため、サイドバーには存在しない
+      expect(layoutContent).not.toContain('path: "/master/products"');
+      expect(layoutContent).not.toContain('path: "/master/orders"');
+      expect(layoutContent).not.toContain('path: "/master/mall-members"');
+      expect(layoutContent).not.toContain('path: "/master/mall-brands-categories"');
+      expect(layoutContent).not.toContain('path: "/master/line-receipts"');
     });
   });
 });

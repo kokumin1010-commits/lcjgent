@@ -427,6 +427,9 @@ import {
   getMallFavoriteCounts,
   recordMallViewHistory,
   getMallViewHistoryByUser,
+  getMallDashboardStats,
+  getMallSalesChart,
+  getMallMemberGrowthChart,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -12717,6 +12720,29 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           allPointEligible,
           pointBalance: balance?.balance || 0,
         };
+      }),
+
+    // ===== LCJ MALLダッシュボード統計API =====
+    getDashboardStats: protectedProcedure
+      .query(async () => {
+        return await getMallDashboardStats();
+      }),
+
+    getSalesChart: protectedProcedure
+      .input(z.object({
+        period: z.enum(["daily", "monthly"]).default("daily"),
+        months: z.number().default(6),
+      }).optional())
+      .query(async ({ input }) => {
+        return await getMallSalesChart(input?.period || "daily", input?.months || 6);
+      }),
+
+    getMemberGrowthChart: protectedProcedure
+      .input(z.object({
+        months: z.number().default(6),
+      }).optional())
+      .query(async ({ input }) => {
+        return await getMallMemberGrowthChart(input?.months || 6);
       }),
   }),
 

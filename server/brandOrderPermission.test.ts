@@ -3,7 +3,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 /**
  * ブランド・カテゴリ・注文管理APIの権限テスト
  * - 注文管理API（getOrders, getOrderById, updateOrderStatus）の管理者権限チェックが削除されていること
- * - DashboardLayoutのブランド・カテゴリ管理と注文管理メニューからadminOnlyが削除されていること
+ * - LCJ MALL統合ページに移行後もAPIの権限設定が正しいこと
  */
 
 describe("ブランド・カテゴリ・注文管理の権限テスト", () => {
@@ -19,7 +19,6 @@ describe("ブランド・カテゴリ・注文管理の権限テスト", () => {
   // === 注文管理API ===
 
   it("getOrders（注文一覧）に管理者権限チェックがないこと", () => {
-    // 注文一覧取得の部分を抽出
     const getOrdersMatch = routersContent.match(
       /\/\/ 注文一覧取得\n\s+getOrders: protectedProcedure[\s\S]*?\.query\(async \(\{ ctx, input \}\) => \{([\s\S]*?)\}\),/
     );
@@ -49,29 +48,30 @@ describe("ブランド・カテゴリ・注文管理の権限テスト", () => {
     expect(mutationBody).not.toContain("FORBIDDEN");
   });
 
-  // === DashboardLayout メニュー ===
+  // === DashboardLayout メニュー（LCJ MALL統合後）===
 
-  it("ブランド・カテゴリメニューにadminOnlyがないこと", () => {
-    const brandMenuLine = dashboardContent.split("\n").find(line =>
-      line.includes("/master/mall-brands-categories")
+  it("サイドバーにLCJ MALLメニュー(/master/mall)が存在すること", () => {
+    const mallMenuLine = dashboardContent.split("\n").find(line =>
+      line.includes("/master/mall")
     );
-    expect(brandMenuLine).toBeTruthy();
-    expect(brandMenuLine).not.toContain("adminOnly");
+    expect(mallMenuLine).toBeTruthy();
   });
 
-  it("注文管理メニューにadminOnlyがないこと", () => {
-    const orderMenuLine = dashboardContent.split("\n").find(line =>
-      line.includes("/master/orders")
+  it("個別のMALL関連メニューがサイドバーから統合されていること", () => {
+    // /master/mall に統合されたため個別パスは存在しない
+    const brandLine = dashboardContent.split("\n").find(line =>
+      line.includes('path: "/master/mall-brands-categories"')
     );
-    expect(orderMenuLine).toBeTruthy();
-    expect(orderMenuLine).not.toContain("adminOnly");
-  });
+    expect(brandLine).toBeUndefined();
 
-  it("商品管理メニューにadminOnlyがないこと（前回の変更が維持されていること）", () => {
-    const productMenuLine = dashboardContent.split("\n").find(line =>
-      line.includes("/master/products")
+    const orderLine = dashboardContent.split("\n").find(line =>
+      line.includes('path: "/master/orders"')
     );
-    expect(productMenuLine).toBeTruthy();
-    expect(productMenuLine).not.toContain("adminOnly");
+    expect(orderLine).toBeUndefined();
+
+    const productLine = dashboardContent.split("\n").find(line =>
+      line.includes('path: "/master/products"')
+    );
+    expect(productLine).toBeUndefined();
   });
 });

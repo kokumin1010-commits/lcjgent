@@ -77,6 +77,7 @@ import ReferralManagement from "./pages/ReferralManagement";
 import MallCart from "./pages/MallCart";
 import Tokushoho from "./pages/Tokushoho";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import MallDashboardPage from "./pages/MallDashboardPage";
 
 function Router() {
   return (
@@ -250,31 +251,7 @@ function Router() {
           <LiverRecord />
         </DashboardLayout>
       </Route>
-      <Route path={"/master/line-receipts"}>
-        <DashboardLayout>
-          <LineReceiptManagement />
-        </DashboardLayout>
-      </Route>
-      <Route path={"/master/products"}>
-        <DashboardLayout>
-          <ProductManagement />
-        </DashboardLayout>
-      </Route>
-      <Route path={"/master/mall-brands-categories"}>
-        <DashboardLayout>
-          <MallBrandCategoryManagement />
-        </DashboardLayout>
-      </Route>
-      <Route path={"/master/orders"}>
-        <DashboardLayout>
-          <OrderManagement />
-        </DashboardLayout>
-      </Route>
-      <Route path={"/master/mall-members"}>
-        <DashboardLayout>
-          <MallMembers />
-        </DashboardLayout>
-      </Route>
+      <Route path={"/master/mall"} component={MallDashboardPage} />
       <Route path={"/master/finance"}>
         <DashboardLayout>
           <FinanceManagement />

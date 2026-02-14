@@ -16,7 +16,6 @@ describe("商品管理API権限テスト", () => {
   });
 
   it("createProductに管理者権限チェックがないこと", () => {
-    // createProductのmutation部分を抽出
     const createProductMatch = routersContent.match(
       /createProduct:\s*protectedProcedure[\s\S]*?\.mutation\(async \(\{ ctx, input \}\) => \{([\s\S]*?)\}\),/
     );
@@ -72,7 +71,6 @@ describe("商品管理API権限テスト", () => {
     const fs = await import("fs");
     const coreIndexContent = fs.readFileSync("./server/_core/index.ts", "utf-8");
     
-    // upload-product-imageエンドポイント部分を抽出
     const uploadEndpointMatch = coreIndexContent.match(
       /upload-product-image[\s\S]*?Authenticate user([\s\S]*?)if \(!req\.file\)/
     );
@@ -84,15 +82,14 @@ describe("商品管理API権限テスト", () => {
     expect(authSection).toContain("!user");
   });
 
-  it("DashboardLayoutの商品管理メニューにadminOnlyがないこと", async () => {
+  it("LCJ MALL統合ページ(/master/mall)がサイドバーに存在すること", async () => {
     const fs = await import("fs");
     const dashboardContent = fs.readFileSync("./client/src/components/DashboardLayout.tsx", "utf-8");
     
-    // 商品管理メニュー行を抽出
-    const productMenuLine = dashboardContent.split("\n").find(line => 
-      line.includes("/master/products") && line.includes("Package")
+    // LCJ MALLメニューが存在すること
+    const mallMenuLine = dashboardContent.split("\n").find(line => 
+      line.includes("/master/mall")
     );
-    expect(productMenuLine).toBeTruthy();
-    expect(productMenuLine).not.toContain("adminOnly");
+    expect(mallMenuLine).toBeTruthy();
   });
 });

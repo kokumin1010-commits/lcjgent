@@ -14,6 +14,7 @@ function createMockContext(): { ctx: TrpcContext; clearedCookies: any[]; setCook
     user: null,
     req: {
       protocol: "https",
+      hostname: "localhost",
       headers: {},
     } as TrpcContext["req"],
     res: {
