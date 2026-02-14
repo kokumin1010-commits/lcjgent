@@ -133,6 +133,24 @@ export default function LineReceiptManagement() {
     limit: 100,
   });
   
+  // Fetch duplicate receipts detection
+  const { data: duplicateData } = trpc.point.adminDetectDuplicateReceipts.useQuery();
+  
+  // Build a Set of receipt IDs that are duplicates and a map of orderNumber -> receiptIds
+  const duplicateReceiptIds = useMemo(() => {
+    const ids = new Set<number>();
+    const orderMap = new Map<string, number[]>();
+    if (duplicateData) {
+      for (const dup of duplicateData) {
+        orderMap.set(dup.orderNumber, dup.receiptIds);
+        for (const id of dup.receiptIds) {
+          ids.add(id);
+        }
+      }
+    }
+    return { ids, orderMap };
+  }, [duplicateData]);
+  
   // Batch AI re-recognize mutation (one at a time)
   const batchReRecognizeMutation = trpc.point.adminReRecognizeOrderNumber.useMutation();
   
@@ -986,6 +1004,15 @@ export default function LineReceiptManagement() {
                               <span className="font-semibold text-sm">{selectedCalcReceipt.lineUser?.displayName || "不明"}</span>
                               {getStatusBadge(selectedCalcReceipt.receipt.status as ReceiptStatus)}
                             </div>
+                            {duplicateReceiptIds.ids.has(selectedCalcReceipt.receipt.id) && (
+                              <div className="bg-orange-50 border border-orange-300 rounded-lg p-2 flex items-center gap-2">
+                                <AlertTriangle className="w-4 h-4 text-orange-600 flex-shrink-0" />
+                                <div className="text-xs">
+                                  <span className="font-bold text-orange-700">重複注文検出</span>
+                                  <span className="text-orange-600 ml-1">同じ注文番号のレシートが他にもあります。慎重に確認してください。</span>
+                                </div>
+                              </div>
+                            )}
                             
                             {/* Order Number - Inline Edit */}
                             <div className="space-y-1">
@@ -1332,6 +1359,12 @@ export default function LineReceiptManagement() {
                                 <Badge variant="destructive" className="text-[10px] px-1 py-0">
                                   <AlertTriangle className="w-2.5 h-2.5 mr-0.5" />
                                   {(receipt.fraudFlags as string[]).includes("similar_order_number") ? "類似" : (receipt.fraudFlags as string[]).includes("duplicate_order") ? "重複" : "不正"}
+                                </Badge>
+                              )}
+                              {duplicateReceiptIds.ids.has(receipt.id) && (
+                                <Badge variant="destructive" className="text-[10px] px-1 py-0 bg-orange-100 text-orange-700 border-orange-300">
+                                  <AlertTriangle className="w-2.5 h-2.5 mr-0.5" />
+                                  重複注文
                                 </Badge>
                               )}
                             </div>

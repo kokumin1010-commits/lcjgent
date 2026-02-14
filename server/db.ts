@@ -5684,6 +5684,109 @@ export async function getLineReceiptStatistics() {
 }
 
 
+/**
+ * 注文番号で重複レシートを検出する
+ * ocrRawTextから注文番号を抽出し、同じ注文番号を持つレシートをグループ化して返す
+ */
+export async function detectDuplicateLineReceipts() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Get all receipts with ocrRawText
+  const allReceipts = await db
+    .select({
+      id: lineReceipts.id,
+      lineUserId: lineReceipts.lineUserId,
+      ocrRawText: lineReceipts.ocrRawText,
+      status: lineReceipts.status,
+      totalAmount: lineReceipts.totalAmount,
+      submittedAt: lineReceipts.submittedAt,
+    })
+    .from(lineReceipts)
+    .where(isNotNull(lineReceipts.ocrRawText));
+  
+  // Extract order numbers and group by them
+  const orderNumberMap = new Map<string, number[]>();
+  
+  for (const receipt of allReceipts) {
+    let orderNumber: string | null = null;
+    if (receipt.ocrRawText) {
+      try {
+        const parsed = JSON.parse(receipt.ocrRawText);
+        orderNumber = parsed.orderNumber || null;
+      } catch {
+        const match = receipt.ocrRawText.match(/\b(\d{16,19})\b/);
+        orderNumber = match ? match[1] : null;
+      }
+    }
+    if (orderNumber) {
+      const existing = orderNumberMap.get(orderNumber) || [];
+      existing.push(receipt.id);
+      orderNumberMap.set(orderNumber, existing);
+    }
+  }
+  
+  // Filter to only duplicates (2+ receipts with same order number)
+  const duplicates: { orderNumber: string; receiptIds: number[] }[] = [];
+  orderNumberMap.forEach((ids, orderNumber) => {
+    if (ids.length >= 2) {
+      duplicates.push({ orderNumber, receiptIds: ids });
+    }
+  });
+  
+  return duplicates;
+}
+
+/**
+ * 特定のレシートIDが重複しているかチェックする
+ * 返り値: 重複している場合はそのレシートIDリスト、していない場合はnull
+ */
+export async function checkLineReceiptDuplicateByOrderNumber(receiptId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const receipt = await db.select().from(lineReceipts).where(eq(lineReceipts.id, receiptId));
+  if (!receipt[0]?.ocrRawText) return null;
+  
+  let orderNumber: string | null = null;
+  try {
+    const parsed = JSON.parse(receipt[0].ocrRawText);
+    orderNumber = parsed.orderNumber || null;
+  } catch {
+    const match = receipt[0].ocrRawText.match(/\b(\d{16,19})\b/);
+    orderNumber = match ? match[1] : null;
+  }
+  
+  if (!orderNumber) return null;
+  
+  // Find other receipts with same order number
+  const allReceipts = await db
+    .select({ id: lineReceipts.id, ocrRawText: lineReceipts.ocrRawText })
+    .from(lineReceipts)
+    .where(and(
+      isNotNull(lineReceipts.ocrRawText),
+      not(eq(lineReceipts.id, receiptId))
+    ));
+  
+  const duplicateIds: number[] = [];
+  for (const r of allReceipts) {
+    if (!r.ocrRawText) continue;
+    let otherOrderNumber: string | null = null;
+    try {
+      const parsed = JSON.parse(r.ocrRawText);
+      otherOrderNumber = parsed.orderNumber || null;
+    } catch {
+      const match = r.ocrRawText.match(/\b(\d{16,19})\b/);
+      otherOrderNumber = match ? match[1] : null;
+    }
+    if (otherOrderNumber === orderNumber) {
+      duplicateIds.push(r.id);
+    }
+  }
+  
+  return duplicateIds.length > 0 ? { orderNumber, duplicateIds } : null;
+}
+
 // ============================================
 // MALL商品管理
 // ============================================

@@ -11630,6 +11630,15 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       const { getLineReceiptStatistics } = await import("./db");
       return await getLineReceiptStatistics();
     }),
+
+    // Detect duplicate LINE receipts by order number (admin only)
+    adminDetectDuplicateReceipts: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+      }
+      const { detectDuplicateLineReceipts } = await import("./db");
+      return await detectDuplicateLineReceipts();
+    }),
   }),
 
   lineLogin: lineLoginRouter,
