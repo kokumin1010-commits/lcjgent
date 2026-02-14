@@ -1114,10 +1114,72 @@ export default function LineReceiptManagement() {
                                   <Bot className="w-3 h-3 mr-1" />
                                   AI {confidence.label} ({aiScore}%)
                                 </Badge>
-                              );
+                              );                            })()}
+
+                            {/* OCR詳細情報 */}
+                            {(() => {
+                              try {
+                                const raw = selectedCalcReceipt.receipt.ocrRawText;
+                                if (!raw) return null;
+                                const ocr = typeof raw === "string" ? JSON.parse(raw) : raw;
+                                const hasItems = ocr.items && Array.isArray(ocr.items) && ocr.items.length > 0;
+                                const hasDelivery = ocr.deliveryInfo && (ocr.deliveryInfo.recipientName || ocr.deliveryInfo.address || ocr.deliveryInfo.phoneNumber);
+                                if (!hasItems && !hasDelivery && !ocr.productName) return null;
+                                return (
+                                  <div className="mt-2 space-y-2">
+                                    {/* 商品情報 */}
+                                    {hasItems ? (
+                                      <div className="bg-blue-50/50 border border-blue-100 rounded p-2">
+                                        <p className="text-[10px] font-medium text-blue-600 mb-1">商品詳細</p>
+                                        {ocr.items.map((item: any, i: number) => (
+                                          <div key={i} className="flex justify-between text-xs py-0.5">
+                                            <span className="truncate flex-1 mr-2">{item.productName || "不明"}{item.variant ? ` (${item.variant})` : ""}</span>
+                                            <span className="text-muted-foreground whitespace-nowrap">
+                                              {item.unitPrice != null ? `¥${item.unitPrice.toLocaleString()}` : ""}
+                                              {item.quantity != null ? ` x${item.quantity}` : ""}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : ocr.productName ? (
+                                      <div className="text-xs">
+                                        <span className="text-muted-foreground">商品: </span>
+                                        <span className="font-medium">{ocr.productName}</span>
+                                      </div>
+                                    ) : null}
+                                    {/* 配送先情報 */}
+                                    {hasDelivery && (
+                                      <div className="bg-amber-50/50 border border-amber-100 rounded p-2">
+                                        <p className="text-[10px] font-medium text-amber-600 mb-1">配送先</p>
+                                        <div className="space-y-0.5 text-xs">
+                                          {ocr.deliveryInfo.recipientName && (
+                                            <div><span className="text-muted-foreground">氏名: </span><span className="font-medium">{ocr.deliveryInfo.recipientName}</span></div>
+                                          )}
+                                          {ocr.deliveryInfo.phoneNumber && (
+                                            <div><span className="text-muted-foreground">電話: </span><span>{ocr.deliveryInfo.phoneNumber}</span></div>
+                                          )}
+                                          {ocr.deliveryInfo.address && (
+                                            <div><span className="text-muted-foreground">住所: </span><span>{ocr.deliveryInfo.postalCode ? `〒${ocr.deliveryInfo.postalCode} ` : ""}{ocr.deliveryInfo.address}</span></div>
+                                          )}
+                                          {ocr.deliveryInfo.deliveryStatus && (
+                                            <div><span className="text-muted-foreground">状況: </span><span className="font-medium">{ocr.deliveryInfo.deliveryStatus}</span></div>
+                                          )}
+                                          {ocr.deliveryInfo.deliveryDate && (
+                                            <div><span className="text-muted-foreground">配達日: </span><span>{ocr.deliveryInfo.deliveryDate}</span></div>
+                                          )}
+                                          {ocr.deliveryInfo.returnDeadline && (
+                                            <div><span className="text-muted-foreground">返品期限: </span><span>{ocr.deliveryInfo.returnDeadline}</span></div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              } catch { return null; }
                             })()}
                           </div>
                           
+
                           {/* Amount Input */}
                           <div className="space-y-2">
                             <Label className="text-sm font-medium flex items-center gap-1.5">
@@ -1390,7 +1452,32 @@ export default function LineReceiptManagement() {
                                 <span className="text-blue-600 font-mono text-[10px] truncate">{getOrderNumber(receipt)}</span>
                               </div>
                             )}
-                            {/* Row 3: Store + Date */}
+                            {/* Row 3: OCR Summary (product/recipient) */}
+                            {(() => {
+                              try {
+                                const raw = receipt.ocrRawText;
+                                if (!raw) return null;
+                                const ocr = typeof raw === "string" ? JSON.parse(raw) : raw;
+                                const productName = ocr.items?.[0]?.productName || ocr.productName;
+                                const recipientName = ocr.deliveryInfo?.recipientName;
+                                if (!productName && !recipientName) return null;
+                                return (
+                                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                                    {productName && (
+                                      <span className="truncate max-w-[160px]" title={productName}>
+                                        📦 {productName}
+                                      </span>
+                                    )}
+                                    {recipientName && (
+                                      <span className="truncate max-w-[100px] text-amber-600" title={recipientName}>
+                                        👤 {recipientName}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              } catch { return null; }
+                            })()}
+                            {/* Row 4: Store + Date */}
                             <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                               <span className="truncate">{receipt.storeName || "店舗不明"}</span>
                               <span>·</span>

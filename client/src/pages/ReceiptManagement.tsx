@@ -537,6 +537,95 @@ export default function ReceiptManagement() {
                   <p className="mt-1 p-2 bg-muted rounded">{selectedReceipt.receipt.reviewNote}</p>
                 </div>
               )}
+
+              {/* OCR詳細情報 */}
+              {(() => {
+                try {
+                  const raw = selectedReceipt.receipt.ocrRawText;
+                  if (!raw) return null;
+                  const ocr = typeof raw === "string" ? JSON.parse(raw) : raw;
+                  const hasItems = ocr.items && Array.isArray(ocr.items) && ocr.items.length > 0;
+                  const hasDelivery = ocr.deliveryInfo && (ocr.deliveryInfo.recipientName || ocr.deliveryInfo.address || ocr.deliveryInfo.phoneNumber);
+                  const hasPayment = ocr.paymentInfo && (ocr.paymentInfo.subtotal != null || ocr.paymentInfo.paymentMethod);
+                  if (!hasItems && !hasDelivery && !hasPayment && !ocr.productName) return null;
+                  return (
+                    <div className="space-y-3 border-t pt-3">
+                      <p className="text-sm font-medium text-muted-foreground">OCR詳細情報</p>
+                      {/* 商品情報 */}
+                      {hasItems ? (
+                        <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                          <p className="text-xs font-medium text-blue-600 mb-2">商品詳細（{ocr.items.length}件）</p>
+                          <div className="space-y-1">
+                            {ocr.items.map((item: any, i: number) => (
+                              <div key={i} className="flex justify-between text-sm">
+                                <span className="truncate flex-1 mr-2">{item.productName || "不明"}{item.variant ? ` (${item.variant})` : ""}</span>
+                                <span className="text-muted-foreground whitespace-nowrap">
+                                  {item.unitPrice != null ? `¥${item.unitPrice.toLocaleString()}` : ""}
+                                  {item.quantity != null ? ` x${item.quantity}` : ""}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : ocr.productName ? (
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">商品: </span>
+                          <span className="font-medium">{ocr.productName}</span>
+                        </div>
+                      ) : null}
+                      {/* 配送先情報 */}
+                      {hasDelivery && (
+                        <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
+                          <p className="text-xs font-medium text-amber-600 mb-2">配送先情報</p>
+                          <div className="space-y-1 text-sm">
+                            {ocr.deliveryInfo.recipientName && (
+                              <div><span className="text-muted-foreground">氏名: </span><span className="font-medium">{ocr.deliveryInfo.recipientName}</span></div>
+                            )}
+                            {ocr.deliveryInfo.phoneNumber && (
+                              <div><span className="text-muted-foreground">電話: </span><span>{ocr.deliveryInfo.phoneNumber}</span></div>
+                            )}
+                            {ocr.deliveryInfo.address && (
+                              <div><span className="text-muted-foreground">住所: </span><span>{ocr.deliveryInfo.postalCode ? `〒${ocr.deliveryInfo.postalCode} ` : ""}{ocr.deliveryInfo.address}</span></div>
+                            )}
+                            {ocr.deliveryInfo.deliveryStatus && (
+                              <div><span className="text-muted-foreground">状況: </span><span className="font-medium">{ocr.deliveryInfo.deliveryStatus}</span></div>
+                            )}
+                            {ocr.deliveryInfo.deliveryDate && (
+                              <div><span className="text-muted-foreground">配達日: </span><span>{ocr.deliveryInfo.deliveryDate}</span></div>
+                            )}
+                            {ocr.deliveryInfo.returnDeadline && (
+                              <div><span className="text-muted-foreground">返品期限: </span><span>{ocr.deliveryInfo.returnDeadline}</span></div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {/* 支払い情報 */}
+                      {hasPayment && (
+                        <div className="bg-green-50 border border-green-100 rounded-lg p-3">
+                          <p className="text-xs font-medium text-green-600 mb-2">支払い情報</p>
+                          <div className="space-y-1 text-sm">
+                            {ocr.paymentInfo.subtotal != null && (
+                              <div><span className="text-muted-foreground">小計: </span><span>¥{ocr.paymentInfo.subtotal.toLocaleString()}</span></div>
+                            )}
+                            {ocr.paymentInfo.shippingFee != null && (
+                              <div><span className="text-muted-foreground">送料: </span><span>¥{ocr.paymentInfo.shippingFee.toLocaleString()}</span></div>
+                            )}
+                            {ocr.paymentInfo.discount != null && ocr.paymentInfo.discount > 0 && (
+                              <div><span className="text-muted-foreground">割引: </span><span className="text-red-600">-¥{ocr.paymentInfo.discount.toLocaleString()}</span></div>
+                            )}
+                            {ocr.paymentInfo.tax != null && (
+                              <div><span className="text-muted-foreground">税: </span><span>¥{ocr.paymentInfo.tax.toLocaleString()}</span></div>
+                            )}
+                            {ocr.paymentInfo.paymentMethod && (
+                              <div><span className="text-muted-foreground">支払方法: </span><span className="font-medium">{ocr.paymentInfo.paymentMethod}</span></div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                } catch { return null; }
+              })()}
             </div>
           )}
         </DialogContent>

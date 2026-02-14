@@ -1468,7 +1468,31 @@ export const lineLoginRouter = router({
   "orderDate": "string",
   "shopName": "string",
   "productName": "string",
-  "orderNumberSource": "string"
+  "orderNumberSource": "string",
+  "items": [
+    {
+      "productName": "string",
+      "unitPrice": number,
+      "quantity": number,
+      "variant": "string"
+    }
+  ],
+  "deliveryInfo": {
+    "recipientName": "string",
+    "phoneNumber": "string",
+    "postalCode": "string",
+    "address": "string",
+    "deliveryStatus": "string",
+    "deliveryDate": "string",
+    "returnDeadline": "string"
+  },
+  "paymentInfo": {
+    "subtotal": number,
+    "shippingFee": number,
+    "discount": number,
+    "totalAmount": number,
+    "paymentMethod": "string"
+  }
 }
 
 === 最重要タスク: 注文番号の抽出 ===
@@ -1513,12 +1537,26 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
 === 金額の抽出 ===
 - 「合計金額（税込）」「合計」「支払い金額」の横の金額 → totalAmount
 - 通貨記号（¥￥）とカンマを除去して数値のみ（例: ¥2,832 → 2832）
+- 商品の単価と数量も個別に抽出
+- 送料、割引額、支払い方法も抽出
+
+=== 商品情報の抽出 ===
+- 各商品の名前、単価、数量、バリエーション（色・サイズ等）を抽出
+- 複数商品がある場合はitemsに配列で格納
+- ブランド名/ショップ名も抽出
+
+=== 配送先情報の抽出 ===
+- 「配送先住所」セクションから受取人名、電話番号、郵便番号、住所を抽出
+- 配送ステータス（注文確定/発送済み/配送中/配達済み）を抽出
+- 配達日（「X月X日に配達」）を抽出
+- 返品期限（「XXXX年X月X日まで返品・返金可能」）を抽出
 
 === 出力ルール ===
 - 注文番号の抽出を最優先。画像を隅々までスキャンすること
 - 抽出できない項目はnullを返す
 - 必ずJSON形式のみで回答（説明文は不要）
-- 複数画像がある場合は統合して回答`,
+- 複数画像がある場合は統合して回答
+- できるだけ多くの情報を抽出すること`,
             },
             {
               role: "user",

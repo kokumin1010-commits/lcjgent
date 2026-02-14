@@ -24,6 +24,28 @@ type AnalysisResult = {
     productName?: string;
     totalAmount?: number;
     orderDate?: string;
+    items?: Array<{
+      productName?: string;
+      unitPrice?: number;
+      quantity?: number;
+      variant?: string;
+    }>;
+    deliveryInfo?: {
+      recipientName?: string;
+      phoneNumber?: string;
+      postalCode?: string;
+      address?: string;
+      deliveryStatus?: string;
+      deliveryDate?: string;
+      returnDeadline?: string;
+    };
+    paymentInfo?: {
+      subtotal?: number;
+      shippingFee?: number;
+      discount?: number;
+      totalAmount?: number;
+      paymentMethod?: string;
+    };
   };
   pointsCalculated?: number;
   imageUrls?: string[];
@@ -273,7 +295,7 @@ export default function ReceiptUpload() {
 
                   {/* OCR Data */}
                   {analysisResult.ocrData && (
-                    <div className="mt-4 bg-white/60 rounded-lg p-3 space-y-2">
+                    <div className="mt-4 bg-white/60 rounded-lg p-3 space-y-3">
                       <h4 className="font-medium text-sm text-gray-700">解析結果</h4>
                       <div className="grid grid-cols-2 gap-2 text-sm">
                         {analysisResult.ocrData.shopName && (
@@ -307,6 +329,70 @@ export default function ReceiptUpload() {
                           </div>
                         )}
                       </div>
+
+                      {/* 商品詳細 */}
+                      {analysisResult.ocrData.items && analysisResult.ocrData.items.length > 0 && (
+                        <div className="border-t pt-2">
+                          <h5 className="text-xs font-medium text-gray-500 mb-1">商品詳細</h5>
+                          {analysisResult.ocrData.items.map((item, i) => (
+                            <div key={i} className="text-sm flex justify-between items-center py-1">
+                              <div>
+                                <span className="font-medium">{item.productName}</span>
+                                {item.variant && <span className="text-xs text-muted-foreground ml-1">({item.variant})</span>}
+                              </div>
+                              <div className="text-right">
+                                {item.unitPrice != null && <span>¥{item.unitPrice.toLocaleString()}</span>}
+                                {item.quantity != null && <span className="text-muted-foreground ml-1">x{item.quantity}</span>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* 配送先情報 */}
+                      {analysisResult.ocrData.deliveryInfo && (
+                        <div className="border-t pt-2">
+                          <h5 className="text-xs font-medium text-gray-500 mb-1">配送先情報</h5>
+                          <div className="grid grid-cols-1 gap-1 text-sm">
+                            {analysisResult.ocrData.deliveryInfo.recipientName && (
+                              <div>
+                                <span className="text-muted-foreground">氏名: </span>
+                                <span className="font-medium">{analysisResult.ocrData.deliveryInfo.recipientName}</span>
+                              </div>
+                            )}
+                            {analysisResult.ocrData.deliveryInfo.phoneNumber && (
+                              <div>
+                                <span className="text-muted-foreground">電話: </span>
+                                <span className="font-medium">{analysisResult.ocrData.deliveryInfo.phoneNumber}</span>
+                              </div>
+                            )}
+                            {analysisResult.ocrData.deliveryInfo.address && (
+                              <div>
+                                <span className="text-muted-foreground">住所: </span>
+                                <span className="font-medium">{analysisResult.ocrData.deliveryInfo.postalCode ? `〒${analysisResult.ocrData.deliveryInfo.postalCode} ` : ""}{analysisResult.ocrData.deliveryInfo.address}</span>
+                              </div>
+                            )}
+                            {analysisResult.ocrData.deliveryInfo.deliveryStatus && (
+                              <div>
+                                <span className="text-muted-foreground">配送状況: </span>
+                                <span className="font-medium">{analysisResult.ocrData.deliveryInfo.deliveryStatus}</span>
+                              </div>
+                            )}
+                            {analysisResult.ocrData.deliveryInfo.deliveryDate && (
+                              <div>
+                                <span className="text-muted-foreground">配達日: </span>
+                                <span className="font-medium">{analysisResult.ocrData.deliveryInfo.deliveryDate}</span>
+                              </div>
+                            )}
+                            {analysisResult.ocrData.deliveryInfo.returnDeadline && (
+                              <div>
+                                <span className="text-muted-foreground">返品期限: </span>
+                                <span className="font-medium">{analysisResult.ocrData.deliveryInfo.returnDeadline}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
