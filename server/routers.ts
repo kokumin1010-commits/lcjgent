@@ -11092,7 +11092,7 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         if (ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
         }
-        const { getLineReceiptById } = await import("./db");
+        const { getLineReceiptById, updateLineReceiptOcr } = await import("./db");
         const { invokeLLM } = await import("./_core/llm");
         
         const receipt = await getLineReceiptById(input.id);
@@ -11119,28 +11119,86 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         }));
         imageContents.push({
           type: "text" as const,
-          text: `これらの${allImageUrls.length}枚の画像から注文番号を抽出してください。TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数字列です。`,
+          text: `これらの${allImageUrls.length}枚の画像から注文情報を全て抽出してください。`,
         });
         
         const ocrResult = await invokeLLM({
           messages: [
             {
               role: "system",
-              content: `あなたはTikTok Shopの注文詳細画面のスクリーンショットから注文番号を抽出する専門AIです。
+              content: `あなたはTikTok Shopの注文詳細画面のスクリーンショットを解析する専門AIです。
+複数の画像が送信された場合、すべての画像を統合して情報を抽出してください。
 
-注文番号の特徴：
-- 「5」または「6」で始まる16〜19桁の数字列
-- 例: 5819000585822287971, 5824489836811172498
-- 「注文番号」ラベルの横、合計金額の下、コピーアイコンの左側などに表示
+以下の情報を抽出してJSON形式で返してください：
 
-画像を隅々までスキャンし、注文番号を見つけてください。
-
-以下のJSON形式のみで回答してください（説明文は不要）：
 {
   "orderNumber": "string or null",
   "totalAmount": number or null,
+  "shopName": "string or null",
+  "productName": "string or null",
+  "orderDate": "string (YYYY-MM-DD) or null",
+  "isDelivered": true/false or null,
   "confidence": number (0-100)
-}`,
+}
+
+=== 注文番号の抽出（最重要） ===
+
+TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数字列です。
+例: 5819000585822879​71, 5824489836811172498, 682307265940784437
+
+【ステップ1: 画像全体をスキャンして長い数字列を全て列挙する】
+画像内に存在する10桁以上の数字列を全て見つけてください。
+特に以下の場所を重点的にチェック：
+- 画面の最下部（「さらに表示」の直上）
+- 「注文番号」「注文番号:」というラベルの右側
+- 「合計金額（税込）」の行の下
+- コピーアイコン（📋 🔗 ⧉）の左側
+
+【ステップ2: 注文番号を特定する】
+- 16〜19桁の数字列
+- 「5」または「6」で始まる
+- 電話番号（080/090/070で始まる11桁）ではない
+- 郵便番号（3桁-4桁）ではない
+
+=== 金額の抽出（重要） ===
+
+金額の抽出は注文番号の次に重要です。
+
+【金額の探し方】
+1. 「合計金額（税込）」「合計」「支払い金額」「お支払い合計」の横の金額
+2. 「小計」「税込合計」の横の金額
+3. 最も大きな金額表示（通常は合計）
+4. 「¥」「￥」記号の横の数字
+
+【金額の変換ルール】
+- 通貨記号（¥￥）とカンマを除去して数値のみ（例: ¥2,832 → 2832）
+- 「円」も除去（例: 11,980円 → 11980）
+- 小数点がある場合は整数に丸める
+- 商品単価ではなく合計金額を優先
+
+=== 店舗名の抽出 ===
+- 「販売者」「ショップ」「ストア」の横の名前
+- ブランド名やショップロゴの横のテキスト
+- 見つからない場合は"TikTok Shop"とする
+
+=== 商品名の抽出 ===
+- 商品画像の横のテキスト
+- 複数商品がある場合は最初の商品名
+
+=== 注文日の抽出 ===
+- 「注文日」「購入日」「注文日時」の横の日付
+- YYYY-MM-DD形式で返す（例: 2026-01-15）
+- 「2026年1月15日」→ "2026-01-15"
+- 「2026/01/15」→ "2026-01-15"
+
+=== 配達済みの判定 ===
+- 「配達済み」「X月X日に配達」「Delivered」があればtrue
+- プログレスバーで「配達済み」が完了していればtrue
+
+=== 出力ルール ===
+- 必ずJSON形式のみで回答（説明文は不要）
+- 抽出できない項目はnullを返す
+- confidenceは全体の抽出精度（0-100）`,
             },
             {
               role: "user",
@@ -11152,7 +11210,15 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         const messageContent = ocrResult.choices[0].message.content as string;
         let parsed: any = {};
         try {
-          const jsonMatch = messageContent?.match(/\{[\s\S]*\}/);
+          let jsonStr = typeof messageContent === "string" ? messageContent : "{}";
+          // Remove markdown code blocks if present
+          if (jsonStr.includes("```json")) {
+            jsonStr = jsonStr.replace(/```json\s*/g, "").replace(/```\s*/g, "");
+          } else if (jsonStr.includes("```")) {
+            jsonStr = jsonStr.replace(/```\s*/g, "");
+          }
+          jsonStr = jsonStr.trim();
+          const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
             parsed = JSON.parse(jsonMatch[0]);
           }
@@ -11160,10 +11226,47 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           // ignore parse errors
         }
         
+        // Auto-save recognized data to DB
+        const updateData: any = {};
+        if (parsed.totalAmount && typeof parsed.totalAmount === "number" && parsed.totalAmount > 0) {
+          updateData.totalAmount = parsed.totalAmount;
+        }
+        if (parsed.shopName && typeof parsed.shopName === "string") {
+          updateData.storeName = parsed.shopName;
+        }
+        if (parsed.orderDate && typeof parsed.orderDate === "string") {
+          try {
+            updateData.purchaseDate = new Date(parsed.orderDate);
+          } catch { /* ignore invalid date */ }
+        }
+        if (parsed.orderNumber && typeof parsed.orderNumber === "string") {
+          // Update ocrRawText with new order number
+          let ocrData: any = {};
+          if (receipt.ocrRawText) {
+            try {
+              ocrData = typeof receipt.ocrRawText === "string" ? JSON.parse(receipt.ocrRawText) : receipt.ocrRawText;
+            } catch { ocrData = {}; }
+          }
+          ocrData.orderNumber = parsed.orderNumber;
+          if (parsed.shopName) ocrData.shopName = parsed.shopName;
+          if (parsed.productName) ocrData.productName = parsed.productName;
+          if (parsed.isDelivered !== null && parsed.isDelivered !== undefined) ocrData.isDelivered = parsed.isDelivered;
+          updateData.ocrRawText = JSON.stringify(ocrData);
+        }
+        
+        // Save to DB if we have any data to update
+        if (Object.keys(updateData).length > 0) {
+          await updateLineReceiptOcr(input.id, updateData);
+        }
+        
         return {
           success: true,
           orderNumber: parsed.orderNumber || null,
-          totalAmount: parsed.totalAmount || null,
+          totalAmount: (parsed.totalAmount && typeof parsed.totalAmount === "number") ? parsed.totalAmount : null,
+          shopName: parsed.shopName || null,
+          productName: parsed.productName || null,
+          orderDate: parsed.orderDate || null,
+          isDelivered: parsed.isDelivered ?? null,
           confidence: parsed.confidence || 0,
         };
       }),

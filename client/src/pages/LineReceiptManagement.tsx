@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { toast } from "sonner";
 import { 
   Receipt, 
   CheckCircle, 
@@ -309,26 +310,43 @@ export default function LineReceiptManagement() {
     setOrderNumberInput(currentOrderNum || "");
   };
   
-  // AI re-recognize order number
+  // AI re-recognize order number + amount + shop info
   const reRecognizeMutation = trpc.point.adminReRecognizeOrderNumber.useMutation({
     onSuccess: (data) => {
+      const results: string[] = [];
+      
       if (data.orderNumber) {
         setCalcOrderNumber(data.orderNumber);
-        // Auto-save order number to DB so it persists for approval
-        if (calcReceiptId) {
-          updateOrderNumberMutation.mutate({
-            id: calcReceiptId,
-            orderNumber: data.orderNumber,
-          });
-        }
-        // Also auto-fill amount if detected
-        if (data.totalAmount && !calcAmount) {
-          setCalcAmount(String(data.totalAmount));
-        }
+        // Order number is auto-saved to DB by backend now, no need for separate mutation
+        results.push(`注文番号: ${data.orderNumber}`);
       }
+      
+      // Always auto-fill amount if detected (overwrite even if existing)
+      if (data.totalAmount && typeof data.totalAmount === "number" && data.totalAmount > 0) {
+        setCalcAmount(String(data.totalAmount));
+        results.push(`金額: ¥${data.totalAmount.toLocaleString()}`);
+      }
+      
+      if (data.shopName) {
+        results.push(`店舗: ${data.shopName}`);
+      }
+      if (data.orderDate) {
+        results.push(`日付: ${data.orderDate}`);
+      }
+      
+      // Refresh receipt list to show updated DB data (amount, store, date)
+      utils.point.adminGetLineReceipts.invalidate();
+      
+      if (results.length > 0) {
+        toast.success(`AI認識完了\n${results.join(" / ")}`, { duration: 5000 });
+      } else {
+        toast.error("情報を抽出できませんでした。手動で入力してください。");
+      }
+      
       setIsAiRecognizing(false);
     },
-    onError: () => {
+    onError: (err) => {
+      toast.error(`AI認識失敗: ${err.message}`);
       setIsAiRecognizing(false);
     },
   });
