@@ -726,7 +726,7 @@ export default function LineReceiptManagement() {
             <div className="flex gap-4">
               {/* LEFT COLUMN: Calculator + Approve Panel */}
               <div className="w-[320px] flex-shrink-0">
-                <div className="sticky top-4 space-y-4">
+                <div className="sticky top-4 space-y-4 max-h-[calc(100vh-6rem)] overflow-y-auto pr-1">
                   {/* Calculator Card */}
                   <Card className={`border-2 transition-colors ${calcReceiptId ? "border-green-300 shadow-lg" : "border-dashed border-muted-foreground/30"}`}>
                     <CardHeader className="pb-3">
@@ -739,7 +739,7 @@ export default function LineReceiptManagement() {
                           {sessionProcessedCount > 0 && (
                             <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200 text-xs font-normal">
                               <Zap className="w-3 h-3 mr-1" />
-                              {sessionProcessedCount}件処理
+                              {sessionProcessedCount}件 済
                             </Badge>
                           )}
                         </div>
@@ -762,7 +762,7 @@ export default function LineReceiptManagement() {
                           </div>
                           <p className="text-lg font-bold text-green-700">全件処理完了！</p>
                           <p className="text-sm text-muted-foreground mt-1">
-                            このセッションで <span className="font-bold text-blue-600">{sessionProcessedCount}件</span> 処理しました
+                            このセッションで <span className="font-bold text-blue-600">{sessionProcessedCount}件</span> のレシートを承認・却下しました
                           </p>
                           {(activeTab === "pending" || activeTab === "on_hold") && (
                             <p className="text-xs text-muted-foreground mt-3">
