@@ -11083,6 +11083,155 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         return { success: true, orderNumber: input.orderNumber };
       }),
     
+    // Batch AI re-recognize all pending receipts that lack totalAmount
+    adminBatchReRecognize: protectedProcedure
+      .input(z.object({
+        receiptIds: z.array(z.number()),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        const { getLineReceiptById, updateLineReceiptOcr } = await import("./db");
+        const { invokeLLM } = await import("./_core/llm");
+        
+        const results: Array<{ id: number; success: boolean; totalAmount: number | null; orderNumber: string | null; shopName: string | null; confidence: number }> = [];
+        
+        // Process each receipt sequentially to avoid rate limits
+        for (const receiptId of input.receiptIds) {
+          try {
+            const receipt = await getLineReceiptById(receiptId);
+            if (!receipt) {
+              results.push({ id: receiptId, success: false, totalAmount: null, orderNumber: null, shopName: null, confidence: 0 });
+              continue;
+            }
+            
+            // Collect all image URLs
+            const allImageUrls: string[] = [];
+            if (receipt.imageUrls && Array.isArray(receipt.imageUrls)) {
+              allImageUrls.push(...receipt.imageUrls);
+            } else if (receipt.imageUrl) {
+              allImageUrls.push(receipt.imageUrl);
+            }
+            
+            if (allImageUrls.length === 0) {
+              results.push({ id: receiptId, success: false, totalAmount: null, orderNumber: null, shopName: null, confidence: 0 });
+              continue;
+            }
+            
+            // Build image contents for LLM
+            const imageContents: any[] = allImageUrls.map(url => ({
+              type: "image_url" as const,
+              image_url: { url, detail: "high" as const },
+            }));
+            imageContents.push({
+              type: "text" as const,
+              text: `これらの${allImageUrls.length}枚の画像から注文情報を全て抽出してください。`,
+            });
+            
+            const ocrResult = await invokeLLM({
+              messages: [
+                {
+                  role: "system",
+                  content: `あなたはTikTok Shopの注文詳細画面のスクリーンショットを解析する専門AIです。
+複数の画像が送信された場合、すべての画像を統合して情報を抽出してください。
+
+以下の情報を抽出してJSON形式で返してください：
+
+{
+  "orderNumber": "string or null",
+  "totalAmount": number or null,
+  "shopName": "string or null",
+  "productName": "string or null",
+  "orderDate": "string (YYYY-MM-DD) or null",
+  "isDelivered": true/false or null,
+  "confidence": number (0-100)
+}
+
+=== 注文番号の抽出（最重要） ===
+TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数字列です。
+画像内に存在する10桁以上の数字列を全て見つけ、16〜19桁で「5」「6」始まりのものを注文番号とする。
+電話番号（080/090/070始まり11桁）や郵便番号（3桁-4桁）は除外。
+
+=== 金額の抽出（重要） ===
+「合計金額（税込）」「合計」「支払い金額」の横の金額を優先。
+通貨記号（¥￥）とカンマを除去して数値のみ（例: ¥2,832 → 2832）。
+
+=== 店舗名・商品名・日付・配達状況 ===
+可能な限り抽出。見つからない項目はnull。
+
+必ずJSON形式のみで回答（説明文は不要）。`,
+                },
+                {
+                  role: "user",
+                  content: imageContents,
+                },
+              ],
+            });
+            
+            const messageContent = ocrResult.choices[0].message.content as string;
+            let parsed: any = {};
+            try {
+              let jsonStr = typeof messageContent === "string" ? messageContent : "{}";
+              if (jsonStr.includes("```json")) {
+                jsonStr = jsonStr.replace(/```json\s*/g, "").replace(/```\s*/g, "");
+              } else if (jsonStr.includes("```")) {
+                jsonStr = jsonStr.replace(/```\s*/g, "");
+              }
+              jsonStr = jsonStr.trim();
+              const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                parsed = JSON.parse(jsonMatch[0]);
+              }
+            } catch { /* ignore parse errors */ }
+            
+            // Auto-save recognized data to DB
+            const updateData: any = {};
+            if (parsed.totalAmount && typeof parsed.totalAmount === "number" && parsed.totalAmount > 0) {
+              updateData.totalAmount = parsed.totalAmount;
+            }
+            if (parsed.shopName && typeof parsed.shopName === "string") {
+              updateData.storeName = parsed.shopName;
+            }
+            if (parsed.orderDate && typeof parsed.orderDate === "string") {
+              try { updateData.purchaseDate = new Date(parsed.orderDate); } catch { /* ignore */ }
+            }
+            if (parsed.orderNumber && typeof parsed.orderNumber === "string") {
+              let ocrData: any = {};
+              if (receipt.ocrRawText) {
+                try { ocrData = typeof receipt.ocrRawText === "string" ? JSON.parse(receipt.ocrRawText) : receipt.ocrRawText; } catch { ocrData = {}; }
+              }
+              ocrData.orderNumber = parsed.orderNumber;
+              if (parsed.shopName) ocrData.shopName = parsed.shopName;
+              if (parsed.productName) ocrData.productName = parsed.productName;
+              if (parsed.isDelivered !== null && parsed.isDelivered !== undefined) ocrData.isDelivered = parsed.isDelivered;
+              updateData.ocrRawText = JSON.stringify(ocrData);
+            }
+            
+            if (Object.keys(updateData).length > 0) {
+              await updateLineReceiptOcr(receiptId, updateData);
+            }
+            
+            results.push({
+              id: receiptId,
+              success: true,
+              totalAmount: parsed.totalAmount || null,
+              orderNumber: parsed.orderNumber || null,
+              shopName: parsed.shopName || null,
+              confidence: parsed.confidence || 0,
+            });
+          } catch (err) {
+            results.push({ id: receiptId, success: false, totalAmount: null, orderNumber: null, shopName: null, confidence: 0 });
+          }
+        }
+        
+        return {
+          results,
+          totalProcessed: results.length,
+          successCount: results.filter(r => r.success).length,
+        };
+      }),
+    
     // AI re-recognize order number from receipt images
     adminReRecognizeOrderNumber: protectedProcedure
       .input(z.object({

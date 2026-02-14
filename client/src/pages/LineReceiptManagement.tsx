@@ -94,6 +94,10 @@ export default function LineReceiptManagement() {
   const [isOrderNumberEditing, setIsOrderNumberEditing] = useState(false);
   const [isAiRecognizing, setIsAiRecognizing] = useState(false);
   
+  // Batch AI re-recognize state
+  const [batchAiProgress, setBatchAiProgress] = useState<{ total: number; completed: number; running: boolean }>({ total: 0, completed: 0, running: false });
+  const batchAiAbortRef = useRef(false);
+  
   // Reject/Hold dialog state (separate from calculator approve flow)
   const [actionDialog, setActionDialog] = useState<{ type: "reject" | "hold"; id: number; receipt?: any } | null>(null);
   
@@ -124,6 +128,61 @@ export default function LineReceiptManagement() {
     status: activeTab,
     limit: 100,
   });
+  
+  // Batch AI re-recognize mutation (one at a time)
+  const batchReRecognizeMutation = trpc.point.adminReRecognizeOrderNumber.useMutation();
+  
+  // Auto batch AI re-recognize when receipts load (for pending tab)
+  const batchProcessedIdsRef = useRef<Set<number>>(new Set());
+  
+  useEffect(() => {
+    if (!receipts || receipts.length === 0 || activeTab !== "pending") return;
+    
+    // Find receipts that need AI recognition (no totalAmount or no storeName)
+    const needsRecognition = receipts.filter(({ receipt }) => {
+      // Skip if already processed in this session
+      if (batchProcessedIdsRef.current.has(receipt.id)) return false;
+      // Need recognition if missing amount or store
+      return (!receipt.totalAmount || receipt.totalAmount === 0) && receipt.imageUrl;
+    });
+    
+    if (needsRecognition.length === 0) return;
+    
+    // Start batch processing
+    batchAiAbortRef.current = false;
+    setBatchAiProgress({ total: needsRecognition.length, completed: 0, running: true });
+    
+    const processSequentially = async () => {
+      let completed = 0;
+      for (const { receipt } of needsRecognition) {
+        if (batchAiAbortRef.current) break;
+        try {
+          const result = await batchReRecognizeMutation.mutateAsync({ id: receipt.id });
+          batchProcessedIdsRef.current.add(receipt.id);
+          completed++;
+          setBatchAiProgress(prev => ({ ...prev, completed }));
+          
+          // If this receipt is currently selected, update the amount
+          if (receipt.id === calcReceiptId && result.totalAmount && result.totalAmount > 0) {
+            setCalcAmount(String(result.totalAmount));
+          }
+        } catch {
+          batchProcessedIdsRef.current.add(receipt.id); // Don't retry
+          completed++;
+          setBatchAiProgress(prev => ({ ...prev, completed }));
+        }
+      }
+      setBatchAiProgress(prev => ({ ...prev, running: false }));
+      // Refresh list to show updated data
+      utils.point.adminGetLineReceipts.invalidate();
+    };
+    
+    processSequentially();
+    
+    return () => {
+      batchAiAbortRef.current = true;
+    };
+  }, [receipts?.length, activeTab]); // Only trigger when receipt count changes or tab changes
   
   // Fetch statistics
   const { data: stats } = trpc.point.adminGetLineStatistics.useQuery();
@@ -158,6 +217,13 @@ export default function LineReceiptManagement() {
       setCalcReceiptId(nextReceipt.receipt.id);
       setActionNote("");
       setAllProcessedMessage(false);
+      // Pre-fill amount from next receipt
+      const nextAmount = nextReceipt.receipt.totalAmount;
+      if (nextAmount && nextAmount > 0) {
+        setCalcAmount(String(nextAmount));
+      } else {
+        setCalcAmount("");
+      }
       // Scroll to the selected card
       setTimeout(() => {
         const card = document.querySelector(`[data-receipt-id="${nextReceipt.receipt.id}"]`);
@@ -196,7 +262,20 @@ export default function LineReceiptManagement() {
   useEffect(() => {
     setSessionProcessedCount(0);
     setAllProcessedMessage(false);
+    batchProcessedIdsRef.current.clear();
+    setBatchAiProgress({ total: 0, completed: 0, running: false });
   }, [activeTab]);
+  
+  // Auto-select first receipt when receipts load and none is selected
+  useEffect(() => {
+    if (!calcReceiptId && receipts && receipts.length > 0 && !isLoading && activeTab === "pending") {
+      const first = receipts[0];
+      setCalcReceiptId(first.receipt.id);
+      const amount = first.receipt.totalAmount;
+      setCalcAmount(amount ? String(amount) : "");
+      setCurrentImageIndex(0);
+    }
+  }, [receipts, isLoading, activeTab]);
   
   // When a receipt is selected for calculator, pre-fill amount
   const selectedCalcReceipt = useMemo(() => {
@@ -208,6 +287,8 @@ export default function LineReceiptManagement() {
     if (selectedCalcReceipt) {
       const amount = selectedCalcReceipt.receipt.totalAmount;
       setCalcAmount(amount ? String(amount) : "");
+      // Reset image index when switching receipts
+      setCurrentImageIndex(0);
     }
   }, [selectedCalcReceipt]);
   
@@ -226,6 +307,7 @@ export default function LineReceiptManagement() {
       utils.point.adminGetLineStatistics.invalidate();
       // Track processing count
       setSessionProcessedCount(prev => prev + 1);
+      toast.success("承認完了", { duration: 2000 });
       // Trigger auto-advance to next receipt
       if (autoAdvanceEnabled) {
         setLastProcessedId(calcReceiptId);
@@ -248,6 +330,7 @@ export default function LineReceiptManagement() {
       const rejectedId = lastRejectedIdRef.current;
       // Track processing count
       setSessionProcessedCount(prev => prev + 1);
+      toast.success("却下完了（LINE送信済み）", { duration: 2000 });
       // Trigger auto-advance to next receipt
       if (autoAdvanceEnabled && rejectedId) {
         setLastProcessedId(rejectedId);
@@ -638,6 +721,43 @@ export default function LineReceiptManagement() {
           />
         </div>
       </div>
+      
+      {/* Batch AI Recognition Progress */}
+      {batchAiProgress.running && (
+        <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-3">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Brain className="w-5 h-5 text-purple-600 animate-pulse" />
+              <div>
+                <p className="text-sm font-medium text-purple-800">AI自動認識中...</p>
+                <p className="text-xs text-purple-600">{batchAiProgress.completed} / {batchAiProgress.total} 件処理済み</p>
+              </div>
+            </div>
+            <div className="flex-1 mx-4">
+              <div className="h-2 bg-purple-100 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full transition-all duration-500"
+                  style={{ width: `${batchAiProgress.total > 0 ? (batchAiProgress.completed / batchAiProgress.total) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs text-purple-600 hover:text-purple-800"
+              onClick={() => { batchAiAbortRef.current = true; setBatchAiProgress(prev => ({ ...prev, running: false })); }}
+            >
+              中止
+            </Button>
+          </div>
+        </div>
+      )}
+      {!batchAiProgress.running && batchAiProgress.completed > 0 && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-2 flex items-center gap-2">
+          <CheckCircle className="w-4 h-4 text-green-600" />
+          <span className="text-sm text-green-700">AI自動認識完了: {batchAiProgress.completed}件の画像を解析しました</span>
+        </div>
+      )}
       
       {/* Statistics */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
