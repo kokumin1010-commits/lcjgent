@@ -275,19 +275,19 @@ async function handleFollowEvent(event: LineWebhookEvent): Promise<void> {
   const existingLiver = await findLiverByLineUserId(lineUserId);
   
   if (existingLiver) {
-    // 既に連携済み
+    // 既に連携済み（ライバー）
     await sendLinePushMessage(lineUserId, [
       {
         type: "text",
-        text: `${existingLiver.name}さん、おかえりなさい！🎉\n\nLINE連携は完了しています。配信後にAIコーチングが届きます。`,
+        text: `${existingLiver.name}さん、おかえりなさい！\n\nLINE連携は完了しています。`,
       },
     ]);
   } else {
-    // 未連携 - 連携方法を案内
+    // 未連携 - 消費者向けの案内
     await sendLinePushMessage(lineUserId, [
       {
         type: "text",
-        text: `LCJ AIコーチングへようこそ！🎊\n\n配信後にAIからのアドバイスをLINEで受け取れます。\n\n【連携方法】\n1. LCJライバーアプリにログイン\n2. プロフィール編集 → LINE連携\n3. 表示される6桁のコードをこちらに送信\n\n連携コードを入力してください👇`,
+        text: `LCJ MALLへようこそ！\n\nLINE連携をすると、ポイント残高の確認や注文状況の通知をLINEで受け取れます。\n\n【連携方法】\n1. LCJ MALLにログイン\n2. マイページ → LINE連携 → コード発行\n3. 表示される連携コード（M-XXXXXX）をこちらに送信\n\n連携コードを入力してください`,
       },
     ]);
   }
@@ -323,7 +323,7 @@ async function handleTextMessage(
     await sendLinePushMessage(lineUserId, [
       {
         type: "text",
-        text: `LINE連携をするには、連携コードを送信してください。\n\n【LCJ MALL会員の方】\nマイページ → LINE連携 → コード発行\n例: M-123456\n\n【LCJライバーの方】\nアプリ → プロフィール → LINE連携\n例: L-123456`,
+        text: `LINE連携をするには、連携コードを送信してください。\n\n【連携方法】\n1. LCJ MALLにログイン\n2. マイページ → LINE連携 → コード発行\n3. 表示されたコード（M-XXXXXX）をこちらに送信\n\nその他、「ポイント履歴」と入力するとポイント残高を確認できます。`,
       },
     ]);
     return;
@@ -380,7 +380,7 @@ async function handleTextMessage(
   await sendLinePushMessage(lineUserId, [
     {
       type: "text",
-      text: `🎉 ${liverData.name}さん、LINE連携が完了しました！\n\nこれから配信後にAIコーチングがLINEに届きます。\n\n頑張ってください！💪`,
+      text: `${liverData.name}さん、LINE連携が完了しました！\n\n配信後にAIコーチングがLINEに届きます。`,
     },
   ]);
 }
@@ -431,7 +431,7 @@ async function tryLinkMallUser(
     await sendLinePushMessage(lineUserId, [
       {
         type: "text",
-        text: `🎉 ${userName}さん、LINE連携が完了しました！\n\nこれでレシートをLINEで送信できるようになりました。\n\n購入後はレシート画像をこちらに送信してポイントを獲得してください！`,
+        text: `${userName}さん、LINE連携が完了しました！\n\nこれでポイント残高の確認や注文状況の通知をLINEで受け取れます。\n\nレシートのポイント申請は、LCJ MALLのWebフォームからアップロードしてください。\n\n「ポイント履歴」と入力すると、ポイント残高を確認できます。`,
       },
     ]);
     
@@ -481,7 +481,7 @@ async function handlePointHistoryCommand(lineUserId: string): Promise<void> {
       await sendLinePushMessage(lineUserId, [
         {
           type: "text",
-          text: "📊 ポイント履歴\n\nまだポイント申請の履歴がありません。\n\nTikTok Shopで商品を購入したら、注文詳細のスクリーンショットを送信してポイントを獲得しましょう！",
+          text: "ポイント履歴\n\nまだポイント申請の履歴がありません。\n\n商品を購入したら、LCJ MALLのWebフォームからレシートをアップロードしてポイントを獲得しましょう！",
         },
       ]);
       return;
