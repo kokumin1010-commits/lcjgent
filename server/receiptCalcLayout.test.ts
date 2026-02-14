@@ -97,8 +97,8 @@ describe("Receipt Management 2-Column Layout with Calculator", () => {
       expect(content).toContain("pt 付与）");
     });
 
-    it("should disable approve button when points are 0", () => {
-      expect(content).toContain("calcPoints <= 0");
+    it("should only disable approve button when mutation is pending", () => {
+      expect(content).toContain("disabled={approveMutation.isPending}");
     });
 
     it("should clear calculator state after successful approval", () => {
@@ -146,8 +146,8 @@ describe("Receipt Management 2-Column Layout with Calculator", () => {
   });
 
   describe("Receipt Info in Calculator", () => {
-    it("should show user name in calculator panel", () => {
-      expect(content).toContain("selectedCalcReceipt.lineUser?.displayName");
+    it("should show user name in calculator panel using getUserDisplayName", () => {
+      expect(content).toContain("getUserDisplayName(selectedCalcReceipt.lineUser, selectedCalcReceipt.receipt)");
     });
 
     it("should show receipt images as thumbnails in calculator", () => {

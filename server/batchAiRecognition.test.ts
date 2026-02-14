@@ -102,13 +102,13 @@ describe("Batch AI Recognition Feature", () => {
   });
 
   describe("Auto-advance with amount pre-fill", () => {
-    it("should pre-fill amount from next receipt during auto-advance", () => {
-      expect(lineReceiptMgmt).toContain("Pre-fill amount from next receipt");
+    it("should pre-fill amount from next receipt during auto-advance via advanceToNext", () => {
+      expect(lineReceiptMgmt).toContain("advanceToNext");
       expect(lineReceiptMgmt).toContain("nextReceipt.receipt.totalAmount");
     });
 
     it("should clear amount when next receipt has no amount", () => {
-      expect(lineReceiptMgmt).toContain("setCalcAmount(\"\")");
+      expect(lineReceiptMgmt).toContain('setCalcAmount("")');  
     });
   });
 
@@ -355,12 +355,8 @@ describe("Order number clear on approve/reject/hold (bug fix)", () => {
     });
 
     it("should clear order number when all receipts processed", () => {
-      // When no more receipts, order number should be cleared
-      const allProcessedSection = lineReceiptMgmt.slice(
-        lineReceiptMgmt.indexOf("// All receipts in this tab have been processed"),
-        lineReceiptMgmt.indexOf("// Reset the trigger")
-      );
-      expect(allProcessedSection).toContain('setCalcOrderNumber("")');
+      // When no more receipts, order number should be cleared via advanceToNext
+      expect(lineReceiptMgmt).toContain('setCalcOrderNumber("")');
     });
   });
 

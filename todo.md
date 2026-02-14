@@ -5293,3 +5293,10 @@
 - [x] App.tsxに/master/receiptsルートを追加、/master/ai-learningもReceiptHubに統合
 - [x] サイドバーメニューを「レシート管理」（Receiptアイコン）に統合
 - [x] テスト・動作確認（131ファイル・1635テスト全パス）
+
+## バグ修正：LineReceiptManagement.tsxの3つの問題
+- [x] 却下ボタンが押せなくなっている問題を修正（auto-advanceロジックを改善、processedIdsRefで処理済みレシートをスキップ）
+- [x] 却下後に次のレシートに自動遷移するようにする（advanceToNextヘルパー関数で即座に次へ遷移）
+- [x] 名前が認識されている（OCR配送先名あり）のに「不明」と表示される問題を修正（getUserDisplayNameで複数パスフォールバック）
+- [x] 承認ボタンが場合によって押せなくなる問題を修正（calcPoints<=0のdisabled条件削除済み、auto-advance改善で中間状態回避）
+- [x] テスト・動作確認（131ファイル・1635テスト全パス）

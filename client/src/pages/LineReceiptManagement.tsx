@@ -242,28 +242,22 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
     }
   }, [calcAmount]);
   
-  // Auto-advance to next receipt after processing
-  useEffect(() => {
-    if (!autoAdvanceEnabled || !lastProcessedId || !receipts) return;
-    
-    // Wait until the processed receipt is actually removed from the list
-    const stillInList = receipts.some(r => r.receipt.id === lastProcessedId);
-    if (stillInList) return; // Data hasn't refreshed yet, wait for next render
-    
-    // If current tab still has receipts, select the first one
-    if (receipts.length > 0) {
-      const nextReceipt = receipts[0];
+  // Track processed receipt IDs to skip them in auto-advance
+  const processedIdsRef = useRef<Set<number>>(new Set());
+  
+  // Helper: advance to next available receipt (skipping processed ones)
+  const advanceToNext = useCallback((currentReceipts: typeof receipts, processedId?: number) => {
+    if (processedId) processedIdsRef.current.add(processedId);
+    const available = (currentReceipts || []).filter(
+      r => !processedIdsRef.current.has(r.receipt.id) && (r.receipt.status === "pending" || r.receipt.status === "on_hold")
+    );
+    if (available.length > 0) {
+      const nextReceipt = available[0];
       setCalcReceiptId(nextReceipt.receipt.id);
       setActionNote("");
       setAllProcessedMessage(false);
-      // Pre-fill amount from next receipt
       const nextAmount = nextReceipt.receipt.totalAmount;
-      if (nextAmount && nextAmount > 0) {
-        setCalcAmount(String(nextAmount));
-      } else {
-        setCalcAmount("");
-      }
-      // Set order number from next receipt data
+      setCalcAmount(nextAmount && nextAmount > 0 ? String(nextAmount) : "");
       const nextOrderNum = (() => {
         try {
           if (nextReceipt.receipt.ocrRawText) {
@@ -275,13 +269,11 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
       })();
       setCalcOrderNumber(nextOrderNum);
       setIsOrderNumberEditing(false);
-      // Scroll to the selected card
       setTimeout(() => {
         const card = document.querySelector(`[data-receipt-id="${nextReceipt.receipt.id}"]`);
         card?.scrollIntoView({ behavior: "smooth", block: "nearest" });
       }, 100);
     } else {
-      // All receipts in this tab have been processed
       setCalcReceiptId(null);
       setCalcAmount("");
       setCalcPoints(0);
@@ -289,27 +281,47 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
       setIsOrderNumberEditing(false);
       setAllProcessedMessage(true);
     }
+  }, []);
+  
+  // Auto-advance to next receipt after processing
+  useEffect(() => {
+    if (!autoAdvanceEnabled || !lastProcessedId || !receipts) return;
     
-    // Reset the trigger
+    // Immediately advance to next, skipping processed IDs
+    advanceToNext(receipts, lastProcessedId);
     setLastProcessedId(null);
-  }, [receipts, lastProcessedId, autoAdvanceEnabled]);
+  }, [receipts, lastProcessedId, autoAdvanceEnabled, advanceToNext]);
+  
+  // Clean up processedIds when receipts list actually updates (removes stale entries)
+  useEffect(() => {
+    if (receipts && processedIdsRef.current.size > 0) {
+      const currentIds = new Set(receipts.map(r => r.receipt.id));
+      const toDelete: number[] = [];
+      processedIdsRef.current.forEach(id => {
+        if (!currentIds.has(id)) toDelete.push(id);
+      });
+      toDelete.forEach(id => processedIdsRef.current.delete(id));
+    }
+  }, [receipts]);
   
   // Fallback: if calcReceiptId is set but selectedCalcReceipt is null (receipt was removed from list),
-  // clear the selection to avoid stuck "loading" state
+  // advance to next instead of clearing
   useEffect(() => {
     if (calcReceiptId && receipts && !isLoading) {
       const found = receipts.find(r => r.receipt.id === calcReceiptId);
       if (!found) {
-        // The selected receipt is no longer in the current list
-        // If auto-advance hasn't picked it up, clear the selection
         if (!lastProcessedId) {
-          setCalcReceiptId(null);
-          setCalcAmount("");
-          setCalcPoints(0);
+          if (autoAdvanceEnabled) {
+            advanceToNext(receipts, calcReceiptId);
+          } else {
+            setCalcReceiptId(null);
+            setCalcAmount("");
+            setCalcPoints(0);
+          }
         }
       }
     }
-  }, [calcReceiptId, receipts, isLoading, lastProcessedId]);
+  }, [calcReceiptId, receipts, isLoading, lastProcessedId, autoAdvanceEnabled, advanceToNext]);
   
   // Reset session counter when tab changes
   useEffect(() => {
@@ -668,6 +680,38 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
     }
   };
   
+  // Get user display name with OCR fallback
+  const getUserDisplayName = (lineUser: any, receipt: any): string => {
+    // 1st priority: LINE display name
+    if (lineUser?.displayName) return lineUser.displayName;
+    // 2nd priority: OCR delivery recipient name (multiple paths)
+    try {
+      if (receipt?.ocrRawText) {
+        const data = typeof receipt.ocrRawText === "string" ? JSON.parse(receipt.ocrRawText) : receipt.ocrRawText;
+        // Try structured deliveryInfo first
+        if (data.deliveryInfo?.recipientName) return data.deliveryInfo.recipientName;
+        // Try top-level recipientName
+        if (data.recipientName) return data.recipientName;
+        // Try delivery object
+        if (data.delivery?.recipientName) return data.delivery.recipientName;
+        // Try customerName
+        if (data.customerName) return data.customerName;
+        // Try buyerName
+        if (data.buyerName) return data.buyerName;
+      }
+    } catch { /* ignore */ }
+    // 3rd priority: ocrData field (older format)
+    try {
+      if (receipt?.ocrData) {
+        const ocrData = typeof receipt.ocrData === "string" ? JSON.parse(receipt.ocrData) : receipt.ocrData;
+        if (ocrData.recipientName) return ocrData.recipientName;
+        if (ocrData.deliveryInfo?.recipientName) return ocrData.deliveryInfo.recipientName;
+        if (ocrData.customerName) return ocrData.customerName;
+      }
+    } catch { /* ignore */ }
+    return "不明";
+  };
+
   // Extract order number from ocrRawText JSON
   const getOrderNumber = (receipt: any): string | null => {
     try {
@@ -1020,7 +1064,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                           <div className="bg-muted/50 rounded-lg p-3 space-y-2">
                             <div className="flex items-center gap-2">
                               <User className="w-4 h-4 text-muted-foreground" />
-                              <span className="font-semibold text-sm">{selectedCalcReceipt.lineUser?.displayName || "不明"}</span>
+                              <span className="font-semibold text-sm">{getUserDisplayName(selectedCalcReceipt.lineUser, selectedCalcReceipt.receipt)}</span>
                               {getStatusBadge(selectedCalcReceipt.receipt.status as ReceiptStatus)}
                             </div>
                             {duplicateReceiptIds.ids.has(selectedCalcReceipt.receipt.id) && (() => {
@@ -1309,7 +1353,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                               <Button 
                                 className="w-full h-12 bg-green-600 hover:bg-green-700 text-white text-base font-bold shadow-md"
                                 onClick={handleCalcApprove}
-                                disabled={approveMutation.isPending || calcPoints <= 0}
+                                disabled={approveMutation.isPending}
                               >
                                 {approveMutation.isPending ? (
                                   "承認処理中..."
@@ -1487,7 +1531,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                           <div className="space-y-1.5">
                             {/* Row 1: User + Status + AI */}
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-semibold text-xs truncate max-w-[100px]">{lineUser?.displayName || "不明"}</span>
+                              <span className="font-semibold text-xs truncate max-w-[100px]">{getUserDisplayName(lineUser, receipt)}</span>
                               {getStatusBadge(receipt.status as ReceiptStatus)}
                               <Badge variant="outline" className={`${confidence.color} text-[10px] px-1 py-0`}>
                                 <Bot className="w-2.5 h-2.5 mr-0.5" />
