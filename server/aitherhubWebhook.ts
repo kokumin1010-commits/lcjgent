@@ -356,7 +356,7 @@ export async function handleVerifyLiver(req: Request, res: Response) {
 
     return res.status(200).json({
       found: true,
-      name: liver.name || liver.displayName || "",
+      name: liver.name || "",
       id: liver.id,
     });
   } catch (error: any) {
