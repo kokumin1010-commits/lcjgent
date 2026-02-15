@@ -888,9 +888,12 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
         )}
       </div>
 
-      {/* Statistics */}
+      {/* Statistics - Clickable Filter Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card>
+        <Card 
+          className={`cursor-pointer transition-all hover:shadow-md ${activeTab === "pending" ? "ring-2 ring-yellow-400 bg-yellow-50" : ""}`}
+          onClick={() => { setActiveTab("pending"); setCalcReceiptId(null); setCalcAmount(""); }}
+        >
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-yellow-500" />
@@ -899,7 +902,10 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
             <p className="text-2xl font-bold mt-1">{stats?.pending || 0}</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card 
+          className={`cursor-pointer transition-all hover:shadow-md ${activeTab === "approved" ? "ring-2 ring-green-400 bg-green-50" : ""}`}
+          onClick={() => { setActiveTab("approved"); setCalcReceiptId(null); setCalcAmount(""); }}
+        >
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
               <CheckCircle className="w-4 h-4 text-green-500" />
@@ -908,7 +914,10 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
             <p className="text-2xl font-bold mt-1">{stats?.approved || 0}</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card 
+          className={`cursor-pointer transition-all hover:shadow-md ${activeTab === "rejected" ? "ring-2 ring-red-400 bg-red-50" : ""}`}
+          onClick={() => { setActiveTab("rejected"); setCalcReceiptId(null); setCalcAmount(""); }}
+        >
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
               <XCircle className="w-4 h-4 text-red-500" />
@@ -917,7 +926,10 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
             <p className="text-2xl font-bold mt-1">{stats?.rejected || 0}</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card 
+          className={`cursor-pointer transition-all hover:shadow-md ${activeTab === "on_hold" ? "ring-2 ring-orange-400 bg-orange-50" : ""}`}
+          onClick={() => { setActiveTab("on_hold"); setCalcReceiptId(null); setCalcAmount(""); }}
+        >
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-orange-500" />
@@ -956,27 +968,8 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
         </Card>
       )}
       
-      {/* Tabs */}
+      {/* Content - Tab switching handled by clickable stat cards above */}
       <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as ReceiptStatus); setCalcReceiptId(null); setCalcAmount(""); }}>
-        <TabsList>
-          <TabsTrigger value="pending" className="flex items-center gap-1">
-            <Clock className="w-4 h-4" />
-            {t("receipts.pendingCount")}
-            {stats?.pending ? <Badge variant="secondary" className="ml-1">{stats.pending}</Badge> : null}
-          </TabsTrigger>
-          <TabsTrigger value="on_hold" className="flex items-center gap-1">
-            <AlertTriangle className="w-4 h-4" />
-            {t("receipts.onHold")}
-          </TabsTrigger>
-          <TabsTrigger value="approved" className="flex items-center gap-1">
-            <CheckCircle className="w-4 h-4" />
-            {t("receipts.approvedCount")}
-          </TabsTrigger>
-          <TabsTrigger value="rejected" className="flex items-center gap-1">
-            <XCircle className="w-4 h-4" />
-            {t("receipts.rejectedCount")}
-          </TabsTrigger>
-        </TabsList>
         
         <TabsContent value={activeTab} className="mt-4">
           {isLoading ? (
