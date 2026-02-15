@@ -32,6 +32,25 @@ describe("LINE Webhook メッセージ文言テスト", () => {
       expect(section).toContain("マイページ → LINE連携 → コード発行");
       expect(section).toContain("M-XXXXXX");
     });
+
+    it("Webフォームからの投稿案内が含まれていること", () => {
+      const section = webhookSource.substring(
+        webhookSource.indexOf("async function handleFollowEvent"),
+        webhookSource.indexOf("async function handleTextMessage")
+      );
+      expect(section).toContain("Webフォームからレシートを投稿");
+      expect(section).toContain("lcjmall.com/receipt-upload");
+    });
+
+    it("LINEでのレシート送信案内が含まれていないこと", () => {
+      const section = webhookSource.substring(
+        webhookSource.indexOf("async function handleFollowEvent"),
+        webhookSource.indexOf("async function handleTextMessage")
+      );
+      expect(section).not.toContain("レシートをLINEで送信");
+      expect(section).not.toContain("レシート画像をこちらに送信");
+      expect(section).not.toContain("このトークに送信");
+    });
   });
 
   describe("テキスト入力時の案内メッセージ", () => {
@@ -64,12 +83,13 @@ describe("LINE Webhook メッセージ文言テスト", () => {
       expect(section).not.toContain("レシート画像をこちらに送信");
     });
 
-    it("Webフォームからのアップロード案内が含まれていること", () => {
+    it("Webフォームからの投稿案内が含まれていること", () => {
       const section = webhookSource.substring(
         webhookSource.indexOf("async function tryLinkMallUser"),
         webhookSource.indexOf("async function handlePostback")
       );
-      expect(section).toContain("Webフォームからアップロード");
+      expect(section).toContain("Webフォームからレシートを投稿");
+      expect(section).toContain("lcjmall.com/receipt-upload");
     });
 
     it("ポイント残高確認の案内が含まれていること", () => {
