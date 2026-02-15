@@ -80,6 +80,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import MallDashboardPage from "./pages/MallDashboardPage";
 import AiLearningDashboard from "./pages/AiLearningDashboard";
 import ReceiptHub from "./pages/ReceiptHub";
+import ReceiptAnalytics from "./pages/ReceiptAnalytics";
 
 function Router() {
   return (
@@ -108,6 +109,11 @@ function Router() {
       <Route path="/master/receipts">
         <DashboardLayout>
           <ReceiptHub />
+        </DashboardLayout>
+      </Route>
+      <Route path="/master/receipt-analytics">
+        <DashboardLayout>
+          <ReceiptAnalytics />
         </DashboardLayout>
       </Route>
       

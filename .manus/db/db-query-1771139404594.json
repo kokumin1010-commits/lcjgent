@@ -1,0 +1,18 @@
+{
+  "query": "SELECT COUNT(*) as total, COUNT(DISTINCT lineUserId) as unique_users, COUNT(storeName) as has_store, COUNT(totalAmount) as has_amount, MIN(submittedAt) as earliest, MAX(submittedAt) as latest FROM line_receipts;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT COUNT(*) as total, COUNT(DISTINCT lineUserId) as unique_users, COUNT(storeName) as has_store, COUNT(totalAmount) as has_amount, MIN(submittedAt) as earliest, MAX(submittedAt) as latest FROM line_receipts;",
+  "rows": [
+    {
+      "total": "1913",
+      "unique_users": "232",
+      "has_store": "1042",
+      "has_amount": "1043",
+      "earliest": "2026-02-03 16:22:44",
+      "latest": "2026-02-15 07:02:00"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\tunique_users\thas_store\thas_amount\tearliest\tlatest\n1913\t232\t1042\t1043\t2026-02-03 16:22:44\t2026-02-15 07:02:00\n",
+  "stderr": "",
+  "execution_time_ms": 1517
+}

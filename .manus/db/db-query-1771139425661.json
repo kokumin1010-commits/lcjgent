@@ -1,0 +1,30 @@
+{
+  "query": "SELECT 'receipts' as tbl, COUNT(*) as cnt FROM receipts\nUNION ALL SELECT 'line_receipts', COUNT(*) FROM line_receipts\nUNION ALL SELECT 'point_requests', COUNT(*) FROM point_requests\nUNION ALL SELECT 'receipt_review_logs', COUNT(*) FROM receipt_review_logs\nUNION ALL SELECT 'tiktok_commission_orders', COUNT(*) FROM tiktok_commission_orders;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT 'receipts' as tbl, COUNT(*) as cnt FROM receipts\nUNION ALL SELECT 'line_receipts', COUNT(*) FROM line_receipts\nUNION ALL SELECT 'point_requests', COUNT(*) FROM point_requests\nUNION ALL SELECT 'receipt_review_logs', COUNT(*) FROM receipt_review_logs\nUNION ALL SELECT 'tiktok_commission_orders', COUNT(*) FROM tiktok_commission_orders;",
+  "rows": [
+    {
+      "tbl": "receipt_review_logs",
+      "cnt": "62"
+    },
+    {
+      "tbl": "point_requests",
+      "cnt": "0"
+    },
+    {
+      "tbl": "receipts",
+      "cnt": "0"
+    },
+    {
+      "tbl": "line_receipts",
+      "cnt": "1913"
+    },
+    {
+      "tbl": "tiktok_commission_orders",
+      "cnt": "26354"
+    }
+  ],
+  "messages": [],
+  "stdout": "tbl\tcnt\nreceipt_review_logs\t62\npoint_requests\t0\nreceipts\t0\nline_receipts\t1913\ntiktok_commission_orders\t26354\n",
+  "stderr": "",
+  "execution_time_ms": 1538
+}

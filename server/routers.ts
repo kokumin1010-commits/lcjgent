@@ -443,6 +443,14 @@ import {
   getAutoApprovalSimulation,
   getAitherhubSyncLogs,
   getAitherhubSyncStats,
+  getReceiptAnalyticsOverview,
+  getShopRanking,
+  getProductRanking,
+  getReceiptMonthlyTrend,
+  getRepeaterAnalysis,
+  getRegionAnalysis,
+  getAiConfidenceAnalysis,
+  getTimeAnalysis,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -14591,6 +14599,38 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .query(async () => {
         return await getAitherhubSyncStats();
       }),
+  }),
+
+  // Receipt Analytics
+  receiptAnalytics: router({
+    overview: protectedProcedure.query(async () => {
+      return await getReceiptAnalyticsOverview();
+    }),
+    shopRanking: protectedProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        return await getShopRanking(input?.limit ?? 20);
+      }),
+    productRanking: protectedProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        return await getProductRanking(input?.limit ?? 30);
+      }),
+    monthlyTrend: protectedProcedure.query(async () => {
+      return await getReceiptMonthlyTrend();
+    }),
+    repeaterAnalysis: protectedProcedure.query(async () => {
+      return await getRepeaterAnalysis();
+    }),
+    regionAnalysis: protectedProcedure.query(async () => {
+      return await getRegionAnalysis();
+    }),
+    aiConfidence: protectedProcedure.query(async () => {
+      return await getAiConfidenceAnalysis();
+    }),
+    timeAnalysis: protectedProcedure.query(async () => {
+      return await getTimeAnalysis();
+    }),
   }),
 });
 

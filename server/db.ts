@@ -12463,3 +12463,431 @@ export async function isLiverAitherhubLinked(liverId: number): Promise<boolean> 
   
   return Number(result[0]?.count || 0) > 0;
 }
+
+
+// ============================================================
+// Receipt Analytics Functions
+// ============================================================
+
+/**
+ * Get receipt analytics overview combining line_receipts and tiktok_commission_orders
+ */
+export async function getReceiptAnalyticsOverview() {
+  const db = await getDb();
+  if (!db) return null;
+
+  // LINE receipts summary
+  const lineStats = await db.select({
+    totalCount: sql<number>`COUNT(*)`,
+    approvedCount: sql<number>`SUM(CASE WHEN ${lineReceipts.status} = 'approved' THEN 1 ELSE 0 END)`,
+    pendingCount: sql<number>`SUM(CASE WHEN ${lineReceipts.status} = 'pending' THEN 1 ELSE 0 END)`,
+    rejectedCount: sql<number>`SUM(CASE WHEN ${lineReceipts.status} = 'rejected' THEN 1 ELSE 0 END)`,
+    totalAmount: sql<number>`COALESCE(SUM(CASE WHEN ${lineReceipts.status} = 'approved' THEN ${lineReceipts.totalAmount} ELSE 0 END), 0)`,
+    uniqueUsers: sql<number>`COUNT(DISTINCT ${lineReceipts.lineUserId})`,
+    withStoreName: sql<number>`SUM(CASE WHEN ${lineReceipts.storeName} IS NOT NULL AND ${lineReceipts.storeName} != '' THEN 1 ELSE 0 END)`,
+  }).from(lineReceipts);
+
+  // TikTok orders summary
+  const tiktokStats = await db.select({
+    totalCount: sql<number>`COUNT(*)`,
+    totalAmount: sql<number>`COALESCE(SUM(${tiktokCommissionOrders.price}), 0)`,
+    uniqueCreators: sql<number>`COUNT(DISTINCT ${tiktokCommissionOrders.creatorUsername})`,
+    uniqueShops: sql<number>`COUNT(DISTINCT ${tiktokCommissionOrders.shopName})`,
+    uniqueProducts: sql<number>`COUNT(DISTINCT ${tiktokCommissionOrders.productName})`,
+  }).from(tiktokCommissionOrders);
+
+  return {
+    lineReceipts: {
+      totalCount: Number(lineStats[0]?.totalCount || 0),
+      approvedCount: Number(lineStats[0]?.approvedCount || 0),
+      pendingCount: Number(lineStats[0]?.pendingCount || 0),
+      rejectedCount: Number(lineStats[0]?.rejectedCount || 0),
+      totalApprovedAmount: Number(lineStats[0]?.totalAmount || 0),
+      uniqueUsers: Number(lineStats[0]?.uniqueUsers || 0),
+      withStoreName: Number(lineStats[0]?.withStoreName || 0),
+    },
+    tiktokOrders: {
+      totalCount: Number(tiktokStats[0]?.totalCount || 0),
+      totalAmount: Number(tiktokStats[0]?.totalAmount || 0),
+      uniqueCreators: Number(tiktokStats[0]?.uniqueCreators || 0),
+      uniqueShops: Number(tiktokStats[0]?.uniqueShops || 0),
+      uniqueProducts: Number(tiktokStats[0]?.uniqueProducts || 0),
+    },
+  };
+}
+
+/**
+ * Get shop ranking from both line_receipts and tiktok_commission_orders
+ */
+export async function getShopRanking(limit: number = 20) {
+  const db = await getDb();
+  if (!db) return [];
+
+  // LINE receipts by store
+  const lineShops = await db.select({
+    shopName: lineReceipts.storeName,
+    orderCount: sql<number>`COUNT(*)`,
+    totalAmount: sql<number>`COALESCE(SUM(${lineReceipts.totalAmount}), 0)`,
+    source: sql<string>`'line'`,
+  })
+    .from(lineReceipts)
+    .where(and(
+      sql`${lineReceipts.storeName} IS NOT NULL`,
+      sql`${lineReceipts.storeName} != ''`,
+    ))
+    .groupBy(lineReceipts.storeName)
+    .orderBy(sql`totalAmount DESC`);
+
+  // TikTok orders by shop
+  const tiktokShops = await db.select({
+    shopName: tiktokCommissionOrders.shopName,
+    orderCount: sql<number>`COUNT(*)`,
+    totalAmount: sql<number>`COALESCE(SUM(${tiktokCommissionOrders.price}), 0)`,
+    source: sql<string>`'tiktok'`,
+  })
+    .from(tiktokCommissionOrders)
+    .where(sql`${tiktokCommissionOrders.shopName} IS NOT NULL`)
+    .groupBy(tiktokCommissionOrders.shopName)
+    .orderBy(sql`totalAmount DESC`);
+
+  // Merge shops from both sources
+  const shopMap = new Map<string, { shopName: string; orderCount: number; totalAmount: number; lineCount: number; tiktokCount: number }>();
+  
+  for (const shop of lineShops) {
+    const name = shop.shopName || "不明";
+    const existing = shopMap.get(name) || { shopName: name, orderCount: 0, totalAmount: 0, lineCount: 0, tiktokCount: 0 };
+    existing.orderCount += Number(shop.orderCount);
+    existing.totalAmount += Number(shop.totalAmount);
+    existing.lineCount += Number(shop.orderCount);
+    shopMap.set(name, existing);
+  }
+  
+  for (const shop of tiktokShops) {
+    const name = shop.shopName || "不明";
+    const existing = shopMap.get(name) || { shopName: name, orderCount: 0, totalAmount: 0, lineCount: 0, tiktokCount: 0 };
+    existing.orderCount += Number(shop.orderCount);
+    existing.totalAmount += Number(shop.totalAmount);
+    existing.tiktokCount += Number(shop.orderCount);
+    shopMap.set(name, existing);
+  }
+
+  return Array.from(shopMap.values())
+    .sort((a, b) => b.totalAmount - a.totalAmount)
+    .slice(0, limit);
+}
+
+/**
+ * Get product ranking from tiktok_commission_orders and line_receipts OCR data
+ */
+export async function getProductRanking(limit: number = 30) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const products = await db.select({
+    productName: tiktokCommissionOrders.productName,
+    orderCount: sql<number>`COUNT(*)`,
+    totalQuantity: sql<number>`COALESCE(SUM(${tiktokCommissionOrders.quantity}), 0)`,
+    totalAmount: sql<number>`COALESCE(SUM(${tiktokCommissionOrders.price}), 0)`,
+    avgPrice: sql<number>`ROUND(AVG(${tiktokCommissionOrders.price}))`,
+    shopName: sql<string>`MAX(${tiktokCommissionOrders.shopName})`,
+  })
+    .from(tiktokCommissionOrders)
+    .groupBy(tiktokCommissionOrders.productName)
+    .orderBy(sql`totalAmount DESC`)
+    .limit(limit);
+
+  return products.map(p => ({
+    productName: p.productName,
+    orderCount: Number(p.orderCount),
+    totalQuantity: Number(p.totalQuantity),
+    totalAmount: Number(p.totalAmount),
+    avgPrice: Number(p.avgPrice),
+    shopName: p.shopName,
+  }));
+}
+
+/**
+ * Get monthly trend data combining both sources
+ */
+export async function getReceiptMonthlyTrend() {
+  const db = await getDb();
+  if (!db) return [];
+
+  // LINE receipts monthly
+  const lineMonthly = await db.select({
+    month: sql<string>`DATE_FORMAT(${lineReceipts.submittedAt}, '%Y-%m')`,
+    count: sql<number>`COUNT(*)`,
+    approvedCount: sql<number>`SUM(CASE WHEN ${lineReceipts.status} = 'approved' THEN 1 ELSE 0 END)`,
+    totalAmount: sql<number>`COALESCE(SUM(CASE WHEN ${lineReceipts.status} = 'approved' THEN ${lineReceipts.totalAmount} ELSE 0 END), 0)`,
+  })
+    .from(lineReceipts)
+    .where(sql`${lineReceipts.submittedAt} IS NOT NULL`)
+    .groupBy(sql`DATE_FORMAT(${lineReceipts.submittedAt}, '%Y-%m')`)
+    .orderBy(sql`month ASC`);
+
+  // TikTok orders monthly
+  const tiktokMonthly = await db.select({
+    month: sql<string>`DATE_FORMAT(${tiktokCommissionOrders.orderCreatedAt}, '%Y-%m')`,
+    count: sql<number>`COUNT(*)`,
+    totalAmount: sql<number>`COALESCE(SUM(${tiktokCommissionOrders.price}), 0)`,
+  })
+    .from(tiktokCommissionOrders)
+    .where(sql`${tiktokCommissionOrders.orderCreatedAt} IS NOT NULL`)
+    .groupBy(sql`DATE_FORMAT(${tiktokCommissionOrders.orderCreatedAt}, '%Y-%m')`)
+    .orderBy(sql`month ASC`);
+
+  // Merge into unified monthly data
+  const monthMap = new Map<string, { month: string; lineCount: number; lineAmount: number; lineApproved: number; tiktokCount: number; tiktokAmount: number }>();
+  
+  for (const row of lineMonthly) {
+    if (!row.month) continue;
+    monthMap.set(row.month, {
+      month: row.month,
+      lineCount: Number(row.count),
+      lineAmount: Number(row.totalAmount),
+      lineApproved: Number(row.approvedCount),
+      tiktokCount: 0,
+      tiktokAmount: 0,
+    });
+  }
+  
+  for (const row of tiktokMonthly) {
+    if (!row.month) continue;
+    const existing = monthMap.get(row.month) || { month: row.month, lineCount: 0, lineAmount: 0, lineApproved: 0, tiktokCount: 0, tiktokAmount: 0 };
+    existing.tiktokCount = Number(row.count);
+    existing.tiktokAmount = Number(row.totalAmount);
+    monthMap.set(row.month, existing);
+  }
+
+  return Array.from(monthMap.values()).sort((a, b) => a.month.localeCompare(b.month));
+}
+
+/**
+ * Get repeater analysis from line_receipts
+ */
+export async function getRepeaterAnalysis() {
+  const db = await getDb();
+  if (!db) return { distribution: [], topRepeaters: [] };
+
+  // Count receipts per user
+  const userCounts = await db.select({
+    lineUserId: lineReceipts.lineUserId,
+    receiptCount: sql<number>`COUNT(*)`,
+    totalAmount: sql<number>`COALESCE(SUM(${lineReceipts.totalAmount}), 0)`,
+    approvedCount: sql<number>`SUM(CASE WHEN ${lineReceipts.status} = 'approved' THEN 1 ELSE 0 END)`,
+    firstSubmission: sql<string>`MIN(${lineReceipts.submittedAt})`,
+    lastSubmission: sql<string>`MAX(${lineReceipts.submittedAt})`,
+  })
+    .from(lineReceipts)
+    .where(sql`${lineReceipts.storeName} IS NOT NULL AND ${lineReceipts.storeName} != ''`)
+    .groupBy(lineReceipts.lineUserId);
+
+  // Distribution: 1回, 2回, 3回, 4回, 5回以上
+  const distribution = [
+    { label: "1回", count: 0 },
+    { label: "2回", count: 0 },
+    { label: "3回", count: 0 },
+    { label: "4回", count: 0 },
+    { label: "5回以上", count: 0 },
+  ];
+
+  const topRepeaters: Array<{
+    lineUserId: string;
+    receiptCount: number;
+    totalAmount: number;
+    approvedCount: number;
+    firstSubmission: string | null;
+    lastSubmission: string | null;
+    avgInterval: number | null;
+  }> = [];
+
+  for (const user of userCounts) {
+    const count = Number(user.receiptCount);
+    if (count === 1) distribution[0].count++;
+    else if (count === 2) distribution[1].count++;
+    else if (count === 3) distribution[2].count++;
+    else if (count === 4) distribution[3].count++;
+    else distribution[4].count++;
+
+    // Calculate average interval for repeaters
+    let avgInterval: number | null = null;
+    if (count >= 2 && user.firstSubmission && user.lastSubmission) {
+      const first = new Date(user.firstSubmission).getTime();
+      const last = new Date(user.lastSubmission).getTime();
+      const diffDays = (last - first) / (1000 * 60 * 60 * 24);
+      avgInterval = Math.round(diffDays / (count - 1));
+    }
+
+    topRepeaters.push({
+      lineUserId: user.lineUserId,
+      receiptCount: count,
+      totalAmount: Number(user.totalAmount),
+      approvedCount: Number(user.approvedCount),
+      firstSubmission: user.firstSubmission,
+      lastSubmission: user.lastSubmission,
+      avgInterval,
+    });
+  }
+
+  // Sort by receipt count desc, take top 20
+  topRepeaters.sort((a, b) => b.receiptCount - a.receiptCount);
+
+  return {
+    distribution,
+    topRepeaters: topRepeaters.slice(0, 20),
+    totalUsers: userCounts.length,
+    repeatRate: userCounts.length > 0
+      ? Math.round((userCounts.filter(u => Number(u.receiptCount) >= 2).length / userCounts.length) * 100)
+      : 0,
+    avgPurchaseCount: userCounts.length > 0
+      ? Math.round(userCounts.reduce((sum, u) => sum + Number(u.receiptCount), 0) / userCounts.length * 10) / 10
+      : 0,
+  };
+}
+
+/**
+ * Get region analysis from line_receipts OCR data
+ */
+export async function getRegionAnalysis() {
+  const db = await getDb();
+  if (!db) return [];
+
+  // Get all line_receipts with ocrRawText that contains address info
+  const receiptsWithOcr = await db.select({
+    id: lineReceipts.id,
+    ocrRawText: lineReceipts.ocrRawText,
+    totalAmount: lineReceipts.totalAmount,
+    status: lineReceipts.status,
+  })
+    .from(lineReceipts)
+    .where(sql`${lineReceipts.ocrRawText} IS NOT NULL AND ${lineReceipts.ocrRawText} != ''`);
+
+  // Parse OCR data and extract prefecture
+  const prefectureMap = new Map<string, { count: number; totalAmount: number }>();
+  
+  const prefectures = [
+    "北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県",
+    "茨城県", "栃木県", "群馬県", "埼玉県", "千葉県", "東京都", "神奈川県",
+    "新潟県", "富山県", "石川県", "福井県", "山梨県", "長野県", "岐阜県",
+    "静岡県", "愛知県", "三重県", "滋賀県", "京都府", "大阪府", "兵庫県",
+    "奈良県", "和歌山県", "鳥取県", "島根県", "岡山県", "広島県", "山口県",
+    "徳島県", "香川県", "愛媛県", "高知県", "福岡県", "佐賀県", "長崎県",
+    "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県",
+  ];
+
+  for (const receipt of receiptsWithOcr) {
+    try {
+      const ocrData = JSON.parse(receipt.ocrRawText || "{}");
+      const address = ocrData?.deliveryInfo?.address || ocrData?.address || "";
+      if (!address) continue;
+
+      for (const pref of prefectures) {
+        if (address.includes(pref) || address.includes(pref.replace(/[都府県]$/, ""))) {
+          const existing = prefectureMap.get(pref) || { count: 0, totalAmount: 0 };
+          existing.count++;
+          existing.totalAmount += Number(receipt.totalAmount || 0);
+          prefectureMap.set(pref, existing);
+          break;
+        }
+      }
+    } catch {
+      // Skip invalid JSON
+    }
+  }
+
+  return Array.from(prefectureMap.entries())
+    .map(([prefecture, data]) => ({ prefecture, ...data }))
+    .sort((a, b) => b.count - a.count);
+}
+
+/**
+ * Get AI confidence analysis from receipt_review_logs
+ */
+export async function getAiConfidenceAnalysis() {
+  const db = await getDb();
+  if (!db) return { byConfidenceBand: [], approvalRateByConfidence: [] };
+
+  const logs = await db.select({
+    ocrConfidence: receiptReviewLogs.ocrConfidence,
+    decision: receiptReviewLogs.decision,
+    totalAmount: receiptReviewLogs.totalAmount,
+    fraudScore: receiptReviewLogs.fraudScore,
+  }).from(receiptReviewLogs);
+
+  // Group by confidence bands: 0-50%, 50-70%, 70-85%, 85-95%, 95-100%
+  const bands = [
+    { label: "0-50%", min: 0, max: 50, total: 0, approved: 0, rejected: 0 },
+    { label: "50-70%", min: 50, max: 70, total: 0, approved: 0, rejected: 0 },
+    { label: "70-85%", min: 70, max: 85, total: 0, approved: 0, rejected: 0 },
+    { label: "85-95%", min: 85, max: 95, total: 0, approved: 0, rejected: 0 },
+    { label: "95-100%", min: 95, max: 101, total: 0, approved: 0, rejected: 0 },
+  ];
+
+  for (const log of logs) {
+    const confidence = Number(log.ocrConfidence || 0);
+    for (const band of bands) {
+      if (confidence >= band.min && confidence < band.max) {
+        band.total++;
+        if (log.decision === "approved") band.approved++;
+        if (log.decision === "rejected") band.rejected++;
+        break;
+      }
+    }
+  }
+
+  return {
+    byConfidenceBand: bands.map(b => ({
+      label: b.label,
+      total: b.total,
+      approved: b.approved,
+      rejected: b.rejected,
+      approvalRate: b.total > 0 ? Math.round((b.approved / b.total) * 100) : 0,
+    })),
+    totalReviewed: logs.length,
+  };
+}
+
+/**
+ * Get day-of-week and hour analysis from line_receipts
+ */
+export async function getTimeAnalysis() {
+  const db = await getDb();
+  if (!db) return { byDayOfWeek: [], byHour: [] };
+
+  // By day of week (JST = UTC+9)
+  const byDow = await db.select({
+    dow: sql<number>`DAYOFWEEK(DATE_ADD(${lineReceipts.submittedAt}, INTERVAL 9 HOUR))`,
+    count: sql<number>`COUNT(*)`,
+    totalAmount: sql<number>`COALESCE(SUM(${lineReceipts.totalAmount}), 0)`,
+  })
+    .from(lineReceipts)
+    .where(sql`${lineReceipts.submittedAt} IS NOT NULL`)
+    .groupBy(sql`DAYOFWEEK(DATE_ADD(${lineReceipts.submittedAt}, INTERVAL 9 HOUR))`)
+    .orderBy(sql`dow`);
+
+  // By hour (JST)
+  const byHour = await db.select({
+    hour: sql<number>`HOUR(DATE_ADD(${lineReceipts.submittedAt}, INTERVAL 9 HOUR))`,
+    count: sql<number>`COUNT(*)`,
+    totalAmount: sql<number>`COALESCE(SUM(${lineReceipts.totalAmount}), 0)`,
+  })
+    .from(lineReceipts)
+    .where(sql`${lineReceipts.submittedAt} IS NOT NULL`)
+    .groupBy(sql`HOUR(DATE_ADD(${lineReceipts.submittedAt}, INTERVAL 9 HOUR))`)
+    .orderBy(sql`hour`);
+
+  const dayNames = ["日", "月", "火", "水", "木", "金", "土"];
+
+  return {
+    byDayOfWeek: byDow.map(d => ({
+      day: dayNames[Number(d.dow) - 1] || "不明",
+      count: Number(d.count),
+      totalAmount: Number(d.totalAmount),
+    })),
+    byHour: byHour.map(h => ({
+      hour: Number(h.hour),
+      count: Number(h.count),
+      totalAmount: Number(h.totalAmount),
+    })),
+  };
+}

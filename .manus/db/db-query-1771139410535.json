@@ -1,0 +1,16 @@
+{
+  "query": "SELECT COUNT(*) as total, COUNT(DISTINCT userId) as unique_users, COUNT(storeName) as has_store, COUNT(totalAmount) as has_amount FROM receipts;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT COUNT(*) as total, COUNT(DISTINCT userId) as unique_users, COUNT(storeName) as has_store, COUNT(totalAmount) as has_amount FROM receipts;",
+  "rows": [
+    {
+      "total": "0",
+      "unique_users": "0",
+      "has_store": "0",
+      "has_amount": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\tunique_users\thas_store\thas_amount\n0\t0\t0\t0\n",
+  "stderr": "",
+  "execution_time_ms": 1525
+}
