@@ -11,7 +11,7 @@ import {
   createBrandLivestream,
   updateBrandLivestream,
   getLivestreamsByLiverId,
-} from "../db";
+} from "./db";
 
 // Webhook認証用のシークレットキー
 const AITHERHUB_WEBHOOK_SECRET = process.env.AITHERHUB_WEBHOOK_SECRET || "";

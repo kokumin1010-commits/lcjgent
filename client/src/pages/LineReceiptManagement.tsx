@@ -992,111 +992,91 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
             /* ===== 3-COLUMN LAYOUT ===== */
             <div className="flex gap-4">
               {/* LEFT COLUMN: Calculator + Approve Panel */}
-              <div className="w-[320px] flex-shrink-0">
-                <div className="sticky top-4 space-y-4 max-h-[calc(100vh-6rem)] overflow-y-auto pr-1">
+              <div className="w-[300px] flex-shrink-0">
+                <div className="sticky top-2 flex flex-col max-h-[calc(100vh-4rem)]">
                   {/* Calculator Card */}
-                  <Card className={`border-2 transition-colors ${calcReceiptId ? "border-green-300 shadow-lg" : "border-dashed border-muted-foreground/30"}`}>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Calculator className="w-5 h-5 text-blue-600" />
-                          ポイント計算機
-                        </div>
-                        <div className="flex items-center gap-2">
+                  <Card className={`border-2 transition-colors flex flex-col min-h-0 ${calcReceiptId ? "border-green-300 shadow-lg" : "border-dashed border-muted-foreground/30"}`}>
+                    <CardHeader className="pb-1 pt-2 px-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <Calculator className="w-4 h-4 text-blue-600" />
+                          <span className="text-sm font-semibold">審査パネル</span>
                           {sessionProcessedCount > 0 && (
-                            <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200 text-xs font-normal">
-                              <Zap className="w-3 h-3 mr-1" />
-                              {sessionProcessedCount}件 済
+                            <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] px-1.5 py-0 font-normal">
+                              {sessionProcessedCount}件済
                             </Badge>
                           )}
                         </div>
-                      </CardTitle>
-                      <div className="flex items-center justify-between mt-1">
-                        <span className="text-xs text-muted-foreground">自動次レシート選択</span>
-                        <Switch
-                          checked={autoAdvanceEnabled}
-                          onCheckedChange={setAutoAdvanceEnabled}
-                          className="scale-75"
-                        />
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] text-muted-foreground">自動送り</span>
+                          <Switch
+                            checked={autoAdvanceEnabled}
+                            onCheckedChange={setAutoAdvanceEnabled}
+                            className="scale-[0.65]"
+                          />
+                        </div>
                       </div>
                     </CardHeader>
-                    <CardContent className="space-y-4">
+                    <CardContent className="px-3 pb-3 pt-1 flex flex-col min-h-0 overflow-y-auto space-y-2">
                       {!calcReceiptId ? (
                         allProcessedMessage ? (
-                        <div className="text-center py-8">
-                          <div className="p-4 rounded-full bg-green-50 w-fit mx-auto mb-3">
-                            <PartyPopper className="w-10 h-10 text-green-500" />
-                          </div>
-                          <p className="text-lg font-bold text-green-700">全件処理完了！</p>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            このセッションで <span className="font-bold text-blue-600">{sessionProcessedCount}件</span> のレシートを承認・却下しました
+                        <div className="text-center py-4">
+                          <PartyPopper className="w-8 h-8 text-green-500 mx-auto mb-2" />
+                          <p className="text-sm font-bold text-green-700">全件処理完了！</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {sessionProcessedCount}件のレシートを処理しました
                           </p>
-                          {(activeTab === "pending" || activeTab === "on_hold") && (
-                            <p className="text-xs text-muted-foreground mt-3">
-                              他のタブに未処理のレシートがあるか確認してください
-                            </p>
-                          )}
                         </div>
                         ) : (
-                        <div className="text-center py-8 text-muted-foreground">
-                          <Receipt className="w-10 h-10 mx-auto mb-3 opacity-40" />
-                          <p className="text-sm">右のレシート一覧から<br />レシートを選択してください</p>
-                          <div className="mt-4 flex flex-col items-center gap-1.5 text-xs">
-                            <div className="flex items-center gap-1.5">
-                              <kbd className="px-1.5 py-0.5 font-mono bg-muted rounded border text-[10px]">↓</kbd>
-                              <kbd className="px-1.5 py-0.5 font-mono bg-muted rounded border text-[10px]">↑</kbd>
-                              <span>で選択</span>
-                              <kbd className="px-1.5 py-0.5 font-mono bg-muted rounded border text-[10px]">Enter</kbd>
-                              <span>で承認</span>
-                            </div>
-                            <button 
-                              onClick={() => setShowShortcutHelp(true)}
-                              className="text-blue-500 hover:text-blue-700 underline underline-offset-2"
-                            >
-                              全てのショートカットを見る
-                            </button>
+                        <div className="text-center py-4 text-muted-foreground">
+                          <Receipt className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                          <p className="text-xs">右の一覧からレシートを選択</p>
+                          <div className="mt-2 flex items-center justify-center gap-1 text-[10px]">
+                            <kbd className="px-1 py-0.5 font-mono bg-muted rounded border text-[9px]">↑↓</kbd>
+                            <span>選択</span>
+                            <kbd className="px-1 py-0.5 font-mono bg-muted rounded border text-[9px]">Enter</kbd>
+                            <span>承認</span>
                           </div>
                         </div>
                         )
                       ) : selectedCalcReceipt ? (
                         <>
-                          {/* Selected Receipt Info */}
-                          <div className="bg-muted/50 rounded-lg p-3 space-y-2">
-                            <div className="flex items-center gap-2">
-                              <User className="w-4 h-4 text-muted-foreground" />
-                              <span className="font-semibold text-sm">{getUserDisplayName(selectedCalcReceipt.lineUser, selectedCalcReceipt.receipt)}</span>
+                          {/* Selected Receipt Info - Compact */}
+                          <div className="bg-muted/50 rounded p-2 space-y-1.5">
+                            <div className="flex items-center gap-1.5">
+                              <User className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                              <span className="font-semibold text-xs truncate">{getUserDisplayName(selectedCalcReceipt.lineUser, selectedCalcReceipt.receipt)}</span>
                               {getStatusBadge(selectedCalcReceipt.receipt.status as ReceiptStatus)}
                             </div>
                             {duplicateReceiptIds.ids.has(selectedCalcReceipt.receipt.id) && (() => {
                               const crossLink = duplicateReceiptIds.crossLinkMap.get(selectedCalcReceipt.receipt.id);
                               const others = crossLink?.others || [];
                               return (
-                                <div className="bg-orange-50 border border-orange-300 rounded-lg p-2 space-y-2">
-                                  <div className="flex items-center gap-2">
-                                    <AlertTriangle className="w-4 h-4 text-orange-600 flex-shrink-0" />
-                                    <span className="font-bold text-orange-700 text-xs">重複注文検出</span>
-                                    <span className="text-orange-600 text-xs">同じ注文番号のレシートが{others.length}件あります</span>
+                                <div className="bg-orange-50 border border-orange-300 rounded p-1.5 space-y-1">
+                                  <div className="flex items-center gap-1">
+                                    <AlertTriangle className="w-3 h-3 text-orange-600 flex-shrink-0" />
+                                    <span className="font-bold text-orange-700 text-[10px]">重複{others.length}件</span>
                                   </div>
                                   {others.length > 0 && (
-                                    <div className="space-y-1.5">
+                                    <div className="space-y-1">
                                       {others.map((other, idx) => (
-                                        <div key={`${other.source}-${other.id}-${idx}`} className="bg-white border border-orange-200 rounded p-2 flex items-center gap-2">
+                                        <div key={`${other.source}-${other.id}-${idx}`} className="bg-white border border-orange-200 rounded px-1.5 py-1 flex items-center gap-1.5">
                                           {other.imageUrl && (
-                                            <img src={other.imageUrl} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0 border" />
+                                            <img src={other.imageUrl} alt="" className="w-7 h-7 rounded object-cover flex-shrink-0 border" />
                                           )}
                                           <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-1.5 flex-wrap">
-                                              <Badge variant="outline" className="text-[9px] px-1 py-0">
+                                            <div className="flex items-center gap-1 flex-wrap">
+                                              <Badge variant="outline" className="text-[8px] px-0.5 py-0">
                                                 {other.source === "line_receipt" ? "LINE" : "Web"}
                                               </Badge>
-                                              <Badge variant={other.status === "approved" ? "default" : other.status === "rejected" ? "destructive" : "secondary"} className="text-[9px] px-1 py-0">
-                                                {other.status === "approved" ? "承認済" : other.status === "rejected" ? "却下" : other.status === "on_hold" ? "保留" : "待機"}
+                                              <Badge variant={other.status === "approved" ? "default" : other.status === "rejected" ? "destructive" : "secondary"} className="text-[8px] px-0.5 py-0">
+                                                {other.status === "approved" ? "承認" : other.status === "rejected" ? "却下" : other.status === "on_hold" ? "保留" : "待機"}
                                               </Badge>
-                                              <span className="text-[10px] text-muted-foreground truncate">{other.userName}</span>
+                                              <span className="text-[9px] text-muted-foreground truncate">{other.userName}</span>
                                             </div>
-                                            <div className="flex items-center gap-2 mt-0.5">
+                                            <div className="flex items-center gap-1.5 mt-0.5">
                                               {other.totalAmount != null && (
-                                                <span className="text-xs font-semibold">{formatCurrency(other.totalAmount)}</span>
+                                                <span className="text-[10px] font-semibold">{formatCurrency(other.totalAmount)}</span>
                                               )}
                                               {other.submittedAt && (
                                                 <span className="text-[10px] text-muted-foreground">
@@ -1106,25 +1086,21 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                             </div>
                                           </div>
                                           {other.source === "line_receipt" && (
-                                            <Button
-                                              variant="ghost"
-                                              size="sm"
-                                              className="h-7 px-2 text-xs"
+                                            <button
+                                              className="text-[9px] text-blue-500 hover:text-blue-700 flex-shrink-0"
                                               onClick={(e) => {
                                                 e.stopPropagation();
-                                                // Find and select this receipt in the list
                                                 const target = receipts?.find((r: any) => r.id === other.id);
                                                 if (target) {
                                                   setCalcReceiptId(other.id);
-                                                  toast.info(`レシート #${other.id} に切り替えました`);
+                                                  toast.info(`#${other.id} に切替`);
                                                 } else {
-                                                  toast.info(`レシート #${other.id} は別のタブ（${other.status === "approved" ? "承認済" : other.status === "rejected" ? "却下" : "保留"}）にあります`);
+                                                  toast.info(`#${other.id} は別タブ`);
                                                 }
                                               }}
                                             >
-                                              <ExternalLink className="w-3 h-3 mr-1" />
-                                              表示
-                                            </Button>
+                                              <ExternalLink className="w-3 h-3" />
+                                            </button>
                                           )}
                                         </div>
                                       ))}
@@ -1134,27 +1110,27 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                               );
                             })()}
                             
-                            {/* Order Number - Inline Edit */}
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <Hash className="w-3.5 h-3.5 text-blue-600" />
-                                <span className="text-xs font-medium text-muted-foreground">注文番号</span>
+                            {/* Order Number - Compact */}
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-1">
+                                <Hash className="w-3 h-3 text-blue-600" />
+                                <span className="text-[10px] text-muted-foreground">注文番号</span>
                                 {!isOrderNumberEditing && calcOrderNumber && (
                                   <button
                                     onClick={() => setIsOrderNumberEditing(true)}
-                                    className="text-xs text-blue-500 hover:text-blue-700 ml-auto"
+                                    className="text-[10px] text-blue-500 hover:text-blue-700 ml-auto"
                                   >
-                                    <Edit className="w-3 h-3" />
+                                    <Edit className="w-2.5 h-2.5" />
                                   </button>
                                 )}
                               </div>
                               {isOrderNumberEditing || !calcOrderNumber ? (
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-1">
                                   <Input
                                     value={calcOrderNumber}
                                     onChange={(e) => setCalcOrderNumber(e.target.value)}
                                     placeholder="注文番号を入力"
-                                    className="h-8 text-xs font-mono flex-1"
+                                    className="h-6 text-[10px] font-mono flex-1"
                                     onKeyDown={(e) => {
                                       if (e.key === "Enter" && calcOrderNumber.trim()) {
                                         e.stopPropagation();
@@ -1162,81 +1138,69 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                       }
                                     }}
                                   />
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-8 w-8 p-0 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                                  <button
+                                    className="h-6 w-6 flex items-center justify-center text-blue-600 hover:text-blue-800"
                                     onClick={handleAiReRecognize}
                                     disabled={isAiRecognizing}
-                                    title="AIで注文番号を再認識"
+                                    title="AI再認識"
                                   >
                                     {isAiRecognizing ? (
-                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      <Loader2 className="w-3 h-3 animate-spin" />
                                     ) : (
-                                      <RefreshCw className="w-3.5 h-3.5" />
+                                      <RefreshCw className="w-3 h-3" />
                                     )}
-                                  </Button>
+                                  </button>
                                   {calcOrderNumber.trim() && (
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      className="h-8 w-8 p-0 text-green-600 hover:text-green-800 hover:bg-green-50"
+                                    <button
+                                      className="h-6 w-6 flex items-center justify-center text-green-600 hover:text-green-800"
                                       onClick={handleCalcOrderNumberSave}
                                       disabled={updateOrderNumberMutation.isPending}
-                                      title="注文番号を保存"
+                                      title="保存"
                                     >
-                                      <Save className="w-3.5 h-3.5" />
-                                    </Button>
+                                      <Save className="w-3 h-3" />
+                                    </button>
                                   )}
                                 </div>
                               ) : (
-                                <div className="flex items-center gap-1.5 text-xs bg-blue-50 border border-blue-200 rounded px-2 py-1">
+                                <div className="flex items-center gap-1 text-[10px] bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5">
                                   <span className="font-mono font-bold text-blue-800 truncate">{calcOrderNumber}</span>
                                 </div>
                               )}
                               {!calcOrderNumber && !isAiRecognizing && (
-                                <button
-                                  onClick={handleAiReRecognize}
-                                  className="flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-700"
-                                >
-                                  <Brain className="w-3 h-3" />
-                                  AIで画像から再認識
+                                <button onClick={handleAiReRecognize} className="flex items-center gap-0.5 text-[9px] text-blue-500 hover:text-blue-700">
+                                  <Brain className="w-2.5 h-2.5" />AI再認識
                                 </button>
                               )}
                               {isAiRecognizing && (
-                                <p className="text-[10px] text-blue-500 flex items-center gap-1">
-                                  <Loader2 className="w-3 h-3 animate-spin" />
-                                  AIが画像を解析中...
+                                <p className="text-[9px] text-blue-500 flex items-center gap-0.5">
+                                  <Loader2 className="w-2.5 h-2.5 animate-spin" />解析中...
                                 </p>
                               )}
                             </div>
                             
-                            {/* Store & Date */}
-                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                              <span className="flex items-center gap-1">
-                                <Store className="w-3 h-3" />
+                            {/* Store & Date & AI - single row */}
+                            <div className="flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
+                              <span className="flex items-center gap-0.5">
+                                <Store className="w-2.5 h-2.5" />
                                 {selectedCalcReceipt.receipt.storeName || "店舗不明"}
                               </span>
-                              <span className="flex items-center gap-1">
-                                <Calendar className="w-3 h-3" />
+                              <span className="flex items-center gap-0.5">
+                                <Calendar className="w-2.5 h-2.5" />
                                 {selectedCalcReceipt.receipt.purchaseDate ? new Date(selectedCalcReceipt.receipt.purchaseDate).toLocaleDateString("ja-JP") : "-"}
                               </span>
+                              {(() => {
+                                const aiScore = getAiConfidence(selectedCalcReceipt.receipt);
+                                const confidence = getConfidenceLabel(aiScore);
+                                return (
+                                  <Badge variant="outline" className={`${confidence.color} text-[9px] px-1 py-0`}>
+                                    <Bot className="w-2.5 h-2.5 mr-0.5" />
+                                    {aiScore}%
+                                  </Badge>
+                                );
+                              })()}
                             </div>
-                            
 
-                            
-                            {/* AI Confidence */}
-                            {(() => {
-                              const aiScore = getAiConfidence(selectedCalcReceipt.receipt);
-                              const confidence = getConfidenceLabel(aiScore);
-                              return (
-                                <Badge variant="outline" className={`${confidence.color} text-xs mt-1`}>
-                                  <Bot className="w-3 h-3 mr-1" />
-                                  AI {confidence.label} ({aiScore}%)
-                                </Badge>
-                              );                            })()}
-
-                            {/* OCR詳細情報 */}
+                            {/* OCR詳細情報 - Compact */}
                             {(() => {
                               try {
                                 const raw = selectedCalcReceipt.receipt.ocrRawText;
@@ -1246,49 +1210,36 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                 const hasDelivery = ocr.deliveryInfo && (ocr.deliveryInfo.recipientName || ocr.deliveryInfo.address || ocr.deliveryInfo.phoneNumber);
                                 if (!hasItems && !hasDelivery && !ocr.productName) return null;
                                 return (
-                                  <div className="mt-2 space-y-2">
-                                    {/* 商品情報 */}
+                                  <div className="space-y-1">
                                     {hasItems ? (
-                                      <div className="bg-blue-50/50 border border-blue-100 rounded p-2">
-                                        <p className="text-[10px] font-medium text-blue-600 mb-1">商品詳細</p>
-                                        {ocr.items.map((item: any, i: number) => (
-                                          <div key={i} className="flex justify-between text-xs py-0.5">
-                                            <span className="truncate flex-1 mr-2">{item.productName || "不明"}{item.variant ? ` (${item.variant})` : ""}</span>
+                                      <div className="bg-blue-50/50 border border-blue-100 rounded px-1.5 py-1">
+                                        <p className="text-[9px] font-medium text-blue-600 mb-0.5">商品</p>
+                                        {ocr.items.slice(0, 3).map((item: any, i: number) => (
+                                          <div key={i} className="flex justify-between text-[10px] leading-tight">
+                                            <span className="truncate flex-1 mr-1">{item.productName || "不明"}</span>
                                             <span className="text-muted-foreground whitespace-nowrap">
                                               {item.unitPrice != null ? `¥${item.unitPrice.toLocaleString()}` : ""}
                                               {item.quantity != null ? ` x${item.quantity}` : ""}
                                             </span>
                                           </div>
                                         ))}
+                                        {ocr.items.length > 3 && <p className="text-[9px] text-muted-foreground">他{ocr.items.length - 3}件</p>}
                                       </div>
                                     ) : ocr.productName ? (
-                                      <div className="text-xs">
+                                      <div className="text-[10px]">
                                         <span className="text-muted-foreground">商品: </span>
                                         <span className="font-medium">{ocr.productName}</span>
                                       </div>
                                     ) : null}
-                                    {/* 配送先情報 */}
                                     {hasDelivery && (
-                                      <div className="bg-amber-50/50 border border-amber-100 rounded p-2">
-                                        <p className="text-[10px] font-medium text-amber-600 mb-1">配送先</p>
-                                        <div className="space-y-0.5 text-xs">
+                                      <div className="bg-amber-50/50 border border-amber-100 rounded px-1.5 py-1">
+                                        <p className="text-[9px] font-medium text-amber-600 mb-0.5">配送先</p>
+                                        <div className="text-[10px] leading-tight space-y-0">
                                           {ocr.deliveryInfo.recipientName && (
-                                            <div><span className="text-muted-foreground">氏名: </span><span className="font-medium">{ocr.deliveryInfo.recipientName}</span></div>
-                                          )}
-                                          {ocr.deliveryInfo.phoneNumber && (
-                                            <div><span className="text-muted-foreground">電話: </span><span>{ocr.deliveryInfo.phoneNumber}</span></div>
+                                            <div>{ocr.deliveryInfo.recipientName}{ocr.deliveryInfo.phoneNumber ? ` / ${ocr.deliveryInfo.phoneNumber}` : ""}</div>
                                           )}
                                           {ocr.deliveryInfo.address && (
-                                            <div><span className="text-muted-foreground">住所: </span><span>{ocr.deliveryInfo.postalCode ? `〒${ocr.deliveryInfo.postalCode} ` : ""}{ocr.deliveryInfo.address}</span></div>
-                                          )}
-                                          {ocr.deliveryInfo.deliveryStatus && (
-                                            <div><span className="text-muted-foreground">状況: </span><span className="font-medium">{ocr.deliveryInfo.deliveryStatus}</span></div>
-                                          )}
-                                          {ocr.deliveryInfo.deliveryDate && (
-                                            <div><span className="text-muted-foreground">配達日: </span><span>{ocr.deliveryInfo.deliveryDate}</span></div>
-                                          )}
-                                          {ocr.deliveryInfo.returnDeadline && (
-                                            <div><span className="text-muted-foreground">返品期限: </span><span>{ocr.deliveryInfo.returnDeadline}</span></div>
+                                            <div className="text-muted-foreground truncate">{ocr.deliveryInfo.postalCode ? `〒${ocr.deliveryInfo.postalCode} ` : ""}{ocr.deliveryInfo.address}</div>
                                           )}
                                         </div>
                                       </div>
@@ -1300,58 +1251,42 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                           </div>
                           
 
-                          {/* Amount Input */}
-                          <div className="space-y-2">
-                            <Label className="text-sm font-medium flex items-center gap-1.5">
-                              <DollarSign className="w-4 h-4 text-blue-600" />
-                              購入金額
-                            </Label>
-                            <div className="relative">
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">¥</span>
-                              <Input
-                                type="number"
-                                value={calcAmount}
-                                onChange={(e) => setCalcAmount(e.target.value)}
-                                placeholder="金額を入力"
-                                className="pl-8 text-lg font-bold h-12"
-                              />
+                          {/* Amount + Points - Compact inline */}
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1">
+                              <label className="text-[10px] text-muted-foreground flex items-center gap-0.5 mb-0.5">
+                                <DollarSign className="w-2.5 h-2.5" />購入金額
+                              </label>
+                              <div className="relative">
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">¥</span>
+                                <Input
+                                  type="number"
+                                  value={calcAmount}
+                                  onChange={(e) => setCalcAmount(e.target.value)}
+                                  placeholder="金額"
+                                  className="pl-6 text-sm font-bold h-8"
+                                />
+                              </div>
+                            </div>
+                            <div className="bg-green-50 border border-green-200 rounded px-2 py-1 text-center min-w-[80px]">
+                              <p className="text-[9px] text-green-600">1%ポイント</p>
+                              <p className="text-lg font-bold text-green-700 leading-tight">{calcPoints}<span className="text-[10px] font-normal">pt</span></p>
                             </div>
                           </div>
                           
-                          {/* Auto-calculated Points */}
-                          <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="text-xs text-green-600 font-medium">1%ポイント（自動計算）</p>
-                                <p className="text-3xl font-bold text-green-700 mt-1">{calcPoints.toLocaleString()} <span className="text-base font-normal">pt</span></p>
-                              </div>
-                              <div className="p-3 rounded-full bg-green-100">
-                                <Gift className="w-6 h-6 text-green-600" />
-                              </div>
-                            </div>
-                            {selectedCalcReceipt.receipt.pointsCalculated != null && selectedCalcReceipt.receipt.pointsCalculated !== calcPoints && (
-                              <p className="text-xs text-muted-foreground mt-2">
-                                元の計算値: {selectedCalcReceipt.receipt.pointsCalculated} pt
-                              </p>
-                            )}
-                          </div>
+                          {/* Note - single line */}
+                          <Input
+                            value={actionNote}
+                            onChange={(e) => setActionNote(e.target.value)}
+                            placeholder="メモ（任意）"
+                            className="h-7 text-[10px]"
+                          />
                           
-                          {/* Note */}
-                          <div className="space-y-1.5">
-                            <Label className="text-xs text-muted-foreground">メモ（任意）</Label>
-                            <Textarea 
-                              value={actionNote}
-                              onChange={(e) => setActionNote(e.target.value)}
-                              placeholder="任意でメモを入力"
-                              className="h-16 text-sm resize-none"
-                            />
-                          </div>
-                          
-                          {/* Action Buttons */}
+                          {/* Action Buttons - Compact */}
                           {(selectedCalcReceipt.receipt.status === "pending" || selectedCalcReceipt.receipt.status === "on_hold") && (
-                            <div className="space-y-2 pt-2">
+                            <div className="space-y-1.5">
                               <Button 
-                                className="w-full h-12 bg-green-600 hover:bg-green-700 text-white text-base font-bold shadow-md"
+                                className="w-full h-10 bg-green-600 hover:bg-green-700 text-white text-sm font-bold shadow-md"
                                 onClick={handleCalcApprove}
                                 disabled={approveMutation.isPending}
                               >
@@ -1359,33 +1294,33 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                   "承認処理中..."
                                 ) : (
                                   <>
-                                    <CheckCircle className="w-5 h-5 mr-2" />
-                                    承認する（{calcPoints} pt 付与）
+                                    <CheckCircle className="w-4 h-4 mr-1.5" />
+                                    承認（{calcPoints}pt付与）
                                   </>
                                 )}
                               </Button>
-                              <div className="flex gap-2">
+                              <div className="flex gap-1.5">
                                 <Button 
                                   variant="destructive" 
                                   size="sm"
-                                  className="flex-1"
+                                  className="flex-1 h-8 text-xs"
                                   onClick={() => handleDirectReject(selectedCalcReceipt.receipt.id)}
                                   disabled={rejectMutation.isPending}
                                 >
                                   {rejectMutation.isPending && lastRejectedIdRef.current === selectedCalcReceipt.receipt.id ? (
-                                    <><Loader2 className="w-4 h-4 mr-1 animate-spin" />送信中...</>
+                                    <><Loader2 className="w-3 h-3 mr-1 animate-spin" />送信中</>
                                   ) : (
-                                    <><XCircle className="w-4 h-4 mr-1" />却下（LINE送信）</>
+                                    <><XCircle className="w-3 h-3 mr-1" />却下（LINE）</>
                                   )}
                                 </Button>
                                 {selectedCalcReceipt.receipt.status === "pending" && (
                                   <Button 
                                     variant="outline" 
                                     size="sm"
-                                    className="flex-1 border-orange-300 text-orange-600 hover:bg-orange-50"
+                                    className="flex-1 h-8 text-xs border-orange-300 text-orange-600 hover:bg-orange-50"
                                     onClick={() => setActionDialog({ type: "hold", id: selectedCalcReceipt.receipt.id, receipt: selectedCalcReceipt.receipt })}
                                   >
-                                    <AlertTriangle className="w-4 h-4 mr-1" />
+                                    <AlertTriangle className="w-3 h-3 mr-1" />
                                     保留
                                   </Button>
                                 )}
@@ -1393,20 +1328,24 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                             </div>
                           )}
                           
-                          {/* Already processed info */}
+                          {/* Already processed info - Compact */}
                           {selectedCalcReceipt.receipt.status === "approved" && (
-                            <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
-                              <CheckCircle className="w-6 h-6 text-green-600 mx-auto mb-1" />
-                              <p className="text-sm font-medium text-green-700">承認済み</p>
-                              {selectedCalcReceipt.receipt.pointsAwarded != null && (
-                                <p className="text-xs text-green-600">付与: {selectedCalcReceipt.receipt.pointsAwarded} pt</p>
-                              )}
+                            <div className="bg-green-50 border border-green-200 rounded p-2 text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                <CheckCircle className="w-4 h-4 text-green-600" />
+                                <span className="text-xs font-medium text-green-700">承認済</span>
+                                {selectedCalcReceipt.receipt.pointsAwarded != null && (
+                                  <span className="text-xs text-green-600">({selectedCalcReceipt.receipt.pointsAwarded}pt)</span>
+                                )}
+                              </div>
                             </div>
                           )}
                           {selectedCalcReceipt.receipt.status === "rejected" && (
-                            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
-                              <XCircle className="w-6 h-6 text-red-600 mx-auto mb-1" />
-                              <p className="text-sm font-medium text-red-700">却下済み</p>
+                            <div className="bg-red-50 border border-red-200 rounded p-2 text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                <XCircle className="w-4 h-4 text-red-600" />
+                                <span className="text-xs font-medium text-red-700">却下済</span>
+                              </div>
                             </div>
                           )}
                         </>

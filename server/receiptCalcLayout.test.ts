@@ -24,8 +24,8 @@ describe("Receipt Management 2-Column Layout with Calculator", () => {
 
     it("should have a left column with fixed width for calculator", () => {
       // Left column should be fixed width and sticky
-      expect(content).toContain("w-[320px]");
-      expect(content).toContain("sticky top-4");
+      expect(content).toContain("w-[300px]");
+      expect(content).toContain("sticky top-2");
     });
 
     it("should have a right column that fills remaining space", () => {
@@ -37,7 +37,7 @@ describe("Receipt Management 2-Column Layout with Calculator", () => {
   describe("Calculator Panel", () => {
     it("should have Calculator icon and title", () => {
       expect(content).toContain("Calculator");
-      expect(content).toContain("ポイント計算機");
+      expect(content).toContain("審査パネル");
     });
 
     it("should have calcReceiptId state for tracking selected receipt", () => {
@@ -56,13 +56,11 @@ describe("Receipt Management 2-Column Layout with Calculator", () => {
     });
 
     it("should show placeholder when no receipt is selected", () => {
-      expect(content).toContain("右のレシート一覧から");
-      expect(content).toContain("レシートを選択してください");
+      expect(content).toContain("右の一覧からレシートを選択");
     });
 
     it("should have amount input with yen prefix", () => {
       expect(content).toContain('type="number"');
-      expect(content).toContain("金額を入力");
       expect(content).toContain("¥");
     });
   });
@@ -74,12 +72,8 @@ describe("Receipt Management 2-Column Layout with Calculator", () => {
     });
 
     it("should display auto-calculated points prominently", () => {
-      expect(content).toContain("1%ポイント（自動計算）");
-      expect(content).toContain("calcPoints.toLocaleString()");
-    });
-
-    it("should show original calculated points for comparison when different", () => {
-      expect(content).toContain("元の計算値:");
+      expect(content).toContain("1%ポイント");
+      expect(content).toContain("calcPoints");
     });
   });
 
@@ -93,8 +87,8 @@ describe("Receipt Management 2-Column Layout with Calculator", () => {
     });
 
     it("should have a prominent approve button showing points to award", () => {
-      expect(content).toContain("承認する（");
-      expect(content).toContain("pt 付与）");
+      expect(content).toContain("承認（");
+      expect(content).toContain("pt付与）");
     });
 
     it("should only disable approve button when mutation is pending", () => {
