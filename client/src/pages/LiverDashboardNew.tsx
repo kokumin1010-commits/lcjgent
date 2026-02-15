@@ -1031,9 +1031,9 @@ export default function LiverDashboardNew() {
                           <div className="mt-2 pt-2 border-t border-cyan-500/10">
                             <div className="text-cyan-300/60 text-xs mb-1">セット内容:</div>
                             <div className="flex flex-wrap gap-1">
-                              {set.items.map((item, idx) => (
+                              {set.items.map((item: any, idx: number) => (
                                 <span key={idx} className="px-2 py-0.5 rounded bg-[#0a1520]/60 text-cyan-200/70 text-xs">
-                                  {item.productName}
+                                  {item.productName}{(item.quantity || 1) > 1 ? ` ×${item.quantity}` : ''}
                                 </span>
                               ))}
                             </div>
@@ -1162,10 +1162,10 @@ export default function LiverDashboardNew() {
                                       )}
                                     </div>
                                     <div className="space-y-0.5">
-                                      {set.items.map((item, idx) => (
+                                      {set.items.map((item: any, idx: number) => (
                                         <div key={idx} className="flex items-center justify-between text-xs">
-                                          <span className="text-cyan-200/70">{item.productName}</span>
-                                          <span className="text-cyan-300/60 font-mono">{formatCurrency(item.originalPrice || 0)}</span>
+                                          <span className="text-cyan-200/70">{item.productName}{(item.quantity || 1) > 1 ? ` ×${item.quantity}` : ''}</span>
+                                          <span className="text-cyan-300/60 font-mono">{formatCurrency(item.originalPrice || 0)}{(item.quantity || 1) > 1 ? ` ×${item.quantity}` : ''}</span>
                                         </div>
                                       ))}
                                     </div>

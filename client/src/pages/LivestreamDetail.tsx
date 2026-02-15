@@ -1035,8 +1035,8 @@ export default function LivestreamDetail() {
                                 <div className="space-y-1">
                                   {set.items.map((item: any, iIdx: number) => (
                                     <div key={item.id || iIdx} className="flex justify-between items-center text-xs">
-                                      <span className="text-gray-300">{item.productName}</span>
-                                      <span className="text-gray-400">¥{Number(item.originalPrice || 0).toLocaleString()}</span>
+                                      <span className="text-gray-300">{item.productName}{(item.quantity || 1) > 1 ? ` ×${item.quantity}` : ''}</span>
+                                      <span className="text-gray-400">¥{Number(item.originalPrice || 0).toLocaleString()}{(item.quantity || 1) > 1 ? ` ×${item.quantity}` : ''}</span>
                                     </div>
                                   ))}
                                 </div>

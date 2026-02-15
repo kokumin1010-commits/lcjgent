@@ -1129,13 +1129,13 @@ export default function LiverDetailNew() {
                             <div className="pt-3">
                               <div className="flex items-center gap-2 mb-2">
                                 <Tag className="w-4 h-4 text-cyan-300/60" />
-                                <span className="text-xs text-cyan-300/70">{tr.setContents}（{tr.originalTotal}: {formatCurrency(set.items.reduce((sum, item) => sum + item.originalPrice, 0))}）</span>
+                                <span className="text-xs text-cyan-300/70">{tr.setContents}（{tr.originalTotal}: {formatCurrency(set.items.reduce((sum: number, item: any) => sum + item.originalPrice * (item.quantity || 1), 0))}）</span>
                               </div>
                               <div className="space-y-1">
-                                {set.items.map((item, i) => (
+                                {set.items.map((item: any, i: number) => (
                                   <div key={i} className="flex justify-between text-sm px-2 py-1 rounded bg-[#0a1520]/40">
-                                    <span className="text-cyan-200">{item.productName}</span>
-                                    <span className="text-cyan-500/70 font-mono">{formatCurrency(item.originalPrice)}</span>
+                                    <span className="text-cyan-200">{item.productName}{(item.quantity || 1) > 1 ? ` ×${item.quantity}` : ''}</span>
+                                    <span className="text-cyan-500/70 font-mono">{formatCurrency(item.originalPrice)}{(item.quantity || 1) > 1 ? ` ×${item.quantity}` : ''}</span>
                                   </div>
                                 ))}
                               </div>

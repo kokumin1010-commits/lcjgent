@@ -2525,6 +2525,7 @@ export const livestreamSetItems = mysqlTable("livestream_set_items", {
   // 商品情報
   productName: varchar("productName", { length: 255 }).notNull(), // 商品名（自由入力）
   originalPrice: bigint("originalPrice", { mode: "number" }).notNull(), // 元値（定価）
+  quantity: int("quantity").default(1).notNull(), // 個数（デフォルト1）
   
   // 並び順
   sortOrder: int("sortOrder").default(0),

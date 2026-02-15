@@ -1,0 +1,1 @@
+ALTER TABLE `livestream_set_items` ADD `quantity` int DEFAULT 1 NOT NULL;

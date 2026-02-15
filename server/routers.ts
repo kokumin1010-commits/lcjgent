@@ -8993,6 +8993,7 @@ ${conversationText}
           items: z.array(z.object({
             productName: z.string().min(1),
             originalPrice: z.number().min(0),
+            quantity: z.number().min(1).default(1),
           })).min(1),
         })).optional(),
       }))
@@ -9106,7 +9107,7 @@ ${conversationText}
         if (input.sets && input.sets.length > 0) {
           for (let i = 0; i < input.sets.length; i++) {
             const set = input.sets[i];
-            const totalOriginalPrice = set.items.reduce((sum, item) => sum + item.originalPrice, 0);
+            const totalOriginalPrice = set.items.reduce((sum, item) => sum + item.originalPrice * (item.quantity || 1), 0);
             const discountRate = totalOriginalPrice > 0
               ? Math.round(((totalOriginalPrice - set.setPrice) / totalOriginalPrice) * 100)
               : 0;
@@ -9130,6 +9131,7 @@ ${conversationText}
                   setId,
                   productName: set.items[j].productName,
                   originalPrice: set.items[j].originalPrice,
+                  quantity: set.items[j].quantity || 1,
                   sortOrder: j,
                 });
               }
@@ -13768,6 +13770,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           items: z.array(z.object({
             productName: z.string().min(1),
             originalPrice: z.number().min(0),
+            quantity: z.number().min(1).default(1),
           })).min(1),
         })),
       }))
@@ -13778,7 +13781,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         // Create new sets
         for (let i = 0; i < input.sets.length; i++) {
           const set = input.sets[i];
-          const totalOriginalPrice = set.items.reduce((sum, item) => sum + item.originalPrice, 0);
+          const totalOriginalPrice = set.items.reduce((sum, item) => sum + item.originalPrice * (item.quantity || 1), 0);
           const discountRate = totalOriginalPrice > 0
             ? Math.round(((totalOriginalPrice - set.setPrice) / totalOriginalPrice) * 100)
             : 0;
@@ -13802,6 +13805,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
                 setId,
                 productName: set.items[j].productName,
                 originalPrice: set.items[j].originalPrice,
+                quantity: set.items[j].quantity || 1,
                 sortOrder: j,
               });
             }

@@ -5300,3 +5300,11 @@
 - [x] 名前が認識されている（OCR配送先名あり）のに「不明」と表示される問題を修正（getUserDisplayNameで複数パスフォールバック）
 - [x] 承認ボタンが場合によって押せなくなる問題を修正（calcPoints<=0のdisabled条件削除済み、auto-advance改善で中間状態回避）
 - [x] テスト・動作確認（131ファイル・1635テスト全パス）
+
+## セット登録時の個数入力と検索結果での商品名+個数表示
+- [x] データベーススキーマにセット商品の個数フィールドを追加（livestream_set_itemsにquantityカラム追加）
+- [x] バックエンドAPIでセット商品の個数の保存・取得に対応（bulkCreate・createLivestreamの両方）
+- [x] セット登録APIのinputスキーマにquantity（任意、デフォルト1）を追加
+- [x] セット内容表示で商品名と個数を表示（LivestreamDetail、LiverDetailNew、LiverDashboardNew）
+- [x] 検索結果で商品名と個数を表示（LiverDashboardNewの検索結果セット内容）
+- [x] テスト・動作確認（130 passed / 1 failed - LINE API timeout）
