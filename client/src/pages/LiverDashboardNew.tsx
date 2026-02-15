@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Crown, Clock, TrendingUp, ChevronDown, ChevronUp, Users, DollarSign, Activity, Zap, ArrowUpRight, ArrowDownRight, Sparkles, Radio, BarChart3, Package, Grid3X3, Brain, Loader2, Plus, Link2, X, Check, AlertCircle, Search } from "lucide-react";
+import { Crown, Clock, TrendingUp, ChevronDown, ChevronUp, Users, DollarSign, Activity, Zap, ArrowUpRight, ArrowDownRight, Sparkles, Radio, BarChart3, Package, Grid3X3, Brain, Loader2, Plus, Link2, X, Check, AlertCircle, Search, RefreshCw, CheckCircle2, XCircle, AlertTriangle, History } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -451,6 +451,13 @@ export default function LiverDashboardNew() {
             >
               <Package className="w-4 h-4 mr-2" />
               商品マスター管理
+            </TabsTrigger>
+            <TabsTrigger 
+              value="aitherhubSync" 
+              className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-100 text-cyan-400/70"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Aitherhub同期
             </TabsTrigger>
           </TabsList>
           
@@ -1633,6 +1640,11 @@ export default function LiverDashboardNew() {
               </Card>
             )}
           </TabsContent>
+
+          {/* Aitherhub Sync Tab */}
+          <TabsContent value="aitherhubSync" className="mt-6">
+            <AitherhubSyncSection />
+          </TabsContent>
         </Tabs>
         
         {/* New Master Dialog */}
@@ -1668,6 +1680,257 @@ export default function LiverDashboardNew() {
           </DialogContent>
         </Dialog>
       </div>
+    </div>
+  );
+}
+
+
+/**
+ * Aitherhub同期ログセクション
+ * 同期統計と同期ログ一覧を表示する
+ */
+function AitherhubSyncSection() {
+  const [statusFilter, setStatusFilter] = useState<"success" | "error" | "partial" | undefined>(undefined);
+  const [page, setPage] = useState(0);
+  const limit = 20;
+
+  const { data: stats, isLoading: statsLoading } = trpc.aitherhubSync.stats.useQuery();
+  const { data: logsData, isLoading: logsLoading } = trpc.aitherhubSync.logs.useQuery({
+    limit,
+    offset: page * limit,
+    status: statusFilter,
+  });
+
+  const formatDate = (date: string | Date | null) => {
+    if (!date) return "-";
+    const d = new Date(date);
+    return d.toLocaleString("ja-JP", { 
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit"
+    });
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "success": return <CheckCircle2 className="w-4 h-4 text-emerald-400" />;
+      case "error": return <XCircle className="w-4 h-4 text-red-400" />;
+      case "partial": return <AlertTriangle className="w-4 h-4 text-yellow-400" />;
+      default: return null;
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case "success": return "成功";
+      case "error": return "エラー";
+      case "partial": return "一部成功";
+      default: return status;
+    }
+  };
+
+  const getStatusBgClass = (status: string) => {
+    switch (status) {
+      case "success": return "bg-emerald-500/10 border-emerald-500/30 text-emerald-300";
+      case "error": return "bg-red-500/10 border-red-500/30 text-red-300";
+      case "partial": return "bg-yellow-500/10 border-yellow-500/30 text-yellow-300";
+      default: return "bg-cyan-500/10 border-cyan-500/30 text-cyan-300";
+    }
+  };
+
+  const getActionLabel = (action: string | null) => {
+    switch (action) {
+      case "created": return "新規作成";
+      case "updated": return "更新";
+      case "skipped": return "スキップ";
+      default: return "-";
+    }
+  };
+
+  const totalPages = logsData ? Math.ceil(logsData.total / limit) : 0;
+
+  return (
+    <div className="space-y-6">
+      {/* 同期統計カード */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <Card className="bg-[#0a1a2a]/80 border-cyan-500/20 cursor-pointer hover:border-cyan-400/50 transition-colors"
+              onClick={() => setStatusFilter(undefined)}>
+          <CardContent className="p-4 text-center">
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <History className="w-4 h-4 text-cyan-400" />
+              <span className="text-xs text-cyan-400/70">総同期数</span>
+            </div>
+            <p className="text-2xl font-bold text-cyan-100">
+              {statsLoading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : (stats?.totalLogs ?? 0)}
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card className={`bg-[#0a1a2a]/80 border-emerald-500/20 cursor-pointer hover:border-emerald-400/50 transition-colors ${statusFilter === "success" ? "ring-2 ring-emerald-400/50" : ""}`}
+              onClick={() => setStatusFilter(statusFilter === "success" ? undefined : "success")}>
+          <CardContent className="p-4 text-center">
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <span className="text-xs text-emerald-400/70">成功</span>
+            </div>
+            <p className="text-2xl font-bold text-emerald-300">
+              {statsLoading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : (stats?.successCount ?? 0)}
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card className={`bg-[#0a1a2a]/80 border-red-500/20 cursor-pointer hover:border-red-400/50 transition-colors ${statusFilter === "error" ? "ring-2 ring-red-400/50" : ""}`}
+              onClick={() => setStatusFilter(statusFilter === "error" ? undefined : "error")}>
+          <CardContent className="p-4 text-center">
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <XCircle className="w-4 h-4 text-red-400" />
+              <span className="text-xs text-red-400/70">エラー</span>
+            </div>
+            <p className="text-2xl font-bold text-red-300">
+              {statsLoading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : (stats?.errorCount ?? 0)}
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card className={`bg-[#0a1a2a]/80 border-yellow-500/20 cursor-pointer hover:border-yellow-400/50 transition-colors ${statusFilter === "partial" ? "ring-2 ring-yellow-400/50" : ""}`}
+              onClick={() => setStatusFilter(statusFilter === "partial" ? undefined : "partial")}>
+          <CardContent className="p-4 text-center">
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <AlertTriangle className="w-4 h-4 text-yellow-400" />
+              <span className="text-xs text-yellow-400/70">一部成功</span>
+            </div>
+            <p className="text-2xl font-bold text-yellow-300">
+              {statsLoading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : (stats?.partialCount ?? 0)}
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-[#0a1a2a]/80 border-cyan-500/20">
+          <CardContent className="p-4 text-center">
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <Clock className="w-4 h-4 text-cyan-400" />
+              <span className="text-xs text-cyan-400/70">最終同期</span>
+            </div>
+            <p className="text-sm font-medium text-cyan-100">
+              {statsLoading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : (stats?.lastSyncAt ? formatDate(stats.lastSyncAt) : "未実行")}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* 同期ログ一覧 */}
+      <Card className="bg-[#0a1a2a]/80 border-cyan-500/20">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-cyan-100 flex items-center gap-2">
+              <History className="w-5 h-5 text-cyan-400" />
+              同期ログ
+              {statusFilter && (
+                <span className={`text-xs px-2 py-0.5 rounded-full border ${getStatusBgClass(statusFilter)}`}>
+                  {getStatusLabel(statusFilter)}
+                  <button onClick={() => setStatusFilter(undefined)} className="ml-1 hover:text-white">
+                    <X className="w-3 h-3 inline" />
+                  </button>
+                </span>
+              )}
+            </h3>
+            <span className="text-xs text-cyan-400/50">
+              {logsData ? `${logsData.total}件` : ""}
+            </span>
+          </div>
+
+          {logsLoading ? (
+            <div className="space-y-3">
+              {[...Array(5)].map((_, i) => (
+                <Skeleton key={i} className="h-16 bg-cyan-900/20" />
+              ))}
+            </div>
+          ) : !logsData?.logs.length ? (
+            <div className="text-center py-12 text-cyan-400/50">
+              <RefreshCw className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <p className="text-sm">同期ログはまだありません</p>
+              <p className="text-xs mt-1 text-cyan-400/30">Aitherhubからデータが送信されると、ここにログが表示されます</p>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-2">
+                {logsData.logs.map((log: any) => (
+                  <div key={log.id} className={`p-3 rounded-lg border ${getStatusBgClass(log.status)} bg-opacity-5`}>
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        <div className="mt-0.5">
+                          {getStatusIcon(log.status)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-medium text-cyan-100">
+                              {log.message || getStatusLabel(log.status)}
+                            </span>
+                            {log.action && (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/20 text-cyan-300">
+                                {getActionLabel(log.action)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 mt-1 text-xs text-cyan-400/50 flex-wrap">
+                            {log.streamerName && (
+                              <span className="flex items-center gap-1">
+                                <Users className="w-3 h-3" />
+                                {log.streamerName}
+                              </span>
+                            )}
+                            {log.liverEmail && (
+                              <span className="truncate max-w-[200px]">{log.liverEmail}</span>
+                            )}
+                            {log.livestreamDate && (
+                              <span>配信: {formatDate(log.livestreamDate)}</span>
+                            )}
+                            {log.livestreamId && (
+                              <span>ID: #{log.livestreamId}</span>
+                            )}
+                          </div>
+                          {log.errorDetail && log.status === "error" && (
+                            <p className="text-xs text-red-300/70 mt-1 truncate">{log.errorDetail}</p>
+                          )}
+                        </div>
+                      </div>
+                      <span className="text-xs text-cyan-400/40 whitespace-nowrap ml-2">
+                        {formatDate(log.createdAt)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* ページネーション */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(p => Math.max(0, p - 1))}
+                    disabled={page === 0}
+                    className="border-cyan-500/30 text-cyan-300 text-xs h-7"
+                  >
+                    前へ
+                  </Button>
+                  <span className="text-xs text-cyan-400/50">
+                    {page + 1} / {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                    disabled={page >= totalPages - 1}
+                    className="border-cyan-500/30 text-cyan-300 text-xs h-7"
+                  >
+                    次へ
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

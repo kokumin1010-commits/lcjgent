@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `aitherhub_sync_logs` (\n  `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY,\n  `eventType` varchar(100) NOT NULL,\n  `syncStatus` enum('success','error','partial') NOT NULL,\n  `liverId` int,\n  `liverEmail` varchar(255),\n  `streamerName` varchar(255),\n  `brandId` int,\n  `livestreamId` int,\n  `livestreamDate` timestamp NULL,\n  `syncAction` enum('created','updated','skipped'),\n  `recordsProcessed` int DEFAULT 0,\n  `message` text,\n  `errorDetail` text,\n  `requestSummary` json,\n  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute CREATE TABLE IF NOT EXISTS `aitherhub_sync_logs` (\n  `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY,\n  `eventType` varchar(100) NOT NULL,\n  `syncStatus` enum('success','error','partial') NOT NULL,\n  `liverId` int,\n  `liverEmail` varchar(255),\n  `streamerName` varchar(255),\n  `brandId` int,\n  `livestreamId` int,\n  `livestreamDate` timestamp NULL,\n  `syncAction` enum('created','updated','skipped'),\n  `recordsProcessed` int DEFAULT 0,\n  `message` text,\n  `errorDetail` text,\n  `requestSummary` json,\n  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1682
+}

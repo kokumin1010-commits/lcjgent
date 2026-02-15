@@ -441,6 +441,8 @@ import {
   getReviewLogsRejectionDistribution,
   getReviewLogsOcrCorrelation,
   getAutoApprovalSimulation,
+  getAitherhubSyncLogs,
+  getAitherhubSyncStats,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -14563,6 +14565,32 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
     autoApprovalSimulation: protectedProcedure.query(async () => {
       return await getAutoApprovalSimulation();
     }),
+  }),
+
+  // Aitherhub Sync Logs
+  aitherhubSync: router({
+    // 同期ログ一覧を取得
+    logs: protectedProcedure
+      .input(z.object({
+        limit: z.number().min(1).max(100).optional(),
+        offset: z.number().min(0).optional(),
+        status: z.enum(["success", "error", "partial"]).optional(),
+        liverId: z.number().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return await getAitherhubSyncLogs({
+          limit: input?.limit ?? 50,
+          offset: input?.offset ?? 0,
+          status: input?.status,
+          liverId: input?.liverId,
+        });
+      }),
+
+    // 同期統計を取得
+    stats: protectedProcedure
+      .query(async () => {
+        return await getAitherhubSyncStats();
+      }),
   }),
 });
 

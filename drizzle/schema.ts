@@ -2813,3 +2813,47 @@ export const receiptReviewLogs = mysqlTable("receipt_review_logs", {
 });
 export type ReceiptReviewLog = typeof receiptReviewLogs.$inferSelect;
 export type InsertReceiptReviewLog = typeof receiptReviewLogs.$inferInsert;
+
+
+// ===== Aitherhub Sync Logs =====
+/**
+ * Aitherhub同期ログテーブル
+ * Webhook受信や手動同期の結果を記録し、管理画面で確認可能にする
+ */
+export const aitherhubSyncLogs = mysqlTable("aitherhub_sync_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // 同期の種類
+  eventType: varchar("eventType", { length: 100 }).notNull(), // "webhook_received", "manual_sync"
+  
+  // 結果
+  status: mysqlEnum("syncStatus", ["success", "error", "partial"]).notNull(),
+  
+  // ライバー情報（解決できた場合）
+  liverId: int("liverId"),
+  liverEmail: varchar("liverEmail", { length: 255 }),
+  streamerName: varchar("streamerName", { length: 255 }),
+  
+  // ブランド情報
+  brandId: int("brandId"),
+  
+  // 配信情報
+  livestreamId: int("livestreamId"), // 作成/更新されたlivestream ID
+  livestreamDate: timestamp("livestreamDate"),
+  
+  // 同期結果の詳細
+  action: mysqlEnum("syncAction", ["created", "updated", "skipped"]), // 実行されたアクション
+  recordsProcessed: int("recordsProcessed").default(0), // 処理件数
+  
+  // メッセージ
+  message: text("message"), // 成功/エラーメッセージ
+  errorDetail: text("errorDetail"), // エラー詳細
+  
+  // リクエスト情報（機密情報除外）
+  requestSummary: json("requestSummary"), // 受信ペイロードの要約
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type AitherhubSyncLog = typeof aitherhubSyncLogs.$inferSelect;
+export type InsertAitherhubSyncLog = typeof aitherhubSyncLogs.$inferInsert;

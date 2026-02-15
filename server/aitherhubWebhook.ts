@@ -4,6 +4,7 @@
  * Aitherhubの動画解析完了時に呼ばれるWebhookエンドポイント。
  * 解析結果をbrand_livestreamsテーブルに書き込み、
  * ライバーのマイページに自動反映させる。
+ * 同期ログをaitherhub_sync_logsテーブルに記録する。
  */
 import { Request, Response } from "express";
 import {
@@ -11,6 +12,7 @@ import {
   createBrandLivestream,
   updateBrandLivestream,
   getLivestreamsByLiverId,
+  createAitherhubSyncLog,
 } from "./db";
 
 // Webhook認証用のシークレットキー
@@ -115,6 +117,31 @@ async function resolveLiverId(payload: AitherhubAnalysisPayload): Promise<number
 }
 
 /**
+ * ペイロードの要約を作成（ログ記録用、機密情報を除外）
+ */
+function createPayloadSummary(payload: AitherhubAnalysisPayload) {
+  return {
+    liverEmail: payload.liverEmail,
+    liverId: payload.liverId,
+    brandId: payload.brandId,
+    livestreamDate: payload.livestreamDate,
+    streamerName: payload.streamerName,
+    platform: payload.platform,
+    hasAiAdvice: !!payload.aiAdvice,
+    hasStructuredAdvice: !!payload.aiStructuredAdvice,
+    hasScreenshot: !!payload.screenshotUrl,
+    livestreamId: payload.livestreamId,
+    metricsProvided: {
+      salesAmount: payload.salesAmount !== undefined,
+      gmv: payload.gmv !== undefined,
+      duration: payload.duration !== undefined,
+      viewerCount: payload.viewerCount !== undefined,
+      orderCount: payload.orderCount !== undefined,
+    },
+  };
+}
+
+/**
  * Aitherhub Webhookハンドラー
  * 
  * POST /api/aitherhub/webhook
@@ -122,8 +149,12 @@ async function resolveLiverId(payload: AitherhubAnalysisPayload): Promise<number
  * 解析結果を受け取り、brand_livestreamsテーブルに書き込む。
  * - livestreamIdが指定されている場合: 既存レコードを更新
  * - livestreamIdがない場合: 新規レコードを作成
+ * 
+ * すべての処理結果をaitherhub_sync_logsテーブルに記録する。
  */
 export async function handleAitherhubWebhook(req: Request, res: Response) {
+  const startTime = Date.now();
+  
   try {
     const payload: AitherhubAnalysisPayload = req.body;
     
@@ -141,11 +172,39 @@ export async function handleAitherhubWebhook(req: Request, res: Response) {
     // 1. 認証チェック
     if (!authenticateWebhook(payload)) {
       console.error("[Aitherhub Webhook] Authentication failed");
+      // 認証失敗もログに記録
+      try {
+        await createAitherhubSyncLog({
+          eventType: "webhook_received",
+          status: "error",
+          liverEmail: payload.liverEmail,
+          streamerName: payload.streamerName,
+          message: "認証に失敗しました",
+          errorDetail: "AITHERHUB_WEBHOOK_SECRET mismatch or not set",
+          requestSummary: { liverEmail: payload.liverEmail, streamerName: payload.streamerName },
+        });
+      } catch (logErr) {
+        console.error("[Aitherhub Webhook] Failed to write sync log:", logErr);
+      }
       return res.status(401).json({ error: "Unauthorized" });
     }
     
     // 2. 必須フィールドのバリデーション
     if (!payload.brandId || !payload.livestreamDate || !payload.streamerName) {
+      try {
+        await createAitherhubSyncLog({
+          eventType: "webhook_received",
+          status: "error",
+          liverEmail: payload.liverEmail,
+          streamerName: payload.streamerName,
+          brandId: payload.brandId,
+          message: "必須フィールドが不足しています: brandId, livestreamDate, streamerName",
+          errorDetail: `Missing: ${!payload.brandId ? 'brandId ' : ''}${!payload.livestreamDate ? 'livestreamDate ' : ''}${!payload.streamerName ? 'streamerName' : ''}`,
+          requestSummary: createPayloadSummary(payload),
+        });
+      } catch (logErr) {
+        console.error("[Aitherhub Webhook] Failed to write sync log:", logErr);
+      }
       return res.status(400).json({ 
         error: "Missing required fields: brandId, livestreamDate, streamerName" 
       });
@@ -211,6 +270,26 @@ export async function handleAitherhubWebhook(req: Request, res: Response) {
       console.log(`[Aitherhub Webhook] Created livestream #${created.id}`);
     }
     
+    // 6. 同期ログを記録（成功）
+    try {
+      await createAitherhubSyncLog({
+        eventType: "webhook_received",
+        status: "success",
+        liverId: resolvedLiverId ?? undefined,
+        liverEmail: payload.liverEmail,
+        streamerName: payload.streamerName,
+        brandId: payload.brandId,
+        livestreamId: result.id,
+        livestreamDate: new Date(payload.livestreamDate),
+        action: result.action as "created" | "updated",
+        recordsProcessed: 1,
+        message: `配信データを${result.action === "created" ? "新規作成" : "更新"}しました（ID: ${result.id}）`,
+        requestSummary: createPayloadSummary(payload),
+      });
+    } catch (logErr) {
+      console.error("[Aitherhub Webhook] Failed to write sync log:", logErr);
+    }
+    
     return res.status(200).json({
       success: true,
       ...result,
@@ -220,6 +299,24 @@ export async function handleAitherhubWebhook(req: Request, res: Response) {
     
   } catch (error: any) {
     console.error("[Aitherhub Webhook] Error:", error);
+    
+    // エラーログを記録
+    try {
+      const payload = req.body || {};
+      await createAitherhubSyncLog({
+        eventType: "webhook_received",
+        status: "error",
+        liverEmail: payload.liverEmail,
+        streamerName: payload.streamerName,
+        brandId: payload.brandId,
+        message: `同期エラー: ${error.message || "Unknown error"}`,
+        errorDetail: error.stack || error.message,
+        requestSummary: payload.streamerName ? createPayloadSummary(payload) : { error: "Invalid payload" },
+      });
+    } catch (logErr) {
+      console.error("[Aitherhub Webhook] Failed to write error sync log:", logErr);
+    }
+    
     return res.status(500).json({ 
       error: "Internal server error",
       message: error.message || "Unknown error",
