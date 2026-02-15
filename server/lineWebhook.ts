@@ -239,6 +239,9 @@ export async function handleLineWebhook(
           // メッセージイベント（連携コード入力）
           if (event.message?.type === "text" && event.message.text) {
             await handleTextMessage(event, event.message.text);
+          } else if (event.message?.type === "image") {
+            // 画像メッセージ → Webフォームへの案内
+            await handleImageMessage(event);
           }
           break;
 
@@ -462,6 +465,22 @@ async function handlePostback(
   console.log(`[LINE Webhook] Postback received: ${data}`);
 }
 
+/**
+ * Handle image message (画像メッセージ受信時のWebフォーム案内)
+ */
+async function handleImageMessage(event: LineWebhookEvent): Promise<void> {
+  const lineUserId = event.source.userId;
+  if (!lineUserId) return;
+
+  console.log(`[LINE Webhook] Image message received from ${lineUserId}, redirecting to Web form`);
+
+  await sendLinePushMessage(lineUserId, [
+    {
+      type: "text",
+      text: `レシート画像の送信ありがとうございます！\n\n現在、LINEでのレシート受付は行っておりません。\nWebフォームからレシートを投稿してポイントを獲得しましょう！\n\n👇 こちらからアップロード\nhttps://lcjmall.com/receipt-upload`,
+    },
+  ]);
+}
 
 /**
  * Handle "ポイント履歴" command

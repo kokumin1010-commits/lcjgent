@@ -120,6 +120,34 @@ describe("LINE Webhook メッセージ文言テスト", () => {
     });
   });
 
+  describe("画像メッセージ受信時の自動返信", () => {
+    it("handleImageMessage関数が存在すること", () => {
+      expect(webhookSource).toContain("async function handleImageMessage");
+    });
+
+    it("Webフォームへの案内が含まれていること", () => {
+      const section = webhookSource.substring(
+        webhookSource.indexOf("async function handleImageMessage"),
+        webhookSource.indexOf("async function handlePointHistoryCommand")
+      );
+      expect(section).toContain("Webフォームからレシートを投稿");
+      expect(section).toContain("lcjmall.com/receipt-upload");
+    });
+
+    it("LINEでのレシート受付停止の説明が含まれていること", () => {
+      const section = webhookSource.substring(
+        webhookSource.indexOf("async function handleImageMessage"),
+        webhookSource.indexOf("async function handlePointHistoryCommand")
+      );
+      expect(section).toContain("LINEでのレシート受付は行っておりません");
+    });
+
+    it("メッセージイベントで画像タイプをハンドリングしていること", () => {
+      expect(webhookSource).toContain('event.message?.type === "image"');
+      expect(webhookSource).toContain("handleImageMessage(event)");
+    });
+  });
+
   describe("全体的な文言チェック", () => {
     it("ウェルカムメッセージに過度な絵文字がないこと", () => {
       const section = webhookSource.substring(
