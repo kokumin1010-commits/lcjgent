@@ -81,6 +81,8 @@ import MallDashboardPage from "./pages/MallDashboardPage";
 import AiLearningDashboard from "./pages/AiLearningDashboard";
 import ReceiptHub from "./pages/ReceiptHub";
 import ReceiptAnalytics from "./pages/ReceiptAnalytics";
+import ProductRanking from "./pages/ProductRanking";
+import ProductRequestsAdmin from "./pages/ProductRequestsAdmin";
 
 function Router() {
   return (
@@ -101,6 +103,7 @@ function Router() {
       <Route path="/mall/checkout/cancel" component={CheckoutCancel} />
       <Route path="/point-request" component={PointRequest} />
       <Route path="/receipt-upload" component={ReceiptUpload} />
+      <Route path="/ranking" component={ProductRanking} />
       <Route path="/master/point-requests">
         <DashboardLayout>
           <PointRequestAdmin />
@@ -114,6 +117,11 @@ function Router() {
       <Route path="/master/receipt-analytics">
         <DashboardLayout>
           <ReceiptAnalytics />
+        </DashboardLayout>
+      </Route>
+      <Route path="/master/product-requests">
+        <DashboardLayout>
+          <ProductRequestsAdmin />
         </DashboardLayout>
       </Route>
       

@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ShoppingBag, Gift, ArrowRight, Coins, Receipt, Check, ChevronDown, ChevronUp, ShieldCheck, HelpCircle, Sparkles, MessageCircle, UserPlus } from "lucide-react";
+import { ShoppingBag, Gift, ArrowRight, Coins, Receipt, Check, ChevronDown, ChevronUp, ShieldCheck, HelpCircle, Sparkles, MessageCircle, UserPlus, TrendingUp } from "lucide-react";
 import { useLocation, Link } from "wouter";
 
 export default function MallHome() {
@@ -97,6 +97,15 @@ export default function MallHome() {
             >
               <ShoppingBag className="h-5 w-5" />
               使える商品を見る
+            </Button>
+            <Button 
+              size="lg" 
+              variant="outline" 
+              className="gap-2 text-base md:text-lg py-6 md:py-7 px-6 md:px-8 border-2 border-rose-200 text-rose-600 hover:bg-rose-50"
+              onClick={() => setLocation("/ranking")}
+            >
+              <TrendingUp className="h-5 w-5" />
+              売れ筋ランキング
             </Button>
           </div>
         </div>

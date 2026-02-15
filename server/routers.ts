@@ -451,6 +451,14 @@ import {
   getRegionAnalysis,
   getAiConfidenceAnalysis,
   getTimeAnalysis,
+  getBrandRanking,
+  getBrandProductRanking,
+  createRestockRequest,
+  cancelRestockRequest,
+  getUserRestockRequests,
+  getRestockRequestCounts,
+  getRestockRequestsByBrand,
+  getRestockRequestDetailByBrand,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -14631,6 +14639,80 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
     timeAnalysis: protectedProcedure.query(async () => {
       return await getTimeAnalysis();
     }),
+  }),
+
+  // 商品ランキング・入荷リクエスト
+  productRanking: router({
+    // 売れ筋商品ランキング（公開）
+    topProducts: publicProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        return await getProductRanking(input?.limit ?? 50);
+      }),
+
+    // ブランド（ショップ）別ランキング（公開）
+    topBrands: publicProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        return await getBrandRanking(input?.limit ?? 30);
+      }),
+
+    // ブランド別商品ランキング（公開）
+    brandProducts: publicProcedure
+      .input(z.object({ shopName: z.string(), limit: z.number().optional() }))
+      .query(async ({ input }) => {
+        return await getBrandProductRanking(input.shopName, input.limit ?? 50);
+      }),
+
+    // 商品別リクエスト数（公開）
+    requestCounts: publicProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        return await getRestockRequestCounts(input?.limit ?? 100);
+      }),
+
+    // ユーザーのリクエスト済み商品リスト（ログイン必須）
+    myRequests: protectedProcedure.query(async ({ ctx }) => {
+      return await getUserRestockRequests(ctx.user.id);
+    }),
+
+    // 入荷リクエスト投票（ログイン必須）
+    requestRestock: protectedProcedure
+      .input(z.object({
+        productName: z.string().min(1),
+        shopName: z.string().optional(),
+        productId: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return await createRestockRequest({
+          userId: ctx.user.id,
+          productName: input.productName,
+          shopName: input.shopName || null,
+          productId: input.productId || null,
+        });
+      }),
+
+    // 入荷リクエスト取り消し（ログイン必須）
+    cancelRequest: protectedProcedure
+      .input(z.object({ productName: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        await cancelRestockRequest(ctx.user.id, input.productName);
+        return { success: true };
+      }),
+
+    // 管理者: ブランド別リクエスト集計
+    adminBrandRequests: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+      return await getRestockRequestsByBrand();
+    }),
+
+    // 管理者: ブランド別リクエスト詳細
+    adminBrandRequestDetail: protectedProcedure
+      .input(z.object({ shopName: z.string() }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+        return await getRestockRequestDetailByBrand(input.shopName);
+      }),
   }),
 });
 

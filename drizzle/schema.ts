@@ -2857,3 +2857,27 @@ export const aitherhubSyncLogs = mysqlTable("aitherhub_sync_logs", {
 });
 export type AitherhubSyncLog = typeof aitherhubSyncLogs.$inferSelect;
 export type InsertAitherhubSyncLog = typeof aitherhubSyncLogs.$inferInsert;
+
+/**
+ * 入荷リクエストテーブル
+ * ユーザーが「入荷してほしい」と投票した商品を記録
+ */
+export const productRestockRequests = mysqlTable("product_restock_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // ユーザー情報
+  userId: int("userId").notNull(), // リクエストしたユーザーID
+  
+  // 商品情報（tiktok_commission_ordersから正規化）
+  productName: text("productName").notNull(), // 商品名
+  shopName: varchar("shopName", { length: 255 }), // ショップ名（ブランド名）
+  productId: varchar("productId", { length: 64 }), // TikTok商品ID（あれば）
+  
+  // ステータス
+  status: mysqlEnum("status", ["active", "fulfilled", "cancelled"]).default("active").notNull(),
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ProductRestockRequest = typeof productRestockRequests.$inferSelect;
+export type InsertProductRestockRequest = typeof productRestockRequests.$inferInsert;

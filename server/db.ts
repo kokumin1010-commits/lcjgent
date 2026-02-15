@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -12536,7 +12536,7 @@ export async function getShopRanking(limit: number = 20) {
       sql`${lineReceipts.storeName} != ''`,
     ))
     .groupBy(lineReceipts.storeName)
-    .orderBy(sql`totalAmount DESC`);
+    .orderBy(sql`COALESCE(SUM(${lineReceipts.totalAmount}), 0) DESC`);
 
   // TikTok orders by shop
   const tiktokShops = await db.select({
@@ -12548,7 +12548,7 @@ export async function getShopRanking(limit: number = 20) {
     .from(tiktokCommissionOrders)
     .where(sql`${tiktokCommissionOrders.shopName} IS NOT NULL`)
     .groupBy(tiktokCommissionOrders.shopName)
-    .orderBy(sql`totalAmount DESC`);
+    .orderBy(sql`COALESCE(SUM(${tiktokCommissionOrders.price}), 0) DESC`);
 
   // Merge shops from both sources
   const shopMap = new Map<string, { shopName: string; orderCount: number; totalAmount: number; lineCount: number; tiktokCount: number }>();
@@ -12593,7 +12593,7 @@ export async function getProductRanking(limit: number = 30) {
   })
     .from(tiktokCommissionOrders)
     .groupBy(tiktokCommissionOrders.productName)
-    .orderBy(sql`totalAmount DESC`)
+    .orderBy(sql`COALESCE(SUM(${tiktokCommissionOrders.price}), 0) DESC`)
     .limit(limit);
 
   return products.map(p => ({
@@ -12623,7 +12623,7 @@ export async function getReceiptMonthlyTrend() {
     .from(lineReceipts)
     .where(sql`${lineReceipts.submittedAt} IS NOT NULL`)
     .groupBy(sql`DATE_FORMAT(${lineReceipts.submittedAt}, '%Y-%m')`)
-    .orderBy(sql`month ASC`);
+    .orderBy(sql`DATE_FORMAT(${lineReceipts.submittedAt}, '%Y-%m') ASC`);
 
   // TikTok orders monthly
   const tiktokMonthly = await db.select({
@@ -12634,7 +12634,7 @@ export async function getReceiptMonthlyTrend() {
     .from(tiktokCommissionOrders)
     .where(sql`${tiktokCommissionOrders.orderCreatedAt} IS NOT NULL`)
     .groupBy(sql`DATE_FORMAT(${tiktokCommissionOrders.orderCreatedAt}, '%Y-%m')`)
-    .orderBy(sql`month ASC`);
+    .orderBy(sql`DATE_FORMAT(${tiktokCommissionOrders.orderCreatedAt}, '%Y-%m') ASC`);
 
   // Merge into unified monthly data
   const monthMap = new Map<string, { month: string; lineCount: number; lineAmount: number; lineApproved: number; tiktokCount: number; tiktokAmount: number }>();
@@ -12890,4 +12890,194 @@ export async function getTimeAnalysis() {
       totalAmount: Number(h.totalAmount),
     })),
   };
+}
+
+// ========== 入荷リクエスト ==========
+
+/** ブランド（ショップ）別ランキング */
+export async function getBrandRanking(limit = 30) {
+  const db = await getDb();
+  if (!db) return [];
+  const results = await db
+    .select({
+      shopName: tiktokCommissionOrders.shopName,
+      totalSales: sql<number>`SUM(${tiktokCommissionOrders.price} * ${tiktokCommissionOrders.quantity})`,
+      totalQuantity: sql<number>`SUM(${tiktokCommissionOrders.quantity})`,
+      orderCount: sql<number>`COUNT(DISTINCT ${tiktokCommissionOrders.orderId})`,
+      productCount: sql<number>`COUNT(DISTINCT ${tiktokCommissionOrders.productName})`,
+    })
+    .from(tiktokCommissionOrders)
+    .where(isNotNull(tiktokCommissionOrders.shopName))
+    .groupBy(tiktokCommissionOrders.shopName)
+    .orderBy(sql`SUM(${tiktokCommissionOrders.price} * ${tiktokCommissionOrders.quantity}) DESC`)
+    .limit(limit);
+
+  return results.map(r => ({
+    shopName: r.shopName,
+    totalSales: Number(r.totalSales),
+    totalQuantity: Number(r.totalQuantity),
+    orderCount: Number(r.orderCount),
+    productCount: Number(r.productCount),
+  }));
+}
+
+/** ブランド別商品ランキング */
+export async function getBrandProductRanking(shopName: string, limit = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  const results = await db
+    .select({
+      productName: tiktokCommissionOrders.productName,
+      productId: tiktokCommissionOrders.productId,
+      totalSales: sql<number>`SUM(${tiktokCommissionOrders.price} * ${tiktokCommissionOrders.quantity})`,
+      totalQuantity: sql<number>`SUM(${tiktokCommissionOrders.quantity})`,
+      orderCount: sql<number>`COUNT(DISTINCT ${tiktokCommissionOrders.orderId})`,
+    })
+    .from(tiktokCommissionOrders)
+    .where(eq(tiktokCommissionOrders.shopName, shopName))
+    .groupBy(tiktokCommissionOrders.productName, tiktokCommissionOrders.productId)
+    .orderBy(sql`SUM(${tiktokCommissionOrders.price} * ${tiktokCommissionOrders.quantity}) DESC`)
+    .limit(limit);
+
+  return results.map(r => ({
+    productName: r.productName,
+    productId: r.productId,
+    totalSales: Number(r.totalSales),
+    totalQuantity: Number(r.totalQuantity),
+    orderCount: Number(r.orderCount),
+  }));
+}
+
+/** 入荷リクエストを作成 */
+export async function createRestockRequest(data: { userId: number; productName: string; shopName?: string | null; productId?: string | null }) {
+  const db = await getDb();
+  if (!db) throw new Error('Database not available');
+  // 重複チェック（同一ユーザー・同一商品名）
+  const existing = await db
+    .select({ id: productRestockRequests.id })
+    .from(productRestockRequests)
+    .where(and(
+      eq(productRestockRequests.userId, data.userId),
+      sql`${productRestockRequests.productName} = ${data.productName}`,
+      eq(productRestockRequests.status, "active")
+    ))
+    .limit(1);
+
+  if (existing.length > 0) {
+    return { alreadyRequested: true, id: existing[0].id };
+  }
+
+  const result = await db.insert(productRestockRequests).values({
+    userId: data.userId,
+    productName: data.productName,
+    shopName: data.shopName || null,
+    productId: data.productId || null,
+  });
+
+  return { alreadyRequested: false, id: Number(result[0].insertId) };
+}
+
+/** 入荷リクエストを取り消し */
+export async function cancelRestockRequest(userId: number, productName: string) {
+  const db = await getDb();
+  if (!db) throw new Error('Database not available');
+  await db
+    .update(productRestockRequests)
+    .set({ status: "cancelled" })
+    .where(and(
+      eq(productRestockRequests.userId, userId),
+      sql`${productRestockRequests.productName} = ${productName}`,
+      eq(productRestockRequests.status, "active")
+    ));
+}
+
+/** ユーザーのリクエスト済み商品名リスト */
+export async function getUserRestockRequests(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const results = await db
+    .select({ productName: productRestockRequests.productName })
+    .from(productRestockRequests)
+    .where(and(
+      eq(productRestockRequests.userId, userId),
+      eq(productRestockRequests.status, "active")
+    ));
+  return results.map(r => r.productName);
+}
+
+/** 商品別リクエスト数（上位） */
+export async function getRestockRequestCounts(limit = 100) {
+  const db = await getDb();
+  if (!db) return [];
+  const results = await db
+    .select({
+      productName: productRestockRequests.productName,
+      shopName: productRestockRequests.shopName,
+      requestCount: sql<number>`COUNT(*)`,
+    })
+    .from(productRestockRequests)
+    .where(eq(productRestockRequests.status, "active"))
+    .groupBy(productRestockRequests.productName, productRestockRequests.shopName)
+    .orderBy(sql`COUNT(*) DESC`)
+    .limit(limit);
+
+  return results.map(r => ({
+    productName: r.productName,
+    shopName: r.shopName,
+    requestCount: Number(r.requestCount),
+  }));
+}
+
+/** ブランド別リクエスト集計（管理者向け交渉資料） */
+export async function getRestockRequestsByBrand() {
+  const db = await getDb();
+  if (!db) return [];
+  const results = await db
+    .select({
+      shopName: productRestockRequests.shopName,
+      totalRequests: sql<number>`COUNT(*)`,
+      uniqueProducts: sql<number>`COUNT(DISTINCT ${productRestockRequests.productName})`,
+      uniqueUsers: sql<number>`COUNT(DISTINCT ${productRestockRequests.userId})`,
+    })
+    .from(productRestockRequests)
+    .where(and(
+      eq(productRestockRequests.status, "active"),
+      isNotNull(productRestockRequests.shopName)
+    ))
+    .groupBy(productRestockRequests.shopName)
+    .orderBy(sql`COUNT(*) DESC`);
+
+  return results.map(r => ({
+    shopName: r.shopName,
+    totalRequests: Number(r.totalRequests),
+    uniqueProducts: Number(r.uniqueProducts),
+    uniqueUsers: Number(r.uniqueUsers),
+  }));
+}
+
+/** ブランド別リクエスト詳細（管理者向け） */
+export async function getRestockRequestDetailByBrand(shopName: string) {
+  const db = await getDb();
+  if (!db) return [];
+  const results = await db
+    .select({
+      productName: productRestockRequests.productName,
+      productId: productRestockRequests.productId,
+      requestCount: sql<number>`COUNT(*)`,
+      latestRequest: sql<string>`MAX(${productRestockRequests.createdAt})`,
+    })
+    .from(productRestockRequests)
+    .where(and(
+      eq(productRestockRequests.status, "active"),
+      eq(productRestockRequests.shopName, shopName)
+    ))
+    .groupBy(productRestockRequests.productName, productRestockRequests.productId)
+    .orderBy(sql`COUNT(*) DESC`);
+
+  return results.map(r => ({
+    productName: r.productName,
+    productId: r.productId,
+    requestCount: Number(r.requestCount),
+    latestRequest: r.latestRequest,
+  }));
 }
