@@ -56,7 +56,26 @@ async function startServer() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // OAuth removed - using custom email/password auth
-  
+
+  // Aitherhub Webhook endpoint - receives video analysis results
+  app.post("/api/aitherhub/webhook", async (req, res) => {
+    try {
+      const { handleAitherhubWebhook } = await import("../aitherhubWebhook");
+      await handleAitherhubWebhook(req, res);
+    } catch (error) {
+      console.error("[Aitherhub Webhook] Error:", error);
+      res.status(500).json({ error: "Webhook processing failed" });
+    }
+  });
+  app.get("/api/aitherhub/health", async (req, res) => {
+    try {
+      const { handleAitherhubHealth } = await import("../aitherhubWebhook");
+      await handleAitherhubHealth(req, res);
+    } catch (error) {
+      res.status(500).json({ error: "Health check failed" });
+    }
+  });
+
   // Email tracking endpoint
   app.use("/api/track", trackingRouter);
   
