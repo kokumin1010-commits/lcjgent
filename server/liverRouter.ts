@@ -26,6 +26,7 @@ import {
   getLiverDashboardStats,
   getOrCreateReferralCode,
   getReferralStats,
+  isLiverAitherhubLinked,
 } from "./db";
 import { nanoid } from "nanoid";
 import nodemailer from "nodemailer";
@@ -192,6 +193,9 @@ export const liverRouter = router({
     const liver = await getLiverById(payload.liverId);
     if (!liver || !liver.isActive) return null;
 
+    // Aitherhub連携状態を確認
+    const aitherhubLinked = await isLiverAitherhubLinked(liver.id);
+
     return {
       id: liver.id,
       name: liver.name,
@@ -206,6 +210,7 @@ export const liverRouter = router({
       otherAccount: liver.otherAccount,
       lineUserId: liver.lineUserId,
       lineNotificationEnabled: liver.lineNotificationEnabled,
+      aitherhubLinked,
     };
   }),
 

@@ -12443,3 +12443,23 @@ export async function getAitherhubSyncStats() {
     lastSyncAt: result[0]?.lastSyncAt || null,
   };
 }
+
+
+/**
+ * ライバーがAitherhubと連携済みかどうかを判定する
+ * aitherhub_sync_logsに成功ログが1件以上あれば連携済みとみなす
+ */
+export async function isLiverAitherhubLinked(liverId: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  
+  const result = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(aitherhubSyncLogs)
+    .where(and(
+      eq(aitherhubSyncLogs.liverId, liverId),
+      eq(aitherhubSyncLogs.status, "success"),
+    ))
+    .limit(1);
+  
+  return Number(result[0]?.count || 0) > 0;
+}

@@ -5329,3 +5329,7 @@
 - [x] verify-liverエンドポイントの動作確認（6テスト全パス）
 - [x] TypeScriptエラー修正（displayName → name）
 - [x] チェックポイント保存
+
+## Aitherhub連携バッジ
+- [x] ライバーマイページのプロフィールカードに「Aitherhub連携済み」バッジを追加
+- [x] バッジタップでhttps://aitherhub.comに遷移
