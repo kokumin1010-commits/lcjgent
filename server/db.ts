@@ -12583,6 +12583,8 @@ export async function getProductRanking(limit: number = 30) {
   const db = await getDb();
   if (!db) return [];
 
+  // テストショップを除外
+  const TEST_SHOP_NAMES = ['テストショップ', 'Test Shop', 'test shop'];
   const products = await db.select({
     productName: tiktokCommissionOrders.productName,
     orderCount: sql<number>`COUNT(*)`,
@@ -12592,6 +12594,7 @@ export async function getProductRanking(limit: number = 30) {
     shopName: sql<string>`MAX(${tiktokCommissionOrders.shopName})`,
   })
     .from(tiktokCommissionOrders)
+    .where(notInArray(tiktokCommissionOrders.shopName, TEST_SHOP_NAMES))
     .groupBy(tiktokCommissionOrders.productName)
     .orderBy(sql`COALESCE(SUM(${tiktokCommissionOrders.price}), 0) DESC`)
     .limit(limit);
@@ -12898,6 +12901,8 @@ export async function getTimeAnalysis() {
 export async function getBrandRanking(limit = 30) {
   const db = await getDb();
   if (!db) return [];
+  // テストショップを除外
+  const TEST_SHOP_NAMES = ['テストショップ', 'Test Shop', 'test shop'];
   const results = await db
     .select({
       shopName: tiktokCommissionOrders.shopName,
@@ -12907,7 +12912,7 @@ export async function getBrandRanking(limit = 30) {
       productCount: sql<number>`COUNT(DISTINCT ${tiktokCommissionOrders.productName})`,
     })
     .from(tiktokCommissionOrders)
-    .where(isNotNull(tiktokCommissionOrders.shopName))
+    .where(and(isNotNull(tiktokCommissionOrders.shopName), notInArray(tiktokCommissionOrders.shopName, TEST_SHOP_NAMES)))
     .groupBy(tiktokCommissionOrders.shopName)
     .orderBy(sql`SUM(${tiktokCommissionOrders.price} * ${tiktokCommissionOrders.quantity}) DESC`)
     .limit(limit);

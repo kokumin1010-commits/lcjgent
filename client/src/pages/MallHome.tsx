@@ -3,8 +3,85 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ShoppingBag, Gift, ArrowRight, Coins, Receipt, Check, ChevronDown, ChevronUp, ShieldCheck, HelpCircle, Sparkles, MessageCircle, UserPlus, TrendingUp } from "lucide-react";
+import { ShoppingBag, Gift, ArrowRight, Coins, Receipt, Check, ChevronDown, ChevronUp, ShieldCheck, HelpCircle, Sparkles, MessageCircle, UserPlus, TrendingUp, Crown, Medal, Award, Flame } from "lucide-react";
 import { useLocation, Link } from "wouter";
+
+function formatCurrencyShort(amount: number): string {
+  return `¥${Math.round(amount).toLocaleString()}`;
+}
+
+function RankingPreview() {
+  const { data: products, isLoading } = trpc.productRanking.topProducts.useQuery({ limit: 5 });
+
+  if (isLoading) {
+    return (
+      <div className="grid gap-3">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className="h-16 bg-gray-100 rounded-xl animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!products || products.length === 0) {
+    return (
+      <div className="text-center py-8 text-gray-400">
+        <Flame className="h-8 w-8 mx-auto mb-2 opacity-50" />
+        <p>ランキングデータを準備中です</p>
+      </div>
+    );
+  }
+
+  const rankIcons = [
+    <Crown className="h-5 w-5 text-yellow-500" />,
+    <Medal className="h-5 w-5 text-gray-400" />,
+    <Award className="h-5 w-5 text-amber-600" />,
+  ];
+
+  const rankBgs = [
+    "bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200 shadow-sm",
+    "bg-gradient-to-r from-gray-50 to-slate-50 border-gray-200",
+    "bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200",
+    "bg-white border-gray-100",
+    "bg-white border-gray-100",
+  ];
+
+  return (
+    <div className="grid gap-3">
+      {products.map((product, index) => (
+        <div
+          key={product.productName}
+          className={`flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-xl border transition-all hover:shadow-md ${rankBgs[index] || "bg-white border-gray-100"}`}
+        >
+          {/* ランク */}
+          <div className="flex items-center justify-center w-8 h-8 shrink-0">
+            {index < 3 ? rankIcons[index] : (
+              <span className="text-sm font-bold text-gray-400">{index + 1}</span>
+            )}
+          </div>
+
+          {/* 商品情報 */}
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-gray-900 text-sm md:text-base truncate">
+              {product.productName}
+            </p>
+            {product.shopName && (
+              <p className="text-xs text-gray-500 truncate">{product.shopName}</p>
+            )}
+          </div>
+
+          {/* 売上 */}
+          <div className="text-right shrink-0">
+            <p className="font-bold text-rose-500 text-sm md:text-base">
+              {formatCurrencyShort(product.totalAmount)}
+            </p>
+            <p className="text-xs text-gray-400">{product.totalQuantity}個販売</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function MallHome() {
   const [, setLocation] = useLocation();
@@ -227,6 +304,33 @@ export default function MallHome() {
         </div>
       </section>
 
+      {/* 売れ筋ランキング プレビュー */}
+      <section className="py-12 md:py-20 px-4 bg-white">
+        <div className="container mx-auto max-w-4xl">
+          <div className="text-center mb-8 md:mb-10">
+            <div className="inline-flex items-center gap-2 mb-3">
+              <TrendingUp className="h-5 w-5 md:h-6 md:w-6 text-rose-500" />
+              <h2 className="text-2xl md:text-3xl font-bold text-gray-900">売れ筋ランキング</h2>
+            </div>
+            <p className="text-gray-500 text-sm md:text-base">TikTok Shopで今売れている商品をチェック</p>
+          </div>
+
+          <RankingPreview />
+
+          <div className="text-center mt-8">
+            <Button
+              size="lg"
+              className="bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white gap-2 text-base md:text-lg py-5 md:py-6 px-6 md:px-8 shadow-lg hover:shadow-xl transition-all"
+              onClick={() => setLocation("/ranking")}
+            >
+              <TrendingUp className="h-5 w-5" />
+              ランキングをもっと見る
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </section>
+
       {/* すべて対象ブロック */}
       <section className="py-12 md:py-16 px-4 bg-gradient-to-b from-rose-50 to-white">
         <div className="container mx-auto max-w-2xl text-center">
@@ -356,6 +460,7 @@ export default function MallHome() {
           </div>
           <div className="flex items-center justify-center gap-4 mb-3 text-xs md:text-sm text-gray-400">
             <Link href="/mall/products" className="hover:text-white transition-colors">商品一覧</Link>
+            <Link href="/ranking" className="hover:text-white transition-colors">売れ筋ランキング</Link>
             <Link href="/legal/tokushoho" className="hover:text-white transition-colors">特定商取引法</Link>
             <Link href="/legal/privacy" className="hover:text-white transition-colors">プライバシーポリシー</Link>
           </div>
