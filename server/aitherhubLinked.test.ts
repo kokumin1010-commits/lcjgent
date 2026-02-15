@@ -48,7 +48,6 @@ describe("isLiverAitherhubLinked", () => {
 
 describe("Aitherhub badge in liver.me endpoint", () => {
   it("should include aitherhubLinked field in the me endpoint response shape", async () => {
-    // Verify the liverRouter imports isLiverAitherhubLinked
     const routerSource = await import("fs").then(fs => 
       fs.readFileSync("/home/ubuntu/task-automation-agent/server/liverRouter.ts", "utf-8")
     );
@@ -66,5 +65,34 @@ describe("Aitherhub badge in liver.me endpoint", () => {
     expect(mypageSource).toContain("aitherhubLinked");
     expect(mypageSource).toContain("https://aitherhub.com");
     expect(mypageSource).toContain("Aitherhub 連携済み");
+  });
+});
+
+describe("Aitherhub unlinked banner in LiverMypage", () => {
+  it("should show banner for unlinked livers with correct content", async () => {
+    const mypageSource = await import("fs").then(fs =>
+      fs.readFileSync("/home/ubuntu/task-automation-agent/client/src/pages/LiverMypage.tsx", "utf-8")
+    );
+
+    // Banner should only show when NOT linked
+    expect(mypageSource).toContain("!liverInfo.aitherhubLinked && !dismissedAitherhubBanner");
+    // Banner content
+    expect(mypageSource).toContain("Aitherhubと連携しよう");
+    expect(mypageSource).toContain("動画解析結果が自動で反映");
+    expect(mypageSource).toContain("Aitherhubを見る");
+  });
+
+  it("should have dismiss functionality with localStorage persistence", async () => {
+    const mypageSource = await import("fs").then(fs =>
+      fs.readFileSync("/home/ubuntu/task-automation-agent/client/src/pages/LiverMypage.tsx", "utf-8")
+    );
+
+    // Dismiss state
+    expect(mypageSource).toContain("dismissedAitherhubBanner");
+    expect(mypageSource).toContain("setDismissedAitherhubBanner");
+    // localStorage persistence
+    expect(mypageSource).toContain("aitherhub_banner_dismissed");
+    expect(mypageSource).toContain("localStorage.setItem");
+    expect(mypageSource).toContain("localStorage.getItem");
   });
 });

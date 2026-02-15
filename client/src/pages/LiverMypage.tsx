@@ -86,6 +86,11 @@ export default function LiverMypage() {
   
   // Track if we've successfully loaded liver info at least once
   const [hasLoadedLiver, setHasLoadedLiver] = useState(false);
+
+  // Aitherhub未連携バナーの非表示状態
+  const [dismissedAitherhubBanner, setDismissedAitherhubBanner] = useState(() => {
+    try { return localStorage.getItem('aitherhub_banner_dismissed') === 'true'; } catch { return false; }
+  });
   
   useEffect(() => {
     if (liverInfo && !hasLoadedLiver) {
@@ -614,6 +619,46 @@ export default function LiverMypage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Aitherhub未連携案内バナー */}
+        {!liverInfo.aitherhubLinked && !dismissedAitherhubBanner && (
+          <Card className="bg-gradient-to-r from-indigo-600/20 via-violet-600/20 to-purple-600/20 border-violet-500/40 relative overflow-hidden">
+            <button
+              onClick={() => {
+                setDismissedAitherhubBanner(true);
+                try { localStorage.setItem('aitherhub_banner_dismissed', 'true'); } catch {}
+              }}
+              className="absolute top-2 right-2 text-gray-400 hover:text-white transition-colors z-10"
+              aria-label="閉じる"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 mt-0.5">
+                  <div className="w-10 h-10 rounded-full bg-violet-600/30 flex items-center justify-center">
+                    <Sparkles className="w-5 h-5 text-violet-400" />
+                  </div>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-bold text-white mb-1">Aitherhubと連携しよう</h3>
+                  <p className="text-xs text-gray-300 leading-relaxed">
+                    Aitherhubと連携すると、動画解析結果が自動で反映され、AIコーチングも受けられます。配信データの入力が不要になり、より効率的に活動できます。
+                  </p>
+                  <a
+                    href="https://aitherhub.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 mt-2.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 rounded-full text-xs font-medium text-white transition-colors"
+                  >
+                    Aitherhubを見る
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* 紹介コードカード */}
         <LiverReferralCard />

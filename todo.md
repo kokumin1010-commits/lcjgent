@@ -5333,3 +5333,8 @@
 ## Aitherhub連携バッジ
 - [x] ライバーマイページのプロフィールカードに「Aitherhub連携済み」バッジを追加
 - [x] バッジタップでhttps://aitherhub.comに遷移
+
+## Aitherhub未連携ライバー案内バナー
+- [x] 未連携ライバーのマイページに案内バナーを表示
+- [x] バナーからAitherhubへの遷移リンク
+- [x] 閉じるボタン（dismissable、localStorageで永続化）
