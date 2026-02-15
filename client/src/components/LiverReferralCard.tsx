@@ -5,11 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Copy, Gift, Users, TrendingUp, Loader2, Share2, Megaphone } from "lucide-react";
+import { Copy, Gift, Users, TrendingUp, Loader2, Share2, Megaphone, ChevronDown, ChevronUp } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 export default function LiverReferralCard() {
   const [showStatsDialog, setShowStatsDialog] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   // 紹介コード取得
   const { data: referralCode, isLoading: codeLoading } = trpc.liver.getMyReferralCode.useQuery();
@@ -38,8 +39,8 @@ export default function LiverReferralCard() {
   if (codeLoading) {
     return (
       <Card className="border-purple-200 bg-gradient-to-br from-purple-50 to-pink-50">
-        <CardContent className="p-4 flex justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-purple-500" />
+        <CardContent className="p-3 flex justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-purple-500" />
         </CardContent>
       </Card>
     );
@@ -48,80 +49,75 @@ export default function LiverReferralCard() {
   return (
     <>
       <Card className="border-purple-200 bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 overflow-hidden">
-        <CardContent className="p-4">
-          {/* ヘッダー */}
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                <Megaphone className="h-4 w-4 text-white" />
-              </div>
-              <h3 className="text-sm font-bold text-purple-800">あなたの紹介コード</h3>
+        <CardContent className="p-3">
+          {/* コンパクトヘッダー + コード + ボタン */}
+          <div className="flex items-center gap-3">
+            <div className="flex-shrink-0 h-8 w-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+              <Megaphone className="h-4 w-4 text-white" />
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-purple-600 hover:text-purple-800 hover:bg-purple-100"
-              onClick={() => setShowStatsDialog(true)}
-            >
-              <TrendingUp className="h-4 w-4 mr-1" />
-              統計
-            </Button>
-          </div>
-
-          {/* コード表示 */}
-          <div className="bg-white rounded-xl p-4 border-2 border-purple-200 shadow-sm">
-            <div className="text-center">
-              <p className="text-xs text-purple-500 mb-1">配信中にこのコードを宣伝しよう！</p>
-              <div className="text-4xl font-mono font-black tracking-[0.4em] text-purple-700 py-2">
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] text-purple-500 leading-tight">紹介コード</p>
+              <p className="text-xl font-mono font-black tracking-[0.3em] text-purple-700 leading-tight">
                 {referralCode?.code || "----"}
-              </div>
-              <div className="flex gap-2 mt-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1 border-purple-300 text-purple-700 hover:bg-purple-100"
-                  onClick={copyCode}
-                >
-                  <Copy className="h-4 w-4 mr-1" />
-                  コピー
-                </Button>
-                <Button
-                  size="sm"
-                  className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white"
-                  onClick={shareCode}
-                >
-                  <Share2 className="h-4 w-4 mr-1" />
-                  シェア
-                </Button>
-              </div>
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 border-purple-300 text-purple-700 hover:bg-purple-100"
+                onClick={copyCode}
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                size="icon"
+                className="h-8 w-8 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white"
+                onClick={shareCode}
+              >
+                <Share2 className="h-3.5 w-3.5" />
+              </Button>
             </div>
           </div>
 
-          {/* 簡易統計 */}
-          <div className="grid grid-cols-2 gap-2 mt-3">
-            <div className="bg-white/80 rounded-lg p-2 text-center border border-purple-100">
-              <p className="text-xs text-purple-500">紹介人数</p>
-              <p className="text-lg font-bold text-purple-700">
-                {referralCode?.totalReferrals || 0}
-                <span className="text-xs font-normal ml-0.5">人</span>
-              </p>
+          {/* 簡易統計（1行） */}
+          <div className="flex items-center justify-between mt-2 pt-2 border-t border-purple-100">
+            <div className="flex items-center gap-4">
+              <span className="text-[11px] text-purple-500">
+                紹介 <strong className="text-purple-700">{referralCode?.totalReferrals || 0}</strong>人
+              </span>
+              <span className="text-[11px] text-purple-500">
+                獲得 <strong className="text-purple-700">{(referralCode?.totalPointsEarned || 0).toLocaleString()}</strong>pt
+              </span>
             </div>
-            <div className="bg-white/80 rounded-lg p-2 text-center border border-purple-100">
-              <p className="text-xs text-purple-500">獲得ポイント</p>
-              <p className="text-lg font-bold text-purple-700">
-                {(referralCode?.totalPointsEarned || 0).toLocaleString()}
-                <span className="text-xs font-normal ml-0.5">pt</span>
-              </p>
+            <div className="flex items-center gap-1">
+              <button
+                className="text-[11px] text-purple-600 hover:text-purple-800 flex items-center gap-0.5"
+                onClick={() => setExpanded(!expanded)}
+              >
+                {expanded ? "閉じる" : "詳細"}
+                {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+              </button>
+              <span className="text-purple-300 mx-0.5">|</span>
+              <button
+                className="text-[11px] text-purple-600 hover:text-purple-800 flex items-center gap-0.5"
+                onClick={() => setShowStatsDialog(true)}
+              >
+                <TrendingUp className="h-3 w-3" />
+                統計
+              </button>
             </div>
           </div>
 
-          {/* 使い方ヒント */}
-          <div className="mt-3 bg-white/60 rounded-lg p-3 border border-purple-100">
-            <p className="text-xs font-medium text-purple-700 mb-1">配信中の宣伝例:</p>
-            <p className="text-xs text-purple-600 italic">
-              「LCJ MALLで紹介コード <strong>{referralCode?.code || "XXXX"}</strong> を入力すると500ポイントもらえるよ！」
-            </p>
-          </div>
+          {/* 展開時の詳細 */}
+          {expanded && (
+            <div className="mt-2 bg-white/60 rounded-lg p-2.5 border border-purple-100">
+              <p className="text-[11px] font-medium text-purple-700 mb-0.5">配信中の宣伝例:</p>
+              <p className="text-[11px] text-purple-600 italic leading-relaxed">
+                「LCJ MALLで紹介コード <strong>{referralCode?.code || "XXXX"}</strong> を入力すると500ポイントもらえるよ！」
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 

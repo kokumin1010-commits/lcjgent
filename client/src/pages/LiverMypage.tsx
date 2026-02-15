@@ -552,21 +552,23 @@ export default function LiverMypage() {
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <h2 className="text-lg font-bold truncate text-white">{liverInfo.name}</h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-bold truncate text-white">{liverInfo.name}</h2>
+                  {/* Aitherhub Badge - 名前の横に目立つ位置 */}
+                  {liverInfo.aitherhubLinked && (
+                    <a
+                      href="https://aitherhub.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 bg-violet-500/40 border border-violet-400/60 rounded-full text-[10px] font-semibold text-violet-200 hover:bg-violet-500/60 hover:text-white transition-all"
+                    >
+                      <Sparkles className="w-3 h-3 text-violet-300" />
+                      Aitherhub
+                      <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                  )}
+                </div>
                 <p className="text-xs text-gray-400 mt-0.5">ID: {liverInfo.id}</p>
-                {/* Aitherhub Badge */}
-                {liverInfo.aitherhubLinked && (
-                  <a
-                    href="https://aitherhub.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1 bg-gradient-to-r from-violet-600/30 to-indigo-600/30 border border-violet-500/50 rounded-full text-[11px] font-medium text-violet-300 hover:from-violet-600/50 hover:to-indigo-600/50 hover:text-violet-200 transition-all cursor-pointer"
-                  >
-                    <Sparkles className="w-3 h-3 text-violet-400" />
-                    Aitherhub 連携済み
-                    <ExternalLink className="w-3 h-3 text-violet-400/70" />
-                  </a>
-                )}
                 {/* SNS Links */}
                 <div className="flex items-center gap-3 mt-2">
                   {liverInfo.tiktokAccount && (

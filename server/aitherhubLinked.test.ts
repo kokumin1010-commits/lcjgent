@@ -64,7 +64,7 @@ describe("Aitherhub badge in liver.me endpoint", () => {
     expect(mypageSource).toContain("ExternalLink");
     expect(mypageSource).toContain("aitherhubLinked");
     expect(mypageSource).toContain("https://aitherhub.com");
-    expect(mypageSource).toContain("Aitherhub 連携済み");
+    expect(mypageSource).toContain("Aitherhub");
   });
 });
 
