@@ -67,6 +67,15 @@ async function startServer() {
       res.status(500).json({ error: "Webhook processing failed" });
     }
   });
+  app.post("/api/aitherhub/verify-liver", async (req, res) => {
+    try {
+      const { handleVerifyLiver } = await import("../aitherhubWebhook");
+      await handleVerifyLiver(req, res);
+    } catch (error) {
+      console.error("[Aitherhub Verify] Error:", error);
+      res.status(500).json({ error: "Verify liver failed" });
+    }
+  });
   app.get("/api/aitherhub/health", async (req, res) => {
     try {
       const { handleAitherhubHealth } = await import("../aitherhubWebhook");

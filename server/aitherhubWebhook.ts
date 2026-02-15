@@ -325,6 +325,47 @@ export async function handleAitherhubWebhook(req: Request, res: Response) {
 }
 
 /**
+ * ライバー検証エンドポイント
+ * POST /api/aitherhub/verify-liver
+ * 
+ * Aitherhub側からメールアドレスでライバーを検索し、
+ * 存在する場合はライバー名を返す。
+ * LCJ連携機能のプレビュー用。
+ */
+export async function handleVerifyLiver(req: Request, res: Response) {
+  try {
+    const { secret, email } = req.body;
+
+    // 認証チェック
+    if (!AITHERHUB_WEBHOOK_SECRET) {
+      console.warn("[Aitherhub Verify] AITHERHUB_WEBHOOK_SECRET is not set.");
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    if (secret !== AITHERHUB_WEBHOOK_SECRET) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    if (!email) {
+      return res.status(400).json({ error: "email is required" });
+    }
+
+    const liver = await getLiverByEmail(email);
+    if (!liver) {
+      return res.status(200).json({ found: false });
+    }
+
+    return res.status(200).json({
+      found: true,
+      name: liver.name || liver.displayName || "",
+      id: liver.id,
+    });
+  } catch (error: any) {
+    console.error("[Aitherhub Verify] Error:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+/**
  * Aitherhub ヘルスチェック
  * GET /api/aitherhub/health
  */
