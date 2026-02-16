@@ -158,7 +158,8 @@ export default function FriendReferralChallenge() {
 
   const handleShare = () => {
     if (!progress?.referralCode) return;
-    const shareText = `LCJ MALLで一緒にお買い物しよう！🛍️✨\n私の招待コード: ${progress.referralCode}\n登録するだけで${campaign?.inviteeBonus || 50}ptもらえるよ！`;
+    const siteUrl = `${window.location.origin}/register?code=${progress.referralCode}`;
+    const shareText = `LCJ MALLで一緒にお買い物しよう！🛍️✨\n私の招待コード: ${progress.referralCode}\n登録するだけで${campaign?.inviteeBonus || 50}ptもらえるよ！\n\n👇 ここから登録 👇\n${siteUrl}`;
     if (navigator.share) {
       navigator.share({ title: "LCJ MALL 友達招待", text: shareText }).catch(() => {});
     } else {
@@ -171,7 +172,8 @@ export default function FriendReferralChallenge() {
     if (!progress?.referralCode) return;
     // Haptic tap on LINE share
     if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate([15, 10, 15]);
-    const text = encodeURIComponent(`🎁 LCJ MALLで一緒にポイントGET！\n招待コード: ${progress.referralCode}\n登録で${campaign?.inviteeBonus || 50}ptプレゼント✨`);
+    const siteUrl = `${window.location.origin}/register?code=${progress.referralCode}`;
+    const text = encodeURIComponent(`🎁 LCJ MALLで一緒にポイントGET！\n招待コード: ${progress.referralCode}\n登録で${campaign?.inviteeBonus || 50}ptプレゼント✨\n\n👇 ここから登録 👇\n${siteUrl}`);
     window.open(`https://line.me/R/share?text=${text}`, "_blank");
   };
 
