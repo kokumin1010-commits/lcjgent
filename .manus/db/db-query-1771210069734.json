@@ -1,0 +1,260 @@
+{
+  "query": "SELECT productName, shopName, COUNT(*) as cnt FROM receipt_products GROUP BY productName, shopName ORDER BY productName LIMIT 50;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT productName, shopName, COUNT(*) as cnt FROM receipt_products GROUP BY productName, shopName ORDER BY productName LIMIT 50;",
+  "rows": [
+    {
+      "productName": "1277 ホワイトラグジュ シュシュホワイト",
+      "shopName": "KYOGOKU PROFESSIONAL",
+      "cnt": "1"
+    },
+    {
+      "productName": "2026年発送 予約販売 KYOGOKU クリ...",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "6930 PURITY JAPAN・ミニマル ロン...",
+      "shopName": "PURITY JAPAN特売チャンネル",
+      "cnt": "1"
+    },
+    {
+      "productName": "6947 PURITY JAPAN・韓国風ミニマ...",
+      "shopName": "PURITY JAPAN特売チャンネル",
+      "cnt": "1"
+    },
+    {
+      "productName": "Canban 参半 歯ブラシ フェアリー棒 ...",
+      "shopName": "Canban JP",
+      "cnt": "1"
+    },
+    {
+      "productName": "DAsena厳選|カメラ付き耳かき|もう普...",
+      "shopName": "DAsena公式ストア",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU IROME プレミアムオ..., KYOGOKU ヘアブリーチ ハイトー...",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU MEGAガチャ袋",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "7"
+    },
+    {
+      "productName": "KYOGOKU MEGAガチャ袋 【KG MEGA ガチャ袋 Aタイプ2980円】",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU Weave Tote ウィーブトー... ウィーブトートバッグ",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU カラーカップ ヘアカラー, KYOGOKU MEGAガチャ袋 1/8ayuヒト幹10袋セット, KYOGOKU MEGAガチャ袋 1/9ayuこれがあれば安心set",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU カラーシャンプー ハイトーン",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU クリスタルスキン エッセンスローション2本",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "2"
+    },
+    {
+      "productName": "KYOGOKU クリスタルスキン トーンアップフェザー カミソリ, KYOGOKU ステムセル フェイシャルオイル 1/30ホワイティ3点セット",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU クリスタルスキン ハイドロテックブライトマスク5枚",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "2"
+    },
+    {
+      "productName": "KYOGOKU クリスタルブライト スパ...",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU クリスタルブライト スパ... 泡洗顔2本",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU ケラチンヘアマスクキャ... 2.7shihoつる髪隊セット",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU ケラチンヘアマスクキャップ5個",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU ケラチンヘアマスクキャップ5枚",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "2"
+    },
+    {
+      "productName": "KYOGOKU スカルプシンク メディ... コンシーラー",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU スカルプシンク メディプロ ...",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU ステムセル フェイシ... 2.12ポーチプレゼントセット",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU ステムセル フェイシャ...",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU ステムセル フェイシャ... ディープクレンズ 2個",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU ステムセル フェイシャル... ディープクレンズ2個",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU ステムセル フェイシャルオ... 2.10 爆美女たちのリクエストセット",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU ステムセル フェイシャルオイル2本",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU ステムセル フェイシャルオイル2本セット",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU ステムセル モーニングマスク 2/4泡洗顔パック10枚セット",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU ナノシルクケラチンピロ...",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "2"
+    },
+    {
+      "productName": "KYOGOKU ナノシルクケラチンピロー...",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU ネイチャーブースターエッセンス",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU ネイチャーブースターシャンプー＆トリートメント",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU ハイライトコーム シグ... アドバンストハイライトコーム",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU ハイライトコーム シグ... ミスト2本セット",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU ハイライトコーム シグネ... 1/5ayu乾燥ナイナイセット2点",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU パーソナルカラーシャン...",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU パーソナルカラーシャンプー... / KYOGOKU MEGAガチャ袋",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU ヒト幹細胞導入美容液 プラ... / KYOGOKU MEGAガチャ袋",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU ミラクルカラーフォーム",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU ミラクルラッシュ 1.26モーニングNEWセット",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU ラオイル ボディ ウォッシュ",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU リップスティックティン...",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU ローズゴールドコーム ジ... カットコーム",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKU 逆毛コーム ヘアセット...",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "KYOGOKUカラーセラム, KYOGOKU MEGAガチャ袋",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "Kyogoku クリスタル",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "Kyogoku リカバリーロングソックス",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1"
+    },
+    {
+      "productName": "[特典][Yooki] あなたの小さな財布をー...",
+      "shopName": "YOYO--shop",
+      "cnt": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "productName\tshopName\tcnt\n1277 ホワイトラグジュ シュシュホワイト\tKYOGOKU PROFESSIONAL\t1\n2026年発送 予約販売 KYOGOKU クリ...\tKYOGOKU JAPAN\t1\n6930 PURITY JAPAN・ミニマル ロン...\tPURITY JAPAN特売チャンネル\t1\n6947 PURITY JAPAN・韓国風ミニマ...\tPURITY JAPAN特売チャンネル\t1\nCanban 参半 歯ブラシ フェアリー棒 ...\tCanban JP\t1\nDAsena厳選|カメラ付き耳かき|もう普...\tDAsena公式ストア\t1\nKYOGOKU IROME プレミアムオ..., KYOGOKU ヘアブリーチ ハイトー...\tKYOGOKU JAPAN\t1\nKYOGOKU MEGAガチャ袋\tKYOGOKU JAPAN\t7\nKYOGOKU MEGAガチャ袋 【KG MEGA ガチャ袋 Aタイプ2980円】\tKYOGOKU JAPAN\t1\nKYOGOKU Weave Tote ウィーブトー... ウィーブトートバッグ\tKYOGOKU JAPAN\t1\nKYOGOKU カラーカップ ヘアカラー, KYOGOKU MEGAガチャ袋 1/8ayuヒト幹10袋セット, KYOGOKU MEGAガチャ袋 1/9ayuこれがあれば安心set\tKYOGOKU JAPAN\t1\nKYOGOKU カラーシャンプー ハイトーン\tKYOGOKU JAPAN\t1\nKYOGOKU クリスタルスキン エッセンスローション2本\tKYOGOKU JAPAN\t2\nKYOGOKU クリスタルスキン トーンアップフェザー カミソリ, KYOGOKU ステムセル フェイシャルオイル 1/30ホワイティ3点セット\tKYOGOKU JAPAN\t1\nKYOGOKU クリスタルスキン ハイドロテックブライトマスク5枚\tKYOGOKU JAPAN\t2\nKYOGOKU クリスタルブライト スパ...\tKYOGOKU JAPAN\t1\nKYOGOKU クリスタルブライト スパ... 泡洗顔2本\tKYOGOKU JAPAN\t1\nKYOGOKU ケラチンヘアマスクキャ... 2.7shihoつる髪隊セット\tKYOGOKU JAPAN\t1\nKYOGOKU ケラチンヘアマスクキャップ5個\tKYOGOKU JAPAN\t1\nKYOGOKU ケラチンヘアマスクキャップ5枚\tKYOGOKU JAPAN\t2\nKYOGOKU スカルプシンク メディ... コンシーラー\tKYOGOKU JAPAN\t1\nKYOGOKU スカルプシンク メディプロ ...\tKYOGOKU JAPAN\t1\nKYOGOKU ステムセル フェイシ... 2.12ポーチプレゼントセット\tKYOGOKU JAPAN\t1\nKYOGOKU ステムセル フェイシャ...\tKYOGOKU JAPAN\t1\nKYOGOKU ステムセル フェイシャ... ディープクレンズ 2個\tKYOGOKU JAPAN\t1\nKYOGOKU ステムセル フェイシャル... ディープクレンズ2個\tKYOGOKU JAPAN\t1\nKYOGOKU ステムセル フェイシャルオ... 2.10 爆美女たちのリクエストセット\tKYOGOKU JAPAN\t1\nKYOGOKU ステムセル フェイシャルオイル2本\tKYOGOKU JAPAN\t1\nKYOGOKU ステムセル フェイシャルオイル2本セット\tKYOGOKU JAPAN\t1\nKYOGOKU ステムセル モーニングマスク 2/4泡洗顔パック10枚セット\tKYOGOKU JAPAN\t1\nKYOGOKU ナノシルクケラチンピロ...\tKYOGOKU JAPAN\t2\nKYOGOKU ナノシルクケラチンピロー...\tKYOGOKU JAPAN\t1\nKYOGOKU ネイチャーブースターエッセンス\tKYOGOKU JAPAN\t1\nKYOGOKU ネイチャーブースターシャンプー＆トリートメント\tKYOGOKU JAPAN\t1\nKYOGOKU ハイライトコーム シグ... アドバンストハイライトコーム\tKYOGOKU JAPAN\t1\nKYOGOKU ハイライトコーム シグ... ミスト2本セット\tKYOGOKU JAPAN\t1\nKYOGOKU ハイライトコーム シグネ... 1/5ayu乾燥ナイナイセット2点\tKYOGOKU JAPAN\t1\nKYOGOKU パーソナルカラーシャン...\tKYOGOKU JAPAN\t1\nKYOGOKU パーソナルカラーシャンプー... / KYOGOKU MEGAガチャ袋\tKYOGOKU JAPAN\t1\nKYOGOKU ヒト幹細胞導入美容液 プラ... / KYOGOKU MEGAガチャ袋\tKYOGOKU JAPAN\t1\nKYOGOKU ミラクルカラーフォーム\tKYOGOKU JAPAN\t1\nKYOGOKU ミラクルラッシュ 1.26モーニングNEWセット\tKYOGOKU JAPAN\t1\nKYOGOKU ラオイル ボディ ウォッシュ\tKYOGOKU JAPAN\t1\nKYOGOKU リップスティックティン...\tKYOGOKU JAPAN\t1\nKYOGOKU ローズゴールドコーム ジ... カットコーム\tKYOGOKU JAPAN\t1\nKYOGOKU 逆毛コーム ヘアセット...\tKYOGOKU JAPAN\t1\nKYOGOKUカラーセラム, KYOGOKU MEGAガチャ袋\tKYOGOKU JAPAN\t1\nKyogoku クリスタル\tKYOGOKU JAPAN\t1\nKyogoku リカバリーロングソックス\tKYOGOKU JAPAN\t1\n[特典][Yooki] あなたの小さな財布をー...\tYOYO--shop\t1\n",
+  "stderr": "",
+  "execution_time_ms": 1539
+}

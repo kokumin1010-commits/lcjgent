@@ -1,0 +1,190 @@
+{
+  "query": "SELECT productName, shopName, COUNT(*) as cnt, SUM(amount) as totalAmount FROM receipt_products GROUP BY productName, shopName ORDER BY cnt DESC LIMIT 30;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT productName, shopName, COUNT(*) as cnt, SUM(amount) as totalAmount FROM receipt_products GROUP BY productName, shopName ORDER BY cnt DESC LIMIT 30;",
+  "rows": [
+    {
+      "productName": "KYOGOKU MEGAガチャ袋",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "7",
+      "totalAmount": "79354"
+    },
+    {
+      "productName": "来年発送 予約販売 KYOGOKU ダーマデ...",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "3",
+      "totalAmount": "14098"
+    },
+    {
+      "productName": "KYOGOKU クリスタルスキン ハイドロテックブライトマスク5枚",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "2",
+      "totalAmount": "6814"
+    },
+    {
+      "productName": "KYOGOKU クリスタルスキン エッセンスローション2本",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "2",
+      "totalAmount": "10648"
+    },
+    {
+      "productName": "KYOGOKU ナノシルクケラチンピロ...",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "2",
+      "totalAmount": "16033"
+    },
+    {
+      "productName": "KYOGOKU ケラチンヘアマスクキャップ5枚",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "2",
+      "totalAmount": "8500"
+    },
+    {
+      "productName": "1277 ホワイトラグジュ シュシュホワイト",
+      "shopName": "KYOGOKU PROFESSIONAL",
+      "cnt": "1",
+      "totalAmount": "4702"
+    },
+    {
+      "productName": "Canban 参半 歯ブラシ フェアリー棒 ...",
+      "shopName": "Canban JP",
+      "cnt": "1",
+      "totalAmount": "1399"
+    },
+    {
+      "productName": "【公式規格品】【送料無料】パーフェクト... 02 Cool Pink Denim",
+      "shopName": "SE Cosmetics JP",
+      "cnt": "1",
+      "totalAmount": "1880"
+    },
+    {
+      "productName": "【ABITOKYO】クーフォースゲルパッ...",
+      "shopName": "ABITOKYOチャンネル",
+      "cnt": "1",
+      "totalAmount": "8376"
+    },
+    {
+      "productName": "KYOGOKU ステムセル フェイシャルオイル2本",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1",
+      "totalAmount": "9339"
+    },
+    {
+      "productName": "KYOGOKU ステムセル フェイシャ... ディープクレンズ 2個",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1",
+      "totalAmount": "3485"
+    },
+    {
+      "productName": "【10月27日 ホワイトセット】KYOG... スキンソニックメディプロ美顔器",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1",
+      "totalAmount": "9900"
+    },
+    {
+      "productName": "KYOGOKU ケラチンヘアマスクキャップ5個",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1",
+      "totalAmount": "3646"
+    },
+    {
+      "productName": "KYOGOKU クリスタルブライト スパ...",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1",
+      "totalAmount": "5729"
+    },
+    {
+      "productName": "【京極琉限定】 HAPLEXGRACE ゼリ...",
+      "shopName": "toyotokyo【公式】",
+      "cnt": "1",
+      "totalAmount": "13080"
+    },
+    {
+      "productName": "[特典][Yooki] 団ー団くま ぬいぐるみ...",
+      "shopName": "YOYO--shop",
+      "cnt": "1",
+      "totalAmount": "1479"
+    },
+    {
+      "productName": "【ABITOKYO】ブースター ディープ ...",
+      "shopName": "ABITOKYOチャンネル",
+      "cnt": "1",
+      "totalAmount": "6534"
+    },
+    {
+      "productName": "KYOGOKU リップスティックティン...",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1",
+      "totalAmount": "8963"
+    },
+    {
+      "productName": "6930 PURITY JAPAN・ミニマル ロン...",
+      "shopName": "PURITY JAPAN特売チャンネル",
+      "cnt": "1",
+      "totalAmount": "5900"
+    },
+    {
+      "productName": "KYOGOKU クリスタルスキン トーンアップフェザー カミソリ, KYOGOKU ステムセル フェイシャルオイル 1/30ホワイティ3点セット",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1",
+      "totalAmount": "11275"
+    },
+    {
+      "productName": "KYOGOKU ステムセル フェイシャル... ディープクレンズ2個",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1",
+      "totalAmount": "3485"
+    },
+    {
+      "productName": "【ぞうねこ】HOT TAB RECOVERY (ホットタブリカバリー) 90粒×2袋セット",
+      "shopName": "トキバナ【公式】ライブコマース事務所",
+      "cnt": "1",
+      "totalAmount": "8454"
+    },
+    {
+      "productName": "ファージャケット 洗練され...",
+      "shopName": "セレクトショップSeven fairy",
+      "cnt": "1",
+      "totalAmount": "14840"
+    },
+    {
+      "productName": "KYOGOKU ステムセル フェイシャルオイル2本セット",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1",
+      "totalAmount": "9651"
+    },
+    {
+      "productName": "KYOGOKU カラーカップ ヘアカラー, KYOGOKU MEGAガチャ袋 1/8ayuヒト幹10袋セット, KYOGOKU MEGAガチャ袋 1/9ayuこれがあれば安心set",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1",
+      "totalAmount": "10640"
+    },
+    {
+      "productName": "KYOGOKU ケラチンヘアマスクキャ... 2.7shihoつる髪隊セット",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1",
+      "totalAmount": "9945"
+    },
+    {
+      "productName": "【ぞうねこ】POKKAカイロ - 白雪(アイボリー)",
+      "shopName": "トキバナ 【公式】ライブコマース事務所",
+      "cnt": "1",
+      "totalAmount": "1700"
+    },
+    {
+      "productName": "DAsena厳選|カメラ付き耳かき|もう普...",
+      "shopName": "DAsena公式ストア",
+      "cnt": "1",
+      "totalAmount": "980"
+    },
+    {
+      "productName": "KYOGOKU ステムセル フェイシャ...",
+      "shopName": "KYOGOKU JAPAN",
+      "cnt": "1",
+      "totalAmount": "16000"
+    }
+  ],
+  "messages": [],
+  "stdout": "productName\tshopName\tcnt\ttotalAmount\nKYOGOKU MEGAガチャ袋\tKYOGOKU JAPAN\t7\t79354\n来年発送 予約販売 KYOGOKU ダーマデ...\tKYOGOKU JAPAN\t3\t14098\nKYOGOKU クリスタルスキン ハイドロテックブライトマスク5枚\tKYOGOKU JAPAN\t2\t6814\nKYOGOKU クリスタルスキン エッセンスローション2本\tKYOGOKU JAPAN\t2\t10648\nKYOGOKU ナノシルクケラチンピロ...\tKYOGOKU JAPAN\t2\t16033\nKYOGOKU ケラチンヘアマスクキャップ5枚\tKYOGOKU JAPAN\t2\t8500\n1277 ホワイトラグジュ シュシュホワイト\tKYOGOKU PROFESSIONAL\t1\t4702\nCanban 参半 歯ブラシ フェアリー棒 ...\tCanban JP\t1\t1399\n【公式規格品】【送料無料】パーフェクト... 02 Cool Pink Denim\tSE Cosmetics JP\t1\t1880\n【ABITOKYO】クーフォースゲルパッ...\tABITOKYOチャンネル\t1\t8376\nKYOGOKU ステムセル フェイシャルオイル2本\tKYOGOKU JAPAN\t1\t9339\nKYOGOKU ステムセル フェイシャ... ディープクレンズ 2個\tKYOGOKU JAPAN\t1\t3485\n【10月27日 ホワイトセット】KYOG... スキンソニックメディプロ美顔器\tKYOGOKU JAPAN\t1\t9900\nKYOGOKU ケラチンヘアマスクキャップ5個\tKYOGOKU JAPAN\t1\t3646\nKYOGOKU クリスタルブライト スパ...\tKYOGOKU JAPAN\t1\t5729\n【京極琉限定】 HAPLEXGRACE ゼリ...\ttoyotokyo【公式】\t1\t13080\n[特典][Yooki] 団ー団くま ぬいぐるみ...\tYOYO--shop\t1\t1479\n【ABITOKYO】ブースター ディープ ...\tABITOKYOチャンネル\t1\t6534\nKYOGOKU リップスティックティン...\tKYOGOKU JAPAN\t1\t8963\n6930 PURITY JAPAN・ミニマル ロン...\tPURITY JAPAN特売チャンネル\t1\t5900\nKYOGOKU クリスタルスキン トーンアップフェザー カミソリ, KYOGOKU ステムセル フェイシャルオイル 1/30ホワイティ3点セット\tKYOGOKU JAPAN\t1\t11275\nKYOGOKU ステムセル フェイシャル... ディープクレンズ2個\tKYOGOKU JAPAN\t1\t3485\n【ぞうねこ】HOT TAB RECOVERY (ホットタブリカバリー) 90粒×2袋セット\tトキバナ【公式】ライブコマース事務所\t1\t8454\nファージャケット 洗練され...\tセレクトショップSeven fairy\t1\t14840\nKYOGOKU ステムセル フェイシャルオイル2本セット\tKYOGOKU JAPAN\t1\t9651\nKYOGOKU カラーカップ ヘアカラー, KYOGOKU MEGAガチャ袋 1/8ayuヒト幹10袋セット, KYOGOKU MEGAガチャ袋 1/9ayuこれがあれば安心set\tKYOGOKU JAPAN\t1\t10640\nKYOGOKU ケラチンヘアマスクキャ... 2.7shihoつる髪隊セット\tKYOGOKU JAPAN\t1\t9945\n【ぞうねこ】POKKAカイロ - 白雪(アイボリー)\tトキバナ 【公式】ライブコマース事務所\t1\t1700\nDAsena厳選|カメラ付き耳かき|もう普...\tDAsena公式ストア\t1\t980\nKYOGOKU ステムセル フェイシャ...\tKYOGOKU JAPAN\t1\t16000\n",
+  "stderr": "",
+  "execution_time_ms": 1570
+}

@@ -1,0 +1,6 @@
+MallHome ranking preview - screenshot findings:
+- Two tabs visible: "ライブコマース売れ筋" (active, pink/rose) and "みんなの購入" (inactive, gray)
+- Currently showing live commerce data with 5 products (gold/silver/bronze ranking)
+- "ランキングをもっと見る" button present below
+- Need to test clicking "みんなの購入" tab to verify receipt data shows
+- TypeScript: 0 errors confirmed

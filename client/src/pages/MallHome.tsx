@@ -10,57 +10,33 @@ function formatCurrencyShort(amount: number): string {
   return `¥${Math.round(amount).toLocaleString()}`;
 }
 
-function RankingPreview() {
-  const { data: products, isLoading } = trpc.productRanking.topProducts.useQuery({ limit: 5 });
+const rankIcons = [
+  <Crown className="h-5 w-5 text-yellow-500" />,
+  <Medal className="h-5 w-5 text-gray-400" />,
+  <Award className="h-5 w-5 text-amber-600" />,
+];
 
-  if (isLoading) {
-    return (
-      <div className="grid gap-3">
-        {[1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="h-16 bg-gray-100 rounded-xl animate-pulse" />
-        ))}
-      </div>
-    );
-  }
+const rankBgs = [
+  "bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200 shadow-sm",
+  "bg-gradient-to-r from-gray-50 to-slate-50 border-gray-200",
+  "bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200",
+  "bg-white border-gray-100",
+  "bg-white border-gray-100",
+];
 
-  if (!products || products.length === 0) {
-    return (
-      <div className="text-center py-8 text-gray-400">
-        <Flame className="h-8 w-8 mx-auto mb-2 opacity-50" />
-        <p>ランキングデータを準備中です</p>
-      </div>
-    );
-  }
-
-  const rankIcons = [
-    <Crown className="h-5 w-5 text-yellow-500" />,
-    <Medal className="h-5 w-5 text-gray-400" />,
-    <Award className="h-5 w-5 text-amber-600" />,
-  ];
-
-  const rankBgs = [
-    "bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200 shadow-sm",
-    "bg-gradient-to-r from-gray-50 to-slate-50 border-gray-200",
-    "bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200",
-    "bg-white border-gray-100",
-    "bg-white border-gray-100",
-  ];
-
+function RankingItemList({ items, type }: { items: { productName: string; shopName?: string | null; totalAmount: number; totalQuantity?: number; purchaseCount?: number }[]; type: "live" | "receipt" }) {
   return (
     <div className="grid gap-3">
-      {products.map((product, index) => (
+      {items.map((product, index) => (
         <div
-          key={product.productName}
+          key={`${product.productName}-${index}`}
           className={`flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-xl border transition-all hover:shadow-md ${rankBgs[index] || "bg-white border-gray-100"}`}
         >
-          {/* ランク */}
           <div className="flex items-center justify-center w-8 h-8 shrink-0">
             {index < 3 ? rankIcons[index] : (
               <span className="text-sm font-bold text-gray-400">{index + 1}</span>
             )}
           </div>
-
-          {/* 商品情報 */}
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-gray-900 text-sm md:text-base truncate">
               {product.productName}
@@ -69,16 +45,93 @@ function RankingPreview() {
               <p className="text-xs text-gray-500 truncate">{product.shopName}</p>
             )}
           </div>
-
-          {/* 売上 */}
           <div className="text-right shrink-0">
             <p className="font-bold text-rose-500 text-sm md:text-base">
-              {formatCurrencyShort(product.totalAmount)}
+              {formatCurrencyShort(Number(product.totalAmount))}
             </p>
-            <p className="text-xs text-gray-400">{product.totalQuantity}個販売</p>
+            <p className="text-xs text-gray-400">
+              {type === "live" ? `${product.totalQuantity ?? 0}個販売` : `${product.purchaseCount ?? 0}件購入`}
+            </p>
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function RankingPreviewTabs() {
+  const [activeTab, setActiveTab] = useState<"live" | "receipt">("live");
+  const { data: liveProducts, isLoading: liveLoading } = trpc.productRanking.topProducts.useQuery({ limit: 5 });
+  const { data: receiptProducts, isLoading: receiptLoading } = trpc.productRanking.receiptProductRanking.useQuery({ limit: 5 });
+
+  const isLoading = activeTab === "live" ? liveLoading : receiptLoading;
+
+  return (
+    <div>
+      {/* タブ切り替え */}
+      <div className="flex justify-center gap-2 mb-6">
+        <button
+          onClick={() => setActiveTab("live")}
+          className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+            activeTab === "live"
+              ? "bg-rose-500 text-white shadow-md"
+              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+          }`}
+        >
+          <span className="flex items-center gap-1.5">
+            <Flame className="h-4 w-4" />
+            ライブコマース売れ筋
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveTab("receipt")}
+          className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+            activeTab === "receipt"
+              ? "bg-purple-500 text-white shadow-md"
+              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+          }`}
+        >
+          <span className="flex items-center gap-1.5">
+            <Receipt className="h-4 w-4" />
+            みんなの購入
+          </span>
+        </button>
+      </div>
+
+      {/* コンテンツ */}
+      {isLoading ? (
+        <div className="grid gap-3">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="h-16 bg-gray-100 rounded-xl animate-pulse" />
+          ))}
+        </div>
+      ) : activeTab === "live" ? (
+        liveProducts && liveProducts.length > 0 ? (
+          <RankingItemList items={liveProducts} type="live" />
+        ) : (
+          <div className="text-center py-8 text-gray-400">
+            <Flame className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            <p>ランキングデータを準備中です</p>
+          </div>
+        )
+      ) : (
+        receiptProducts && receiptProducts.length > 0 ? (
+          <RankingItemList
+            items={receiptProducts.map((p: any) => ({
+              productName: p.productName,
+              shopName: p.shopName,
+              totalAmount: Number(p.totalAmount),
+              purchaseCount: Number(p.purchaseCount),
+            }))}
+            type="receipt"
+          />
+        ) : (
+          <div className="text-center py-8 text-gray-400">
+            <Receipt className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            <p>購入データを準備中です</p>
+          </div>
+        )
+      )}
     </div>
   );
 }
@@ -425,7 +478,7 @@ export default function MallHome() {
             <p className="text-gray-500 text-sm md:text-base">TikTok Shopで今売れている商品をチェック</p>
           </div>
 
-          <RankingPreview />
+          <RankingPreviewTabs />
 
           <div className="text-center mt-8">
             <Button
