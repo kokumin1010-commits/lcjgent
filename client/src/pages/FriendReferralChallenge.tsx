@@ -150,6 +150,8 @@ export default function FriendReferralChallenge() {
 
   const handleCopyCode = () => {
     if (!progress?.referralCode) return;
+    // Haptic tap on copy
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(15);
     navigator.clipboard.writeText(progress.referralCode);
     toast.success("招待コードをコピーしました！", { icon: "📋" });
   };
@@ -167,12 +169,18 @@ export default function FriendReferralChallenge() {
 
   const handleShareLINE = () => {
     if (!progress?.referralCode) return;
+    // Haptic tap on LINE share
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate([15, 10, 15]);
     const text = encodeURIComponent(`🎁 LCJ MALLで一緒にポイントGET！\n招待コード: ${progress.referralCode}\n登録で${campaign?.inviteeBonus || 50}ptプレゼント✨`);
     window.open(`https://line.me/R/share?text=${text}`, "_blank");
   };
 
   const handleSpin = () => { if (isSpinning) return; spinMutation.mutate({ isSpecial: isSpecialSpin }); };
-  const openSpinDialog = (special: boolean) => { setIsSpecialSpin(special); setSpinResult(null); setShowSpinDialog(true); };
+  const openSpinDialog = (special: boolean) => {
+    // Haptic tap when opening spin dialog
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(15);
+    setIsSpecialSpin(special); setSpinResult(null); setShowSpinDialog(true);
+  };
 
   const hasSessionToken = !!localStorage.getItem("lcj_session_token");
   const isLoggedIn = !!progress;

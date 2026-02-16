@@ -1,5 +1,23 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 
+/* ──── Haptic feedback utility ──── */
+const canVibrate = () => typeof navigator !== "undefined" && "vibrate" in navigator;
+
+const haptic = {
+  /** Short tap – button press confirmation */
+  tap: () => canVibrate() && navigator.vibrate(15),
+  /** Medium pulse – spin start */
+  spinStart: () => canVibrate() && navigator.vibrate([30, 20, 50, 20, 80]),
+  /** Rhythmic ticking during spin (call repeatedly) */
+  tick: () => canVibrate() && navigator.vibrate(8),
+  /** Strong burst – result reveal */
+  result: () => canVibrate() && navigator.vibrate([60, 40, 80, 40, 120, 50, 200]),
+  /** Celebration – big win */
+  celebration: () => canVibrate() && navigator.vibrate([50, 30, 50, 30, 80, 40, 80, 40, 120, 50, 200, 60, 300]),
+  /** Stop any ongoing vibration */
+  stop: () => canVibrate() && navigator.vibrate(0),
+};
+
 interface SpinItem {
   id: number;
   label: string;
@@ -33,15 +51,65 @@ export default function SpinWheel({ items, onSpinComplete, isSpinning, setIsSpin
     return () => clearInterval(id);
   }, []);
 
+  // Tick vibration interval during spin
+  const tickIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Cleanup tick interval on unmount
+  useEffect(() => {
+    return () => {
+      if (tickIntervalRef.current) clearInterval(tickIntervalRef.current);
+      haptic.stop();
+    };
+  }, []);
+
   const spin = useCallback(() => {
     if (isSpinning || disabled || items.length === 0) return;
     setIsSpinning(true);
+
+    // ── Haptic: spin start burst ──
+    haptic.spinStart();
+
     const randomIndex = Math.floor(Math.random() * items.length);
     resultItemRef.current = items[randomIndex];
     const targetSlice = 360 - (randomIndex * sliceAngle + sliceAngle / 2);
     const extraSpins = 6 + Math.floor(Math.random() * 3);
     const newRotation = rotation + extraSpins * 360 + targetSlice;
     setRotation(newRotation);
+
+    // ── Haptic: rhythmic ticking that slows down ──
+    // Fast ticks (100ms) for first 2s, medium (200ms) for next 1.5s, slow (400ms) for final 1.5s
+    let tickSpeed = 100;
+    tickIntervalRef.current = setInterval(() => haptic.tick(), tickSpeed);
+
+    // Slow down ticking at 2s
+    setTimeout(() => {
+      if (tickIntervalRef.current) clearInterval(tickIntervalRef.current);
+      tickSpeed = 200;
+      tickIntervalRef.current = setInterval(() => haptic.tick(), tickSpeed);
+    }, 2000);
+
+    // Slow down more at 3.5s
+    setTimeout(() => {
+      if (tickIntervalRef.current) clearInterval(tickIntervalRef.current);
+      tickSpeed = 400;
+      tickIntervalRef.current = setInterval(() => haptic.tick(), tickSpeed);
+    }, 3500);
+
+    // Stop ticking and fire result haptic at 4.8s (just before result)
+    setTimeout(() => {
+      if (tickIntervalRef.current) {
+        clearInterval(tickIntervalRef.current);
+        tickIntervalRef.current = null;
+      }
+      // ── Haptic: result reveal burst ──
+      const won = resultItemRef.current;
+      if (won && won.points >= 100) {
+        haptic.celebration();
+      } else {
+        haptic.result();
+      }
+    }, 4800);
+
     setTimeout(() => {
       setIsSpinning(false);
       if (resultItemRef.current) onSpinComplete(resultItemRef.current);
@@ -131,7 +199,7 @@ export default function SpinWheel({ items, onSpinComplete, isSpinning, setIsSpin
         </div>
       </div>
 
-      <button onClick={spin} disabled={isSpinning || disabled}
+      <button onClick={() => { haptic.tap(); spin(); }} disabled={isSpinning || disabled}
         className={`mt-4 px-10 py-3.5 rounded-full font-black text-lg text-white shadow-2xl transition-all transform
           ${isSpinning || disabled ? "opacity-50 cursor-not-allowed bg-gray-400" :
             isSpecial
