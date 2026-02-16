@@ -9,8 +9,8 @@ const REFERRAL_STORAGE_KEY = "lcj_referral_code";
 export function useReferralCapture() {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const refCode = urlParams.get("ref");
-    if (refCode && /^\d{4}$/.test(refCode)) {
+    const refCode = urlParams.get("ref") || urlParams.get("code");
+    if (refCode && /^[A-Za-z0-9]{4,8}$/.test(refCode)) {
       localStorage.setItem(REFERRAL_STORAGE_KEY, refCode);
     }
   }, []);
