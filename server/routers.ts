@@ -459,6 +459,8 @@ import {
   getRestockRequestCounts,
   getRestockRequestsByBrand,
   getRestockRequestDetailByBrand,
+  getRecommendedProducts,
+  getPopularProducts,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -12797,6 +12799,27 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
     getFavoriteCounts: publicProcedure
       .query(async () => {
         return await getMallFavoriteCounts();
+      }),
+
+    // ===== おすすめ商品 API =====
+    getRecommendedProducts: publicProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        try {
+          const result = await getLineUserFromSession(ctx);
+          if (result && result.lineUser) {
+            return await getRecommendedProducts(result.lineUser.id, input?.limit || 12);
+          }
+        } catch {
+          // 未ログインの場合は人気商品を返す
+        }
+        return await getPopularProducts(input?.limit || 12);
+      }),
+
+    getPopularProducts: publicProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        return await getPopularProducts(input?.limit || 12);
       }),
 
     // ===== レビュー画像アップロード API =====

@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ShoppingBag, Gift, ArrowRight, Coins, Receipt, Check, ChevronDown, ChevronUp, ShieldCheck, HelpCircle, Sparkles, MessageCircle, UserPlus, TrendingUp, Crown, Medal, Award, Flame } from "lucide-react";
+import { ShoppingBag, Gift, ArrowRight, Coins, Receipt, Check, ChevronDown, ChevronUp, ShieldCheck, HelpCircle, Sparkles, MessageCircle, UserPlus, TrendingUp, Crown, Medal, Award, Flame, Heart, Star } from "lucide-react";
 import { useLocation, Link } from "wouter";
 
 function formatCurrencyShort(amount: number): string {
@@ -80,6 +80,116 @@ function RankingPreview() {
         </div>
       ))}
     </div>
+  );
+}
+
+function RecommendedSection() {
+  const { data: recommended, isLoading } = trpc.mall.getRecommendedProducts.useQuery({ limit: 8 });
+  const [, setLocation] = useLocation();
+
+  if (isLoading) {
+    return (
+      <section className="py-12 md:py-20 px-4 bg-gradient-to-b from-purple-50/30 to-white">
+        <div className="container mx-auto max-w-5xl">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center gap-2 mb-3">
+              <Star className="h-5 w-5 text-purple-500" />
+              <h2 className="text-2xl md:text-3xl font-bold text-gray-900">あなたへのおすすめ</h2>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+              <div key={i} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                <div className="aspect-square bg-gray-100 animate-pulse" />
+                <div className="p-3">
+                  <div className="h-4 bg-gray-100 rounded animate-pulse mb-2" />
+                  <div className="h-4 bg-gray-100 rounded animate-pulse w-1/2" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (!recommended || recommended.length === 0) return null;
+
+  return (
+    <section className="py-12 md:py-20 px-4 bg-gradient-to-b from-purple-50/30 to-white">
+      <div className="container mx-auto max-w-5xl">
+        <div className="text-center mb-8 md:mb-10">
+          <div className="inline-flex items-center gap-2 mb-3">
+            <Star className="h-5 w-5 md:h-6 md:w-6 text-purple-500" />
+            <h2 className="text-2xl md:text-3xl font-bold text-gray-900">あなたへのおすすめ</h2>
+          </div>
+          <p className="text-gray-500 text-sm md:text-base">閲覧履歴やお気に入りから、あなたにぴったりの商品をお届け</p>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+          {recommended.map((product: any) => (
+            <div
+              key={product.id}
+              className="group bg-white rounded-xl border border-gray-100 overflow-hidden hover:shadow-lg hover:border-purple-200 transition-all duration-300 cursor-pointer"
+              onClick={() => setLocation(`/mall/products/${product.id}`)}
+            >
+              <div className="aspect-square bg-gray-50 relative overflow-hidden">
+                {product.imageUrl || (product.imageUrls && product.imageUrls[0]) ? (
+                  <img
+                    src={product.imageUrl || product.imageUrls[0]}
+                    alt={product.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <ShoppingBag className="h-10 w-10 text-gray-300" />
+                  </div>
+                )}
+                {product.brandName && (
+                  <Badge className="absolute top-2 left-2 bg-purple-500/90 text-white text-[10px] px-1.5 py-0.5 border-0">
+                    {product.brandName}
+                  </Badge>
+                )}
+              </div>
+              <div className="p-3">
+                <h3 className="text-sm font-medium text-gray-800 line-clamp-2 mb-1.5 group-hover:text-purple-600 transition-colors">
+                  {product.name}
+                </h3>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-base font-bold text-rose-500">
+                    ¥{product.price?.toLocaleString()}
+                  </span>
+                  {product.pointPrice && (
+                    <span className="text-xs text-purple-500 font-medium">
+                      {product.pointPrice.toLocaleString()}pt
+                    </span>
+                  )}
+                </div>
+                {product.categoryName && (
+                  <p className="text-[11px] text-gray-400 mt-1">{product.categoryName}</p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="text-center mt-8">
+          <Button
+            variant="outline"
+            size="lg"
+            className="gap-2 text-purple-600 border-purple-200 hover:bg-purple-50 hover:border-purple-300 text-base md:text-lg py-5 md:py-6 px-6 md:px-8"
+            onClick={() => setLocation("/mall/products")}
+          >
+            <ShoppingBag className="h-5 w-5" />
+            すべての商品を見る
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -330,6 +440,9 @@ export default function MallHome() {
           </div>
         </div>
       </section>
+
+      {/* おすすめ商品セクション */}
+      <RecommendedSection />
 
       {/* すべて対象ブロック */}
       <section className="py-12 md:py-16 px-4 bg-gradient-to-b from-rose-50 to-white">

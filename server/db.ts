@@ -13086,3 +13086,205 @@ export async function getRestockRequestDetailByBrand(shopName: string) {
     latestRequest: r.latestRequest,
   }));
 }
+
+
+// ============================================
+// おすすめ商品機能（閲覧履歴ベース）
+// ============================================
+
+/**
+ * ユーザーの閲覧履歴・お気に入り・購入履歴から、おすすめ商品を取得する
+ * ロジック:
+ * 1. ユーザーが閲覧/お気に入りした商品のブランド・カテゴリを特定
+ * 2. 同じブランド・カテゴリの商品を優先的に表示
+ * 3. まだ閲覧していない商品を優先
+ * 4. 人気商品（注文数が多い）をスコアに加算
+ */
+export async function getRecommendedProducts(lineUserId: number, limit: number = 12): Promise<any[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // 1. ユーザーが閲覧した商品のブランドID・カテゴリIDを取得
+  const viewedProducts = await db
+    .select({
+      productId: mallViewHistory.productId,
+      brandId: mallProducts.brandId,
+      categoryId: mallProducts.categoryId,
+    })
+    .from(mallViewHistory)
+    .innerJoin(mallProducts, eq(mallViewHistory.productId, mallProducts.id))
+    .where(eq(mallViewHistory.lineUserId, lineUserId))
+    .orderBy(desc(mallViewHistory.viewedAt))
+    .limit(50);
+
+  // 2. お気に入り商品のブランドID・カテゴリIDも取得
+  const favProducts = await db
+    .select({
+      productId: mallFavorites.productId,
+      brandId: mallProducts.brandId,
+      categoryId: mallProducts.categoryId,
+    })
+    .from(mallFavorites)
+    .innerJoin(mallProducts, eq(mallFavorites.productId, mallProducts.id))
+    .where(eq(mallFavorites.lineUserId, lineUserId));
+
+  // 3. 購入済み商品のブランドID・カテゴリIDも取得
+  const purchasedProducts = await db
+    .select({
+      productId: mallOrderItems.productId,
+      brandId: mallProducts.brandId,
+      categoryId: mallProducts.categoryId,
+    })
+    .from(mallOrderItems)
+    .innerJoin(mallOrders, eq(mallOrderItems.orderId, mallOrders.id))
+    .innerJoin(mallProducts, eq(mallOrderItems.productId, mallProducts.id))
+    .where(eq(mallOrders.lineUserId, lineUserId));
+
+  // ブランドIDとカテゴリIDの重み付けスコアを計算
+  const brandScores: Record<number, number> = {};
+  const categoryScores: Record<number, number> = {};
+  const excludeProductIds = new Set<number>();
+
+  // 閲覧: スコア1
+  for (const p of viewedProducts) {
+    excludeProductIds.add(p.productId);
+    if (p.brandId) brandScores[p.brandId] = (brandScores[p.brandId] || 0) + 1;
+    if (p.categoryId) categoryScores[p.categoryId] = (categoryScores[p.categoryId] || 0) + 1;
+  }
+
+  // お気に入り: スコア3（より強い興味）
+  for (const p of favProducts) {
+    excludeProductIds.add(p.productId);
+    if (p.brandId) brandScores[p.brandId] = (brandScores[p.brandId] || 0) + 3;
+    if (p.categoryId) categoryScores[p.categoryId] = (categoryScores[p.categoryId] || 0) + 3;
+  }
+
+  // 購入: スコア5（最も強い興味）
+  for (const p of purchasedProducts) {
+    excludeProductIds.add(p.productId);
+    if (p.brandId) brandScores[p.brandId] = (brandScores[p.brandId] || 0) + 5;
+    if (p.categoryId) categoryScores[p.categoryId] = (categoryScores[p.categoryId] || 0) + 5;
+  }
+
+  // 興味のあるブランド・カテゴリのトップを取得
+  const topBrandIds = Object.entries(brandScores)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([id]) => Number(id));
+
+  const topCategoryIds = Object.entries(categoryScores)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([id]) => Number(id));
+
+  // ユーザーの興味データがない場合は人気商品を返す
+  if (topBrandIds.length === 0 && topCategoryIds.length === 0) {
+    return getPopularProducts(limit);
+  }
+
+  // 4. おすすめ候補を取得（同ブランド or 同カテゴリの商品）
+  const conditions = [];
+  if (topBrandIds.length > 0) {
+    conditions.push(inArray(mallProducts.brandId, topBrandIds));
+  }
+  if (topCategoryIds.length > 0) {
+    conditions.push(inArray(mallProducts.categoryId, topCategoryIds));
+  }
+
+  const candidates = await db
+    .select({
+      id: mallProducts.id,
+      name: mallProducts.name,
+      price: mallProducts.price,
+      pointPrice: mallProducts.pointPrice,
+      imageUrl: mallProducts.imageUrl,
+      imageUrls: mallProducts.imageUrls,
+      stock: mallProducts.stock,
+      status: mallProducts.status,
+      brandId: mallProducts.brandId,
+      categoryId: mallProducts.categoryId,
+      brandName: mallBrands.name,
+      categoryName: mallCategories.name,
+    })
+    .from(mallProducts)
+    .leftJoin(mallBrands, eq(mallProducts.brandId, mallBrands.id))
+    .leftJoin(mallCategories, eq(mallProducts.categoryId, mallCategories.id))
+    .where(
+      and(
+        eq(mallProducts.status, "active"),
+        or(...conditions)
+      )
+    )
+    .limit(limit * 3); // 多めに取得してフィルタリング
+
+  // 閲覧済み商品を除外し、スコアで並べ替え
+  const scoredCandidates = candidates
+    .filter(p => !excludeProductIds.has(p.id))
+    .map(p => {
+      let score = 0;
+      if (p.brandId && brandScores[p.brandId]) score += brandScores[p.brandId];
+      if (p.categoryId && categoryScores[p.categoryId]) score += categoryScores[p.categoryId];
+      return { ...p, score };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+
+  // 候補が足りない場合は人気商品で補完
+  if (scoredCandidates.length < limit) {
+    const popularProducts = await getPopularProducts(limit - scoredCandidates.length, [...Array.from(excludeProductIds), ...scoredCandidates.map(p => p.id)]);
+    return [...scoredCandidates, ...popularProducts];
+  }
+
+  return scoredCandidates;
+}
+
+/**
+ * 人気商品を取得（注文数ベース）
+ * 未ログインユーザーや履歴がないユーザー向けのフォールバック
+ */
+export async function getPopularProducts(limit: number = 12, excludeIds: number[] = []): Promise<any[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // 注文数が多い商品を取得
+  const orderCountSubquery = db
+    .select({
+      productId: mallOrderItems.productId,
+      orderCount: sql<number>`COUNT(DISTINCT ${mallOrderItems.orderId})`.as("orderCount"),
+    })
+    .from(mallOrderItems)
+    .groupBy(mallOrderItems.productId)
+    .as("orderCounts");
+
+  const results = await db
+    .select({
+      id: mallProducts.id,
+      name: mallProducts.name,
+      price: mallProducts.price,
+      pointPrice: mallProducts.pointPrice,
+      imageUrl: mallProducts.imageUrl,
+      imageUrls: mallProducts.imageUrls,
+      stock: mallProducts.stock,
+      status: mallProducts.status,
+      brandId: mallProducts.brandId,
+      categoryId: mallProducts.categoryId,
+      brandName: mallBrands.name,
+      categoryName: mallCategories.name,
+      orderCount: sql<number>`COALESCE(${orderCountSubquery.orderCount}, 0)`,
+    })
+    .from(mallProducts)
+    .leftJoin(mallBrands, eq(mallProducts.brandId, mallBrands.id))
+    .leftJoin(mallCategories, eq(mallProducts.categoryId, mallCategories.id))
+    .leftJoin(orderCountSubquery, eq(mallProducts.id, orderCountSubquery.productId))
+    .where(
+      excludeIds.length > 0
+        ? and(eq(mallProducts.status, "active"), sql`${mallProducts.id} NOT IN (${sql.join(excludeIds.map(id => sql`${id}`), sql`, `)})`)
+        : eq(mallProducts.status, "active")
+    )
+    .orderBy(sql`COALESCE(${orderCountSubquery.orderCount}, 0) DESC`)
+    .limit(limit);
+
+  return results;
+}
+
+
