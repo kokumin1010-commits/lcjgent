@@ -214,11 +214,11 @@ export default function MallProducts() {
     }
   };
 
-  // カテゴリ一覧を取得
+  // カテゴリ一覧を取得（categoryNameベース）
   const categories = useMemo(
     () =>
       products
-        ? Array.from(new Set(products.map((p) => p.category).filter(Boolean)))
+        ? Array.from(new Set(products.map((p) => (p as any).categoryName).filter(Boolean)))
         : [],
     [products]
   );
@@ -228,7 +228,7 @@ export default function MallProducts() {
     () =>
       products
         ?.filter((p) => {
-          if (category !== "all" && p.category !== category) return false;
+          if (category !== "all" && (p as any).categoryName !== category) return false;
           if (searchQuery) {
             const query = searchQuery.toLowerCase();
             return (
@@ -516,11 +516,18 @@ export default function MallProducts() {
                           </div>
                         )}
                       </div>
+                    </div>
 
-                      {/* カテゴリ小バッジ */}
-                      {product.category && (
-                        <span className="text-[10px] text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded whitespace-nowrap">
-                          {product.category}
+                    {/* ブランド・カテゴリ */}
+                    <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                      {(product as any).brandName && (
+                        <span className="text-[10px] text-purple-500 bg-purple-50 px-1.5 py-0.5 rounded whitespace-nowrap">
+                          {(product as any).brandName}
+                        </span>
+                      )}
+                      {(product as any).categoryName && (
+                        <span className="text-[10px] text-teal-500 bg-teal-50 px-1.5 py-0.5 rounded whitespace-nowrap">
+                          {(product as any).categoryName}
                         </span>
                       )}
                     </div>

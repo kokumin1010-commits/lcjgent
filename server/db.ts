@@ -5883,8 +5883,6 @@ export async function getMallProducts(options?: {
   const db = await getDb();
   if (!db) return [];
 
-  let query = db.select().from(mallProducts);
-  
   const conditions = [];
   if (options?.status) {
     conditions.push(eq(mallProducts.status, options.status));
@@ -5892,20 +5890,46 @@ export async function getMallProducts(options?: {
   if (options?.category) {
     conditions.push(eq(mallProducts.category, options.category));
   }
-  
+
+  let query = db
+    .select({
+      id: mallProducts.id,
+      name: mallProducts.name,
+      description: mallProducts.description,
+      category: mallProducts.category,
+      price: mallProducts.price,
+      pointPrice: mallProducts.pointPrice,
+      stock: mallProducts.stock,
+      imageUrl: mallProducts.imageUrl,
+      imageKey: mallProducts.imageKey,
+      imageUrls: mallProducts.imageUrls,
+      imageKeys: mallProducts.imageKeys,
+      status: mallProducts.status,
+      sortOrder: mallProducts.sortOrder,
+      createdAt: mallProducts.createdAt,
+      updatedAt: mallProducts.updatedAt,
+      brandId: mallProducts.brandId,
+      categoryId: mallProducts.categoryId,
+      brandName: mallBrands.name,
+      categoryName: mallCategories.name,
+    })
+    .from(mallProducts)
+    .leftJoin(mallBrands, eq(mallProducts.brandId, mallBrands.id))
+    .leftJoin(mallCategories, eq(mallProducts.categoryId, mallCategories.id));
+
   if (conditions.length > 0) {
     query = query.where(and(...conditions)) as typeof query;
   }
-  
+
   query = query.orderBy(asc(mallProducts.sortOrder), desc(mallProducts.createdAt)) as typeof query;
-  
+
   if (options?.limit) {
     query = query.limit(options.limit) as typeof query;
   }
   if (options?.offset) {
     query = query.offset(options.offset) as typeof query;
   }
-  
+
   return await query;
 }
 
