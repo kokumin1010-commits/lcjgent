@@ -68,6 +68,9 @@ export default function LineLogin() {
   }, [referralCode]);
 
   // Email login mutation
+  // Check for redirect parameter
+  const redirectTo = new URLSearchParams(window.location.search).get('redirect') || '/mypage';
+
   const emailLoginMutation = trpc.lineLogin.emailLogin.useMutation({
     onSuccess: (data) => {
       // Save session token to localStorage for fallback authentication
@@ -77,7 +80,7 @@ export default function LineLogin() {
       toast.success("ログインしました");
       // Wait for cookie to be set, then redirect
       setTimeout(() => {
-        window.location.href = "/mypage";
+        window.location.href = redirectTo;
       }, 500);
     },
     onError: (err) => {
@@ -101,9 +104,9 @@ export default function LineLogin() {
       } else {
         toast.success("アカウントを作成しました");
       }
-      // Auto-login: redirect to mypage
+      // Auto-login: redirect
       setTimeout(() => {
-        window.location.href = "/mypage";
+        window.location.href = redirectTo;
       }, 500);
     },
     onError: (err) => {

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -249,6 +250,19 @@ function RecommendedSection() {
 export default function MallHome() {
   const [, setLocation] = useLocation();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [showReferralPopup, setShowReferralPopup] = useState(false);
+
+  // Show popup once per session on page load
+  useEffect(() => {
+    const hasSeenPopup = sessionStorage.getItem('lcj_referral_popup_seen');
+    if (!hasSeenPopup) {
+      const timer = setTimeout(() => {
+        setShowReferralPopup(true);
+        sessionStorage.setItem('lcj_referral_popup_seen', '1');
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, []);
   
   // 商品一覧を取得（販売中のもののみ）
   const { data: products, isLoading: productsLoading } = trpc.mall.getProducts.useQuery({ status: "active" });
@@ -268,8 +282,94 @@ export default function MallHome() {
     }
   ];
 
+  const handlePopupAction = () => {
+    const hasSession = !!localStorage.getItem('lcj_session_token');
+    setShowReferralPopup(false);
+    if (hasSession) {
+      setLocation('/friend-challenge');
+    } else {
+      setLocation('/line-login?redirect=/friend-challenge');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white">
+      {/* 友達招待チャレンジ ポップアップ */}
+      <Dialog open={showReferralPopup} onOpenChange={setShowReferralPopup}>
+        <DialogContent className="sm:max-w-md p-0 border-0 rounded-3xl overflow-hidden bg-transparent shadow-2xl [&>button]:hidden">
+          <div className="relative">
+            {/* 背景グラデーション */}
+            <div className="bg-gradient-to-br from-pink-400 via-rose-400 to-purple-500 p-6 pb-8 text-center relative overflow-hidden">
+              {/* キラキラエフェクト */}
+              <div className="absolute top-3 left-6 text-2xl animate-bounce" style={{ animationDelay: '0s' }}>✨</div>
+              <div className="absolute top-8 right-8 text-xl animate-bounce" style={{ animationDelay: '0.3s' }}>🌟</div>
+              <div className="absolute bottom-4 left-10 text-lg animate-bounce" style={{ animationDelay: '0.6s' }}>🎀</div>
+              <div className="absolute bottom-6 right-12 text-2xl animate-bounce" style={{ animationDelay: '0.9s' }}>🌸</div>
+              <div className="absolute top-12 left-1/2 text-sm animate-ping opacity-60">⭐</div>
+              
+              {/* メインアイコン */}
+              <div className="relative z-10">
+                <div className="h-20 w-20 mx-auto mb-3 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg border-2 border-white/30">
+                  <span className="text-5xl">🎰</span>
+                </div>
+                <h2 className="text-2xl font-extrabold text-white mb-1 drop-shadow-md">
+                  友達招待チャレンジ
+                </h2>
+                <p className="text-pink-100 text-sm font-medium">期間限定キャンペーン実施中！</p>
+              </div>
+            </div>
+            
+            {/* コンテンツ */}
+            <div className="bg-white px-6 py-5 text-center">
+              <div className="space-y-3 mb-5">
+                <div className="flex items-center gap-3 bg-gradient-to-r from-pink-50 to-rose-50 rounded-xl p-3">
+                  <div className="h-10 w-10 bg-pink-100 rounded-full flex items-center justify-center shrink-0">
+                    <span className="text-lg">🎁</span>
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-bold text-gray-800">友達を招待するたびに</p>
+                    <p className="text-xs text-pink-600 font-medium">確定ポイント + ルーレットボーナス！</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-3">
+                  <div className="h-10 w-10 bg-purple-100 rounded-full flex items-center justify-center shrink-0">
+                    <span className="text-lg">🏆</span>
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-bold text-gray-800">ステージが上がるほど</p>
+                    <p className="text-xs text-purple-600 font-medium">報酬がどんどんアップ！最大1,000pt✨</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 bg-gradient-to-r from-amber-50 to-yellow-50 rounded-xl p-3">
+                  <div className="h-10 w-10 bg-amber-100 rounded-full flex items-center justify-center shrink-0">
+                    <span className="text-lg">💖</span>
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-bold text-gray-800">招待された友達にも</p>
+                    <p className="text-xs text-amber-600 font-medium">50ptプレゼント！みんなハッピー🌸</p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* CTAボタン */}
+              <Button
+                onClick={handlePopupAction}
+                className="w-full bg-gradient-to-r from-pink-500 via-rose-500 to-purple-500 hover:from-pink-600 hover:via-rose-600 hover:to-purple-600 text-white font-bold text-base py-6 rounded-2xl shadow-lg shadow-pink-200/50 transition-all hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <span className="mr-2">🎉</span> チャレンジに参加する！
+              </Button>
+              
+              <button
+                onClick={() => setShowReferralPopup(false)}
+                className="mt-3 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                あとで見る
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Header - シンプルで洗練されたデザイン */}
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-gray-100">
         <div className="container mx-auto px-4 h-14 md:h-16 flex items-center justify-between">

@@ -155,9 +155,15 @@ export default function FriendReferralChallenge() {
                   </div>
                   <h3 className="text-lg font-bold text-gray-800">ログインして参加しよう！</h3>
                   <p className="text-sm text-gray-500">友達招待チャレンジに参加するにはログインが必要です</p>
-                  <Button onClick={() => setLocation("/line-login")} className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white">
-                    ログインする
-                  </Button>
+                  <div className="flex flex-col gap-2 w-full max-w-xs mx-auto">
+                    <Button onClick={() => setLocation("/line-login?redirect=/friend-challenge")} className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white w-full">
+                      ✉️ メールでログイン / 新規登録
+                    </Button>
+                    <Button onClick={() => setLocation("/line-login?redirect=/friend-challenge")} variant="outline" className="border-[#06C755] text-[#06C755] hover:bg-[#06C755]/10 w-full">
+                      <svg className="h-4 w-4 mr-1" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 5.93 2 10.74c0 3.16 2.08 5.93 5.18 7.49l-.85 3.13c-.07.26.2.47.44.34l3.68-2.07c.51.07 1.03.11 1.55.11 5.52 0 10-3.93 10-8.74S17.52 2 12 2z"/></svg>
+                      LINEでログイン
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ) : (
