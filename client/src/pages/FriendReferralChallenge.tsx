@@ -30,8 +30,8 @@ export default function FriendReferralChallenge() {
   const [activeTab, setActiveTab] = useState("challenge");
 
   const { data: campaignData } = trpc.friendReferral.getCampaign.useQuery();
-  const { data: myProgress, refetch: refetchProgress } = trpc.friendReferral.getMyProgress.useQuery(undefined, {
-    retry: false,
+  const { data: myProgress, refetch: refetchProgress, isLoading: isProgressLoading, error: progressError } = trpc.friendReferral.getMyProgress.useQuery(undefined, {
+    retry: 1,
   });
   const { data: leaderboard } = trpc.friendReferral.getLeaderboard.useQuery();
   const { data: activityFeed } = trpc.friendReferral.getActivityFeed.useQuery();
@@ -89,7 +89,9 @@ export default function FriendReferralChallenge() {
     setShowSpinDialog(true);
   };
 
+  const hasSessionToken = !!localStorage.getItem('lcj_session_token');
   const isLoggedIn = !!progress;
+  const isCheckingAuth = isProgressLoading && hasSessionToken;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-pink-50 via-white to-purple-50">
@@ -147,7 +149,17 @@ export default function FriendReferralChallenge() {
 
           {/* Challenge Tab */}
           <TabsContent value="challenge" className="mt-4 space-y-4">
-            {!isLoggedIn ? (
+            {isCheckingAuth ? (
+              <Card className="border-pink-200 bg-gradient-to-br from-pink-50 to-white">
+                <CardContent className="pt-6 text-center space-y-4">
+                  <div className="h-16 w-16 mx-auto bg-gradient-to-br from-pink-400 to-purple-400 rounded-full flex items-center justify-center animate-pulse">
+                    <Sparkles className="h-8 w-8 text-white" />
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-800">読み込み中...</h3>
+                  <p className="text-sm text-gray-500">あなたのチャレンジ情報を取得しています</p>
+                </CardContent>
+              </Card>
+            ) : !isLoggedIn ? (
               <Card className="border-pink-200 bg-gradient-to-br from-pink-50 to-white">
                 <CardContent className="pt-6 text-center space-y-4">
                   <div className="h-16 w-16 mx-auto bg-gradient-to-br from-pink-400 to-purple-400 rounded-full flex items-center justify-center">
@@ -398,7 +410,13 @@ export default function FriendReferralChallenge() {
 
           {/* History Tab */}
           <TabsContent value="history" className="mt-4 space-y-4">
-            {!isLoggedIn ? (
+            {isCheckingAuth ? (
+              <Card className="border-pink-200">
+                <CardContent className="pt-6 text-center">
+                  <p className="text-gray-500 animate-pulse">読み込み中...</p>
+                </CardContent>
+              </Card>
+            ) : !isLoggedIn ? (
               <Card className="border-pink-200">
                 <CardContent className="pt-6 text-center">
                   <p className="text-gray-500">ログインすると招待履歴が確認できます</p>

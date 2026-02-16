@@ -5456,3 +5456,4 @@
 - [x] 女性向けキラキラ・ワクワクなデザイン
 - [x] BUG: /friend-challenge ページがエラーになる問題を修正（本番未Publish状態が原因、コード自体は正常）
 - [x] ポップアップのログイン導線にメール/パスワードログインの選択肢も追加（LINEだけでなく）
+- [x] BUG: ログイン済みユーザーが/friend-challengeで「ログインして参加しよう！」と表示される（/friend-challengeがisLcjMallPageリストに未登録だった）

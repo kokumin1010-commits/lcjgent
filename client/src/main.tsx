@@ -86,7 +86,8 @@ const trpcClient = trpc.createClient({
                               currentPath.startsWith('/products') ||
                               currentPath.startsWith('/mall') ||
                               currentPath === '/receipt-upload' ||
-                              currentPath === '/point-request';
+                              currentPath === '/point-request' ||
+                              currentPath === '/friend-challenge';
         // Include /livers and /livestreams (without trailing slash) in liver pages
         const isLiverPage = currentPath.startsWith('/liver/') || 
                            currentPath.startsWith('/livers') || 
