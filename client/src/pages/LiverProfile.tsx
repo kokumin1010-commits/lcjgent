@@ -95,7 +95,7 @@ function LineLinkSection({ lineUserId }: { lineUserId?: string | null }) {
               <MessageCircle className="h-4 w-4" />
               <span className="font-medium">LINE連携済み</span>
             </div>
-            <p className="mt-1 text-sm text-gray-400">
+            <p className="mt-1 text-sm text-gray-200">
               配信後にAIコーチングがLINEに届きます
             </p>
           </div>
@@ -120,7 +120,7 @@ function LineLinkSection({ lineUserId }: { lineUserId?: string | null }) {
         <span className="font-medium">LINE未連携</span>
       </div>
       
-      <div className="text-sm text-gray-400 space-y-2">
+      <div className="text-sm text-gray-200 space-y-2">
         <p>【連携方法】</p>
         <ol className="list-decimal list-inside space-y-1">
           <li>LCJ公式LINEを友だち追加</li>
@@ -133,7 +133,7 @@ function LineLinkSection({ lineUserId }: { lineUserId?: string | null }) {
         <div className="p-4 bg-yellow-900/30 border border-yellow-600 rounded-lg text-center">
           <p className="text-sm text-yellow-400 mb-2">ライバー用連携コード（{Math.floor(timeLeft / 60)}分{timeLeft % 60}秒有効）</p>
           <p className="text-4xl font-bold text-white tracking-widest">{linkCode}</p>
-          <p className="mt-2 text-xs text-gray-400">このコードをLCJ公式LINEに送信してください</p>
+          <p className="mt-2 text-xs text-gray-200">このコードをLCJ公式LINEに送信してください</p>
         </div>
       ) : (
         <div className="flex flex-col gap-3">
@@ -326,7 +326,7 @@ export default function LiverProfile() {
               variant="ghost"
               size="icon"
               onClick={() => navigate("/liver/mypage")}
-              className="text-gray-400 hover:text-white"
+              className="text-gray-200 hover:text-white"
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
@@ -381,7 +381,7 @@ export default function LiverProfile() {
             >
               {isUploadingAvatar ? "アップロード中..." : "写真を変更"}
             </button>
-            <p className="mt-1 text-xs text-gray-500">ライバーID: {liverInfo.id}</p>
+            <p className="mt-1 text-xs text-gray-300">ライバーID: {liverInfo.id}</p>
           </div>
           
           {/* Basic Info */}
@@ -444,7 +444,7 @@ export default function LiverProfile() {
                       className="w-10 h-10 rounded-full border-2 border-white/20"
                       style={{ backgroundColor: option.value }}
                     />
-                    <span className="text-xs text-gray-400">{option.label}</span>
+                    <span className="text-xs text-gray-200">{option.label}</span>
                   </button>
                 ))}
               </div>
@@ -465,11 +465,11 @@ export default function LiverProfile() {
                   {lineNotificationEnabled ? (
                     <Bell className="h-5 w-5 text-green-500" />
                   ) : (
-                    <BellOff className="h-5 w-5 text-gray-500" />
+                    <BellOff className="h-5 w-5 text-gray-300" />
                   )}
                   <div>
                     <p className="text-white font-medium">AIコーチング通知</p>
-                    <p className="text-sm text-gray-400">
+                    <p className="text-sm text-gray-200">
                       配信記録保存時にAIアドバイスをLINEで受け取る
                     </p>
                   </div>

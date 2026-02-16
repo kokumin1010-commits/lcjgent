@@ -104,7 +104,7 @@ export default function PublicLiverSchedule() {
       <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center">
         <Card className="max-w-md">
           <CardContent className="py-8 text-center">
-            <p className="text-gray-500">ライバー名が指定されていません</p>
+            <p className="text-gray-700">ライバー名が指定されていません</p>
             <Link href="/s">
               <Button variant="link" className="mt-4">
                 <ArrowLeft className="h-4 w-4 mr-2" />
@@ -162,7 +162,7 @@ export default function PublicLiverSchedule() {
               <div className="text-3xl font-bold text-purple-600">
                 {filteredSchedules.length}
               </div>
-              <div className="text-sm text-gray-500">
+              <div className="text-sm text-gray-700">
                 {viewMode === "upcoming" ? "今後の予定" : "全予定"}
               </div>
             </CardContent>
@@ -172,7 +172,7 @@ export default function PublicLiverSchedule() {
               <div className="text-3xl font-bold text-blue-600">
                 {schedules?.length || 0}
               </div>
-              <div className="text-sm text-gray-500">登録済み予定</div>
+              <div className="text-sm text-gray-700">登録済み予定</div>
             </CardContent>
           </Card>
         </div>
@@ -186,7 +186,7 @@ export default function PublicLiverSchedule() {
           </div>
         ) : sortedDates.length === 0 ? (
           <Card>
-            <CardContent className="py-12 text-center text-gray-500">
+            <CardContent className="py-12 text-center text-gray-700">
               {viewMode === "upcoming" 
                 ? `${liverName}さんの今後の予定はありません`
                 : `${liverName}さんの予定は登録されていません`
@@ -214,7 +214,7 @@ export default function PublicLiverSchedule() {
                       )}>
                         {date.getDate()}
                       </span>
-                      <span className="text-gray-600">
+                      <span className="text-gray-800">
                         {formatDateDisplay(new Date(dateKey + "T00:00:00+09:00"))}
                       </span>
                       {isToday && (
@@ -223,7 +223,7 @@ export default function PublicLiverSchedule() {
                         </span>
                       )}
                       {isPast && viewMode === "all" && (
-                        <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+                        <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">
                           過去
                         </span>
                       )}
@@ -250,7 +250,7 @@ export default function PublicLiverSchedule() {
                                 {category.label}
                               </span>
                             </div>
-                            <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
+                            <div className="flex items-center gap-4 mt-1 text-sm text-gray-700">
                               <span className="flex items-center gap-1">
                                 <Clock className="h-3.5 w-3.5" />
                                 {formatTimeJST(new Date(schedule.startTime))}
@@ -258,7 +258,7 @@ export default function PublicLiverSchedule() {
                               </span>
                             </div>
                             {schedule.description && (
-                              <p className="mt-1 text-sm text-gray-600 line-clamp-2">
+                              <p className="mt-1 text-sm text-gray-800 line-clamp-2">
                                 {schedule.description}
                               </p>
                             )}
@@ -276,7 +276,7 @@ export default function PublicLiverSchedule() {
 
       {/* Footer */}
       <footer className="border-t bg-white py-4">
-        <div className="container text-center text-sm text-gray-500">
+        <div className="container text-center text-sm text-gray-700">
           {liverName} - スケジュール
         </div>
       </footer>

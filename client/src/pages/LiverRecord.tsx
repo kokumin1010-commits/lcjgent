@@ -885,7 +885,7 @@ export default function LiverRecord() {
           </Link>
           <div>
             <h1 className="text-xl font-bold">{tr.title}</h1>
-            <p className="text-sm text-gray-400">{liver?.name || ""}</p>
+            <p className="text-sm text-gray-200">{liver?.name || ""}</p>
           </div>
         </div>
         
@@ -893,11 +893,11 @@ export default function LiverRecord() {
         <Card className="bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700 overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-gray-300 flex items-center gap-2">
-              <Camera className="w-4 h-4 text-gray-400" />
+              <Camera className="w-4 h-4 text-gray-200" />
               {tr.beforeScreenshot}
-              <span className="text-xs text-gray-500 bg-gray-700 px-2 py-0.5 rounded">{tr.noAnalysis}</span>
+              <span className="text-xs text-gray-300 bg-gray-700 px-2 py-0.5 rounded">{tr.noAnalysis}</span>
             </CardTitle>
-            <p className="text-xs text-gray-500">{tr.beforeScreenshotHint}</p>
+            <p className="text-xs text-gray-300">{tr.beforeScreenshotHint}</p>
           </CardHeader>
           <CardContent className="p-3">
             {beforeScreenshotPreview ? (
@@ -924,8 +924,8 @@ export default function LiverRecord() {
             ) : (
               <label className="flex flex-col items-center justify-center w-full h-24 cursor-pointer hover:bg-gray-800/50 transition-colors rounded-lg border-2 border-dashed border-gray-600">
                 <div className="flex flex-col items-center">
-                  <Camera className="w-8 h-8 text-gray-500 mb-1" />
-                  <span className="text-gray-400 text-sm">タップして配信前のスクショをアップロード</span>
+                  <Camera className="w-8 h-8 text-gray-300 mb-1" />
+                  <span className="text-gray-200 text-sm">タップして配信前のスクショをアップロード</span>
                 </div>
                 <input
                   type="file"
@@ -964,11 +964,11 @@ export default function LiverRecord() {
               <Camera className="w-4 h-4 text-purple-400" />
               {tr.afterScreenshot}
               {screenshotPreviews.length > 0 && (
-                <span className="text-xs text-gray-500">({screenshotPreviews.length}/4{tr.imageCount})</span>
+                <span className="text-xs text-gray-300">({screenshotPreviews.length}/4{tr.imageCount})</span>
               )}
               <span className="text-xs text-purple-400 bg-purple-900/30 px-2 py-0.5 rounded">AI分析</span>
             </CardTitle>
-            <p className="text-xs text-gray-500">{tr.afterScreenshotHint}</p>
+            <p className="text-xs text-gray-300">{tr.afterScreenshotHint}</p>
           </CardHeader>
           <CardContent className="p-3">
             {screenshotPreviews.length > 0 ? (
@@ -1000,8 +1000,8 @@ export default function LiverRecord() {
                   {/* Add More Button (if less than 4 images) */}
                   {screenshotPreviews.length < 4 && (
                     <label className="aspect-video bg-gray-800/50 rounded-lg border-2 border-dashed border-gray-600 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-800 hover:border-gray-500 transition-colors">
-                      <Camera className="w-6 h-6 text-gray-400 mb-1" />
-                      <span className="text-xs text-gray-400">{tr.addMore}</span>
+                      <Camera className="w-6 h-6 text-gray-200 mb-1" />
+                      <span className="text-xs text-gray-200">{tr.addMore}</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -1056,7 +1056,7 @@ export default function LiverRecord() {
                     <Camera className="w-7 h-7 text-white" />
                   </div>
                   <span className="text-white font-medium text-sm">{tr.tapToUpload}</span>
-                  <span className="text-xs text-gray-400 mt-1">{tr.aiAnalysis}</span>
+                  <span className="text-xs text-gray-200 mt-1">{tr.aiAnalysis}</span>
                 </div>
                 <input
                   type="file"
@@ -1092,7 +1092,7 @@ export default function LiverRecord() {
                 <div className="grid grid-cols-2 gap-2">
                   {Object.entries(calculatedMetrics).map(([key, value]) => (
                     <div key={key} className="bg-gray-800/50 rounded p-2">
-                      <p className="text-gray-400 text-xs">{key}</p>
+                      <p className="text-gray-200 text-xs">{key}</p>
                       <p className="text-white text-sm font-medium">{value}</p>
                     </div>
                   ))}
@@ -1131,7 +1131,7 @@ export default function LiverRecord() {
                     {structuredAdvice.nextActions.map((action, i) => (
                       <div key={i} className="bg-blue-900/20 rounded-lg p-3">
                         <p className="text-white text-sm font-medium">{action.action}</p>
-                        <p className="text-gray-400 text-xs mt-1">理由: {action.reason}</p>
+                        <p className="text-gray-200 text-xs mt-1">理由: {action.reason}</p>
                         <p className="text-blue-300 text-xs mt-1">⏰ {action.timing}</p>
                       </div>
                     ))}
@@ -1220,17 +1220,17 @@ export default function LiverRecord() {
                     </Button>
                   </div>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">{tr.editableHint}</p>
+                <p className="text-xs text-gray-300 mt-1">{tr.editableHint}</p>
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Sales Amount */}
                 <div className="space-y-2">
-                  <Label className="text-gray-400 text-sm flex items-center gap-2">
+                  <Label className="text-gray-200 text-sm flex items-center gap-2">
                     <DollarSign className="h-4 w-4 text-green-500" />
                     {tr.salesAmount}
                   </Label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">¥</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-200">¥</span>
                     <Input
                       type="number"
                       value={salesAmount}
@@ -1244,7 +1244,7 @@ export default function LiverRecord() {
                 {/* Viewer Count & Peak Viewer Count */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-gray-400 text-sm flex items-center gap-2">
+                    <Label className="text-gray-200 text-sm flex items-center gap-2">
                       <Users className="h-4 w-4 text-blue-500" />
                       {tr.viewerCount}
                     </Label>
@@ -1257,7 +1257,7 @@ export default function LiverRecord() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-gray-400 text-sm flex items-center gap-2">
+                    <Label className="text-gray-200 text-sm flex items-center gap-2">
                       <Users className="h-4 w-4 text-cyan-500" />
                       {tr.peakViewerCount}
                     </Label>
@@ -1273,7 +1273,7 @@ export default function LiverRecord() {
 
                 {/* Duration */}
                 <div className="space-y-2">
-                  <Label className="text-gray-400 text-sm flex items-center gap-2">
+                  <Label className="text-gray-200 text-sm flex items-center gap-2">
                     <Clock className="h-4 w-4 text-orange-500" />
                     {tr.durationMinutes}
                     {isAutoCalculatedDuration && (
@@ -1293,7 +1293,7 @@ export default function LiverRecord() {
                       placeholder="0"
                       className={`bg-gray-800 border-gray-700 text-white pr-12 ${isAutoCalculatedDuration ? 'border-green-600/50' : ''}`}
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">{tr.minutes}</span>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-200">{tr.minutes}</span>
                   </div>
                   {isAutoCalculatedDuration && startDate && startTime && endDate && endTime && (
                     <p className="text-xs text-green-400">
@@ -1305,7 +1305,7 @@ export default function LiverRecord() {
                 {/* Product Clicks & Order Count */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-gray-400 text-sm flex items-center gap-2">
+                    <Label className="text-gray-200 text-sm flex items-center gap-2">
                       <MousePointer className="h-4 w-4 text-yellow-500" />
                       {tr.productClicks}
                     </Label>
@@ -1318,7 +1318,7 @@ export default function LiverRecord() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-gray-400 text-sm flex items-center gap-2">
+                    <Label className="text-gray-200 text-sm flex items-center gap-2">
                       <ShoppingCart className="h-4 w-4 text-pink-500" />
                       {tr.orderCount}
                     </Label>
@@ -1343,7 +1343,7 @@ export default function LiverRecord() {
               {/* Schedule Selection (if available) */}
               {schedules && schedules.length > 0 && (
                 <div className="space-y-2">
-                  <Label className="text-gray-400 text-sm">{tr.selectSchedule}</Label>
+                  <Label className="text-gray-200 text-sm">{tr.selectSchedule}</Label>
                   <Select 
                     value={scheduleId?.toString() || "none"} 
                     onValueChange={handleScheduleSelect}
@@ -1365,7 +1365,7 @@ export default function LiverRecord() {
               
               {/* Brand Selection */}
               <div className="space-y-2">
-                <Label className="text-gray-400 text-sm">
+                <Label className="text-gray-200 text-sm">
                   {tr.selectBrand} <span className="text-red-500">*</span>
                 </Label>
                 <Select 
@@ -1387,7 +1387,7 @@ export default function LiverRecord() {
               
               {/* Delivery Date */}
               <div className="space-y-2">
-                <Label className="text-gray-400 text-sm flex items-center gap-2">
+                <Label className="text-gray-200 text-sm flex items-center gap-2">
                   <Clock className="h-4 w-4 text-red-500" />
                   {tr.deliveryDate} <span className="text-red-500">*</span>
                 </Label>
@@ -1408,7 +1408,7 @@ export default function LiverRecord() {
               {/* Start/End Time */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label className="text-gray-400 text-sm">{tr.startTime}</Label>
+                  <Label className="text-gray-200 text-sm">{tr.startTime}</Label>
                   <Input
                     type="time"
                     value={startTime}
@@ -1417,7 +1417,7 @@ export default function LiverRecord() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-gray-400 text-sm">{tr.endTime}</Label>
+                  <Label className="text-gray-200 text-sm">{tr.endTime}</Label>
                   <Input
                     type="time"
                     value={endTime}
@@ -1429,9 +1429,9 @@ export default function LiverRecord() {
               
               {/* End Date (日付をまたぐ配信用) */}
               <div className="space-y-2">
-                <Label className="text-gray-400 text-sm flex items-center gap-2">
+                <Label className="text-gray-200 text-sm flex items-center gap-2">
                   {tr.endDate}
-                  <span className="text-xs text-gray-500">(日付をまたぐ場合のみ)</span>
+                  <span className="text-xs text-gray-300">(日付をまたぐ場合のみ)</span>
                 </Label>
                 <Input
                   type="date"
@@ -1449,7 +1449,7 @@ export default function LiverRecord() {
               
               {/* Result */}
               <div className="space-y-2">
-                <Label className="text-gray-400 text-sm">{tr.deliveryResult}</Label>
+                <Label className="text-gray-200 text-sm">{tr.deliveryResult}</Label>
                 <Select 
                   value={result || "none"} 
                   onValueChange={(v) => setResult(v === "none" ? "" : v as "成功" | "失敗")}
@@ -1467,7 +1467,7 @@ export default function LiverRecord() {
               
               {/* Impact Factor */}
               <div className="space-y-2">
-                <Label className="text-gray-400 text-sm">{tr.impactFactor}</Label>
+                <Label className="text-gray-200 text-sm">{tr.impactFactor}</Label>
                 <Select 
                   value={impactFactor || "none"} 
                   onValueChange={(v) => setImpactFactor(v === "none" ? "" : v as "構成" | "商品" | "ライバー" | "広告" | "その他")}
@@ -1488,7 +1488,7 @@ export default function LiverRecord() {
               
               {/* Reason */}
               <div className="space-y-2">
-                <Label className="text-gray-400 text-sm">{tr.reason}</Label>
+                <Label className="text-gray-200 text-sm">{tr.reason}</Label>
                 <Textarea
                   value={resultReason}
                   onChange={(e) => setResultReason(e.target.value)}
@@ -1499,7 +1499,7 @@ export default function LiverRecord() {
               
               {/* Memo */}
               <div className="space-y-2">
-                <Label className="text-gray-400 text-sm">{tr.memo}</Label>
+                <Label className="text-gray-200 text-sm">{tr.memo}</Label>
                 <Textarea
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}

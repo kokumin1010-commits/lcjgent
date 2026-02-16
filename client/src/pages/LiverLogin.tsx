@@ -114,7 +114,7 @@ export default function LiverLogin() {
       <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-purple-50 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-pink-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-500">認証確認中...</p>
+          <p className="text-gray-300">認証確認中...</p>
         </div>
       </div>
     );
@@ -129,7 +129,7 @@ export default function LiverLogin() {
             variant="ghost"
             size="icon"
             onClick={() => navigate("/s")}
-            className="text-gray-500"
+            className="text-gray-300"
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -139,7 +139,7 @@ export default function LiverLogin() {
             </div>
             <div>
               <h1 className="font-bold text-gray-800">LCJスケジュール</h1>
-              <p className="text-xs text-gray-500">ログイン</p>
+              <p className="text-xs text-gray-300">ログイン</p>
             </div>
           </div>
         </div>
@@ -207,14 +207,14 @@ export default function LiverLogin() {
             <div className="mt-4 text-center">
               <Link
                 href="/liver/forgot-password"
-                className="text-sm text-gray-500 hover:text-pink-500"
+                className="text-sm text-gray-300 hover:text-pink-500"
               >
                 パスワードをお忘れの方
               </Link>
             </div>
 
             <div className="mt-4 text-center">
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-300">
                 アカウントをお持ちでない方は
               </p>
               <Link

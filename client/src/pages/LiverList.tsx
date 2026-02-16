@@ -113,9 +113,9 @@ export default function LiverList() {
   
   const getRankIcon = (rank: number) => {
     if (rank === 1) return <Crown className="w-5 h-5 text-yellow-500" />;
-    if (rank === 2) return <Crown className="w-5 h-5 text-gray-400" />;
+    if (rank === 2) return <Crown className="w-5 h-5 text-gray-200" />;
     if (rank === 3) return <Crown className="w-5 h-5 text-amber-700" />;
-    return <span className="w-5 h-5 flex items-center justify-center text-sm font-bold text-gray-500">{rank}</span>;
+    return <span className="w-5 h-5 flex items-center justify-center text-sm font-bold text-gray-300">{rank}</span>;
   };
   
   const salesRankingToShow = showAllSales 
@@ -166,7 +166,7 @@ export default function LiverList() {
         </div>
         
         {/* Month display */}
-        <div className="flex items-center justify-between text-sm text-gray-400">
+        <div className="flex items-center justify-between text-sm text-gray-200">
           <span>{monthOptions.find(m => m.value === selectedMonth)?.label}</span>
           <span>{selectedMonth.replace("-", "年")}月▼</span>
         </div>
@@ -319,7 +319,7 @@ export default function LiverList() {
                                 }}
                               />
                             </div>
-                            <span className="text-xs text-gray-500">{tr.sales}</span>
+                            <span className="text-xs text-gray-300">{tr.sales}</span>
                           </div>
                           <div>
                             <span className="text-blue-400">
@@ -333,7 +333,7 @@ export default function LiverList() {
                                 }}
                               />
                             </div>
-                            <span className="text-xs text-gray-500">{tr.duration}</span>
+                            <span className="text-xs text-gray-300">{tr.duration}</span>
                           </div>
                         </div>
                       </div>
@@ -342,7 +342,7 @@ export default function LiverList() {
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500 text-center py-4">{tr.noData}</p>
+              <p className="text-gray-300 text-center py-4">{tr.noData}</p>
             )}
             
             {rankings?.salesRanking && rankings.salesRanking.length > 5 && (
@@ -396,12 +396,12 @@ export default function LiverList() {
                         <div className="flex items-center gap-1">
                           <Users className="w-3.5 h-3.5 text-purple-400" />
                           <span className="text-purple-400 font-bold">{item.totalReferrals}人</span>
-                          <span className="text-xs text-gray-500">紹介</span>
+                          <span className="text-xs text-gray-300">紹介</span>
                         </div>
                         <div className="flex items-center gap-1">
                           <Gift className="w-3.5 h-3.5 text-pink-400" />
                           <span className="text-pink-400">{item.totalPointsEarned.toLocaleString()}pt</span>
-                          <span className="text-xs text-gray-500">獲得</span>
+                          <span className="text-xs text-gray-300">獲得</span>
                         </div>
                       </div>
                       {/* Progress bar */}
@@ -459,7 +459,7 @@ export default function LiverList() {
                       </Avatar>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium truncate text-white">{liver.name}</p>
-                        <p className="text-xs text-gray-400">
+                        <p className="text-xs text-gray-200">
                           {liver.livestreamCount > 0 ? `${liver.livestreamCount}回配信` : "配信なし"}
                         </p>
                       </div>
@@ -468,7 +468,7 @@ export default function LiverList() {
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500 text-center py-4">{tr.noData}</p>
+              <p className="text-gray-300 text-center py-4">{tr.noData}</p>
             )}
           </CardContent>
         </Card>
@@ -511,7 +511,7 @@ export default function LiverList() {
                                 }}
                               />
                             </div>
-                            <span className="text-xs text-gray-500">{tr.sales}</span>
+                            <span className="text-xs text-gray-300">{tr.sales}</span>
                           </div>
                           <div>
                             <span className="text-blue-400 font-bold">
@@ -525,7 +525,7 @@ export default function LiverList() {
                                 }}
                               />
                             </div>
-                            <span className="text-xs text-gray-500">{tr.duration}</span>
+                            <span className="text-xs text-gray-300">{tr.duration}</span>
                           </div>
                         </div>
                       </div>
@@ -534,7 +534,7 @@ export default function LiverList() {
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500 text-center py-4">{tr.noData}</p>
+              <p className="text-gray-300 text-center py-4">{tr.noData}</p>
             )}
             
             {rankings?.durationRanking && rankings.durationRanking.length > 5 && (

@@ -34,7 +34,7 @@ export default function LiverForgotPassword() {
               variant="ghost"
               size="icon"
               onClick={() => navigate("/liver/login")}
-              className="text-gray-500"
+              className="text-gray-300"
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
@@ -44,7 +44,7 @@ export default function LiverForgotPassword() {
               </div>
               <div>
                 <h1 className="font-bold text-gray-800">LCJスケジュール</h1>
-                <p className="text-xs text-gray-500">パスワードリセット</p>
+                <p className="text-xs text-gray-300">パスワードリセット</p>
               </div>
             </div>
           </div>
@@ -88,7 +88,7 @@ export default function LiverForgotPassword() {
             variant="ghost"
             size="icon"
             onClick={() => navigate("/liver/login")}
-            className="text-gray-500"
+            className="text-gray-300"
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -98,7 +98,7 @@ export default function LiverForgotPassword() {
             </div>
             <div>
               <h1 className="font-bold text-gray-800">LCJスケジュール</h1>
-              <p className="text-xs text-gray-500">パスワードリセット</p>
+              <p className="text-xs text-gray-300">パスワードリセット</p>
             </div>
           </div>
         </div>

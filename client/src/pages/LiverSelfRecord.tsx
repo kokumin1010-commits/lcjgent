@@ -630,13 +630,13 @@ export default function LiverSelfRecord() {
             variant="ghost"
             size="icon"
             onClick={() => navigate("/liver/mypage")}
-            className="text-gray-400 hover:text-white"
+            className="text-gray-200 hover:text-white"
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
             <h1 className="text-xl font-bold text-yellow-500">{tr.title}</h1>
-            <p className="text-xs text-gray-400">{tr.subtitle}</p>
+            <p className="text-xs text-gray-200">{tr.subtitle}</p>
           </div>
         </div>
       </header>
@@ -654,7 +654,7 @@ export default function LiverSelfRecord() {
                 <div>
                   <p className="text-sm text-yellow-500 font-medium">{tr.scheduleLink}</p>
                   <p className="text-white">{scheduleInfo.title}</p>
-                  <p className="text-sm text-gray-400">
+                  <p className="text-sm text-gray-200">
                     {new Date(scheduleInfo.startTime).toLocaleString("ja-JP")}
                   </p>
                 </div>
@@ -672,7 +672,7 @@ export default function LiverSelfRecord() {
                 <CardTitle className="text-xs text-orange-400 flex items-center gap-1">
                   <Camera className="w-3 h-3" />
                   {tr.beforeScreenshot}
-                  <span className="text-gray-500 text-[10px] ml-1">({tr.optional})</span>
+                  <span className="text-gray-300 text-[10px] ml-1">({tr.optional})</span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
@@ -698,7 +698,7 @@ export default function LiverSelfRecord() {
                         <Camera className="w-5 h-5 text-white" />
                       </div>
                       <span className="text-white text-xs font-medium text-center px-2">{tr.tapToUploadBefore}</span>
-                      <span className="text-[10px] text-gray-500 mt-1">{tr.beforeScreenshotHint}</span>
+                      <span className="text-[10px] text-gray-300 mt-1">{tr.beforeScreenshotHint}</span>
                     </div>
                     <input
                       type="file"
@@ -749,7 +749,7 @@ export default function LiverSelfRecord() {
                         <Camera className="w-5 h-5 text-white" />
                       </div>
                       <span className="text-white text-xs font-medium text-center px-2">{tr.tapToUpload}</span>
-                      <span className="text-[10px] text-gray-500 mt-1">{tr.afterScreenshotHint}</span>
+                      <span className="text-[10px] text-gray-300 mt-1">{tr.afterScreenshotHint}</span>
                     </div>
                     <input
                       type="file"
@@ -836,17 +836,17 @@ export default function LiverSelfRecord() {
                     </Button>
                   </div>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">{tr.editableHint}</p>
+                <p className="text-xs text-gray-300 mt-1">{tr.editableHint}</p>
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Sales Amount */}
                 <div className="space-y-2">
-                  <Label className="text-gray-400 text-sm flex items-center gap-2">
+                  <Label className="text-gray-200 text-sm flex items-center gap-2">
                     <DollarSign className="h-4 w-4 text-green-500" />
                     {tr.salesAmount}
                   </Label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">¥</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-200">¥</span>
                     <Input
                       type="number"
                       value={formData.salesAmount}
@@ -860,7 +860,7 @@ export default function LiverSelfRecord() {
                 {/* Viewer Count & Peak Viewer Count */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-gray-400 text-sm flex items-center gap-2">
+                    <Label className="text-gray-200 text-sm flex items-center gap-2">
                       <Users className="h-4 w-4 text-blue-500" />
                       {tr.viewerCount}
                     </Label>
@@ -873,7 +873,7 @@ export default function LiverSelfRecord() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-gray-400 text-sm flex items-center gap-2">
+                    <Label className="text-gray-200 text-sm flex items-center gap-2">
                       <Users className="h-4 w-4 text-cyan-500" />
                       {tr.peakViewerCount}
                     </Label>
@@ -889,7 +889,7 @@ export default function LiverSelfRecord() {
 
                 {/* Duration */}
                 <div className="space-y-2">
-                  <Label className="text-gray-400 text-sm flex items-center gap-2">
+                  <Label className="text-gray-200 text-sm flex items-center gap-2">
                     <Clock className="h-4 w-4 text-orange-500" />
                     {tr.durationMinutes}
                   </Label>
@@ -901,14 +901,14 @@ export default function LiverSelfRecord() {
                       placeholder="0"
                       className="bg-gray-800 border-gray-700 text-white pr-12"
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">{tr.minutes}</span>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-200">{tr.minutes}</span>
                   </div>
                 </div>
 
                 {/* Product Clicks & Order Count */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-gray-400 text-sm flex items-center gap-2">
+                    <Label className="text-gray-200 text-sm flex items-center gap-2">
                       <MousePointer className="h-4 w-4 text-yellow-500" />
                       {tr.productClicks}
                     </Label>
@@ -921,7 +921,7 @@ export default function LiverSelfRecord() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-gray-400 text-sm flex items-center gap-2">
+                    <Label className="text-gray-200 text-sm flex items-center gap-2">
                       <ShoppingCart className="h-4 w-4 text-pink-500" />
                       {tr.orderCount}
                     </Label>
@@ -945,7 +945,7 @@ export default function LiverSelfRecord() {
             <CardContent className="space-y-4">
               {/* Brand Selection */}
               <div className="space-y-2">
-                <Label className="text-gray-400 text-sm flex items-center gap-2">
+                <Label className="text-gray-200 text-sm flex items-center gap-2">
                   <Video className="h-4 w-4 text-red-500" />
                   {tr.selectBrand} <span className="text-red-500">*</span>
                 </Label>
@@ -967,7 +967,7 @@ export default function LiverSelfRecord() {
                     <Command className="bg-gray-900">
                       <CommandInput placeholder="ブランド名を検索..." className="text-white" />
                       <CommandList className="max-h-60">
-                        <CommandEmpty className="text-gray-400 py-4 text-center text-sm">ブランドが見つかりません</CommandEmpty>
+                        <CommandEmpty className="text-gray-200 py-4 text-center text-sm">ブランドが見つかりません</CommandEmpty>
                         <CommandGroup>
                           {brands?.map((brand: { id: number; name: string }) => (
                             <CommandItem
@@ -994,7 +994,7 @@ export default function LiverSelfRecord() {
 
               {/* Date & Time */}
               <div className="space-y-2">
-                <Label className="text-gray-400 text-sm flex items-center gap-2">
+                <Label className="text-gray-200 text-sm flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-red-500" />
                   {tr.livestreamDate} <span className="text-red-500">*</span>
                 </Label>
@@ -1008,7 +1008,7 @@ export default function LiverSelfRecord() {
               
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-gray-400 text-sm">{tr.startTime}</Label>
+                  <Label className="text-gray-200 text-sm">{tr.startTime}</Label>
                   <Input
                     type="time"
                     value={formData.livestreamStartTime}
@@ -1017,7 +1017,7 @@ export default function LiverSelfRecord() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-gray-400 text-sm">{tr.endTime}</Label>
+                  <Label className="text-gray-200 text-sm">{tr.endTime}</Label>
                   <Input
                     type="time"
                     value={formData.livestreamEndTime}
@@ -1029,9 +1029,9 @@ export default function LiverSelfRecord() {
 
               {/* End Date (日付をまたぐ配信用) */}
               <div className="space-y-2">
-                <Label className="text-gray-400 text-sm flex items-center gap-2">
+                <Label className="text-gray-200 text-sm flex items-center gap-2">
                   {tr.endDate}
-                  <span className="text-xs text-gray-500">{tr.endDateHint}</span>
+                  <span className="text-xs text-gray-300">{tr.endDateHint}</span>
                 </Label>
                 <Input
                   type="date"
@@ -1050,7 +1050,7 @@ export default function LiverSelfRecord() {
               {/* セット組みセクション */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <Label className="text-gray-400 text-sm flex items-center gap-2">
+                  <Label className="text-gray-200 text-sm flex items-center gap-2">
                     <Package className="h-4 w-4 text-purple-500" />
                     セット組み（任意）
                   </Label>
@@ -1066,7 +1066,7 @@ export default function LiverSelfRecord() {
                   </Button>
                 </div>
 
-                <p className="text-xs text-gray-500 -mt-1">※ セット売上は配信全体の売上の内訳参考です。売上金額には加算されません。</p>
+                <p className="text-xs text-gray-300 -mt-1">※ セット売上は配信全体の売上の内訳参考です。売上金額には加算されません。</p>
 
                 {sets.map((set, setIndex) => {
                   const totalOriginalPrice = set.items.reduce((sum, item) => sum + (parseInt(item.originalPrice) || 0), 0);
@@ -1106,7 +1106,7 @@ export default function LiverSelfRecord() {
                         {/* 売値と販売数量 */}
                         <div className="grid grid-cols-2 gap-2">
                           <div>
-                            <Label className="text-gray-500 text-xs">売値（円）</Label>
+                            <Label className="text-gray-300 text-xs">売値（円）</Label>
                             <Input
                               type="number"
                               placeholder="5000"
@@ -1120,7 +1120,7 @@ export default function LiverSelfRecord() {
                             />
                           </div>
                           <div>
-                            <Label className="text-gray-500 text-xs">販売数量</Label>
+                            <Label className="text-gray-300 text-xs">販売数量</Label>
                             <Input
                               type="number"
                               placeholder="1"
@@ -1138,7 +1138,7 @@ export default function LiverSelfRecord() {
                         {/* セット内商品 */}
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
-                            <Label className="text-gray-500 text-xs flex items-center gap-1">
+                            <Label className="text-gray-300 text-xs flex items-center gap-1">
                               <Tag className="h-3 w-3" />
                               セット内商品
                             </Label>
@@ -1151,7 +1151,7 @@ export default function LiverSelfRecord() {
                                 newSets[setIndex].items.push({ productName: '', originalPrice: '' });
                                 setSets(newSets);
                               }}
-                              className="text-gray-400 hover:text-white text-xs h-6 px-2"
+                              className="text-gray-200 hover:text-white text-xs h-6 px-2"
                             >
                               <Plus className="h-3 w-3 mr-1" />
                               商品追加
@@ -1204,17 +1204,17 @@ export default function LiverSelfRecord() {
                         {setPrice > 0 && totalOriginalPrice > 0 && (
                           <div className="bg-gray-800/50 rounded-lg p-2 space-y-1">
                             <div className="flex justify-between text-xs">
-                              <span className="text-gray-400">元値合計</span>
+                              <span className="text-gray-200">元値合計</span>
                               <span className="text-white">¥{Number(totalOriginalPrice).toLocaleString()}</span>
                             </div>
                             <div className="flex justify-between text-xs">
-                              <span className="text-gray-400">お得率</span>
+                              <span className="text-gray-200">お得率</span>
                               <span className={discountRate > 0 ? "text-green-400 font-medium" : "text-white"}>
                                 {discountRate > 0 ? `${discountRate}% OFF` : '-'}
                               </span>
                             </div>
                             <div className="flex justify-between text-xs">
-                              <span className="text-gray-400">セット売上合計</span>
+                              <span className="text-gray-200">セット売上合計</span>
                               <span className="text-yellow-400 font-medium">¥{Number(totalRevenue).toLocaleString()}</span>
                             </div>
                           </div>
@@ -1227,7 +1227,7 @@ export default function LiverSelfRecord() {
 
               {/* Result */}
               <div className="space-y-2">
-                <Label className="text-gray-400 text-sm flex items-center gap-2">
+                <Label className="text-gray-200 text-sm flex items-center gap-2">
                   <Clock className="h-4 w-4 text-red-500" />
                   {tr.result}
                 </Label>
@@ -1248,7 +1248,7 @@ export default function LiverSelfRecord() {
 
               {/* Impact Factor */}
               <div className="space-y-2">
-                <Label className="text-gray-400 text-sm">{tr.impactFactor}</Label>
+                <Label className="text-gray-200 text-sm">{tr.impactFactor}</Label>
                 <Select
                   value={formData.impactFactor || "none"}
                   onValueChange={(value) => setFormData({ ...formData, impactFactor: value === "none" ? "" : value })}
@@ -1269,7 +1269,7 @@ export default function LiverSelfRecord() {
 
               {/* Reason Memo */}
               <div className="space-y-2">
-                <Label className="text-gray-400 text-sm">{tr.reasonMemo}</Label>
+                <Label className="text-gray-200 text-sm">{tr.reasonMemo}</Label>
                 <Textarea
                   value={formData.resultReason}
                   onChange={(e) => setFormData({ ...formData, resultReason: e.target.value })}
@@ -1280,7 +1280,7 @@ export default function LiverSelfRecord() {
 
               {/* Other Memo */}
               <div className="space-y-2">
-                <Label className="text-gray-400 text-sm">{tr.otherMemo}</Label>
+                <Label className="text-gray-200 text-sm">{tr.otherMemo}</Label>
                 <Textarea
                   value={formData.remarks}
                   onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
@@ -1337,7 +1337,7 @@ export default function LiverSelfRecord() {
                 <CheckCircle className="w-5 h-5" />
                 {tr.confirmTitle}
               </DialogTitle>
-              <DialogDescription className="text-gray-400">
+              <DialogDescription className="text-gray-200">
                 {tr.confirmDescription}
               </DialogDescription>
             </DialogHeader>
@@ -1345,7 +1345,7 @@ export default function LiverSelfRecord() {
             <div className="space-y-4 py-4">
               {/* Brand */}
               <div className="flex justify-between items-center py-2 border-b border-gray-700">
-                <span className="text-gray-400">{tr.selectBrand}</span>
+                <span className="text-gray-200">{tr.selectBrand}</span>
                 <span className="text-white font-medium">
                   {brands?.find(b => b.id.toString() === formData.brandId)?.name || tr.notSet}
                 </span>
@@ -1353,20 +1353,20 @@ export default function LiverSelfRecord() {
               
               {/* Date & Time */}
               <div className="flex justify-between items-center py-2 border-b border-gray-700">
-                <span className="text-gray-400">{tr.livestreamDate}</span>
+                <span className="text-gray-200">{tr.livestreamDate}</span>
                 <span className="text-white font-medium">
                   {formData.livestreamDate || tr.notSet}
                 </span>
               </div>
               <div className="flex justify-between items-center py-2 border-b border-gray-700">
-                <span className="text-gray-400">{tr.startTime}</span>
+                <span className="text-gray-200">{tr.startTime}</span>
                 <span className="text-white font-medium">
                   {formData.livestreamStartTime || tr.notSet}
                 </span>
               </div>
               {formData.livestreamEndTime && (
                 <div className="flex justify-between items-center py-2 border-b border-gray-700">
-                  <span className="text-gray-400">{tr.endTime}</span>
+                  <span className="text-gray-200">{tr.endTime}</span>
                   <span className="text-white font-medium">
                     {formData.livestreamEndTime}
                   </span>
@@ -1376,7 +1376,7 @@ export default function LiverSelfRecord() {
               {/* AI Analysis Data */}
               {formData.salesAmount && (
                 <div className="flex justify-between items-center py-2 border-b border-gray-700">
-                  <span className="text-gray-400 flex items-center gap-2">
+                  <span className="text-gray-200 flex items-center gap-2">
                     <DollarSign className="w-4 h-4 text-green-500" />
                     {tr.salesAmount}
                   </span>
@@ -1387,7 +1387,7 @@ export default function LiverSelfRecord() {
               )}
               {formData.viewerCount && (
                 <div className="flex justify-between items-center py-2 border-b border-gray-700">
-                  <span className="text-gray-400 flex items-center gap-2">
+                  <span className="text-gray-200 flex items-center gap-2">
                     <Users className="w-4 h-4 text-blue-500" />
                     {tr.viewerCount}
                   </span>
@@ -1398,7 +1398,7 @@ export default function LiverSelfRecord() {
               )}
               {formData.peakViewerCount && (
                 <div className="flex justify-between items-center py-2 border-b border-gray-700">
-                  <span className="text-gray-400 flex items-center gap-2">
+                  <span className="text-gray-200 flex items-center gap-2">
                     <Users className="w-4 h-4 text-cyan-500" />
                     {tr.peakViewerCount}
                   </span>
@@ -1409,7 +1409,7 @@ export default function LiverSelfRecord() {
               )}
               {formData.durationMinutes && (
                 <div className="flex justify-between items-center py-2 border-b border-gray-700">
-                  <span className="text-gray-400 flex items-center gap-2">
+                  <span className="text-gray-200 flex items-center gap-2">
                     <Clock className="w-4 h-4 text-orange-500" />
                     {tr.durationMinutes}
                   </span>
@@ -1420,7 +1420,7 @@ export default function LiverSelfRecord() {
               )}
               {formData.productClicks && (
                 <div className="flex justify-between items-center py-2 border-b border-gray-700">
-                  <span className="text-gray-400 flex items-center gap-2">
+                  <span className="text-gray-200 flex items-center gap-2">
                     <MousePointer className="w-4 h-4 text-yellow-500" />
                     {tr.productClicks}
                   </span>
@@ -1431,7 +1431,7 @@ export default function LiverSelfRecord() {
               )}
               {formData.orderCount && (
                 <div className="flex justify-between items-center py-2 border-b border-gray-700">
-                  <span className="text-gray-400 flex items-center gap-2">
+                  <span className="text-gray-200 flex items-center gap-2">
                     <ShoppingCart className="w-4 h-4 text-pink-500" />
                     {tr.orderCount}
                   </span>
@@ -1444,7 +1444,7 @@ export default function LiverSelfRecord() {
               {/* Result */}
               {formData.result && (
                 <div className="flex justify-between items-center py-2 border-b border-gray-700">
-                  <span className="text-gray-400">{tr.result}</span>
+                  <span className="text-gray-200">{tr.result}</span>
                   <span className={`font-medium ${formData.result === '成功' ? 'text-green-400' : 'text-red-400'}`}>
                     {formData.result}
                   </span>
@@ -1454,7 +1454,7 @@ export default function LiverSelfRecord() {
               {/* Impact Factor */}
               {formData.impactFactor && (
                 <div className="flex justify-between items-center py-2 border-b border-gray-700">
-                  <span className="text-gray-400">{tr.impactFactor}</span>
+                  <span className="text-gray-200">{tr.impactFactor}</span>
                   <span className="text-white font-medium">
                     {formData.impactFactor}
                   </span>
@@ -1464,7 +1464,7 @@ export default function LiverSelfRecord() {
               {/* Reason Memo */}
               {formData.resultReason && (
                 <div className="py-2 border-b border-gray-700">
-                  <span className="text-gray-400 block mb-1">{tr.reasonMemo}</span>
+                  <span className="text-gray-200 block mb-1">{tr.reasonMemo}</span>
                   <p className="text-white text-sm bg-gray-800 p-2 rounded">
                     {formData.resultReason}
                   </p>

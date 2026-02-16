@@ -212,7 +212,7 @@ export default function LiverRegister() {
             variant="ghost"
             size="icon"
             onClick={() => navigate("/s")}
-            className="text-gray-500"
+            className="text-gray-300"
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -222,7 +222,7 @@ export default function LiverRegister() {
             </div>
             <div>
               <h1 className="font-bold text-gray-800">LCJスケジュール</h1>
-              <p className="text-xs text-gray-500">新規登録</p>
+              <p className="text-xs text-gray-300">新規登録</p>
             </div>
           </div>
         </div>
