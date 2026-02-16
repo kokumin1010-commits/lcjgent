@@ -294,59 +294,64 @@ export default function MallHome() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* 友達招待チャレンジ ポップアップ */}
+      {/* 友達招待チャレンジ ポップアップ - Temu風 */}
       <Dialog open={showReferralPopup} onOpenChange={setShowReferralPopup}>
         <DialogContent className="sm:max-w-md p-0 border-0 rounded-3xl overflow-hidden bg-transparent shadow-2xl [&>button]:hidden">
           <div className="relative">
-            {/* 背景グラデーション */}
-            <div className="bg-gradient-to-br from-pink-400 via-rose-400 to-purple-500 p-6 pb-8 text-center relative overflow-hidden">
+            {/* ダーク背景 + 赤×金 */}
+            <div className="p-6 pb-8 text-center relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #b91c1c 0%, #dc2626 30%, #ef4444 50%, #dc2626 70%, #b91c1c 100%)' }}>
               {/* キラキラエフェクト */}
               <div className="absolute top-3 left-6 text-2xl animate-bounce" style={{ animationDelay: '0s' }}>✨</div>
               <div className="absolute top-8 right-8 text-xl animate-bounce" style={{ animationDelay: '0.3s' }}>🌟</div>
-              <div className="absolute bottom-4 left-10 text-lg animate-bounce" style={{ animationDelay: '0.6s' }}>🎀</div>
-              <div className="absolute bottom-6 right-12 text-2xl animate-bounce" style={{ animationDelay: '0.9s' }}>🌸</div>
-              <div className="absolute top-12 left-1/2 text-sm animate-ping opacity-60">⭐</div>
+              <div className="absolute bottom-4 left-10 text-lg animate-bounce" style={{ animationDelay: '0.6s' }}>💫</div>
+              <div className="absolute bottom-6 right-12 text-2xl animate-bounce" style={{ animationDelay: '0.9s' }}>⭐</div>
+              <div className="absolute top-12 left-1/2 text-sm animate-ping opacity-60">🪙</div>
               
               {/* メインアイコン */}
               <div className="relative z-10">
-                <div className="h-20 w-20 mx-auto mb-3 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg border-2 border-white/30">
+                <div className="h-20 w-20 mx-auto mb-3 rounded-full flex items-center justify-center shadow-lg" style={{ background: 'linear-gradient(135deg, #fbbf24, #f59e0b)', border: '3px solid #fde68a', boxShadow: '0 0 20px rgba(251,191,36,0.4)' }}>
                   <span className="text-5xl">🎰</span>
                 </div>
-                <h2 className="text-2xl font-extrabold text-white mb-1 drop-shadow-md">
+                <h2 className="text-2xl font-black text-white mb-1" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
                   友達招待チャレンジ
                 </h2>
-                <p className="text-pink-100 text-sm font-medium">期間限定キャンペーン実施中！</p>
+                <p className="text-yellow-200 text-sm font-bold">友達を招待して最大</p>
+                <div className="my-1">
+                  <span className="text-4xl font-black" style={{ background: 'linear-gradient(180deg, #ffd700 0%, #ffaa00 50%, #ff8c00 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.5))' }}>5,000</span>
+                  <span className="text-xl font-black text-yellow-300 ml-1" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>pt</span>
+                </div>
+                <p className="text-yellow-200 text-sm font-bold">GET！🎉</p>
               </div>
             </div>
             
-            {/* コンテンツ */}
-            <div className="bg-white px-6 py-5 text-center">
+            {/* コンテンツ - ダーク */}
+            <div className="px-6 py-5 text-center" style={{ background: '#1a0000' }}>
               <div className="space-y-3 mb-5">
-                <div className="flex items-center gap-3 bg-gradient-to-r from-pink-50 to-rose-50 rounded-xl p-3">
-                  <div className="h-10 w-10 bg-pink-100 rounded-full flex items-center justify-center shrink-0">
+                <div className="flex items-center gap-3 rounded-xl p-3" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                  <div className="h-10 w-10 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(251,191,36,0.15)' }}>
                     <span className="text-lg">🎁</span>
                   </div>
                   <div className="text-left">
-                    <p className="text-sm font-bold text-gray-800">友達を招待するたびに</p>
-                    <p className="text-xs text-pink-600 font-medium">確定ポイント + ルーレットボーナス！</p>
+                    <p className="text-sm font-bold text-white">友達を招待するたびに</p>
+                    <p className="text-xs text-yellow-400 font-medium">確定ポイント + ルーレットボーナス！</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-3">
-                  <div className="h-10 w-10 bg-purple-100 rounded-full flex items-center justify-center shrink-0">
+                <div className="flex items-center gap-3 rounded-xl p-3" style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.15)' }}>
+                  <div className="h-10 w-10 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(251,191,36,0.15)' }}>
                     <span className="text-lg">🏆</span>
                   </div>
                   <div className="text-left">
-                    <p className="text-sm font-bold text-gray-800">ステージが上がるほど</p>
-                    <p className="text-xs text-purple-600 font-medium">報酬がどんどんアップ！最大1,000pt✨</p>
+                    <p className="text-sm font-bold text-white">ステージが上がるほど</p>
+                    <p className="text-xs text-yellow-400 font-medium">報酬がどんどんアップ！最大1,000pt✨</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 bg-gradient-to-r from-amber-50 to-yellow-50 rounded-xl p-3">
-                  <div className="h-10 w-10 bg-amber-100 rounded-full flex items-center justify-center shrink-0">
+                <div className="flex items-center gap-3 rounded-xl p-3" style={{ background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.15)' }}>
+                  <div className="h-10 w-10 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(168,85,247,0.15)' }}>
                     <span className="text-lg">💖</span>
                   </div>
                   <div className="text-left">
-                    <p className="text-sm font-bold text-gray-800">招待された友達にも</p>
-                    <p className="text-xs text-amber-600 font-medium">50ptプレゼント！みんなハッピー🌸</p>
+                    <p className="text-sm font-bold text-white">招待された友達にも</p>
+                    <p className="text-xs text-purple-400 font-medium">50ptプレゼント！みんなハッピー🎉</p>
                   </div>
                 </div>
               </div>
@@ -354,14 +359,15 @@ export default function MallHome() {
               {/* CTAボタン */}
               <Button
                 onClick={handlePopupAction}
-                className="w-full bg-gradient-to-r from-pink-500 via-rose-500 to-purple-500 hover:from-pink-600 hover:via-rose-600 hover:to-purple-600 text-white font-bold text-base py-6 rounded-2xl shadow-lg shadow-pink-200/50 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                className="w-full text-white font-black text-base py-6 rounded-2xl transition-all hover:scale-[1.02] active:scale-[0.98]"
+                style={{ background: 'linear-gradient(135deg, #ef4444, #f97316)', boxShadow: '0 4px 20px rgba(239,68,68,0.4)' }}
               >
-                <span className="mr-2">🎉</span> チャレンジに参加する！
+                <span className="mr-2">🎰</span> チャレンジに参加する！
               </Button>
               
               <button
                 onClick={() => setShowReferralPopup(false)}
-                className="mt-3 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                className="mt-3 text-xs text-gray-500 hover:text-gray-400 transition-colors"
               >
                 あとで見る
               </button>
@@ -594,24 +600,27 @@ export default function MallHome() {
         </div>
       </section>
 
-      {/* 友達招待チャレンジバナー */}
+      {/* 友達招待チャレンジバナー - Temu風 */}
       <section className="py-8 md:py-12 px-4">
         <div className="container mx-auto max-w-4xl">
           <div
             onClick={() => setLocation("/friend-challenge")}
-            className="bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 rounded-2xl p-5 md:p-8 text-white cursor-pointer hover:shadow-xl transition-all relative overflow-hidden group"
+            className="rounded-2xl p-5 md:p-8 text-white cursor-pointer hover:shadow-xl transition-all relative overflow-hidden group"
+            style={{ background: 'linear-gradient(135deg, #b91c1c, #dc2626, #ef4444, #dc2626, #b91c1c)', border: '2px solid #fbbf24', boxShadow: '0 0 30px rgba(255,180,0,0.15)' }}
           >
-            <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -translate-y-12 translate-x-12 group-hover:scale-110 transition-transform" />
-            <div className="absolute bottom-0 left-0 w-28 h-28 bg-white/10 rounded-full translate-y-8 -translate-x-8 group-hover:scale-110 transition-transform" />
+            <div className="absolute top-2 left-4 text-xl animate-bounce">✨</div>
+            <div className="absolute top-3 right-6 text-lg animate-bounce" style={{ animationDelay: '0.3s' }}>⭐</div>
+            <div className="absolute bottom-3 left-8 text-sm animate-bounce" style={{ animationDelay: '0.6s' }}>💫</div>
+            <div className="absolute bottom-2 right-4 text-xl animate-bounce" style={{ animationDelay: '0.9s' }}>🌟</div>
             <div className="relative z-10 flex items-center gap-4">
-              <div className="h-14 w-14 md:h-16 md:w-16 bg-white/20 rounded-full flex items-center justify-center shrink-0">
+              <div className="h-14 w-14 md:h-16 md:w-16 rounded-full flex items-center justify-center shrink-0" style={{ background: 'linear-gradient(135deg, #fbbf24, #f59e0b)', border: '2px solid #fde68a', boxShadow: '0 0 15px rgba(251,191,36,0.3)' }}>
                 <span className="text-3xl md:text-4xl">🎰</span>
               </div>
               <div className="flex-1">
-                <h3 className="text-xl md:text-2xl font-bold mb-1">友達招待チャレンジ 🎉</h3>
-                <p className="text-pink-100 text-sm md:text-base">友達を招待してルーレットを回そう！ポイントがどんどん貯まる✨</p>
+                <h3 className="text-xl md:text-2xl font-black mb-1" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>友達招待チャレンジ 🎉</h3>
+                <p className="text-yellow-200 text-sm md:text-base font-bold">友達を招待して最大<span className="text-yellow-300 text-lg font-black">5,000pt</span> GET！✨</p>
               </div>
-              <ArrowRight className="h-6 w-6 text-white/80 group-hover:translate-x-1 transition-transform shrink-0" />
+              <ArrowRight className="h-6 w-6 text-yellow-300 group-hover:translate-x-1 transition-transform shrink-0" />
             </div>
           </div>
         </div>

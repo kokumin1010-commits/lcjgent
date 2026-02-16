@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 
 interface SpinItem {
   id: number;
@@ -19,195 +19,130 @@ interface SpinWheelProps {
 
 export default function SpinWheel({ items, onSpinComplete, isSpinning, setIsSpinning, disabled, isSpecial }: SpinWheelProps) {
   const [rotation, setRotation] = useState(0);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const resultItemRef = useRef<SpinItem | null>(null);
+  const wheelSize = 300;
+  const center = wheelSize / 2;
+  const outerR = center - 14;
+  const n = items.length || 8;
+  const sliceAngle = 360 / n;
 
-  const drawWheel = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || items.length === 0) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const size = canvas.width;
-    const center = size / 2;
-    const radius = center - 8;
-    const sliceAngle = (2 * Math.PI) / items.length;
-
-    ctx.clearRect(0, 0, size, size);
-
-    // Outer glow
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(center, center, radius + 6, 0, 2 * Math.PI);
-    const glowGrad = ctx.createRadialGradient(center, center, radius - 4, center, center, radius + 8);
-    glowGrad.addColorStop(0, isSpecial ? "rgba(168,85,247,0.3)" : "rgba(236,72,153,0.3)");
-    glowGrad.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = glowGrad;
-    ctx.fill();
-    ctx.restore();
-
-    // Outer ring
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(center, center, radius + 3, 0, 2 * Math.PI);
-    const ringGrad = ctx.createLinearGradient(0, 0, size, size);
-    if (isSpecial) {
-      ringGrad.addColorStop(0, "#a855f7");
-      ringGrad.addColorStop(0.5, "#ec4899");
-      ringGrad.addColorStop(1, "#a855f7");
-    } else {
-      ringGrad.addColorStop(0, "#ec4899");
-      ringGrad.addColorStop(0.5, "#f472b6");
-      ringGrad.addColorStop(1, "#ec4899");
-    }
-    ctx.strokeStyle = ringGrad;
-    ctx.lineWidth = 5;
-    ctx.stroke();
-    ctx.restore();
-
-    // Draw slices
-    items.forEach((item, i) => {
-      const startAngle = i * sliceAngle - Math.PI / 2;
-      const endAngle = startAngle + sliceAngle;
-
-      ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(center, center);
-      ctx.arc(center, center, radius, startAngle, endAngle);
-      ctx.closePath();
-      ctx.fillStyle = item.color;
-      ctx.fill();
-
-      const grad = ctx.createRadialGradient(center, center, 0, center, center, radius);
-      grad.addColorStop(0, "rgba(255,255,255,0.15)");
-      grad.addColorStop(0.6, "rgba(255,255,255,0)");
-      grad.addColorStop(1, "rgba(0,0,0,0.1)");
-      ctx.fillStyle = grad;
-      ctx.fill();
-      ctx.restore();
-
-      // Divider lines
-      ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(center, center);
-      ctx.lineTo(center + radius * Math.cos(startAngle), center + radius * Math.sin(startAngle));
-      ctx.strokeStyle = "rgba(255,255,255,0.4)";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.restore();
-
-      // Text
-      ctx.save();
-      const textAngle = startAngle + sliceAngle / 2;
-      const textRadius = radius * 0.62;
-      ctx.translate(center + textRadius * Math.cos(textAngle), center + textRadius * Math.sin(textAngle));
-      ctx.rotate(textAngle + Math.PI / 2);
-      ctx.fillStyle = "#fff";
-      ctx.font = `bold ${Math.max(11, Math.floor(radius / 10))}px sans-serif`;
-      ctx.textAlign = "center";
-      ctx.shadowColor = "rgba(0,0,0,0.3)";
-      ctx.shadowBlur = 3;
-      ctx.fillText(item.emoji, 0, -6);
-      ctx.font = `bold ${Math.max(10, Math.floor(radius / 12))}px sans-serif`;
-      ctx.fillText(item.label, 0, 10);
-      ctx.restore();
-    });
-
-    // Center circle
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(center, center, radius * 0.18, 0, 2 * Math.PI);
-    const centerGrad = ctx.createRadialGradient(center, center, 0, center, center, radius * 0.18);
-    centerGrad.addColorStop(0, "#fff");
-    centerGrad.addColorStop(1, "#fce7f3");
-    ctx.fillStyle = centerGrad;
-    ctx.fill();
-    ctx.strokeStyle = isSpecial ? "#a855f7" : "#ec4899";
-    ctx.lineWidth = 3;
-    ctx.stroke();
-    ctx.restore();
-
-    // Decorative dots
-    for (let i = 0; i < 24; i++) {
-      const angle = (i * Math.PI * 2) / 24;
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(center + (radius + 8) * Math.cos(angle), center + (radius + 8) * Math.sin(angle), 3, 0, 2 * Math.PI);
-      ctx.fillStyle = i % 2 === 0 ? (isSpecial ? "#c084fc" : "#f9a8d4") : "#fff";
-      ctx.fill();
-      ctx.restore();
-    }
-  }, [items, isSpecial]);
-
+  const ledCount = 28;
+  const [ledPhase, setLedPhase] = useState(0);
   useEffect(() => {
-    drawWheel();
-  }, [drawWheel]);
+    const id = setInterval(() => setLedPhase((p) => (p + 1) % ledCount), 180);
+    return () => clearInterval(id);
+  }, []);
 
   const spin = useCallback(() => {
     if (isSpinning || disabled || items.length === 0) return;
     setIsSpinning(true);
     const randomIndex = Math.floor(Math.random() * items.length);
     resultItemRef.current = items[randomIndex];
-    const sliceAngle = 360 / items.length;
     const targetSlice = 360 - (randomIndex * sliceAngle + sliceAngle / 2);
-    const extraSpins = 5 + Math.floor(Math.random() * 3);
+    const extraSpins = 6 + Math.floor(Math.random() * 3);
     const newRotation = rotation + extraSpins * 360 + targetSlice;
     setRotation(newRotation);
     setTimeout(() => {
       setIsSpinning(false);
       if (resultItemRef.current) onSpinComplete(resultItemRef.current);
-    }, 4500);
-  }, [isSpinning, disabled, items, rotation, onSpinComplete, setIsSpinning]);
+    }, 5000);
+  }, [isSpinning, disabled, items, rotation, sliceAngle, onSpinComplete, setIsSpinning]);
+
+  const segmentColors = useMemo(() => [
+    "#FF4444", "#FFB800", "#FF6B35", "#FF1493",
+    "#FF4444", "#FFB800", "#FF6B35", "#FF1493",
+  ], []);
 
   return (
     <div className="relative flex flex-col items-center">
-      {/* Pointer */}
-      <div className="absolute -top-1 left-1/2 -translate-x-1/2 z-20">
-        <div className="w-0 h-0" style={{
-          borderLeft: "14px solid transparent",
-          borderRight: "14px solid transparent",
-          borderTop: isSpecial ? "24px solid #a855f7" : "24px solid #ec4899",
-          filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.2))",
-        }} />
-      </div>
+      <div className="relative" style={{ width: wheelSize + 28, height: wheelSize + 28 }}>
+        {Array.from({ length: ledCount }, (_, i) => {
+          const angle = (i / ledCount) * 2 * Math.PI - Math.PI / 2;
+          const r = (wheelSize + 28) / 2;
+          const x = r + r * Math.cos(angle) * 0.94;
+          const y = r + r * Math.sin(angle) * 0.94;
+          const isLit = (i + ledPhase) % 3 === 0;
+          return (
+            <div key={i} className="absolute rounded-full" style={{
+              left: x - 4, top: y - 4, width: 8, height: 8,
+              backgroundColor: isLit ? (isSpecial ? "#c084fc" : "#fbbf24") : "rgba(255,255,255,0.15)",
+              boxShadow: isLit ? `0 0 6px ${isSpecial ? "#c084fc" : "#fbbf24"}` : "none",
+              transition: "all 0.15s",
+            }} />
+          );
+        })}
 
-      {/* Wheel */}
-      <div className="relative" style={{ width: 280, height: 280 }}>
-        <div style={{
-          transform: `rotate(${rotation}deg)`,
-          transition: isSpinning ? "transform 4.5s cubic-bezier(0.17, 0.67, 0.12, 0.99)" : "none",
-          width: 280, height: 280,
-        }}>
-          <canvas ref={canvasRef} width={280} height={280} className="w-full h-full" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20" style={{ top: 2 }}>
+          <div style={{
+            width: 0, height: 0,
+            borderLeft: "14px solid transparent", borderRight: "14px solid transparent",
+            borderTop: `26px solid ${isSpecial ? "#a855f7" : "#ef4444"}`,
+            filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.3))",
+          }} />
         </div>
-        {isSpinning && (
-          <div className="absolute inset-0 pointer-events-none">
-            {[...Array(8)].map((_, i) => (
-              <div key={i} className="absolute animate-ping" style={{
-                left: `${20 + Math.random() * 60}%`,
-                top: `${20 + Math.random() * 60}%`,
-                animationDelay: `${i * 0.2}s`,
-                animationDuration: "1s",
+
+        <div className="absolute" style={{ left: 14, top: 14, width: wheelSize, height: wheelSize }}>
+          <div className="absolute inset-0 rounded-full" style={{
+            background: isSpecial
+              ? "linear-gradient(135deg, #a855f7, #ec4899, #a855f7)"
+              : "linear-gradient(135deg, #fbbf24, #f59e0b, #d97706, #fbbf24)",
+            padding: 5,
+          }}>
+            <div className="w-full h-full rounded-full overflow-hidden">
+              <div style={{
+                width: "100%", height: "100%",
+                transform: `rotate(${rotation}deg)`,
+                transition: isSpinning ? "transform 5s cubic-bezier(0.15, 0.6, 0.08, 1)" : "none",
               }}>
-                <span className="text-yellow-300 text-lg">✨</span>
+                <svg viewBox={`0 0 ${wheelSize} ${wheelSize}`} width="100%" height="100%">
+                  {items.map((item, i) => {
+                    const startAngle = (i * sliceAngle - 90) * (Math.PI / 180);
+                    const endAngle = ((i + 1) * sliceAngle - 90) * (Math.PI / 180);
+                    const x1 = center + outerR * Math.cos(startAngle);
+                    const y1 = center + outerR * Math.sin(startAngle);
+                    const x2 = center + outerR * Math.cos(endAngle);
+                    const y2 = center + outerR * Math.sin(endAngle);
+                    const largeArc = sliceAngle > 180 ? 1 : 0;
+                    const midAngle = ((i + 0.5) * sliceAngle - 90) * (Math.PI / 180);
+                    const textR = outerR * 0.65;
+                    const tx = center + textR * Math.cos(midAngle);
+                    const ty = center + textR * Math.sin(midAngle);
+                    const textRotation = (i + 0.5) * sliceAngle;
+                    const bgColor = item.color || segmentColors[i % segmentColors.length];
+                    return (
+                      <g key={item.id}>
+                        <path d={`M ${center} ${center} L ${x1} ${y1} A ${outerR} ${outerR} 0 ${largeArc} 1 ${x2} ${y2} Z`}
+                          fill={bgColor} stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" />
+                        <g transform={`translate(${tx}, ${ty}) rotate(${textRotation})`}>
+                          <text textAnchor="middle" dy="-6" fill="white" fontSize="20" fontWeight="bold"
+                            style={{ textShadow: "0 2px 4px rgba(0,0,0,0.5)" } as React.CSSProperties}>{item.emoji}</text>
+                          <text textAnchor="middle" dy="12" fill="white" fontSize="10" fontWeight="bold"
+                            style={{ textShadow: "0 1px 3px rgba(0,0,0,0.5)" } as React.CSSProperties}>{item.points}pt</text>
+                        </g>
+                      </g>
+                    );
+                  })}
+                  <circle cx={center} cy={center} r={32} fill="white" stroke={isSpecial ? "#a855f7" : "#d97706"} strokeWidth="3" />
+                  <text x={center} y={center + 4} textAnchor="middle" fill={isSpecial ? "#7c3aed" : "#b45309"} fontSize="9" fontWeight="bold">SPIN</text>
+                </svg>
               </div>
-            ))}
+            </div>
           </div>
-        )}
+        </div>
       </div>
 
       <button onClick={spin} disabled={isSpinning || disabled}
-        className={`mt-4 px-8 py-3 rounded-full font-bold text-lg text-white shadow-lg transition-all transform
-          ${isSpinning || disabled
-            ? "opacity-50 cursor-not-allowed bg-gray-400"
-            : isSpecial
-              ? "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 hover:scale-105 active:scale-95"
-              : "bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 hover:scale-105 active:scale-95"
-          }`}>
+        className={`mt-4 px-10 py-3.5 rounded-full font-black text-lg text-white shadow-2xl transition-all transform
+          ${isSpinning || disabled ? "opacity-50 cursor-not-allowed bg-gray-400" :
+            isSpecial
+              ? "bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500 hover:scale-110 active:scale-95"
+              : "hover:scale-110 active:scale-95"
+          }`}
+        style={!isSpinning && !disabled && !isSpecial ? { background: "linear-gradient(135deg, #ef4444, #f97316)" } : undefined}>
         {isSpinning ? (
-          <span className="flex items-center gap-2"><span className="animate-spin">🌟</span>回転中...</span>
+          <span className="flex items-center gap-2"><span className="animate-spin text-xl">🌟</span>回転中...</span>
         ) : (
-          <span className="flex items-center gap-2">🎰 ルーレットを回す！</span>
+          <span className="flex items-center gap-2">🎰 タップして回す！</span>
         )}
       </button>
     </div>
