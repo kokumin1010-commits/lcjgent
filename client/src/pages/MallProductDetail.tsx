@@ -92,17 +92,7 @@ function ProductImageGallery({ product, isFavorite, setIsFavorite, handleShare }
             <Package className="h-32 w-32 text-pink-200" />
           </div>
         )}
-        {product.pointPrice && (
-          <div className="absolute top-4 left-4">
-            <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-amber-400 to-yellow-400 rounded-full blur-sm animate-pulse"></div>
-              <Badge className="relative bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-amber-900 px-4 py-2 text-lg shadow-lg border-2 border-amber-300 font-bold">
-                <Coins className="h-5 w-5 mr-2 text-amber-700" />
-                {product.pointPrice.toLocaleString()}pt
-              </Badge>
-            </div>
-          </div>
-        )}
+
         {product.stock <= 5 && product.stock > 0 && (
           <Badge className="absolute top-4 right-4 bg-red-500 text-white">
             残り{product.stock}点
