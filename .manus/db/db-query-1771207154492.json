@@ -1,0 +1,45 @@
+{
+  "query": "SELECT id, storeName, totalAmount, LEFT(ocrRawText, 200) as ocrPreview, status FROM line_receipts LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, storeName, totalAmount, LEFT(ocrRawText, 200) as ocrPreview, status FROM line_receipts LIMIT 5;",
+  "rows": [
+    {
+      "id": "60002",
+      "storeName": "NULL",
+      "totalAmount": "NULL",
+      "ocrPreview": "NULL",
+      "status": "rejected"
+    },
+    {
+      "id": "60008",
+      "storeName": "NULL",
+      "totalAmount": "NULL",
+      "ocrPreview": "NULL",
+      "status": "rejected"
+    },
+    {
+      "id": "60009",
+      "storeName": "NULL",
+      "totalAmount": "NULL",
+      "ocrPreview": "NULL",
+      "status": "rejected"
+    },
+    {
+      "id": "90001",
+      "storeName": "NULL",
+      "totalAmount": "NULL",
+      "ocrPreview": "NULL",
+      "status": "rejected"
+    },
+    {
+      "id": "120003",
+      "storeName": "KYOGOKU JAPAN",
+      "totalAmount": "1300",
+      "ocrPreview": "{\"isTikTokShop\":true,\"isDelivered\":true,\"orderNumber\":\"582331626971890997\",\"totalAmount\":1300,\"orderDate\":null,\"shopName\":\"KYOGOKU JAPAN\",\"productName\":\"KYOGOKU Weave Tote ウィーブトー... ウィーブトートバッグ\"}",
+      "status": "approved"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tstoreName\ttotalAmount\tocrPreview\tstatus\n60002\tNULL\tNULL\tNULL\trejected\n60008\tNULL\tNULL\tNULL\trejected\n60009\tNULL\tNULL\tNULL\trejected\n90001\tNULL\tNULL\tNULL\trejected\n120003\tKYOGOKU JAPAN\t1300\t{\"isTikTokShop\":true,\"isDelivered\":true,\"orderNumber\":\"582331626971890997\",\"totalAmount\":1300,\"orderDate\":null,\"shopName\":\"KYOGOKU JAPAN\",\"productName\":\"KYOGOKU Weave Tote ウィーブトー... ウィーブトートバッグ\"}\tapproved\n",
+  "stderr": "",
+  "execution_time_ms": 1496
+}

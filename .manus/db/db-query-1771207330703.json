@@ -1,0 +1,28 @@
+{
+  "query": "SELECT id, storeName, totalAmount, ocrRawText FROM line_receipts WHERE status = 'approved' AND ocrRawText IS NOT NULL LIMIT 3;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, storeName, totalAmount, ocrRawText FROM line_receipts WHERE status = 'approved' AND ocrRawText IS NOT NULL LIMIT 3;",
+  "rows": [
+    {
+      "id": "120003",
+      "storeName": "KYOGOKU JAPAN",
+      "totalAmount": "1300",
+      "ocrRawText": "{\"isTikTokShop\":true,\"isDelivered\":true,\"orderNumber\":\"582331626971890997\",\"totalAmount\":1300,\"orderDate\":null,\"shopName\":\"KYOGOKU JAPAN\",\"productName\":\"KYOGOKU Weave Tote ウィーブトー... ウィーブトートバッグ\"}"
+    },
+    {
+      "id": "150151",
+      "storeName": "KYOGOKU JAPAN",
+      "totalAmount": "9339",
+      "ocrRawText": "{\"isTikTokShop\":true,\"isDelivered\":true,\"orderNumber\":\"582335242623420003\",\"totalAmount\":9339,\"orderDate\":null,\"shopName\":\"KYOGOKU JAPAN\",\"productName\":\"KYOGOKU ステムセル フェイシャルオイル2本\"}"
+    },
+    {
+      "id": "150169",
+      "storeName": "toyotokyo【公式】",
+      "totalAmount": "13080",
+      "ocrRawText": "{\"isTikTokShop\":true,\"isDelivered\":true,\"orderNumber\":\"582317509173085585\",\"totalAmount\":13080,\"orderDate\":null,\"shopName\":\"toyotokyo【公式】\",\"productName\":\"【京極琉限定】 HAPLEXGRACE ゼリ...\"}"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tstoreName\ttotalAmount\tocrRawText\n120003\tKYOGOKU JAPAN\t1300\t{\"isTikTokShop\":true,\"isDelivered\":true,\"orderNumber\":\"582331626971890997\",\"totalAmount\":1300,\"orderDate\":null,\"shopName\":\"KYOGOKU JAPAN\",\"productName\":\"KYOGOKU Weave Tote ウィーブトー... ウィーブトートバッグ\"}\n150151\tKYOGOKU JAPAN\t9339\t{\"isTikTokShop\":true,\"isDelivered\":true,\"orderNumber\":\"582335242623420003\",\"totalAmount\":9339,\"orderDate\":null,\"shopName\":\"KYOGOKU JAPAN\",\"productName\":\"KYOGOKU ステムセル フェイシャルオイル2本\"}\n150169\ttoyotokyo【公式】\t13080\t{\"isTikTokShop\":true,\"isDelivered\":true,\"orderNumber\":\"582317509173085585\",\"totalAmount\":13080,\"orderDate\":null,\"shopName\":\"toyotokyo【公式】\",\"productName\":\"【京極琉限定】 HAPLEXGRACE ゼリ...\"}\n",
+  "stderr": "",
+  "execution_time_ms": 1605
+}

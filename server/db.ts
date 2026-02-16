@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -13288,3 +13288,211 @@ export async function getPopularProducts(limit: number = 12, excludeIds: number[
 }
 
 
+
+// ============================================================
+// Receipt Product Extraction & Purchase Ranking
+// ============================================================
+
+/**
+ * Extract products from approved line_receipts OCR data and save to receipt_products table.
+ * Handles both single and multi-product receipts.
+ * Skips receipts that have already been extracted.
+ */
+export async function extractReceiptProducts() {
+  const db = await getDb();
+  if (!db) return { extracted: 0, skipped: 0, errors: 0 };
+
+  // Get all approved receipts that haven't been extracted yet
+  const alreadyExtracted = db.select({ receiptId: receiptProducts.receiptId }).from(receiptProducts);
+  const pendingReceipts = await db
+    .select({
+      id: lineReceipts.id,
+      lineUserId: lineReceipts.lineUserId,
+      storeName: lineReceipts.storeName,
+      totalAmount: lineReceipts.totalAmount,
+      ocrRawText: lineReceipts.ocrRawText,
+    })
+    .from(lineReceipts)
+    .where(
+      and(
+        eq(lineReceipts.status, "approved"),
+        isNotNull(lineReceipts.ocrRawText),
+        sql`${lineReceipts.id} NOT IN (${alreadyExtracted})`
+      )
+    );
+
+  let extracted = 0, skipped = 0, errors = 0;
+
+  for (const receipt of pendingReceipts) {
+    try {
+      if (!receipt.ocrRawText) { skipped++; continue; }
+      
+      let ocrData: any;
+      try {
+        ocrData = JSON.parse(receipt.ocrRawText);
+      } catch {
+        skipped++;
+        continue;
+      }
+
+      const productName = ocrData.productName;
+      if (!productName || productName === "undefined") { skipped++; continue; }
+
+      // Handle multi-product receipts (separated by 、 or ,)
+      const productNames = productName.includes("、")
+        ? productName.split("、").map((n: string) => n.trim()).filter(Boolean)
+        : [productName.trim()];
+
+      const perProductAmount = productNames.length > 1
+        ? Math.floor((receipt.totalAmount || 0) / productNames.length)
+        : receipt.totalAmount || 0;
+
+      for (const pName of productNames) {
+        await db.insert(receiptProducts).values({
+          receiptId: receipt.id,
+          userId: null, // lineReceipts uses lineUserId (LINE ID string), not a numeric user ID
+          productName: pName,
+          shopName: ocrData.shopName || receipt.storeName || null,
+          amount: perProductAmount,
+          orderNumber: ocrData.orderNumber || null,
+        });
+        extracted++;
+      }
+    } catch (e) {
+      console.error(`[extractReceiptProducts] Error processing receipt #${receipt.id}:`, e);
+      errors++;
+    }
+  }
+
+  return { extracted, skipped, errors };
+}
+
+/**
+ * Extract products from a single receipt (called when a receipt is approved)
+ */
+export async function extractSingleReceiptProducts(receiptId: number) {
+  const db = await getDb();
+  if (!db) return;
+
+  const [receipt] = await db
+    .select({
+      id: lineReceipts.id,
+      lineUserId: lineReceipts.lineUserId,
+      storeName: lineReceipts.storeName,
+      totalAmount: lineReceipts.totalAmount,
+      ocrRawText: lineReceipts.ocrRawText,
+    })
+    .from(lineReceipts)
+    .where(eq(lineReceipts.id, receiptId))
+    .limit(1);
+
+  if (!receipt?.ocrRawText) return;
+
+  // Check if already extracted
+  const existing = await db
+    .select({ id: receiptProducts.id })
+    .from(receiptProducts)
+    .where(eq(receiptProducts.receiptId, receiptId))
+    .limit(1);
+  if (existing.length > 0) return;
+
+  let ocrData: any;
+  try {
+    ocrData = JSON.parse(receipt.ocrRawText);
+  } catch {
+    return;
+  }
+
+  const productName = ocrData.productName;
+  if (!productName || productName === "undefined") return;
+
+  const productNames = productName.includes("、")
+    ? productName.split("、").map((n: string) => n.trim()).filter(Boolean)
+    : [productName.trim()];
+
+  const perProductAmount = productNames.length > 1
+    ? Math.floor((receipt.totalAmount || 0) / productNames.length)
+    : receipt.totalAmount || 0;
+
+  for (const pName of productNames) {
+    await db.insert(receiptProducts).values({
+      receiptId: receipt.id,
+      userId: null, // lineReceipts uses lineUserId (LINE ID string), not a numeric user ID
+      productName: pName,
+      shopName: ocrData.shopName || receipt.storeName || null,
+      amount: perProductAmount,
+      orderNumber: ocrData.orderNumber || null,
+    });
+  }
+}
+
+/**
+ * Get purchase ranking from receipt_products (みんなの購入ランキング)
+ * Groups by product name and ranks by purchase count and total amount
+ */
+export async function getReceiptPurchaseRanking(limit = 50) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const results = await db
+    .select({
+      productName: receiptProducts.productName,
+      shopName: receiptProducts.shopName,
+      purchaseCount: sql<number>`COUNT(*)`.as("purchaseCount"),
+      totalAmount: sql<number>`SUM(${receiptProducts.amount})`.as("totalAmount"),
+      uniqueBuyers: sql<number>`COUNT(DISTINCT ${receiptProducts.receiptId})`.as("uniqueBuyers"),
+    })
+    .from(receiptProducts)
+    .groupBy(receiptProducts.productName, receiptProducts.shopName)
+    .orderBy(sql`COUNT(*) DESC`)
+    .limit(limit);
+
+  return results;
+}
+
+/**
+ * Get shop ranking from receipt_products (ショップ別購入ランキング)
+ */
+export async function getReceiptShopRanking(limit = 30) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const results = await db
+    .select({
+      shopName: receiptProducts.shopName,
+      purchaseCount: sql<number>`COUNT(*)`.as("purchaseCount"),
+      totalAmount: sql<number>`SUM(${receiptProducts.amount})`.as("totalAmount"),
+      uniqueBuyers: sql<number>`COUNT(DISTINCT ${receiptProducts.receiptId})`.as("uniqueBuyers"),
+      productCount: sql<number>`COUNT(DISTINCT ${receiptProducts.productName})`.as("productCount"),
+    })
+    .from(receiptProducts)
+    .where(isNotNull(receiptProducts.shopName))
+    .groupBy(receiptProducts.shopName)
+    .orderBy(sql`SUM(${receiptProducts.amount}) DESC`)
+    .limit(limit);
+
+  return results;
+}
+
+/**
+ * Get products by shop from receipt_products
+ */
+export async function getReceiptProductsByShop(shopName: string, limit = 30) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const results = await db
+    .select({
+      productName: receiptProducts.productName,
+      purchaseCount: sql<number>`COUNT(*)`.as("purchaseCount"),
+      totalAmount: sql<number>`SUM(${receiptProducts.amount})`.as("totalAmount"),
+      uniqueBuyers: sql<number>`COUNT(DISTINCT ${receiptProducts.receiptId})`.as("uniqueBuyers"),
+    })
+    .from(receiptProducts)
+    .where(eq(receiptProducts.shopName, shopName))
+    .groupBy(receiptProducts.productName)
+    .orderBy(sql`COUNT(*) DESC`)
+    .limit(limit);
+
+  return results;
+}

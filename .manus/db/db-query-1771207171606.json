@@ -1,0 +1,60 @@
+{
+  "query": "SELECT storeName, COUNT(*) as cnt, SUM(totalAmount) as total FROM line_receipts WHERE status = 'approved' AND storeName IS NOT NULL GROUP BY storeName ORDER BY total DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT storeName, COUNT(*) as cnt, SUM(totalAmount) as total FROM line_receipts WHERE status = 'approved' AND storeName IS NOT NULL GROUP BY storeName ORDER BY total DESC LIMIT 10;",
+  "rows": [
+    {
+      "storeName": "KYOGOKU JAPAN",
+      "cnt": "57",
+      "total": "427474"
+    },
+    {
+      "storeName": "ABITOKYOチャンネル",
+      "cnt": "2",
+      "total": "14910"
+    },
+    {
+      "storeName": "セレクトショップSeven fairy",
+      "cnt": "1",
+      "total": "14840"
+    },
+    {
+      "storeName": "トキバナ【公式】ライブコマース事務所",
+      "cnt": "2",
+      "total": "13634"
+    },
+    {
+      "storeName": "BIJOU DE MER (ビジュードゥメール)",
+      "cnt": "1",
+      "total": "13200"
+    },
+    {
+      "storeName": "toyotokyo【公式】",
+      "cnt": "1",
+      "total": "13080"
+    },
+    {
+      "storeName": "PURITY JAPAN特売チャンネル",
+      "cnt": "2",
+      "total": "12800"
+    },
+    {
+      "storeName": "WYOUチャンネル",
+      "cnt": "2",
+      "total": "7922"
+    },
+    {
+      "storeName": "アイム ラフロリア",
+      "cnt": "1",
+      "total": "7800"
+    },
+    {
+      "storeName": "iCell (アイセル)",
+      "cnt": "1",
+      "total": "7300"
+    }
+  ],
+  "messages": [],
+  "stdout": "storeName\tcnt\ttotal\nKYOGOKU JAPAN\t57\t427474\nABITOKYOチャンネル\t2\t14910\nセレクトショップSeven fairy\t1\t14840\nトキバナ【公式】ライブコマース事務所\t2\t13634\nBIJOU DE MER (ビジュードゥメール)\t1\t13200\ntoyotokyo【公式】\t1\t13080\nPURITY JAPAN特売チャンネル\t2\t12800\nWYOUチャンネル\t2\t7922\nアイム ラフロリア\t1\t7800\niCell (アイセル)\t1\t7300\n",
+  "stderr": "",
+  "execution_time_ms": 1683
+}

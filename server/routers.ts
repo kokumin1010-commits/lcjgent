@@ -461,6 +461,11 @@ import {
   getRestockRequestDetailByBrand,
   getRecommendedProducts,
   getPopularProducts,
+  extractReceiptProducts,
+  extractSingleReceiptProducts,
+  getReceiptPurchaseRanking,
+  getReceiptShopRanking,
+  getReceiptProductsByShop,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -11662,6 +11667,14 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           console.error("[ReviewLog] Failed to record LINE receipt approval log:", logErr);
         }
         
+        // Extract product data for purchase ranking
+        try {
+          await extractSingleReceiptProducts(input.id);
+          console.log(`[LINE Receipt] Extracted products for receipt #${input.id}`);
+        } catch (extractErr) {
+          console.error(`[LINE Receipt] Failed to extract products for receipt #${input.id}:`, extractErr);
+        }
+        
         // Send LINE notification to user
         try {
           const balance = await getLinePointBalance(receipt.lineUserId);
@@ -14735,6 +14748,37 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .query(async ({ ctx, input }) => {
         if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
         return await getRestockRequestDetailByBrand(input.shopName);
+      }),
+
+    // ============================================================
+    // みんなの購入ランキング（レシートベース）
+    // ============================================================
+
+    // レシートから商品データを抽出（管理者のみ・バッチ処理）
+    extractReceiptProducts: protectedProcedure.mutation(async ({ ctx }) => {
+      if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
+      return await extractReceiptProducts();
+    }),
+
+    // みんなの購入ランキング - 商品別（公開）
+    receiptProductRanking: publicProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        return await getReceiptPurchaseRanking(input?.limit ?? 50);
+      }),
+
+    // みんなの購入ランキング - ショップ別（公開）
+    receiptShopRanking: publicProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        return await getReceiptShopRanking(input?.limit ?? 30);
+      }),
+
+    // みんなの購入ランキング - ショップ内商品（公開）
+    receiptProductsByShop: publicProcedure
+      .input(z.object({ shopName: z.string(), limit: z.number().optional() }))
+      .query(async ({ input }) => {
+        return await getReceiptProductsByShop(input.shopName, input.limit ?? 30);
       }),
   }),
 });

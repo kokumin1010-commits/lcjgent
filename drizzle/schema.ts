@@ -2881,3 +2881,21 @@ export const productRestockRequests = mysqlTable("product_restock_requests", {
 });
 export type ProductRestockRequest = typeof productRestockRequests.$inferSelect;
 export type InsertProductRestockRequest = typeof productRestockRequests.$inferInsert;
+
+
+/**
+ * Receipt products - extracted product info from line_receipts OCR data
+ * Used for "みんなの購入ランキング" (purchase ranking based on actual receipts)
+ */
+export const receiptProducts = mysqlTable("receipt_products", {
+  id: int("id").autoincrement().primaryKey(),
+  receiptId: int("receiptId").notNull(), // FK to line_receipts.id
+  userId: int("userId"), // FK to users.id (the buyer)
+  productName: text("productName").notNull(), // 商品名（OCRから抽出）
+  shopName: varchar("shopName", { length: 255 }), // ショップ名
+  amount: int("amount"), // 購入金額
+  orderNumber: varchar("orderNumber", { length: 100 }), // 注文番号
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ReceiptProduct = typeof receiptProducts.$inferSelect;
+export type InsertReceiptProduct = typeof receiptProducts.$inferInsert;

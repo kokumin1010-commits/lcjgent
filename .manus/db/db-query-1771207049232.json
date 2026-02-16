@@ -1,0 +1,15 @@
+{
+  "query": "SELECT COUNT(*) as total, COUNT(CASE WHEN status = 'approved' THEN 1 END) as approved, COUNT(DISTINCT storeName) as stores FROM receipts;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT COUNT(*) as total, COUNT(CASE WHEN status = 'approved' THEN 1 END) as approved, COUNT(DISTINCT storeName) as stores FROM receipts;",
+  "rows": [
+    {
+      "total": "0",
+      "approved": "0",
+      "stores": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\tapproved\tstores\n0\t0\t0\n",
+  "stderr": "",
+  "execution_time_ms": 5974
+}

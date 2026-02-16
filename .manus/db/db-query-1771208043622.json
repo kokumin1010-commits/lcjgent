@@ -1,0 +1,14 @@
+{
+  "query": "SELECT COUNT(*) as total, SUM(CASE WHEN ocrRawText IS NOT NULL AND ocrRawText != '' THEN 1 ELSE 0 END) as with_ocr FROM line_receipts WHERE status = 'approved';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT COUNT(*) as total, SUM(CASE WHEN ocrRawText IS NOT NULL AND ocrRawText != '' THEN 1 ELSE 0 END) as with_ocr FROM line_receipts WHERE status = 'approved';",
+  "rows": [
+    {
+      "total": "101",
+      "with_ocr": "92"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\twith_ocr\n101\t92\n",
+  "stderr": "",
+  "execution_time_ms": 1517
+}

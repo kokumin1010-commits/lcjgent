@@ -1,0 +1,45 @@
+{
+  "query": "SELECT id, storeName, totalAmount, status, ocrRawText FROM line_receipts WHERE status = 'approved' LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, storeName, totalAmount, status, ocrRawText FROM line_receipts WHERE status = 'approved' LIMIT 5;",
+  "rows": [
+    {
+      "id": "120003",
+      "storeName": "KYOGOKU JAPAN",
+      "totalAmount": "1300",
+      "status": "approved",
+      "ocrRawText": "{\"isTikTokShop\":true,\"isDelivered\":true,\"orderNumber\":\"582331626971890997\",\"totalAmount\":1300,\"orderDate\":null,\"shopName\":\"KYOGOKU JAPAN\",\"productName\":\"KYOGOKU Weave Tote ウィーブトー... ウィーブトートバッグ\"}"
+    },
+    {
+      "id": "120004",
+      "storeName": "NULL",
+      "totalAmount": "NULL",
+      "status": "approved",
+      "ocrRawText": "NULL"
+    },
+    {
+      "id": "120006",
+      "storeName": "NULL",
+      "totalAmount": "NULL",
+      "status": "approved",
+      "ocrRawText": "NULL"
+    },
+    {
+      "id": "150010",
+      "storeName": "NULL",
+      "totalAmount": "NULL",
+      "status": "approved",
+      "ocrRawText": "NULL"
+    },
+    {
+      "id": "150151",
+      "storeName": "KYOGOKU JAPAN",
+      "totalAmount": "9339",
+      "status": "approved",
+      "ocrRawText": "{\"isTikTokShop\":true,\"isDelivered\":true,\"orderNumber\":\"582335242623420003\",\"totalAmount\":9339,\"orderDate\":null,\"shopName\":\"KYOGOKU JAPAN\",\"productName\":\"KYOGOKU ステムセル フェイシャルオイル2本\"}"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tstoreName\ttotalAmount\tstatus\tocrRawText\n120003\tKYOGOKU JAPAN\t1300\tapproved\t{\"isTikTokShop\":true,\"isDelivered\":true,\"orderNumber\":\"582331626971890997\",\"totalAmount\":1300,\"orderDate\":null,\"shopName\":\"KYOGOKU JAPAN\",\"productName\":\"KYOGOKU Weave Tote ウィーブトー... ウィーブトートバッグ\"}\n120004\tNULL\tNULL\tapproved\tNULL\n120006\tNULL\tNULL\tapproved\tNULL\n150010\tNULL\tNULL\tapproved\tNULL\n150151\tKYOGOKU JAPAN\t9339\tapproved\t{\"isTikTokShop\":true,\"isDelivered\":true,\"orderNumber\":\"582335242623420003\",\"totalAmount\":9339,\"orderDate\":null,\"shopName\":\"KYOGOKU JAPAN\",\"productName\":\"KYOGOKU ステムセル フェイシャルオイル2本\"}\n",
+  "stderr": "",
+  "execution_time_ms": 1536
+}

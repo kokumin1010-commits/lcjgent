@@ -680,6 +680,13 @@
       "when": 1771142839285,
       "tag": "0096_greedy_morlun",
       "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "5",
+      "when": 1771207468135,
+      "tag": "0097_condemned_longshot",
+      "breakpoints": true
     }
   ]
 }

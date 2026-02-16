@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `receipt_products` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `receiptId` int NOT NULL,\n  `userId` int,\n  `productName` text NOT NULL,\n  `shopName` varchar(255),\n  `amount` int,\n  `orderNumber` varchar(100),\n  `createdAt` timestamp NOT NULL DEFAULT (now()),\n  CONSTRAINT `receipt_products_id` PRIMARY KEY(`id`),\n  INDEX `idx_receipt_products_receipt` (`receiptId`),\n  INDEX `idx_receipt_products_shop` (`shopName`),\n  INDEX `idx_receipt_products_user` (`userId`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute CREATE TABLE IF NOT EXISTS `receipt_products` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `receiptId` int NOT NULL,\n  `userId` int,\n  `productName` text NOT NULL,\n  `shopName` varchar(255),\n  `amount` int,\n  `orderNumber` varchar(100),\n  `createdAt` timestamp NOT NULL DEFAULT (now()),\n  CONSTRAINT `receipt_products_id` PRIMARY KEY(`id`),\n  INDEX `idx_receipt_products_receipt` (`receiptId`),\n  INDEX `idx_receipt_products_shop` (`shopName`),\n  INDEX `idx_receipt_products_user` (`userId`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1863
+}
