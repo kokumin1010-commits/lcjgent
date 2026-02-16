@@ -1,6 +1,8 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import {
   ShoppingCart,
   Search,
@@ -11,10 +13,13 @@ import {
   Sparkles,
   SlidersHorizontal,
   ChevronDown,
+  ChevronRight,
   X,
   Heart,
+  ShoppingBag,
+  TrendingUp,
 } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
 
 type SortOption = "newest" | "price_asc" | "price_desc" | "popular";
@@ -25,6 +30,114 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: "price_asc", label: "安い順" },
   { value: "price_desc", label: "高い順" },
 ];
+
+function RecommendedInline() {
+  const { user } = useAuth();
+  const [, setLocation] = useLocation();
+  const { data: recommended, isLoading } = trpc.mall.getRecommendedProducts.useQuery(
+    { limit: 6 },
+    { enabled: true }
+  );
+
+  if (isLoading) {
+    return (
+      <div className="px-4 py-4 bg-gradient-to-r from-purple-50/50 to-pink-50/50 border-b border-gray-50">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="h-5 w-5 bg-purple-200 rounded animate-pulse" />
+          <div className="h-5 w-32 bg-gray-200 rounded animate-pulse" />
+        </div>
+        <div className="flex gap-3 overflow-hidden">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex-shrink-0 w-32">
+              <div className="aspect-square bg-gray-100 rounded-lg animate-pulse" />
+              <div className="mt-1.5 h-3 bg-gray-100 rounded animate-pulse" />
+              <div className="mt-1 h-4 bg-gray-100 rounded animate-pulse w-2/3" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!recommended || recommended.length === 0) return null;
+
+  return (
+    <div className="bg-gradient-to-r from-purple-50/50 to-pink-50/50 border-b border-gray-50">
+      <div className="px-4 pt-4 pb-1">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            {user ? (
+              <>
+                <Star className="h-4 w-4 text-purple-500" />
+                <h3 className="text-sm font-bold text-gray-800">あなたへのおすすめ</h3>
+              </>
+            ) : (
+              <>
+                <TrendingUp className="h-4 w-4 text-pink-500" />
+                <h3 className="text-sm font-bold text-gray-800">人気の商品</h3>
+              </>
+            )}
+          </div>
+          <button
+            onClick={() => setLocation("/ranking")}
+            className="flex items-center gap-0.5 text-xs text-purple-500 font-medium hover:text-purple-700 transition-colors"
+          >
+            もっと見る
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto scrollbar-hide pb-4">
+        <div className="flex gap-3 px-4 min-w-max">
+          {recommended.map((product: any) => (
+            <div
+              key={product.id}
+              className="flex-shrink-0 w-32 cursor-pointer group"
+              onClick={() => setLocation(`/mall/products/${product.id}`)}
+            >
+              <div className="aspect-square rounded-xl overflow-hidden bg-gray-50 border border-gray-100 group-hover:border-purple-200 group-hover:shadow-md transition-all duration-300">
+                {product.imageUrl || (product.imageUrls && product.imageUrls[0]) ? (
+                  <img
+                    src={product.imageUrl || product.imageUrls[0]}
+                    alt={product.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    loading="lazy"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <ShoppingBag className="h-8 w-8 text-gray-300" />
+                  </div>
+                )}
+              </div>
+              <div className="mt-1.5 px-0.5">
+                <h4 className="text-[11px] font-medium text-gray-700 line-clamp-2 leading-tight group-hover:text-purple-600 transition-colors">
+                  {product.name}
+                </h4>
+                <div className="flex items-baseline gap-1 mt-0.5">
+                  <span className="text-sm font-bold text-pink-600">
+                    ¥{product.price?.toLocaleString()}
+                  </span>
+                  {product.pointPrice && (
+                    <span className="text-[10px] text-amber-500 font-medium">
+                      {product.pointPrice.toLocaleString()}pt
+                    </span>
+                  )}
+                </div>
+                {product.brandName && (
+                  <span className="text-[10px] text-purple-400 mt-0.5 block">{product.brandName}</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function MallProducts() {
   const [category, setCategory] = useState<string>("all");
@@ -262,6 +375,9 @@ export default function MallProducts() {
           )}
         </div>
       </div>
+
+      {/* おすすめ商品セクション */}
+      <RecommendedInline />
 
       {/* 商品グリッド */}
       <main className="px-2 pt-2 pb-20">
