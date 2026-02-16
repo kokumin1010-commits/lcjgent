@@ -466,12 +466,28 @@ import {
   getReceiptPurchaseRanking,
   getReceiptShopRanking,
   getReceiptProductsByShop,
+  getActiveReferralCampaign,
+  getOrCreateUserReferralProgress,
+  getUserProgressByReferralCode,
+  getCampaignStages,
+  recordFriendReferral,
+  hasAlreadyBeenReferred,
+  getTodayReferralCount,
+  updateUserReferralProgress,
+  getSpinRewardItems,
+  recordSpinResult,
+  getReferralLeaderboard,
+  addReferralActivity,
+  getReferralActivityFeed,
+  getUserReferralHistory,
+  getUserSpinHistoryList,
+  calculateTitleLevel,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
-import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers } from "../drizzle/schema";
-import { eq, and, not, isNotNull, desc } from "drizzle-orm";
+import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress } from "../drizzle/schema";
+import { eq, and, not, isNotNull, desc, gt } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
 import { ENV } from "./_core/env";
@@ -14779,6 +14795,256 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .input(z.object({ shopName: z.string(), limit: z.number().optional() }))
       .query(async ({ input }) => {
         return await getReceiptProductsByShop(input.shopName, input.limit ?? 30);
+      }),
+  }),
+
+  // 友達招待チャレンジ
+  friendReferral: router({
+    // キャンペーン情報取得
+    getCampaign: publicProcedure.query(async () => {
+      const campaign = await getActiveReferralCampaign();
+      if (!campaign) return null;
+      const stages = await getCampaignStages(campaign.id);
+      return { campaign, stages };
+    }),
+
+    // 自分の進捗取得
+    getMyProgress: publicProcedure.query(async ({ ctx }) => {
+      const result = await getLineUserFromSession(ctx);
+      if (!result || !result.lineUser) throw new TRPCError({ code: "UNAUTHORIZED" });
+      const lineUser = result.lineUser;
+      const campaign = await getActiveReferralCampaign();
+      if (!campaign) throw new TRPCError({ code: "NOT_FOUND", message: "キャンペーンが見つかりません" });
+      const progress = await getOrCreateUserReferralProgress(lineUser.id, campaign.id);
+      const stages = await getCampaignStages(campaign.id);
+      const history = await getUserReferralHistory(lineUser.id, campaign.id);
+      const spinHistory = await getUserSpinHistoryList(lineUser.id, 10);
+      return { progress, stages, campaign, history, spinHistory };
+    }),
+
+    // 招待コードで招待を記録
+    recordReferral: publicProcedure
+      .input(z.object({ referralCode: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const result = await getLineUserFromSession(ctx);
+        if (!result || !result.lineUser) throw new TRPCError({ code: "UNAUTHORIZED" });
+        const inviteeLineUser = result.lineUser;
+        const inviteeId = inviteeLineUser.id;
+        const campaign = await getActiveReferralCampaign();
+        if (!campaign) throw new TRPCError({ code: "NOT_FOUND", message: "キャンペーンが見つかりません" });
+
+        // 自分自身のコードは使えない
+        const referrerProgress = await getUserProgressByReferralCode(input.referralCode);
+        if (!referrerProgress) throw new TRPCError({ code: "NOT_FOUND", message: "招待コードが見つかりません" });
+        if (referrerProgress.lineUserId === inviteeId) throw new TRPCError({ code: "BAD_REQUEST", message: "自分自身を招待することはできません" });
+
+        // 既に招待済みチェック
+        const alreadyReferred = await hasAlreadyBeenReferred(inviteeId, campaign.id);
+        if (alreadyReferred) throw new TRPCError({ code: "BAD_REQUEST", message: "既に招待を受けています" });
+
+        // 日次上限チェック
+        const todayCount = await getTodayReferralCount(referrerProgress.lineUserId, campaign.id);
+        if (todayCount >= campaign.maxDailyReferrals) throw new TRPCError({ code: "BAD_REQUEST", message: "本日の招待上限に達しています" });
+
+        // 月次ポイント上限チェック
+        const currentProgress = await getOrCreateUserReferralProgress(referrerProgress.lineUserId, campaign.id);
+        if (currentProgress.monthlyPointsEarned >= campaign.monthlyPointCap) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "今月のポイント上限に達しています" });
+        }
+
+        // ステージ計算
+        const stages = await getCampaignStages(campaign.id);
+        const newTotalReferrals = currentProgress.totalReferrals + 1;
+        let stageReward = 0;
+        let newSpins = 0;
+        let newSpecialSpins = 0;
+        let newStage = currentProgress.currentStage;
+
+        for (const stage of stages) {
+          if (stage.stageNumber > currentProgress.currentStage && newTotalReferrals >= stage.requiredReferrals) {
+            stageReward += stage.fixedReward;
+            if (stage.isSpecialSpin) {
+              newSpecialSpins += stage.spinCount;
+            } else {
+              newSpins += stage.spinCount;
+            }
+            newStage = stage.stageNumber;
+          }
+        }
+
+        // 招待記録
+        await recordFriendReferral({
+          referrerLineUserId: referrerProgress.lineUserId,
+          inviteeLineUserId: inviteeId,
+          campaignId: campaign.id,
+          referrerPointsAwarded: stageReward,
+          inviteePointsAwarded: campaign.inviteeBonus,
+        });
+
+        // 招待者のポイント付与（ステージ報酬）
+        if (stageReward > 0) {
+          const referrerUser = await getLineUserById(referrerProgress.lineUserId);
+          const referrerPointId = referrerUser?.lineUserId || `email_${referrerProgress.lineUserId}`;
+          const { createLinePointTransaction: createPtRef } = await import("./db");
+          await createPtRef({
+            lineUserId: referrerPointId,
+            type: "earn",
+            amount: stageReward,
+            referenceType: "system",
+            description: `友達招待チャレンジ ステージ${newStage}達成報酬`,
+          });
+        }
+
+        // 被招待者のポイント付与
+        const inviteePointId = inviteeLineUser.lineUserId || `email_${inviteeId}`;
+        const { createLinePointTransaction: createPt } = await import("./db");
+        await createPt({
+          lineUserId: inviteePointId,
+          type: "earn",
+          amount: campaign.inviteeBonus,
+          referenceType: "system",
+          description: "友達招待チャレンジ 招待ボーナス",
+        });
+
+        // 進捗更新
+        const titleLevel = calculateTitleLevel(newTotalReferrals);
+        await updateUserReferralProgress(currentProgress.id, {
+          totalReferrals: newTotalReferrals,
+          currentStage: newStage,
+          totalPointsEarned: currentProgress.totalPointsEarned + stageReward,
+          pendingSpins: currentProgress.pendingSpins + newSpins,
+          pendingSpecialSpins: currentProgress.pendingSpecialSpins + newSpecialSpins,
+          titleLevel,
+          monthlyPointsEarned: currentProgress.monthlyPointsEarned + stageReward,
+        });
+
+        // アクティビティフィード
+        const referrerUser = await getLineUserById(referrerProgress.lineUserId);
+        if (newStage > currentProgress.currentStage) {
+          const stageInfo = stages.find(s => s.stageNumber === newStage);
+          await addReferralActivity({
+            lineUserId: referrerProgress.lineUserId,
+            activityType: "stage_clear",
+            message: `${referrerUser?.displayName || "ユーザー"}さんが「${stageInfo?.stageName || `ステージ${newStage}`}」を達成しました！ ${stageInfo?.stageEmoji || "🎉"}`,
+            pointsAmount: stageReward,
+          });
+        }
+
+        return {
+          success: true,
+          stageReward,
+          inviteeBonus: campaign.inviteeBonus,
+          newStage,
+          newTotalReferrals,
+          pendingSpins: currentProgress.pendingSpins + newSpins,
+          pendingSpecialSpins: currentProgress.pendingSpecialSpins + newSpecialSpins,
+        };
+      }),
+
+    // ルーレットスピン
+    spin: publicProcedure
+      .input(z.object({ isSpecial: z.boolean().default(false) }))
+      .mutation(async ({ ctx, input }) => {
+        const result = await getLineUserFromSession(ctx);
+        if (!result || !result.lineUser) throw new TRPCError({ code: "UNAUTHORIZED" });
+        const spinLineUser = result.lineUser;
+        const campaign = await getActiveReferralCampaign();
+        if (!campaign) throw new TRPCError({ code: "NOT_FOUND" });
+        const progress = await getOrCreateUserReferralProgress(spinLineUser.id, campaign.id);
+
+        // スピン権チェック
+        if (input.isSpecial) {
+          if (progress.pendingSpecialSpins <= 0) throw new TRPCError({ code: "BAD_REQUEST", message: "プレミアムスピンの回数がありません" });
+        } else {
+          if (progress.pendingSpins <= 0) throw new TRPCError({ code: "BAD_REQUEST", message: "スピンの回数がありません" });
+        }
+
+        // 報酬アイテム取得
+        const items = await getSpinRewardItems(input.isSpecial);
+        if (items.length === 0) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "報酬テーブルが設定されていません" });
+
+        // 確率に基づいてアイテム選択
+        const rand = Math.random();
+        let cumulative = 0;
+        let selectedItem = items[0];
+        for (const item of items) {
+          cumulative += parseFloat(String(item.probability));
+          if (rand <= cumulative) {
+            selectedItem = item;
+            break;
+          }
+        }
+
+        // スピン結果記録
+        await recordSpinResult({
+          lineUserId: spinLineUser.id,
+          campaignId: campaign.id,
+          rewardItemId: selectedItem.id,
+          pointsWon: selectedItem.points,
+          isSpecialSpin: input.isSpecial,
+        });
+
+        // ポイント付与
+        const pointId = spinLineUser.lineUserId || `email_${spinLineUser.id}`;
+        const { createLinePointTransaction: createPtSpin } = await import("./db");
+        await createPtSpin({
+          lineUserId: pointId,
+          type: "earn",
+          amount: selectedItem.points,
+          referenceType: "system",
+          description: `友達招待チャレンジ ${input.isSpecial ? "プレミアム" : ""}ルーレット`,
+        });
+
+        // 進捗更新
+        if (input.isSpecial) {
+          await updateUserReferralProgress(progress.id, {
+            pendingSpecialSpins: progress.pendingSpecialSpins - 1,
+            totalPointsEarned: progress.totalPointsEarned + selectedItem.points,
+            monthlyPointsEarned: progress.monthlyPointsEarned + selectedItem.points,
+          });
+        } else {
+          await updateUserReferralProgress(progress.id, {
+            pendingSpins: progress.pendingSpins - 1,
+            totalPointsEarned: progress.totalPointsEarned + selectedItem.points,
+            monthlyPointsEarned: progress.monthlyPointsEarned + selectedItem.points,
+          });
+        }
+
+        // アクティビティ
+        if (selectedItem.points >= 50) {
+          await addReferralActivity({
+            lineUserId: spinLineUser.id,
+            activityType: "big_win",
+            message: `${spinLineUser.displayName || "ユーザー"}さんがルーレットで${selectedItem.points}ptをGET！ ${selectedItem.emoji}`,
+            pointsAmount: selectedItem.points,
+          });
+        }
+
+        return {
+          rewardItem: selectedItem,
+          pointsWon: selectedItem.points,
+          items: items.map(i => ({ id: i.id, label: i.label, emoji: i.emoji, points: i.points, color: i.color })),
+        };
+      }),
+
+    // ランキング
+    getLeaderboard: publicProcedure.query(async () => {
+      const campaign = await getActiveReferralCampaign();
+      if (!campaign) return [];
+      return await getReferralLeaderboard(campaign.id);
+    }),
+
+    // アクティビティフィード
+    getActivityFeed: publicProcedure.query(async () => {
+      return await getReferralActivityFeed(30);
+    }),
+
+    // スピン報酬テーブル取得
+    getSpinItems: publicProcedure
+      .input(z.object({ isSpecial: z.boolean().default(false) }))
+      .query(async ({ input }) => {
+        const items = await getSpinRewardItems(input.isSpecial);
+        return items.map(i => ({ id: i.id, label: i.label, emoji: i.emoji, points: i.points, color: i.color, probability: parseFloat(String(i.probability)) }));
       }),
   }),
 });

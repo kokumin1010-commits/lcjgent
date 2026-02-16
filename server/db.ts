@@ -1,6 +1,6 @@
-import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, gte, lte } from "drizzle-orm";
+import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, gte, lte, gt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -13519,4 +13519,378 @@ export async function getReceiptProductsByShop(shopName: string, limit = 30) {
     .limit(limit);
 
   return results;
+}
+
+
+// ========================================
+// 友達招待チャレンジ DB ヘルパー関数
+// ========================================
+
+/** アクティブなキャンペーンを取得（なければシードデータ作成） */
+export async function getActiveReferralCampaign() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const existing = await db.select().from(referralCampaigns).where(eq(referralCampaigns.isActive, true)).limit(1);
+  if (existing.length > 0) return existing[0];
+  
+  // シードデータ作成
+  await seedDefaultReferralCampaign();
+  const seeded = await db.select().from(referralCampaigns).where(eq(referralCampaigns.isActive, true)).limit(1);
+  return seeded[0] || null;
+}
+
+/** デフォルトキャンペーンのシードデータ作成 */
+export async function seedDefaultReferralCampaign() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // キャンペーン作成
+  const result = await db.insert(referralCampaigns).values({
+    name: "友達招待チャレンジ",
+    description: "友達を招待してポイントをGET！ステージを進めてルーレットを回そう！",
+    isActive: true,
+    maxDailyReferrals: 5,
+    monthlyPointCap: 5000,
+    inviteeBonus: 50,
+  });
+  const campaignId = Number(result[0].insertId);
+  
+  // ステージ定義
+  const stages = [
+    { stageNumber: 1, requiredReferrals: 1, fixedReward: 50, spinCount: 1, isSpecialSpin: false, stageEmoji: "🌱", stageName: "はじめの一歩" },
+    { stageNumber: 2, requiredReferrals: 3, fixedReward: 100, spinCount: 1, isSpecialSpin: false, stageEmoji: "🌸", stageName: "お花見フレンド" },
+    { stageNumber: 3, requiredReferrals: 5, fixedReward: 200, spinCount: 2, isSpecialSpin: false, stageEmoji: "🌟", stageName: "キラキラスター" },
+    { stageNumber: 4, requiredReferrals: 10, fixedReward: 500, spinCount: 3, isSpecialSpin: false, stageEmoji: "👑", stageName: "プリンセス" },
+    { stageNumber: 5, requiredReferrals: 20, fixedReward: 1000, spinCount: 1, isSpecialSpin: true, stageEmoji: "💎", stageName: "ダイヤモンドクイーン" },
+  ];
+  
+  for (const s of stages) {
+    await db.insert(campaignStages).values({ campaignId, ...s });
+  }
+  
+  // 通常スピン報酬テーブル
+  const normalResult = await db.insert(spinRewardTables).values({ name: "通常ルーレット", isSpecial: false });
+  const normalTableId = Number(normalResult[0].insertId);
+  
+  const normalItems = [
+    { label: "ハズレ…でも3pt!", emoji: "🌙", points: 3, probability: 3000, color: "#E8B4CB", sortOrder: 1 },
+    { label: "5ptゲット！", emoji: "🌸", points: 5, probability: 2500, color: "#FFB7C5", sortOrder: 2 },
+    { label: "10ptゲット！", emoji: "💖", points: 10, probability: 2000, color: "#FF69B4", sortOrder: 3 },
+    { label: "20ptゲット！", emoji: "🎁", points: 20, probability: 1000, color: "#FF1493", sortOrder: 4 },
+    { label: "30ptゲット！", emoji: "⭐", points: 30, probability: 700, color: "#DB7093", sortOrder: 5 },
+    { label: "50ptゲット！", emoji: "🌟", points: 50, probability: 300, color: "#C71585", sortOrder: 6 },
+    { label: "100ptゲット！", emoji: "💎", points: 100, probability: 200, color: "#8B008B", sortOrder: 7 },
+    { label: "200ptゲット！", emoji: "👑", points: 200, probability: 50, color: "#4B0082", sortOrder: 8 },
+  ];
+  
+  for (const item of normalItems) {
+    await db.insert(spinRewardItems).values({ tableId: normalTableId, ...item });
+  }
+  
+  // 特別スピン報酬テーブル
+  const specialResult = await db.insert(spinRewardTables).values({ name: "プレミアムルーレット", isSpecial: true });
+  const specialTableId = Number(specialResult[0].insertId);
+  
+  const specialItems = [
+    { label: "10ptゲット！", emoji: "🌸", points: 10, probability: 2000, color: "#FFB7C5", sortOrder: 1 },
+    { label: "30ptゲット！", emoji: "⭐", points: 30, probability: 2500, color: "#FF69B4", sortOrder: 2 },
+    { label: "50ptゲット！", emoji: "🎁", points: 50, probability: 2000, color: "#FF1493", sortOrder: 3 },
+    { label: "100ptゲット！", emoji: "💖", points: 100, probability: 1500, color: "#DB7093", sortOrder: 4 },
+    { label: "200ptゲット！", emoji: "🌟", points: 200, probability: 1000, color: "#C71585", sortOrder: 5 },
+    { label: "300ptゲット！", emoji: "💎", points: 300, probability: 500, color: "#8B008B", sortOrder: 6 },
+    { label: "500ptゲット！", emoji: "👑", points: 500, probability: 300, color: "#4B0082", sortOrder: 7 },
+    { label: "1000ptゲット！", emoji: "🏆", points: 1000, probability: 200, color: "#2E0854", sortOrder: 8 },
+  ];
+  
+  for (const item of specialItems) {
+    await db.insert(spinRewardItems).values({ tableId: specialTableId, ...item });
+  }
+  
+  return campaignId;
+}
+
+/** ユーザーの招待進捗を取得（なければ作成） */
+export async function getOrCreateUserReferralProgress(lineUserId: number, campaignId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const existing = await db.select().from(userReferralProgress)
+    .where(and(eq(userReferralProgress.lineUserId, lineUserId), eq(userReferralProgress.campaignId, campaignId)))
+    .limit(1);
+  
+  if (existing.length > 0) {
+    // 月次リセットチェック
+    const now = new Date();
+    const resetAt = new Date(existing[0].monthlyPointsResetAt);
+    if (now.getMonth() !== resetAt.getMonth() || now.getFullYear() !== resetAt.getFullYear()) {
+      await db.update(userReferralProgress)
+        .set({ monthlyPointsEarned: 0, monthlyPointsResetAt: now })
+        .where(eq(userReferralProgress.id, existing[0].id));
+      return { ...existing[0], monthlyPointsEarned: 0 };
+    }
+    return existing[0];
+  }
+  
+  // 新規作成（招待コード生成）
+  const code = await generateFriendReferralCode();
+  await db.insert(userReferralProgress).values({
+    lineUserId,
+    campaignId,
+    referralCode: code,
+    totalReferrals: 0,
+    currentStage: 0,
+    totalPointsEarned: 0,
+    pendingSpins: 0,
+    pendingSpecialSpins: 0,
+    titleLevel: "none",
+    monthlyPointsEarned: 0,
+  });
+  
+  const created = await db.select().from(userReferralProgress)
+    .where(and(eq(userReferralProgress.lineUserId, lineUserId), eq(userReferralProgress.campaignId, campaignId)))
+    .limit(1);
+  return created[0];
+}
+
+/** 友達招待コード生成（6文字英数字） */
+async function generateFriendReferralCode(): Promise<string> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let attempts = 0;
+  while (attempts < 100) {
+    let code = "";
+    for (let i = 0; i < 6; i++) {
+      code += chars[Math.floor(Math.random() * chars.length)];
+    }
+    const existing = await db.select().from(userReferralProgress)
+      .where(eq(userReferralProgress.referralCode, code)).limit(1);
+    if (existing.length === 0) return code;
+    attempts++;
+  }
+  throw new Error("Failed to generate unique referral code");
+}
+
+/** 招待コードからユーザー進捗を検索 */
+export async function getUserProgressByReferralCode(code: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.select().from(userReferralProgress)
+    .where(eq(userReferralProgress.referralCode, code.toUpperCase())).limit(1);
+  return result[0] || null;
+}
+
+/** キャンペーンのステージ一覧を取得 */
+export async function getCampaignStages(campaignId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return await db.select().from(campaignStages)
+    .where(eq(campaignStages.campaignId, campaignId))
+    .orderBy(asc(campaignStages.stageNumber));
+}
+
+/** 友達招待を記録 */
+export async function recordFriendReferral(data: {
+  referrerLineUserId: number;
+  inviteeLineUserId: number;
+  campaignId: number;
+  referrerPointsAwarded: number;
+  inviteePointsAwarded: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.insert(friendReferrals).values({
+    referrerLineUserId: data.referrerLineUserId,
+    inviteeLineUserId: data.inviteeLineUserId,
+    campaignId: data.campaignId,
+    referrerPointsAwarded: data.referrerPointsAwarded,
+    inviteePointsAwarded: data.inviteePointsAwarded,
+  });
+}
+
+/** 既に招待済みかチェック */
+export async function hasAlreadyBeenReferred(inviteeLineUserId: number, campaignId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const existing = await db.select().from(friendReferrals)
+    .where(and(
+      eq(friendReferrals.inviteeLineUserId, inviteeLineUserId),
+      eq(friendReferrals.campaignId, campaignId)
+    )).limit(1);
+  return existing.length > 0;
+}
+
+/** 今日の招待数を取得 */
+export async function getTodayReferralCount(lineUserId: number, campaignId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const result = await db.select({ count: sql<number>`COUNT(*)` }).from(friendReferrals)
+    .where(and(
+      eq(friendReferrals.referrerLineUserId, lineUserId),
+      eq(friendReferrals.campaignId, campaignId),
+      gte(friendReferrals.createdAt, today)
+    ));
+  return result[0]?.count || 0;
+}
+
+/** ユーザー進捗を更新 */
+export async function updateUserReferralProgress(id: number, data: Partial<{
+  totalReferrals: number;
+  currentStage: number;
+  totalPointsEarned: number;
+  pendingSpins: number;
+  pendingSpecialSpins: number;
+  titleLevel: string;
+  monthlyPointsEarned: number;
+}>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(userReferralProgress).set(data).where(eq(userReferralProgress.id, id));
+}
+
+/** スピン報酬テーブルのアイテムを取得 */
+export async function getSpinRewardItems(isSpecial: boolean) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const table = await db.select().from(spinRewardTables)
+    .where(eq(spinRewardTables.isSpecial, isSpecial)).limit(1);
+  if (table.length === 0) return [];
+  
+  return await db.select().from(spinRewardItems)
+    .where(eq(spinRewardItems.tableId, table[0].id));
+}
+
+/** スピン結果を記録 */
+export async function recordSpinResult(data: {
+  lineUserId: number;
+  campaignId: number;
+  rewardItemId: number;
+  pointsWon: number;
+  isSpecialSpin: boolean;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.insert(userSpinHistory).values(data);
+}
+
+/** ランキング取得 */
+export async function getReferralLeaderboard(campaignId: number, limit = 20) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const results = await db
+    .select({
+      lineUserId: userReferralProgress.lineUserId,
+      totalReferrals: userReferralProgress.totalReferrals,
+      totalPointsEarned: userReferralProgress.totalPointsEarned,
+      currentStage: userReferralProgress.currentStage,
+      titleLevel: userReferralProgress.titleLevel,
+    })
+    .from(userReferralProgress)
+    .where(and(
+      eq(userReferralProgress.campaignId, campaignId),
+      gt(userReferralProgress.totalReferrals, 0)
+    ))
+    .orderBy(desc(userReferralProgress.totalReferrals))
+    .limit(limit);
+  
+  // ユーザー名を取得
+  const enriched = [];
+  for (const r of results) {
+    const user = await db.select({ displayName: lineUsers.displayName, pictureUrl: lineUsers.pictureUrl })
+      .from(lineUsers).where(eq(lineUsers.id, r.lineUserId)).limit(1);
+    enriched.push({
+      ...r,
+      displayName: user[0]?.displayName || "匿名ユーザー",
+      pictureUrl: user[0]?.pictureUrl || null,
+    });
+  }
+  return enriched;
+}
+
+/** アクティビティフィードに記録 */
+export async function addReferralActivity(data: {
+  lineUserId?: number;
+  activityType: string;
+  message: string;
+  pointsAmount?: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.insert(referralActivityFeed).values({
+    lineUserId: data.lineUserId ?? null,
+    activityType: data.activityType,
+    message: data.message,
+    pointsAmount: data.pointsAmount ?? 0,
+  });
+}
+
+/** アクティビティフィード取得 */
+export async function getReferralActivityFeed(limit = 20) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return await db.select().from(referralActivityFeed)
+    .orderBy(desc(referralActivityFeed.createdAt))
+    .limit(limit);
+}
+
+/** ユーザーの招待履歴を取得 */
+export async function getUserReferralHistory(lineUserId: number, campaignId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const referrals = await db.select().from(friendReferrals)
+    .where(and(
+      eq(friendReferrals.referrerLineUserId, lineUserId),
+      eq(friendReferrals.campaignId, campaignId)
+    ))
+    .orderBy(desc(friendReferrals.createdAt));
+  
+  const enriched = [];
+  for (const r of referrals) {
+    const user = await db.select({ displayName: lineUsers.displayName, pictureUrl: lineUsers.pictureUrl })
+      .from(lineUsers).where(eq(lineUsers.id, r.inviteeLineUserId)).limit(1);
+    enriched.push({
+      ...r,
+      inviteeDisplayName: user[0]?.displayName || "匿名ユーザー",
+      inviteePictureUrl: user[0]?.pictureUrl || null,
+    });
+  }
+  return enriched;
+}
+
+/** ユーザーのスピン履歴を取得 */
+export async function getUserSpinHistoryList(lineUserId: number, limit = 20) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return await db.select().from(userSpinHistory)
+    .where(eq(userSpinHistory.lineUserId, lineUserId))
+    .orderBy(desc(userSpinHistory.createdAt))
+    .limit(limit);
+}
+
+/** 称号レベルを計算 */
+export function calculateTitleLevel(totalReferrals: number): string {
+  if (totalReferrals >= 50) return "diamond";
+  if (totalReferrals >= 20) return "platinum";
+  if (totalReferrals >= 10) return "gold";
+  if (totalReferrals >= 5) return "silver";
+  if (totalReferrals >= 1) return "bronze";
+  return "none";
 }

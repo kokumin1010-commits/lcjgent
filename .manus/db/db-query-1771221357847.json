@@ -1,0 +1,46 @@
+{
+  "query": "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND (table_name LIKE '%referral%' OR table_name LIKE '%spin%' OR table_name LIKE 'campaign%') ORDER BY table_name;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND (table_name LIKE '%referral%' OR table_name LIKE '%spin%' OR table_name LIKE 'campaign%') ORDER BY table_name;",
+  "rows": [
+    {
+      "table_name": "campaign_stages"
+    },
+    {
+      "table_name": "friend_referral_campaigns"
+    },
+    {
+      "table_name": "friend_referral_records"
+    },
+    {
+      "table_name": "friend_referrals"
+    },
+    {
+      "table_name": "referral_activity_feed"
+    },
+    {
+      "table_name": "referral_challenge_stages"
+    },
+    {
+      "table_name": "referral_codes"
+    },
+    {
+      "table_name": "referral_history"
+    },
+    {
+      "table_name": "spin_history"
+    },
+    {
+      "table_name": "spin_reward_items"
+    },
+    {
+      "table_name": "spin_reward_tables"
+    },
+    {
+      "table_name": "user_referral_progress"
+    }
+  ],
+  "messages": [],
+  "stdout": "table_name\ncampaign_stages\nfriend_referral_campaigns\nfriend_referral_records\nfriend_referrals\nreferral_activity_feed\nreferral_challenge_stages\nreferral_codes\nreferral_history\nspin_history\nspin_reward_items\nspin_reward_tables\nuser_referral_progress\n",
+  "stderr": "",
+  "execution_time_ms": 1524
+}

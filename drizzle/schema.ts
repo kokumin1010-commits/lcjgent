@@ -2899,3 +2899,116 @@ export const receiptProducts = mysqlTable("receipt_products", {
 });
 export type ReceiptProduct = typeof receiptProducts.$inferSelect;
 export type InsertReceiptProduct = typeof receiptProducts.$inferInsert;
+
+
+// ========================================
+// 友達招待チャレンジ（ゲーミフィケーション）
+// ========================================
+
+/** キャンペーン定義 */
+export const referralCampaigns = mysqlTable("referral_campaigns", {
+  id: int("id").primaryKey().autoincrement(),
+  name: varchar("name", { length: 100 }).notNull(),
+  description: text("description"),
+  isActive: boolean("is_active").default(true).notNull(),
+  startDate: timestamp("start_date"),
+  endDate: timestamp("end_date"),
+  maxDailyReferrals: int("max_daily_referrals").default(5).notNull(),
+  monthlyPointCap: int("monthly_point_cap").default(5000).notNull(),
+  inviteeBonus: int("invitee_bonus").default(50).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+export type ReferralCampaign = typeof referralCampaigns.$inferSelect;
+
+/** ステージ定義 */
+export const campaignStages = mysqlTable("campaign_stages", {
+  id: int("id").primaryKey().autoincrement(),
+  campaignId: int("campaign_id").notNull(),
+  stageNumber: int("stage_number").notNull(),
+  requiredReferrals: int("required_referrals").notNull(),
+  fixedReward: int("fixed_reward").notNull(),
+  spinCount: int("spin_count").default(1).notNull(),
+  isSpecialSpin: boolean("is_special_spin").default(false).notNull(),
+  stageEmoji: varchar("stage_emoji", { length: 10 }).default("🌸").notNull(),
+  stageName: varchar("stage_name", { length: 50 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type CampaignStage = typeof campaignStages.$inferSelect;
+
+/** ユーザー進捗 */
+export const userReferralProgress = mysqlTable("user_referral_progress", {
+  id: int("id").primaryKey().autoincrement(),
+  lineUserId: int("lineUserId").notNull(),
+  campaignId: int("campaignId").notNull(),
+  referralCode: varchar("referralCode", { length: 20 }).notNull(),
+  totalReferrals: int("totalReferrals").default(0).notNull(),
+  currentStage: int("currentStage").default(0).notNull(),
+  totalPointsEarned: bigint("totalPointsEarned", { mode: "number" }).default(0).notNull(),
+  pendingSpins: int("pendingSpins").default(0).notNull(),
+  pendingSpecialSpins: int("pendingSpecialSpins").default(0).notNull(),
+  titleLevel: varchar("titleLevel", { length: 20 }).default("none").notNull(),
+  monthlyPointsEarned: bigint("monthlyPointsEarned", { mode: "number" }).default(0).notNull(),
+  monthlyPointsResetAt: timestamp("monthlyPointsResetAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+export type UserReferralProgress = typeof userReferralProgress.$inferSelect;
+
+/** 友達招待記録 */
+export const friendReferrals = mysqlTable("user_referrals", {
+  id: int("id").primaryKey().autoincrement(),
+  referrerLineUserId: int("referrerLineUserId").notNull(),
+  inviteeLineUserId: int("inviteeLineUserId").notNull(),
+  campaignId: int("campaignId").notNull(),
+  referrerPointsAwarded: int("referrerPointsAwarded").default(0).notNull(),
+  inviteePointsAwarded: int("inviteePointsAwarded").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type FriendReferral = typeof friendReferrals.$inferSelect;
+
+/** スピン報酬テーブル */
+export const spinRewardTables = mysqlTable("spin_reward_tables", {
+  id: int("id").primaryKey().autoincrement(),
+  name: varchar("name", { length: 100 }).notNull(),
+  isSpecial: boolean("isSpecial").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type SpinRewardTable = typeof spinRewardTables.$inferSelect;
+
+/** スピン報酬アイテム */
+export const spinRewardItems = mysqlTable("spin_reward_items", {
+  id: int("id").primaryKey().autoincrement(),
+  tableId: int("tableId").notNull(),
+  label: varchar("label", { length: 100 }).notNull(),
+  emoji: varchar("emoji", { length: 10 }).default("🎀").notNull(),
+  points: int("points").notNull(),
+  probability: int("probability").notNull(),
+  color: varchar("color", { length: 20 }).default("#ec4899").notNull(),
+  sortOrder: int("sortOrder").default(0).notNull(),
+});
+export type SpinRewardItem = typeof spinRewardItems.$inferSelect;
+
+/** スピン履歴 */
+export const userSpinHistory = mysqlTable("spin_history", {
+  id: int("id").primaryKey().autoincrement(),
+  lineUserId: int("lineUserId").notNull(),
+  campaignId: int("campaignId").notNull(),
+  rewardItemId: int("rewardItemId").notNull(),
+  pointsWon: int("pointsWon").notNull(),
+  isSpecialSpin: boolean("isSpecialSpin").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type UserSpinHistory = typeof userSpinHistory.$inferSelect;
+
+/** アクティビティフィード */
+export const referralActivityFeed = mysqlTable("referral_activity_feed", {
+  id: int("id").primaryKey().autoincrement(),
+  lineUserId: int("lineUserId"),
+  activityType: varchar("activityType", { length: 30 }).notNull(),
+  message: text("message").notNull(),
+  pointsAmount: int("pointsAmount").default(0),
+  stageNumber: int("stageNumber").default(0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ReferralActivityFeed = typeof referralActivityFeed.$inferSelect;

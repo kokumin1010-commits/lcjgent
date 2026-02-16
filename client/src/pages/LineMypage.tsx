@@ -301,6 +301,27 @@ export default function LineMypage() {
           </CardContent>
         </Card>
 
+        {/* Friend Referral Challenge Banner */}
+        <Card className="mb-6 border-purple-300 bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 shadow-lg overflow-hidden cursor-pointer hover:shadow-xl transition-all"
+          onClick={() => setLocation("/friend-challenge")}>
+          <CardContent className="py-4">
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+                <span className="text-2xl">🎰</span>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-bold text-white">友達招待チャレンジ</h3>
+                <p className="text-purple-100 text-xs mt-0.5">友達を招待してルーレットを回そう！ポイントGET✨</p>
+              </div>
+              <div className="text-white/80">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                </svg>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Referral Bonus Banner */}
         {referralBonusBanner && (
           <div className="mb-6 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-400 rounded-xl p-4 shadow-lg relative overflow-hidden">

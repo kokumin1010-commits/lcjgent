@@ -494,6 +494,29 @@ export default function MallHome() {
         </div>
       </section>
 
+      {/* 友達招待チャレンジバナー */}
+      <section className="py-8 md:py-12 px-4">
+        <div className="container mx-auto max-w-4xl">
+          <div
+            onClick={() => setLocation("/friend-challenge")}
+            className="bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 rounded-2xl p-5 md:p-8 text-white cursor-pointer hover:shadow-xl transition-all relative overflow-hidden group"
+          >
+            <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -translate-y-12 translate-x-12 group-hover:scale-110 transition-transform" />
+            <div className="absolute bottom-0 left-0 w-28 h-28 bg-white/10 rounded-full translate-y-8 -translate-x-8 group-hover:scale-110 transition-transform" />
+            <div className="relative z-10 flex items-center gap-4">
+              <div className="h-14 w-14 md:h-16 md:w-16 bg-white/20 rounded-full flex items-center justify-center shrink-0">
+                <span className="text-3xl md:text-4xl">🎰</span>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-xl md:text-2xl font-bold mb-1">友達招待チャレンジ 🎉</h3>
+                <p className="text-pink-100 text-sm md:text-base">友達を招待してルーレットを回そう！ポイントがどんどん貯まる✨</p>
+              </div>
+              <ArrowRight className="h-6 w-6 text-white/80 group-hover:translate-x-1 transition-transform shrink-0" />
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* おすすめ商品セクション */}
       <RecommendedSection />
 

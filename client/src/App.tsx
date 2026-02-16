@@ -83,6 +83,7 @@ import ReceiptHub from "./pages/ReceiptHub";
 import ReceiptAnalytics from "./pages/ReceiptAnalytics";
 import ProductRanking from "./pages/ProductRanking";
 import ProductRequestsAdmin from "./pages/ProductRequestsAdmin";
+import FriendReferralChallenge from "./pages/FriendReferralChallenge";
 
 function Router() {
   return (
@@ -104,6 +105,7 @@ function Router() {
       <Route path="/point-request" component={PointRequest} />
       <Route path="/receipt-upload" component={ReceiptUpload} />
       <Route path="/ranking" component={ProductRanking} />
+      <Route path="/friend-challenge" component={FriendReferralChallenge} />
       <Route path="/master/point-requests">
         <DashboardLayout>
           <PointRequestAdmin />
