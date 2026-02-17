@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
+import haptic from "@/lib/haptic";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -137,10 +138,7 @@ export default function FriendReferralChallenge() {
       if (pts > 0) {
         setWelcomePoints(pts);
         setWelcomeStep(1);
-        // Celebration haptic: short-long-short pattern
-        if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-          navigator.vibrate([30, 50, 80, 50, 30]);
-        }
+        haptic.celebration();
       }
       localStorage.removeItem('lcj_referral_bonus');
     }
@@ -155,7 +153,7 @@ export default function FriendReferralChallenge() {
   const spinMutation = trpc.friendReferral.spin.useMutation({
     onSuccess: (data) => {
       setSpinResult({ emoji: data.rewardItem.emoji, points: data.pointsWon, label: data.rewardItem.label });
-      setTimeout(() => { setShowSpinDialog(false); setShowResultDialog(true); refetchProgress(); }, 500);
+      setTimeout(() => { setShowSpinDialog(false); setShowResultDialog(true); haptic.celebration(); refetchProgress(); }, 500);
     },
     onError: (err) => toast.error(err.message),
   });
@@ -170,8 +168,7 @@ export default function FriendReferralChallenge() {
 
   const handleCopyCode = () => {
     if (!progress?.referralCode) return;
-    // Haptic tap on copy
-    if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(15);
+    haptic.doubleTap();
     navigator.clipboard.writeText(progress.referralCode);
     toast.success("招待コードをコピーしました！", { icon: "📋" });
   };
@@ -180,6 +177,7 @@ export default function FriendReferralChallenge() {
     if (!progress?.referralCode) return;
     const siteUrl = `${window.location.origin}/register?code=${progress.referralCode}`;
     const shareText = `LCJ MALLで一緒にお買い物しよう！🛍️✨\n私の招待コード: ${progress.referralCode}\n登録するだけで${campaign?.inviteeBonus || 50}ptもらえるよ！\n\n👇 ここから登録 👇\n${siteUrl}`;
+    haptic.doubleTap();
     if (navigator.share) {
       navigator.share({ title: "LCJ MALL 友達招待", text: shareText }).catch(() => {});
     } else {
@@ -190,8 +188,7 @@ export default function FriendReferralChallenge() {
 
   const handleShareLINE = () => {
     if (!progress?.referralCode) return;
-    // Haptic tap on LINE share
-    if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate([15, 10, 15]);
+    haptic.doubleTap();
     const siteUrl = `${window.location.origin}/register?code=${progress.referralCode}`;
     const text = encodeURIComponent(`🎁 LCJ MALLで一緒にポイントGET！\n招待コード: ${progress.referralCode}\n登録で${campaign?.inviteeBonus || 50}ptプレゼント✨\n\n👇 ここから登録 👇\n${siteUrl}`);
     window.open(`https://line.me/R/share?text=${text}`, "_blank");
@@ -678,7 +675,7 @@ export default function FriendReferralChallenge() {
               <p className="text-yellow-300/80 text-xs">ポイントはお買い物にご利用いただけます ✨</p>
               <Button
                 onClick={() => {
-                  if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(15);
+                  haptic.tap();
                   setWelcomeStep(2);
                 }}
                 className="w-full text-white font-black text-base py-6 rounded-xl"
@@ -721,7 +718,7 @@ export default function FriendReferralChallenge() {
               </div>
               <Button
                 onClick={() => {
-                  if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate([15, 10, 15]);
+                  haptic.doubleTap();
                   setWelcomeStep(0);
                 }}
                 className="w-full text-white font-black text-base py-6 rounded-xl"

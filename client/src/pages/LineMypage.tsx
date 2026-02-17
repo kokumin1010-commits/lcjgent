@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { useState, useEffect } from "react";
+import haptic from "@/lib/haptic";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -28,10 +29,7 @@ export default function LineMypage() {
     if (bonus) {
       setReferralBonusBanner(parseInt(bonus, 10));
       localStorage.removeItem('lcj_referral_bonus');
-      // Celebration haptic: short-long-short pattern
-      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-        navigator.vibrate([30, 50, 80, 50, 30]);
-      }
+      haptic.celebration();
     }
   }, []);
   
@@ -82,6 +80,7 @@ export default function LineMypage() {
 
   const cancelOrderMutation = trpc.mall.cancelMyOrder.useMutation({
     onSuccess: (data) => {
+      haptic.warning();
       toast.success(data.message);
       setIsCancelDialogOpen(false);
       setCancelOrderId(null);
@@ -147,6 +146,7 @@ export default function LineMypage() {
   // コードをコピー
   const copyCode = () => {
     if (activeCode?.code) {
+      haptic.doubleTap();
       navigator.clipboard.writeText(activeCode.code);
       toast.success("コードをコピーしました");
     }
@@ -356,7 +356,7 @@ export default function LineMypage() {
             
             <button
               onClick={() => {
-                if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(10);
+                haptic.dismiss();
                 setReferralBonusBanner(null);
               }}
               className="absolute top-3 right-3 text-yellow-400/60 hover:text-yellow-300 z-20 transition-colors"
@@ -410,7 +410,7 @@ export default function LineMypage() {
               <div className="flex justify-center mt-4">
                 <button
                   onClick={() => {
-                    if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate([15, 10, 15]);
+                    haptic.doubleTap();
                     setReferralBonusBanner(null);
                   }}
                   className="px-6 py-2 rounded-full text-sm font-bold transition-all hover:scale-105 active:scale-95"
@@ -1229,13 +1229,14 @@ export default function LineMypage() {
                 variant="destructive"
                 className="flex-1"
                 onClick={() => {
-                  if (cancelOrderId) {
-                    cancelOrderMutation.mutate({
-                      orderId: cancelOrderId,
-                      reason: cancelReason || undefined,
-                    });
-                  }
-                }}
+                   haptic.warning();
+                   if (cancelOrderId) {
+                     cancelOrderMutation.mutate({
+                       orderId: cancelOrderId,
+                       reason: cancelReason || undefined,
+                     });
+                   }
+                 }}
                 disabled={cancelOrderMutation.isPending}
               >
                 {cancelOrderMutation.isPending ? (

@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { trpc } from "@/lib/trpc";
+import haptic from "@/lib/haptic";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle2, Package, ArrowLeft, ShoppingBag, Loader2, AlertCircle } from "lucide-react";
@@ -46,6 +47,7 @@ export default function CheckoutSuccess() {
   useEffect(() => {
     if (isPaid) {
       setShowConfetti(true);
+      haptic.celebration();
       const timer = setTimeout(() => setShowConfetti(false), 5000);
       return () => clearTimeout(timer);
     }

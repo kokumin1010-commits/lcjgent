@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import haptic from "@/lib/haptic";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -250,6 +251,7 @@ export default function MallProductDetail() {
 
   const addToCartMutation = trpc.mall.addToCart.useMutation({
     onSuccess: () => {
+      haptic.success();
       toast.success("カートに追加しました", { duration: 1500 });
       utils.mall.getCartCount.invalidate();
     },
@@ -265,9 +267,11 @@ export default function MallProductDetail() {
     const productId = Number(id);
     if (isFavorite) {
       removeFavoriteMutation.mutate({ productId });
+      haptic.tap();
       toast.success("お気に入りから削除しました", { duration: 1500 });
     } else {
       addFavoriteMutation.mutate({ productId });
+      haptic.success();
       toast.success("お気に入りに追加しました", { duration: 1500 });
     }
   };
@@ -386,6 +390,7 @@ export default function MallProductDetail() {
 
   const createReviewMutation = trpc.mall.createReview.useMutation({
     onSuccess: () => {
+      haptic.success();
       toast.success("レビューを投稿しました");
       setShowReviewForm(false);
       setReviewRating(5);
@@ -459,6 +464,7 @@ export default function MallProductDetail() {
 
   const purchaseWithPoints = trpc.mall.purchaseWithPoints.useMutation({
     onSuccess: () => {
+      haptic.celebration();
       toast.success("購入が完了しました！", {
         description: "マイページで購入履歴を確認できます",
       });
@@ -629,6 +635,7 @@ export default function MallProductDetail() {
   };
 
   const handleShare = async () => {
+    haptic.doubleTap();
     try {
       await navigator.share({
         title: product?.name || '',

@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
+import haptic from "@/lib/haptic";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -92,6 +93,7 @@ export default function ReceiptUpload() {
     onSuccess: (data) => {
       setAnalysisResult(data as AnalysisResult);
       if (data.status === "success") {
+        haptic.success();
         toast.success("レシートの解析が完了しました！");
       } else if (data.status === "on_hold") {
         toast.info("確認中です。スタッフが確認後、結果をお知らせします。");

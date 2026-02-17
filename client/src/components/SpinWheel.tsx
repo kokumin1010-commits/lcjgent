@@ -1,22 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
-
-/* ──── Haptic feedback utility ──── */
-const canVibrate = () => typeof navigator !== "undefined" && "vibrate" in navigator;
-
-const haptic = {
-  /** Short tap – button press confirmation */
-  tap: () => canVibrate() && navigator.vibrate(15),
-  /** Medium pulse – spin start */
-  spinStart: () => canVibrate() && navigator.vibrate([30, 20, 50, 20, 80]),
-  /** Rhythmic ticking during spin (call repeatedly) */
-  tick: () => canVibrate() && navigator.vibrate(8),
-  /** Strong burst – result reveal */
-  result: () => canVibrate() && navigator.vibrate([60, 40, 80, 40, 120, 50, 200]),
-  /** Celebration – big win */
-  celebration: () => canVibrate() && navigator.vibrate([50, 30, 50, 30, 80, 40, 80, 40, 120, 50, 200, 60, 300]),
-  /** Stop any ongoing vibration */
-  stop: () => canVibrate() && navigator.vibrate(0),
-};
+import haptic from "@/lib/haptic";
 
 interface SpinItem {
   id: number;
@@ -104,7 +87,7 @@ export default function SpinWheel({ items, onSpinComplete, isSpinning, setIsSpin
       // ── Haptic: result reveal burst ──
       const won = resultItemRef.current;
       if (won && won.points >= 100) {
-        haptic.celebration();
+        haptic.grandCelebration();
       } else {
         haptic.result();
       }
