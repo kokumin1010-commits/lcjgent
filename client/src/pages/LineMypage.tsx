@@ -322,28 +322,106 @@ export default function LineMypage() {
           </CardContent>
         </Card>
 
-        {/* Referral Bonus Banner */}
+        {/* Referral Welcome Banner - Temu-style */}
         {referralBonusBanner && (
-          <div className="mb-6 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-400 rounded-xl p-4 shadow-lg relative overflow-hidden">
+          <div
+            className="mb-6 rounded-2xl shadow-2xl relative overflow-hidden animate-in fade-in slide-in-from-top-4 duration-700"
+            style={{
+              background: 'linear-gradient(135deg, #1a0a0a 0%, #3d0c0c 30%, #6b1111 60%, #1a0a0a 100%)',
+            }}
+          >
+            {/* Animated gold sparkle overlay */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+              {[...Array(12)].map((_, i) => (
+                <div
+                  key={i}
+                  className="absolute rounded-full"
+                  style={{
+                    width: `${4 + (i % 3) * 2}px`,
+                    height: `${4 + (i % 3) * 2}px`,
+                    background: `radial-gradient(circle, ${['#ffd700', '#ffaa00', '#fff5cc'][i % 3]} 0%, transparent 70%)`,
+                    left: `${(i * 8 + 5) % 95}%`,
+                    top: `${(i * 11 + 10) % 85}%`,
+                    animation: `sparkle ${1.5 + (i % 3) * 0.7}s ease-in-out ${(i % 5) * 0.4}s infinite`,
+                  }}
+                />
+              ))}
+            </div>
+            {/* Gold border glow */}
+            <div className="absolute inset-0 rounded-2xl" style={{ boxShadow: 'inset 0 0 20px rgba(255,215,0,0.15)' }} />
+            
             <button
               onClick={() => setReferralBonusBanner(null)}
-              className="absolute top-2 right-2 text-amber-800 hover:text-amber-900 z-10"
+              className="absolute top-3 right-3 text-yellow-400/60 hover:text-yellow-300 z-20 transition-colors"
             >
-              <X className="h-4 w-4" />
+              <X className="h-5 w-5" />
             </button>
-            <div className="flex items-center gap-3 relative z-10">
-              <div className="h-12 w-12 bg-white/30 rounded-full flex items-center justify-center flex-shrink-0">
-                <Gift className="h-6 w-6 text-amber-800" />
+            
+            <div className="relative z-10 p-5">
+              {/* Top badge */}
+              <div className="flex justify-center mb-3">
+                <span
+                  className="inline-flex items-center gap-1.5 px-4 py-1 rounded-full text-xs font-bold tracking-wider"
+                  style={{
+                    background: 'linear-gradient(90deg, #ffd700, #ffaa00)',
+                    color: '#1a0a0a',
+                    boxShadow: '0 0 12px rgba(255,215,0,0.4)',
+                  }}
+                >
+                  <Gift className="h-3.5 w-3.5" />
+                  WELCOME BONUS
+                </span>
               </div>
-              <div>
-                <p className="text-amber-900 font-bold text-lg">
-                  {referralBonusBanner}pt 獲得しました！
+              
+              {/* Points display */}
+              <div className="text-center mb-3">
+                <div className="inline-flex items-baseline gap-1">
+                  <span
+                    className="text-4xl font-black tracking-tight"
+                    style={{
+                      background: 'linear-gradient(180deg, #ffd700 0%, #ffaa00 50%, #ff8800 100%)',
+                      WebkitBackgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                      filter: 'drop-shadow(0 2px 4px rgba(255,170,0,0.3))',
+                    }}
+                  >
+                    {referralBonusBanner}
+                  </span>
+                  <span className="text-xl font-bold text-yellow-400">pt</span>
+                </div>
+                <p className="text-yellow-100 font-bold text-lg mt-0.5">
+                  プレゼント！
                 </p>
-                <p className="text-amber-800 text-sm">
-                  紹介コード特典のポイントが付与されました。商品購入にご利用いただけます。
-                </p>
+              </div>
+              
+              {/* Description */}
+              <p className="text-center text-yellow-200/70 text-xs">
+                招待特典ポイントが付与されました。お買い物にご利用いただけます。
+              </p>
+              
+              {/* CTA button */}
+              <div className="flex justify-center mt-4">
+                <button
+                  onClick={() => setReferralBonusBanner(null)}
+                  className="px-6 py-2 rounded-full text-sm font-bold transition-all hover:scale-105 active:scale-95"
+                  style={{
+                    background: 'linear-gradient(90deg, #ff3333, #cc0000)',
+                    color: '#fff',
+                    boxShadow: '0 4px 15px rgba(255,0,0,0.3)',
+                  }}
+                >
+                  お買い物を始める
+                </button>
               </div>
             </div>
+            
+            {/* CSS animation for sparkles */}
+            <style>{`
+              @keyframes sparkle {
+                0%, 100% { opacity: 0; transform: scale(0.5); }
+                50% { opacity: 1; transform: scale(1.2); }
+              }
+            `}</style>
           </div>
         )}
         {/* Points Summary - 改善されたデザイン */}
