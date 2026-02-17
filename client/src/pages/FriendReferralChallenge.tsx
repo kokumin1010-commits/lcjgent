@@ -126,6 +126,22 @@ export default function FriendReferralChallenge() {
   const [showResultDialog, setShowResultDialog] = useState(false);
   const [activeTab, setActiveTab] = useState("challenge");
 
+  // Welcome popup state for users who just registered via friend referral code
+  const [welcomeStep, setWelcomeStep] = useState<0 | 1 | 2>(0); // 0=hidden, 1=congrats, 2=invite CTA
+  const [welcomePoints, setWelcomePoints] = useState(0);
+
+  useEffect(() => {
+    const bonus = localStorage.getItem('lcj_referral_bonus');
+    if (bonus) {
+      const pts = parseInt(bonus, 10);
+      if (pts > 0) {
+        setWelcomePoints(pts);
+        setWelcomeStep(1);
+      }
+      localStorage.removeItem('lcj_referral_bonus');
+    }
+  }, []);
+
   const { data: campaignData } = trpc.friendReferral.getCampaign.useQuery();
   const { data: myProgress, refetch: refetchProgress, isLoading: isProgressLoading } = trpc.friendReferral.getMyProgress.useQuery(undefined, { retry: 1 });
   const { data: leaderboard } = trpc.friendReferral.getLeaderboard.useQuery();
@@ -625,6 +641,91 @@ export default function FriendReferralChallenge() {
             {spinItems && spinItems.length > 0 && (
               <SpinWheel items={spinItems} onSpinComplete={handleSpin} isSpinning={isSpinning} setIsSpinning={setIsSpinning} isSpecial={isSpecialSpin} />
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Welcome Step 1: Congratulations popup */}
+      <Dialog open={welcomeStep === 1} onOpenChange={(open) => { if (!open) setWelcomeStep(0); }}>
+        <DialogContent className="max-w-sm mx-auto border-0 p-0 overflow-hidden" style={{ background: "transparent", boxShadow: "none" }}>
+          <DialogHeader className="sr-only">
+            <DialogTitle>ウェルカムボーナス</DialogTitle>
+            <DialogDescription>招待特典ポイントが付与されました</DialogDescription>
+          </DialogHeader>
+          <div className="relative rounded-2xl overflow-hidden" style={{ border: "3px solid #fbbf24", boxShadow: "0 0 40px rgba(255,180,0,0.3)" }}>
+            {/* Confetti background */}
+            <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, #b91c1c 0%, #991b1b 100%)" }} />
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+              {['🎉', '🎊', '✨', '🌟', '🎁', '💫'].map((e, i) => (
+                <div key={i} className="absolute animate-bounce" style={{
+                  left: `${10 + i * 15}%`, top: `${5 + (i % 3) * 20}%`,
+                  fontSize: `${16 + (i % 3) * 6}px`, animationDelay: `${i * 0.2}s`, opacity: 0.6
+                }}>{e}</div>
+              ))}
+            </div>
+            <div className="relative text-center py-8 px-6 space-y-4">
+              <div className="text-6xl animate-bounce">🎉</div>
+              <h3 className="text-2xl font-black text-white">おめでとうございます！</h3>
+              <p className="text-yellow-200 text-sm">招待特典ポイントが付与されました</p>
+              <div className="inline-block rounded-xl py-3 px-8" style={{ background: "linear-gradient(135deg, #f59e0b, #f97316)", boxShadow: "0 4px 20px rgba(245,158,11,0.5)" }}>
+                <span className="text-4xl font-black text-white">{welcomePoints}</span>
+                <span className="text-xl ml-1 text-yellow-100 font-bold">pt GET！</span>
+              </div>
+              <p className="text-yellow-300/80 text-xs">ポイントはお買い物にご利用いただけます ✨</p>
+              <Button
+                onClick={() => setWelcomeStep(2)}
+                className="w-full text-white font-black text-base py-6 rounded-xl"
+                style={{ background: "linear-gradient(135deg, #f59e0b, #f97316)", boxShadow: "0 4px 15px rgba(245,158,11,0.4)" }}
+              >
+                やった！ 🎉
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Welcome Step 2: Invite friends CTA */}
+      <Dialog open={welcomeStep === 2} onOpenChange={(open) => { if (!open) setWelcomeStep(0); }}>
+        <DialogContent className="max-w-sm mx-auto border-0 p-0 overflow-hidden" style={{ background: "transparent", boxShadow: "none" }}>
+          <DialogHeader className="sr-only">
+            <DialogTitle>友達招待のご案内</DialogTitle>
+            <DialogDescription>友達を招待してさらにポイントを獲得しましょう</DialogDescription>
+          </DialogHeader>
+          <div className="relative rounded-2xl overflow-hidden" style={{ border: "3px solid #fbbf24", boxShadow: "0 0 40px rgba(255,180,0,0.3)" }}>
+            <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, #1a0000 0%, #0d0000 100%)" }} />
+            <div className="relative text-center py-8 px-6 space-y-5">
+              <div className="text-5xl">🎁</div>
+              <h3 className="text-xl font-black text-white">さらにポイントをゲット！</h3>
+              <p className="text-gray-300 text-sm leading-relaxed">
+                あなたも友達を招待して<br />
+                <span className="text-yellow-400 font-bold">最大 5,000pt</span> 獲得できます！
+              </p>
+              <div className="space-y-2 text-left">
+                {[
+                  { icon: "📤", text: "招待コードを友達にシェア" },
+                  { icon: "👥", text: "友達が登録するとポイントGET" },
+                  { icon: "🎰", text: "ルーレットでボーナスポイントも！" },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center gap-3 p-2.5 rounded-lg" style={{ background: "rgba(255,255,255,0.05)" }}>
+                    <span className="text-xl">{item.icon}</span>
+                    <span className="text-sm text-gray-200">{item.text}</span>
+                  </div>
+                ))}
+              </div>
+              <Button
+                onClick={() => setWelcomeStep(0)}
+                className="w-full text-white font-black text-base py-6 rounded-xl"
+                style={{ background: "linear-gradient(135deg, #ef4444, #f97316)", boxShadow: "0 4px 15px rgba(239,68,68,0.4)" }}
+              >
+                友達を招待する 🚀
+              </Button>
+              <button
+                onClick={() => setWelcomeStep(0)}
+                className="text-gray-500 text-xs hover:text-gray-400 transition"
+              >
+                あとで見る
+              </button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
