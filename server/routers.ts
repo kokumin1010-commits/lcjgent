@@ -1061,25 +1061,105 @@ export const lineLoginRouter = router({
       // Handle FRIEND CHALLENGE referral codes (alphanumeric like 7H6RJF)
       if (friendChallengeCode) {
         try {
-          const { getUserProgressByReferralCode, getActiveReferralCampaign, getLineUserById, createLinePointTransaction } = await import("./db");
+          const { 
+            getUserProgressByReferralCode, getActiveReferralCampaign, getLineUserById, 
+            createLinePointTransaction, getOrCreateUserReferralProgress, getCampaignStages,
+            recordFriendReferral, updateUserReferralProgress, addReferralActivity,
+            hasAlreadyBeenReferred, getTodayReferralCount, calculateTitleLevel
+          } = await import("./db");
           const referrerProgress = await getUserProgressByReferralCode(friendChallengeCode);
           const campaign = await getActiveReferralCampaign();
           if (referrerProgress && campaign) {
-            // Award invitee bonus to new user
-            const inviteeBonus = campaign.inviteeBonus || 50;
-            await createLinePointTransaction({
-              lineUserId: `email_${newUser.id}`,
-              type: "earn",
-              amount: inviteeBonus,
-              referenceType: "system",
-              description: `友達招待チャレンジ 招待ボーナス`,
-            });
-            referralApplied = true;
-            referralPoints = inviteeBonus;
-            console.log(`[FriendChallenge] ${inviteeBonus}pt awarded to new user ${newUser.id} via friend code ${friendChallengeCode}`);
-            
-            // Save the friend challenge code to localStorage key for auto-apply after login
-            // The recordReferral will be called after login from the friend challenge page
+            // Check if already referred (shouldn't happen for new user, but safety check)
+            const alreadyReferred = await hasAlreadyBeenReferred(newUser.id, campaign.id);
+            if (!alreadyReferred) {
+              // Award invitee bonus to new user
+              const inviteeBonus = campaign.inviteeBonus || 50;
+              await createLinePointTransaction({
+                lineUserId: `email_${newUser.id}`,
+                type: "earn",
+                amount: inviteeBonus,
+                referenceType: "system",
+                description: `友達招待チャレンジ 招待ボーナス`,
+              });
+              referralApplied = true;
+              referralPoints = inviteeBonus;
+              console.log(`[FriendChallenge] ${inviteeBonus}pt awarded to new user ${newUser.id} via friend code ${friendChallengeCode}`);
+
+              // === CRITICAL: Record referral for the REFERRER (inviter) ===
+              // This was previously missing - the referrer's stats/points/history were never updated
+              
+              // Get referrer's current progress
+              const currentProgress = await getOrCreateUserReferralProgress(referrerProgress.lineUserId, campaign.id);
+              
+              // Calculate stage progression
+              const stages = await getCampaignStages(campaign.id);
+              const newTotalReferrals = currentProgress.totalReferrals + 1;
+              let stageReward = 0;
+              let newSpins = 0;
+              let newSpecialSpins = 0;
+              let newStage = currentProgress.currentStage;
+
+              for (const stage of stages) {
+                if (stage.stageNumber > currentProgress.currentStage && newTotalReferrals >= stage.requiredReferrals) {
+                  stageReward += stage.fixedReward;
+                  if (stage.isSpecialSpin) {
+                    newSpecialSpins += stage.spinCount;
+                  } else {
+                    newSpins += stage.spinCount;
+                  }
+                  newStage = stage.stageNumber;
+                }
+              }
+
+              // Record the referral in history
+              await recordFriendReferral({
+                referrerLineUserId: referrerProgress.lineUserId,
+                inviteeLineUserId: newUser.id,
+                campaignId: campaign.id,
+                referrerPointsAwarded: stageReward,
+                inviteePointsAwarded: inviteeBonus,
+              });
+
+              // Award stage reward points to referrer
+              if (stageReward > 0) {
+                const referrerUser = await getLineUserById(referrerProgress.lineUserId);
+                const referrerPointId = referrerUser?.lineUserId || `email_${referrerProgress.lineUserId}`;
+                await createLinePointTransaction({
+                  lineUserId: referrerPointId,
+                  type: "earn",
+                  amount: stageReward,
+                  referenceType: "system",
+                  description: `友達招待チャレンジ ステージ${newStage}達成報酬`,
+                });
+              }
+
+              // Update referrer's progress
+              const titleLevel = calculateTitleLevel(newTotalReferrals);
+              await updateUserReferralProgress(currentProgress.id, {
+                totalReferrals: newTotalReferrals,
+                currentStage: newStage,
+                totalPointsEarned: currentProgress.totalPointsEarned + stageReward,
+                pendingSpins: currentProgress.pendingSpins + newSpins,
+                pendingSpecialSpins: currentProgress.pendingSpecialSpins + newSpecialSpins,
+                titleLevel,
+                monthlyPointsEarned: currentProgress.monthlyPointsEarned + stageReward,
+              });
+
+              // Add activity feed entry
+              const referrerUser = await getLineUserById(referrerProgress.lineUserId);
+              if (newStage > currentProgress.currentStage) {
+                const stageInfo = stages.find(s => s.stageNumber === newStage);
+                await addReferralActivity({
+                  lineUserId: referrerProgress.lineUserId,
+                  activityType: "stage_clear",
+                  message: `${referrerUser?.displayName || "ユーザー"}さんが「${stageInfo?.stageName || `ステージ${newStage}`}」を達成しました！ ${stageInfo?.stageEmoji || "🎉"}`,
+                  pointsAmount: stageReward,
+                });
+              }
+
+              console.log(`[FriendChallenge] Referrer ${referrerProgress.lineUserId} updated: totalReferrals=${newTotalReferrals}, stage=${newStage}, stageReward=${stageReward}, spins=${newSpins}, specialSpins=${newSpecialSpins}`);
+            }
           }
         } catch (err: any) {
           console.error(`[FriendChallenge] Failed to apply friend challenge referral:`, err.message);

@@ -5540,3 +5540,25 @@
 - [x] Register.tsx, LineLogin.tsx, App.tsx, FriendReferralChallenge.tsxの全コードを精査
 - [x] サーバーサイドルーティング（SPA fallback）の確認
 - [x] 根本原因を特定して修正（CDNがクエリパラメータを除去→パスパラメータ方式に変更）
+
+## バグ修正：Publish後も招待コードが自動入力されない（再調査）
+- [x] 本番環境(lcjmall.com)でパスパラメータ形式をテスト → 正常動作確認済み
+- [x] 本番JSバンドルに修正コードが含まれていることを確認
+- [x] Register.tsx/LineLogin.tsx/App.tsxのコードを全て再確認
+- [x] パスパラメータ方式(/register/CODE)で本番環境で正常動作
+
+## バグ修正：招待コードで登録しても招待者のポイント・招待履歴に反映されない
+- [ ] バックエンドの登録API（auth.register）で紹介コード処理ロジックを確認
+- [ ] 招待履歴テーブル（referral_history等）へのINSERT処理を確認
+- [ ] 招待者へのポイント付与処理を確認
+- [ ] 被招待者への50pt付与処理を確認
+- [ ] データベースで実際のデータを確認
+- [ ] 根本原因を特定して修正
+
+
+## バグ修正：招待コードで登録しても招待者のポイント・招待履歴に反映されない（修正済み）
+- [x] emailRegister APIのfriendChallengeCode処理フローを調査
+- [x] recordReferral APIのロジックを確認
+- [x] フロントエンドからrecordReferralが呼ばれているか確認→呼ばれていなかった！
+- [x] 根本原因を特定して修正（emailRegister内でrecordFriendReferral+updateUserReferralProgress+addReferralActivityを直接実行するように修正）
+- [x] テスト作成・全142テスト通過確認
