@@ -7,8 +7,8 @@ import { Label } from "@/components/ui/label";
 import { useLocation, Link } from "wouter";
 import { toast } from "sonner";
 
-export default function LineLogin(props: { forceRegisterMode?: boolean } & Record<string, any>) {
-  const { forceRegisterMode } = props;
+export default function LineLogin(props: { forceRegisterMode?: boolean; initialReferralCode?: string } & Record<string, any>) {
+  const { forceRegisterMode, initialReferralCode } = props;
   const [, setLocation] = useLocation();
   
   // Email/Password login state
@@ -28,25 +28,25 @@ export default function LineLogin(props: { forceRegisterMode?: boolean } & Recor
   const [referralError, setReferralError] = useState<string | null>(null);
   const [isValidatingReferral, setIsValidatingReferral] = useState(false);
   
-  // Read referral code from URL params or localStorage on mount
+  // Read referral code from: 1) prop (path param), 2) URL query param, 3) localStorage
   useEffect(() => {
+    if (initialReferralCode && /^[A-Za-z0-9]{4,8}$/.test(initialReferralCode)) {
+      setReferralCode(initialReferralCode);
+      localStorage.setItem('lcj_referral_code', initialReferralCode);
+      return;
+    }
     const urlParams = new URLSearchParams(window.location.search);
-    // Check both 'ref' and 'code' URL params (links may use either)
     const refCode = urlParams.get('ref') || urlParams.get('code');
-    
-    // Accept both 4-digit numeric codes and alphanumeric codes (e.g. 7H6RJF)
     if (refCode && /^[A-Za-z0-9]{4,8}$/.test(refCode)) {
       setReferralCode(refCode);
-      // Also update localStorage so it stays consistent
       localStorage.setItem('lcj_referral_code', refCode);
       return;
     }
-    // Fallback: read from localStorage (captured by useReferralCapture on any page)
     const saved = localStorage.getItem('lcj_referral_code');
     if (saved && /^[A-Za-z0-9]{4,8}$/.test(saved)) {
       setReferralCode(saved);
     }
-  }, []);
+  }, [initialReferralCode]);
   
   // Validate referral code API
   const validateReferralMutation = trpc.lineLogin.validateReferralCode.useMutation({

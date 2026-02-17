@@ -175,7 +175,7 @@ export default function FriendReferralChallenge() {
 
   const handleShare = () => {
     if (!progress?.referralCode) return;
-    const siteUrl = `${window.location.origin}/register?code=${progress.referralCode}`;
+    const siteUrl = `${window.location.origin}/register/${progress.referralCode}`;
     const shareText = `LCJ MALLで一緒にお買い物しよう！🛍️✨\n私の招待コード: ${progress.referralCode}\n登録するだけで${campaign?.inviteeBonus || 50}ptもらえるよ！\n\n👇 ここから登録 👇\n${siteUrl}`;
     haptic.doubleTap();
     if (navigator.share) {
@@ -189,7 +189,7 @@ export default function FriendReferralChallenge() {
   const handleShareLINE = () => {
     if (!progress?.referralCode) return;
     haptic.doubleTap();
-    const siteUrl = `${window.location.origin}/register?code=${progress.referralCode}`;
+    const siteUrl = `${window.location.origin}/register/${progress.referralCode}`;
     const text = encodeURIComponent(`🎁 LCJ MALLで一緒にポイントGET！\n招待コード: ${progress.referralCode}\n登録で${campaign?.inviteeBonus || 50}ptプレゼント✨\n\n👇 ここから登録 👇\n${siteUrl}`);
     window.open(`https://line.me/R/share?text=${text}`, "_blank");
   };

@@ -107,6 +107,7 @@ function Router() {
       <Route path="/receipt-upload" component={ReceiptUpload} />
       <Route path="/ranking" component={ProductRanking} />
       <Route path="/friend-challenge" component={FriendReferralChallenge} />
+      <Route path="/register/:code" component={Register} />
       <Route path="/register" component={Register} />
       <Route path="/master/point-requests">
         <DashboardLayout>
