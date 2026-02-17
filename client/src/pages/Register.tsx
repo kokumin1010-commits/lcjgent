@@ -1,12 +1,13 @@
 import { useEffect } from "react";
-import { useLocation } from "wouter";
 
 /**
  * /register?code=XXXX → 招待コードをlocalStorageに保存し、LINEログインページにリダイレクト
+ * 
+ * window.location.href を使用してフルページリダイレクトを行う。
+ * wouter の setLocation だと window.location.search が更新されず、
+ * リダイレクト先でURLパラメータを読み取れない問題があるため。
  */
 export default function Register() {
-  const [, setLocation] = useLocation();
-
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get("code");
@@ -16,13 +17,15 @@ export default function Register() {
       localStorage.setItem("lcj_referral_code", code);
     }
 
-    // Redirect to LINE login with referral code as ref param and register mode
+    // Full page redirect to LINE login with referral code as ref param and register mode
+    // Using window.location.href instead of wouter's setLocation to ensure
+    // URL params are properly available via window.location.search on the target page
     const loginUrl = code
       ? `/line-login?mode=register&ref=${encodeURIComponent(code)}&redirect=/mypage`
       : `/line-login?mode=register&redirect=/mypage`;
 
-    setLocation(loginUrl, { replace: true });
-  }, [setLocation]);
+    window.location.href = loginUrl;
+  }, []);
 
   // Brief loading state while redirecting
   return (
