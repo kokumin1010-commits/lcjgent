@@ -137,6 +137,10 @@ export default function FriendReferralChallenge() {
       if (pts > 0) {
         setWelcomePoints(pts);
         setWelcomeStep(1);
+        // Celebration haptic: short-long-short pattern
+        if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+          navigator.vibrate([30, 50, 80, 50, 30]);
+        }
       }
       localStorage.removeItem('lcj_referral_bonus');
     }
@@ -673,7 +677,10 @@ export default function FriendReferralChallenge() {
               </div>
               <p className="text-yellow-300/80 text-xs">ポイントはお買い物にご利用いただけます ✨</p>
               <Button
-                onClick={() => setWelcomeStep(2)}
+                onClick={() => {
+                  if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(15);
+                  setWelcomeStep(2);
+                }}
                 className="w-full text-white font-black text-base py-6 rounded-xl"
                 style={{ background: "linear-gradient(135deg, #f59e0b, #f97316)", boxShadow: "0 4px 15px rgba(245,158,11,0.4)" }}
               >
@@ -713,7 +720,10 @@ export default function FriendReferralChallenge() {
                 ))}
               </div>
               <Button
-                onClick={() => setWelcomeStep(0)}
+                onClick={() => {
+                  if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate([15, 10, 15]);
+                  setWelcomeStep(0);
+                }}
                 className="w-full text-white font-black text-base py-6 rounded-xl"
                 style={{ background: "linear-gradient(135deg, #ef4444, #f97316)", boxShadow: "0 4px 15px rgba(239,68,68,0.4)" }}
               >

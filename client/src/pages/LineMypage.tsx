@@ -28,6 +28,10 @@ export default function LineMypage() {
     if (bonus) {
       setReferralBonusBanner(parseInt(bonus, 10));
       localStorage.removeItem('lcj_referral_bonus');
+      // Celebration haptic: short-long-short pattern
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+        navigator.vibrate([30, 50, 80, 50, 30]);
+      }
     }
   }, []);
   
@@ -351,7 +355,10 @@ export default function LineMypage() {
             <div className="absolute inset-0 rounded-2xl" style={{ boxShadow: 'inset 0 0 20px rgba(255,215,0,0.15)' }} />
             
             <button
-              onClick={() => setReferralBonusBanner(null)}
+              onClick={() => {
+                if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(10);
+                setReferralBonusBanner(null);
+              }}
               className="absolute top-3 right-3 text-yellow-400/60 hover:text-yellow-300 z-20 transition-colors"
             >
               <X className="h-5 w-5" />
@@ -402,7 +409,10 @@ export default function LineMypage() {
               {/* CTA button */}
               <div className="flex justify-center mt-4">
                 <button
-                  onClick={() => setReferralBonusBanner(null)}
+                  onClick={() => {
+                    if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate([15, 10, 15]);
+                    setReferralBonusBanner(null);
+                  }}
                   className="px-6 py-2 rounded-full text-sm font-bold transition-all hover:scale-105 active:scale-95"
                   style={{
                     background: 'linear-gradient(90deg, #ff3333, #cc0000)',
