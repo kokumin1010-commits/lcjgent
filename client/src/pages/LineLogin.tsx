@@ -31,13 +31,14 @@ export default function LineLogin() {
     const urlParams = new URLSearchParams(window.location.search);
     const refCode = urlParams.get('ref');
     
-    if (refCode && /^\d{4}$/.test(refCode)) {
+    // Accept both 4-digit numeric codes and alphanumeric codes (e.g. 7H6RJF)
+    if (refCode && /^[A-Za-z0-9]{4,8}$/.test(refCode)) {
       setReferralCode(refCode);
       return;
     }
     // Fallback: read from localStorage (captured by useReferralCapture on any page)
     const saved = localStorage.getItem('lcj_referral_code');
-    if (saved && /^\d{4}$/.test(saved)) {
+    if (saved && /^[A-Za-z0-9]{4,8}$/.test(saved)) {
       setReferralCode(saved);
     }
   }, []);
@@ -58,7 +59,7 @@ export default function LineLogin() {
   
   // Validate referral code when it changes
   useEffect(() => {
-    if (referralCode.length === 4 && /^\d{4}$/.test(referralCode)) {
+    if (referralCode.length >= 4 && /^[A-Za-z0-9]{4,8}$/.test(referralCode)) {
       setIsValidatingReferral(true);
       validateReferralMutation.mutate({ code: referralCode });
     } else {
@@ -98,15 +99,24 @@ export default function LineLogin() {
       // Clear saved referral code after successful registration
       localStorage.removeItem('lcj_referral_code');
       if (data.referralApplied && data.referralPoints) {
-        toast.success(`アカウントを作成しました！紹介コード特典で${data.referralPoints}ptを獲得しました🎉`);
+        toast.success(`アカウントを作成しました！招待特典で${data.referralPoints}ptを獲得しました🎉`);
         // Save flag for welcome banner on mypage
         localStorage.setItem('lcj_referral_bonus', String(data.referralPoints));
       } else {
         toast.success("アカウントを作成しました");
       }
+      // If registered via friend challenge code, save it for auto-apply on challenge page
+      if (data.friendChallengeCode) {
+        localStorage.setItem('lcj_friend_referral_code', data.friendChallengeCode);
+      }
       // Auto-login: redirect
       setTimeout(() => {
-        window.location.href = redirectTo;
+        // If friend challenge code was used, redirect to challenge page
+        if (data.friendChallengeCode) {
+          window.location.href = '/friend-challenge';
+        } else {
+          window.location.href = redirectTo;
+        }
       }, 500);
     },
     onError: (err) => {
@@ -139,7 +149,7 @@ export default function LineLogin() {
         email, 
         password, 
         name,
-        referralCode: referralCode.length === 4 ? referralCode : undefined,
+        referralCode: referralCode.length >= 4 ? referralCode : undefined,
       });
     } else {
       emailLoginMutation.mutate({ email, password });
@@ -229,12 +239,11 @@ export default function LineLogin() {
               <Input
                 id="referral-email"
                 type="text"
-                inputMode="numeric"
-                maxLength={4}
-                placeholder="4桁の数字"
+                maxLength={8}
+                placeholder="招待コードを入力"
                 value={referralCode}
                 onChange={(e) => {
-                  const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                  const val = e.target.value.replace(/[^A-Za-z0-9]/g, '').slice(0, 8).toUpperCase();
                   setReferralCode(val);
                 }}
                 className={referralLiverName ? "border-green-500" : referralError ? "border-red-500" : ""}

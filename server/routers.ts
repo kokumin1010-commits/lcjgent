@@ -920,22 +920,39 @@ export const lineLoginRouter = router({
     }),
 
   // Validate referral code (for registration form)
+  // Accepts both 4-digit liver referral codes AND alphanumeric friend challenge codes
   validateReferralCode: publicProcedure
     .input(z.object({
-      code: z.string().length(4).regex(/^\d{4}$/),
+      code: z.string().min(4).max(8).regex(/^[A-Za-z0-9]+$/),
     }))
     .mutation(async ({ input }) => {
-      const result = await getReferralCodeByCode(input.code);
-      if (!result) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "無効な紹介コードです",
-        });
+      // First try liver referral code (4-digit numeric)
+      if (/^\d{4}$/.test(input.code)) {
+        const result = await getReferralCodeByCode(input.code);
+        if (result) {
+          return {
+            valid: true,
+            liverName: result.liverName || "ライバー",
+            codeType: "liver" as const,
+          };
+        }
       }
-      return {
-        valid: true,
-        liverName: result.liverName || "ライバー",
-      };
+      // Then try friend challenge referral code (alphanumeric)
+      const { getUserProgressByReferralCode } = await import("./db");
+      const friendProgress = await getUserProgressByReferralCode(input.code.toUpperCase());
+      if (friendProgress) {
+        const { getLineUserById } = await import("./db");
+        const referrerUser = await getLineUserById(friendProgress.lineUserId);
+        return {
+          valid: true,
+          liverName: referrerUser?.displayName || "ユーザー",
+          codeType: "friend" as const,
+        };
+      }
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "無効な招待コードです",
+      });
     }),
 
   // Email registration
@@ -944,7 +961,7 @@ export const lineLoginRouter = router({
       email: z.string().email(),
       password: z.string().min(6),
       name: z.string().min(1),
-      referralCode: z.string().length(4).regex(/^\d{4}$/).optional(),
+      referralCode: z.string().min(4).max(8).regex(/^[A-Za-z0-9]+$/).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       // Check if email already exists
@@ -957,17 +974,31 @@ export const lineLoginRouter = router({
       }
       
       // Validate referral code before creating user
+      // Support both liver referral codes (4-digit numeric) and friend challenge codes (alphanumeric)
       let referralData: { referralCode: any; liverName: string | null } | null = null;
+      let friendChallengeCode: string | null = null;
       if (input.referralCode) {
-        const { getReferralCodeByCode } = await import("./db");
-        const result = await getReferralCodeByCode(input.referralCode);
-        if (!result) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "無効な紹介コードです",
-          });
+        // First try liver referral code (4-digit numeric)
+        if (/^\d{4}$/.test(input.referralCode)) {
+          const { getReferralCodeByCode } = await import("./db");
+          const result = await getReferralCodeByCode(input.referralCode);
+          if (result) {
+            referralData = result;
+          }
         }
-        referralData = result;
+        // If not a liver code, try friend challenge code
+        if (!referralData) {
+          const { getUserProgressByReferralCode } = await import("./db");
+          const friendProgress = await getUserProgressByReferralCode(input.referralCode.toUpperCase());
+          if (friendProgress) {
+            friendChallengeCode = input.referralCode.toUpperCase();
+          } else {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "無効な招待コードです",
+            });
+          }
+        }
       }
       
       // Hash password
@@ -981,7 +1012,9 @@ export const lineLoginRouter = router({
         displayName: input.name,
       });
       
-      // Register pending referral (points awarded on first purchase)
+      // Register pending referral (points awarded on first purchase) - LIVER referral codes
+      let referralApplied = false;
+      let referralPoints = 0;
       if (referralData) {
         try {
           const { registerPendingReferral, createLinePointTransaction } = await import("./db");
@@ -1001,9 +1034,11 @@ export const lineLoginRouter = router({
             referenceType: "system",
             description: `紹介コード特典: 500ポイント獲得（新規登録ボーナス）`,
           });
-          console.log(`[Referral] 500pt awarded to user ${newUser.id} at registration via code ${input.referralCode}`);
+          referralApplied = true;
+          referralPoints = 500;
+          console.log(`[Referral] 500pt awarded to user ${newUser.id} at registration via liver code ${input.referralCode}`);
           
-          // ライバーにLINE通知を送信（紹介コードが使われた）
+          // ライバーにLINE通知を送信
           try {
             const { getLiverById } = await import("./db");
             const liver = await getLiverById(referralData.referralCode.liverId);
@@ -1020,7 +1055,34 @@ export const lineLoginRouter = router({
           }
         } catch (err: any) {
           console.error(`[Referral] Failed to register pending referral:`, err.message);
-          // Don't fail registration if referral fails
+        }
+      }
+      
+      // Handle FRIEND CHALLENGE referral codes (alphanumeric like 7H6RJF)
+      if (friendChallengeCode) {
+        try {
+          const { getUserProgressByReferralCode, getActiveReferralCampaign, getLineUserById, createLinePointTransaction } = await import("./db");
+          const referrerProgress = await getUserProgressByReferralCode(friendChallengeCode);
+          const campaign = await getActiveReferralCampaign();
+          if (referrerProgress && campaign) {
+            // Award invitee bonus to new user
+            const inviteeBonus = campaign.inviteeBonus || 50;
+            await createLinePointTransaction({
+              lineUserId: `email_${newUser.id}`,
+              type: "earn",
+              amount: inviteeBonus,
+              referenceType: "system",
+              description: `友達招待チャレンジ 招待ボーナス`,
+            });
+            referralApplied = true;
+            referralPoints = inviteeBonus;
+            console.log(`[FriendChallenge] ${inviteeBonus}pt awarded to new user ${newUser.id} via friend code ${friendChallengeCode}`);
+            
+            // Save the friend challenge code to localStorage key for auto-apply after login
+            // The recordReferral will be called after login from the friend challenge page
+          }
+        } catch (err: any) {
+          console.error(`[FriendChallenge] Failed to apply friend challenge referral:`, err.message);
         }
       }
       
@@ -1045,8 +1107,9 @@ export const lineLoginRouter = router({
       return {
         success: true,
         userId: newUser.id,
-        referralApplied: !!referralData,
-        referralPoints: referralData ? 500 : 0,
+        referralApplied,
+        referralPoints,
+        friendChallengeCode: friendChallengeCode || undefined,
         sessionToken,
       };
     }),

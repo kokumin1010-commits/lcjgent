@@ -522,19 +522,15 @@ describe("Referral Code - Registration & Purchase Flow", () => {
 
       await expect(
         trpcCaller.lineLogin.validateReferralCode({ code: "9999" })
-      ).rejects.toThrow("無効な紹介コードです");
+      ).rejects.toThrow("無効な招待コードです");
     });
 
-    it("should reject non-4-digit codes", async () => {
+    it("should reject codes shorter than 4 characters", async () => {
       const ctx = createPublicContext();
       const trpcCaller = caller(ctx);
 
       await expect(
         trpcCaller.lineLogin.validateReferralCode({ code: "12" })
-      ).rejects.toThrow();
-
-      await expect(
-        trpcCaller.lineLogin.validateReferralCode({ code: "abcd" })
       ).rejects.toThrow();
     });
   });

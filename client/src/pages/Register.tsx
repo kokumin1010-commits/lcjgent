@@ -16,10 +16,10 @@ export default function Register() {
       localStorage.setItem("lcj_referral_code", code);
     }
 
-    // Redirect to LINE login with referral code as ref param
+    // Redirect to LINE login with referral code as ref param and register mode
     const loginUrl = code
-      ? `/line-login?ref=${encodeURIComponent(code)}&redirect=/mypage`
-      : `/line-login?redirect=/mypage`;
+      ? `/line-login?mode=register&ref=${encodeURIComponent(code)}&redirect=/mypage`
+      : `/line-login?mode=register&redirect=/mypage`;
 
     setLocation(loginUrl, { replace: true });
   }, [setLocation]);
