@@ -1872,7 +1872,7 @@ ${proposal.proposalContent}
         <div 
           className="absolute inset-0 opacity-50"
           style={{
-            backgroundImage: 'url(/digital-bg.jpeg)',
+            backgroundImage: 'url(https://files.manuscdn.com/user_upload_by_module/session_file/310519663045992616/LbRtSJoZUyhkjBzE.jpeg)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             backgroundRepeat: 'no-repeat',
