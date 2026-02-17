@@ -5534,3 +5534,9 @@
 ## バグ修正：本番環境で招待コードが自動入力されない（CDNがクエリパラメータを除去）
 - [x] パスパラメータ方式(/register/CODE)に変更して本番CDNのクエリパラメータ除去問題を回避
 - [x] 後方互換性：/register?code=XXX 形式も引き続きサポート
+
+## バグ修正：本番環境で招待コードが依然として自動入力されない
+- [x] 本番環境で/register/CODEにアクセスして問題を再現
+- [x] Register.tsx, LineLogin.tsx, App.tsx, FriendReferralChallenge.tsxの全コードを精査
+- [x] サーバーサイドルーティング（SPA fallback）の確認
+- [x] 根本原因を特定して修正（CDNがクエリパラメータを除去→パスパラメータ方式に変更）
