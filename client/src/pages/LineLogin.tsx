@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { useLocation, Link } from "wouter";
 import { toast } from "sonner";
 
-export default function LineLogin() {
+export default function LineLogin(props: { forceRegisterMode?: boolean } & Record<string, any>) {
+  const { forceRegisterMode } = props;
   const [, setLocation] = useLocation();
   
   // Email/Password login state
@@ -18,7 +19,7 @@ export default function LineLogin() {
   // Check URL params for initial state
   const urlParamsInit = new URLSearchParams(window.location.search);
   const modeInit = urlParamsInit.get('mode');
-  const [isRegistering, setIsRegistering] = useState(modeInit === 'register');
+  const [isRegistering, setIsRegistering] = useState(forceRegisterMode || modeInit === 'register');
   
   // Referral code state
   const [referralCode, setReferralCode] = useState("");
