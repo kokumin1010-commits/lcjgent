@@ -23,17 +23,21 @@ export default function LineLogin() {
   // Referral code state
   const [referralCode, setReferralCode] = useState("");
   const [referralLiverName, setReferralLiverName] = useState<string | null>(null);
+  const [referralCodeType, setReferralCodeType] = useState<"liver" | "friend" | null>(null);
   const [referralError, setReferralError] = useState<string | null>(null);
   const [isValidatingReferral, setIsValidatingReferral] = useState(false);
   
   // Read referral code from URL params or localStorage on mount
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const refCode = urlParams.get('ref');
+    // Check both 'ref' and 'code' URL params (links may use either)
+    const refCode = urlParams.get('ref') || urlParams.get('code');
     
     // Accept both 4-digit numeric codes and alphanumeric codes (e.g. 7H6RJF)
     if (refCode && /^[A-Za-z0-9]{4,8}$/.test(refCode)) {
       setReferralCode(refCode);
+      // Also update localStorage so it stays consistent
+      localStorage.setItem('lcj_referral_code', refCode);
       return;
     }
     // Fallback: read from localStorage (captured by useReferralCapture on any page)
@@ -47,11 +51,13 @@ export default function LineLogin() {
   const validateReferralMutation = trpc.lineLogin.validateReferralCode.useMutation({
     onSuccess: (data) => {
       setReferralLiverName(data.liverName);
+      setReferralCodeType(data.codeType);
       setReferralError(null);
       setIsValidatingReferral(false);
     },
     onError: (err) => {
       setReferralLiverName(null);
+      setReferralCodeType(null);
       setReferralError(err.message || "無効なコードです");
       setIsValidatingReferral(false);
     },
@@ -254,7 +260,11 @@ export default function LineLogin() {
                 </p>
               )}
               {referralLiverName && (
-                <p className="text-xs text-green-600">✅ {referralLiverName} さんからの紹介（登録で500pt付与）</p>
+                <p className="text-xs text-green-600">
+                  ✅ {referralCodeType === "friend" 
+                    ? `友達招待コードが適用されました（登録で50pt付与）` 
+                    : `${referralLiverName} さんからの紹介（登録で500pt付与）`}
+                </p>
               )}
               {referralError && (
                 <p className="text-xs text-red-500">{referralError}</p>
