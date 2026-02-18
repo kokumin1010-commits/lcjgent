@@ -178,4 +178,99 @@ describe("Friend Referral - emailRegister integration", () => {
     expect(friendChallengeBlock).toContain("await addReferralActivity({");
     expect(friendChallengeBlock).toContain('activityType: "stage_clear"');
   });
+
+  it("should send LINE notification to referrer when friend registers via emailRegister", async () => {
+    const fs = await import("fs");
+    const routersSource = fs.readFileSync(
+      new URL("./routers.ts", import.meta.url).pathname,
+      "utf-8"
+    );
+
+    const friendChallengeBlock = routersSource.substring(
+      routersSource.indexOf("// Handle FRIEND CHALLENGE referral codes"),
+      routersSource.indexOf("// Auto-login: create session after registration")
+    );
+
+    // Verify LINE notification is sent to referrer
+    expect(friendChallengeBlock).toContain("Send exciting LINE notification to the referrer");
+    expect(friendChallengeBlock).toContain('await pushMessage(referrerLineId');
+    expect(friendChallengeBlock).toContain('おめでとうございます');
+    expect(friendChallengeBlock).toContain('あなたの招待で登録しました');
+    expect(friendChallengeBlock).toContain('招待実績');
+    expect(friendChallengeBlock).toContain('招待チャレンジを確認');
+  });
+
+  it("should include stage reward info in LINE notification when stage is cleared", async () => {
+    const fs = await import("fs");
+    const routersSource = fs.readFileSync(
+      new URL("./routers.ts", import.meta.url).pathname,
+      "utf-8"
+    );
+
+    const friendChallengeBlock = routersSource.substring(
+      routersSource.indexOf("// Handle FRIEND CHALLENGE referral codes"),
+      routersSource.indexOf("// Auto-login: create session after registration")
+    );
+
+    // Verify notification includes dynamic reward info
+    expect(friendChallengeBlock).toContain('ステージ報酬');
+    expect(friendChallengeBlock).toContain('ルーレット');
+    expect(friendChallengeBlock).toContain('ステージアップ');
+    expect(friendChallengeBlock).toContain('最大5,000ptをGETしよう');
+  });
+
+  it("should not block registration if LINE notification fails", async () => {
+    const fs = await import("fs");
+    const routersSource = fs.readFileSync(
+      new URL("./routers.ts", import.meta.url).pathname,
+      "utf-8"
+    );
+
+    const friendChallengeBlock = routersSource.substring(
+      routersSource.indexOf("// Handle FRIEND CHALLENGE referral codes"),
+      routersSource.indexOf("// Auto-login: create session after registration")
+    );
+
+    // Verify notification is wrapped in try-catch so it doesn't block registration
+    expect(friendChallengeBlock).toContain("catch (notifErr: any)");
+    expect(friendChallengeBlock).toContain("Notification failure should not block the registration");
+  });
+
+  it("should only send LINE notification if referrer has a valid LINE User ID (starts with U)", async () => {
+    const fs = await import("fs");
+    const routersSource = fs.readFileSync(
+      new URL("./routers.ts", import.meta.url).pathname,
+      "utf-8"
+    );
+
+    const friendChallengeBlock = routersSource.substring(
+      routersSource.indexOf("// Handle FRIEND CHALLENGE referral codes"),
+      routersSource.indexOf("// Auto-login: create session after registration")
+    );
+
+    // Verify LINE ID validation before sending
+    expect(friendChallengeBlock).toContain('referrerLineId.startsWith("U")');
+  });
+});
+
+describe("Friend Referral - recordReferral API LINE notification", () => {
+  it("should send LINE notification to referrer in recordReferral API", async () => {
+    const fs = await import("fs");
+    const routersSource = fs.readFileSync(
+      new URL("./routers.ts", import.meta.url).pathname,
+      "utf-8"
+    );
+
+    // Find the recordReferral mutation block
+    const recordReferralBlock = routersSource.substring(
+      routersSource.indexOf("// 招待コードで招待を記録"),
+      routersSource.indexOf("// ルーレットスピン")
+    );
+
+    // Verify LINE notification is also in the recordReferral API
+    expect(recordReferralBlock).toContain("Send exciting LINE notification to the referrer");
+    expect(recordReferralBlock).toContain('await pushMessage(referrerLineId');
+    expect(recordReferralBlock).toContain('おめでとうございます');
+    expect(recordReferralBlock).toContain('catch (notifErr: any)');
+  });
 });

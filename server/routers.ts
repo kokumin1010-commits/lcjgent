@@ -1159,6 +1159,46 @@ export const lineLoginRouter = router({
               }
 
               console.log(`[FriendChallenge] Referrer ${referrerProgress.lineUserId} updated: totalReferrals=${newTotalReferrals}, stage=${newStage}, stageReward=${stageReward}, spins=${newSpins}, specialSpins=${newSpecialSpins}`);
+
+              // === Send exciting LINE notification to the referrer ===
+              try {
+                const referrerUserForNotif = referrerUser || await getLineUserById(referrerProgress.lineUserId);
+                const referrerLineId = referrerUserForNotif?.lineUserId;
+                if (referrerLineId && referrerLineId.startsWith("U")) {
+                  const { pushMessage } = await import("./line");
+                  const inviteeName = input.name || "新しい友達";
+                  const appUrl = process.env.APP_URL || "https://lcjmall.com";
+                  
+                  // Build exciting notification message
+                  let notifMessage = `🎉🎉🎉 おめでとうございます！🎉🎉🎉\n\n`;
+                  notifMessage += `✨ ${inviteeName}さんがあなたの招待で登録しました！\n\n`;
+                  notifMessage += `🏆 招待実績: ${newTotalReferrals}人目！\n`;
+                  
+                  if (stageReward > 0) {
+                    notifMessage += `💰 ステージ報酬: +${stageReward}pt GET！\n`;
+                  }
+                  if (newSpins > 0) {
+                    notifMessage += `🎰 ルーレット ${newSpins}回分 GET！\n`;
+                  }
+                  if (newSpecialSpins > 0) {
+                    notifMessage += `🌟 スペシャルルーレット ${newSpecialSpins}回分 GET！\n`;
+                  }
+                  if (newStage > currentProgress.currentStage) {
+                    const stageInfo = stages.find(s => s.stageNumber === newStage);
+                    notifMessage += `\n🚀 ステージアップ！\n`;
+                    notifMessage += `${stageInfo?.stageEmoji || "🎯"} 「${stageInfo?.stageName || `ステージ${newStage}`}」達成！\n`;
+                  }
+                  
+                  notifMessage += `\n📣 この調子でどんどん友達を招待して\n最大5,000ptをGETしよう！🔥\n\n`;
+                  notifMessage += `👉 招待チャレンジを確認\n${appUrl}/friend-referral`;
+                  
+                  await pushMessage(referrerLineId, [{ type: "text", text: notifMessage }]);
+                  console.log(`[FriendChallenge] LINE notification sent to referrer ${referrerLineId}`);
+                }
+              } catch (notifErr: any) {
+                // Notification failure should not block the registration
+                console.error(`[FriendChallenge] Failed to send LINE notification:`, notifErr.message);
+              }
             }
           }
         } catch (err: any) {
@@ -15071,6 +15111,43 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             message: `${referrerUser?.displayName || "ユーザー"}さんが「${stageInfo?.stageName || `ステージ${newStage}`}」を達成しました！ ${stageInfo?.stageEmoji || "🎉"}`,
             pointsAmount: stageReward,
           });
+        }
+
+        // === Send exciting LINE notification to the referrer ===
+        try {
+          const referrerLineId = referrerUser?.lineUserId;
+          if (referrerLineId && referrerLineId.startsWith("U")) {
+            const { pushMessage } = await import("./line");
+            const inviteeName = inviteeLineUser.displayName || "新しい友達";
+            const appUrl = process.env.APP_URL || "https://lcjmall.com";
+            
+            let notifMessage = `🎉🎉🎉 おめでとうございます！🎉🎉🎉\n\n`;
+            notifMessage += `✨ ${inviteeName}さんがあなたの招待で登録しました！\n\n`;
+            notifMessage += `🏆 招待実績: ${newTotalReferrals}人目！\n`;
+            
+            if (stageReward > 0) {
+              notifMessage += `💰 ステージ報酬: +${stageReward}pt GET！\n`;
+            }
+            if (newSpins > 0) {
+              notifMessage += `🎰 ルーレット ${newSpins}回分 GET！\n`;
+            }
+            if (newSpecialSpins > 0) {
+              notifMessage += `🌟 スペシャルルーレット ${newSpecialSpins}回分 GET！\n`;
+            }
+            if (newStage > currentProgress.currentStage) {
+              const stgInfo = stages.find(s => s.stageNumber === newStage);
+              notifMessage += `\n🚀 ステージアップ！\n`;
+              notifMessage += `${stgInfo?.stageEmoji || "🎯"} 「${stgInfo?.stageName || `ステージ${newStage}`}」達成！\n`;
+            }
+            
+            notifMessage += `\n📣 この調子でどんどん友達を招待して\n最大5,000ptをGETしよう！🔥\n\n`;
+            notifMessage += `👉 招待チャレンジを確認\n${appUrl}/friend-referral`;
+            
+            await pushMessage(referrerLineId, [{ type: "text", text: notifMessage }]);
+            console.log(`[FriendChallenge] LINE notification sent to referrer ${referrerLineId}`);
+          }
+        } catch (notifErr: any) {
+          console.error(`[FriendChallenge] Failed to send LINE notification:`, notifErr.message);
         }
 
         return {

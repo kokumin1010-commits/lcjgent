@@ -5562,3 +5562,21 @@
 - [x] フロントエンドからrecordReferralが呼ばれているか確認→呼ばれていなかった！
 - [x] 根本原因を特定して修正（emailRegister内でrecordFriendReferral+updateUserReferralProgress+addReferralActivityを直接実行するように修正）
 - [x] テスト作成・全142テスト通過確認
+
+## 新機能：招待成功時にワクワクするLINE通知を招待者に送信
+- [ ] 既存のLINE通知送信コードを調査
+- [ ] 招待者のLINE IDの取得方法を確認
+- [ ] ワクワクするメッセージ文章を設計
+- [ ] emailRegister内の招待処理にLINE通知送信を追加
+- [ ] テスト作成・動作確認
+
+
+## 招待成功時にワクワクするLINE通知を招待者に送信
+- [x] 既存のLINE通知送信コードを調査（pushMessage関数）
+- [x] 招待者のLINE IDの取得方法を確認（lineUsersテーブルのlineUserIdフィールド）
+- [x] ワクワクするメッセージ文章を設計（おめでとう、招待実績、ステージ報酬、ルーレット、CTA）
+- [x] emailRegister内の招待処理にLINE通知送信を追加
+- [x] recordReferral API側にも同じLINE通知を追加
+- [x] LINE IDがない（メール登録のみの）ユーザーには通知をスキップする安全対策
+- [x] 通知失敗時に登録処理をブロックしないtry-catch対策
+- [x] テスト作成・動作確認（12テスト全て通過）
