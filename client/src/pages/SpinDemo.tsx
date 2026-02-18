@@ -686,10 +686,38 @@ function LuxurySpinWheel({ items, onComplete, targetIndex, tierColor, onCountdow
         requestAnimationFrame(animateSpin);
       } else {
         spinningRef.current = false;
+        
+        // Draw highlight on winning segment
+        const finalAngleMod = angleRef.current % (2 * Math.PI);
+        ctx.save();
+        ctx.translate(center, center);
+        ctx.rotate(finalAngleMod);
+        const winStart = targetIndex * sliceAngle - Math.PI / 2;
+        const winEnd = winStart + sliceAngle;
+        // Glowing highlight overlay
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, radius - 8, winStart, winEnd);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.fill();
+        // Bright border around winning segment
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, radius - 8, winStart, winEnd);
+        ctx.closePath();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 4;
+        ctx.shadowColor = '#fbbf24';
+        ctx.shadowBlur = 25;
+        ctx.stroke();
+        ctx.restore();
+        
         setPhase("done");
         sfx.playWinFanfare();
         haptic.result();
-        onComplete();
+        // Show the wheel stopped at jackpot for 3 seconds before transitioning
+        setTimeout(() => onComplete(), 3000);
       }
     };
     requestAnimationFrame(animateSpin);
@@ -779,6 +807,19 @@ function LuxurySpinWheel({ items, onComplete, targetIndex, tierColor, onCountdow
 
       {phase === 'spinning' && (
         <p className="mt-4 text-yellow-400/80 font-bold animate-pulse">ルーレット回転中...</p>
+      )}
+
+      {/* Done phase - show "大当たり！" text while wheel is displayed */}
+      {phase === 'done' && (
+        <div className="mt-4 text-center" style={{ animation: 'jackpotFlash 0.5s ease-out' }}>
+          <div className="text-3xl font-black text-yellow-400" style={{
+            textShadow: '0 0 20px rgba(251,191,36,0.8), 0 0 40px rgba(251,191,36,0.4), 0 2px 4px rgba(0,0,0,0.5)',
+          }}>🎯 大当たり！</div>
+          <div className="text-xl font-bold text-white mt-1" style={{
+            textShadow: '0 0 15px rgba(255,255,255,0.5)',
+          }}>{items[targetIndex]?.label} GET!</div>
+          <style>{`@keyframes jackpotFlash { 0% { transform: scale(0.3); opacity: 0; } 50% { transform: scale(1.2); } 100% { transform: scale(1); opacity: 1; } }`}</style>
+        </div>
       )}
     </div>
   );
