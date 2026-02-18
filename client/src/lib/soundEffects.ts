@@ -561,6 +561,109 @@ export const playRoundUp = (): void => {
 };
 
 /**
+ * カウントダウン音 - 3...2...1... の各ビート
+ * @param num 3, 2, or 1
+ */
+export const playCountdown = (num: number): void => {
+  const ctx = getAudioContext();
+  const now = ctx.currentTime;
+  
+  // Higher pitch as countdown progresses
+  const baseFreq = num === 3 ? 440 : num === 2 ? 554 : 659;
+  
+  // Main tone
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(baseFreq, now);
+  gain.gain.setValueAtTime(0.25, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.3);
+  
+  // Sub harmonic
+  const sub = ctx.createOscillator();
+  const subGain = ctx.createGain();
+  sub.type = 'sine';
+  sub.frequency.setValueAtTime(baseFreq / 2, now);
+  subGain.gain.setValueAtTime(0.15, now);
+  subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+  sub.connect(subGain);
+  subGain.connect(ctx.destination);
+  sub.start(now);
+  sub.stop(now + 0.25);
+  
+  // Impact
+  createNoise(ctx, 0.05, now, 0.08);
+};
+
+/**
+ * カウントダウン完了 GO! 音 - 壮大な開始サウンド
+ */
+export const playCountdownGo = (): void => {
+  const ctx = getAudioContext();
+  const now = ctx.currentTime;
+  
+  // Epic rising sweep
+  const sweep = ctx.createOscillator();
+  const sweepGain = ctx.createGain();
+  sweep.type = 'sawtooth';
+  sweep.frequency.setValueAtTime(200, now);
+  sweep.frequency.exponentialRampToValueAtTime(1000, now + 0.3);
+  sweepGain.gain.setValueAtTime(0.2, now);
+  sweepGain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+  sweep.connect(sweepGain);
+  sweepGain.connect(ctx.destination);
+  sweep.start(now);
+  sweep.stop(now + 0.5);
+  
+  // Major chord burst
+  [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, now + 0.1);
+    gain.gain.setValueAtTime(0.15, now + 0.1);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now + 0.1);
+    osc.stop(now + 0.8);
+  });
+  
+  // Bass impact
+  const bass = ctx.createOscillator();
+  const bassGain = ctx.createGain();
+  bass.type = 'sine';
+  bass.frequency.setValueAtTime(80, now);
+  bass.frequency.exponentialRampToValueAtTime(40, now + 0.3);
+  bassGain.gain.setValueAtTime(0.4, now);
+  bassGain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+  bass.connect(bassGain);
+  bassGain.connect(ctx.destination);
+  bass.start(now);
+  bass.stop(now + 0.5);
+  
+  // Sparkle cascade
+  for (let i = 0; i < 10; i++) {
+    const delay = 0.1 + i * 0.04;
+    const freq = 1500 + Math.random() * 2000;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, now + delay);
+    gain.gain.setValueAtTime(0.04, now + delay);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.3);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now + delay);
+    osc.stop(now + delay + 0.3);
+  }
+};
+
+/**
  * 初期化 - ユーザーインタラクション後に呼び出す
  */
 export const initAudio = (): void => {
@@ -581,5 +684,7 @@ export default {
   playCelebration,
   playAmbient,
   playRoundUp,
+  playCountdown,
+  playCountdownGo,
   initAudio,
 };
