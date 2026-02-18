@@ -5668,3 +5668,11 @@
 - [x] haptic.tsの現在の実装を確認（正常）
 - [x] 以前実装した効果音が全て残っていることを確認（コード上は全て存在）
 - [x] iOS SafariのAutoplay Policy対応として、ページ上の最初のタッチでAudioContextを即座に初期化するコードを追加
+
+## 豪華ルーレットの本番統合（SpinDemo → FriendReferralChallenge）
+- [x] LuxurySpinWheelコンポーネントを共有ファイルとして抽出（client/src/components/LuxurySpinWheel.tsx）
+- [x] FriendReferralChallengeの旧SpinWheelダイアログを廃止
+- [x] フルスクリーンLuxurySpinOverlayに置き換え（API→当選インデックス→豪華ルーレット回転→結果表示）
+- [x] Confetti/Fireworks/FallingCoins/GlowCardの豪華結果表示を実装
+- [x] 本番API（trpc.friendReferral.spin）との接続完了
+- [x] テスト6件全パス（getSpinItems normal/special, spin認証, 変換ロジック3件）
