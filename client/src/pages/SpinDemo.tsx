@@ -756,10 +756,104 @@ function LuxurySpinWheel({ items, onComplete, targetIndex, tierColor, onCountdow
 
   const wheelSize = Math.min(340, typeof window !== "undefined" ? window.innerWidth - 40 : 300);
 
+  // LED light count
+  const ledCount = 32;
+
+  // Gem positions at cardinal points
+  const gemPositions = useMemo(() => [
+    { angle: 0, color: '#ef4444', highlight: '#fca5a5', name: 'ruby' },     // top
+    { angle: 90, color: '#3b82f6', highlight: '#93c5fd', name: 'sapphire' }, // right
+    { angle: 180, color: '#22c55e', highlight: '#86efac', name: 'emerald' }, // bottom
+    { angle: 270, color: '#a855f7', highlight: '#d8b4fe', name: 'amethyst' },// left
+    { angle: 45, color: '#fbbf24', highlight: '#fef3c7', name: 'topaz1' },
+    { angle: 135, color: '#ec4899', highlight: '#fbcfe8', name: 'pink1' },
+    { angle: 225, color: '#fbbf24', highlight: '#fef3c7', name: 'topaz2' },
+    { angle: 315, color: '#ec4899', highlight: '#fbcfe8', name: 'pink2' },
+  ], []);
+
   return (
     <div className="flex flex-col items-center">
-      {/* Wheel container with needle */}
+      {/* Wheel container with luxury decorations */}
       <div className="relative" style={{ width: wheelSize + 40, height: wheelSize + 60 }}>
+
+        {/* ═══ OUTER LUXURY FRAME ═══ */}
+        {/* Double gold frame - outer ring */}
+        <div className="absolute" style={{
+          top: 30 - 18, left: 20 - 18,
+          width: wheelSize + 36, height: wheelSize + 36,
+          borderRadius: '50%',
+          background: 'conic-gradient(from 0deg, #fbbf24, #fef3c7, #d97706, #fbbf24, #fef3c7, #b45309, #fbbf24, #fef3c7, #d97706, #fbbf24)',
+          boxShadow: '0 0 30px rgba(251,191,36,0.4), 0 0 60px rgba(251,191,36,0.2), inset 0 0 20px rgba(251,191,36,0.3)',
+          animation: 'outerFrameGlow 3s ease-in-out infinite',
+        }} />
+        {/* Double gold frame - inner ring */}
+        <div className="absolute" style={{
+          top: 30 - 12, left: 20 - 12,
+          width: wheelSize + 24, height: wheelSize + 24,
+          borderRadius: '50%',
+          background: 'conic-gradient(from 180deg, #d97706, #fef3c7, #fbbf24, #d97706, #fef3c7, #b45309, #d97706, #fef3c7, #fbbf24, #d97706)',
+          boxShadow: 'inset 0 0 15px rgba(251,191,36,0.4)',
+        }} />
+        {/* Dark gap between frames */}
+        <div className="absolute" style={{
+          top: 30 - 9, left: 20 - 9,
+          width: wheelSize + 18, height: wheelSize + 18,
+          borderRadius: '50%',
+          background: '#1a0f00',
+          boxShadow: 'inset 0 0 10px rgba(0,0,0,0.8)',
+        }} />
+
+        {/* ═══ LED LIGHTS RING ═══ */}
+        <div className="absolute pointer-events-none" style={{
+          top: 30 - 15, left: 20 - 15,
+          width: wheelSize + 30, height: wheelSize + 30,
+        }}>
+          {Array.from({ length: ledCount }, (_, i) => {
+            const angle = (i / ledCount) * 2 * Math.PI - Math.PI / 2;
+            const r = (wheelSize + 30) / 2;
+            const cx = r + r * Math.cos(angle);
+            const cy = r + r * Math.sin(angle);
+            const isEven = i % 2 === 0;
+            const isThird = i % 3 === 0;
+            return (
+              <div key={i} className="absolute" style={{
+                left: cx - 5, top: cy - 5,
+                width: 10, height: 10,
+                borderRadius: '50%',
+                background: isThird ? 'radial-gradient(circle, #fff, #ef4444)' : isEven ? 'radial-gradient(circle, #fff7cc, #fbbf24)' : 'radial-gradient(circle, #fff, #fbbf24)',
+                boxShadow: isThird ? '0 0 8px #ef4444, 0 0 16px rgba(239,68,68,0.5)' : '0 0 8px #fbbf24, 0 0 16px rgba(251,191,36,0.5)',
+                animation: `ledBlink${isEven ? 'A' : 'B'} 1.2s ease-in-out ${i * 0.04}s infinite`,
+              }} />
+            );
+          })}
+        </div>
+
+        {/* ═══ GEM BEADS ═══ */}
+        <div className="absolute pointer-events-none" style={{
+          top: 30 - 18, left: 20 - 18,
+          width: wheelSize + 36, height: wheelSize + 36,
+        }}>
+          {gemPositions.map((gem, i) => {
+            const angleRad = (gem.angle - 90) * Math.PI / 180;
+            const r = (wheelSize + 36) / 2;
+            const cx = r + r * Math.cos(angleRad);
+            const cy = r + r * Math.sin(angleRad);
+            const gemSize = i < 4 ? 14 : 10; // cardinal gems are bigger
+            return (
+              <div key={gem.name} className="absolute" style={{
+                left: cx - gemSize / 2, top: cy - gemSize / 2,
+                width: gemSize, height: gemSize,
+                borderRadius: i < 4 ? '3px' : '50%',
+                transform: i < 4 ? 'rotate(45deg)' : 'none',
+                background: `radial-gradient(ellipse at 30% 25%, ${gem.highlight}, ${gem.color})`,
+                boxShadow: `0 0 8px ${gem.color}, 0 0 16px ${gem.color}40, inset 0 -2px 4px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.4)`,
+                animation: `gemSparkle 2.5s ease-in-out ${i * 0.3}s infinite`,
+                zIndex: 5,
+              }} />
+            );
+          })}
+        </div>
+
         {/* Needle / Pointer */}
         <div ref={needleRef} className="absolute top-0 left-1/2 z-20" style={{
           transform: 'translateX(-50%) rotate(0deg)',
@@ -783,6 +877,28 @@ function LuxurySpinWheel({ items, onComplete, targetIndex, tierColor, onCountdow
         {/* Canvas */}
         <canvas ref={canvasRef} width={wheelSize * 2} height={wheelSize * 2}
           style={{ width: wheelSize, height: wheelSize, position: 'absolute', top: 30, left: 20 }} />
+
+        {/* ═══ DECORATION ANIMATIONS ═══ */}
+        <style>{`
+          @keyframes outerFrameGlow {
+            0%, 100% { box-shadow: 0 0 30px rgba(251,191,36,0.4), 0 0 60px rgba(251,191,36,0.2), inset 0 0 20px rgba(251,191,36,0.3); }
+            50% { box-shadow: 0 0 50px rgba(251,191,36,0.6), 0 0 100px rgba(251,191,36,0.3), inset 0 0 30px rgba(251,191,36,0.5); }
+          }
+          @keyframes ledBlinkA {
+            0%, 100% { opacity: 1; transform: scale(1.1); filter: brightness(1.3); }
+            50% { opacity: 0.25; transform: scale(0.6); filter: brightness(0.6); }
+          }
+          @keyframes ledBlinkB {
+            0%, 100% { opacity: 0.25; transform: scale(0.6); filter: brightness(0.6); }
+            50% { opacity: 1; transform: scale(1.1); filter: brightness(1.3); }
+          }
+          @keyframes gemSparkle {
+            0%, 100% { opacity: 0.8; filter: brightness(1); }
+            25% { opacity: 1; filter: brightness(1.5); }
+            50% { opacity: 0.9; filter: brightness(1.2); }
+            75% { opacity: 1; filter: brightness(1.8); }
+          }
+        `}</style>
       </div>
 
       {/* Countdown overlay */}
