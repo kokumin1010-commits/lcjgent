@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import haptic from "@/lib/haptic";
+import sfx from "@/lib/soundEffects";
 
 /* ═══════════════════════════════════════════════════════════════
    SpinDemo – Escalating Jackpot (無限ラウンド・ラグジュアリー版)
@@ -270,6 +271,7 @@ function CountdownTimer() {
 function useCountUp(target: number, duration = 2200, startDelay = 0) {
   const [value, setValue] = useState(0);
   const [started, setStarted] = useState(false);
+  const lastSoundRef = useRef(0);
   useEffect(() => { const t = setTimeout(() => setStarted(true), startDelay); return () => clearTimeout(t); }, [startDelay]);
   useEffect(() => {
     if (!started) return;
@@ -278,8 +280,19 @@ function useCountUp(target: number, duration = 2200, startDelay = 0) {
       const elapsed = Date.now() - startTime;
       const progress = Math.min(elapsed / duration, 1);
       const eased = progress === 1 ? 1 : 1 - Math.pow(2, -12 * progress);
-      setValue(Math.floor(eased * target));
-      if (progress < 1) requestAnimationFrame(tick);
+      const newVal = Math.floor(eased * target);
+      setValue(newVal);
+      // Play count-up tick sound every ~5% progress
+      const now = Date.now();
+      if (now - lastSoundRef.current > 60) {
+        sfx.playCountUp();
+        lastSoundRef.current = now;
+      }
+      if (progress < 1) {
+        requestAnimationFrame(tick);
+      } else {
+        sfx.playCountUpComplete();
+      }
     };
     requestAnimationFrame(tick);
   }, [started, target, duration]);
@@ -384,6 +397,7 @@ function LuxurySpinWheel({ items, onComplete, autoSpin, targetIndex, tierColor =
     spinningRef.current = true;
     setSpinning(true);
     haptic.spinStart();
+    sfx.playSpinStart();
 
     const idx = targetIndex !== undefined ? targetIndex : Math.floor(Math.random() * items.length);
     resultRef.current = items[idx];
@@ -391,12 +405,13 @@ function LuxurySpinWheel({ items, onComplete, autoSpin, targetIndex, tierColor =
     const extra = 7 + Math.floor(Math.random() * 3);
     setRotation(prev => prev + extra * 360 + targetSlice);
 
-    tickRef.current = setInterval(() => haptic.tick(), 80);
-    setTimeout(() => { if (tickRef.current) clearInterval(tickRef.current); tickRef.current = setInterval(() => haptic.tick(), 160); }, 2000);
-    setTimeout(() => { if (tickRef.current) clearInterval(tickRef.current); tickRef.current = setInterval(() => haptic.tick(), 350); }, 3800);
+    tickRef.current = setInterval(() => { haptic.tick(); sfx.playTick(1); }, 80);
+    setTimeout(() => { if (tickRef.current) clearInterval(tickRef.current); tickRef.current = setInterval(() => { haptic.tick(); sfx.playTick(0.6); }, 160); }, 2000);
+    setTimeout(() => { if (tickRef.current) clearInterval(tickRef.current); tickRef.current = setInterval(() => { haptic.tick(); sfx.playTick(0.2); }, 350); }, 3800);
     setTimeout(() => {
       if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
       haptic.grandCelebration();
+      sfx.playWinFanfare();
     }, 5200);
     setTimeout(() => {
       spinningRef.current = false;
@@ -508,9 +523,9 @@ function ShareSheet({ onClose, required }: { onClose: () => void; required: numb
         <h3 className="text-xl font-black text-white text-center mb-2">友達を招待しよう！</h3>
         <p className="text-center text-sm text-gray-400 mb-5">あと<span className="text-yellow-400 font-bold">{required}人</span>で <span className="text-yellow-400 font-bold">ポイント解放</span>！</p>
         <div className="space-y-3">
-          <button className="w-full py-4 rounded-xl font-bold text-white text-base active:scale-95 transition-transform" style={{ background: "linear-gradient(135deg, #06C755, #05a347)" }} onClick={() => haptic.doubleTap()}>📱 LINEで友達に送る</button>
-          <button className="w-full py-4 rounded-xl font-bold text-white text-base active:scale-95 transition-transform" style={{ background: "linear-gradient(135deg, #f59e0b, #d97706)" }} onClick={() => haptic.doubleTap()}>📋 招待リンクをコピー</button>
-          <button className="w-full py-4 rounded-xl font-bold text-white text-base active:scale-95 transition-transform" style={{ background: "linear-gradient(135deg, #8b5cf6, #6d28d9)" }} onClick={() => haptic.doubleTap()}>📤 その他の方法で共有</button>
+          <button className="w-full py-4 rounded-xl font-bold text-white text-base active:scale-95 transition-transform" style={{ background: "linear-gradient(135deg, #06C755, #05a347)" }} onClick={() => { haptic.doubleTap(); sfx.playButtonClick(); }}>📱 LINEで友達に送る</button>
+          <button className="w-full py-4 rounded-xl font-bold text-white text-base active:scale-95 transition-transform" style={{ background: "linear-gradient(135deg, #f59e0b, #d97706)" }} onClick={() => { haptic.doubleTap(); sfx.playButtonClick(); }}>📋 招待リンクをコピー</button>
+          <button className="w-full py-4 rounded-xl font-bold text-white text-base active:scale-95 transition-transform" style={{ background: "linear-gradient(135deg, #8b5cf6, #6d28d9)" }} onClick={() => { haptic.doubleTap(); sfx.playButtonClick(); }}>📤 その他の方法で共有</button>
         </div>
         <button onClick={onClose} className="w-full text-center text-gray-500 text-sm mt-4">閉じる</button>
       </div>
@@ -527,6 +542,9 @@ function CelebrationIntro({ round, onContinue }: { round: number; onContinue: ()
   const config = getRoundConfig(round);
   useEffect(() => {
     haptic.grandCelebration();
+    sfx.playCelebration();
+    sfx.playConfetti();
+    setTimeout(() => sfx.playFirework(), 500);
     const t = setTimeout(onContinue, 3200);
     return () => clearTimeout(t);
   }, [onContinue]);
@@ -681,6 +699,27 @@ export default function SpinDemo() {
   const [showConfetti, setShowConfetti] = useState(false);
   const [showFireworks, setShowFireworks] = useState(false);
   const [showFlash, setShowFlash] = useState(false);
+  const ambientStopRef = useRef<(() => void) | null>(null);
+
+  // Initialize audio on first user interaction
+  useEffect(() => {
+    const initOnTouch = () => {
+      sfx.initAudio();
+      // Start ambient drone for immersion
+      if (!ambientStopRef.current) {
+        ambientStopRef.current = sfx.playAmbient();
+      }
+      document.removeEventListener('touchstart', initOnTouch);
+      document.removeEventListener('click', initOnTouch);
+    };
+    document.addEventListener('touchstart', initOnTouch, { once: true });
+    document.addEventListener('click', initOnTouch, { once: true });
+    return () => {
+      document.removeEventListener('touchstart', initOnTouch);
+      document.removeEventListener('click', initOnTouch);
+      if (ambientStopRef.current) ambientStopRef.current();
+    };
+  }, []);
 
   const config = getRoundConfig(round);
   const spinItems = useMemo(() => getSpinItems(round), [round]);
@@ -695,6 +734,11 @@ export default function SpinDemo() {
     setShowConfetti(true);
     setShowFireworks(true);
     haptic.grandCelebration();
+    sfx.playSuperJackpot();
+    sfx.playConfetti();
+    setTimeout(() => sfx.playFirework(), 600);
+    setTimeout(() => sfx.playFirework(), 1200);
+    setTimeout(() => sfx.playFirework(), 1800);
     setTimeout(() => setShowFlash(false), 800);
     setTimeout(() => { setShowConfetti(false); setShowFireworks(false); }, 6000);
   }, []);
@@ -708,17 +752,21 @@ export default function SpinDemo() {
 
   const acceptWin = () => {
     haptic.tap();
+    sfx.playButtonClick();
+    sfx.playTransition();
     setPhase("invite");
   };
 
   const simulateInvite = () => {
     haptic.grandCelebration();
+    sfx.playCelebration();
     const reward = config.fixedReward;
     setTotalEarned(prev => prev + reward);
     setPhase("celebrate");
   };
 
   const handleCelebrationDone = useCallback(() => {
+    sfx.playRoundUp();
     setRound(prev => prev + 1);
     setPhase("bonus-spin");
   }, []);
