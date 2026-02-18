@@ -532,14 +532,13 @@ function LuxurySpinWheel({ items, onComplete, targetIndex, tierColor, onCountdow
     const radius = size / 2 - 8;
     const sliceAngle = (2 * Math.PI) / items.length;
 
-    // Calculate target angle — needle is at 12 o'clock (-PI/2 in canvas)
-    // Segment i in wheel-local coords starts at i*sliceAngle - PI/2
-    // For needle to land on targetIndex center:
-    //   totalRotation ≡ PI/2 - targetIndex*sliceAngle - sliceAngle/2 (mod 2PI)
-    const baseAngle = Math.PI / 2 - targetIndex * sliceAngle - sliceAngle / 2;
-    const jitter = (Math.random() - 0.5) * sliceAngle * 0.6; // ±30% within slice
+    // Calculate target angle — needle is at 12 o'clock (270° / -PI/2 in canvas)
+    // Segment i center in screen coords = R + (i+0.5)*sliceAngle - PI/2
+    // For this to equal -PI/2 (needle): R = -(i+0.5)*sliceAngle = 2PI - (i+0.5)*sliceAngle
+    const targetAngle = (2 * Math.PI) - (targetIndex + 0.5) * sliceAngle;
+    const jitter = (Math.random() - 0.5) * sliceAngle * 0.5; // ±25% within slice (safe margin)
     const fullSpins = Math.PI * 2 * (6 + Math.floor(Math.random() * 3));
-    const totalRotation = fullSpins + ((baseAngle + jitter + Math.PI * 20) % (Math.PI * 2));
+    const totalRotation = fullSpins + targetAngle + jitter;
     const duration = 5000 + Math.random() * 1000;
     const start = performance.now();
     let lastTickAngle = 0;
