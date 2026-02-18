@@ -127,6 +127,96 @@ function ScreenFlash({ color }: { color: string }) {
   </div>;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   FALLING COINS - Temu-style gold coin rain animation
+   ═══════════════════════════════════════════════════════════════ */
+function FallingCoins() {
+  const coins = useMemo(() => Array.from({ length: 40 }, (_, i) => ({
+    id: i,
+    left: Math.random() * 100,
+    delay: Math.random() * 2,
+    duration: 2.5 + Math.random() * 2,
+    size: 28 + Math.random() * 24, // 28-52px coins
+    rotation: Math.random() * 360,
+    wobble: 10 + Math.random() * 30, // horizontal wobble
+    spinSpeed: 1 + Math.random() * 2,
+  })), []);
+
+  useEffect(() => {
+    sfx.playCoinRain();
+    const intervals: ReturnType<typeof setTimeout>[] = [];
+    for (let i = 0; i < 12; i++) {
+      intervals.push(setTimeout(() => sfx.playCoinDrop(), 300 + i * 200 + Math.random() * 300));
+    }
+    return () => intervals.forEach(clearTimeout);
+  }, []);
+
+  return (
+    <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
+      {coins.map(c => (
+        <div key={c.id} className="absolute" style={{
+          left: `${c.left}%`,
+          top: '-80px',
+          width: `${c.size}px`,
+          height: `${c.size}px`,
+          animation: `coinFall ${c.duration}s ease-in ${c.delay}s forwards`,
+          '--wobble': `${c.wobble}px`,
+        } as React.CSSProperties}>
+          {/* 3D rotating coin */}
+          <div style={{
+            width: '100%',
+            height: '100%',
+            animation: `coinSpin3D ${c.spinSpeed}s linear infinite`,
+            transformStyle: 'preserve-3d',
+          }}>
+            <svg viewBox="0 0 100 100" width={c.size} height={c.size}>
+              {/* Coin body */}
+              <defs>
+                <radialGradient id={`coinGrad${c.id}`} cx="40%" cy="35%" r="60%">
+                  <stop offset="0%" stopColor="#fff7cc" />
+                  <stop offset="30%" stopColor="#ffd700" />
+                  <stop offset="70%" stopColor="#daa520" />
+                  <stop offset="100%" stopColor="#b8860b" />
+                </radialGradient>
+                <radialGradient id={`coinShine${c.id}`} cx="30%" cy="25%" r="40%">
+                  <stop offset="0%" stopColor="rgba(255,255,255,0.8)" />
+                  <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+                </radialGradient>
+              </defs>
+              {/* Outer ring */}
+              <circle cx="50" cy="50" r="48" fill="#b8860b" />
+              <circle cx="50" cy="50" r="45" fill={`url(#coinGrad${c.id})`} />
+              {/* Inner ring */}
+              <circle cx="50" cy="50" r="38" fill="none" stroke="#daa520" strokeWidth="2" />
+              {/* ¥ symbol */}
+              <text x="50" y="58" textAnchor="middle" fontSize="36" fontWeight="bold" fill="#8B6914" fontFamily="Arial, sans-serif">¥</text>
+              <text x="50" y="58" textAnchor="middle" fontSize="36" fontWeight="bold" fill="#DAA520" fontFamily="Arial, sans-serif" opacity="0.6">¥</text>
+              {/* Shine overlay */}
+              <circle cx="50" cy="50" r="45" fill={`url(#coinShine${c.id})`} />
+            </svg>
+          </div>
+        </div>
+      ))}
+      <style>{`
+        @keyframes coinFall {
+          0% { transform: translateY(0) translateX(0); opacity: 1; }
+          20% { opacity: 1; }
+          60% { transform: translateY(70vh) translateX(var(--wobble)); opacity: 1; }
+          80% { transform: translateY(90vh) translateX(calc(var(--wobble) * -0.5)); opacity: 0.8; }
+          100% { transform: translateY(110vh) translateX(var(--wobble)); opacity: 0; }
+        }
+        @keyframes coinSpin3D {
+          0% { transform: rotateY(0deg) rotateX(10deg); }
+          25% { transform: rotateY(90deg) rotateX(-5deg); }
+          50% { transform: rotateY(180deg) rotateX(10deg); }
+          75% { transform: rotateY(270deg) rotateX(-5deg); }
+          100% { transform: rotateY(360deg) rotateX(10deg); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 function GodRays({ color }: { color: string }) {
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
@@ -241,19 +331,21 @@ function useCountUp(target: number, duration: number = 2000, startDelay: number 
 /* ═══════════════════════════════════════════════════════════════
    LUXURY SPIN WHEEL - Premium Casino Style
    ═══════════════════════════════════════════════════════════════ */
-function LuxurySpinWheel({ items, onComplete, targetIndex, tierColor, onCountdownStart }: {
+function LuxurySpinWheel({ items, onComplete, targetIndex, tierColor, onCountdownStart, autoStart = false }: {
   items: { label: string; emoji: string }[];
   onComplete: () => void;
   targetIndex: number;
   tierColor: string;
   onCountdownStart?: () => void;
+  autoStart?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const needleRef = useRef<HTMLDivElement>(null);
   const [phase, setPhase] = useState<"ready" | "countdown" | "spinning" | "done">("ready");
   const [countdown, setCountdown] = useState(3);
   const angleRef = useRef(0);
   const spinningRef = useRef(false);
-  const needleAngleRef = useRef(0);
+  const autoStartedRef = useRef(false);
 
   // Draw the luxury wheel
   useEffect(() => {
@@ -442,7 +534,7 @@ function LuxurySpinWheel({ items, onComplete, targetIndex, tierColor, onCountdow
 
     // Calculate target angle
     const targetSliceCenter = targetIndex * sliceAngle + sliceAngle / 2;
-    const totalRotation = Math.PI * 2 * (6 + Math.random() * 2) + (Math.PI * 2 - targetSliceCenter + Math.PI / 2);
+    const totalRotation = Math.PI * 2 * (6 + Math.random() * 2) + (Math.PI * 2 - targetSliceCenter);
     const duration = 5000 + Math.random() * 1000;
     const start = performance.now();
     let lastTickAngle = 0;
@@ -461,9 +553,18 @@ function LuxurySpinWheel({ items, onComplete, targetIndex, tierColor, onCountdow
         const speed = 1 - progress;
         sfx.playTick(speed);
         haptic.tick();
-        // Needle bounce
-        needleAngleRef.current = 8 * speed;
-        setTimeout(() => { needleAngleRef.current = 0; }, 80);
+        // Enhanced needle bounce - spring physics
+        if (needleRef.current) {
+          const maxAngle = 18 * speed + 5; // bigger bounce at high speed
+          const el = needleRef.current;
+          el.style.transition = 'none';
+          el.style.transform = `translateX(-50%) rotate(${maxAngle}deg)`;
+          // Spring back with overshoot
+          requestAnimationFrame(() => {
+            el.style.transition = 'transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)';
+            el.style.transform = 'translateX(-50%) rotate(0deg)';
+          });
+        }
       }
       lastTickAngle = angleRef.current;
 
@@ -596,6 +697,7 @@ function LuxurySpinWheel({ items, onComplete, targetIndex, tierColor, onCountdow
 
   // Countdown logic
   const startCountdown = useCallback(() => {
+    if (phase !== 'ready') return;
     sfx.initAudio();
     onCountdownStart?.();
     setPhase("countdown");
@@ -606,12 +708,18 @@ function LuxurySpinWheel({ items, onComplete, targetIndex, tierColor, onCountdow
     setTimeout(() => { setCountdown(2); sfx.playCountdown(2); haptic.tap(); }, 1000);
     setTimeout(() => { setCountdown(1); sfx.playCountdown(1); haptic.tap(); }, 2000);
     setTimeout(() => { sfx.playCountdownGo(); haptic.spinStart(); doSpin(); }, 3000);
-  }, [doSpin, onCountdownStart]);
+  }, [doSpin, onCountdownStart, phase]);
 
-  // Auto-start for bonus rounds
+  // Auto-start countdown after 2 seconds
   useEffect(() => {
-    if (phase === "ready") return;
-  }, []);
+    if (autoStart && !autoStartedRef.current && phase === 'ready') {
+      autoStartedRef.current = true;
+      const timer = setTimeout(() => {
+        startCountdown();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [autoStart, phase, startCountdown]);
 
   const wheelSize = Math.min(340, typeof window !== "undefined" ? window.innerWidth - 40 : 300);
 
@@ -620,10 +728,9 @@ function LuxurySpinWheel({ items, onComplete, targetIndex, tierColor, onCountdow
       {/* Wheel container with needle */}
       <div className="relative" style={{ width: wheelSize + 40, height: wheelSize + 60 }}>
         {/* Needle / Pointer */}
-        <div className="absolute top-0 left-1/2 z-20" style={{
-          transform: `translateX(-50%) rotate(${needleAngleRef.current}deg)`,
+        <div ref={needleRef} className="absolute top-0 left-1/2 z-20" style={{
+          transform: 'translateX(-50%) rotate(0deg)',
           transformOrigin: "50% 100%",
-          transition: "transform 0.08s ease-out",
         }}>
           <div style={{
             width: 0, height: 0,
@@ -656,14 +763,17 @@ function LuxurySpinWheel({ items, onComplete, targetIndex, tierColor, onCountdow
         </div>
       )}
 
-      {/* Spin button */}
+      {/* Spin button - tap to start immediately, or auto-starts */}
       {phase === 'ready' && (
         <StaggerReveal delay={300} duration={600}>
           <BounceButton onClick={startCountdown}
             className="mt-4 px-10 py-4 rounded-full text-lg font-black text-white"
             style={{ background: 'linear-gradient(135deg, #f59e0b, #ef4444)', boxShadow: '0 4px 20px rgba(245,158,11,0.5)' }}>
-            🎰 無料でスピン（3秒）
+            🎰 タップでスピン開始
           </BounceButton>
+          {autoStart && (
+            <p className="text-center text-yellow-400/60 text-xs mt-2 animate-pulse">まもなく自動スタート...</p>
+          )}
         </StaggerReveal>
       )}
 
@@ -756,6 +866,7 @@ export default function SpinDemo() {
   const [showFlash, setShowFlash] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [audioInit, setAudioInit] = useState(false);
+  const [showCoins, setShowCoins] = useState(false);
 
   const config = getRoundConfig(round);
   const items = getSpinItems(round);
@@ -773,7 +884,9 @@ export default function SpinDemo() {
     setTimeout(() => setShowFlash(false), 600);
     setShowConfetti(true);
     setShowFireworks(true);
+    setShowCoins(true);
     setTimeout(() => { setShowConfetti(false); setShowFireworks(false); }, 4000);
+    setTimeout(() => setShowCoins(false), 5000);
     sfx.playSuperJackpot();
     haptic.grandCelebration();
     setPhase('win');
@@ -803,7 +916,9 @@ export default function SpinDemo() {
     setTimeout(() => setShowFlash(false), 600);
     setShowConfetti(true);
     setShowFireworks(true);
+    setShowCoins(true);
     setTimeout(() => { setShowConfetti(false); setShowFireworks(false); }, 4000);
+    setTimeout(() => setShowCoins(false), 5000);
     sfx.playSuperJackpot();
     haptic.grandCelebration();
     setPhase('bonusWin');
@@ -828,6 +943,7 @@ export default function SpinDemo() {
       {showConfetti && <Confetti count={100} />}
       {showFireworks && <Fireworks count={10} />}
       {showFlash && <ScreenFlash color={config.tierColor} />}
+      {showCoins && <FallingCoins />}
 
       {/* Header with LCJ MALL logo */}
       <div className="relative z-10 flex items-center justify-between px-4 py-3">
@@ -855,7 +971,7 @@ export default function SpinDemo() {
             </StaggerReveal>
 
             <LuxurySpinWheel items={items} onComplete={handleSpinComplete} targetIndex={targetIndex}
-              tierColor={config.tierColor} onCountdownStart={initAudioOnce} />
+              tierColor={config.tierColor} onCountdownStart={initAudioOnce} autoStart={true} />
 
             <StaggerReveal delay={600} duration={500}>
               <p className="text-center text-gray-500 text-xs mt-4 max-w-xs">
@@ -993,7 +1109,7 @@ export default function SpinDemo() {
             </StaggerReveal>
 
             <LuxurySpinWheel items={getSpinItems(round)} onComplete={handleBonusSpinComplete} targetIndex={targetIndex}
-              tierColor={getRoundConfig(round).tierColor} onCountdownStart={initAudioOnce} />
+              tierColor={getRoundConfig(round).tierColor} onCountdownStart={initAudioOnce} autoStart={true} />
           </div>
         )}
 

@@ -664,6 +664,63 @@ export const playCountdownGo = (): void => {
 };
 
 /**
+ * 金貨降り注ぎ音 - シャラシャラとした金属音の連続
+ */
+export const playCoinRain = (): void => {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  for (let i = 0; i < 20; i++) {
+    const delay = i * 0.15 + Math.random() * 0.1;
+    const freq = 2000 + Math.random() * 3000;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, now + delay);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.5, now + delay + 0.15);
+    gain.gain.setValueAtTime(0.03, now + delay);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.15);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now + delay);
+    osc.stop(now + delay + 0.15);
+  }
+};
+
+/**
+ * 金貨落下音 - チャリンという単発の金属音
+ */
+export const playCoinDrop = (): void => {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  const freq = 3000 + Math.random() * 2000;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(freq, now);
+  osc.frequency.exponentialRampToValueAtTime(freq * 0.3, now + 0.12);
+  gain.gain.setValueAtTime(0.06, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.12);
+  // Harmonic overtone
+  const osc2 = ctx.createOscillator();
+  const gain2 = ctx.createGain();
+  osc2.type = 'sine';
+  osc2.frequency.setValueAtTime(freq * 2.5, now);
+  osc2.frequency.exponentialRampToValueAtTime(freq * 0.8, now + 0.08);
+  gain2.gain.setValueAtTime(0.02, now);
+  gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+  osc2.connect(gain2);
+  gain2.connect(ctx.destination);
+  osc2.start(now);
+  osc2.stop(now + 0.08);
+};
+
+/**
  * 初期化 - ユーザーインタラクション後に呼び出す
  */
 export const initAudio = (): void => {
@@ -686,5 +743,7 @@ export default {
   playRoundUp,
   playCountdown,
   playCountdownGo,
+  playCoinRain,
+  playCoinDrop,
   initAudio,
 };
