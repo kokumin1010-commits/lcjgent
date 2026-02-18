@@ -429,24 +429,37 @@ function LuxurySpinWheel({ items, onComplete, targetIndex, tierColor, onCountdow
         ctx.translate(textRadius, 0);
         ctx.rotate(Math.PI / 2);
 
-        // Emoji
-        ctx.font = `${Math.round(radius * 0.12)}px serif`;
-        ctx.textAlign = "center";
-        ctx.fillText(items[i].emoji, 0, -radius * 0.08);
-
-        // Label
-        ctx.font = `bold ${Math.round(radius * 0.09)}px 'Arial', sans-serif`;
-        ctx.fillStyle = i === targetIndex ? "#fff" : "#1a1000";
-        ctx.strokeStyle = i === targetIndex ? "#000" : "transparent";
-        ctx.lineWidth = i === targetIndex ? 2 : 0;
-        if (i === targetIndex) ctx.strokeText(items[i].label, 0, radius * 0.06);
-        ctx.fillText(items[i].label, 0, radius * 0.06);
-
-        // Jackpot label
         if (i === targetIndex) {
-          ctx.font = `bold ${Math.round(radius * 0.065)}px 'Arial', sans-serif`;
-          ctx.fillStyle = "#fef08a";
+          // ★ JACKPOT SEGMENT - Big & Bold ★
+          // "大当たり" label at top
+          ctx.textAlign = "center";
+          ctx.font = `bold ${Math.round(radius * 0.08)}px 'Arial', sans-serif`;
+          ctx.fillStyle = "#ef4444";
+          ctx.strokeStyle = "#000";
+          ctx.lineWidth = 2;
+          ctx.strokeText("大当たり", 0, -radius * 0.18);
           ctx.fillText("大当たり", 0, -radius * 0.18);
+
+          // Big jackpot amount
+          ctx.font = `bold ${Math.round(radius * 0.13)}px 'Arial', sans-serif`;
+          ctx.fillStyle = "#fff";
+          ctx.strokeStyle = "#000";
+          ctx.lineWidth = 3;
+          ctx.strokeText(items[i].label, 0, radius * 0.03);
+          ctx.fillText(items[i].label, 0, radius * 0.03);
+
+          // Emoji below
+          ctx.font = `${Math.round(radius * 0.1)}px serif`;
+          ctx.fillText(items[i].emoji, 0, radius * 0.16);
+        } else {
+          // Normal segments
+          ctx.textAlign = "center";
+          ctx.font = `${Math.round(radius * 0.12)}px serif`;
+          ctx.fillText(items[i].emoji, 0, -radius * 0.08);
+
+          ctx.font = `bold ${Math.round(radius * 0.09)}px 'Arial', sans-serif`;
+          ctx.fillStyle = "#1a1000";
+          ctx.fillText(items[i].label, 0, radius * 0.06);
         }
 
         ctx.restore();
@@ -623,14 +636,26 @@ function LuxurySpinWheel({ items, onComplete, targetIndex, tierColor, onCountdow
         ctx.rotate(ta);
         ctx.translate(tr, 0);
         ctx.rotate(Math.PI / 2);
-        ctx.font = `${Math.round(radius * 0.12)}px serif`;
         ctx.textAlign = "center";
-        ctx.fillText(items[i].emoji, 0, -radius * 0.08);
-        ctx.font = `bold ${Math.round(radius * 0.09)}px 'Arial', sans-serif`;
-        ctx.fillStyle = i === targetIndex ? "#fff" : "#1a1000";
-        if (i === targetIndex) { ctx.strokeStyle = "#000"; ctx.lineWidth = 2; ctx.strokeText(items[i].label, 0, radius * 0.06); }
-        ctx.fillText(items[i].label, 0, radius * 0.06);
-        if (i === targetIndex) { ctx.font = `bold ${Math.round(radius * 0.065)}px 'Arial', sans-serif`; ctx.fillStyle = "#fef08a"; ctx.fillText("大当たり", 0, -radius * 0.18); }
+        if (i === targetIndex) {
+          // ★ JACKPOT - Big text during spin too ★
+          ctx.font = `bold ${Math.round(radius * 0.08)}px 'Arial', sans-serif`;
+          ctx.fillStyle = "#ef4444"; ctx.strokeStyle = "#000"; ctx.lineWidth = 2;
+          ctx.strokeText("大当たり", 0, -radius * 0.18);
+          ctx.fillText("大当たり", 0, -radius * 0.18);
+          ctx.font = `bold ${Math.round(radius * 0.13)}px 'Arial', sans-serif`;
+          ctx.fillStyle = "#fff"; ctx.strokeStyle = "#000"; ctx.lineWidth = 3;
+          ctx.strokeText(items[i].label, 0, radius * 0.03);
+          ctx.fillText(items[i].label, 0, radius * 0.03);
+          ctx.font = `${Math.round(radius * 0.1)}px serif`;
+          ctx.fillText(items[i].emoji, 0, radius * 0.16);
+        } else {
+          ctx.font = `${Math.round(radius * 0.12)}px serif`;
+          ctx.fillText(items[i].emoji, 0, -radius * 0.08);
+          ctx.font = `bold ${Math.round(radius * 0.09)}px 'Arial', sans-serif`;
+          ctx.fillStyle = "#1a1000";
+          ctx.fillText(items[i].label, 0, radius * 0.06);
+        }
         ctx.restore();
       }
       ctx.restore();
@@ -741,6 +766,17 @@ function LuxurySpinWheel({ items, onComplete, targetIndex, tierColor, onCountdow
     setTimeout(() => { setCountdown(1); sfx.playCountdown(1); haptic.tap(); }, 2000);
     setTimeout(() => { sfx.playCountdownGo(); haptic.spinStart(); doSpin(); }, 3000);
   }, [doSpin, onCountdownStart, phase]);
+
+  // Eagerly init audio on any touch/click on the page (iOS Safari workaround)
+  useEffect(() => {
+    const initOnTouch = () => { sfx.initAudio(); };
+    document.addEventListener('touchstart', initOnTouch, { once: true, passive: true });
+    document.addEventListener('click', initOnTouch, { once: true });
+    return () => {
+      document.removeEventListener('touchstart', initOnTouch);
+      document.removeEventListener('click', initOnTouch);
+    };
+  }, []);
 
   // Auto-start countdown after 2 seconds
   useEffect(() => {
@@ -911,13 +947,13 @@ function LuxurySpinWheel({ items, onComplete, targetIndex, tierColor, onCountdow
         </div>
       )}
 
-      {/* Spin button - tap to start immediately, or auto-starts */}
+      {/* Spin button - Temu-style with countdown */}
       {phase === 'ready' && (
         <StaggerReveal delay={300} duration={600}>
           <BounceButton onClick={startCountdown}
-            className="mt-4 px-10 py-4 rounded-full text-lg font-black text-white"
+            className="mt-4 w-full max-w-xs py-4 rounded-full text-lg font-black text-white"
             style={{ background: 'linear-gradient(135deg, #f59e0b, #ef4444)', boxShadow: '0 4px 20px rgba(245,158,11,0.5)' }}>
-            🎰 タップでスピン開始
+            🎰 無料でスピン
           </BounceButton>
           {autoStart && (
             <p className="text-center text-yellow-400/60 text-xs mt-2 animate-pulse">まもなく自動スタート...</p>
@@ -925,19 +961,45 @@ function LuxurySpinWheel({ items, onComplete, targetIndex, tierColor, onCountdow
         </StaggerReveal>
       )}
 
-      {phase === 'spinning' && (
-        <p className="mt-4 text-yellow-400/80 font-bold animate-pulse">ルーレット回転中...</p>
+      {/* Temu-style countdown banner with big numbers */}
+      {phase === 'countdown' && (
+        <div className="mt-4 w-full max-w-xs">
+          <div className="relative py-4 rounded-full text-center font-black text-white text-lg"
+            style={{ background: 'linear-gradient(135deg, #f59e0b, #ef4444)', boxShadow: '0 4px 20px rgba(245,158,11,0.5)' }}>
+            <span>無料でスピン（</span>
+            <span key={countdown} className="inline-block text-2xl" style={{
+              animation: 'countdownBounce 0.5s ease-out',
+              textShadow: '0 0 15px rgba(255,255,255,0.8)',
+            }}>{countdown}</span>
+            <span>秒）</span>
+          </div>
+          <style>{`@keyframes countdownBounce { 0% { transform: scale(2); opacity: 0.3; } 40% { transform: scale(0.8); } 100% { transform: scale(1); opacity: 1; } }`}</style>
+        </div>
       )}
 
-      {/* Done phase - show "大当たり！" text while wheel is displayed */}
+      {phase === 'spinning' && (
+        <div className="mt-4 w-full max-w-xs py-3 rounded-full text-center font-bold text-white animate-pulse"
+          style={{ background: 'linear-gradient(135deg, #f59e0b88, #ef444488)', border: '1px solid rgba(251,191,36,0.3)' }}>
+          ルーレット回転中...
+        </div>
+      )}
+
+      {/* Done phase - show BIG jackpot amount */}
       {phase === 'done' && (
-        <div className="mt-4 text-center" style={{ animation: 'jackpotFlash 0.5s ease-out' }}>
-          <div className="text-3xl font-black text-yellow-400" style={{
+        <div className="mt-4 w-full max-w-sm text-center" style={{ animation: 'jackpotFlash 0.5s ease-out' }}>
+          <div className="text-2xl font-black text-yellow-400 mb-1" style={{
             textShadow: '0 0 20px rgba(251,191,36,0.8), 0 0 40px rgba(251,191,36,0.4), 0 2px 4px rgba(0,0,0,0.5)',
           }}>🎯 大当たり！</div>
-          <div className="text-xl font-bold text-white mt-1" style={{
-            textShadow: '0 0 15px rgba(255,255,255,0.5)',
-          }}>{items[targetIndex]?.label} GET!</div>
+          <div className="rounded-xl py-3 px-4" style={{
+            background: 'linear-gradient(135deg, #f59e0b, #ef4444)',
+            boxShadow: '0 0 30px rgba(245,158,11,0.5), 0 0 60px rgba(239,68,68,0.3)',
+          }}>
+            <span className="text-white/80 text-xl">+</span>
+            <span className="text-white text-5xl font-black" style={{
+              textShadow: '0 2px 4px rgba(0,0,0,0.3), 0 0 20px rgba(255,255,255,0.3)',
+            }}>{items[targetIndex]?.label.replace('pt', '')}</span>
+            <span className="text-white/80 text-2xl font-bold ml-1">pt GET!</span>
+          </div>
           <style>{`@keyframes jackpotFlash { 0% { transform: scale(0.3); opacity: 0; } 50% { transform: scale(1.2); } 100% { transform: scale(1); opacity: 1; } }`}</style>
         </div>
       )}
