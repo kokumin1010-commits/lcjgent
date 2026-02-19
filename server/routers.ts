@@ -963,6 +963,7 @@ export const lineLoginRouter = router({
       name: z.string().min(1),
       phone: z.string().optional(),
       referralCode: z.string().min(4).max(8).regex(/^[A-Za-z0-9]+$/).optional(),
+      wonPoints: z.number().int().min(0).max(100).optional(), // Roulette won points (0-100)
     }))
     .mutation(async ({ input, ctx }) => {
       // Check if email already exists
@@ -1208,6 +1209,25 @@ export const lineLoginRouter = router({
         }
       }
       
+      // Award roulette welcome bonus points (if not already awarded via referral)
+      let roulettePointsAwarded = 0;
+      if (input.wonPoints && input.wonPoints > 0 && !referralApplied) {
+        try {
+          const { createLinePointTransaction: createPtTxn } = await import("./db");
+          await createPtTxn({
+            lineUserId: `email_${newUser.id}`,
+            type: "earn",
+            amount: input.wonPoints,
+            referenceType: "system",
+            description: `新規登録ボーナスルーレット: ${input.wonPoints}ポイント獲得`,
+          });
+          roulettePointsAwarded = input.wonPoints;
+          console.log(`[Roulette] ${input.wonPoints}pt awarded to new user ${newUser.id} as welcome bonus`);
+        } catch (err: any) {
+          console.error(`[Roulette] Failed to award welcome bonus points:`, err.message);
+        }
+      }
+      
       // Auto-login: create session after registration
       const sessionData = {
         lineUserId: `email_${newUser.id}`,
@@ -1231,6 +1251,7 @@ export const lineLoginRouter = router({
         userId: newUser.id,
         referralApplied,
         referralPoints,
+        roulettePointsAwarded,
         friendChallengeCode: friendChallengeCode || undefined,
         sessionToken,
       };

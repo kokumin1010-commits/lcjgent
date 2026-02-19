@@ -75,8 +75,9 @@ export default function ChatRegister() {
 
   // Get referral code from localStorage (set by roulette flow)
   const referralCode = useRef(localStorage.getItem("lcj_spin_referral_code") || undefined);
-  // Get won points from localStorage
-  const wonPoints = useRef(localStorage.getItem("lcj_spin_won_points") || "5,000");
+  // Get won points from localStorage (numeric value)
+  const wonPointsNum = useRef(parseInt(localStorage.getItem("lcj_spin_won_points") || "50", 10) || 50);
+  const wonPointsLabel = useRef(localStorage.getItem("lcj_spin_won_label") || `${wonPointsNum.current}pt`);
 
   // Check if user came from roulette
   useEffect(() => {
@@ -96,17 +97,24 @@ export default function ChatRegister() {
       }
       localStorage.removeItem("lcj_referral_code");
       localStorage.removeItem("lcj_spin_referral_code");
+      localStorage.removeItem("lcj_spin_won_points");
+      localStorage.removeItem("lcj_spin_won_label");
       sessionStorage.removeItem("lcj_from_roulette");
 
       if (data.friendChallengeCode) {
         localStorage.setItem("lcj_friend_referral_code", data.friendChallengeCode);
       }
 
+      // Determine how many points were actually awarded
+      const totalAwarded = data.roulettePointsAwarded || data.referralPoints || 0;
+
       setStep("complete");
       addBotMessages([
         "🎉 <b>登録完了！</b>",
         `おめでとうございます！<br/>あなたのアカウントが作成されました。`,
-        `🎁 <b>${wonPoints.current}pt</b>の受け取り準備ができました！<br/><br/>マイページに移動して、ポイントを確認しましょう！`,
+        totalAwarded > 0
+          ? `✅ <b>${totalAwarded}pt</b> がアカウントに付与されました！🎁<br/><br/>マイページでポイント残高を確認しましょう！`
+          : `🎁 マイページに移動して、ポイントを確認しましょう！`,
       ]);
 
       sfx.playCelebration();
@@ -168,7 +176,7 @@ export default function ChatRegister() {
     const timer = setTimeout(() => {
       addBotMessages([
         `🎊 <b>おめでとうございます！</b>`,
-        `ルーレットで <b style="color:#ef4444">${wonPoints.current}pt</b> が当選しました！🎰`,
+        `ルーレットで <b style="color:#ef4444">${wonPointsLabel.current}</b> が当選しました！🎰`,
         `ポイントを受け取るために、<b>かんたん会員登録</b>をしましょう！<br/><br/>まずは <b>お名前</b> を教えてください 😊`,
       ]);
       setStep("name");
@@ -256,6 +264,7 @@ export default function ChatRegister() {
               name: formData.name,
               phone: formData.phone,
               referralCode: referralCode.current,
+              wonPoints: wonPointsNum.current,
             });
           }, 1500);
         }, 300);
@@ -322,7 +331,7 @@ export default function ChatRegister() {
         <div className="flex items-center gap-2 bg-yellow-400/10 border border-yellow-400/20 rounded-xl px-3 py-2">
           <Gift className="h-4 w-4 text-yellow-400 shrink-0" />
           <p className="text-xs text-yellow-400">
-            🎰 ルーレット当選: <b>{wonPoints.current}pt</b> — 登録完了で受け取れます！
+            🎰 ルーレット当選: <b>{wonPointsLabel.current}</b> — 登録完了で受け取れます！
           </p>
         </div>
       </div>
