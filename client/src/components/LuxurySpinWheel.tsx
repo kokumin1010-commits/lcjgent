@@ -173,7 +173,14 @@ export function SparkleRing({ count = 24 }: { count?: number }) {
 
 export function StaggerReveal({ children, delay, duration }: { children: React.ReactNode; delay: number; duration: number }) {
   const [visible, setVisible] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setVisible(true), delay); return () => clearTimeout(t); }, [delay]);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    // First frame: make element invisible but laid out
+    requestAnimationFrame(() => setReady(true));
+    const t = setTimeout(() => setVisible(true), delay);
+    return () => clearTimeout(t);
+  }, [delay]);
+  if (!ready) return <div style={{ visibility: 'hidden' }}>{children}</div>;
   return <div style={{ opacity: visible ? 1 : 0, transform: visible ? "translateY(0) scale(1)" : "translateY(20px) scale(0.9)", transition: `all ${duration}ms cubic-bezier(0.34, 1.56, 0.64, 1)` }}>{children}</div>;
 }
 

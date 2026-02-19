@@ -264,36 +264,20 @@ function RouletteOverlay({ onClose }: { onClose: () => void }) {
   const [wonEmoji, setWonEmoji] = useState("");
   const hasStartedRef = useRef(false);
 
-  // Fetch spin items for display
-  const { data: spinItems } = trpc.friendReferral.getSpinItems.useQuery({ isSpecial: false });
+  // New member welcome roulette items (50pt is jackpot, others are smaller)
+  const wheelItems = useMemo(() => [
+    { label: "5pt", emoji: "🎀", points: 5 },
+    { label: "50pt", emoji: "🎁", points: 50 },
+    { label: "10pt", emoji: "✨", points: 10 },
+    { label: "3pt", emoji: "🌟", points: 3 },
+    { label: "20pt", emoji: "💎", points: 20 },
+    { label: "1pt", emoji: "🍀", points: 1 },
+    { label: "15pt", emoji: "🔥", points: 15 },
+    { label: "30pt", emoji: "⭐", points: 30 },
+  ], []);
 
-  // Demo items (use API items or fallback)
-  const wheelItems = useMemo(() => {
-    if (spinItems && spinItems.length > 0) {
-      return spinItems.map(i => ({ label: i.label, emoji: i.emoji, points: i.points }));
-    }
-    return [
-      { label: "10pt", emoji: "🎁", points: 10 },
-      { label: "50pt", emoji: "💎", points: 50 },
-      { label: "100pt", emoji: "🔥", points: 100 },
-      { label: "200pt", emoji: "⭐", points: 200 },
-      { label: "500pt", emoji: "👑", points: 500 },
-      { label: "1,000pt", emoji: "🏆", points: 1000 },
-      { label: "5pt", emoji: "🎀", points: 5 },
-      { label: "20pt", emoji: "✨", points: 20 },
-    ];
-  }, [spinItems]);
-
-  // Pick a random "winning" index (weighted toward mid-range for demo appeal)
-  const targetIndex = useMemo(() => {
-    // For demo: pick a visually appealing result (50-200pt range)
-    const midRange = wheelItems.filter(i => i.points >= 50 && i.points <= 500);
-    if (midRange.length > 0) {
-      const pick = midRange[Math.floor(Math.random() * midRange.length)];
-      return wheelItems.indexOf(pick);
-    }
-    return Math.floor(Math.random() * wheelItems.length);
-  }, [wheelItems]);
+  // Always land on 50pt (jackpot for new members) - index 1
+  const targetIndex = useMemo(() => 1, []);
 
   const handleSpinComplete = useCallback(() => {
     const won = wheelItems[targetIndex];
@@ -304,7 +288,8 @@ function RouletteOverlay({ onClose }: { onClose: () => void }) {
     sfx.playCelebration();
     haptic.celebration();
     // Store won points for chat register
-    localStorage.setItem("lcj_spin_won_points", won.label);
+    localStorage.setItem("lcj_spin_won_points", String(won.points));
+    localStorage.setItem("lcj_spin_won_label", won.label);
     setTimeout(() => setPhase("result"), 800);
   }, [wheelItems, targetIndex]);
 
@@ -348,6 +333,12 @@ function RouletteOverlay({ onClose }: { onClose: () => void }) {
         </>
       )}
 
+      {/* LCJ LOGO - always visible */}
+      <div className="absolute top-4 left-4 z-50 flex items-center gap-2">
+        <ShoppingBag className="h-5 w-5 text-rose-400" />
+        <span className="text-sm font-bold text-white/80">LCJ MALL</span>
+      </div>
+
       {/* Intro phase - dramatic entrance */}
       {phase === "intro" && (
         <div className="flex flex-col items-center justify-center h-full px-6 animate-fadeIn">
@@ -356,7 +347,7 @@ function RouletteOverlay({ onClose }: { onClose: () => void }) {
             <h1 className="text-3xl font-black text-white mb-2" style={{ textShadow: "0 0 30px rgba(251,191,36,0.5)" }}>
               ラッキールーレット
             </h1>
-            <p className="text-yellow-400 text-lg font-bold animate-pulse">最大 5,000pt が当たる！</p>
+            <p className="text-yellow-400 text-lg font-bold animate-pulse">新規登録ボーナスルーレット！</p>
             <div className="mt-6 flex items-center gap-2 justify-center">
               <div className="w-2 h-2 rounded-full bg-yellow-400 animate-bounce" style={{ animationDelay: "0ms" }} />
               <div className="w-2 h-2 rounded-full bg-yellow-400 animate-bounce" style={{ animationDelay: "150ms" }} />
