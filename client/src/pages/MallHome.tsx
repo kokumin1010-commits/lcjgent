@@ -4,7 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ShoppingBag, Gift, ArrowRight, Coins, Receipt, Check, ChevronDown, ChevronUp, ShieldCheck, HelpCircle, Sparkles, MessageCircle, UserPlus, TrendingUp, Crown, Medal, Award, Flame, Heart, Star, X } from "lucide-react";
+import { ShoppingBag, Gift, ArrowRight, Coins, Receipt, Check, ChevronDown, ChevronUp, ShieldCheck, HelpCircle, Sparkles, MessageCircle, UserPlus, TrendingUp, Crown, Medal, Award, Flame, Heart, Star, X, User } from "lucide-react";
 import { useLocation, Link } from "wouter";
 import LuxurySpinWheel, { Confetti, Fireworks, ScreenFlash, FallingCoins, GlowCard, useCountUp, FloatingParticles } from "@/components/LuxurySpinWheel";
 import sfx from "@/lib/soundEffects";
@@ -445,8 +445,13 @@ export default function MallHome() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [showRoulette, setShowRoulette] = useState(false);
 
-  // Show roulette once per session on page load
+  // ログイン状態を確認
+  const { data: lineUser } = trpc.lineLogin.me.useQuery();
+  const isLoggedIn = !!lineUser;
+
+  // Show roulette once per session on page load (未ログインユーザーのみ)
   useEffect(() => {
+    if (isLoggedIn) return; // ログイン済みならルーレット不要
     const hasSeenRoulette = sessionStorage.getItem('lcj_roulette_seen');
     if (!hasSeenRoulette) {
       const timer = setTimeout(() => {
@@ -455,7 +460,7 @@ export default function MallHome() {
       }, 800);
       return () => clearTimeout(timer);
     }
-  }, []);
+  }, [isLoggedIn]);
   
   // 商品一覧を取得（販売中のもののみ）
   const { data: products, isLoading: productsLoading } = trpc.mall.getProducts.useQuery({ status: "active" });
@@ -494,15 +499,27 @@ export default function MallHome() {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <Button 
-              size="sm" 
-              className="bg-rose-500 hover:bg-rose-600 text-white gap-1 text-xs md:text-sm px-3 md:px-4" 
-              onClick={() => setLocation("/line-login")}
-            >
-              <UserPlus className="h-4 w-4" />
-              <span className="hidden sm:inline">無料ではじめる</span>
-              <span className="sm:hidden">登録</span>
-            </Button>
+            {isLoggedIn ? (
+              <Button 
+                size="sm" 
+                className="bg-rose-500 hover:bg-rose-600 text-white gap-1 text-xs md:text-sm px-3 md:px-4" 
+                onClick={() => setLocation("/mypage")}
+              >
+                <User className="h-4 w-4" />
+                <span className="hidden sm:inline">マイページ</span>
+                <span className="sm:hidden">マイページ</span>
+              </Button>
+            ) : (
+              <Button 
+                size="sm" 
+                className="bg-rose-500 hover:bg-rose-600 text-white gap-1 text-xs md:text-sm px-3 md:px-4" 
+                onClick={() => setLocation("/line-login")}
+              >
+                <UserPlus className="h-4 w-4" />
+                <span className="hidden sm:inline">無料ではじめる</span>
+                <span className="sm:hidden">登録</span>
+              </Button>
+            )}
           </div>
         </div>
       </header>
@@ -535,14 +552,25 @@ export default function MallHome() {
             </div>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center px-4">
-            <Button 
-              size="lg" 
-              className="bg-rose-500 hover:bg-rose-600 text-white gap-2 text-base md:text-lg py-6 md:py-7 px-6 md:px-8 shadow-lg hover:shadow-xl transition-all"
-              onClick={() => setLocation("/line-login")}
-            >
-              <UserPlus className="h-5 w-5 md:h-6 md:w-6" />
-              無料ではじめる
-            </Button>
+            {isLoggedIn ? (
+              <Button 
+                size="lg" 
+                className="bg-rose-500 hover:bg-rose-600 text-white gap-2 text-base md:text-lg py-6 md:py-7 px-6 md:px-8 shadow-lg hover:shadow-xl transition-all"
+                onClick={() => setLocation("/mypage")}
+              >
+                <User className="h-5 w-5 md:h-6 md:w-6" />
+                マイページへ
+              </Button>
+            ) : (
+              <Button 
+                size="lg" 
+                className="bg-rose-500 hover:bg-rose-600 text-white gap-2 text-base md:text-lg py-6 md:py-7 px-6 md:px-8 shadow-lg hover:shadow-xl transition-all"
+                onClick={() => setLocation("/line-login")}
+              >
+                <UserPlus className="h-5 w-5 md:h-6 md:w-6" />
+                無料ではじめる
+              </Button>
+            )}
             <Button 
               size="lg" 
               variant="outline" 
@@ -726,7 +754,7 @@ export default function MallHome() {
               </div>
               <div className="flex-1">
                 <h3 className="text-xl md:text-2xl font-black mb-1" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>友達招待チャレンジ 🎉</h3>
-                <p className="text-yellow-200 text-sm md:text-base font-bold">友達を招待して最大<span className="text-yellow-300 text-lg font-black">5,000pt</span> GET！✨</p>
+                <p className="text-yellow-200 text-sm md:text-base font-bold">友達を招待してボーナスポイントをGET！✨</p>
               </div>
               <ArrowRight className="h-6 w-6 text-yellow-300 group-hover:translate-x-1 transition-transform shrink-0" />
             </div>
@@ -841,19 +869,30 @@ export default function MallHome() {
       <section className="py-12 md:py-16 px-4 bg-gradient-to-b from-white to-rose-50">
         <div className="container mx-auto max-w-2xl text-center">
           <h2 className="text-xl md:text-2xl font-bold mb-4 md:mb-6 text-gray-900">
-            今すぐ始めよう
+            {isLoggedIn ? "ポイントを使おう" : "今すぐ始めよう"}
           </h2>
           <p className="text-gray-600 mb-6 md:mb-8 text-sm md:text-base">
             TikTok Shopでのお買い物を、もっとお得に。
           </p>
-          <Button 
-            size="lg" 
-            className="bg-rose-500 hover:bg-rose-600 text-white gap-2 text-base md:text-lg py-6 md:py-7 px-8 md:px-10 shadow-lg hover:shadow-xl transition-all"
-            onClick={() => setLocation("/line-login")}
-          >
-            <UserPlus className="h-5 w-5 md:h-6 md:w-6" />
-            無料ではじめる
-          </Button>
+          {isLoggedIn ? (
+            <Button 
+              size="lg" 
+              className="bg-rose-500 hover:bg-rose-600 text-white gap-2 text-base md:text-lg py-6 md:py-7 px-8 md:px-10 shadow-lg hover:shadow-xl transition-all"
+              onClick={() => setLocation("/mall/products")}
+            >
+              <ShoppingBag className="h-5 w-5 md:h-6 md:w-6" />
+              商品を見る
+            </Button>
+          ) : (
+            <Button 
+              size="lg" 
+              className="bg-rose-500 hover:bg-rose-600 text-white gap-2 text-base md:text-lg py-6 md:py-7 px-8 md:px-10 shadow-lg hover:shadow-xl transition-all"
+              onClick={() => setLocation("/line-login")}
+            >
+              <UserPlus className="h-5 w-5 md:h-6 md:w-6" />
+              無料ではじめる
+            </Button>
+          )}
         </div>
       </section>
 
