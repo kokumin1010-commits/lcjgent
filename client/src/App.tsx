@@ -4,6 +4,7 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { useReferralCapture } from "./hooks/useReferralCapture";
+import RandomSpinProvider from "./components/RandomSpinProvider";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import DashboardLayout from "./components/DashboardLayout";
 import Dashboard from "./pages/Dashboard";
@@ -345,7 +346,9 @@ function App() {
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
-          <Router />
+          <RandomSpinProvider>
+            <Router />
+          </RandomSpinProvider>
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
