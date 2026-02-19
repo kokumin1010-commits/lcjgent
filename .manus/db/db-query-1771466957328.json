@@ -1,0 +1,36 @@
+{
+  "query": "SELECT * FROM mall_orders WHERE orderNumber LIKE '%DIY3HV%' LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT * FROM mall_orders WHERE orderNumber LIKE '%DIY3HV%' LIMIT 1;",
+  "rows": [
+    {
+      "id": "60003",
+      "orderNumber": "LCJ20260217DIY3HV",
+      "lineUserId": "900154",
+      "status": "paid",
+      "totalAmount": "1980",
+      "pointsUsed": "1386",
+      "cashAmount": "0",
+      "shippingName": "いわつかりえ",
+      "shippingPhone": "08036498032",
+      "shippingPostalCode": "5016003",
+      "shippingAddress": "岐阜県羽島郡岐南町平島2の243の2",
+      "notes": "NULL",
+      "adminNotes": "NULL",
+      "createdAt": "2026-02-17 23:17:21",
+      "updatedAt": "2026-02-17 23:17:21",
+      "shippedAt": "NULL",
+      "deliveredAt": "NULL",
+      "paymentMethod": "points",
+      "stripeSessionId": "NULL",
+      "stripePaymentIntentId": "NULL",
+      "shippingCarrier": "NULL",
+      "trackingNumber": "NULL",
+      "cancelledAt": "NULL",
+      "cancelReason": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\torderNumber\tlineUserId\tstatus\ttotalAmount\tpointsUsed\tcashAmount\tshippingName\tshippingPhone\tshippingPostalCode\tshippingAddress\tnotes\tadminNotes\tcreatedAt\tupdatedAt\tshippedAt\tdeliveredAt\tpaymentMethod\tstripeSessionId\tstripePaymentIntentId\tshippingCarrier\ttrackingNumber\tcancelledAt\tcancelReason\n60003\tLCJ20260217DIY3HV\t900154\tpaid\t1980\t1386\t0\tいわつかりえ\t08036498032\t5016003\t岐阜県羽島郡岐南町平島2の243の2\tNULL\tNULL\t2026-02-17 23:17:21\t2026-02-17 23:17:21\tNULL\tNULL\tpoints\tNULL\tNULL\tNULL\tNULL\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1619
+}

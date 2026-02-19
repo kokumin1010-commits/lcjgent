@@ -417,13 +417,23 @@ export default function OrderManagement() {
                             {format(new Date(item.order.createdAt), "yyyy/MM/dd HH:mm", { locale: ja })}
                           </div>
                           <div className="flex items-center gap-1">
-                            <CreditCard className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium">¥{item.order.totalAmount.toLocaleString()}</span>
+                            {item.order.paymentMethod === 'points' 
+                              ? <Coins className="h-4 w-4 text-rose-500" />
+                              : <CreditCard className="h-4 w-4 text-muted-foreground" />}
+                            <span className="font-medium">
+                              {item.order.paymentMethod === 'points'
+                                ? `${item.order.pointsUsed.toLocaleString()} pt`
+                                : `¥${item.order.totalAmount.toLocaleString()}`}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              ({item.order.paymentMethod === 'points' ? 'ポイント' : 
+                                item.order.paymentMethod === 'stripe' ? 'カード' : '代引き'})
+                            </span>
                           </div>
-                          {item.order.pointsUsed > 0 && (
+                          {item.order.paymentMethod !== 'points' && item.order.pointsUsed > 0 && (
                             <div className="flex items-center gap-1">
                               <Coins className="h-4 w-4 text-rose-500" />
-                              <span className="text-rose-600">{item.order.pointsUsed.toLocaleString()} pt</span>
+                              <span className="text-rose-600">-{item.order.pointsUsed.toLocaleString()} pt</span>
                             </div>
                           )}
                         </div>
@@ -635,10 +645,16 @@ export default function OrderManagement() {
                         <div>
                           <p className="font-medium">{item.productName}</p>
                           <p className="text-sm text-muted-foreground">
-                            ¥{item.productPrice.toLocaleString()} × {item.quantity}
+                            {orderDetail.order.paymentMethod === 'points'
+                              ? `${(item.productPointPrice ?? item.productPrice).toLocaleString()} pt × ${item.quantity}`
+                              : `¥${item.productPrice.toLocaleString()} × ${item.quantity}`}
                           </p>
                         </div>
-                        <p className="font-medium">¥{item.subtotal.toLocaleString()}</p>
+                        <p className="font-medium">
+                          {orderDetail.order.paymentMethod === 'points'
+                            ? `${((item.productPointPrice ?? item.productPrice) * item.quantity).toLocaleString()} pt`
+                            : `¥${item.subtotal.toLocaleString()}`}
+                        </p>
                       </div>
                     ))}
                   </div>
@@ -655,10 +671,23 @@ export default function OrderManagement() {
                 </CardHeader>
                 <CardContent className="text-sm space-y-2">
                   <div className="flex justify-between">
-                    <span>商品合計</span>
-                    <span>¥{orderDetail.order.totalAmount.toLocaleString()}</span>
+                    <span>支払方法</span>
+                    <span className="flex items-center gap-1">
+                      {orderDetail.order.paymentMethod === 'stripe' && <CreditCard className="h-3 w-3" />}
+                      {orderDetail.order.paymentMethod === 'points' && <Coins className="h-3 w-3" />}
+                      {orderDetail.order.paymentMethod === 'points' ? 'ポイント全額' : 
+                       orderDetail.order.paymentMethod === 'stripe' ? 'クレジットカード' : '代引き'}
+                    </span>
                   </div>
-                  {orderDetail.order.pointsUsed > 0 && (
+                  <div className="flex justify-between">
+                    <span>商品合計</span>
+                    <span>
+                      {orderDetail.order.paymentMethod === 'points'
+                        ? `${orderDetail.order.pointsUsed.toLocaleString()} pt`
+                        : `¥${orderDetail.order.totalAmount.toLocaleString()}`}
+                    </span>
+                  </div>
+                  {orderDetail.order.paymentMethod !== 'points' && orderDetail.order.pointsUsed > 0 && (
                     <div className="flex justify-between text-rose-600">
                       <span className="flex items-center gap-1">
                         <Coins className="h-3 w-3" />
@@ -667,7 +696,7 @@ export default function OrderManagement() {
                       <span>-{orderDetail.order.pointsUsed.toLocaleString()} pt</span>
                     </div>
                   )}
-                  {orderDetail.order.cashAmount > 0 && (
+                  {orderDetail.order.paymentMethod !== 'points' && orderDetail.order.cashAmount > 0 && (
                     <div className="flex justify-between">
                       <span>現金支払い</span>
                       <span>¥{orderDetail.order.cashAmount.toLocaleString()}</span>
@@ -675,7 +704,11 @@ export default function OrderManagement() {
                   )}
                   <div className="flex justify-between font-bold pt-2 border-t">
                     <span>合計</span>
-                    <span>¥{orderDetail.order.totalAmount.toLocaleString()}</span>
+                    <span className="text-rose-600">
+                      {orderDetail.order.paymentMethod === 'points'
+                        ? `${orderDetail.order.pointsUsed.toLocaleString()} pt`
+                        : `¥${orderDetail.order.totalAmount.toLocaleString()}`}
+                    </span>
                   </div>
                 </CardContent>
               </Card>
