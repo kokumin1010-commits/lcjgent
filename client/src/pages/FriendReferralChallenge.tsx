@@ -440,15 +440,26 @@ export default function FriendReferralChallenge() {
                   <div className="space-y-2">
                     {leaderboard.map((entry, index) => {
                       const entryTitle = TITLE_CONFIG[entry.titleLevel || "none"] || TITLE_CONFIG.none;
+                      // Privacy: mask display name to first character + ***
+                      const maskedName = entry.displayName
+                        ? Array.from(entry.displayName)[0] + "***"
+                        : "***";
                       return (
                         <div key={index} className="flex items-center gap-3 p-3 rounded-xl transition-all"
                           style={{ background: index === 0 ? "rgba(251,191,36,0.1)" : index === 1 ? "rgba(192,192,192,0.08)" : index === 2 ? "rgba(205,127,50,0.08)" : "rgba(255,255,255,0.02)", border: `1px solid ${index < 3 ? "rgba(251,191,36,0.15)" : "rgba(255,255,255,0.05)"}` }}>
                           <div className="w-8 h-8 flex items-center justify-center shrink-0">
                             {index === 0 ? <span className="text-xl">🥇</span> : index === 1 ? <span className="text-xl">🥈</span> : index === 2 ? <span className="text-xl">🥉</span> : <span className="text-sm font-bold text-gray-500">{index + 1}</span>}
                           </div>
-                          {entry.pictureUrl ? <img src={entry.pictureUrl} alt="" className="h-9 w-9 rounded-full object-cover shrink-0" /> : <div className="h-9 w-9 rounded-full flex items-center justify-center shrink-0" style={{ background: "rgba(255,255,255,0.08)" }}><Users className="h-4 w-4 text-gray-500" /></div>}
+                          {/* Privacy: blur profile picture */}
+                          {entry.pictureUrl ? (
+                            <div className="h-9 w-9 rounded-full overflow-hidden shrink-0">
+                              <img src={entry.pictureUrl} alt="" className="h-full w-full object-cover" style={{ filter: "blur(6px)", transform: "scale(1.2)" }} />
+                            </div>
+                          ) : (
+                            <div className="h-9 w-9 rounded-full flex items-center justify-center shrink-0" style={{ background: "rgba(255,255,255,0.08)" }}><Users className="h-4 w-4 text-gray-500" /></div>
+                          )}
                           <div className="flex-1 min-w-0">
-                            <p className="font-bold text-sm text-white truncate">{entry.displayName}</p>
+                            <p className="font-bold text-sm text-white truncate">{maskedName}</p>
                             <Badge className={`${entryTitle.bg} ${entryTitle.color} border-0 text-[10px] px-1.5`}>{entryTitle.emoji} {entryTitle.label}</Badge>
                           </div>
                           <div className="text-right shrink-0"><p className="font-black text-yellow-400 text-sm">{entry.totalReferrals}人</p><p className="text-xs text-gray-500">{entry.totalPointsEarned}pt</p></div>
