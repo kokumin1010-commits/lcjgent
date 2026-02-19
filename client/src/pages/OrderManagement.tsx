@@ -69,6 +69,8 @@ type InlineShippingState = {
 export default function OrderManagement() {
   const [statusFilter, setStatusFilter] = useState<OrderStatus | "all">("all");
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+  const [downloadingInvoice, setDownloadingInvoice] = useState<Record<string, boolean>>({});
+  const utils = trpc.useUtils();
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
   const [newStatus, setNewStatus] = useState<OrderStatus>("pending");
@@ -481,6 +483,50 @@ export default function OrderManagement() {
                         >
                           その他
                         </Button>
+                        {/* 帳票ダウンロードボタン（一覧から直接） */}
+                        <div className="flex gap-1 ml-1 border-l pl-2 border-gray-200">
+                          {([
+                            { type: "delivery" as DocumentType, label: "納品書", shortLabel: "納" },
+                            { type: "invoice" as DocumentType, label: "請求書", shortLabel: "請" },
+                            { type: "receipt" as DocumentType, label: "領収書", shortLabel: "領" },
+                          ]).map((doc) => {
+                            const key = `${item.order.id}-${doc.type}`;
+                            const isDownloading = downloadingInvoice[key];
+                            return (
+                              <Button
+                                key={doc.type}
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                                disabled={isDownloading}
+                                title={`${doc.label}をダウンロード`}
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  setDownloadingInvoice(prev => ({ ...prev, [key]: true }));
+                                  try {
+                                    const detail = await utils.mall.getOrderById.fetch({ id: item.order.id });
+                                    if (!detail) throw new Error("注文詳細の取得に失敗");
+                                    const invoiceData = convertOrderToInvoiceData(detail as any);
+                                    downloadInvoicePdf(doc.type, invoiceData);
+                                    toast.success(`${doc.label}をダウンロードしました`);
+                                  } catch (err) {
+                                    console.error(`PDF生成エラー:`, err);
+                                    toast.error(`${doc.label}の生成に失敗しました`);
+                                  } finally {
+                                    setDownloadingInvoice(prev => ({ ...prev, [key]: false }));
+                                  }
+                                }}
+                              >
+                                {isDownloading ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <FileDown className="h-3 w-3" />
+                                )}
+                                {doc.shortLabel}
+                              </Button>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
 
