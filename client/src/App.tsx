@@ -87,6 +87,7 @@ import FriendReferralChallenge from "./pages/FriendReferralChallenge";
 import Register from "./pages/Register";
 import SpinDemo from "./pages/SpinDemo";
 import ChatRegister from "./pages/ChatRegister";
+import RegistrationBonus from "./pages/RegistrationBonus";
 
 function Router() {
   return (
@@ -113,6 +114,7 @@ function Router() {
       <Route path="/register/:code" component={Register} />
       <Route path="/register" component={Register} />
       <Route path="/chat-register" component={ChatRegister} />
+      <Route path="/registration-bonus" component={RegistrationBonus} />
       <Route path="/master/point-requests">
         <DashboardLayout>
           <PointRequestAdmin />

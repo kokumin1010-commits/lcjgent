@@ -2128,6 +2128,40 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
     const used = await hasUsedReferralCode(sessionResult.lineUser.id);
     return { used, loggedIn: true };
   }),
+
+  // 新規登録特典ルーレットポイント付与
+  awardRegistrationBonus: publicProcedure
+    .input(z.object({ points: z.number().int().min(1).max(1000) }))
+    .mutation(async ({ input, ctx }) => {
+      const sessionResult = await getLineUserFromSession(ctx);
+      if (!sessionResult || !sessionResult.lineUser) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+      }
+      const user = sessionResult.lineUser;
+      const pointId = user.lineUserId || `email_${user.id}`;
+
+      // Check if already awarded (prevent double award)
+      const { getLinePointTransactions } = await import("./db");
+      const existingTxns = await getLinePointTransactions(pointId);
+      const alreadyAwarded = existingTxns.some(
+        (t: { description: string | null }) => t.description?.includes("新規登録特典ルーレット")
+      );
+      if (alreadyAwarded) {
+        return { awarded: false, message: "既に登録特典ポイントは付与済みです" };
+      }
+
+      // Award points
+      const { createLinePointTransaction } = await import("./db");
+      await createLinePointTransaction({
+        lineUserId: pointId,
+        type: "earn",
+        amount: input.points,
+        referenceType: "system",
+        description: `新規登録特典ルーレット: ${input.points}ポイント獲得`,
+      });
+      console.log(`[RegistrationBonus] ${input.points}pt awarded to user ${user.id}`);
+      return { awarded: true, points: input.points };
+    }),
 });
 
 export const appRouter = router({
