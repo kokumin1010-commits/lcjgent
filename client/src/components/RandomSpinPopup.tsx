@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useLocation } from "wouter";
 import haptic from "@/lib/haptic";
 import sfx from "@/lib/soundEffects";
+import { trpc } from "@/lib/trpc";
 import LuxurySpinWheel, {
   Confetti, Fireworks, ScreenFlash, FallingCoins,
   FloatingParticles, GodRays, SparkleRing,
@@ -220,6 +221,43 @@ export function useRandomSpinPopup() {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   NEXT STAGE PROGRESS - Shows "あと○人で達成" bar
+   ═══════════════════════════════════════════════════════════════ */
+function NextStageProgress() {
+  const { data: campaignData } = trpc.friendReferral.getCampaign.useQuery();
+  const { data: myProgress } = trpc.friendReferral.getMyProgress.useQuery(undefined, { retry: 1 });
+
+  const stages = campaignData?.stages || [];
+  const progress = myProgress?.progress;
+  const totalReferrals = progress?.totalReferrals || 0;
+  const currentStageIndex = stages.findIndex(s => s.stageNumber === (progress?.currentStage || 0));
+  const nextStage = stages[currentStageIndex + 1] || stages[0];
+
+  if (!nextStage) return null;
+
+  const remaining = Math.max(0, nextStage.requiredReferrals - totalReferrals);
+  const pct = Math.min(100, (totalReferrals / nextStage.requiredReferrals) * 100);
+
+  return (
+    <div className="w-full bg-white/5 border border-yellow-400/20 rounded-lg p-3">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-yellow-400 text-sm font-bold">
+          🎯 あと{remaining}人招待で次のステージ達成！
+        </p>
+        <span className="text-yellow-400 text-xs font-bold">{Math.round(pct)}%</span>
+      </div>
+      <div className="h-2.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
+        <div
+          className="h-full rounded-full transition-all duration-700"
+          style={{ width: `${pct}%`, background: "linear-gradient(90deg, #ef4444, #f97316, #fbbf24)" }}
+        />
+      </div>
+      <p className="text-gray-500 text-xs mt-1.5">次のステージ: {nextStage.stageEmoji} {nextStage.stageName}</p>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
    RANDOM SPIN POPUP COMPONENT - Full-screen immersive roulette
    ═══════════════════════════════════════════════════════════════ */
 export default function RandomSpinPopup({
@@ -392,6 +430,9 @@ export default function RandomSpinPopup({
                 </div>
 
                 <div className="h-px w-full" style={{ background: "linear-gradient(90deg, transparent, #fbbf24, transparent)" }} />
+
+                {/* Next stage progress bar */}
+                <NextStageProgress />
 
                 <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
                   <p className="text-red-400 text-sm font-bold">💡 このポイントを受け取るには</p>

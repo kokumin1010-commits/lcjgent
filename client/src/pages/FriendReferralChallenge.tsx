@@ -339,35 +339,7 @@ export default function FriendReferralChallenge() {
               </CardContent>
             </Card>
 
-            {/* ═══ Spin Buttons ═══ */}
-            {((progress?.pendingSpins || 0) > 0 || (progress?.pendingSpecialSpins || 0) > 0) && (
-              <Card className="border-0 overflow-hidden" style={{ background: "linear-gradient(135deg, rgba(251,191,36,0.1), rgba(239,68,68,0.1))", border: "2px solid #fbbf24", boxShadow: "0 0 30px rgba(255,180,0,0.1)" }}>
-                <CardContent className="pt-5 space-y-3">
-                  <div className="text-center mb-2">
-                    <span className="text-4xl">🎰</span>
-                    <h3 className="text-lg font-black text-yellow-400">豪華ルーレットを回そう！</h3>
-                    <p className="text-sm text-yellow-600">ボーナスポイントをGETするチャンス✨</p>
-                  </div>
-                  {(progress?.pendingSpins || 0) > 0 && (
-                    <Button onClick={() => handleSpinClick(false)} disabled={spinMutation.isPending}
-                      className="w-full text-white py-6 text-base rounded-xl font-black relative overflow-hidden"
-                      style={{ background: "linear-gradient(135deg, #ef4444, #f97316)", boxShadow: "0 4px 20px rgba(239,68,68,0.3)" }}>
-                      <div className="absolute inset-0" style={{ background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 50%, transparent 100%)", animation: "shimmerBtn 2.5s ease-in-out infinite" }} />
-                      <span className="relative z-10">{spinMutation.isPending ? "⏳ 準備中..." : `🎰 通常ルーレット（残り${progress?.pendingSpins}回）`}</span>
-                    </Button>
-                  )}
-                  {(progress?.pendingSpecialSpins || 0) > 0 && (
-                    <Button onClick={() => handleSpinClick(true)} disabled={spinMutation.isPending}
-                      className="w-full text-white py-6 text-base rounded-xl font-black relative overflow-hidden"
-                      style={{ background: "linear-gradient(135deg, #a855f7, #ec4899)", boxShadow: "0 4px 20px rgba(168,85,247,0.3)" }}>
-                      <div className="absolute inset-0" style={{ background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 50%, transparent 100%)", animation: "shimmerBtn 2.5s ease-in-out infinite" }} />
-                      <span className="relative z-10">{spinMutation.isPending ? "⏳ 準備中..." : `👑 プレミアムルーレット（残り${progress?.pendingSpecialSpins}回）`}</span>
-                    </Button>
-                  )}
-                  <style>{`@keyframes shimmerBtn { 0% { transform: translateX(-100%); } 50%, 100% { transform: translateX(100%); } }`}</style>
-                </CardContent>
-              </Card>
-            )}
+
 
             {/* ═══ Stage Progress (ステージ進捗) ═══ */}
             <Card className="border-0" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,200,0,0.15)" }}>
@@ -400,7 +372,7 @@ export default function FriendReferralChallenge() {
                             <span className="font-bold text-sm text-white">{stage.stageName}</span>
                             {isCurrent && <Badge className="bg-yellow-900/40 text-yellow-400 border-0 text-[10px]">NOW</Badge>}
                           </div>
-                          <p className="text-xs text-gray-500 mt-0.5">{stage.requiredReferrals}人招待 → {stage.fixedReward}pt + ルーレット{stage.spinCount}回{stage.isSpecialSpin && " ⭐プレミアム"}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{stage.requiredReferrals}人招待 → 🎁 報酬あり</p>
                         </div>
                         {isCompleted && <Badge className="bg-green-900/40 text-green-400 border-0 text-xs shrink-0">達成！</Badge>}
                       </div>
@@ -408,7 +380,7 @@ export default function FriendReferralChallenge() {
                   })}
                 </div>
                 <div className="mt-3 p-3 rounded-xl" style={{ background: "rgba(168,85,247,0.08)", border: "1px solid rgba(168,85,247,0.15)" }}>
-                  <p className="text-xs text-purple-400 font-medium">🔄 ステージ5達成後も、10人招待ごとに500pt + ルーレット2回がもらえます！</p>
+                  <p className="text-xs text-purple-400 font-medium">🔄 ステージ5達成後も、招待を続けると報酬がもらえます！</p>
                 </div>
               </CardContent>
             </Card>
