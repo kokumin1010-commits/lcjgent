@@ -59,6 +59,20 @@ const conversationSessions = new Map<string, ConversationSession>();
 const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
 
 // ============================================
+// Image message deduplication (重複メッセージ防止)
+// ============================================
+const agentImageCooldowns = new Map<string, number>();
+const AGENT_IMAGE_COOLDOWN_MS = 5 * 60 * 1000; // 5分
+
+// Clean up expired cooldowns periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [uid, ts] of Array.from(agentImageCooldowns.entries())) {
+    if (now - ts > AGENT_IMAGE_COOLDOWN_MS) agentImageCooldowns.delete(uid);
+  }
+}, 10 * 60 * 1000);
+
+// ============================================
 // Pending Image Session Management (for multiple images)
 // ============================================
 // When a user sends an image, we wait for additional images for 10 seconds
@@ -627,6 +641,17 @@ export async function processReceiptImageMessage(event: LineWebhookEvent): Promi
   }
   
   console.log(`[LINE Agent] Image received from ${userId}, redirecting to Web form`);
+  
+  // 5分以内に既に案内メッセージを送信済みの場合はスキップ
+  const now = Date.now();
+  const lastSentAt = agentImageCooldowns.get(userId);
+  if (lastSentAt && (now - lastSentAt) < AGENT_IMAGE_COOLDOWN_MS) {
+    console.log(`[LINE Agent] Image from ${userId} - skipping reply (cooldown active, last sent ${Math.round((now - lastSentAt) / 1000)}s ago)`);
+    return;
+  }
+  
+  // クールダウンを記録
+  agentImageCooldowns.set(userId, now);
   
   try {
     // Get user profile and update user record

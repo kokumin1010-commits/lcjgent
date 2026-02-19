@@ -130,16 +130,17 @@ describe("LINE Webhook メッセージ文言テスト", () => {
         webhookSource.indexOf("async function handleImageMessage"),
         webhookSource.indexOf("async function handlePointHistoryCommand")
       );
-      expect(section).toContain("Webフォームからレシートを投稿");
+      expect(section).toContain("Webフォームからアップロード");
       expect(section).toContain("lcjmall.com/receipt-upload");
     });
 
-    it("LINEでのレシート受付停止の説明が含まれていること", () => {
+    it("重複メッセージ防止のクールダウンロジックが含まれていること", () => {
       const section = webhookSource.substring(
         webhookSource.indexOf("async function handleImageMessage"),
         webhookSource.indexOf("async function handlePointHistoryCommand")
       );
-      expect(section).toContain("LINEでのレシート受付は行っておりません");
+      expect(section).toContain("imageMessageCooldowns");
+      expect(section).toContain("IMAGE_MESSAGE_COOLDOWN_MS");
     });
 
     it("メッセージイベントで画像タイプをハンドリングしていること", () => {

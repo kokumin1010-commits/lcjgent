@@ -465,19 +465,49 @@ async function handlePostback(
   console.log(`[LINE Webhook] Postback received: ${data}`);
 }
 
+// ============================================
+// Image message deduplication (重複メッセージ防止)
+// ============================================
+// 同じユーザーに対して5分以内に同じ案内メッセージを繰り返し送らない
+const imageMessageCooldowns = new Map<string, number>();
+const IMAGE_MESSAGE_COOLDOWN_MS = 5 * 60 * 1000; // 5分
+
+// Clean up expired cooldowns periodically (every 10 minutes)
+setInterval(() => {
+  const now = Date.now();
+  for (const [userId, timestamp] of Array.from(imageMessageCooldowns.entries())) {
+    if (now - timestamp > IMAGE_MESSAGE_COOLDOWN_MS) {
+      imageMessageCooldowns.delete(userId);
+    }
+  }
+}, 10 * 60 * 1000);
+
 /**
  * Handle image message (画像メッセージ受信時のWebフォーム案内)
+ * 5分以内に同じユーザーから複数枚送られた場合、最初の1枚目だけ返信する
  */
 async function handleImageMessage(event: LineWebhookEvent): Promise<void> {
   const lineUserId = event.source.userId;
   if (!lineUserId) return;
 
-  console.log(`[LINE Webhook] Image message received from ${lineUserId}, redirecting to Web form`);
+  const now = Date.now();
+  const lastSentAt = imageMessageCooldowns.get(lineUserId);
+
+  // 5分以内に既に案内メッセージを送信済みの場合はスキップ
+  if (lastSentAt && (now - lastSentAt) < IMAGE_MESSAGE_COOLDOWN_MS) {
+    console.log(`[LINE Webhook] Image from ${lineUserId} - skipping reply (cooldown active, last sent ${Math.round((now - lastSentAt) / 1000)}s ago)`);
+    return;
+  }
+
+  console.log(`[LINE Webhook] Image message received from ${lineUserId}, sending Web form guide`);
+
+  // クールダウンを記録
+  imageMessageCooldowns.set(lineUserId, now);
 
   await sendLinePushMessage(lineUserId, [
     {
       type: "text",
-      text: `レシート画像の送信ありがとうございます！\n\n現在、LINEでのレシート受付は行っておりません。\nWebフォームからレシートを投稿してポイントを獲得しましょう！\n\n👇 こちらからアップロード\nhttps://lcjmall.com/receipt-upload`,
+      text: `📷 レシート画像を受け取りました！\n\nポイント申請は、Webフォームからアップロードしてください。\nWebフォームの方が解析精度が高く、確実にポイントが付与されます。\n\n👇 こちらからアップロード\nhttps://lcjmall.com/receipt-upload\n\n※ 複数枚ある場合もWebフォームからまとめてアップロードできます。`,
     },
   ]);
 }
