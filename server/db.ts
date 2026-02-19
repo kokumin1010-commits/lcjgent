@@ -6795,6 +6795,7 @@ export async function createEmailLineUser(data: {
   email: string;
   password: string;
   displayName: string;
+  phone?: string;
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -6803,6 +6804,7 @@ export async function createEmailLineUser(data: {
     email: data.email,
     password: data.password,
     displayName: data.displayName,
+    phone: data.phone || null,
     userType: "customer",
   });
   

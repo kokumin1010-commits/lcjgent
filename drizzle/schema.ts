@@ -601,6 +601,7 @@ export const lineUsers = mysqlTable("line_users", {
   // Email/Password authentication fields
   email: varchar("email", { length: 320 }).unique(), // Email for email login
   password: varchar("password", { length: 255 }), // Hashed password for email login
+  phone: varchar("phone", { length: 20 }), // Phone number (optional)
   // Link to internal entities
   brandId: int("brandId"), // Link to brand (customer)
   staffId: int("staffId"), // Link to staff (internal)

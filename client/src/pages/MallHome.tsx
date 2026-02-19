@@ -1,11 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ShoppingBag, Gift, ArrowRight, Coins, Receipt, Check, ChevronDown, ChevronUp, ShieldCheck, HelpCircle, Sparkles, MessageCircle, UserPlus, TrendingUp, Crown, Medal, Award, Flame, Heart, Star } from "lucide-react";
+import { ShoppingBag, Gift, ArrowRight, Coins, Receipt, Check, ChevronDown, ChevronUp, ShieldCheck, HelpCircle, Sparkles, MessageCircle, UserPlus, TrendingUp, Crown, Medal, Award, Flame, Heart, Star, X } from "lucide-react";
 import { useLocation, Link } from "wouter";
+import LuxurySpinWheel, { Confetti, Fireworks, ScreenFlash, FallingCoins, GlowCard, useCountUp, FloatingParticles } from "@/components/LuxurySpinWheel";
+import sfx from "@/lib/soundEffects";
+import haptic from "@/lib/haptic";
 
 function formatCurrencyShort(amount: number): string {
   return `¥${Math.round(amount).toLocaleString()}`;
@@ -247,19 +250,225 @@ function RecommendedSection() {
   );
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   ROULETTE OVERLAY - トップページ即時ルーレット体験
+   ═══════════════════════════════════════════════════════════════ */
+type RoulettePhase = "intro" | "spinning" | "result" | "hidden";
+
+function RouletteOverlay({ onClose }: { onClose: () => void }) {
+  const [, setLocation] = useLocation();
+  const [phase, setPhase] = useState<RoulettePhase>("intro");
+  const [showEffects, setShowEffects] = useState(false);
+  const [wonPoints, setWonPoints] = useState(0);
+  const [wonLabel, setWonLabel] = useState("");
+  const [wonEmoji, setWonEmoji] = useState("");
+  const hasStartedRef = useRef(false);
+
+  // Fetch spin items for display
+  const { data: spinItems } = trpc.friendReferral.getSpinItems.useQuery({ isSpecial: false });
+
+  // Demo items (use API items or fallback)
+  const wheelItems = useMemo(() => {
+    if (spinItems && spinItems.length > 0) {
+      return spinItems.map(i => ({ label: i.label, emoji: i.emoji, points: i.points }));
+    }
+    return [
+      { label: "10pt", emoji: "🎁", points: 10 },
+      { label: "50pt", emoji: "💎", points: 50 },
+      { label: "100pt", emoji: "🔥", points: 100 },
+      { label: "200pt", emoji: "⭐", points: 200 },
+      { label: "500pt", emoji: "👑", points: 500 },
+      { label: "1,000pt", emoji: "🏆", points: 1000 },
+      { label: "5pt", emoji: "🎀", points: 5 },
+      { label: "20pt", emoji: "✨", points: 20 },
+    ];
+  }, [spinItems]);
+
+  // Pick a random "winning" index (weighted toward mid-range for demo appeal)
+  const targetIndex = useMemo(() => {
+    // For demo: pick a visually appealing result (50-200pt range)
+    const midRange = wheelItems.filter(i => i.points >= 50 && i.points <= 500);
+    if (midRange.length > 0) {
+      const pick = midRange[Math.floor(Math.random() * midRange.length)];
+      return wheelItems.indexOf(pick);
+    }
+    return Math.floor(Math.random() * wheelItems.length);
+  }, [wheelItems]);
+
+  const handleSpinComplete = useCallback(() => {
+    const won = wheelItems[targetIndex];
+    setWonPoints(won.points);
+    setWonLabel(won.label);
+    setWonEmoji(won.emoji);
+    setShowEffects(true);
+    sfx.playCelebration();
+    haptic.celebration();
+    // Store won points for chat register
+    localStorage.setItem("lcj_spin_won_points", won.label);
+    setTimeout(() => setPhase("result"), 800);
+  }, [wheelItems, targetIndex]);
+
+  const handleClaim = () => {
+    const hasSession = !!localStorage.getItem('lcj_session_token');
+    if (hasSession) {
+      // Logged in → go to friend challenge
+      setLocation('/friend-challenge');
+    } else {
+      // Not logged in → chat register
+      sessionStorage.setItem('lcj_from_roulette', '1');
+      setLocation('/chat-register');
+    }
+  };
+
+  const handleExistingLogin = () => {
+    setLocation('/line-login?redirect=/friend-challenge');
+  };
+
+  // Auto-start the intro animation
+  useEffect(() => {
+    if (phase === "intro" && !hasStartedRef.current) {
+      hasStartedRef.current = true;
+      const timer = setTimeout(() => setPhase("spinning"), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [phase]);
+
+  const countUp = useCountUp(wonPoints, 1500, showEffects ? 300 : 99999);
+
+  if (phase === "hidden") return null;
+
+  return (
+    <div className="fixed inset-0 z-[9999]" style={{ background: "linear-gradient(180deg, #1a0a00 0%, #0a0500 40%, #000 100%)" }}>
+      {showEffects && (
+        <>
+          <Confetti count={100} />
+          <Fireworks count={10} />
+          <ScreenFlash color="#fbbf24" />
+          <FallingCoins />
+        </>
+      )}
+
+      {/* Intro phase - dramatic entrance */}
+      {phase === "intro" && (
+        <div className="flex flex-col items-center justify-center h-full px-6 animate-fadeIn">
+          <div className="text-center">
+            <div className="text-6xl mb-4 animate-bounce">🎰</div>
+            <h1 className="text-3xl font-black text-white mb-2" style={{ textShadow: "0 0 30px rgba(251,191,36,0.5)" }}>
+              ラッキールーレット
+            </h1>
+            <p className="text-yellow-400 text-lg font-bold animate-pulse">最大 5,000pt が当たる！</p>
+            <div className="mt-6 flex items-center gap-2 justify-center">
+              <div className="w-2 h-2 rounded-full bg-yellow-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+              <div className="w-2 h-2 rounded-full bg-yellow-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+              <div className="w-2 h-2 rounded-full bg-yellow-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+            </div>
+          </div>
+          <style>{`
+            @keyframes fadeIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+            .animate-fadeIn { animation: fadeIn 0.5s ease-out; }
+          `}</style>
+        </div>
+      )}
+
+      {/* Spinning phase - the wheel */}
+      {phase === "spinning" && (
+        <div className="h-full">
+          <FloatingParticles tier="gold" />
+          <LuxurySpinWheel
+            items={wheelItems.map(i => ({ label: i.label, emoji: i.emoji }))}
+            targetIndex={targetIndex}
+            tierColor="#fbbf24"
+            onComplete={handleSpinComplete}
+            autoStart={true}
+          />
+        </div>
+      )}
+
+      {/* Result phase - claim your prize */}
+      {phase === "result" && (
+        <div className="flex flex-col items-center justify-center h-full px-6 animate-fadeIn">
+          <FloatingParticles tier="gold" />
+          <GlowCard glowColor="rgba(251,191,36,0.4)">
+            <div className="text-center py-8 px-6">
+              <div className="text-5xl mb-3">{wonEmoji}</div>
+              <p className="text-yellow-400 text-sm font-bold mb-1">おめでとうございます！</p>
+              <div className="text-5xl font-black text-white my-3" style={{ textShadow: "0 0 30px rgba(251,191,36,0.6)" }}>
+                {countUp.toLocaleString()}<span className="text-2xl text-yellow-400">pt</span>
+              </div>
+              <p className="text-gray-400 text-sm">が当選しました！</p>
+            </div>
+          </GlowCard>
+
+          <div className="w-full max-w-sm mt-8 space-y-3">
+            {/* Main CTA - Claim */}
+            <button
+              onClick={handleClaim}
+              className="w-full py-4 rounded-2xl text-lg font-black text-white active:scale-95 transition-transform relative overflow-hidden"
+              style={{
+                background: "linear-gradient(135deg, #ef4444, #f97316)",
+                boxShadow: "0 4px 20px rgba(239,68,68,0.4)",
+                animation: "btnPulse 2s ease-in-out infinite",
+              }}
+            >
+              <div className="absolute inset-0" style={{
+                background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.25) 50%, transparent 100%)",
+                animation: "shimmer 2.5s ease-in-out infinite",
+              }} />
+              <span className="relative z-10">🎁 ポイントを受け取る（無料登録）</span>
+            </button>
+
+            {/* Secondary - existing account */}
+            <button
+              onClick={handleExistingLogin}
+              className="w-full py-3 rounded-xl text-sm font-medium text-yellow-400 border border-yellow-400/30 hover:bg-yellow-400/10 transition-colors"
+            >
+              すでにアカウントをお持ちの方はこちら
+            </button>
+
+            {/* Skip */}
+            <button
+              onClick={() => { setPhase("hidden"); onClose(); }}
+              className="w-full py-2 text-xs text-gray-600 hover:text-gray-400 transition-colors"
+            >
+              あとで受け取る
+            </button>
+          </div>
+
+          <style>{`
+            @keyframes fadeIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+            .animate-fadeIn { animation: fadeIn 0.5s ease-out; }
+            @keyframes btnPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
+            @keyframes shimmer { 0% { transform: translateX(-100%); } 50%, 100% { transform: translateX(100%); } }
+          `}</style>
+        </div>
+      )}
+
+      {/* Close button (always visible except during spin) */}
+      {phase !== "spinning" && (
+        <button
+          onClick={() => { setPhase("hidden"); onClose(); }}
+          className="absolute top-4 right-4 z-50 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
+        >
+          <X className="h-4 w-4 text-white/60" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function MallHome() {
   const [, setLocation] = useLocation();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [showReferralPopup, setShowReferralPopup] = useState(false);
+  const [showRoulette, setShowRoulette] = useState(false);
 
-  // Show popup once per session on page load
+  // Show roulette once per session on page load
   useEffect(() => {
-    const hasSeenPopup = sessionStorage.getItem('lcj_referral_popup_seen');
-    if (!hasSeenPopup) {
+    const hasSeenRoulette = sessionStorage.getItem('lcj_roulette_seen');
+    if (!hasSeenRoulette) {
       const timer = setTimeout(() => {
-        setShowReferralPopup(true);
-        sessionStorage.setItem('lcj_referral_popup_seen', '1');
-      }, 1500);
+        setShowRoulette(true);
+        sessionStorage.setItem('lcj_roulette_seen', '1');
+      }, 800);
       return () => clearTimeout(timer);
     }
   }, []);
@@ -282,99 +491,14 @@ export default function MallHome() {
     }
   ];
 
-  const handlePopupAction = () => {
-    const hasSession = !!localStorage.getItem('lcj_session_token');
-    setShowReferralPopup(false);
-    if (hasSession) {
-      setLocation('/friend-challenge');
-    } else {
-      setLocation('/line-login?redirect=/friend-challenge');
-    }
+  const handleRouletteClose = () => {
+    setShowRoulette(false);
   };
 
   return (
     <div className="min-h-screen bg-white">
-      {/* 友達招待チャレンジ ポップアップ - Temu風 */}
-      <Dialog open={showReferralPopup} onOpenChange={setShowReferralPopup}>
-        <DialogContent className="sm:max-w-md p-0 border-0 rounded-3xl overflow-hidden bg-transparent shadow-2xl [&>button]:hidden">
-          <div className="relative">
-            {/* ダーク背景 + 赤×金 */}
-            <div className="p-6 pb-8 text-center relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #b91c1c 0%, #dc2626 30%, #ef4444 50%, #dc2626 70%, #b91c1c 100%)' }}>
-              {/* キラキラエフェクト */}
-              <div className="absolute top-3 left-6 text-2xl animate-bounce" style={{ animationDelay: '0s' }}>✨</div>
-              <div className="absolute top-8 right-8 text-xl animate-bounce" style={{ animationDelay: '0.3s' }}>🌟</div>
-              <div className="absolute bottom-4 left-10 text-lg animate-bounce" style={{ animationDelay: '0.6s' }}>💫</div>
-              <div className="absolute bottom-6 right-12 text-2xl animate-bounce" style={{ animationDelay: '0.9s' }}>⭐</div>
-              <div className="absolute top-12 left-1/2 text-sm animate-ping opacity-60">🪙</div>
-              
-              {/* メインアイコン */}
-              <div className="relative z-10">
-                <div className="h-20 w-20 mx-auto mb-3 rounded-full flex items-center justify-center shadow-lg" style={{ background: 'linear-gradient(135deg, #fbbf24, #f59e0b)', border: '3px solid #fde68a', boxShadow: '0 0 20px rgba(251,191,36,0.4)' }}>
-                  <span className="text-5xl">🎰</span>
-                </div>
-                <h2 className="text-2xl font-black text-white mb-1" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
-                  友達招待チャレンジ
-                </h2>
-                <p className="text-yellow-200 text-sm font-bold">友達を招待して最大</p>
-                <div className="my-1">
-                  <span className="text-4xl font-black" style={{ background: 'linear-gradient(180deg, #ffd700 0%, #ffaa00 50%, #ff8c00 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.5))' }}>5,000</span>
-                  <span className="text-xl font-black text-yellow-300 ml-1" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>pt</span>
-                </div>
-                <p className="text-yellow-200 text-sm font-bold">GET！🎉</p>
-              </div>
-            </div>
-            
-            {/* コンテンツ - ダーク */}
-            <div className="px-6 py-5 text-center" style={{ background: '#1a0000' }}>
-              <div className="space-y-3 mb-5">
-                <div className="flex items-center gap-3 rounded-xl p-3" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
-                  <div className="h-10 w-10 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(251,191,36,0.15)' }}>
-                    <span className="text-lg">🎁</span>
-                  </div>
-                  <div className="text-left">
-                    <p className="text-sm font-bold text-white">友達を招待するたびに</p>
-                    <p className="text-xs text-yellow-400 font-medium">確定ポイント + ルーレットボーナス！</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 rounded-xl p-3" style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.15)' }}>
-                  <div className="h-10 w-10 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(251,191,36,0.15)' }}>
-                    <span className="text-lg">🏆</span>
-                  </div>
-                  <div className="text-left">
-                    <p className="text-sm font-bold text-white">ステージが上がるほど</p>
-                    <p className="text-xs text-yellow-400 font-medium">報酬がどんどんアップ！最大1,000pt✨</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 rounded-xl p-3" style={{ background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.15)' }}>
-                  <div className="h-10 w-10 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(168,85,247,0.15)' }}>
-                    <span className="text-lg">💖</span>
-                  </div>
-                  <div className="text-left">
-                    <p className="text-sm font-bold text-white">招待された友達にも</p>
-                    <p className="text-xs text-purple-400 font-medium">50ptプレゼント！みんなハッピー🎉</p>
-                  </div>
-                </div>
-              </div>
-              
-              {/* CTAボタン */}
-              <Button
-                onClick={handlePopupAction}
-                className="w-full text-white font-black text-base py-6 rounded-2xl transition-all hover:scale-[1.02] active:scale-[0.98]"
-                style={{ background: 'linear-gradient(135deg, #ef4444, #f97316)', boxShadow: '0 4px 20px rgba(239,68,68,0.4)' }}
-              >
-                <span className="mr-2">🎰</span> チャレンジに参加する！
-              </Button>
-              
-              <button
-                onClick={() => setShowReferralPopup(false)}
-                className="mt-3 text-xs text-gray-500 hover:text-gray-400 transition-colors"
-              >
-                あとで見る
-              </button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* 豪華ルーレットオーバーレイ - トップページ即時表示 */}
+      {showRoulette && <RouletteOverlay onClose={handleRouletteClose} />}
 
       {/* Header - シンプルで洗練されたデザイン */}
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-gray-100">

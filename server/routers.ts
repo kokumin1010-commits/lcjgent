@@ -961,6 +961,7 @@ export const lineLoginRouter = router({
       email: z.string().email(),
       password: z.string().min(6),
       name: z.string().min(1),
+      phone: z.string().optional(),
       referralCode: z.string().min(4).max(8).regex(/^[A-Za-z0-9]+$/).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -1010,6 +1011,7 @@ export const lineLoginRouter = router({
         email: input.email,
         password: hashedPassword,
         displayName: input.name,
+        phone: input.phone,
       });
       
       // Register pending referral (points awarded on first purchase) - LIVER referral codes
