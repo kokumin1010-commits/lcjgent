@@ -295,34 +295,109 @@ export default function LuxurySpinWheel({ items, onComplete, targetIndex, tierCo
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      // Text
-      const textAngle = startAngle + sliceAngle / 2;
-      const textRadius = radius * 0.58;
-      ctx.save();
-      ctx.rotate(textAngle);
-      ctx.translate(textRadius, 0);
-      ctx.rotate(Math.PI / 2);
-      ctx.textAlign = "center";
+      // Text - radial layout along slice center line
+      const midAngle = startAngle + sliceAngle / 2;
 
-      if (i === targetIndex) {
-        ctx.font = `bold ${Math.round(radius * 0.08)}px 'Arial', sans-serif`;
-        ctx.fillStyle = "#ef4444"; ctx.strokeStyle = "#000"; ctx.lineWidth = 2;
-        ctx.strokeText("大当たり", 0, -radius * 0.18);
-        ctx.fillText("大当たり", 0, -radius * 0.18);
-        ctx.font = `bold ${Math.round(radius * 0.13)}px 'Arial', sans-serif`;
-        ctx.fillStyle = "#fff"; ctx.strokeStyle = "#000"; ctx.lineWidth = 3;
-        ctx.strokeText(items[i].label, 0, radius * 0.03);
-        ctx.fillText(items[i].label, 0, radius * 0.03);
-        ctx.font = `${Math.round(radius * 0.1)}px serif`;
-        ctx.fillText(items[i].emoji, 0, radius * 0.16);
+      // Determine text color based on background
+      const isDark = i % 3 === 2; // dark brown slices
+      const textColor = isDark ? "#fef3c7" : "#1a1000";
+
+      // Clip to this slice so text never bleeds into neighbors
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, radius - 8, startAngle, endAngle);
+      ctx.closePath();
+      ctx.clip();
+
+      // Rotate to slice center line, then draw text along the radius
+      ctx.save();
+      ctx.rotate(midAngle);
+
+      // Check if this slice is in the left half of the wheel (text would be upside down)
+      // midAngle includes -PI/2 offset, so normalize to 0..2PI
+      let normAngle = midAngle % (2 * Math.PI);
+      if (normAngle < 0) normAngle += 2 * Math.PI;
+      // Left half: angles between PI/2 and 3*PI/2 (pointing left)
+      const isLeftHalf = normAngle > Math.PI / 2 && normAngle < Math.PI * 3 / 2;
+
+      // Font sizes relative to radius
+      const emojiSize = Math.round(radius * 0.08);
+      const labelSize = Math.round(radius * 0.055);
+      const jackpotLabelSize = Math.round(radius * 0.05);
+      const jackpotValueSize = Math.round(radius * 0.06);
+
+      if (isLeftHalf) {
+        // For left-half slices: flip 180° and reverse text positions
+        // so text reads from outer edge toward center
+        if (i === targetIndex) {
+          // Emoji at outer (but flipped, so negative x = outer)
+          ctx.font = `${emojiSize}px serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillStyle = "#000";
+          ctx.save(); ctx.translate(radius * 0.78, 0); ctx.rotate(Math.PI); ctx.fillText(items[i].emoji, 0, 0); ctx.restore();
+          // "大当たり"
+          ctx.font = `bold ${jackpotLabelSize}px 'Arial', sans-serif`;
+          ctx.fillStyle = "#ef4444";
+          ctx.strokeStyle = "#000";
+          ctx.lineWidth = 1.5;
+          ctx.save(); ctx.translate(radius * 0.6, 0); ctx.rotate(Math.PI); ctx.strokeText("大当たり", 0, 0); ctx.fillText("大当たり", 0, 0); ctx.restore();
+          // Value
+          const jackpotLabel = items[i].label.length > 8 ? items[i].label.slice(0, 8) : items[i].label;
+          ctx.font = `bold ${jackpotValueSize}px 'Arial', sans-serif`;
+          ctx.fillStyle = "#fff";
+          ctx.strokeStyle = "#000";
+          ctx.lineWidth = 2;
+          ctx.save(); ctx.translate(radius * 0.4, 0); ctx.rotate(Math.PI); ctx.strokeText(jackpotLabel, 0, 0); ctx.fillText(jackpotLabel, 0, 0); ctx.restore();
+        } else {
+          // Emoji
+          ctx.font = `${emojiSize}px serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillStyle = "#000";
+          ctx.save(); ctx.translate(radius * 0.75, 0); ctx.rotate(Math.PI); ctx.fillText(items[i].emoji, 0, 0); ctx.restore();
+          // Label
+          const displayLabel = items[i].label.length > 8 ? items[i].label.slice(0, 8) : items[i].label;
+          ctx.font = `bold ${labelSize}px 'Arial', sans-serif`;
+          ctx.fillStyle = textColor;
+          ctx.save(); ctx.translate(radius * 0.5, 0); ctx.rotate(Math.PI); ctx.fillText(displayLabel, 0, 0); ctx.restore();
+        }
       } else {
-        ctx.font = `${Math.round(radius * 0.12)}px serif`;
-        ctx.fillText(items[i].emoji, 0, -radius * 0.08);
-        ctx.font = `bold ${Math.round(radius * 0.09)}px 'Arial', sans-serif`;
-        ctx.fillStyle = "#1a1000";
-        ctx.fillText(items[i].label, 0, radius * 0.06);
+        // Right-half slices: text reads naturally from outer to inner
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        if (i === targetIndex) {
+          ctx.font = `${emojiSize}px serif`;
+          ctx.fillStyle = "#000";
+          ctx.fillText(items[i].emoji, radius * 0.78, 0);
+          ctx.font = `bold ${jackpotLabelSize}px 'Arial', sans-serif`;
+          ctx.fillStyle = "#ef4444";
+          ctx.strokeStyle = "#000";
+          ctx.lineWidth = 1.5;
+          ctx.strokeText("大当たり", radius * 0.6, 0);
+          ctx.fillText("大当たり", radius * 0.6, 0);
+          const jackpotLabel = items[i].label.length > 8 ? items[i].label.slice(0, 8) : items[i].label;
+          ctx.font = `bold ${jackpotValueSize}px 'Arial', sans-serif`;
+          ctx.fillStyle = "#fff";
+          ctx.strokeStyle = "#000";
+          ctx.lineWidth = 2;
+          ctx.strokeText(jackpotLabel, radius * 0.4, 0);
+          ctx.fillText(jackpotLabel, radius * 0.4, 0);
+        } else {
+          ctx.font = `${emojiSize}px serif`;
+          ctx.fillStyle = "#000";
+          ctx.fillText(items[i].emoji, radius * 0.75, 0);
+          const displayLabel = items[i].label.length > 8 ? items[i].label.slice(0, 8) : items[i].label;
+          ctx.font = `bold ${labelSize}px 'Arial', sans-serif`;
+          ctx.fillStyle = textColor;
+          ctx.fillText(displayLabel, radius * 0.5, 0);
+        }
       }
-      ctx.restore();
+
+      ctx.restore(); // undo rotate(midAngle)
+      ctx.restore(); // undo clip
     }
 
     // Highlight winning segment
