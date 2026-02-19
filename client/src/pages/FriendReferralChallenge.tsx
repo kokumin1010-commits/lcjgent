@@ -71,11 +71,24 @@ function CountdownTimer() {
 }
 
 /* ──────────── Social proof ticker ──────────── */
+/** 名前をマスキング: 最初の1文字 + *** (絵文字対応) */
+function maskTickerName(msg: string): string {
+  // メッセージ形式: "○○さんが〜" → 「さんが」の前の名前部分をマスキング
+  const match = msg.match(/^(.+?)さんが/);
+  if (!match) return msg;
+  const fullName = match[1];
+  const firstChar = Array.from(fullName)[0] || "";
+  return msg.replace(fullName + "さんが", firstChar + "***さんが");
+}
+
 function SocialProofTicker({ feed }: { feed: Array<{ id: number; message: string; activityType: string }> }) {
   const [idx, setIdx] = useState(0);
   const items = useMemo(() => {
-    if (!feed || feed.length === 0) return ["🎉 ○○さんがステージ3を達成！", "🎰 △△さんが500ptを獲得！", "✨ □□さんが友達を5人招待！"];
-    return feed.slice(0, 10).map(a => `${a.activityType === "stage_clear" ? "🎉" : a.activityType === "big_win" ? "🎰" : "✨"} ${a.message}`);
+    if (!feed || feed.length === 0) return ["🎉 ○***さんがステージ3を達成！", "🎰 △***さんが500ptを獲得！", "✨ □***さんが友達を5人招待！"];
+    return feed.slice(0, 10).map(a => {
+      const emoji = a.activityType === "stage_clear" ? "🎉" : a.activityType === "big_win" ? "🎰" : "✨";
+      return `${emoji} ${maskTickerName(a.message)}`;
+    });
   }, [feed]);
   useEffect(() => { const id = setInterval(() => setIdx(p => (p + 1) % items.length), 3000); return () => clearInterval(id); }, [items.length]);
   return (
