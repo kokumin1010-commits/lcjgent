@@ -257,7 +257,7 @@ type RoulettePhase = "intro" | "spinning" | "result" | "hidden";
 
 function RouletteOverlay({ onClose }: { onClose: () => void }) {
   const [, setLocation] = useLocation();
-  const [phase, setPhase] = useState<RoulettePhase>("intro");
+  const [phase, setPhase] = useState<RoulettePhase>("spinning");
   const [showEffects, setShowEffects] = useState(false);
   const [wonPoints, setWonPoints] = useState(0);
   const [wonLabel, setWonLabel] = useState("");
@@ -309,14 +309,7 @@ function RouletteOverlay({ onClose }: { onClose: () => void }) {
     setLocation('/line-login?redirect=/friend-challenge');
   };
 
-  // Auto-start the intro animation
-  useEffect(() => {
-    if (phase === "intro" && !hasStartedRef.current) {
-      hasStartedRef.current = true;
-      const timer = setTimeout(() => setPhase("spinning"), 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [phase]);
+  // No intro phase - go straight to spinning
 
   const countUp = useCountUp(wonPoints, 1500, showEffects ? 300 : 99999);
 
@@ -363,7 +356,7 @@ function RouletteOverlay({ onClose }: { onClose: () => void }) {
 
       {/* Spinning phase - the wheel */}
       {phase === "spinning" && (
-        <div className="h-full">
+        <div className="h-full flex flex-col items-center justify-center">
           <FloatingParticles tier="gold" />
           <LuxurySpinWheel
             items={wheelItems.map(i => ({ label: i.label, emoji: i.emoji }))}

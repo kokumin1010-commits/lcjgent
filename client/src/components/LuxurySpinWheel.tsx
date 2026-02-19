@@ -597,7 +597,7 @@ export default function LuxurySpinWheel({ items, onComplete, targetIndex, tierCo
   useEffect(() => {
     if (autoStart && !autoStartedRef.current && phase === 'ready') {
       autoStartedRef.current = true;
-      const timer = setTimeout(() => { startCountdown(); }, 2000);
+      const timer = setTimeout(() => { startCountdown(); }, 500);
       return () => clearTimeout(timer);
     }
   }, [autoStart, phase, startCountdown]);
@@ -729,8 +729,8 @@ export default function LuxurySpinWheel({ items, onComplete, targetIndex, tierCo
         </div>
       )}
 
-      {/* Spin button */}
-      {phase === 'ready' && (
+      {/* Spin button - only shown when NOT autoStart (manual mode) */}
+      {phase === 'ready' && !autoStart && (
         <StaggerReveal delay={300} duration={600}>
           <button onClick={startCountdown}
             className="mt-4 w-full max-w-xs py-4 rounded-full text-lg font-black text-white active:scale-95 transition-transform relative overflow-hidden"
@@ -742,9 +742,6 @@ export default function LuxurySpinWheel({ items, onComplete, targetIndex, tierCo
               @keyframes shimmerBtn { 0% { transform: translateX(-100%); } 50%, 100% { transform: translateX(100%); } }
             `}</style>
           </button>
-          {autoStart && (
-            <p className="text-center text-yellow-400/60 text-xs mt-2 animate-pulse">まもなく自動スタート...</p>
-          )}
         </StaggerReveal>
       )}
 
