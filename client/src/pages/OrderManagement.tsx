@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Loader2, Package, Truck, CheckCircle, XCircle, Clock, ShoppingBag, User, MapPin, Phone, Calendar, Coins, CreditCard, FileText, RefreshCw, Bell, BellOff, AlertCircle, Send, Search, Hash, Copy } from "lucide-react";
+import { Loader2, Package, Truck, CheckCircle, XCircle, Clock, ShoppingBag, User, MapPin, Phone, Calendar, Coins, CreditCard, FileText, RefreshCw, Bell, BellOff, AlertCircle, Send, Search, Hash, Copy, Download, FileDown } from "lucide-react";
+import { downloadInvoicePdf, convertOrderToInvoiceData, type DocumentType } from "@/lib/invoicePdf";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import { toast } from "sonner";
@@ -761,6 +762,45 @@ export default function OrderManagement() {
                   </CardContent>
                 </Card>
               )}
+
+              {/* 納品書・請求書・領収書 */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <FileDown className="h-4 w-4" />
+                    帳票ダウンロード
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 gap-2">
+                    {([
+                      { type: "delivery" as DocumentType, label: "納品書", icon: <FileText className="h-4 w-4" /> },
+                      { type: "invoice" as DocumentType, label: "請求書", icon: <FileText className="h-4 w-4" /> },
+                      { type: "receipt" as DocumentType, label: "領収書", icon: <FileText className="h-4 w-4" /> },
+                    ]).map((doc) => (
+                      <Button
+                        key={doc.type}
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 h-10"
+                        onClick={() => {
+                          try {
+                            const invoiceData = convertOrderToInvoiceData(orderDetail as any);
+                            downloadInvoicePdf(doc.type, invoiceData);
+                            toast.success(`${doc.label}をダウンロードしました`);
+                          } catch (e) {
+                            console.error(`PDF生成エラー:`, e);
+                            toast.error(`${doc.label}の生成に失敗しました`);
+                          }
+                        }}
+                      >
+                        {doc.icon}
+                        {doc.label}
+                      </Button>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
 
               {/* タイムスタンプ */}
               <div className="text-xs text-muted-foreground space-y-1">
