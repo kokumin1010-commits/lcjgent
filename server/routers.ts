@@ -12318,6 +12318,24 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         return await getMallOrdersByLineUser(input.lineUserId);
       }),
 
+    // 管理者用: 会員のレシート統計（累計購入金額等）
+    getMemberReceiptStats: protectedProcedure
+      .input(z.object({ lineUserId: z.string() }))
+      .query(async ({ ctx, input }) => {
+        const receipts = await getLineReceiptsByUser(input.lineUserId);
+        const approved = receipts.filter(r => r.status === "approved");
+        const totalPurchaseAmount = approved.reduce((sum, r) => sum + (Number(r.totalAmount) || 0), 0);
+        const totalPointsAwarded = approved.reduce((sum, r) => sum + (Number(r.pointsAwarded) || 0), 0);
+        return {
+          totalReceipts: receipts.length,
+          approvedReceipts: approved.length,
+          pendingReceipts: receipts.filter(r => r.status === "pending").length,
+          rejectedReceipts: receipts.filter(r => r.status === "rejected").length,
+          totalPurchaseAmount,
+          totalPointsAwarded,
+        };
+      }),
+
     // 注文ステータス更新
     updateOrderStatus: protectedProcedure
       .input(z.object({
