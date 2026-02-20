@@ -1,5 +1,5 @@
 import { trpc } from "@/lib/trpc";
-import { useState } from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,12 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-export default function MallMembers() {
+interface MallMembersProps {
+  initialMemberId?: number | null;
+  onMemberViewed?: () => void;
+}
+
+export default function MallMembers({ initialMemberId, onMemberViewed }: MallMembersProps = {}) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMember, setSelectedMember] = useState<any>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -30,8 +35,23 @@ export default function MallMembers() {
   const [pointAmount, setPointAmount] = useState("");
   const [pointDescription, setPointDescription] = useState("");
   const [pointAction, setPointAction] = useState<"add" | "remove">("add");
+  const [processedMemberId, setProcessedMemberId] = useState<number | null>(null);
   const { data: members, isLoading, refetch } = trpc.line.listUsers.useQuery();
   const utils = trpc.useUtils();
+
+  // initialMemberIdが指定されたら該当会員の詳細を自動表示
+  React.useEffect(() => {
+    if (initialMemberId && members && initialMemberId !== processedMemberId) {
+      const member = members.find((m: any) => m.id === initialMemberId);
+      if (member) {
+        setSelectedMember(member);
+        setActiveTab("info");
+        setIsDetailOpen(true);
+        setProcessedMemberId(initialMemberId);
+        onMemberViewed?.();
+      }
+    }
+  }, [initialMemberId, members, processedMemberId, onMemberViewed]);
 
   const adjustPointsMutation = trpc.line.adminAdjustPoints.useMutation({
     onSuccess: (data) => {

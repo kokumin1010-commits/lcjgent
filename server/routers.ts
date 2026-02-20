@@ -12304,6 +12304,13 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         return await getMallOrderById(input.id);
       }),
 
+    // 管理者用: 特定会員の注文履歴取得
+    getMemberOrders: protectedProcedure
+      .input(z.object({ lineUserId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        return await getMallOrdersByLineUser(input.lineUserId);
+      }),
+
     // 注文ステータス更新
     updateOrderStatus: protectedProcedure
       .input(z.object({

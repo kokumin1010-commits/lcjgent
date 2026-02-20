@@ -66,7 +66,11 @@ type InlineShippingState = {
   trackingNumber: string;
 };
 
-export default function OrderManagement() {
+interface OrderManagementProps {
+  onMemberClick?: (memberId: number) => void;
+}
+
+export default function OrderManagement({ onMemberClick }: OrderManagementProps) {
   const [statusFilter, setStatusFilter] = useState<OrderStatus | "all">("all");
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [downloadingInvoice, setDownloadingInvoice] = useState<Record<string, boolean>>({});
@@ -413,7 +417,19 @@ export default function OrderManagement() {
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
                           <div className="flex items-center gap-1 text-muted-foreground">
                             <User className="h-4 w-4" />
-                            {item.lineUser?.displayName || "不明"}
+                            {onMemberClick && item.lineUser?.id ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onMemberClick(item.lineUser!.id);
+                                }}
+                                className="text-pink-600 hover:text-pink-700 hover:underline font-medium transition-colors"
+                              >
+                                {item.lineUser?.displayName || "不明"}
+                              </button>
+                            ) : (
+                              <span>{item.lineUser?.displayName || "不明"}</span>
+                            )}
                           </div>
                           <div className="flex items-center gap-1 text-muted-foreground">
                             <Calendar className="h-4 w-4" />
