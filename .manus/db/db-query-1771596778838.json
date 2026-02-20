@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `blog_tags` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `name` varchar(100) NOT NULL,\n  `slug` varchar(100) NOT NULL,\n  `createdAt` bigint NOT NULL,\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `blog_tags_slug_unique` (`slug`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute CREATE TABLE IF NOT EXISTS `blog_tags` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `name` varchar(100) NOT NULL,\n  `slug` varchar(100) NOT NULL,\n  `createdAt` bigint NOT NULL,\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `blog_tags_slug_unique` (`slug`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1635
+}

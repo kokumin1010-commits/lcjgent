@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, gte, lte, gt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -13895,4 +13895,155 @@ export function calculateTitleLevel(totalReferrals: number): string {
   if (totalReferrals >= 5) return "silver";
   if (totalReferrals >= 1) return "bronze";
   return "none";
+}
+
+// ============================================================
+// Blog Functions
+// ============================================================
+
+// --- Blog Categories ---
+export async function createBlogCategory(data: InsertBlogCategory) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(blogCategories).values(data);
+  return { id: result[0].insertId, ...data };
+}
+
+export async function getAllBlogCategories() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(blogCategories).orderBy(asc(blogCategories.sortOrder));
+}
+
+export async function updateBlogCategory(id: number, data: Partial<InsertBlogCategory>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(blogCategories).set(data).where(eq(blogCategories.id, id));
+}
+
+export async function deleteBlogCategory(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(blogCategories).where(eq(blogCategories.id, id));
+}
+
+// --- Blog Tags ---
+export async function createBlogTag(data: InsertBlogTag) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(blogTags).values(data);
+  return { id: result[0].insertId, ...data };
+}
+
+export async function getAllBlogTags() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(blogTags).orderBy(asc(blogTags.name));
+}
+
+export async function deleteBlogTag(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(blogArticleTags).where(eq(blogArticleTags.tagId, id));
+  await db.delete(blogTags).where(eq(blogTags.id, id));
+}
+
+// --- Blog Articles ---
+export async function createBlogArticle(data: InsertBlogArticle) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(blogArticles).values(data);
+  return { id: result[0].insertId, ...data };
+}
+
+export async function getBlogArticleById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(blogArticles).where(eq(blogArticles.id, id)).limit(1);
+  return rows[0] || null;
+}
+
+export async function getBlogArticleBySlug(slug: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(blogArticles).where(eq(blogArticles.slug, slug)).limit(1);
+  return rows[0] || null;
+}
+
+export async function listBlogArticles(opts: { status?: "draft" | "published" | "scheduled"; categoryId?: number; limit?: number; offset?: number } = {}) {
+  const db = await getDb();
+  if (!db) return { articles: [], total: 0 };
+  
+  const conditions: any[] = [];
+  if (opts.status) conditions.push(eq(blogArticles.status, opts.status));
+  if (opts.categoryId) conditions.push(eq(blogArticles.categoryId, opts.categoryId));
+  
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  
+  const [articles, countResult] = await Promise.all([
+    db.select().from(blogArticles)
+      .where(where)
+      .orderBy(desc(blogArticles.createdAt))
+      .limit(opts.limit || 20)
+      .offset(opts.offset || 0),
+    db.select({ count: sql<number>`count(*)` }).from(blogArticles).where(where),
+  ]);
+  
+  return { articles, total: Number(countResult[0]?.count || 0) };
+}
+
+export async function updateBlogArticle(id: number, data: Partial<InsertBlogArticle>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(blogArticles).set(data).where(eq(blogArticles.id, id));
+}
+
+export async function deleteBlogArticle(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(blogArticleTags).where(eq(blogArticleTags.articleId, id));
+  await db.delete(blogArticles).where(eq(blogArticles.id, id));
+}
+
+// --- Blog Article Tags ---
+export async function setBlogArticleTags(articleId: number, tagIds: number[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(blogArticleTags).where(eq(blogArticleTags.articleId, articleId));
+  if (tagIds.length > 0) {
+    await db.insert(blogArticleTags).values(tagIds.map(tagId => ({ articleId, tagId })));
+  }
+}
+
+export async function getBlogArticleTagIds(articleId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select().from(blogArticleTags).where(eq(blogArticleTags.articleId, articleId));
+  return rows.map(r => r.tagId);
+}
+
+// --- Blog search for products (for embedding) ---
+export async function searchMallProductsForBlog(query: string, limit: number = 10) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({
+    id: mallProducts.id,
+    name: mallProducts.name,
+    price: mallProducts.price,
+    pointPrice: mallProducts.pointPrice,
+    imageUrl: mallProducts.imageUrl,
+    brandName: mallBrands.name,
+  })
+    .from(mallProducts)
+    .leftJoin(mallBrands, eq(mallProducts.brandId, mallBrands.id))
+    .where(
+      and(
+        eq(mallProducts.status, "active"),
+        or(
+          like(mallProducts.name, `%${query}%`),
+          like(mallProducts.description, `%${query}%`)
+        )
+      )
+    )
+    .limit(limit);
 }

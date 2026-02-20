@@ -3013,3 +3013,64 @@ export const referralActivityFeed = mysqlTable("referral_activity_feed", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type ReferralActivityFeed = typeof referralActivityFeed.$inferSelect;
+
+
+// ============================================================
+// ブログ（メディア）機能
+// ============================================================
+
+/** ブログカテゴリ */
+export const blogCategories = mysqlTable("blog_categories", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(),
+  slug: varchar("slug", { length: 100 }).notNull().unique(),
+  description: text("description"),
+  sortOrder: int("sortOrder").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type BlogCategory = typeof blogCategories.$inferSelect;
+export type InsertBlogCategory = typeof blogCategories.$inferInsert;
+
+/** ブログタグ */
+export const blogTags = mysqlTable("blog_tags", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(),
+  slug: varchar("slug", { length: 100 }).notNull().unique(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type BlogTag = typeof blogTags.$inferSelect;
+export type InsertBlogTag = typeof blogTags.$inferInsert;
+
+/** ブログ記事 */
+export const blogArticles = mysqlTable("blog_articles", {
+  id: int("id").autoincrement().primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  slug: varchar("slug", { length: 255 }).notNull().unique(),
+  excerpt: text("excerpt"), // 抜粋（一覧表示用）
+  content: json("content").$type<Record<string, unknown>>(), // Tiptap JSON
+  contentHtml: text("contentHtml"), // レンダリング済みHTML（SEO用）
+  coverImageUrl: text("coverImageUrl"), // アイキャッチ画像
+  coverImageKey: varchar("coverImageKey", { length: 512 }),
+  categoryId: int("categoryId"), // References blogCategories.id
+  authorId: int("authorId").notNull(), // References users.id
+  status: mysqlEnum("status", ["draft", "published", "scheduled"]).default("draft").notNull(),
+  publishedAt: timestamp("publishedAt"), // 公開日時（予約公開対応）
+  seoTitle: varchar("seoTitle", { length: 255 }), // SEO用タイトル（未設定ならtitleを使用）
+  seoDescription: text("seoDescription"), // SEO用ディスクリプション
+  ogImageUrl: text("ogImageUrl"), // OGP画像URL
+  viewCount: int("viewCount").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type BlogArticle = typeof blogArticles.$inferSelect;
+export type InsertBlogArticle = typeof blogArticles.$inferInsert;
+
+/** ブログ記事-タグ中間テーブル */
+export const blogArticleTags = mysqlTable("blog_article_tags", {
+  id: int("id").autoincrement().primaryKey(),
+  articleId: int("articleId").notNull(), // References blogArticles.id
+  tagId: int("tagId").notNull(), // References blogTags.id
+});
+export type BlogArticleTag = typeof blogArticleTags.$inferSelect;
+export type InsertBlogArticleTag = typeof blogArticleTags.$inferInsert;

@@ -482,6 +482,22 @@ import {
   getUserReferralHistory,
   getUserSpinHistoryList,
   calculateTitleLevel,
+  createBlogCategory,
+  getAllBlogCategories,
+  updateBlogCategory,
+  deleteBlogCategory,
+  createBlogTag,
+  getAllBlogTags,
+  deleteBlogTag,
+  createBlogArticle,
+  getBlogArticleById,
+  getBlogArticleBySlug,
+  listBlogArticles,
+  updateBlogArticle,
+  deleteBlogArticle,
+  setBlogArticleTags,
+  getBlogArticleTagIds,
+  searchMallProductsForBlog,
 } from "./db";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
@@ -15355,6 +15371,234 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         const items = await getSpinRewardItems(input.isSpecial);
         return items.map(i => ({ id: i.id, label: i.label, emoji: i.emoji, points: i.points, color: i.color, probability: parseFloat(String(i.probability)) }));
       }),
+  }),
+
+  // ============================================================
+  // Blog (Media) Routes
+  // ============================================================
+  blog: router({
+    // --- Categories ---
+    listCategories: publicProcedure.query(async () => {
+      return await getAllBlogCategories();
+    }),
+
+    createCategory: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1),
+        slug: z.string().min(1),
+        description: z.string().optional(),
+        sortOrder: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        return await createBlogCategory(input);
+      }),
+
+    updateCategory: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().min(1).optional(),
+        slug: z.string().min(1).optional(),
+        description: z.string().optional(),
+        sortOrder: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        await updateBlogCategory(id, data);
+        return { success: true };
+      }),
+
+    deleteCategory: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteBlogCategory(input.id);
+        return { success: true };
+      }),
+
+    // --- Tags ---
+    listTags: publicProcedure.query(async () => {
+      return await getAllBlogTags();
+    }),
+
+    createTag: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1),
+        slug: z.string().min(1),
+      }))
+      .mutation(async ({ input }) => {
+        return await createBlogTag(input);
+      }),
+
+    deleteTag: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteBlogTag(input.id);
+        return { success: true };
+      }),
+
+    // --- Articles ---
+    list: protectedProcedure
+      .input(z.object({
+        status: z.enum(["draft", "published", "scheduled"]).optional(),
+        categoryId: z.number().optional(),
+        limit: z.number().optional(),
+        offset: z.number().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return await listBlogArticles(input || {});
+      }),
+
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const article = await getBlogArticleById(input.id);
+        if (!article) throw new TRPCError({ code: "NOT_FOUND", message: "Article not found" });
+        const tagIds = await getBlogArticleTagIds(input.id);
+        return { ...article, tagIds };
+      }),
+
+    getBySlug: publicProcedure
+      .input(z.object({ slug: z.string() }))
+      .query(async ({ input }) => {
+        const article = await getBlogArticleBySlug(input.slug);
+        if (!article) throw new TRPCError({ code: "NOT_FOUND", message: "Article not found" });
+        // Increment view count
+        await updateBlogArticle(article.id, { viewCount: article.viewCount + 1 });
+        const tagIds = await getBlogArticleTagIds(article.id);
+        return { ...article, tagIds };
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        title: z.string().min(1),
+        slug: z.string().min(1),
+        excerpt: z.string().optional(),
+        content: z.any().optional(), // Tiptap JSON
+        contentHtml: z.string().optional(),
+        coverImageUrl: z.string().optional(),
+        coverImageKey: z.string().optional(),
+        categoryId: z.number().optional(),
+        status: z.enum(["draft", "published", "scheduled"]).optional(),
+        publishedAt: z.string().optional(), // ISO date string
+        seoTitle: z.string().optional(),
+        seoDescription: z.string().optional(),
+        ogImageUrl: z.string().optional(),
+        tagIds: z.array(z.number()).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { tagIds, publishedAt, ...data } = input;
+        const article = await createBlogArticle({
+          ...data,
+          authorId: ctx.user.id,
+          publishedAt: publishedAt ? new Date(publishedAt) : (data.status === "published" ? new Date() : undefined),
+        });
+        if (tagIds && tagIds.length > 0) {
+          await setBlogArticleTags(article.id, tagIds);
+        }
+        return article;
+      }),
+
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        title: z.string().min(1).optional(),
+        slug: z.string().min(1).optional(),
+        excerpt: z.string().optional(),
+        content: z.any().optional(),
+        contentHtml: z.string().optional(),
+        coverImageUrl: z.string().optional(),
+        coverImageKey: z.string().optional(),
+        categoryId: z.number().nullable().optional(),
+        status: z.enum(["draft", "published", "scheduled"]).optional(),
+        publishedAt: z.string().nullable().optional(),
+        seoTitle: z.string().optional(),
+        seoDescription: z.string().optional(),
+        ogImageUrl: z.string().optional(),
+        tagIds: z.array(z.number()).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, tagIds, publishedAt, ...data } = input;
+        const updateData: any = { ...data };
+        if (publishedAt !== undefined) {
+          updateData.publishedAt = publishedAt ? new Date(publishedAt) : null;
+        }
+        // If publishing for the first time, set publishedAt
+        if (data.status === "published" && !publishedAt) {
+          const existing = await getBlogArticleById(id);
+          if (existing && !existing.publishedAt) {
+            updateData.publishedAt = new Date();
+          }
+        }
+        await updateBlogArticle(id, updateData);
+        if (tagIds !== undefined) {
+          await setBlogArticleTags(id, tagIds);
+        }
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteBlogArticle(input.id);
+        return { success: true };
+      }),
+
+    // --- Publish/Unpublish ---
+    togglePublish: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const article = await getBlogArticleById(input.id);
+        if (!article) throw new TRPCError({ code: "NOT_FOUND" });
+        const newStatus = article.status === "published" ? "draft" : "published";
+        const updateData: any = { status: newStatus };
+        if (newStatus === "published" && !article.publishedAt) {
+          updateData.publishedAt = new Date();
+        }
+        await updateBlogArticle(input.id, updateData);
+        return { status: newStatus };
+      }),
+
+    // --- Product search for embedding ---
+    searchProducts: protectedProcedure
+      .input(z.object({ query: z.string().min(1), limit: z.number().optional() }))
+      .query(async ({ input }) => {
+        return await searchMallProductsForBlog(input.query, input.limit || 10);
+      }),
+
+    // --- Cover image upload ---
+    uploadCoverImage: protectedProcedure
+      .input(z.object({
+        fileName: z.string(),
+        mimeType: z.string(),
+        base64Data: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        const buffer = Buffer.from(input.base64Data, "base64");
+        const ext = input.fileName.split(".").pop() || "jpg";
+        const fileKey = `blog-covers/${Date.now()}-${nanoid(8)}.${ext}`;
+        const { url } = await storagePut(fileKey, buffer, input.mimeType);
+        return { url, key: fileKey };
+      }),
+
+    // --- Public: list published articles (for blog front page) ---
+    listPublished: publicProcedure
+      .input(z.object({
+        categoryId: z.number().optional(),
+        limit: z.number().optional(),
+        offset: z.number().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return await listBlogArticles({ status: "published", ...input });
+      }),
+
+    // --- Sitemap data ---
+    sitemapData: publicProcedure.query(async () => {
+      const { articles } = await listBlogArticles({ status: "published", limit: 1000 });
+      return articles.map(a => ({
+        slug: a.slug,
+        updatedAt: a.updatedAt,
+        title: a.title,
+      }));
+    }),
   }),
 });
 

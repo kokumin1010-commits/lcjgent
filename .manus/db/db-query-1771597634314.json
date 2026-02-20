@@ -1,0 +1,33 @@
+{
+  "query": "SHOW CREATE TABLE blog_articles;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SHOW CREATE TABLE blog_articles;",
+  "rows": [
+    {
+      "Table": "blog_articles",
+      "Create Table": "CREATE TABLE `blog_articles` ("
+    }
+  ],
+  "messages": [
+    "  `id` int(11) NOT NULL AUTO_INCREMENT,",
+    "  `title` varchar(255) NOT NULL,",
+    "  `slug` varchar(255) NOT NULL,",
+    "  `excerpt` text DEFAULT NULL,",
+    "  `content` json DEFAULT NULL,",
+    "  `contentHtml` longtext DEFAULT NULL,",
+    "  `coverImage` varchar(500) DEFAULT NULL,",
+    "  `categoryId` int(11) DEFAULT NULL,",
+    "  `authorId` int(11) DEFAULT NULL,",
+    "  `status` varchar(20) NOT NULL DEFAULT 'draft',",
+    "  `metaTitle` varchar(255) DEFAULT NULL,",
+    "  `metaDescription` varchar(500) DEFAULT NULL,",
+    "  `publishedAt` bigint(20) DEFAULT NULL,",
+    "  `createdAt` bigint(20) NOT NULL,",
+    "  `updatedAt` bigint(20) NOT NULL,",
+    "  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,",
+    "  UNIQUE KEY `blog_articles_slug_unique` (`slug`)",
+    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin"
+  ],
+  "stdout": "Table\tCreate Table\nblog_articles\tCREATE TABLE `blog_articles` (\n  `id` int(11) NOT NULL AUTO_INCREMENT,\n  `title` varchar(255) NOT NULL,\n  `slug` varchar(255) NOT NULL,\n  `excerpt` text DEFAULT NULL,\n  `content` json DEFAULT NULL,\n  `contentHtml` longtext DEFAULT NULL,\n  `coverImage` varchar(500) DEFAULT NULL,\n  `categoryId` int(11) DEFAULT NULL,\n  `authorId` int(11) DEFAULT NULL,\n  `status` varchar(20) NOT NULL DEFAULT 'draft',\n  `metaTitle` varchar(255) DEFAULT NULL,\n  `metaDescription` varchar(500) DEFAULT NULL,\n  `publishedAt` bigint(20) DEFAULT NULL,\n  `createdAt` bigint(20) NOT NULL,\n  `updatedAt` bigint(20) NOT NULL,\n  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,\n  UNIQUE KEY `blog_articles_slug_unique` (`slug`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin\n",
+  "stderr": "",
+  "execution_time_ms": 1564
+}

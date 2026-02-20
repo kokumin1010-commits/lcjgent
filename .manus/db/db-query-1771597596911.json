@@ -1,0 +1,24 @@
+{
+  "query": "SHOW CREATE TABLE blog_categories;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SHOW CREATE TABLE blog_categories;",
+  "rows": [
+    {
+      "Table": "blog_categories",
+      "Create Table": "CREATE TABLE `blog_categories` ("
+    }
+  ],
+  "messages": [
+    "  `id` int(11) NOT NULL AUTO_INCREMENT,",
+    "  `name` varchar(100) NOT NULL,",
+    "  `slug` varchar(100) NOT NULL,",
+    "  `description` text DEFAULT NULL,",
+    "  `sortOrder` int(11) NOT NULL DEFAULT '0',",
+    "  `createdAt` bigint(20) NOT NULL,",
+    "  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,",
+    "  UNIQUE KEY `blog_categories_slug_unique` (`slug`)",
+    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin"
+  ],
+  "stdout": "Table\tCreate Table\nblog_categories\tCREATE TABLE `blog_categories` (\n  `id` int(11) NOT NULL AUTO_INCREMENT,\n  `name` varchar(100) NOT NULL,\n  `slug` varchar(100) NOT NULL,\n  `description` text DEFAULT NULL,\n  `sortOrder` int(11) NOT NULL DEFAULT '0',\n  `createdAt` bigint(20) NOT NULL,\n  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,\n  UNIQUE KEY `blog_categories_slug_unique` (`slug`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin\n",
+  "stderr": "",
+  "execution_time_ms": 1597
+}

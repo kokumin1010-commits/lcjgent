@@ -1,0 +1,22 @@
+{
+  "query": "SHOW CREATE TABLE blog_tags;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SHOW CREATE TABLE blog_tags;",
+  "rows": [
+    {
+      "Table": "blog_tags",
+      "Create Table": "CREATE TABLE `blog_tags` ("
+    }
+  ],
+  "messages": [
+    "  `id` int(11) NOT NULL AUTO_INCREMENT,",
+    "  `name` varchar(100) NOT NULL,",
+    "  `slug` varchar(100) NOT NULL,",
+    "  `createdAt` bigint(20) NOT NULL,",
+    "  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,",
+    "  UNIQUE KEY `blog_tags_slug_unique` (`slug`)",
+    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin"
+  ],
+  "stdout": "Table\tCreate Table\nblog_tags\tCREATE TABLE `blog_tags` (\n  `id` int(11) NOT NULL AUTO_INCREMENT,\n  `name` varchar(100) NOT NULL,\n  `slug` varchar(100) NOT NULL,\n  `createdAt` bigint(20) NOT NULL,\n  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,\n  UNIQUE KEY `blog_tags_slug_unique` (`slug`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin\n",
+  "stderr": "",
+  "execution_time_ms": 1515
+}

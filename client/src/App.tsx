@@ -91,6 +91,10 @@ import ChatRegister from "./pages/ChatRegister";
 import RegistrationBonus from "./pages/RegistrationBonus";
 import MemberDetail from "./pages/MemberDetail";
 import BulkInvoicePrint from "./pages/BulkInvoicePrint";
+import BlogAdmin from "./pages/BlogAdmin";
+import BlogEditor from "./pages/BlogEditor";
+import BlogArticlePage from "./pages/BlogArticlePage";
+import BlogListPage from "./pages/BlogListPage";
 
 function Router() {
   return (
@@ -287,6 +291,11 @@ function Router() {
         </DashboardLayout>
       </Route>
       <Route path={"/master/mall/print"} component={BulkInvoicePrint} />
+      <Route path={"/master/blog/new"} component={BlogEditor} />
+      <Route path={"/master/blog/edit/:id"} component={BlogEditor} />
+      <Route path={"/master/blog"} component={BlogAdmin} />
+      <Route path={"/blog/:slug"} component={BlogArticlePage} />
+      <Route path={"/blog"} component={BlogListPage} />
       <Route path={"/master/mall/member/:id"} component={MemberDetail} />
       <Route path={"/master/mall"} component={MallDashboardPage} />
       <Route path={"/master/finance"}>

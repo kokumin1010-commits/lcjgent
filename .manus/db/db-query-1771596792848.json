@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `blog_articles` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `title` varchar(255) NOT NULL,\n  `slug` varchar(255) NOT NULL,\n  `excerpt` text,\n  `content` json,\n  `contentHtml` longtext,\n  `coverImage` varchar(500),\n  `categoryId` int,\n  `authorId` int,\n  `status` varchar(20) NOT NULL DEFAULT 'draft',\n  `metaTitle` varchar(255),\n  `metaDescription` varchar(500),\n  `publishedAt` bigint,\n  `createdAt` bigint NOT NULL,\n  `updatedAt` bigint NOT NULL,\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `blog_articles_slug_unique` (`slug`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute CREATE TABLE IF NOT EXISTS `blog_articles` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `title` varchar(255) NOT NULL,\n  `slug` varchar(255) NOT NULL,\n  `excerpt` text,\n  `content` json,\n  `contentHtml` longtext,\n  `coverImage` varchar(500),\n  `categoryId` int,\n  `authorId` int,\n  `status` varchar(20) NOT NULL DEFAULT 'draft',\n  `metaTitle` varchar(255),\n  `metaDescription` varchar(500),\n  `publishedAt` bigint,\n  `createdAt` bigint NOT NULL,\n  `updatedAt` bigint NOT NULL,\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `blog_articles_slug_unique` (`slug`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1725
+}

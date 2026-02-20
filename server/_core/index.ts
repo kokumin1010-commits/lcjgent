@@ -835,6 +835,32 @@ async function startServer() {
     }
   });
 
+  // --- Blog Sitemap & robots.txt ---
+  app.get("/sitemap.xml", async (req, res) => {
+    try {
+      const { listBlogArticles } = await import("../db");
+      const { articles } = await listBlogArticles({ status: "published", limit: 1000 });
+      const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+      const urls = articles.map((a: any) => {
+        const lastmod = a.updatedAt ? new Date(a.updatedAt).toISOString().split("T")[0] : new Date().toISOString().split("T")[0];
+        return `  <url>\n    <loc>${baseUrl}/blog/${a.slug}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.7</priority>\n  </url>`;
+      });
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url>\n    <loc>${baseUrl}/</loc>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n  <url>\n    <loc>${baseUrl}/blog</loc>\n    <changefreq>daily</changefreq>\n    <priority>0.8</priority>\n  </url>\n${urls.join("\n")}\n</urlset>`;
+      res.setHeader("Content-Type", "application/xml");
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.send(xml);
+    } catch (error) {
+      console.error("[Sitemap] Error:", error);
+      res.status(500).send("Error generating sitemap");
+    }
+  });
+
+  app.get("/robots.txt", (req, res) => {
+    const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+    res.setHeader("Content-Type", "text/plain");
+    res.send(`User-agent: *\nAllow: /\nAllow: /blog/\nDisallow: /master/\nDisallow: /api/\n\nSitemap: ${baseUrl}/sitemap.xml`);
+  });
+
   // Image proxy endpoint for PDF generation (to avoid CORS issues)
   app.get("/api/image-proxy", async (req, res) => {
     try {
