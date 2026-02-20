@@ -184,13 +184,16 @@ export function generateInvoicePdf(type: DocumentType, order: OrderData): jsPDF 
   companyY += 5;
   doc.text(`【注文番号】${order.orderNumber}`, companyX, companyY);
 
-  // ── 総合計金額（大きく表示） ──
+  // ── 総合計金額（大きく表示）── ポイント差し引き後の実際の支払額 ──
   y = Math.max(y, companyY) + 10;
   doc.setFontSize(13);
+  const actualPayment = order.pointsUsed && order.pointsUsed > 0
+    ? Math.max(0, order.totalAmount - order.pointsUsed)
+    : order.totalAmount;
   const totalLabel = type === "receipt" ? "領収金額" : "総合計金額";
   doc.text(totalLabel, margin, y);
   doc.setFontSize(18);
-  const totalText = yen(order.totalAmount);
+  const totalText = yen(actualPayment);
   doc.text(totalText, margin + 50, y);
   y += 2;
   doc.setLineWidth(0.8);
@@ -272,8 +275,17 @@ export function generateInvoicePdf(type: DocumentType, order: OrderData): jsPDF 
   summaryData.push(["8%消費税", yen(order.tax8)]);
   summaryData.push(["合計", yen(order.totalAmount)]);
 
-  const finalLabel = type === "invoice" ? "請求金額" : type === "receipt" ? "領収金額" : "合計金額";
-  summaryData.push([finalLabel, yen(order.totalAmount)]);
+  // ポイント利用行
+  if (order.pointsUsed && order.pointsUsed > 0) {
+    summaryData.push(["ポイント利用", `-${yen(order.pointsUsed)}`]);
+  }
+
+  // 最終支払金額（ポイント差し引き後）
+  const finalPayment = order.pointsUsed && order.pointsUsed > 0
+    ? Math.max(0, order.totalAmount - order.pointsUsed)
+    : order.totalAmount;
+  const finalLabel = type === "invoice" ? "請求金額" : type === "receipt" ? "領収金額" : "お支払い金額";
+  summaryData.push([finalLabel, yen(finalPayment)]);
 
   autoTable(doc, {
     startY: y,
@@ -309,12 +321,7 @@ export function generateInvoicePdf(type: DocumentType, order: OrderData): jsPDF 
     y += 6;
   }
 
-  // ── ポイント利用情報 ──
-  if (order.pointsUsed && order.pointsUsed > 0) {
-    doc.setFontSize(8);
-    doc.text(`ポイント利用: ${order.pointsUsed.toLocaleString()} pt`, margin, y);
-    y += 6;
-  }
+  // ポイント利用情報は集計テーブルに統合済み
 
   return doc;
 }
