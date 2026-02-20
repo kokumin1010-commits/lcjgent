@@ -12,6 +12,7 @@ import { downloadInvoicePdf, convertOrderToInvoiceData, type DocumentType } from
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import { toast } from "sonner";
+import { useLocation } from "wouter";
 
 type OrderStatus = "pending" | "paid" | "confirmed" | "shipped" | "delivered" | "cancelled" | "refunded";
 
@@ -71,6 +72,7 @@ interface OrderManagementProps {
 }
 
 export default function OrderManagement({ onMemberClick }: OrderManagementProps) {
+  const [, setLocation] = useLocation();
   const [statusFilter, setStatusFilter] = useState<OrderStatus | "all">("all");
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [downloadingInvoice, setDownloadingInvoice] = useState<Record<string, boolean>>({});
@@ -417,11 +419,11 @@ export default function OrderManagement({ onMemberClick }: OrderManagementProps)
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
                           <div className="flex items-center gap-1 text-muted-foreground">
                             <User className="h-4 w-4" />
-                            {onMemberClick && item.lineUser?.id ? (
+                            {item.lineUser?.id ? (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  onMemberClick(item.lineUser!.id);
+                                  setLocation(`/master/mall/member/${item.lineUser!.id}`);
                                 }}
                                 className="text-pink-600 hover:text-pink-700 hover:underline font-medium transition-colors"
                               >

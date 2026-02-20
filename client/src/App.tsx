@@ -89,6 +89,7 @@ import Register from "./pages/Register";
 import SpinDemo from "./pages/SpinDemo";
 import ChatRegister from "./pages/ChatRegister";
 import RegistrationBonus from "./pages/RegistrationBonus";
+import MemberDetail from "./pages/MemberDetail";
 
 function Router() {
   return (
@@ -284,6 +285,7 @@ function Router() {
           <LiverRecord />
         </DashboardLayout>
       </Route>
+      <Route path={"/master/mall/member/:id"} component={MemberDetail} />
       <Route path={"/master/mall"} component={MallDashboardPage} />
       <Route path={"/master/finance"}>
         <DashboardLayout>

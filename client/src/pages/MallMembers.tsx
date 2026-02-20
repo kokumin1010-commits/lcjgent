@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import React, { useState } from "react";
+import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ interface MallMembersProps {
 }
 
 export default function MallMembers({ initialMemberId, onMemberViewed }: MallMembersProps = {}) {
+  const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMember, setSelectedMember] = useState<any>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -98,9 +100,8 @@ export default function MallMembers({ initialMemberId, onMemberViewed }: MallMem
   const lineMembers = members?.filter((m: any) => m.lineUserId && !m.lineUserId.startsWith('email_'))?.length || 0;
 
   const handleViewDetail = (member: any) => {
-    setSelectedMember(member);
-    setActiveTab("info");
-    setIsDetailOpen(true);
+    // フルページの会員詳細に遷移
+    setLocation(`/master/mall/member/${member.id}`);
   };
 
   const getStatusBadge = (status: string) => {

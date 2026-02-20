@@ -345,15 +345,8 @@ function DashboardContent() {
 
 export default function MallDashboardPage() {
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
-  const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   const [, setLocation] = useLocation();
   const { loading, user } = useAuth();
-
-  // お客様名タップ時: 会員タブに切り替え＋該当会員を選択
-  const handleNavigateToMember = (memberId: number) => {
-    setSelectedMemberId(memberId);
-    setActiveTab("members");
-  };
 
   if (loading) {
     return (
@@ -415,8 +408,8 @@ export default function MallDashboardPage() {
         {activeTab === "dashboard" && <DashboardContent />}
         {activeTab === "products" && <ProductManagement />}
         {activeTab === "brands-categories" && <MallBrandCategoryManagement />}
-        {activeTab === "orders" && <OrderManagement onMemberClick={handleNavigateToMember} />}
-        {activeTab === "members" && <MallMembers initialMemberId={selectedMemberId} onMemberViewed={() => setSelectedMemberId(null)} />}
+        {activeTab === "orders" && <OrderManagement />}
+        {activeTab === "members" && <MallMembers />}
         {activeTab === "receipts" && <LineReceiptManagement />}
       </div>
     </div>
