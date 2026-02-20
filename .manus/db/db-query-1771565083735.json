@@ -1,0 +1,31 @@
+{
+  "query": "SHOW TABLES LIKE '%order%'; SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE '%order%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SHOW TABLES LIKE '%order%'; SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE '%order%';",
+  "rows": [
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (%order%)": "mall_order_items"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (%order%)": "mall_orders"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (%order%)": "tiktok_commission_orders"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (%order%)": "TABLE_NAME"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (%order%)": "mall_orders"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (%order%)": "mall_order_items"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (%order%)": "tiktok_commission_orders"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_GgA9WvTBCZMf6mjyMMwACw (%order%)\nmall_order_items\nmall_orders\ntiktok_commission_orders\nTABLE_NAME\nmall_orders\nmall_order_items\ntiktok_commission_orders\n",
+  "stderr": "",
+  "execution_time_ms": 1767
+}

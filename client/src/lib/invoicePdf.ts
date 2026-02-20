@@ -49,6 +49,8 @@ export interface OrderData {
   totalAmount: number;        // 合計金額（税込）
   // ポイント利用
   pointsUsed?: number;
+  // 現金支払い額（cashAmount from DB）
+  cashAmount?: number;
   // 支払方法
   paymentMethod?: string;
 }
@@ -187,9 +189,9 @@ export function generateInvoicePdf(type: DocumentType, order: OrderData): jsPDF 
   // ── 総合計金額（大きく表示）── ポイント差し引き後の実際の支払額 ──
   y = Math.max(y, companyY) + 10;
   doc.setFontSize(13);
-  const actualPayment = order.pointsUsed && order.pointsUsed > 0
-    ? Math.max(0, order.totalAmount - order.pointsUsed)
-    : order.totalAmount;
+  // cashAmountがある場合はそれを使用（DBの正確な現金支払額）
+  // なければtotalAmountをそのまま使用
+  const actualPayment = order.cashAmount !== undefined ? order.cashAmount : order.totalAmount;
   const totalLabel = type === "receipt" ? "領収金額" : "総合計金額";
   doc.text(totalLabel, margin, y);
   doc.setFontSize(18);
@@ -275,15 +277,13 @@ export function generateInvoicePdf(type: DocumentType, order: OrderData): jsPDF 
   summaryData.push(["8%消費税", yen(order.tax8)]);
   summaryData.push(["合計", yen(order.totalAmount)]);
 
-  // ポイント利用行
+  // ポイント利用行（ポイント単位で表示）
   if (order.pointsUsed && order.pointsUsed > 0) {
-    summaryData.push(["ポイント利用", `-${yen(order.pointsUsed)}`]);
+    summaryData.push(["ポイント利用", `${order.pointsUsed.toLocaleString()} pt`]);
   }
 
-  // 最終支払金額（ポイント差し引き後）
-  const finalPayment = order.pointsUsed && order.pointsUsed > 0
-    ? Math.max(0, order.totalAmount - order.pointsUsed)
-    : order.totalAmount;
+  // 最終支払金額（cashAmountを使用 — DBの正確な現金支払額）
+  const finalPayment = order.cashAmount !== undefined ? order.cashAmount : order.totalAmount;
   const finalLabel = type === "invoice" ? "請求金額" : type === "receipt" ? "領収金額" : "お支払い金額";
   summaryData.push([finalLabel, yen(finalPayment)]);
 
@@ -405,6 +405,7 @@ export function convertOrderToInvoiceData(
     tax8: 0,
     totalAmount: order.totalAmount,
     pointsUsed: order.pointsUsed > 0 ? order.pointsUsed : undefined,
+    cashAmount: order.cashAmount,
     paymentMethod: order.paymentMethod,
   };
 }

@@ -1,0 +1,45 @@
+{
+  "query": "SELECT orderNumber, paymentMethod, totalAmount, pointsUsed, cashAmount FROM mall_orders ORDER BY createdAt DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT orderNumber, paymentMethod, totalAmount, pointsUsed, cashAmount FROM mall_orders ORDER BY createdAt DESC LIMIT 5;",
+  "rows": [
+    {
+      "orderNumber": "LCJ20260217DIY3HV",
+      "paymentMethod": "points",
+      "totalAmount": "1980",
+      "pointsUsed": "1386",
+      "cashAmount": "0"
+    },
+    {
+      "orderNumber": "LCJ20260217L5B2DC",
+      "paymentMethod": "points",
+      "totalAmount": "1463",
+      "pointsUsed": "550",
+      "cashAmount": "0"
+    },
+    {
+      "orderNumber": "LCJ20260217JFR1IT",
+      "paymentMethod": "points",
+      "totalAmount": "1463",
+      "pointsUsed": "550",
+      "cashAmount": "0"
+    },
+    {
+      "orderNumber": "LCJ20260216E5KGCE",
+      "paymentMethod": "stripe",
+      "totalAmount": "49500",
+      "pointsUsed": "0",
+      "cashAmount": "49500"
+    },
+    {
+      "orderNumber": "LCJ20260216QR9WWH",
+      "paymentMethod": "points",
+      "totalAmount": "4389",
+      "pointsUsed": "1650",
+      "cashAmount": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "orderNumber\tpaymentMethod\ttotalAmount\tpointsUsed\tcashAmount\nLCJ20260217DIY3HV\tpoints\t1980\t1386\t0\nLCJ20260217L5B2DC\tpoints\t1463\t550\t0\nLCJ20260217JFR1IT\tpoints\t1463\t550\t0\nLCJ20260216E5KGCE\tstripe\t49500\t0\t49500\nLCJ20260216QR9WWH\tpoints\t4389\t1650\t0\n",
+  "stderr": "",
+  "execution_time_ms": 1517
+}
