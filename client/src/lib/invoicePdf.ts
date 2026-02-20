@@ -409,3 +409,4 @@ export function convertOrderToInvoiceData(
     paymentMethod: order.paymentMethod,
   };
 }
+// v3 - cashAmount fix for full-points payment
