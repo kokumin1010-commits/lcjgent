@@ -1,0 +1,355 @@
+{
+  "query": "SHOW TABLES;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SHOW TABLES;",
+  "rows": [
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "__drizzle_migrations"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "activity_logs"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "ad_alert_history"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "ad_campaigns"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "ad_country_breakdown"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "ad_investment_records"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "ad_metrics"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "ad_proposal_history"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "ad_report_files"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "ai_advice_feedback"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "ai_learning_examples"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "ai_question_templates"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "aitherhub_sync_logs"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "auto_post_logs"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "auto_post_schedules"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "blog_article_tags"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "blog_articles"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "blog_categories"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "blog_tags"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "brand_activities"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "brand_ad_performance_stats"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "brand_contracts"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "brand_edit_logs"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "brand_files"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "brand_lcj_staff"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "brand_livestreams"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "brand_memos"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "brand_product_images"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "brand_products"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "brands"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "business_cards"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "campaign_stages"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "chat_report_messages"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "chat_report_sessions"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "contract_livestream_links"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "csv_import_history"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "email_tracking"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "fraud_detection_logs"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "friend_referral_campaigns"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "friend_referral_records"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "friend_referrals"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "line_follow_ups"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "line_fraud_detection_logs"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "line_groups"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "line_link_codes"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "line_messages"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "line_password_reset_tokens"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "line_point_balances"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "line_point_transactions"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "line_receipts"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "line_reminders"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "line_users"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "liver_goals"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "liver_password_reset_tokens"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "livers"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "livestream_csv_import_history"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "livestream_products"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "livestream_set_items"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "livestream_sets"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "mall_brands"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "mall_carts"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "mall_categories"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "mall_favorites"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "mall_order_items"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "mall_orders"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "mall_product_desc_images"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "mall_product_reviews"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "mall_products"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "mall_view_history"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "password_reset_tokens"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "pending_responses"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "point_balances"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "point_requests"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "point_transactions"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "preset_keywords"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "product_alias_suggestions"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "product_category_mappings"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "product_links"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "product_livers"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "product_master"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "product_name_aliases"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "product_restock_requests"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "receipt_products"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "receipt_review_logs"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "receipts"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "referral_activity_feed"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "referral_campaigns"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "referral_challenge_stages"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "referral_codes"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "referral_history"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "reminders"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "report_ai_advice"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "report_followups"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "report_staff"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "reports"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "schedule_group_members"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "schedule_groups"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "schedules"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "screenshot_analysis_history"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "simulation_feedback"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "simulations"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "spin_history"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "spin_reward_items"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "spin_reward_tables"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "staff"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "staff_ai_profiles"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "task_staff"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "tasks"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "tiktok_commission_orders"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "tiktok_csv_import_history"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "user_addresses"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "user_referral_progress"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "user_referrals"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "user_spin_history"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw": "users"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_GgA9WvTBCZMf6mjyMMwACw\n__drizzle_migrations\nactivity_logs\nad_alert_history\nad_campaigns\nad_country_breakdown\nad_investment_records\nad_metrics\nad_proposal_history\nad_report_files\nai_advice_feedback\nai_learning_examples\nai_question_templates\naitherhub_sync_logs\nauto_post_logs\nauto_post_schedules\nblog_article_tags\nblog_articles\nblog_categories\nblog_tags\nbrand_activities\nbrand_ad_performance_stats\nbrand_contracts\nbrand_edit_logs\nbrand_files\nbrand_lcj_staff\nbrand_livestreams\nbrand_memos\nbrand_product_images\nbrand_products\nbrands\nbusiness_cards\ncampaign_stages\nchat_report_messages\nchat_report_sessions\ncontract_livestream_links\ncsv_import_history\nemail_tracking\nfraud_detection_logs\nfriend_referral_campaigns\nfriend_referral_records\nfriend_referrals\nline_follow_ups\nline_fraud_detection_logs\nline_groups\nline_link_codes\nline_messages\nline_password_reset_tokens\nline_point_balances\nline_point_transactions\nline_receipts\nline_reminders\nline_users\nliver_goals\nliver_password_reset_tokens\nlivers\nlivestream_csv_import_history\nlivestream_products\nlivestream_set_items\nlivestream_sets\nmall_brands\nmall_carts\nmall_categories\nmall_favorites\nmall_order_items\nmall_orders\nmall_product_desc_images\nmall_product_reviews\nmall_products\nmall_view_history\npassword_reset_tokens\npending_responses\npoint_balances\npoint_requests\npoint_transactions\npreset_keywords\nproduct_alias_suggestions\nproduct_category_mappings\nproduct_links\nproduct_livers\nproduct_master\nproduct_name_aliases\nproduct_restock_requests\nreceipt_products\nreceipt_review_logs\nreceipts\nreferral_activity_feed\nreferral_campaigns\nreferral_challenge_stages\nreferral_codes\nreferral_history\nreminders\nreport_ai_advice\nreport_followups\nreport_staff\nreports\nschedule_group_members\nschedule_groups\nschedules\nscreenshot_analysis_history\nsimulation_feedback\nsimulations\nspin_history\nspin_reward_items\nspin_reward_tables\nstaff\nstaff_ai_profiles\ntask_staff\ntasks\ntiktok_commission_orders\ntiktok_csv_import_history\nuser_addresses\nuser_referral_progress\nuser_referrals\nuser_spin_history\nusers\n",
+  "stderr": "",
+  "execution_time_ms": 1523
+}

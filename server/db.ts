@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, gte, lte, gt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -14046,4 +14046,152 @@ export async function searchMallProductsForBlog(query: string, limit: number = 1
       )
     )
     .limit(limit);
+}
+
+
+// =============================================
+// Auto Post Scheduler DB Functions
+// =============================================
+
+// --- Schedule CRUD ---
+export async function listAutoPostSchedules() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return await db.select().from(autoPostSchedules).orderBy(desc(autoPostSchedules.createdAt));
+}
+
+export async function getAutoPostScheduleById(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(autoPostSchedules).where(eq(autoPostSchedules.id, id)).limit(1);
+  return result[0] || null;
+}
+
+export async function createAutoPostSchedule(data: InsertAutoPostSchedule) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [inserted] = await db.insert(autoPostSchedules).values(data).$returningId();
+  return await getAutoPostScheduleById(inserted.id);
+}
+
+export async function updateAutoPostSchedule(id: number, data: Partial<InsertAutoPostSchedule>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(autoPostSchedules).set(data).where(eq(autoPostSchedules.id, id));
+  return await getAutoPostScheduleById(id);
+}
+
+export async function deleteAutoPostSchedule(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(autoPostSchedules).where(eq(autoPostSchedules.id, id));
+  return { success: true };
+}
+
+export async function incrementScheduleGenerated(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(autoPostSchedules).set({
+    totalGenerated: sql`${autoPostSchedules.totalGenerated} + 1`,
+    lastRunAt: new Date(),
+  }).where(eq(autoPostSchedules.id, id));
+}
+
+// --- Preset Keywords ---
+export async function listPresetKeywordsDb(opts: { category?: string; enabled?: boolean } = {}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [];
+  if (opts.category) conditions.push(eq(presetKeywords.category, opts.category));
+  if (opts.enabled !== undefined) conditions.push(eq(presetKeywords.enabled, opts.enabled));
+  const query = conditions.length > 0
+    ? db.select().from(presetKeywords).where(and(...conditions)).orderBy(desc(presetKeywords.priority), asc(presetKeywords.usedCount))
+    : db.select().from(presetKeywords).orderBy(desc(presetKeywords.priority), asc(presetKeywords.usedCount));
+  return await query;
+}
+
+export async function getNextUnusedKeyword() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Get keyword with lowest usedCount and highest priority
+  const result = await db.select().from(presetKeywords)
+    .where(eq(presetKeywords.enabled, true))
+    .orderBy(asc(presetKeywords.usedCount), desc(presetKeywords.priority))
+    .limit(1);
+  return result[0] || null;
+}
+
+export async function markKeywordUsed(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(presetKeywords).set({
+    usedCount: sql`${presetKeywords.usedCount} + 1`,
+    lastUsedAt: new Date(),
+  }).where(eq(presetKeywords.id, id));
+}
+
+export async function createPresetKeywordDb(data: InsertPresetKeyword) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [inserted] = await db.insert(presetKeywords).values(data).$returningId();
+  const result = await db.select().from(presetKeywords).where(eq(presetKeywords.id, inserted.id)).limit(1);
+  return result[0];
+}
+
+export async function deletePresetKeywordDb(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(presetKeywords).where(eq(presetKeywords.id, id));
+  return { success: true };
+}
+
+export async function resetAllKeywordsUsage() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(presetKeywords).set({ usedCount: 0, lastUsedAt: null });
+  return { success: true };
+}
+
+// --- Auto Post Logs ---
+export async function listAutoPostLogs(opts: { scheduleId?: number; status?: string; limit?: number; offset?: number } = {}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [];
+  if (opts.scheduleId) conditions.push(eq(autoPostLogs.scheduleId, opts.scheduleId));
+  if (opts.status) conditions.push(eq(autoPostLogs.status, opts.status as any));
+  const query = conditions.length > 0
+    ? db.select().from(autoPostLogs).where(and(...conditions)).orderBy(desc(autoPostLogs.createdAt)).limit(opts.limit || 50).offset(opts.offset || 0)
+    : db.select().from(autoPostLogs).orderBy(desc(autoPostLogs.createdAt)).limit(opts.limit || 50).offset(opts.offset || 0);
+  return await query;
+}
+
+export async function createAutoPostLog(data: InsertAutoPostLog) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [inserted] = await db.insert(autoPostLogs).values(data).$returningId();
+  const result = await db.select().from(autoPostLogs).where(eq(autoPostLogs.id, inserted.id)).limit(1);
+  return result[0]!;
+}
+
+export async function updateAutoPostLog(id: number, data: Partial<InsertAutoPostLog>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(autoPostLogs).set(data).where(eq(autoPostLogs.id, id));
+}
+
+export async function getStuckAutoPostLogs() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Logs stuck in generating/image_generating for more than 10 minutes
+  const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+  return await db.select().from(autoPostLogs)
+    .where(
+      and(
+        or(
+          eq(autoPostLogs.status, 'generating'),
+          eq(autoPostLogs.status, 'image_generating')
+        ),
+        lte(autoPostLogs.startedAt, tenMinutesAgo)
+      )
+    );
 }

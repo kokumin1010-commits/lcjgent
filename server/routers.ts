@@ -498,7 +498,24 @@ import {
   setBlogArticleTags,
   getBlogArticleTagIds,
   searchMallProductsForBlog,
+  listAutoPostSchedules,
+  getAutoPostScheduleById,
+  createAutoPostSchedule,
+  updateAutoPostSchedule,
+  deleteAutoPostSchedule,
+  incrementScheduleGenerated,
+  listPresetKeywordsDb,
+  getNextUnusedKeyword,
+  markKeywordUsed,
+  createPresetKeywordDb,
+  deletePresetKeywordDb,
+  resetAllKeywordsUsage,
+  listAutoPostLogs,
+  createAutoPostLog,
+  updateAutoPostLog,
+  getStuckAutoPostLogs,
 } from "./db";
+import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
@@ -15846,6 +15863,337 @@ TikTok Shop、ECモール、ライブコマース関連のキーワードに特�
         updatedAt: a.updatedAt,
         title: a.title,
       }));
+    }),
+  }),
+
+  // =============================================
+  // Auto Post Scheduler Router
+  // =============================================
+  autoPost: router({
+    // --- Schedule CRUD ---
+    listSchedules: protectedProcedure.query(async () => {
+      return await listAutoPostSchedules();
+    }),
+
+    createSchedule: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1),
+        intervalDays: z.number().min(1).max(30).default(1),
+        preferredHour: z.number().min(0).max(23).default(10),
+        keywordStrategy: z.enum(["preset", "custom", "ai_suggest"]).default("preset"),
+        articleType: z.enum(["guide", "review", "comparison", "news", "howto", "listicle"]).default("guide"),
+        tone: z.enum(["professional", "casual", "friendly", "authoritative"]).default("professional"),
+        articleLength: z.enum(["short", "standard", "long"]).default("standard"),
+        language: z.enum(["ja", "en", "zh", "ko", "th"]).default("ja"),
+        generateImages: z.boolean().default(true),
+        autoPublish: z.enum(["draft", "publish", "scheduled"]).default("draft"),
+        categoryId: z.number().nullable().default(null),
+      }))
+      .mutation(async ({ input }) => {
+        return await createAutoPostSchedule({
+          ...input,
+          enabled: false,
+          nextRunAt: new Date(),
+        });
+      }),
+
+    updateSchedule: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().min(1).optional(),
+        intervalDays: z.number().min(1).max(30).optional(),
+        preferredHour: z.number().min(0).max(23).optional(),
+        keywordStrategy: z.enum(["preset", "custom", "ai_suggest"]).optional(),
+        articleType: z.enum(["guide", "review", "comparison", "news", "howto", "listicle"]).optional(),
+        tone: z.enum(["professional", "casual", "friendly", "authoritative"]).optional(),
+        articleLength: z.enum(["short", "standard", "long"]).optional(),
+        language: z.enum(["ja", "en", "zh", "ko", "th"]).optional(),
+        generateImages: z.boolean().optional(),
+        autoPublish: z.enum(["draft", "publish", "scheduled"]).optional(),
+        categoryId: z.number().nullable().optional(),
+        enabled: z.boolean().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        return await updateAutoPostSchedule(id, data);
+      }),
+
+    deleteSchedule: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return await deleteAutoPostSchedule(input.id);
+      }),
+
+    toggleSchedule: protectedProcedure
+      .input(z.object({ id: z.number(), enabled: z.boolean() }))
+      .mutation(async ({ input }) => {
+        const updateData: any = { enabled: input.enabled };
+        if (input.enabled) {
+          updateData.nextRunAt = new Date();
+        }
+        return await updateAutoPostSchedule(input.id, updateData);
+      }),
+
+    // --- Execution Logs ---
+    listLogs: protectedProcedure
+      .input(z.object({
+        scheduleId: z.number().optional(),
+        status: z.string().optional(),
+        limit: z.number().default(50),
+        offset: z.number().default(0),
+      }).optional())
+      .query(async ({ input }) => {
+        return await listAutoPostLogs(input || {});
+      }),
+
+    // --- Preset Keywords ---
+    listKeywords: protectedProcedure
+      .input(z.object({
+        category: z.string().optional(),
+        enabled: z.boolean().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return await listPresetKeywordsDb(input || {});
+      }),
+
+    addKeyword: protectedProcedure
+      .input(z.object({
+        keyword: z.string().min(1),
+        category: z.string().default("custom"),
+        priority: z.number().default(5),
+      }))
+      .mutation(async ({ input }) => {
+        return await createPresetKeywordDb(input);
+      }),
+
+    deleteKeyword: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return await deletePresetKeywordDb(input.id);
+      }),
+
+    resetKeywords: protectedProcedure
+      .mutation(async () => {
+        return await resetAllKeywordsUsage();
+      }),
+
+    // --- Manual Trigger: Execute one auto-post cycle ---
+    executeNow: protectedProcedure
+      .input(z.object({
+        scheduleId: z.number(),
+        keyword: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const schedule = await getAutoPostScheduleById(input.scheduleId);
+        if (!schedule) throw new TRPCError({ code: 'NOT_FOUND', message: 'Schedule not found' });
+
+        // Create log entry
+        const log = await createAutoPostLog({
+          scheduleId: schedule.id,
+          status: 'pending',
+          keyword: input.keyword || null,
+        });
+
+        // Step 1: Select keyword
+        let keyword = input.keyword;
+        let keywordId: number | null = null;
+        if (!keyword) {
+          const nextKw = await getNextUnusedKeyword();
+          if (nextKw) {
+            keyword = nextKw.keyword;
+            keywordId = nextKw.id;
+          } else {
+            await updateAutoPostLog(log.id, { status: 'failed', errorMessage: 'No keywords available' });
+            throw new TRPCError({ code: 'BAD_REQUEST', message: 'No keywords available' });
+          }
+        }
+
+        await updateAutoPostLog(log.id, { status: 'generating', keyword });
+
+        try {
+          // Step 2: Generate article with LLM
+          const lengthGuide = schedule.articleLength === 'short' ? '1500-2000' : schedule.articleLength === 'long' ? '5000-6000' : '3000-4000';
+          const articlePrompt = `あなたはSEO/GEO最適化のプロフェッショナルライターです。
+以下の条件で、検索エンジンとAI検索エンジン（ChatGPT、Perplexity、Google AI Overview）の両方で上位表示される記事を生成してください。
+
+メインキーワード: ${keyword}
+サイト: LCJ MALL（TikTok Shop商品を扱うECサイト）
+記事タイプ: ${schedule.articleType}
+トーン: ${schedule.tone}
+言語: ${schedule.language === 'ja' ? '日本語' : schedule.language === 'en' ? 'English' : schedule.language}
+文字数: ${lengthGuide}字
+
+JSON形式で以下を出力してください:
+{
+  "title": "記事タイトル",
+  "slug": "url-friendly-slug",
+  "excerpt": "120字以内の抽出",
+  "contentHtml": "HTML形式の記事本文（h2, h3, p, ul, ol, blockquoteタグ使用）",
+  "seoTitle": "SEO用タイトル（60字以内）",
+  "seoDescription": "SEO用ディスクリプション（155字以内）",
+  "tags": ["推奨タグ名1", "推奨タグ名2"]
+}
+
+SEO/GEO最適化要件:
+- メインキーワードをタイトル、最初の段落、h2見出しに自然に含める
+- 統計データや具体的な数字を含める（AI検索が引用しやすい）
+- FAQセクションを含める（「よくある質問」形式）
+- 内部リンクとしてLCJ MALLの商品ページへの参照を含める
+- 構造化された見出し階層（h2 > h3）を使用
+- 専門的で信頼性の高い記述を心がける`;
+
+          const response = await invokeLLM({
+            messages: [
+              { role: 'system', content: 'You are a professional SEO/GEO optimized content writer. Always respond with valid JSON only.' },
+              { role: 'user', content: articlePrompt },
+            ],
+            response_format: {
+              type: 'json_schema',
+              json_schema: {
+                name: 'blog_article',
+                strict: true,
+                schema: {
+                  type: 'object',
+                  properties: {
+                    title: { type: 'string' },
+                    slug: { type: 'string' },
+                    excerpt: { type: 'string' },
+                    contentHtml: { type: 'string' },
+                    seoTitle: { type: 'string' },
+                    seoDescription: { type: 'string' },
+                    tags: { type: 'array', items: { type: 'string' } },
+                  },
+                  required: ['title', 'slug', 'excerpt', 'contentHtml', 'seoTitle', 'seoDescription', 'tags'],
+                  additionalProperties: false,
+                },
+              },
+            },
+          });
+
+          const articleData = JSON.parse(response.choices[0].message.content || '{}');
+          if (!articleData.title || !articleData.contentHtml) {
+            throw new Error('Invalid article data from LLM');
+          }
+
+          // Ensure unique slug
+          const baseSlug = articleData.slug || nanoid(12);
+          const existingArticle = await getBlogArticleBySlug(baseSlug);
+          const finalSlug = existingArticle ? `${baseSlug}-${nanoid(6)}` : baseSlug;
+
+          // Step 3: Create blog article
+          const publishStatus = schedule.autoPublish === 'publish' ? 'published' : 'draft';
+          const articleResult = await createBlogArticle({
+            title: articleData.title,
+            slug: finalSlug,
+            excerpt: articleData.excerpt,
+            contentHtml: articleData.contentHtml,
+            seoTitle: articleData.seoTitle,
+            seoDescription: articleData.seoDescription,
+            status: publishStatus as any,
+            publishedAt: publishStatus === 'published' ? new Date() : null,
+            authorId: 1, // System author
+            categoryId: schedule.categoryId,
+          });
+
+          const articleId = (articleResult as any)[0]?.insertId || (articleResult as any).insertId;
+
+          // Step 4: Generate cover image if enabled
+          if (schedule.generateImages && articleId) {
+            await updateAutoPostLog(log.id, { status: 'image_generating' });
+            try {
+              const imagePrompt = `Professional blog cover image for "${articleData.title}". Modern, clean design with TikTok Shop and e-commerce theme. High quality, vibrant colors. No text overlay.`;
+              const { url: imageUrl } = await generateImage({ prompt: imagePrompt });
+              if (imageUrl) {
+                const imageResponse = await fetch(imageUrl);
+                const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+                const imageKey = `blog-covers/${finalSlug}-${nanoid(8)}.png`;
+                const { url: s3Url } = await storagePut(imageKey, imageBuffer, 'image/png');
+                await updateBlogArticle(articleId, { coverImageUrl: s3Url, coverImageKey: imageKey });
+              }
+            } catch (imgError: any) {
+              console.error('Image generation failed:', imgError.message);
+              // Continue without image
+            }
+          }
+
+          // Mark keyword as used
+          if (keywordId) {
+            await markKeywordUsed(keywordId);
+          }
+
+          // Increment schedule counter
+          await incrementScheduleGenerated(schedule.id);
+
+          // Update log
+          await updateAutoPostLog(log.id, {
+            status: 'completed',
+            articleId,
+            completedAt: new Date(),
+          });
+
+          return {
+            success: true,
+            articleId,
+            title: articleData.title,
+            keyword,
+            status: publishStatus,
+          };
+
+        } catch (error: any) {
+          await updateAutoPostLog(log.id, {
+            status: 'failed',
+            errorMessage: error.message || 'Unknown error',
+          });
+          throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: error.message });
+        }
+      }),
+
+    // --- Stuck Recovery ---
+    recoverStuck: protectedProcedure
+      .mutation(async () => {
+        const stuckLogs = await getStuckAutoPostLogs();
+        let recovered = 0;
+        for (const log of stuckLogs) {
+          if (log.articleId) {
+            try {
+              const article = await getBlogArticleById(log.articleId);
+              if (article && !article.coverImageUrl) {
+                const imagePrompt = `Professional blog cover image for "${article.title}". Modern, clean design with TikTok Shop and e-commerce theme. High quality, vibrant colors. No text overlay.`;
+                const { url: imageUrl } = await generateImage({ prompt: imagePrompt });
+                if (imageUrl) {
+                  const imageResponse = await fetch(imageUrl);
+                  const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+                  const imageKey = `blog-covers/${article.slug}-${nanoid(8)}.png`;
+                  const { url: s3Url } = await storagePut(imageKey, imageBuffer, 'image/png');
+                  await updateBlogArticle(log.articleId, { coverImageUrl: s3Url, coverImageKey: imageKey });
+                }
+              }
+              await updateAutoPostLog(log.id, { status: 'completed', completedAt: new Date() });
+              recovered++;
+            } catch {
+              await updateAutoPostLog(log.id, { status: 'failed', errorMessage: 'Recovery failed' });
+            }
+          } else {
+            await updateAutoPostLog(log.id, { status: 'failed', errorMessage: 'No article ID, cannot recover' });
+          }
+        }
+        return { recovered, total: stuckLogs.length };
+      }),
+
+    // --- Dashboard Stats ---
+    stats: protectedProcedure.query(async () => {
+      const allSchedules = await listAutoPostSchedules();
+      const keywords = await listPresetKeywordsDb();
+      const enabledSchedules = allSchedules.filter(s => s.enabled);
+      const unusedKeywords = keywords.filter(k => k.usedCount === 0);
+
+      return {
+        totalSchedules: allSchedules.length,
+        activeSchedules: enabledSchedules.length,
+        totalKeywords: keywords.length,
+        unusedKeywords: unusedKeywords.length,
+        totalPostsGenerated: allSchedules.reduce((sum, s) => sum + (s.totalGenerated || 0), 0),
+      };
     }),
   }),
 });

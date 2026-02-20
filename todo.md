@@ -5881,3 +5881,13 @@
 ## チェックポイント更新
 - [x] AI記事生成機能Phase 2の全コードをコミット済み（7390c8e）
 - [x] 公開準備完了
+## 自動投稿システム Phase 3（スケジュール・キーワード・ログ管理）
+- [x] DBスキーマ設計・作成（auto_post_schedules, auto_post_logs, preset_keywords）
+- [x] マイグレーション実行（SQLで直接テーブル作成）
+- [x] プリセットキーワード40件投入（TikTok Shop関連）
+- [x] バックエンドDB関数（listAutoPostSchedules, createAutoPostSchedule, toggleAutoPostSchedule, deleteAutoPostSchedule, listPresetKeywords, addPresetKeyword, deletePresetKeyword, listAutoPostLogs, getAutoPostStats, recoverStuckAutoPostLogs）
+- [x] tRPCルーター（autoPost: listSchedules, createSchedule, toggleSchedule, deleteSchedule, listKeywords, addKeyword, deleteKeyword, listLogs, stats, recoverStuck）
+- [x] フロントエンドUI（AutoPostAdmin.tsx: 4タブ構成 - ダッシュボード/スケジュール/キーワード/ログ）
+- [x] サイドバーに「AI自動投稿」リンク追加（/master/auto-post）
+- [x] App.tsxにルート追加（/master/auto-post → AutoPostAdmin）
+- [x] Vitestテスト作成・実行（10テスト全パス）

@@ -1,0 +1,19 @@
+{
+  "query": "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND (TABLE_NAME LIKE 'auto_post%' OR TABLE_NAME LIKE 'preset%' OR TABLE_NAME LIKE 'auto_publish%') ORDER BY TABLE_NAME;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND (TABLE_NAME LIKE 'auto_post%' OR TABLE_NAME LIKE 'preset%' OR TABLE_NAME LIKE 'auto_publish%') ORDER BY TABLE_NAME;",
+  "rows": [
+    {
+      "TABLE_NAME": "auto_post_logs"
+    },
+    {
+      "TABLE_NAME": "auto_post_schedules"
+    },
+    {
+      "TABLE_NAME": "preset_keywords"
+    }
+  ],
+  "messages": [],
+  "stdout": "TABLE_NAME\nauto_post_logs\nauto_post_schedules\npreset_keywords\n",
+  "stderr": "",
+  "execution_time_ms": 1514
+}

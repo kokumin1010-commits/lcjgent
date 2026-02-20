@@ -1,0 +1,16 @@
+{
+  "query": "SHOW TABLES LIKE 'auto_%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SHOW TABLES LIKE 'auto_%';",
+  "rows": [
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (auto_%)": "auto_post_logs"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (auto_%)": "auto_post_schedules"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_GgA9WvTBCZMf6mjyMMwACw (auto_%)\nauto_post_logs\nauto_post_schedules\n",
+  "stderr": "",
+  "execution_time_ms": 1620
+}

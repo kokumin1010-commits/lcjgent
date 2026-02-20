@@ -3074,3 +3074,61 @@ export const blogArticleTags = mysqlTable("blog_article_tags", {
 });
 export type BlogArticleTag = typeof blogArticleTags.$inferSelect;
 export type InsertBlogArticleTag = typeof blogArticleTags.$inferInsert;
+
+// =============================================
+// Auto-Publish Scheduler Tables (matches existing DB)
+// =============================================
+
+/** 自動投稿スケジュール設定 */
+export const autoPostSchedules = mysqlTable("auto_post_schedules", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  enabled: boolean("enabled").default(false).notNull(),
+  intervalDays: int("intervalDays").default(1).notNull(),
+  preferredHour: int("preferredHour").default(10).notNull(),
+  keywordStrategy: mysqlEnum("keywordStrategy", ["preset", "custom", "ai_suggest"]).default("preset").notNull(),
+  customKeywords: json("customKeywords").$type<string[]>(),
+  categoryId: int("categoryId"),
+  articleType: mysqlEnum("articleType", ["guide", "review", "comparison", "news", "howto", "listicle"]).default("guide").notNull(),
+  tone: mysqlEnum("tone", ["professional", "casual", "friendly", "authoritative"]).default("professional").notNull(),
+  articleLength: mysqlEnum("articleLength", ["short", "standard", "long"]).default("standard").notNull(),
+  language: mysqlEnum("language", ["ja", "en", "zh", "ko", "th"]).default("ja").notNull(),
+  generateImages: boolean("generateImages").default(true).notNull(),
+  autoPublish: mysqlEnum("autoPublish", ["draft", "publish", "scheduled"]).default("draft").notNull(),
+  lastRunAt: timestamp("lastRunAt"),
+  nextRunAt: timestamp("nextRunAt"),
+  totalGenerated: int("totalGenerated").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type AutoPostSchedule = typeof autoPostSchedules.$inferSelect;
+export type InsertAutoPostSchedule = typeof autoPostSchedules.$inferInsert;
+
+/** 自動投稿用プリセットキーワード */
+export const presetKeywords = mysqlTable("preset_keywords", {
+  id: int("id").autoincrement().primaryKey(),
+  keyword: varchar("keyword", { length: 255 }).notNull(),
+  category: varchar("category", { length: 100 }),
+  priority: int("priority").default(0).notNull(),
+  usedCount: int("usedCount").default(0).notNull(),
+  lastUsedAt: timestamp("lastUsedAt"),
+  enabled: boolean("enabled").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type PresetKeyword = typeof presetKeywords.$inferSelect;
+export type InsertPresetKeyword = typeof presetKeywords.$inferInsert;
+
+/** 自動投稿実行履歴 */
+export const autoPostLogs = mysqlTable("auto_post_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  scheduleId: int("scheduleId").notNull(),
+  articleId: int("articleId"),
+  status: mysqlEnum("status", ["pending", "generating", "image_generating", "publishing", "completed", "failed"]).default("pending").notNull(),
+  keyword: varchar("keyword", { length: 255 }),
+  errorMessage: text("errorMessage"),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type AutoPostLog = typeof autoPostLogs.$inferSelect;
+export type InsertAutoPostLog = typeof autoPostLogs.$inferInsert;
