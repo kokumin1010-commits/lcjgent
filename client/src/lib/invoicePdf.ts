@@ -321,7 +321,7 @@ export function generateInvoicePdf(type: DocumentType, order: OrderData): jsPDF 
     y += 6;
   }
 
-  // ポイント利用情報は集計テーブルに統合済み
+  // ポイント利用情報は集計テーブル内に表示済み（v2）
 
   return doc;
 }
