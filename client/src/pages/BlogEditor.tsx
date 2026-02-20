@@ -14,6 +14,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Progress } from "@/components/ui/progress";
 import {
   ArrowLeft,
   Save,
@@ -38,6 +42,15 @@ import {
   Settings2,
   Globe,
   FileText,
+  Sparkles,
+  Wand2,
+  Loader2,
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
+  Zap,
+  Target,
+  TrendingUp,
 } from "lucide-react";
 import { useLocation, useRoute } from "wouter";
 import { toast } from "sonner";
@@ -196,6 +209,391 @@ function ProductSearchDialog({
             </div>
           )}
         </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// --- AI Article Generation Dialog ---
+function AIGenerateDialog({
+  open,
+  onClose,
+  onInsert,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onInsert: (html: string, seoData?: any) => void;
+}) {
+  const [topic, setTopic] = useState("");
+  const [keywords, setKeywords] = useState<string[]>([]);
+  const [keywordInput, setKeywordInput] = useState("");
+  const [language, setLanguage] = useState<"ja" | "en" | "zh">("ja");
+  const [tone, setTone] = useState<"professional" | "casual" | "friendly" | "authoritative">("professional");
+  const [articleType, setArticleType] = useState<"guide" | "review" | "comparison" | "news" | "howto" | "listicle">("guide");
+  const [targetLength, setTargetLength] = useState<"short" | "medium" | "long">("medium");
+  const [includeProducts, setIncludeProducts] = useState(false);
+  const [step, setStep] = useState<"config" | "keywords" | "generating" | "preview">("config");
+  const [generatedHtml, setGeneratedHtml] = useState("");
+  const [progress, setProgress] = useState(0);
+  const [showKeywordSuggestions, setShowKeywordSuggestions] = useState(false);
+
+  const generateMutation = trpc.blog.generateArticle.useMutation();
+  const keywordMutation = trpc.blog.suggestKeywords.useMutation();
+  const seoMetaMutation = trpc.blog.generateSeoMeta.useMutation();
+
+  const handleAddKeyword = () => {
+    const kw = keywordInput.trim();
+    if (kw && !keywords.includes(kw)) {
+      setKeywords([...keywords, kw]);
+      setKeywordInput("");
+    }
+  };
+
+  const handleSuggestKeywords = async () => {
+    if (!topic.trim()) {
+      toast.error("トピックを入力してください");
+      return;
+    }
+    setShowKeywordSuggestions(true);
+    try {
+      await keywordMutation.mutateAsync({ topic, language });
+    } catch (err: any) {
+      toast.error("キーワード提案に失敗しました");
+    }
+  };
+
+  const handleGenerate = async () => {
+    if (!topic.trim()) {
+      toast.error("トピックを入力してください");
+      return;
+    }
+    if (keywords.length === 0) {
+      toast.error("キーワードを1つ以上追加してください");
+      return;
+    }
+    setStep("generating");
+    setProgress(0);
+    const progressInterval = setInterval(() => {
+      setProgress((p) => Math.min(p + Math.random() * 15, 90));
+    }, 1000);
+    try {
+      const result = await generateMutation.mutateAsync({
+        topic,
+        keywords,
+        language,
+        tone,
+        articleType,
+        includeProductRecommendations: includeProducts,
+        targetLength,
+      });
+      clearInterval(progressInterval);
+      setProgress(100);
+      setGeneratedHtml(result.html);
+      setStep("preview");
+    } catch (err: any) {
+      clearInterval(progressInterval);
+      setProgress(0);
+      setStep("config");
+      toast.error(err.message || "記事生成に失敗しました");
+    }
+  };
+
+  const handleInsertWithSeo = async () => {
+    // Generate SEO meta data as well
+    try {
+      const seoData = await seoMetaMutation.mutateAsync({
+        title: topic,
+        content: generatedHtml,
+        keywords,
+        language,
+      });
+      onInsert(generatedHtml, seoData);
+    } catch {
+      // Even if SEO generation fails, insert the article
+      onInsert(generatedHtml);
+    }
+    // Reset state
+    setStep("config");
+    setGeneratedHtml("");
+    setProgress(0);
+    onClose();
+  };
+
+  const handleInsertOnly = () => {
+    onInsert(generatedHtml);
+    setStep("config");
+    setGeneratedHtml("");
+    setProgress(0);
+    onClose();
+  };
+
+  const articleTypeLabels: Record<string, string> = {
+    guide: "ガイド記事",
+    review: "レビュー記事",
+    comparison: "比較記事",
+    news: "ニュース・トレンド",
+    howto: "ハウツー記事",
+    listicle: "リスト記事",
+  };
+
+  const toneLabels: Record<string, string> = {
+    professional: "プロフェッショナル",
+    casual: "カジュアル",
+    friendly: "フレンドリー",
+    authoritative: "権威的",
+  };
+
+  const lengthLabels: Record<string, string> = {
+    short: "短め（1500-2000字）",
+    medium: "標準（3000-4000字）",
+    long: "長め（5000-7000字）",
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && step !== "generating" && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-pink-500" />
+            AI記事生成（SEO/GEO最適化）
+          </DialogTitle>
+        </DialogHeader>
+
+        {step === "config" && (
+          <ScrollArea className="flex-1 pr-4">
+            <div className="space-y-5 pb-4">
+              {/* Topic */}
+              <div className="space-y-2">
+                <Label className="font-semibold flex items-center gap-1.5">
+                  <Target className="h-4 w-4" />
+                  トピック・テーマ
+                </Label>
+                <Input
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  placeholder="例: TikTok Shopで売れる商品の見つけ方"
+                  className="text-sm"
+                />
+              </div>
+
+              {/* Keywords */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="font-semibold flex items-center gap-1.5">
+                    <TrendingUp className="h-4 w-4" />
+                    ターゲットキーワード
+                  </Label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleSuggestKeywords}
+                    disabled={keywordMutation.isPending || !topic.trim()}
+                    className="text-xs text-pink-500 hover:text-pink-600"
+                  >
+                    {keywordMutation.isPending ? (
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    ) : (
+                      <Wand2 className="h-3 w-3 mr-1" />
+                    )}
+                    AIでキーワード提案
+                  </Button>
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    value={keywordInput}
+                    onChange={(e) => setKeywordInput(e.target.value)}
+                    placeholder="キーワードを入力してEnter"
+                    className="text-sm"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddKeyword();
+                      }
+                    }}
+                  />
+                  <Button size="sm" onClick={handleAddKeyword} disabled={!keywordInput.trim()}>
+                    追加
+                  </Button>
+                </div>
+                {keywords.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {keywords.map((kw, i) => (
+                      <Badge key={i} variant="secondary" className="text-xs gap-1">
+                        {kw}
+                        <X
+                          className="h-3 w-3 cursor-pointer hover:text-destructive"
+                          onClick={() => setKeywords(keywords.filter((_, j) => j !== i))}
+                        />
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+
+                {/* AI Keyword Suggestions */}
+                {showKeywordSuggestions && keywordMutation.data && (
+                  <div className="border rounded-lg p-3 bg-muted/30 space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">AI提案キーワード（クリックで追加）</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {keywordMutation.data.keywords?.map((kw: any, i: number) => (
+                        <Badge
+                          key={i}
+                          variant={keywords.includes(kw.keyword) ? "default" : "outline"}
+                          className="text-xs cursor-pointer hover:bg-accent"
+                          onClick={() => {
+                            if (!keywords.includes(kw.keyword)) {
+                              setKeywords([...keywords, kw.keyword]);
+                            }
+                          }}
+                        >
+                          {kw.keyword}
+                          <span className="ml-1 text-[10px] opacity-60">
+                            {kw.difficulty === "low" ? "易" : kw.difficulty === "medium" ? "中" : "難"}
+                          </span>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Article Settings */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">記事タイプ</Label>
+                  <Select value={articleType} onValueChange={(v: any) => setArticleType(v)}>
+                    <SelectTrigger className="text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(articleTypeLabels).map(([k, v]) => (
+                        <SelectItem key={k} value={k}>{v}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">トーン</Label>
+                  <Select value={tone} onValueChange={(v: any) => setTone(v)}>
+                    <SelectTrigger className="text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(toneLabels).map(([k, v]) => (
+                        <SelectItem key={k} value={k}>{v}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">記事の長さ</Label>
+                  <Select value={targetLength} onValueChange={(v: any) => setTargetLength(v)}>
+                    <SelectTrigger className="text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(lengthLabels).map(([k, v]) => (
+                        <SelectItem key={k} value={k}>{v}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">言語</Label>
+                  <Select value={language} onValueChange={(v: any) => setLanguage(v)}>
+                    <SelectTrigger className="text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ja">日本語</SelectItem>
+                      <SelectItem value="en">English</SelectItem>
+                      <SelectItem value="zh">中文</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Generate Button */}
+              <Button
+                className="w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white"
+                size="lg"
+                onClick={handleGenerate}
+                disabled={!topic.trim() || keywords.length === 0}
+              >
+                <Sparkles className="h-4 w-4 mr-2" />
+                SEO/GEO最適化記事を生成
+              </Button>
+            </div>
+          </ScrollArea>
+        )}
+
+        {step === "generating" && (
+          <div className="flex-1 flex flex-col items-center justify-center py-12 space-y-6">
+            <div className="relative">
+              <Loader2 className="h-12 w-12 animate-spin text-pink-500" />
+              <Sparkles className="h-5 w-5 text-yellow-500 absolute -top-1 -right-1 animate-pulse" />
+            </div>
+            <div className="text-center space-y-2">
+              <p className="font-semibold">AI記事を生成中...</p>
+              <p className="text-sm text-muted-foreground">
+                SEO/GEO最適化された記事を作成しています
+              </p>
+            </div>
+            <div className="w-64 space-y-1">
+              <Progress value={progress} className="h-2" />
+              <p className="text-xs text-center text-muted-foreground">{Math.round(progress)}%</p>
+            </div>
+          </div>
+        )}
+
+        {step === "preview" && (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-medium text-green-600 flex items-center gap-1">
+                <Zap className="h-4 w-4" />
+                記事が生成されました
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setStep("config");
+                  setGeneratedHtml("");
+                }}
+              >
+                <RefreshCw className="h-3 w-3 mr-1" />
+                再生成
+              </Button>
+            </div>
+            <ScrollArea className="flex-1 border rounded-lg p-4 bg-white dark:bg-zinc-900">
+              <div
+                className="prose prose-sm max-w-none dark:prose-invert"
+                dangerouslySetInnerHTML={{ __html: generatedHtml }}
+              />
+            </ScrollArea>
+            <div className="flex gap-2 mt-4">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={handleInsertOnly}
+              >
+                <FileText className="h-4 w-4 mr-1" />
+                記事のみ挿入
+              </Button>
+              <Button
+                className="flex-1 bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white"
+                onClick={handleInsertWithSeo}
+                disabled={seoMetaMutation.isPending}
+              >
+                {seoMetaMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4 mr-1" />
+                )}
+                記事＋SEO情報を挿入
+              </Button>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -448,6 +846,7 @@ export default function BlogEditor() {
   const [ogImageUrl, setOgImageUrl] = useState("");
   const [showProductSearch, setShowProductSearch] = useState(false);
   const [showSeoPanel, setShowSeoPanel] = useState(false);
+  const [showAIGenerate, setShowAIGenerate] = useState(false);
   const [saving, setSaving] = useState(false);
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
 
@@ -512,6 +911,25 @@ export default function BlogEditor() {
       setSlug(slugify(title));
     }
   }, [title, slugManuallyEdited]);
+
+  // Handle AI generated content insertion
+  const handleAIInsert = useCallback(
+    (html: string, seoData?: any) => {
+      if (!editor) return;
+      editor.commands.setContent(html);
+      if (seoData) {
+        if (seoData.seoTitle) setSeoTitle(seoData.seoTitle);
+        if (seoData.seoDescription) setSeoDescription(seoData.seoDescription);
+        if (seoData.slug) {
+          setSlug(seoData.slug);
+          setSlugManuallyEdited(true);
+        }
+        if (seoData.excerpt) setExcerpt(seoData.excerpt);
+      }
+      toast.success("AI生成記事をエディタに挿入しました");
+    },
+    [editor]
+  );
 
   // Insert product card
   const handleProductSelect = useCallback(
@@ -692,6 +1110,15 @@ export default function BlogEditor() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAIGenerate(true)}
+              className="border-pink-300 text-pink-600 hover:bg-pink-50 dark:border-pink-700 dark:text-pink-400 dark:hover:bg-pink-950"
+            >
+              <Sparkles className="h-4 w-4 mr-1" />
+              AI生成
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -888,6 +1315,13 @@ export default function BlogEditor() {
         open={showProductSearch}
         onClose={() => setShowProductSearch(false)}
         onSelect={handleProductSelect}
+      />
+
+      {/* AI Generate Dialog */}
+      <AIGenerateDialog
+        open={showAIGenerate}
+        onClose={() => setShowAIGenerate(false)}
+        onInsert={handleAIInsert}
       />
 
       {/* Editor Styles */}

@@ -206,6 +206,58 @@ describe("blog", () => {
     });
   });
 
+  // --- AI Generation Tests ---
+  describe("AI generation", () => {
+    it("should generate an article with SEO/GEO optimization", async () => {
+      const result = await authCaller.blog.generateArticle({
+        topic: "TikTok Shopでの購入方法",
+        keywords: ["TikTok Shop", "購入方法", "使い方"],
+        language: "ja",
+        tone: "friendly",
+        articleType: "howto",
+        includeProductRecommendations: false,
+        targetLength: "short",
+      });
+      expect(result).toBeDefined();
+      expect(result.html).toBeDefined();
+      expect(typeof result.html).toBe("string");
+      expect(result.html.length).toBeGreaterThan(100);
+      expect(result.keywords).toEqual(["TikTok Shop", "購入方法", "使い方"]);
+    }, 60000);
+
+    it("should generate SEO meta information from article content", async () => {
+      const result = await authCaller.blog.generateSeoMeta({
+        title: "TikTok Shopの使い方完全ガイド",
+        content: "<p>TikTok Shopは、TikTokアプリ内で商品を購入できるECプラットフォームです。ライブ配信中に気になった商品をそのまま購入できる便利な機能があります。</p>",
+        keywords: ["TikTok Shop", "使い方"],
+        language: "ja",
+      });
+      expect(result).toBeDefined();
+      expect(result.seoTitle).toBeDefined();
+      expect(typeof result.seoTitle).toBe("string");
+      expect(result.seoDescription).toBeDefined();
+      expect(typeof result.seoDescription).toBe("string");
+      expect(result.slug).toBeDefined();
+      expect(typeof result.slug).toBe("string");
+    }, 60000);
+
+    it("should suggest keywords for a topic", async () => {
+      const result = await authCaller.blog.suggestKeywords({
+        topic: "TikTok Shop ライブコマース",
+        language: "ja",
+      });
+      expect(result).toBeDefined();
+      expect(result.keywords).toBeDefined();
+      expect(Array.isArray(result.keywords)).toBe(true);
+      expect(result.keywords.length).toBeGreaterThan(0);
+      const firstKeyword = result.keywords[0];
+      expect(firstKeyword.keyword).toBeDefined();
+      expect(firstKeyword.searchIntent).toBeDefined();
+      expect(firstKeyword.difficulty).toBeDefined();
+      expect(firstKeyword.category).toBeDefined();
+    }, 60000);
+  });
+
   // --- Cleanup ---
   describe("cleanup", () => {
     it("should delete the test article", async () => {

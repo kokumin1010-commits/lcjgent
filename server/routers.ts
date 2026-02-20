@@ -15590,6 +15590,254 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         return await listBlogArticles({ status: "published", ...input });
       }),
 
+    // --- AI Article Generation (SEO/GEO Optimized) ---
+    generateArticle: protectedProcedure
+      .input(z.object({
+        topic: z.string().min(1).describe("記事のテーマ・トピック"),
+        keywords: z.array(z.string()).min(1).describe("ターゲットキーワード"),
+        language: z.enum(["ja", "en", "zh"]).default("ja"),
+        tone: z.enum(["professional", "casual", "friendly", "authoritative"]).default("professional"),
+        articleType: z.enum(["guide", "review", "comparison", "news", "howto", "listicle"]).default("guide"),
+        includeProductRecommendations: z.boolean().default(false),
+        targetLength: z.enum(["short", "medium", "long"]).default("medium"),
+      }))
+      .mutation(async ({ input }) => {
+        const lengthGuide = {
+          short: "1500-2000文字",
+          medium: "3000-4000文字",
+          long: "5000-7000文字",
+        };
+
+        const articleTypeGuide: Record<string, string> = {
+          guide: "包括的なガイド記事。読者が知りたいことを網羅的にカバーし、ステップバイステップで説明する",
+          review: "レビュー記事。実際の使用感や評価を詳しく伝え、メリット・デメリットを公平に紹介する",
+          comparison: "比較記事。複数の選択肢を表形式で比較し、読者が最適な選択をできるよう支援する",
+          news: "ニュース・トレンド記事。最新の動向を伝え、業界への影響を分析する",
+          howto: "ハウツー記事。具体的な手順を番号付きで示し、初心者でも実践できるよう丁寧に解説する",
+          listicle: "リスト記事。おすすめアイテムやポイントを番号付きで紹介し、各項目を詳しく解説する",
+        };
+
+        const langInstruction = input.language === "ja" 
+          ? "日本語で記事を書いてください。" 
+          : input.language === "zh" 
+            ? "请用中文撰写文章。" 
+            : "Write the article in English.";
+
+        const systemPrompt = `あなたはSEO/GEO（Generative Engine Optimization）に精通したプロのコンテンツライターです。
+以下の要件に従って、検索エンジンとAI検索エンジン（ChatGPT、Perplexity、Google AI Overview）の両方で上位表示・引用されるよう最適化された記事を生成してください。
+
+## SEO/GEO最適化ルール
+1. **見出し階層**: H2→H3→H4の論理的な階層構造を使用。各H2セクションは独立した回答として機能するように書く
+2. **冒頭の直接回答**: 記事冒頭で検索意図に対する直接的な回答を提供（AI検索で引用されやすい）
+3. **統計・数値の引用**: 具体的な数字やデータを含める（例：「〇〇は前年比30%増加」）
+4. **FAQ形式**: 記事末尾に関連するFAQ（よくある質問）を3-5個含める
+5. **比較表**: 適切な場面ではMarkdown表形式で情報を整理する
+6. **引用可能な文章**: 定義文や要約文は、そのまま引用できる簡潔で正確な表現にする
+7. **E-E-A-T**: 経験・専門性・権威性・信頼性を示す表現を含める
+8. **内部リンク提案**: [関連記事リンク] のプレースホルダーを適切な箇所に配置
+9. **最新情報**: 2025-2026年の最新トレンドや情報を反映
+
+## 出力形式
+記事本文をTiptap互換のHTML形式で出力してください。以下のタグを使用：
+- <h2>, <h3>, <h4> — 見出し
+- <p> — 段落
+- <ul><li>, <ol><li> — リスト
+- <strong>, <em> — 強調
+- <blockquote> — 引用
+- <table><thead><tr><th>...<tbody><tr><td>... — 表
+- <a href=""> — リンク
+
+商品紹介が必要な場合は、以下の形式で商品カードプレースホルダーを配置：
+<div data-type="product-card" data-product-id="PRODUCT_ID"></div>
+
+${langInstruction}`;
+
+        const userPrompt = `## 記事生成リクエスト
+
+**テーマ**: ${input.topic}
+**ターゲットキーワード**: ${input.keywords.join(", ")}
+**記事タイプ**: ${articleTypeGuide[input.articleType]}
+**トーン**: ${input.tone}
+**目標文字数**: ${lengthGuide[input.targetLength]}
+**商品紹介を含める**: ${input.includeProductRecommendations ? "はい（適切な箇所に商品カードプレースホルダーを配置）" : "いいえ"}
+
+以下の構造で記事を生成してください：
+1. 導入文（検索意図への直接回答を含む）
+2. 本文（H2/H3で構造化、各セクション300-500文字）
+3. FAQ（3-5個のQ&A）
+4. まとめ
+
+記事本文のHTMLのみを出力してください。メタ情報は含めないでください。`;
+
+        const response = await invokeLLM({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+        });
+
+        const generatedHtml = String(response.choices?.[0]?.message?.content || "");
+
+        // Clean up the response - remove markdown code fences if present
+        const cleanHtml = generatedHtml
+          .replace(/^```html\n?/i, "")
+          .replace(/^```\n?/, "")
+          .replace(/\n?```$/,  "")
+          .trim();
+
+        return {
+          html: cleanHtml,
+          keywords: input.keywords,
+          topic: input.topic,
+        };
+      }),
+
+    // --- AI SEO Meta Generation ---
+    generateSeoMeta: protectedProcedure
+      .input(z.object({
+        title: z.string(),
+        content: z.string().describe("記事本文（HTMLまたはプレーンテキスト）"),
+        keywords: z.array(z.string()).optional(),
+        language: z.enum(["ja", "en", "zh"]).default("ja"),
+      }))
+      .mutation(async ({ input }) => {
+        const response = await invokeLLM({
+          messages: [
+            {
+              role: "system",
+              content: `あなたはSEO/GEO最適化の専門家です。記事のタイトルと本文から、検索エンジンとAI検索エンジンの両方に最適化されたメタ情報を生成してください。
+
+出力はJSON形式で、以下のフィールドを含めてください：
+- seoTitle: SEO最適化されたタイトル（60文字以内、主要キーワード含む）
+- seoDescription: メタディスクリプション（120文字以内、検索意図への回答を含む）
+- slug: URL用スラッグ（英数字とハイフンのみ、キーワード含む）
+- excerpt: 記事の要約（200文字以内）
+- faqItems: FAQ構造化データ用のQ&Aペア（3-5個）。各項目は{question, answer}形式
+- suggestedTags: 推奨タグ（3-5個）`,
+            },
+            {
+              role: "user",
+              content: `記事タイトル: ${input.title}\n\nターゲットキーワード: ${input.keywords?.join(", ") || "なし"}\n\n記事本文:\n${input.content.substring(0, 3000)}`,
+            },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "seo_meta",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  seoTitle: { type: "string", description: "SEO最適化タイトル" },
+                  seoDescription: { type: "string", description: "メタディスクリプション" },
+                  slug: { type: "string", description: "URL用スラッグ" },
+                  excerpt: { type: "string", description: "記事要約" },
+                  faqItems: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        question: { type: "string" },
+                        answer: { type: "string" },
+                      },
+                      required: ["question", "answer"],
+                      additionalProperties: false,
+                    },
+                    description: "FAQ項目",
+                  },
+                  suggestedTags: {
+                    type: "array",
+                    items: { type: "string" },
+                    description: "推奨タグ",
+                  },
+                },
+                required: ["seoTitle", "seoDescription", "slug", "excerpt", "faqItems", "suggestedTags"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+
+        const content = String(response.choices?.[0]?.message?.content || "{}");
+        try {
+          return JSON.parse(content);
+        } catch {
+          return {
+            seoTitle: input.title,
+            seoDescription: "",
+            slug: input.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+            excerpt: "",
+            faqItems: [],
+            suggestedTags: [],
+          };
+        }
+      }),
+
+    // --- AI Keyword Suggestions ---
+    suggestKeywords: protectedProcedure
+      .input(z.object({
+        topic: z.string().min(1),
+        language: z.enum(["ja", "en", "zh"]).default("ja"),
+      }))
+      .mutation(async ({ input }) => {
+        const response = await invokeLLM({
+          messages: [
+            {
+              role: "system",
+              content: `あなたはSEOキーワードリサーチの専門家です。指定されたトピックに関連する、検索ボリュームが高く競合が少ないキーワードを提案してください。
+
+TikTok Shop、ECモール、ライブコマース関連のキーワードに特に精通しています。
+
+出力はJSON形式で、以下のフィールドを含めてください：
+- keywords: キーワードの配列。各項目は{keyword, searchIntent, difficulty, category}形式
+  - keyword: キーワード文字列
+  - searchIntent: 検索意図（informational, transactional, navigational, commercial）
+  - difficulty: 競合度（low, medium, high）
+  - category: カテゴリ（primary, secondary, longtail）`,
+            },
+            {
+              role: "user",
+              content: `トピック: ${input.topic}\n言語: ${input.language === "ja" ? "日本語" : input.language === "zh" ? "中国語" : "英語"}`,
+            },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "keyword_suggestions",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  keywords: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        keyword: { type: "string" },
+                        searchIntent: { type: "string" },
+                        difficulty: { type: "string" },
+                        category: { type: "string" },
+                      },
+                      required: ["keyword", "searchIntent", "difficulty", "category"],
+                      additionalProperties: false,
+                    },
+                  },
+                },
+                required: ["keywords"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+
+        const content = String(response.choices?.[0]?.message?.content || '{"keywords":[]}');
+        try {
+          return JSON.parse(content);
+        } catch {
+          return { keywords: [] };
+        }
+      }),
+
     // --- Sitemap data ---
     sitemapData: publicProcedure.query(async () => {
       const { articles } = await listBlogArticles({ status: "published", limit: 1000 });
