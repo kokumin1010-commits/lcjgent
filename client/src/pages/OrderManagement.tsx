@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Loader2, Package, Truck, CheckCircle, XCircle, Clock, ShoppingBag, User, MapPin, Phone, Calendar, Coins, CreditCard, FileText, RefreshCw, Bell, BellOff, AlertCircle, Send, Search, Hash, Copy, Download, FileDown } from "lucide-react";
+import { Loader2, Package, Truck, CheckCircle, XCircle, Clock, ShoppingBag, User, MapPin, Phone, Calendar, Coins, CreditCard, FileText, RefreshCw, Bell, BellOff, AlertCircle, Send, Search, Hash, Copy, Download, FileDown, Printer, CheckSquare, Square } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { downloadInvoicePdf, convertOrderToInvoiceData, type DocumentType } from "@/lib/invoicePdf";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -85,6 +86,8 @@ export default function OrderManagement({ onMemberClick }: OrderManagementProps)
   const [trackingNumber, setTrackingNumber] = useState("");
   const [sendNotification, setSendNotification] = useState(true);
   const [orderSearch, setOrderSearch] = useState("");
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<number>>(new Set());
+  const [selectionMode, setSelectionMode] = useState(false);
 
   // 各注文カードのインライン配送情報
   const [inlineShipping, setInlineShipping] = useState<Record<number, InlineShippingState>>({});
@@ -362,11 +365,84 @@ export default function OrderManagement({ onMemberClick }: OrderManagementProps)
       {/* 注文一覧 */}
       <Card>
         <CardHeader>
-          <CardTitle>注文一覧</CardTitle>
-          <CardDescription>
-            {statusFilter === "all" ? "すべての注文" : `${statusConfig[statusFilter].label}の注文`}
-            （{orders?.length || 0}件）
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>注文一覧</CardTitle>
+              <CardDescription>
+                {statusFilter === "all" ? "すべての注文" : `${statusConfig[statusFilter].label}の注文`}
+                （{orders?.length || 0}件）
+                {selectionMode && selectedOrderIds.size > 0 && (
+                  <span className="ml-2 text-blue-600 font-medium">
+                    {selectedOrderIds.size}件選択中
+                  </span>
+                )}
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              {selectionMode ? (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (!orders) return;
+                      const filteredOrders = orders.filter((item) => {
+                        if (!orderSearch.trim()) return true;
+                        const q = orderSearch.trim().toLowerCase();
+                        const orderNum = item.order.orderNumber?.toLowerCase() || "";
+                        const userName = (item.lineUser?.displayName || "").toLowerCase();
+                        const shippingName = (item.order.shippingName || "").toLowerCase();
+                        return orderNum.includes(q) || userName.includes(q) || shippingName.includes(q);
+                      });
+                      if (selectedOrderIds.size === filteredOrders.length) {
+                        setSelectedOrderIds(new Set());
+                      } else {
+                        setSelectedOrderIds(new Set(filteredOrders.map(i => i.order.id)));
+                      }
+                    }}
+                  >
+                    <CheckSquare className="h-4 w-4 mr-1" />
+                    {orders && selectedOrderIds.size === orders.filter((item) => {
+                      if (!orderSearch.trim()) return true;
+                      const q = orderSearch.trim().toLowerCase();
+                      return (item.order.orderNumber?.toLowerCase() || "").includes(q) || (item.lineUser?.displayName || "").toLowerCase().includes(q) || (item.order.shippingName || "").toLowerCase().includes(q);
+                    }).length ? "全解除" : "全選択"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    disabled={selectedOrderIds.size === 0}
+                    onClick={() => {
+                      const ids = Array.from(selectedOrderIds).join(",");
+                      window.open(`/master/mall/print?ids=${ids}&type=delivery`, "_blank");
+                    }}
+                  >
+                    <Printer className="h-4 w-4 mr-1" />
+                    まとめてプリント（{selectedOrderIds.size}件）
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSelectionMode(false);
+                      setSelectedOrderIds(new Set());
+                    }}
+                  >
+                    キャンセル
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectionMode(true)}
+                >
+                  <Printer className="h-4 w-4 mr-1" />
+                  まとめてプリント
+                </Button>
+              )}
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -391,10 +467,42 @@ export default function OrderManagement({ onMemberClick }: OrderManagementProps)
                 return (
                   <div
                     key={item.order.id}
-                    className="border rounded-lg p-4 hover:shadow-md transition-shadow"
+                    className={`border rounded-lg p-4 hover:shadow-md transition-shadow ${selectionMode && selectedOrderIds.has(item.order.id) ? 'ring-2 ring-blue-400 bg-blue-50/30' : ''}`}
+                    onClick={() => {
+                      if (selectionMode) {
+                        setSelectedOrderIds(prev => {
+                          const next = new Set(prev);
+                          if (next.has(item.order.id)) {
+                            next.delete(item.order.id);
+                          } else {
+                            next.add(item.order.id);
+                          }
+                          return next;
+                        });
+                      }
+                    }}
                   >
                     {/* 上部: 注文情報 */}
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      {selectionMode && (
+                        <div className="flex items-center mr-2">
+                          <Checkbox
+                            checked={selectedOrderIds.has(item.order.id)}
+                            onCheckedChange={(checked) => {
+                              setSelectedOrderIds(prev => {
+                                const next = new Set(prev);
+                                if (checked) {
+                                  next.add(item.order.id);
+                                } else {
+                                  next.delete(item.order.id);
+                                }
+                                return next;
+                              });
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+                      )}
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
                           <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-md">

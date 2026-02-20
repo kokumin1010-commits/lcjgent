@@ -113,8 +113,10 @@ function formatDate(d: string | Date): string {
 /**
  * PDF生成メイン関数
  */
-export function generateInvoicePdf(type: DocumentType, order: OrderData): jsPDF {
-  const doc = createPdf();
+/**
+ * 既存のjsPDFインスタンスの現在のページに1注文分の納品書を描画する
+ */
+function renderInvoicePage(doc: jsPDF, type: DocumentType, order: OrderData): void {
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 20;
   const rightCol = pageWidth - margin;
@@ -323,6 +325,29 @@ export function generateInvoicePdf(type: DocumentType, order: OrderData): jsPDF 
 
   // ポイント利用情報は集計テーブル内に表示済み（v2）
 
+}
+
+/**
+ * PDF生成メイン関数（単一注文）
+ */
+export function generateInvoicePdf(type: DocumentType, order: OrderData): jsPDF {
+  const doc = createPdf();
+  renderInvoicePage(doc, type, order);
+  return doc;
+}
+
+/**
+ * 複数注文をまとめて1つのPDFに生成（各注文が1ページ）
+ */
+export function generateBulkInvoicePdf(type: DocumentType, orders: OrderData[]): jsPDF {
+  const doc = createPdf();
+  for (let i = 0; i < orders.length; i++) {
+    if (i > 0) {
+      doc.addPage();
+      doc.setFont("NotoSansJP");
+    }
+    renderInvoicePage(doc, type, orders[i]);
+  }
   return doc;
 }
 
