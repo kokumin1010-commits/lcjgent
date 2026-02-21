@@ -941,6 +941,9 @@ export default function BlogEditor() {
   // AI cover image mutation (declared before handleAIInsert to avoid TDZ)
   const coverImageMutation = trpc.blog.generateCoverImage.useMutation();
 
+  // Inline image generation mutation (declared before handleAIInsert to avoid TDZ)
+  const inlineImageMutation = trpc.blog.generateInlineImages.useMutation();
+
   // Handle AI generated content insertion
   const handleAIInsert = useCallback(
     (html: string, seoData?: any) => {
@@ -1108,9 +1111,6 @@ export default function BlogEditor() {
       setGeneratingCoverImage(false);
     }
   }, [title, coverImageStyle, articleId, coverImageMutation]);
-
-  // Inline image generation mutation
-  const inlineImageMutation = trpc.blog.generateInlineImages.useMutation();
 
   const handleGenerateInlineImages = useCallback(async () => {
     if (!editor) return;

@@ -5907,3 +5907,5 @@
 - [x] ブログエディタに本文内AI画像挿入ボタンを追加（ツールバー「AI画像挿入」ボタン + サイドバー設定パネル）
 - [x] AI記事生成時の自動画像挿入をhandleAIInsertに統合（カバー画像と並行して自動実行）
 - [x] Vitestテスト作成・実行（31テスト全パス - inlineImage.test.ts 13件 + coverImage.test.ts 8件 + autoPost.test.ts 10件）
+## バグ修正
+- [x] 新規記事が作成できない（inlineImageMutationのTDZエラーを修正 — 宣言をhandleAIInsertより前に移動）
