@@ -51,6 +51,7 @@ import {
   Zap,
   Target,
   TrendingUp,
+  Send,
 } from "lucide-react";
 import { useLocation, useRoute } from "wouter";
 import { toast } from "sonner";
@@ -862,6 +863,55 @@ function SEOPanel({
   );
 }
 
+// --- Search Engine Submit Card ---
+function SearchEngineSubmitCard({ slug }: { slug: string }) {
+  const [submitting, setSubmitting] = useState(false);
+  const submitMutation = trpc.blog.submitToSearchEngines.useMutation();
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    try {
+      const result = await submitMutation.mutateAsync({
+        urls: [`/blog/${slug}`],
+      });
+      toast.success("検索エンジンにインデックス登録リクエストを送信しました");
+    } catch (err: any) {
+      toast.error(err.message || "送信に失敗しました");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardContent className="pt-4 pb-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Send className="h-4 w-4 text-blue-500" />
+            <div>
+              <p className="text-sm font-medium">検索エンジンに送信</p>
+              <p className="text-[10px] text-muted-foreground">IndexNowでGoogle/Bingにインデックス登録リクエスト</p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="gap-1.5"
+          >
+            {submitting ? (
+              <><Loader2 className="h-3 w-3 animate-spin" />送信中...</>
+            ) : (
+              <><Send className="h-3 w-3" />送信</>
+            )}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // --- Main Editor Page ---
 export default function BlogEditor() {
   const [, navigate] = useLocation();
@@ -1633,6 +1683,11 @@ export default function BlogEditor() {
                 setSlugManuallyEdited(true);
               }}
             />
+          )}
+
+          {/* Search Engine Submit Button (only for published articles) */}
+          {!isNew && status === "published" && slug && (
+            <SearchEngineSubmitCard slug={slug} />
           )}
         </div>
       </div>

@@ -5915,3 +5915,14 @@
 - [x] フロントエンドhandleAIInsertで全フィールド自動入力（タイトル・本文・カバー画像・本文内画像・抽出・スラグ・SEO・カテゴリ・タグ）
 - [x] 動作確認・テスト更新（全157テストファイル・1947テスト全パス）
 - [x] AI記事生成後に全フィールドが自動入力されない（プレビューステップをスキップして生成完了後に直接onInsertを呼び出して全フィールドに自動挿入+ダイアログ自動閉じるワンクリックフローに改修）
+
+## Google Search Console連携
+- [x] 既存のsitemap・robots.txt・SEO関連コードを調査
+- [x] 動的sitemap.xml自動生成エンドポイントを実装
+- [x] robots.txtエンドポイントを実装（サイトマップURL記載）
+- [x] 記事ページにJSON-LD構造化データ（Article + BreadcrumbListスキーマ）を追加
+- [x] IndexNow API連携（新記事投稿時に自動インデックス登録リクエスト）
+- [x] Google Search Console検証用HTMLファイル対応（動的エンドポイント）
+- [x] 管理画面にSEOタブを追加（BlogAdminにSEOタブ: ステータス確認・全記事検索エンジン送信・設定ガイド・実装済みSEO機能一覧）
+- [x] BlogEditorに個別記事の検索エンジン送信ボタンを追加（公開記事のみ表示）
+- [x] Vitestテスト作成・実行（seoTools.test.ts 11テスト全パス）

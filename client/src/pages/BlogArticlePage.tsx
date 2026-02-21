@@ -60,33 +60,98 @@ export default function BlogArticlePage() {
       setMetaTag("article:published_time", article.publishedAt ? new Date(article.publishedAt).toISOString() : "");
       setMetaTag("article:modified_time", new Date(article.updatedAt).toISOString());
 
-      // Set JSON-LD structured data
-      const existingLd = document.querySelector('script[type="application/ld+json"][data-blog]');
-      if (existingLd) existingLd.remove();
-      const ldScript = document.createElement("script");
-      ldScript.type = "application/ld+json";
-      ldScript.setAttribute("data-blog", "true");
-      ldScript.textContent = JSON.stringify({
+      // Set Twitter Card tags
+      setMetaTag("twitter:card", "summary_large_image");
+      setMetaTag("twitter:title", article.seoTitle || article.title);
+      setMetaTag("twitter:description", article.seoDescription || article.excerpt || "");
+      if (article.ogImageUrl || article.coverImageUrl) {
+        setMetaTag("twitter:image", article.ogImageUrl || article.coverImageUrl || "");
+      }
+
+      // Set canonical URL
+      let canonicalLink = document.querySelector('link[rel="canonical"]') as HTMLLinkElement;
+      if (!canonicalLink) {
+        canonicalLink = document.createElement("link");
+        canonicalLink.rel = "canonical";
+        document.head.appendChild(canonicalLink);
+      }
+      canonicalLink.href = window.location.href;
+
+      // Set JSON-LD structured data (Article + BreadcrumbList)
+      const existingLd = document.querySelectorAll('script[type="application/ld+json"][data-blog]');
+      existingLd.forEach(el => el.remove());
+
+      const categoryName = categories?.find((c: any) => c.id === article.categoryId)?.name;
+      const articleUrl = window.location.href;
+      const siteUrl = window.location.origin;
+
+      // Article schema
+      const articleLd = document.createElement("script");
+      articleLd.type = "application/ld+json";
+      articleLd.setAttribute("data-blog", "true");
+      articleLd.textContent = JSON.stringify({
         "@context": "https://schema.org",
         "@type": "Article",
         headline: article.seoTitle || article.title,
         description: article.seoDescription || article.excerpt || "",
-        image: article.ogImageUrl || article.coverImageUrl || "",
+        image: article.ogImageUrl || article.coverImageUrl || undefined,
         datePublished: article.publishedAt ? new Date(article.publishedAt).toISOString() : undefined,
         dateModified: new Date(article.updatedAt).toISOString(),
+        mainEntityOfPage: {
+          "@type": "WebPage",
+          "@id": articleUrl,
+        },
+        author: {
+          "@type": "Organization",
+          name: "LCJ MALL",
+          url: siteUrl,
+        },
         publisher: {
           "@type": "Organization",
           name: "LCJ MALL",
+          url: siteUrl,
+          logo: {
+            "@type": "ImageObject",
+            url: `${siteUrl}/logo.png`,
+          },
         },
+        ...(article.tagIds && article.tagIds.length > 0 && tags ? {
+          keywords: tags.filter((t: any) => article.tagIds?.includes(t.id)).map((t: any) => t.name).join(", "),
+        } : {}),
+        ...(categoryName ? { articleSection: categoryName } : {}),
+        wordCount: article.contentHtml ? article.contentHtml.replace(/<[^>]*>/g, "").length : undefined,
       });
-      document.head.appendChild(ldScript);
+      document.head.appendChild(articleLd);
+
+      // BreadcrumbList schema
+      const breadcrumbLd = document.createElement("script");
+      breadcrumbLd.type = "application/ld+json";
+      breadcrumbLd.setAttribute("data-blog", "true");
+      const breadcrumbItems: any[] = [
+        { "@type": "ListItem", position: 1, name: "ホーム", item: siteUrl },
+        { "@type": "ListItem", position: 2, name: "ブログ", item: `${siteUrl}/blog` },
+      ];
+      if (categoryName) {
+        breadcrumbItems.push({ "@type": "ListItem", position: 3, name: categoryName, item: `${siteUrl}/blog?category=${article.categoryId}` });
+        breadcrumbItems.push({ "@type": "ListItem", position: 4, name: article.title });
+      } else {
+        breadcrumbItems.push({ "@type": "ListItem", position: 3, name: article.title });
+      }
+      breadcrumbLd.textContent = JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        itemListElement: breadcrumbItems,
+      });
+      document.head.appendChild(breadcrumbLd);
 
       return () => {
         document.title = "LCJ MALL";
-        ldScript.remove();
+        articleLd.remove();
+        breadcrumbLd.remove();
+        canonicalLink?.remove();
       };
     }
-  }, [article]);
+  }, [article, categories, tags]);
 
   const getCategoryName = (categoryId: number | null) => {
     if (!categoryId || !categories) return null;

@@ -15571,6 +15571,25 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           updateData.publishedAt = new Date();
         }
         await updateBlogArticle(input.id, updateData);
+
+        // Notify search engines when article is published
+        if (newStatus === "published" && article.slug) {
+          const baseUrl = process.env.APP_URL || "";
+          if (baseUrl) {
+            const articleUrl = `${baseUrl}/blog/${article.slug}`;
+            try {
+              await fetch(`${baseUrl}/api/indexnow/submit`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ urls: [articleUrl] }),
+              });
+              console.log(`[SEO] IndexNow notification sent for: ${articleUrl}`);
+            } catch (e) {
+              console.warn("[SEO] IndexNow notification failed:", e);
+            }
+          }
+        }
+
         return { status: newStatus };
       }),
 
@@ -16162,6 +16181,49 @@ Identify up to ${input.maxImages} optimal image insertion points. For each, prov
         title: a.title,
       }));
     }),
+
+    // Submit URLs to search engines via IndexNow
+    submitToSearchEngines: protectedProcedure
+      .input(z.object({
+        urls: z.array(z.string()).min(1).max(100),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const baseUrl = process.env.APP_URL || "";
+        if (!baseUrl) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "APP_URL not configured" });
+        const fullUrls = input.urls.map(u => u.startsWith("http") ? u : `${baseUrl}${u}`);
+        try {
+          const resp = await fetch(`${baseUrl}/api/indexnow/submit`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ urls: fullUrls }),
+          });
+          const result = await resp.json();
+          return { success: true, ...result };
+        } catch (e: any) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: e.message });
+        }
+      }),
+
+    // Submit all published articles to search engines
+    submitAllToSearchEngines: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        const baseUrl = process.env.APP_URL || "";
+        if (!baseUrl) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "APP_URL not configured" });
+        const { articles } = await listBlogArticles({ status: "published", limit: 1000 });
+        const urls = articles.map((a: any) => `/blog/${a.slug}`);
+        if (urls.length === 0) return { success: true, submittedUrls: 0 };
+        try {
+          const resp = await fetch(`${baseUrl}/api/indexnow/submit`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ urls }),
+          });
+          const result = await resp.json();
+          return { success: true, ...result, totalArticles: articles.length };
+        } catch (e: any) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: e.message });
+        }
+      }),
   }),
 
   // =============================================
@@ -16507,6 +16569,23 @@ SEO/GEO最適化要件:
 
           // Increment schedule counter
           await incrementScheduleGenerated(schedule.id);
+
+          // Notify search engines if published
+          if (publishStatus === 'published') {
+            const baseUrl = process.env.APP_URL || "";
+            if (baseUrl) {
+              try {
+                await fetch(`${baseUrl}/api/indexnow/submit`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ urls: [`/blog/${finalSlug}`] }),
+                });
+                console.log(`[AutoPost][SEO] IndexNow notification sent for: /blog/${finalSlug}`);
+              } catch (e) {
+                console.warn("[AutoPost][SEO] IndexNow notification failed:", e);
+              }
+            }
+          }
 
           // Update log
           await updateAutoPostLog(log.id, {

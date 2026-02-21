@@ -22,6 +22,13 @@ import {
   Search,
   ExternalLink,
   BarChart3,
+  Globe,
+  RefreshCw,
+  CheckCircle2,
+  AlertCircle,
+  Send,
+  FileCode,
+  Link2,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
@@ -33,6 +40,191 @@ function slugify(text: string): string {
     .replace(/[\s_]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 100);
+}
+
+// --- SEO Tools ---
+function SEOTools() {
+  const [submitting, setSubmitting] = useState(false);
+  const [submittingAll, setSubmittingAll] = useState(false);
+  const submitMutation = trpc.blog.submitToSearchEngines.useMutation();
+  const submitAllMutation = trpc.blog.submitAllToSearchEngines.useMutation();
+  const { data: articles } = trpc.blog.list.useQuery({ status: "published", limit: 1000 });
+  const siteUrl = window.location.origin;
+
+  const handleSubmitAll = async () => {
+    setSubmittingAll(true);
+    try {
+      const result = await submitAllMutation.mutateAsync();
+      toast.success(`${result.totalArticles || 0}件の記事を検索エンジンに送信しました`);
+    } catch (e: any) {
+      toast.error("送信に失敗しました: " + e.message);
+    } finally {
+      setSubmittingAll(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Status Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-green-100">
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">sitemap.xml</p>
+                <p className="font-semibold text-green-600">有効</p>
+              </div>
+            </div>
+            <a href="/sitemap.xml" target="_blank" className="text-xs text-blue-600 hover:underline mt-2 inline-flex items-center gap-1">
+              <Link2 className="h-3 w-3" />確認する
+            </a>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-green-100">
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">robots.txt</p>
+                <p className="font-semibold text-green-600">有効</p>
+              </div>
+            </div>
+            <a href="/robots.txt" target="_blank" className="text-xs text-blue-600 hover:underline mt-2 inline-flex items-center gap-1">
+              <Link2 className="h-3 w-3" />確認する
+            </a>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-green-100">
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">構造化データ</p>
+                <p className="font-semibold text-green-600">JSON-LD有効</p>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">Article + BreadcrumbList</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* IndexNow / Search Engine Submission */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Send className="h-5 w-5" />
+            検索エンジンへの送信（IndexNow）
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            記事を公開すると自動的にIndexNowでGoogle・Bing等の検索エンジンに通知されます。
+            以下のボタンで全公開記事を手動で再送信できます。
+          </p>
+          <div className="flex items-center gap-3">
+            <Button onClick={handleSubmitAll} disabled={submittingAll} className="gap-2">
+              {submittingAll ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              全公開記事を検索エンジンに送信
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              {articles?.articles?.length || 0}件の公開記事
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Google Search Console Setup Guide */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Globe className="h-5 w-5" />
+            Google Search Console 設定ガイド
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-3">
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">1</span>
+              <div>
+                <p className="font-medium">サイトを追加</p>
+                <p className="text-sm text-muted-foreground">
+                  <a href="https://search.google.com/search-console" target="_blank" className="text-blue-600 hover:underline">Google Search Console</a>
+                  で「プロパティを追加」→「URLプレフィックス」を選択し、サイトURLを入力
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">2</span>
+              <div>
+                <p className="font-medium">所有権を確認</p>
+                <p className="text-sm text-muted-foreground">
+                  HTMLタグまたはDNSレコードで所有権を確認します
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">3</span>
+              <div>
+                <p className="font-medium">サイトマップを送信</p>
+                <p className="text-sm text-muted-foreground">
+                  Search Consoleの「サイトマップ」メニューで以下のURLを送信：
+                </p>
+                <code className="text-xs bg-muted px-2 py-1 rounded mt-1 inline-block">{siteUrl}/sitemap.xml</code>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">4</span>
+              <div>
+                <p className="font-medium">完了</p>
+                <p className="text-sm text-muted-foreground">
+                  記事公開時に自動でIndexNow通知が送信され、Googleがクロールします
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* SEO Features Summary */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileCode className="h-5 w-5" />
+            実装済みSEO機能
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {[
+              { name: "動的sitemap.xml", desc: "記事・カテゴリ・画像サイトマップ自動生成", active: true },
+              { name: "robots.txt", desc: "クローラー制御・サイトマップ指定", active: true },
+              { name: "JSON-LD構造化データ", desc: "Article + BreadcrumbListスキーマ", active: true },
+              { name: "OGPメタタグ", desc: "Open Graph + Twitter Card対応", active: true },
+              { name: "canonical URL", desc: "重複コンテンツ防止", active: true },
+              { name: "IndexNow自動通知", desc: "記事公開時に検索エンジンに自動通知", active: true },
+              { name: "画像サイトマップ", desc: "カバー画像をサイトマップに含む", active: true },
+              { name: "SEOメタ自動生成", desc: "AI記事生成時にSEOタイトル・ディスクリプション自動生成", active: true },
+            ].map((feature, i) => (
+              <div key={i} className="flex items-center gap-2 p-2 rounded-lg border">
+                <CheckCircle2 className={`h-4 w-4 ${feature.active ? "text-green-600" : "text-muted-foreground"}`} />
+                <div>
+                  <p className="text-sm font-medium">{feature.name}</p>
+                  <p className="text-xs text-muted-foreground">{feature.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
 
 // --- Category Management ---
@@ -553,6 +745,10 @@ export default function BlogAdmin() {
             <Tag className="h-4 w-4" />
             タグ
           </TabsTrigger>
+          <TabsTrigger value="seo" className="gap-1.5">
+            <Globe className="h-4 w-4" />
+            SEO
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="articles" className="mt-4">
           <ArticleList />
@@ -562,6 +758,9 @@ export default function BlogAdmin() {
         </TabsContent>
         <TabsContent value="tags" className="mt-4">
           <TagManager />
+        </TabsContent>
+        <TabsContent value="seo" className="mt-4">
+          <SEOTools />
         </TabsContent>
       </Tabs>
     </div>

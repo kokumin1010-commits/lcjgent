@@ -835,17 +835,36 @@ async function startServer() {
     }
   });
 
-  // --- Blog Sitemap & robots.txt ---
+  // --- Blog Sitemap & robots.txt & Search Console ---
   app.get("/sitemap.xml", async (req, res) => {
     try {
-      const { listBlogArticles } = await import("../db");
+      const { listBlogArticles, getAllBlogCategories } = await import("../db");
       const { articles } = await listBlogArticles({ status: "published", limit: 1000 });
+      const categories = await getAllBlogCategories();
       const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
-      const urls = articles.map((a: any) => {
-        const lastmod = a.updatedAt ? new Date(a.updatedAt).toISOString().split("T")[0] : new Date().toISOString().split("T")[0];
-        return `  <url>\n    <loc>${baseUrl}/blog/${a.slug}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.7</priority>\n  </url>`;
+      const today = new Date().toISOString().split("T")[0];
+
+      // Static pages
+      const staticUrls = [
+        `  <url>\n    <loc>${baseUrl}/</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>`,
+        `  <url>\n    <loc>${baseUrl}/blog</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n  </url>`,
+      ];
+
+      // Category pages
+      const categoryUrls = categories.map((c: any) =>
+        `  <url>\n    <loc>${baseUrl}/blog?category=${c.id}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.7</priority>\n  </url>`
+      );
+
+      // Article pages with image sitemap
+      const articleUrls = articles.map((a: any) => {
+        const lastmod = a.updatedAt ? new Date(a.updatedAt).toISOString().split("T")[0] : today;
+        const imageTag = a.coverImageUrl
+          ? `\n    <image:image>\n      <image:loc>${a.coverImageUrl}</image:loc>\n      <image:title>${(a.seoTitle || a.title || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</image:title>\n    </image:image>`
+          : "";
+        return `  <url>\n    <loc>${baseUrl}/blog/${a.slug}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>${imageTag}\n  </url>`;
       });
-      const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url>\n    <loc>${baseUrl}/</loc>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n  <url>\n    <loc>${baseUrl}/blog</loc>\n    <changefreq>daily</changefreq>\n    <priority>0.8</priority>\n  </url>\n${urls.join("\n")}\n</urlset>`;
+
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n${staticUrls.join("\n")}\n${categoryUrls.join("\n")}\n${articleUrls.join("\n")}\n</urlset>`;
       res.setHeader("Content-Type", "application/xml");
       res.setHeader("Cache-Control", "public, max-age=3600");
       res.send(xml);
@@ -859,6 +878,67 @@ async function startServer() {
     const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
     res.setHeader("Content-Type", "text/plain");
     res.send(`User-agent: *\nAllow: /\nAllow: /blog/\nDisallow: /master/\nDisallow: /api/\n\nSitemap: ${baseUrl}/sitemap.xml`);
+  });
+
+  // Google Search Console verification file
+  app.get("/google:verificationCode.html", (req, res) => {
+    const code = (req.params as any).verificationCode;
+    res.setHeader("Content-Type", "text/html");
+    res.send(`google-site-verification: google${code}.html`);
+  });
+
+  // IndexNow API endpoint for notifying search engines of new/updated content
+  app.post("/api/indexnow/submit", async (req, res) => {
+    try {
+      const { urls } = req.body;
+      if (!urls || !Array.isArray(urls) || urls.length === 0) {
+        return res.status(400).json({ error: "urls array is required" });
+      }
+      const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+      const host = new URL(baseUrl).host;
+      const indexNowKey = process.env.INDEXNOW_API_KEY || "indexnow-key-lcjmall";
+
+      // Submit to IndexNow (Bing, Yandex, etc.)
+      const indexNowPayload = {
+        host,
+        key: indexNowKey,
+        keyLocation: `${baseUrl}/${indexNowKey}.txt`,
+        urlList: urls.map((u: string) => u.startsWith("http") ? u : `${baseUrl}${u}`),
+      };
+
+      const indexNowResp = await fetch("https://api.indexnow.org/indexnow", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(indexNowPayload),
+      });
+
+      // Also ping Google sitemap
+      const googlePingUrl = `https://www.google.com/ping?sitemap=${encodeURIComponent(`${baseUrl}/sitemap.xml`)}`;
+      const googleResp = await fetch(googlePingUrl);
+
+      console.log(`[IndexNow] Submitted ${urls.length} URLs. IndexNow: ${indexNowResp.status}, Google Ping: ${googleResp.status}`);
+      res.json({
+        success: true,
+        indexNowStatus: indexNowResp.status,
+        googlePingStatus: googleResp.status,
+        submittedUrls: urls.length,
+      });
+    } catch (error) {
+      console.error("[IndexNow] Error:", error);
+      res.status(500).json({ error: "Failed to submit URLs" });
+    }
+  });
+
+  // IndexNow key file verification
+  app.get("/:key.txt", (req, res, next) => {
+    const key = req.params.key;
+    const indexNowKey = process.env.INDEXNOW_API_KEY || "indexnow-key-lcjmall";
+    if (key === indexNowKey) {
+      res.setHeader("Content-Type", "text/plain");
+      res.send(indexNowKey);
+    } else {
+      next();
+    }
   });
 
   // Image proxy endpoint for PDF generation (to avoid CORS issues)
