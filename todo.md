@@ -5909,3 +5909,8 @@
 - [x] Vitestテスト作成・実行（31テスト全パス - inlineImage.test.ts 13件 + coverImage.test.ts 8件 + autoPost.test.ts 10件）
 ## バグ修正
 - [x] 新規記事が作成できない（inlineImageMutationのTDZエラーを修正 — 宣言をhandleAIInsertより前に移動）
+## ワンクリックAI記事生成（全フィールド自動入力）
+- [x] 現在のAI記事生成フロー・handleAIInsert・generateArticleの全体調査
+- [x] バックエンドgenerateArticleにカテゴリ・タグ自動提案を追加（LLMが既存カテゴリ・タグを参照して最適なものを選択）
+- [x] フロントエンドhandleAIInsertで全フィールド自動入力（タイトル・本文・カバー画像・本文内画像・抽出・スラグ・SEO・カテゴリ・タグ）
+- [x] 動作確認・テスト更新（全157テストファイル・1947テスト全パス）

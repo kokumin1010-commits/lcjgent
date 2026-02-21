@@ -15702,10 +15702,85 @@ ${langInstruction}`;
           .replace(/\n?```$/,  "")
           .trim();
 
+        // Step 2: Generate title + SEO meta + category/tag suggestions in one LLM call
+        const allCategories = await getAllBlogCategories();
+        const allTags = await getAllBlogTags();
+        const categoryList = allCategories.map((c: any) => `${c.id}:${c.name}`).join(", ");
+        const tagList = allTags.map((t: any) => `${t.id}:${t.name}`).join(", ");
+
+        const metaResponse = await invokeLLM({
+          messages: [
+            {
+              role: "system",
+              content: `あなたはSEO/GEO最適化の専門家です。記事のトピックと本文から、以下の全メタ情報を一括で生成してください。
+
+既存カテゴリ一覧: [${categoryList || "なし"}]
+既存タグ一覧: [${tagList || "なし"}]
+
+出力はJSON形式で以下のフィールドを含めてください：
+- title: 記事タイトル（魅力的でSEO最適化、40-60文字）
+- seoTitle: SEO最適化されたtitleタグ（60文字以内、主要キーワード含む）
+- seoDescription: メタディスクリプション（120文字以内、検索意図への回答含む）
+- slug: URL用スラッグ（英数字とハイフンのみ、キーワード含む）
+- excerpt: 記事の要約（200文字以内、一覧表示用）
+- suggestedCategoryId: 既存カテゴリから最適なもののID（数値）。該当なしなら0
+- suggestedCategoryName: 既存カテゴリに該当がない場合の新規カテゴリ名提案（該当ありなら空文字）
+- suggestedTagIds: 既存タグから関連するもののID配列（数値の配列）
+- suggestedNewTags: 既存タグにない場合の新規タグ名提案（文字列の配列、最大3個）`,
+            },
+            {
+              role: "user",
+              content: `トピック: ${input.topic}\nキーワード: ${input.keywords.join(", ")}\n記事タイプ: ${input.articleType}\n\n記事本文（冒頭3000文字）:\n${cleanHtml.substring(0, 3000)}`,
+            },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "article_full_meta",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  title: { type: "string", description: "記事タイトル" },
+                  seoTitle: { type: "string", description: "SEOタイトル" },
+                  seoDescription: { type: "string", description: "メタディスクリプション" },
+                  slug: { type: "string", description: "URLスラッグ" },
+                  excerpt: { type: "string", description: "記事要約" },
+                  suggestedCategoryId: { type: "number", description: "既存カテゴリID（0=該当なし）" },
+                  suggestedCategoryName: { type: "string", description: "新規カテゴリ名提案" },
+                  suggestedTagIds: { type: "array", items: { type: "number" }, description: "既存タグID配列" },
+                  suggestedNewTags: { type: "array", items: { type: "string" }, description: "新規タグ名提案" },
+                },
+                required: ["title", "seoTitle", "seoDescription", "slug", "excerpt", "suggestedCategoryId", "suggestedCategoryName", "suggestedTagIds", "suggestedNewTags"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+
+        let meta = {
+          title: input.topic,
+          seoTitle: input.topic,
+          seoDescription: "",
+          slug: input.topic.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+          excerpt: "",
+          suggestedCategoryId: 0,
+          suggestedCategoryName: "",
+          suggestedTagIds: [] as number[],
+          suggestedNewTags: [] as string[],
+        };
+        try {
+          const metaContent = String(metaResponse.choices?.[0]?.message?.content || "{}");
+          meta = { ...meta, ...JSON.parse(metaContent) };
+        } catch {
+          // Use defaults if parsing fails
+        }
+
         return {
           html: cleanHtml,
           keywords: input.keywords,
           topic: input.topic,
+          ...meta,
         };
       }),
 
