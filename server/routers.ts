@@ -15913,6 +15913,171 @@ TikTok Shop、ECモール、ライブコマース関連のキーワードに特�
         }
       }),
 
+    // --- Generate Inline Images for Article Body ---
+    generateInlineImages: protectedProcedure
+      .input(z.object({
+        contentHtml: z.string().min(1).describe("記事本文HTML"),
+        title: z.string().min(1).describe("記事タイトル"),
+        keywords: z.array(z.string()).optional(),
+        maxImages: z.number().min(1).max(10).default(3),
+        style: z.enum(["modern", "minimal", "vibrant", "professional", "creative"]).default("modern"),
+        articleId: z.number().optional().describe("既存記事IDに紐付ける場合"),
+      }))
+      .mutation(async ({ input }) => {
+        const styleGuide: Record<string, string> = {
+          modern: "Modern, clean digital illustration with subtle gradients",
+          minimal: "Minimalist illustration with simple shapes and muted colors",
+          vibrant: "Vibrant, colorful illustration with bold dynamic composition",
+          professional: "Professional, polished illustration with corporate feel",
+          creative: "Creative, artistic illustration with unique textures",
+        };
+
+        // Step 1: Use LLM to analyze article and suggest image insertion points
+        const analysisResponse = await invokeLLM({
+          messages: [
+            {
+              role: "system",
+              content: `You are an expert content editor. Analyze the given HTML article and identify the best locations to insert illustrative images.
+For each location, provide:
+- The H2 or H3 heading text AFTER which the image should be inserted
+- A detailed image description suitable for AI image generation
+- An alt text for SEO
+
+Return JSON only.`,
+            },
+            {
+              role: "user",
+              content: `Article title: ${input.title}
+Keywords: ${(input.keywords || []).join(", ")}
+Max images to insert: ${input.maxImages}
+
+Article HTML:
+${input.contentHtml.substring(0, 8000)}
+
+Identify up to ${input.maxImages} optimal image insertion points. For each, provide a heading_text (the heading after which to insert), image_description (detailed prompt for AI image generation, related to that section's content), and alt_text (SEO-friendly alt text in the article's language).`,
+            },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "inline_image_plan",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  images: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        heading_text: { type: "string", description: "The heading text after which to insert the image" },
+                        image_description: { type: "string", description: "Detailed prompt for AI image generation" },
+                        alt_text: { type: "string", description: "SEO-friendly alt text" },
+                      },
+                      required: ["heading_text", "image_description", "alt_text"],
+                      additionalProperties: false,
+                    },
+                  },
+                },
+                required: ["images"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+
+        const plan = JSON.parse(analysisResponse.choices[0].message.content || '{"images":[]}');
+        if (!plan.images || plan.images.length === 0) {
+          return { success: true, html: input.contentHtml, imagesInserted: 0, images: [] };
+        }
+
+        // Step 2: Generate images in parallel (limit to maxImages)
+        const imagesToGenerate = plan.images.slice(0, input.maxImages);
+        const generatedImages: Array<{
+          headingText: string;
+          url: string;
+          key: string;
+          altText: string;
+          prompt: string;
+        }> = [];
+
+        // Generate images sequentially to avoid rate limits
+        for (const imgPlan of imagesToGenerate) {
+          try {
+            const imagePrompt = `${imgPlan.image_description}. ${styleGuide[input.style]}. E-commerce and TikTok Shop context. High quality illustration. No text overlay on the image.`;
+            const { url: imageUrl } = await generateImage({ prompt: imagePrompt });
+            if (imageUrl) {
+              // Re-upload to S3 with proper key
+              const imgResponse = await fetch(imageUrl);
+              const imgBuffer = Buffer.from(await imgResponse.arrayBuffer());
+              const imgKey = `blog-inline/ai-${nanoid(12)}.png`;
+              const { url: s3Url } = await storagePut(imgKey, imgBuffer, "image/png");
+              generatedImages.push({
+                headingText: imgPlan.heading_text,
+                url: s3Url,
+                key: imgKey,
+                altText: imgPlan.alt_text,
+                prompt: imagePrompt,
+              });
+            }
+          } catch (err: any) {
+            console.error(`Inline image generation failed for "${imgPlan.heading_text}":`, err.message);
+            // Continue with other images
+          }
+        }
+
+        if (generatedImages.length === 0) {
+          return { success: true, html: input.contentHtml, imagesInserted: 0, images: [] };
+        }
+
+        // Step 3: Insert images into HTML after matching headings
+        let modifiedHtml = input.contentHtml;
+        for (const img of generatedImages) {
+          // Find the heading in the HTML and insert image after the closing tag
+          const escapedHeading = img.headingText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          // Match h2 or h3 tags containing this heading text
+          const headingRegex = new RegExp(
+            `(<h[23][^>]*>[^<]*${escapedHeading}[^<]*</h[23]>)`,
+            'i'
+          );
+          const match = modifiedHtml.match(headingRegex);
+          if (match) {
+            const imgTag = `\n<figure class="inline-ai-image" style="margin: 1.5rem 0; text-align: center;"><img src="${img.url}" alt="${img.altText}" style="max-width: 100%; height: auto; border-radius: 8px;" /><figcaption style="font-size: 0.85rem; color: #666; margin-top: 0.5rem;">${img.altText}</figcaption></figure>\n`;
+            modifiedHtml = modifiedHtml.replace(match[0], match[0] + imgTag);
+          } else {
+            // Fallback: try to find the first <p> after any heading containing similar text
+            const fallbackRegex = new RegExp(
+              `(<h[23][^>]*>[\\s\\S]*?</h[23]>)(\\s*<p>)`,
+              'i'
+            );
+            const fallbackMatch = modifiedHtml.match(fallbackRegex);
+            if (fallbackMatch) {
+              const imgTag = `\n<figure class="inline-ai-image" style="margin: 1.5rem 0; text-align: center;"><img src="${img.url}" alt="${img.altText}" style="max-width: 100%; height: auto; border-radius: 8px;" /><figcaption style="font-size: 0.85rem; color: #666; margin-top: 0.5rem;">${img.altText}</figcaption></figure>\n`;
+              modifiedHtml = modifiedHtml.replace(fallbackMatch[0], fallbackMatch[1] + imgTag + fallbackMatch[2]);
+            }
+          }
+        }
+
+        // Step 4: If articleId provided, update the article
+        if (input.articleId) {
+          await updateBlogArticle(input.articleId, {
+            contentHtml: modifiedHtml,
+          });
+        }
+
+        return {
+          success: true,
+          html: modifiedHtml,
+          imagesInserted: generatedImages.length,
+          images: generatedImages.map(img => ({
+            url: img.url,
+            key: img.key,
+            altText: img.altText,
+            headingText: img.headingText,
+          })),
+        };
+      }),
+
     // --- Sitemap data ---
     sitemapData: publicProcedure.query(async () => {
       const { articles } = await listBlogArticles({ status: "published", limit: 1000 });
@@ -16171,6 +16336,92 @@ SEO/GEO最適化要件:
             } catch (imgError: any) {
               console.error('Image generation failed:', imgError.message);
               // Continue without image
+            }
+          }
+
+          // Step 5: Generate inline images if enabled
+          if (schedule.generateImages && articleId) {
+            try {
+              await updateAutoPostLog(log.id, { status: 'inline_image_generating' });
+              const inlineStyleGuide: Record<string, string> = {
+                modern: "Modern, clean digital illustration with subtle gradients",
+                minimal: "Minimalist illustration with simple shapes and muted colors",
+                vibrant: "Vibrant, colorful illustration with bold dynamic composition",
+                professional: "Professional, polished illustration with corporate feel",
+                creative: "Creative, artistic illustration with unique textures",
+              };
+              // Analyze article for image insertion points
+              const inlineAnalysis = await invokeLLM({
+                messages: [
+                  {
+                    role: 'system',
+                    content: 'You are an expert content editor. Analyze the given HTML article and identify the best locations to insert illustrative images. For each location, provide the H2 or H3 heading text AFTER which the image should be inserted, a detailed image description suitable for AI image generation, and an alt text for SEO. Return JSON only.',
+                  },
+                  {
+                    role: 'user',
+                    content: `Article title: ${articleData.title}\nKeywords: ${keyword}\nMax images: 2\n\nArticle HTML:\n${articleData.contentHtml.substring(0, 6000)}\n\nIdentify up to 2 optimal image insertion points.`,
+                  },
+                ],
+                response_format: {
+                  type: 'json_schema',
+                  json_schema: {
+                    name: 'inline_image_plan',
+                    strict: true,
+                    schema: {
+                      type: 'object',
+                      properties: {
+                        images: {
+                          type: 'array',
+                          items: {
+                            type: 'object',
+                            properties: {
+                              heading_text: { type: 'string' },
+                              image_description: { type: 'string' },
+                              alt_text: { type: 'string' },
+                            },
+                            required: ['heading_text', 'image_description', 'alt_text'],
+                            additionalProperties: false,
+                          },
+                        },
+                      },
+                      required: ['images'],
+                      additionalProperties: false,
+                    },
+                  },
+                },
+              });
+              const inlinePlan = JSON.parse(inlineAnalysis.choices[0].message.content || '{"images":[]}');
+              if (inlinePlan.images && inlinePlan.images.length > 0) {
+                let updatedHtml = articleData.contentHtml;
+                for (const imgPlan of inlinePlan.images.slice(0, 2)) {
+                  try {
+                    const imgPrompt = `${imgPlan.image_description}. ${inlineStyleGuide['modern']}. E-commerce and TikTok Shop context. High quality illustration. No text overlay.`;
+                    const { url: imgUrl } = await generateImage({ prompt: imgPrompt });
+                    if (imgUrl) {
+                      const imgResp = await fetch(imgUrl);
+                      const imgBuf = Buffer.from(await imgResp.arrayBuffer());
+                      const imgKey = `blog-inline/${finalSlug}-${nanoid(8)}.png`;
+                      const { url: s3Url } = await storagePut(imgKey, imgBuf, 'image/png');
+                      const escapedH = imgPlan.heading_text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                      const hRegex = new RegExp(`(<h[23][^>]*>[^<]*${escapedH}[^<]*</h[23]>)`, 'i');
+                      const hMatch = updatedHtml.match(hRegex);
+                      if (hMatch) {
+                        const imgTag = `<figure class="inline-ai-image" style="margin:1.5rem 0;text-align:center;"><img src="${s3Url}" alt="${imgPlan.alt_text}" style="max-width:100%;height:auto;border-radius:8px;" /><figcaption style="font-size:0.85rem;color:#666;margin-top:0.5rem;">${imgPlan.alt_text}</figcaption></figure>`;
+                        updatedHtml = updatedHtml.replace(hMatch[0], hMatch[0] + imgTag);
+                      }
+                    }
+                  } catch (inlineErr: any) {
+                    console.error('Inline image generation failed:', inlineErr.message);
+                  }
+                }
+                // Update article with inline images
+                if (updatedHtml !== articleData.contentHtml) {
+                  await updateBlogArticle(articleId, { contentHtml: updatedHtml });
+                }
+              }
+            } catch (inlineError: any) {
+              console.error('Inline image analysis failed:', inlineError.message);
+              // Continue without inline images
             }
           }
 

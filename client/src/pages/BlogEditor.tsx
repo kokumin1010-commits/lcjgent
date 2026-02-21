@@ -604,10 +604,14 @@ function EditorToolbar({
   editor,
   onProductInsert,
   onImageUpload,
+  onInlineImageGenerate,
+  generatingInlineImages,
 }: {
   editor: any;
   onProductInsert: () => void;
   onImageUpload: () => void;
+  onInlineImageGenerate?: () => void;
+  generatingInlineImages?: boolean;
 }) {
   if (!editor) return null;
 
@@ -741,6 +745,23 @@ function EditorToolbar({
       <ToolButton onClick={onProductInsert} title="商品カードを挿入">
         <ShoppingBag className="h-4 w-4" />
       </ToolButton>
+
+      <div className="w-px h-5 bg-border mx-1" />
+
+      <button
+        type="button"
+        onClick={onInlineImageGenerate}
+        disabled={generatingInlineImages}
+        title="本文にAI画像を自動挿入"
+        className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-gradient-to-r from-purple-500/10 to-pink-500/10 hover:from-purple-500/20 hover:to-pink-500/20 text-purple-600 dark:text-purple-400 transition-all disabled:opacity-50"
+      >
+        {generatingInlineImages ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <Sparkles className="h-3.5 w-3.5" />
+        )}
+        <span>{generatingInlineImages ? "生成中..." : "AI画像挿入"}</span>
+      </button>
     </div>
   );
 }
@@ -851,6 +872,9 @@ export default function BlogEditor() {
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
   const [generatingCoverImage, setGeneratingCoverImage] = useState(false);
   const [coverImageStyle, setCoverImageStyle] = useState<"modern" | "minimal" | "vibrant" | "professional" | "creative">("modern");
+  const [generatingInlineImages, setGeneratingInlineImages] = useState(false);
+  const [inlineImageCount, setInlineImageCount] = useState(3);
+  const [inlineImageStyle, setInlineImageStyle] = useState<"modern" | "minimal" | "vibrant" | "professional" | "creative">("modern");
 
   // Data
   const { data: categories } = trpc.blog.listCategories.useQuery();
@@ -956,8 +980,29 @@ export default function BlogEditor() {
           setGeneratingCoverImage(false);
         });
       }
+
+      // Auto-generate inline images for the article body
+      toast.info("本文内のAI画像も自動生成します...");
+      setGeneratingInlineImages(true);
+      inlineImageMutation.mutateAsync({
+        contentHtml: html,
+        title: currentTitle || title,
+        keywords: seoData?.suggestedTags || [],
+        maxImages: inlineImageCount,
+        style: inlineImageStyle,
+        articleId: articleId || undefined,
+      }).then((result) => {
+        if (result.success && result.imagesInserted > 0 && result.html && editor) {
+          editor.commands.setContent(result.html);
+          toast.success(`${result.imagesInserted}枚の画像を本文に自動挿入しました`);
+        }
+      }).catch((err: any) => {
+        console.error("Auto inline image generation failed:", err);
+      }).finally(() => {
+        setGeneratingInlineImages(false);
+      });
     },
-    [editor, title, coverImageUrl, coverImageStyle, articleId, coverImageMutation]
+    [editor, title, coverImageUrl, coverImageStyle, articleId, coverImageMutation, inlineImageMutation, inlineImageCount, inlineImageStyle]
   );
 
   // Insert product card
@@ -1063,6 +1108,44 @@ export default function BlogEditor() {
       setGeneratingCoverImage(false);
     }
   }, [title, coverImageStyle, articleId, coverImageMutation]);
+
+  // Inline image generation mutation
+  const inlineImageMutation = trpc.blog.generateInlineImages.useMutation();
+
+  const handleGenerateInlineImages = useCallback(async () => {
+    if (!editor) return;
+    const html = editor.getHTML();
+    if (!html || html.length < 100) {
+      toast.error("本文が短すぎます。まず記事を作成してください");
+      return;
+    }
+    if (!title.trim()) {
+      toast.error("タイトルを入力してください");
+      return;
+    }
+    setGeneratingInlineImages(true);
+    toast.info(`本文内に最大${inlineImageCount}枚のAI画像を生成中...`);
+    try {
+      const result = await inlineImageMutation.mutateAsync({
+        contentHtml: html,
+        title: title,
+        keywords: [],
+        maxImages: inlineImageCount,
+        style: inlineImageStyle,
+        articleId: articleId || undefined,
+      });
+      if (result.success && result.html) {
+        editor.commands.setContent(result.html);
+        toast.success(`${result.imagesInserted}枚の画像を本文に挿入しました`);
+      } else {
+        toast.info("画像の挿入ポイントが見つかりませんでした");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "本文内画像の生成に失敗しました");
+    } finally {
+      setGeneratingInlineImages(false);
+    }
+  }, [editor, title, inlineImageCount, inlineImageStyle, articleId, inlineImageMutation]);
 
   // Save article
   const handleSave = useCallback(
@@ -1330,6 +1413,8 @@ export default function BlogEditor() {
               editor={editor}
               onProductInsert={() => setShowProductSearch(true)}
               onImageUpload={handleImageUpload}
+              onInlineImageGenerate={handleGenerateInlineImages}
+              generatingInlineImages={generatingInlineImages}
             />
             <div className="blog-editor-content">
               <EditorContent editor={editor} />
@@ -1395,6 +1480,69 @@ export default function BlogEditor() {
                   </p>
                 )}
               </div>
+            </CardContent>
+          </Card>
+
+          {/* AI Inline Image Settings */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5 text-purple-500" />
+                AI本文内画像
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <Label className="text-xs text-muted-foreground">挿入枚数</Label>
+                <Select
+                  value={String(inlineImageCount)}
+                  onValueChange={(v) => setInlineImageCount(Number(v))}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1枚</SelectItem>
+                    <SelectItem value="2">2枚</SelectItem>
+                    <SelectItem value="3">3枚</SelectItem>
+                    <SelectItem value="5">5枚</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">スタイル</Label>
+                <Select
+                  value={inlineImageStyle}
+                  onValueChange={(v: any) => setInlineImageStyle(v)}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="modern">モダン</SelectItem>
+                    <SelectItem value="minimal">ミニマル</SelectItem>
+                    <SelectItem value="vibrant">ビビッド</SelectItem>
+                    <SelectItem value="professional">プロフェッショナル</SelectItem>
+                    <SelectItem value="creative">クリエイティブ</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full text-xs"
+                onClick={handleGenerateInlineImages}
+                disabled={generatingInlineImages}
+              >
+                {generatingInlineImages ? (
+                  <><Loader2 className="h-3 w-3 mr-1 animate-spin" />生成中...</>
+                ) : (
+                  <><Sparkles className="h-3 w-3 mr-1" />本文にAI画像を挿入</>
+                )}
+              </Button>
+              <p className="text-[10px] text-muted-foreground">
+                記事のH2/H3見出しの後に、内容に関連するAI生成画像を自動挿入します。
+              </p>
             </CardContent>
           </Card>
 
