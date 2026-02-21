@@ -5926,3 +5926,7 @@
 - [x] 管理画面にSEOタブを追加（BlogAdminにSEOタブ: ステータス確認・全記事検索エンジン送信・設定ガイド・実装済みSEO機能一覧）
 - [x] BlogEditorに個別記事の検索エンジン送信ボタンを追加（公開記事のみ表示）
 - [x] Vitestテスト作成・実行（seoTools.test.ts 11テスト全パス）
+
+## Google Search Console検証ファイルの配置
+- [x] googled266d46b4fb2eb17.htmlをclient/publicに配置
+- [x] 動作確認
