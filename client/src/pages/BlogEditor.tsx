@@ -289,10 +289,17 @@ function AIGenerateDialog({
       });
       clearInterval(progressInterval);
       setProgress(100);
-      setGeneratedHtml(result.html);
-      // Store full meta from generateArticle (title, seo, category, tags)
-      setGeneratedMeta(result);
-      setStep("preview");
+
+      // Auto-insert: skip preview, directly insert with all meta into editor
+      onInsert(result.html, result);
+      toast.success("AI記事を全フィールドに自動入力しました");
+
+      // Reset dialog state and close
+      setStep("config");
+      setGeneratedHtml("");
+      setGeneratedMeta(null);
+      setProgress(0);
+      onClose();
     } catch (err: any) {
       clearInterval(progressInterval);
       setProgress(0);
