@@ -5949,3 +5949,8 @@
 - [x] スケジューラーにキーワード残量チェック＆自動補充ロジックを追加（未使用10個以下で自動補充）
 - [x] 管理画面にAIキーワード自動生成ボタンを追加（AutoPostAdminのキーワードタブ）
 - [x] Vitestテスト作成・実行（autoPostScheduler.test.ts 11テスト全パス）
+
+## 記事公開時のIndexNow自動トリガー
+- [x] 既存の記事更新・公開プロシージャを調査（create/update/togglePublishの3箇所）
+- [x] 記事ステータスが「公開」に変更された時にIndexNow自動送信するロジックを追加（create・update・togglePublish全て対応）
+- [x] Vitestテスト作成・実行（indexNowAutoTrigger.test.ts 6テスト全パス）

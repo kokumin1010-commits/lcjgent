@@ -15511,6 +15511,23 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         if (tagIds && tagIds.length > 0) {
           await setBlogArticleTags(article.id, tagIds);
         }
+        // Auto-trigger IndexNow when article is created as published
+        if (data.status === "published" && article.slug) {
+          const baseUrl = process.env.APP_URL || "";
+          if (baseUrl) {
+            const articleUrl = `${baseUrl}/blog/${article.slug}`;
+            try {
+              await fetch(`${baseUrl}/api/indexnow/submit`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ urls: [articleUrl] }),
+              });
+              console.log(`[SEO] IndexNow auto-triggered on create for: ${articleUrl}`);
+            } catch (e) {
+              console.warn("[SEO] IndexNow auto-trigger failed on create:", e);
+            }
+          }
+        }
         return article;
       }),
 
@@ -15548,6 +15565,26 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         await updateBlogArticle(id, updateData);
         if (tagIds !== undefined) {
           await setBlogArticleTags(id, tagIds);
+        }
+        // Auto-trigger IndexNow when article status changes to published
+        if (data.status === "published") {
+          const article = await getBlogArticleById(id);
+          if (article?.slug) {
+            const baseUrl = process.env.APP_URL || "";
+            if (baseUrl) {
+              const articleUrl = `${baseUrl}/blog/${article.slug}`;
+              try {
+                await fetch(`${baseUrl}/api/indexnow/submit`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ urls: [articleUrl] }),
+                });
+                console.log(`[SEO] IndexNow auto-triggered on update for: ${articleUrl}`);
+              } catch (e) {
+                console.warn("[SEO] IndexNow auto-trigger failed on update:", e);
+              }
+            }
+          }
         }
         return { success: true };
       }),
