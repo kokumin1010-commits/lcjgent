@@ -15855,6 +15855,64 @@ TikTok Shop、ECモール、ライブコマース関連のキーワードに特�
         }
       }),
 
+    // --- AI Cover Image Generation ---
+    generateCoverImage: protectedProcedure
+      .input(z.object({
+        title: z.string().min(1).describe("記事タイトル"),
+        keywords: z.array(z.string()).optional(),
+        style: z.enum(["modern", "minimal", "vibrant", "professional", "creative"]).default("modern"),
+        articleId: z.number().optional().describe("既存記事IDに紐付ける場合"),
+      }))
+      .mutation(async ({ input }) => {
+        const styleGuide: Record<string, string> = {
+          modern: "Modern, clean design with subtle gradients and geometric shapes",
+          minimal: "Minimalist design with lots of white space and simple elements",
+          vibrant: "Vibrant, colorful design with bold patterns and dynamic composition",
+          professional: "Professional, corporate style with muted tones and structured layout",
+          creative: "Creative, artistic design with unique textures and abstract elements",
+        };
+
+        const keywordContext = input.keywords?.length
+          ? ` Related topics: ${input.keywords.join(", ")}.`
+          : "";
+
+        const imagePrompt = `Professional blog cover image for an article titled "${input.title}".${keywordContext} ${styleGuide[input.style]}. E-commerce and TikTok Shop theme. High quality, visually appealing. No text overlay on the image.`;
+
+        try {
+          const { url: imageUrl } = await generateImage({ prompt: imagePrompt });
+          if (!imageUrl) {
+            throw new Error("Image generation returned no URL");
+          }
+
+          // Download and re-upload to S3 with proper key
+          const imageResponse = await fetch(imageUrl);
+          const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+          const imageKey = `blog-covers/ai-${nanoid(12)}.png`;
+          const { url: s3Url } = await storagePut(imageKey, imageBuffer, "image/png");
+
+          // If articleId provided, update the article directly
+          if (input.articleId) {
+            await updateBlogArticle(input.articleId, {
+              coverImageUrl: s3Url,
+              coverImageKey: imageKey,
+            });
+          }
+
+          return {
+            success: true,
+            url: s3Url,
+            key: imageKey,
+            prompt: imagePrompt,
+          };
+        } catch (error: any) {
+          console.error("Cover image generation failed:", error.message);
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `画像生成に失敗しました: ${error.message}`,
+          });
+        }
+      }),
+
     // --- Sitemap data ---
     sitemapData: publicProcedure.query(async () => {
       const { articles } = await listBlogArticles({ status: "published", limit: 1000 });

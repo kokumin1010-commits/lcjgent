@@ -849,6 +849,8 @@ export default function BlogEditor() {
   const [showAIGenerate, setShowAIGenerate] = useState(false);
   const [saving, setSaving] = useState(false);
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
+  const [generatingCoverImage, setGeneratingCoverImage] = useState(false);
+  const [coverImageStyle, setCoverImageStyle] = useState<"modern" | "minimal" | "vibrant" | "professional" | "creative">("modern");
 
   // Data
   const { data: categories } = trpc.blog.listCategories.useQuery();
@@ -912,6 +914,9 @@ export default function BlogEditor() {
     }
   }, [title, slugManuallyEdited]);
 
+  // AI cover image mutation (declared before handleAIInsert to avoid TDZ)
+  const coverImageMutation = trpc.blog.generateCoverImage.useMutation();
+
   // Handle AI generated content insertion
   const handleAIInsert = useCallback(
     (html: string, seoData?: any) => {
@@ -927,8 +932,32 @@ export default function BlogEditor() {
         if (seoData.excerpt) setExcerpt(seoData.excerpt);
       }
       toast.success("AI生成記事をエディタに挿入しました");
+
+      // Auto-generate cover image if title is available and no cover image exists
+      const currentTitle = seoData?.seoTitle || title;
+      if (currentTitle && !coverImageUrl) {
+        toast.info("カバー画像もAIで自動生成します...");
+        setGeneratingCoverImage(true);
+        coverImageMutation.mutateAsync({
+          title: currentTitle,
+          keywords: seoData?.suggestedTags || [],
+          style: coverImageStyle,
+          articleId: articleId || undefined,
+        }).then((result) => {
+          if (result.url) {
+            setCoverImageUrl(result.url);
+            setCoverImageKey(result.key);
+            toast.success("AIカバー画像を生成しました");
+          }
+        }).catch((err: any) => {
+          console.error("Auto cover image generation failed:", err);
+          toast.error("カバー画像の自動生成に失敗しました");
+        }).finally(() => {
+          setGeneratingCoverImage(false);
+        });
+      }
     },
-    [editor]
+    [editor, title, coverImageUrl, coverImageStyle, articleId, coverImageMutation]
   );
 
   // Insert product card
@@ -1008,6 +1037,32 @@ export default function BlogEditor() {
     };
     input.click();
   }, [uploadMutation]);
+
+  // Handle AI cover image generation
+  const handleAICoverImageGenerate = useCallback(async () => {
+    if (!title.trim()) {
+      toast.error("タイトルを入力してください");
+      return;
+    }
+    setGeneratingCoverImage(true);
+    try {
+      const result = await coverImageMutation.mutateAsync({
+        title: title.trim(),
+        keywords: [],
+        style: coverImageStyle,
+        articleId: articleId || undefined,
+      });
+      if (result.url) {
+        setCoverImageUrl(result.url);
+        setCoverImageKey(result.key);
+        toast.success("AIカバー画像を生成しました");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "AI画像生成に失敗しました");
+    } finally {
+      setGeneratingCoverImage(false);
+    }
+  }, [title, coverImageStyle, articleId, coverImageMutation]);
 
   // Save article
   const handleSave = useCallback(
@@ -1187,6 +1242,15 @@ export default function BlogEditor() {
                   </Button>
                   <Button
                     size="sm"
+                    variant="secondary"
+                    onClick={handleAICoverImageGenerate}
+                    disabled={generatingCoverImage}
+                  >
+                    {generatingCoverImage ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
+                    AI再生成
+                  </Button>
+                  <Button
+                    size="sm"
                     variant="destructive"
                     onClick={() => {
                       setCoverImageUrl("");
@@ -1198,13 +1262,56 @@ export default function BlogEditor() {
                 </div>
               </div>
             ) : (
-              <button
-                onClick={handleCoverImageUpload}
-                className="w-full h-32 border-2 border-dashed rounded-lg flex items-center justify-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors"
-              >
-                <ImageIcon className="h-5 w-5" />
-                カバー画像を追加
-              </button>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleCoverImageUpload}
+                    className="flex-1 h-28 border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-1.5 text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                  >
+                    <ImageIcon className="h-5 w-5" />
+                    <span className="text-sm">画像をアップロード</span>
+                  </button>
+                  <button
+                    onClick={handleAICoverImageGenerate}
+                    disabled={generatingCoverImage || !title.trim()}
+                    className="flex-1 h-28 border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-1.5 text-muted-foreground hover:border-purple-500 hover:text-purple-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {generatingCoverImage ? (
+                      <>
+                        <Loader2 className="h-5 w-5 animate-spin text-purple-500" />
+                        <span className="text-sm text-purple-500">AI生成中...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-5 w-5" />
+                        <span className="text-sm">AIでカバー画像を生成</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                {!title.trim() && (
+                  <p className="text-xs text-muted-foreground">※ AI画像生成にはタイトルの入力が必要です</p>
+                )}
+                {/* Cover Image Style Selector */}
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs text-muted-foreground whitespace-nowrap">画像スタイル:</Label>
+                  <div className="flex gap-1 flex-wrap">
+                    {(["modern", "minimal", "vibrant", "professional", "creative"] as const).map((style) => (
+                      <button
+                        key={style}
+                        onClick={() => setCoverImageStyle(style)}
+                        className={`px-2 py-0.5 text-xs rounded-full border transition-colors ${
+                          coverImageStyle === style
+                            ? "bg-purple-500/10 border-purple-500 text-purple-600"
+                            : "border-border text-muted-foreground hover:border-purple-300"
+                        }`}
+                      >
+                        {style === "modern" ? "モダン" : style === "minimal" ? "ミニマル" : style === "vibrant" ? "ビビッド" : style === "professional" ? "プロ" : "クリエイティブ"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
             )}
           </div>
 

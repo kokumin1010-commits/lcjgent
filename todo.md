@@ -5891,3 +5891,11 @@
 - [x] サイドバーに「AI自動投稿」リンク追加（/master/auto-post）
 - [x] App.tsxにルート追加（/master/auto-post → AutoPostAdmin）
 - [x] Vitestテスト作成・実行（10テスト全パス）
+## AI画像自動生成統合（記事生成時アイキャッチ画像自動生成）
+- [x] 現在のAI記事生成フロー・画像生成ヘルパー・ブログスキーマを調査
+- [x] バックエンドにアイキャッチ画像自動生成APIを追加（blog.generateCoverImage tRPCプロシージャ）
+- [x] AI記事生成フローに画像生成ステップを組み込み（handleAIInsert時に自動生成）
+- [x] 自動投稿スケジュールのgenerateImagesオプションとの連携（既存executeNow統合確認済み）
+- [x] フロントエンドUIに画像プレビュー・再生成ボタンを追加（カバー画像ホバー時にAI再生成ボタン）
+- [x] ブログエディタにAI画像生成ボタンを追加（アップロード/AI生成の2択UI + スタイル選択5種）
+- [x] Vitestテスト作成・実行（18テスト全パス - coverImage.test.ts 8件 + autoPost.test.ts 10件）
