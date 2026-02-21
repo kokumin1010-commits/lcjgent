@@ -15,6 +15,7 @@ import { startGroupFollowUpScheduler } from "../groupFollowUpScheduler";
 import { startResponseReminderScheduler } from "../responseReminderScheduler";
 import { startScheduleReminderScheduler } from "../scheduleReminderScheduler";
 import { startLineReminderScheduler } from "../lineReminderScheduler";
+import { startAutoPostScheduler } from "../autoPostScheduler";
 import { trackingRouter } from "../tracking";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -1086,6 +1087,9 @@ async function startServer() {
     
     // Start LINE reminder scheduler (sends LINE reminders every 1 minute)
     startLineReminderScheduler();
+    
+    // Start auto post scheduler (generates SEO articles based on configured schedules)
+    startAutoPostScheduler();
   });
 }
 

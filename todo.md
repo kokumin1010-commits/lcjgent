@@ -5930,3 +5930,14 @@
 ## Google Search Console検証ファイルの配置
 - [x] googled266d46b4fb2eb17.htmlをclient/publicに配置
 - [x] 動作確認
+
+## バグ修正：Google Search Console検証ファイルのコンテンツエラー
+- [x] 本番サイトでの検証ファイルの応答を確認（正常動作確認済み）
+- [x] コンテンツが正しく返されるように修正（Publish後に検証成功）
+
+## 自動SEO記事生成・投稿機能（2日に1回）
+- [x] 既存のブログ記事生成・投稿コードを調査
+- [x] 自動SEO記事生成のバックエンドロジックを実装（LLM→記事生成→DB保存→IndexNow送信）
+- [x] 2日に1回のスケジューラーを実装（autoPostScheduler.ts: サーバー起動時にsetInterval、1時間ごとにチェック）
+- [x] 管理画面に自動投稿設定・履歴UIを追加（AutoPostAdmin既存UIを確認済み）
+- [x] Vitestテスト作成・実行（autoPostScheduler.test.ts 9テスト全パス）
