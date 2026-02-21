@@ -6,7 +6,7 @@
  * is due for execution.
  */
 
-import { listAutoPostSchedules, getNextUnusedKeyword, createAutoPostLog, updateAutoPostLog, markKeywordUsed, incrementScheduleGenerated, createBlogArticle, getBlogArticleBySlug, updateBlogArticle, updateAutoPostSchedule } from "./db";
+import { listAutoPostSchedules, getNextUnusedKeyword, createAutoPostLog, updateAutoPostLog, markKeywordUsed, incrementScheduleGenerated, createBlogArticle, getBlogArticleBySlug, updateBlogArticle, updateAutoPostSchedule, listPresetKeywordsDb, createPresetKeywordDb } from "./db";
 import { invokeLLM } from "./_core/llm";
 import { generateImage } from "./_core/imageGeneration";
 import { storagePut } from "./storage";
@@ -55,12 +55,113 @@ export function stopAutoPostScheduler() {
 }
 
 /**
+ * Auto-replenish keywords when running low
+ */
+async function autoReplenishKeywords() {
+  try {
+    const keywords = await listPresetKeywordsDb();
+    const unusedCount = keywords.filter(k => k.usedCount === 0).length;
+    const LOW_THRESHOLD = 10;
+
+    if (unusedCount < LOW_THRESHOLD) {
+      console.log(`[AutoPost Scheduler] Low keywords (${unusedCount} unused). Auto-generating more...`);
+      const existingList = keywords.map(k => k.keyword);
+
+      const categories = [
+        { cat: "tiktok-shop", desc: "TikTok Shopでの購入方法、お得な使い方、商品レビュー、TikTok Shop始め方、出品方法、売れ筋商品" },
+        { cat: "receipt-side-job", desc: "レシートで副業、レシート買取アプリ、レシートポイ活" },
+        { cat: "point-katsu", desc: "ポイ活、ポイント活動、キャッシュバック、ポイント二重取り" },
+        { cat: "live-commerce", desc: "ライブコマース、ライブコマーサー、ライブ配信販売" },
+        { cat: "lcj-mall", desc: "LCJ MALL、越境EC、海外商品購入、個人輸入" },
+        { cat: "money-saving", desc: "節約術、お得情報、クーポン活用、セール攻略" },
+      ];
+
+      // Pick 2 random categories to generate for variety
+      const shuffled = categories.sort(() => Math.random() - 0.5);
+      const selected = shuffled.slice(0, 2);
+
+      for (const { cat, desc } of selected) {
+        try {
+          const response = await invokeLLM({
+            messages: [
+              {
+                role: "system",
+                content: `あなたはSEOキーワードリサーチの専門家です。LCJ MALL（TikTok Shopと連携した越境ECモール）のための日本語ロングテールSEOキーワードを生成してください。
+ルール: 3〜6語のロングテールキーワード、検索ボリュームが見込める実用的なもの、「〜とは」「〜やり方」「〜おすすめ」「〜比較」などのパターンを活用。`,
+              },
+              {
+                role: "user",
+                content: `カテゴリ「${cat}」（${desc}）に関連するSEOキーワードを10個生成してください。
+既存キーワードと重複しないように: ${existingList.slice(0, 80).join("、")}
+JSON形式で返してください:`,
+              },
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "keyword_list",
+                strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    keywords: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          keyword: { type: "string" },
+                          priority: { type: "integer" },
+                        },
+                        required: ["keyword", "priority"],
+                        additionalProperties: false,
+                      },
+                    },
+                  },
+                  required: ["keywords"],
+                  additionalProperties: false,
+                },
+              },
+            },
+          });
+
+          const parsed = JSON.parse(response.choices[0].message.content || '{"keywords":[]}');
+          let insertedCount = 0;
+          for (const kw of parsed.keywords) {
+            if (kw.keyword && !existingList.includes(kw.keyword)) {
+              try {
+                await createPresetKeywordDb({
+                  keyword: kw.keyword,
+                  category: cat,
+                  priority: Math.min(10, Math.max(1, kw.priority || 5)),
+                });
+                existingList.push(kw.keyword);
+                insertedCount++;
+              } catch (e) {
+                // Skip duplicates
+              }
+            }
+          }
+          console.log(`[AutoPost Scheduler] Auto-generated ${insertedCount} keywords for category "${cat}"`);
+        } catch (e: any) {
+          console.error(`[AutoPost Scheduler] Keyword generation failed for "${cat}":`, e.message);
+        }
+      }
+    }
+  } catch (error: any) {
+    console.error("[AutoPost Scheduler] Keyword replenish error:", error.message);
+  }
+}
+
+/**
  * Check all enabled schedules and execute any that are due
  */
 async function runAutoPostCheck() {
   console.log("[AutoPost Scheduler] Running check...");
 
   try {
+    // Auto-replenish keywords if running low
+    await autoReplenishKeywords();
+
     const schedules = await listAutoPostSchedules();
     const enabledSchedules = schedules.filter(s => s.enabled);
 

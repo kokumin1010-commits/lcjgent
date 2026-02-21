@@ -16337,6 +16337,119 @@ Identify up to ${input.maxImages} optimal image insertion points. For each, prov
         return await resetAllKeywordsUsage();
       }),
 
+    // --- AI Keyword Generation ---
+    generateKeywords: protectedProcedure
+      .input(z.object({
+        count: z.number().min(1).max(50).default(20),
+        categories: z.array(z.string()).optional(),
+      }).optional())
+      .mutation(async ({ input }) => {
+        const count = input?.count || 20;
+        const existingKeywords = await listPresetKeywordsDb();
+        const existingList = existingKeywords.map(k => k.keyword);
+
+        const categoryDescriptions: Record<string, string> = {
+          "tiktok-shop": "TikTok Shopでの購入方法、お得な使い方、商品レビュー、セール情報、TikTok Shop始め方、出品方法、売れ筋商品",
+          "receipt-side-job": "レシートで副業、レシート買取アプリ、レシートポイ活、レシートスキャンで稼ぐ、家計簿アプリ連携",
+          "point-katsu": "ポイ活、ポイント活動、ポイントサイト、キャッシュバック、ポイント二重取り、クレカポイント、マイル貯め方",
+          "live-commerce": "ライブコマース、ライブ配信販売、ライブコマーサー、ライブ配信で稼ぐ、ライブショッピング、インフルエンサーコマース",
+          "lcj-mall": "LCJ MALL、越境EC、海外商品購入、個人輸入、海外通販、お得な買い物術",
+          "ec-trends": "EC最新トレンド、ソーシャルコマース、D2C、サブスクリプションEC、AI×EC、パーソナライズ",
+          "money-saving": "節約術、お得情報、クーポン活用、セール攻略、コスパ最強、賢い買い物",
+        };
+
+        const targetCategories = input?.categories || Object.keys(categoryDescriptions);
+        const perCategory = Math.ceil(count / targetCategories.length);
+
+        const allGenerated: Array<{ keyword: string; category: string; priority: number }> = [];
+
+        for (const cat of targetCategories) {
+          const desc = categoryDescriptions[cat] || cat;
+          const response = await invokeLLM({
+            messages: [
+              {
+                role: "system",
+                content: `あなたはSEOキーワードリサーチの専門家です。日本語のロングテールSEOキーワードを生成してください。
+
+対象サイト: LCJ MALL（https://lcjmall.com）- TikTok Shopと連携した越境ECモール。レシート副業、ポイ活、ライブコマースなどの情報も発信。
+
+ルール:
+- 検索ボリュームが見込める実用的なキーワードを生成
+- 3〜6語のロングテールキーワードを優先
+- ユーザーの検索意図（情報収集・比較検討・購入）を意識
+- 重複を避ける
+- 季節性のあるキーワードも含める
+- 「〜とは」「〜やり方」「〜おすすめ」「〜比較」などの検索パターンを活用`,
+              },
+              {
+                role: "user",
+                content: `カテゴリ「${cat}」（${desc}）に関連するSEOキーワードを${perCategory}個生成してください。
+
+以下の既存キーワードとは重複しないようにしてください:
+${existingList.slice(0, 100).join("、")}
+
+JSON形式で返してください:`,
+              },
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "keyword_list",
+                strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    keywords: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          keyword: { type: "string", description: "SEOキーワード" },
+                          priority: { type: "integer", description: "優先度 1-10（10が最高）" },
+                        },
+                        required: ["keyword", "priority"],
+                        additionalProperties: false,
+                      },
+                    },
+                  },
+                  required: ["keywords"],
+                  additionalProperties: false,
+                },
+              },
+            },
+          });
+
+          try {
+            const parsed = JSON.parse(response.choices[0].message.content || "{ \"keywords\": [] }");
+            for (const kw of parsed.keywords) {
+              if (kw.keyword && !existingList.includes(kw.keyword) && !allGenerated.some(g => g.keyword === kw.keyword)) {
+                allGenerated.push({
+                  keyword: kw.keyword,
+                  category: cat,
+                  priority: Math.min(10, Math.max(1, kw.priority || 5)),
+                });
+                existingList.push(kw.keyword);
+              }
+            }
+          } catch (e) {
+            console.error(`[AutoPost] Failed to parse keywords for category ${cat}:`, e);
+          }
+        }
+
+        // Bulk insert
+        const inserted: any[] = [];
+        for (const kw of allGenerated) {
+          try {
+            const result = await createPresetKeywordDb(kw);
+            inserted.push(result);
+          } catch (e) {
+            console.error(`[AutoPost] Failed to insert keyword "${kw.keyword}":`, e);
+          }
+        }
+
+        return { generated: allGenerated.length, inserted: inserted.length, keywords: inserted };
+      }),
+
     // --- Manual Trigger: Execute one auto-post cycle ---
     executeNow: protectedProcedure
       .input(z.object({

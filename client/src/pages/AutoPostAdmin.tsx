@@ -30,6 +30,7 @@ import {
   TrendingUp,
   AlertTriangle,
   RotateCcw,
+  Sparkles,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
@@ -471,6 +472,15 @@ function KeywordManager() {
     onError: (err) => toast.error(err.message),
   });
 
+  const generateMutation = trpc.autoPost.generateKeywords.useMutation({
+    onSuccess: (result) => {
+      utils.autoPost.listKeywords.invalidate();
+      utils.autoPost.stats.invalidate();
+      toast.success(`AIが${result.inserted}個のキーワードを自動生成しました`);
+    },
+    onError: (err) => toast.error(`キーワード生成に失敗: ${err.message}`),
+  });
+
   const deleteMutation = trpc.autoPost.deleteKeyword.useMutation({
     onSuccess: () => {
       utils.autoPost.listKeywords.invalidate();
@@ -520,6 +530,19 @@ function KeywordManager() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              toast.info("AIがキーワードを生成中です...（30秒ほどかかります）");
+              generateMutation.mutate({ count: 20 });
+            }}
+            disabled={generateMutation.isPending}
+            className="gap-1.5"
+          >
+            {generateMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            AI自動生成
+          </Button>
           <Button variant="outline" size="sm" onClick={() => { if (confirm("全キーワードの使用回数をリセットしますか？")) resetMutation.mutate(); }} className="gap-1.5">
             <RotateCcw className="h-3.5 w-3.5" />
             リセット

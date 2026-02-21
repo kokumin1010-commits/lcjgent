@@ -5941,3 +5941,11 @@
 - [x] 2日に1回のスケジューラーを実装（autoPostScheduler.ts: サーバー起動時にsetInterval、1時間ごとにチェック）
 - [x] 管理画面に自動投稿設定・履歴UIを追加（AutoPostAdmin既存UIを確認済み）
 - [x] Vitestテスト作成・実行（autoPostScheduler.test.ts 9テスト全パス）
+
+## キーワード自動生成・追加機能
+- [x] 既存のキーワード管理コードを調査
+- [x] LLMによるキーワード自動生成プロシージャを実装（LCJ MALL関連テーマ: TikTok Shop、レシート副業、ポイ活、ライブコマースなど）
+- [x] 初期シードキーワードの一括投入（autoPost.generateKeywordsプロシージャ経由）
+- [x] スケジューラーにキーワード残量チェック＆自動補充ロジックを追加（未使用10個以下で自動補充）
+- [x] 管理画面にAIキーワード自動生成ボタンを追加（AutoPostAdminのキーワードタブ）
+- [x] Vitestテスト作成・実行（autoPostScheduler.test.ts 11テスト全パス）

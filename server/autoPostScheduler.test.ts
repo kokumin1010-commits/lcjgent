@@ -12,6 +12,8 @@ vi.mock("./db", () => ({
   getBlogArticleBySlug: vi.fn(),
   updateBlogArticle: vi.fn(),
   updateAutoPostSchedule: vi.fn(),
+  listPresetKeywordsDb: vi.fn(),
+  createPresetKeywordDb: vi.fn(),
 }));
 
 vi.mock("./_core/llm", () => ({
@@ -40,6 +42,8 @@ import {
   createBlogArticle,
   getBlogArticleBySlug,
   updateAutoPostSchedule,
+  listPresetKeywordsDb,
+  createPresetKeywordDb,
 } from "./db";
 import { invokeLLM } from "./_core/llm";
 import { startAutoPostScheduler, stopAutoPostScheduler } from "./autoPostScheduler";
@@ -48,6 +52,10 @@ describe("Auto Post Scheduler", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
+    // Default: plenty of keywords so auto-replenish doesn't interfere with other tests
+    (listPresetKeywordsDb as any).mockResolvedValue(
+      Array.from({ length: 20 }, (_, i) => ({ id: i + 1, keyword: `default-kw-${i}`, usedCount: 0 }))
+    );
   });
 
   afterEach(() => {
@@ -64,7 +72,55 @@ describe("Auto Post Scheduler", () => {
     stopAutoPostScheduler();
   });
 
+  it("should auto-replenish keywords when running low", async () => {
+    // Mock low keyword count (below threshold of 10)
+    (listPresetKeywordsDb as any).mockResolvedValue([
+      { id: 1, keyword: "existing kw", usedCount: 1 },
+      { id: 2, keyword: "used kw", usedCount: 1 },
+    ]);
+    (createPresetKeywordDb as any).mockResolvedValue({ id: 100 });
+    (listAutoPostSchedules as any).mockResolvedValue([]);
+    (invokeLLM as any).mockResolvedValue({
+      choices: [{
+        message: {
+          content: JSON.stringify({
+            keywords: [
+              { keyword: "TikTok Shop 始め方 2026", priority: 8 },
+              { keyword: "ライブコマース 初心者", priority: 7 },
+            ],
+          }),
+        },
+      }],
+    });
+
+    startAutoPostScheduler();
+    await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 100);
+
+    expect(listPresetKeywordsDb).toHaveBeenCalled();
+    expect(invokeLLM).toHaveBeenCalled();
+    expect(createPresetKeywordDb).toHaveBeenCalled();
+  });
+
+  it("should not replenish keywords when count is above threshold", async () => {
+    // Mock plenty of unused keywords (above threshold of 10)
+    const manyKeywords = Array.from({ length: 20 }, (_, i) => ({
+      id: i + 1,
+      keyword: `keyword ${i}`,
+      usedCount: 0,
+    }));
+    (listPresetKeywordsDb as any).mockResolvedValue(manyKeywords);
+    (listAutoPostSchedules as any).mockResolvedValue([]);
+
+    startAutoPostScheduler();
+    await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 100);
+
+    expect(listPresetKeywordsDb).toHaveBeenCalled();
+    // invokeLLM should NOT be called for keyword generation (only for article generation)
+    expect(createPresetKeywordDb).not.toHaveBeenCalled();
+  });
+
   it("should skip when no enabled schedules exist", async () => {
+    (listPresetKeywordsDb as any).mockResolvedValue(Array.from({ length: 20 }, (_, i) => ({ id: i, keyword: `kw${i}`, usedCount: 0 })));
     (listAutoPostSchedules as any).mockResolvedValue([]);
 
     startAutoPostScheduler();
