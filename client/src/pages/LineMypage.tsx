@@ -798,17 +798,35 @@ export default function LineMypage() {
                                           : `¥${itemsSubtotal.toLocaleString()}`}
                                       </span>
                                     </div>
-                                    {order.paymentMethod !== 'points' && shippingFee > 0 && (
-                                      <div className="flex justify-between">
-                                        <span className="text-muted-foreground">送料</span>
-                                        <span>¥{shippingFee.toLocaleString()}</span>
-                                      </div>
-                                    )}
-                                    {order.paymentMethod !== 'points' && shippingFee === 0 && (
-                                      <div className="flex justify-between">
-                                        <span className="text-muted-foreground">送料</span>
-                                        <span className="text-green-600 font-medium">無料</span>
-                                      </div>
+                                    {order.paymentMethod === 'points' ? (
+                                      // ポイント購入時の送料表示
+                                      (() => {
+                                        const pointShippingFee = (order.pointsUsed || 0) - pointsItemsSubtotal;
+                                        return pointShippingFee > 0 ? (
+                                          <div className="flex justify-between">
+                                            <span className="text-muted-foreground">送料</span>
+                                            <span>{pointShippingFee.toLocaleString()} pt</span>
+                                          </div>
+                                        ) : (
+                                          <div className="flex justify-between">
+                                            <span className="text-muted-foreground">送料</span>
+                                            <span className="text-green-600 font-medium">無料</span>
+                                          </div>
+                                        );
+                                      })()
+                                    ) : (
+                                      // 通常購入時の送料表示
+                                      shippingFee > 0 ? (
+                                        <div className="flex justify-between">
+                                          <span className="text-muted-foreground">送料</span>
+                                          <span>¥{shippingFee.toLocaleString()}</span>
+                                        </div>
+                                      ) : (
+                                        <div className="flex justify-between">
+                                          <span className="text-muted-foreground">送料</span>
+                                          <span className="text-green-600 font-medium">無料</span>
+                                        </div>
+                                      )
                                     )}
                                   </div>
                                   <div className="flex justify-between font-bold border-t pt-1">

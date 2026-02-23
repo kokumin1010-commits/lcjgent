@@ -5954,3 +5954,10 @@
 - [x] 既存の記事更新・公開プロシージャを調査（create/update/togglePublishの3箇所）
 - [x] 記事ステータスが「公開」に変更された時にIndexNow自動送信するロジックを追加（create・update・togglePublish全て対応）
 - [x] Vitestテスト作成・実行（indexNowAutoTrigger.test.ts 6テスト全パス）
+
+## 送料機能（5,000pt未満は送料880pt）
+- [x] 既存の注文・チェックアウト関連コードを調査
+- [x] バックエンドに送料計算ロジックを追加（purchaseWithPoints / cartCheckoutPointsに880pt送料加算）
+- [x] フロントエンドのカート・チェックアウトUIに送料表示を追加（MallCart / MallProductDetail / LineMypage）
+- [x] 注文詳細・管理画面に送料表示を追加（OrderManagementの注文詳細ダイアログ）
+- [x] Vitestテスト作成・実行（shippingFee.test.ts 13テスト全パス）

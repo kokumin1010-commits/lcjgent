@@ -1627,7 +1627,25 @@ export default function MallProductDetail() {
 
               {/* 送料・合計 */}
               <div className="border-t pt-4 space-y-2">
-                {paymentMethod !== "points" && (
+                {paymentMethod === "points" ? (
+                  <>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground">商品小計</span>
+                      <span>{totalPointPrice.toLocaleString()} pt</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground">送料</span>
+                      {totalPointPrice < FREE_SHIPPING_THRESHOLD ? (
+                        <span>{SHIPPING_FEE.toLocaleString()} pt</span>
+                      ) : (
+                        <span className="text-green-600 font-medium">無料</span>
+                      )}
+                    </div>
+                    {totalPointPrice < FREE_SHIPPING_THRESHOLD && (
+                      <p className="text-xs text-muted-foreground">※ {FREE_SHIPPING_THRESHOLD.toLocaleString()} pt以上のご購入で送料無料</p>
+                    )}
+                  </>
+                ) : (
                   <>
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-muted-foreground">小計</span>
@@ -1649,7 +1667,9 @@ export default function MallProductDetail() {
                 <div className="flex justify-between items-center text-lg font-bold pt-1">
                   <span>合計</span>
                   {paymentMethod === "points" ? (
-                    <span className="text-orange-600">{totalPointPrice.toLocaleString()}pt</span>
+                    <span className="text-orange-600">
+                      {(totalPointPrice < FREE_SHIPPING_THRESHOLD ? totalPointPrice + SHIPPING_FEE : totalPointPrice).toLocaleString()} pt
+                    </span>
                   ) : (
                     <span className="text-pink-600">¥{totalWithShipping.toLocaleString()}</span>
                   )}

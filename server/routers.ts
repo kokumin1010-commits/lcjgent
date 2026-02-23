@@ -12733,12 +12733,18 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           throw new TRPCError({ code: "BAD_REQUEST", message: "この商品はポイント購入に対応していません" });
         }
 
-        const totalPoints = product.pointPrice * input.quantity;
+        const subtotalPoints = product.pointPrice * input.quantity;
+
+        // 送料計算: 5,000pt未満は880pt、5,000pt以上は送料無料
+        const SHIPPING_FEE = 880;
+        const FREE_SHIPPING_THRESHOLD = 5000;
+        const shippingFee = subtotalPoints < FREE_SHIPPING_THRESHOLD ? SHIPPING_FEE : 0;
+        const totalPoints = subtotalPoints + shippingFee;
 
         // ポイント残高を確認
         const balance = await getLinePointBalance(lineUserId);
         if (!balance || balance.balance < totalPoints) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "ポイントが不足しています" });
+          throw new TRPCError({ code: "BAD_REQUEST", message: `ポイントが不足しています（必要: ${totalPoints.toLocaleString()} pt${shippingFee > 0 ? `（送料${shippingFee} pt含む）` : ""} / 残高: ${(balance?.balance || 0).toLocaleString()} pt）` });
         }
 
         // 注文レコードを作成（ポイント消費・在庫減算・注文履歴作成を一括で実行）
@@ -12753,13 +12759,15 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           pointsToUse: totalPoints,
           isFullPointPurchase: true, // ポイント全額購入
           shippingInfo: input.shippingInfo,
+          shippingFee,
         });
 
         // 注文確認通知を送信
         try {
           const lineUser = result.lineUser;
           const orderDate = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
-          const notificationText = `📦 注文確認\n\nご注文ありがとうございます！\n\n■ 商品: ${product.name}\n■ 数量: ${input.quantity}\n■ ポイント: ${totalPoints.toLocaleString()} pt\n■ 注文番号: ${orderResult.orderNumber}\n■ 注文日時: ${orderDate}\n\n発送準備ができ次第、お知らせいたします。`;
+          const shippingText = shippingFee > 0 ? `\n■ 送料: ${shippingFee.toLocaleString()} pt` : "\n■ 送料: 無料";
+          const notificationText = `📦 注文確認\n\nご注文ありがとうございます！\n\n■ 商品: ${product.name}\n■ 数量: ${input.quantity}\n■ 小計: ${subtotalPoints.toLocaleString()} pt${shippingText}\n■ 合計: ${totalPoints.toLocaleString()} pt\n■ 注文番号: ${orderResult.orderNumber}\n■ 注文日時: ${orderDate}\n\n発送準備ができ次第、お知らせいたします。`;
 
           // LINE通知（LINEユーザーの場合）
           if (lineUser.lineUserId && !lineUser.lineUserId.startsWith('email_')) {
@@ -12773,7 +12781,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             await sendEmail({
               to: [lineUser.email],
               subject: `【LCJ MALL】注文確認 - ${orderResult.orderNumber}`,
-              content: `${lineUser.displayName || lineUser.email} 様\n\nご注文ありがとうございます。\n\n■ 商品: ${product.name}\n■ 数量: ${input.quantity}\n■ ポイント: ${totalPoints.toLocaleString()} pt\n■ 注文番号: ${orderResult.orderNumber}\n■ 注文日時: ${orderDate}\n\n発送準備ができ次第、お知らせいたします。\n\n---\nLCJ MALL`,
+              content: `${lineUser.displayName || lineUser.email} 様\n\nご注文ありがとうございます。\n\n■ 商品: ${product.name}\n■ 数量: ${input.quantity}\n■ 小計: ${subtotalPoints.toLocaleString()} pt${shippingText}\n■ 合計: ${totalPoints.toLocaleString()} pt\n■ 注文番号: ${orderResult.orderNumber}\n■ 注文日時: ${orderDate}\n\n発送準備ができ次第、お知らせいたします。\n\n---\nLCJ MALL`,
             });
           }
         } catch (notifyError) {
@@ -12781,7 +12789,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           // 通知失敗でも購入自体は成功とする
         }
 
-        return { success: true, pointsUsed: totalPoints, orderNumber: orderResult.orderNumber };
+        return { success: true, pointsUsed: totalPoints, shippingFee, subtotal: subtotalPoints, orderNumber: orderResult.orderNumber };
       }),
 
     // 商品画像アップロード（管理者のみ）
@@ -13464,10 +13472,17 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           });
         }
 
+        // 送料計算: 5,000pt未満は880pt、5,000pt以上は送料無料
+        const SHIPPING_FEE = 880;
+        const FREE_SHIPPING_THRESHOLD = 5000;
+        const subtotalPoints = totalPoints;
+        const shippingFee = subtotalPoints < FREE_SHIPPING_THRESHOLD ? SHIPPING_FEE : 0;
+        totalPoints = subtotalPoints + shippingFee;
+
         // ポイント残高を確認
         const balance = await getLinePointBalance(lineUserId);
         if (!balance || balance.balance < totalPoints) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: `ポイントが不足しています（必要: ${totalPoints.toLocaleString()} pt / 残高: ${(balance?.balance || 0).toLocaleString()} pt）` });
+          throw new TRPCError({ code: "BAD_REQUEST", message: `ポイントが不足しています（必要: ${totalPoints.toLocaleString()} pt${shippingFee > 0 ? `（送料${shippingFee} pt含む）` : ""} / 残高: ${(balance?.balance || 0).toLocaleString()} pt）` });
         }
 
         // 注文レコードを作成（ポイント消費・在庫減算・注文履歴作成を一括で実行）
@@ -13478,13 +13493,15 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           pointsToUse: totalPoints,
           isFullPointPurchase: true,
           shippingInfo: input.shippingInfo,
+          shippingFee,
         });
 
         // 注文確認通知を送信
         try {
           const itemNames = cartItems.map(i => `${i.product.name} ×${i.cart.quantity}`).join("\n  ");
           const orderDate = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
-          const notificationText = `📦 注文確認\n\nご注文ありがとうございます！\n\n■ 商品:\n  ${itemNames}\n■ ポイント: ${totalPoints.toLocaleString()} pt\n■ 注文番号: ${orderResult.orderNumber}\n■ 注文日時: ${orderDate}\n\n発送準備ができ次第、お知らせいたします。`;
+          const shippingText = shippingFee > 0 ? `\n■ 送料: ${shippingFee.toLocaleString()} pt` : "\n■ 送料: 無料";
+          const notificationText = `📦 注文確認\n\nご注文ありがとうございます！\n\n■ 商品:\n  ${itemNames}\n■ 小計: ${subtotalPoints.toLocaleString()} pt${shippingText}\n■ 合計: ${totalPoints.toLocaleString()} pt\n■ 注文番号: ${orderResult.orderNumber}\n■ 注文日時: ${orderDate}\n\n発送準備ができ次第、お知らせいたします。`;
 
           if (lineUser.lineUserId && !lineUser.lineUserId.startsWith('email_')) {
             const { pushMessage } = await import("./line");
@@ -13496,7 +13513,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             await sendEmail({
               to: [lineUser.email],
               subject: `【LCJ MALL】注文確認 - ${orderResult.orderNumber}`,
-              content: `${lineUser.displayName || lineUser.email} 様\n\nご注文ありがとうございます。\n\n■ 商品:\n  ${itemNames}\n■ ポイント: ${totalPoints.toLocaleString()} pt\n■ 注文番号: ${orderResult.orderNumber}\n■ 注文日時: ${orderDate}\n\n発送準備ができ次第、お知らせいたします。\n\n---\nLCJ MALL`,
+              content: `${lineUser.displayName || lineUser.email} 様\n\nご注文ありがとうございます。\n\n■ 商品:\n  ${itemNames}\n■ 小計: ${subtotalPoints.toLocaleString()} pt${shippingText}\n■ 合計: ${totalPoints.toLocaleString()} pt\n■ 注文番号: ${orderResult.orderNumber}\n■ 注文日時: ${orderDate}\n\n発送準備ができ次第、お知らせいたします。\n\n---\nLCJ MALL`,
             });
           }
         } catch (notifyError) {
@@ -13506,6 +13523,8 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         return {
           success: true,
           pointsUsed: totalPoints,
+          shippingFee,
+          subtotal: subtotalPoints,
           orderNumber: orderResult.orderNumber,
           itemCount: cartItems.length,
         };

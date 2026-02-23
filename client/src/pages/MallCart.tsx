@@ -1053,7 +1053,25 @@ export default function MallCart() {
 
               {/* 送料・合計 */}
               <div className="border-t pt-4 space-y-2">
-                {paymentMethod !== "points" && (
+                {paymentMethod === "points" ? (
+                  <>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground">商品小計</span>
+                      <span>{totalPoints.toLocaleString()} pt</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground">送料</span>
+                      {totalPoints < FREE_SHIPPING_THRESHOLD ? (
+                        <span>{SHIPPING_FEE.toLocaleString()} pt</span>
+                      ) : (
+                        <span className="text-green-600 font-medium">無料</span>
+                      )}
+                    </div>
+                    {totalPoints < FREE_SHIPPING_THRESHOLD && (
+                      <p className="text-xs text-muted-foreground">※ {FREE_SHIPPING_THRESHOLD.toLocaleString()} pt以上のご購入で送料無料</p>
+                    )}
+                  </>
+                ) : (
                   <>
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-muted-foreground">小計</span>
@@ -1075,7 +1093,9 @@ export default function MallCart() {
                 <div className="flex justify-between items-center text-lg font-bold pt-1">
                   <span>合計</span>
                   {paymentMethod === "points" ? (
-                    <span className="text-orange-600">{totalPoints.toLocaleString()}pt</span>
+                    <span className="text-orange-600">
+                      {(totalPoints < FREE_SHIPPING_THRESHOLD ? totalPoints + SHIPPING_FEE : totalPoints).toLocaleString()} pt
+                    </span>
                   ) : (
                     <span className="text-pink-600">¥{totalWithShipping.toLocaleString()}</span>
                   )}

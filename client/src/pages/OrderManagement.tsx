@@ -852,14 +852,44 @@ export default function OrderManagement({ onMemberClick }: OrderManagementProps)
                        orderDetail.order.paymentMethod === 'stripe' ? 'クレジットカード' : '代引き'}
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>商品合計</span>
-                    <span>
-                      {orderDetail.order.paymentMethod === 'points'
-                        ? `${orderDetail.order.pointsUsed.toLocaleString()} pt`
-                        : `¥${orderDetail.order.totalAmount.toLocaleString()}`}
-                    </span>
-                  </div>
+                  {(() => {
+                    const itemsTotal = orderDetail.items.reduce((sum: number, item: any) => {
+                      if (orderDetail.order.paymentMethod === 'points') {
+                        return sum + (item.pointSubtotal || 0);
+                      }
+                      return sum + (item.subtotal || 0);
+                    }, 0);
+                    const orderTotal = orderDetail.order.paymentMethod === 'points'
+                      ? orderDetail.order.pointsUsed
+                      : orderDetail.order.totalAmount;
+                    const shippingAmount = orderTotal - itemsTotal;
+                    const isPoints = orderDetail.order.paymentMethod === 'points';
+                    const unit = isPoints ? ' pt' : '';
+                    return (
+                      <>
+                        <div className="flex justify-between">
+                          <span>商品合計</span>
+                          <span>
+                            {isPoints
+                              ? `${itemsTotal.toLocaleString()} pt`
+                              : `¥${itemsTotal.toLocaleString()}`}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>送料</span>
+                          {shippingAmount > 0 ? (
+                            <span>
+                              {isPoints
+                                ? `${shippingAmount.toLocaleString()} pt`
+                                : `¥${shippingAmount.toLocaleString()}`}
+                            </span>
+                          ) : (
+                            <span className="text-green-600 font-medium">無料</span>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
                   {orderDetail.order.paymentMethod !== 'points' && orderDetail.order.pointsUsed > 0 && (
                     <div className="flex justify-between text-rose-600">
                       <span className="flex items-center gap-1">
