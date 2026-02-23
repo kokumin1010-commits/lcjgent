@@ -1,0 +1,45 @@
+{
+  "query": "SELECT id, shippingName, shippingPhone, shippingPostalCode, shippingAddress FROM mall_orders WHERE shippingAddress IS NOT NULL LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, shippingName, shippingPhone, shippingPostalCode, shippingAddress FROM mall_orders WHERE shippingAddress IS NOT NULL LIMIT 5;",
+  "rows": [
+    {
+      "id": "2",
+      "shippingName": "京極",
+      "shippingPhone": "08088885052",
+      "shippingPostalCode": "1080073",
+      "shippingAddress": "東京都港区三田3-3-3"
+    },
+    {
+      "id": "3",
+      "shippingName": "京極",
+      "shippingPhone": "08088885052",
+      "shippingPostalCode": "1080073",
+      "shippingAddress": "東京都港区三田3-3-3"
+    },
+    {
+      "id": "4",
+      "shippingName": "京極",
+      "shippingPhone": "08088885052",
+      "shippingPostalCode": "1080073",
+      "shippingAddress": "東京都港区三田3-3-3"
+    },
+    {
+      "id": "30002",
+      "shippingName": "朱振彦",
+      "shippingPhone": "09038087359",
+      "shippingPostalCode": "1600023",
+      "shippingAddress": "東京都新宿区西新宿6-15-1 3407"
+    },
+    {
+      "id": "30003",
+      "shippingName": "関　由里子",
+      "shippingPhone": "09063239369",
+      "shippingPostalCode": "3610041",
+      "shippingAddress": "埼玉県行田市棚田町1-47-1"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tshippingName\tshippingPhone\tshippingPostalCode\tshippingAddress\n2\t京極\t08088885052\t1080073\t東京都港区三田3-3-3\n3\t京極\t08088885052\t1080073\t東京都港区三田3-3-3\n4\t京極\t08088885052\t1080073\t東京都港区三田3-3-3\n30002\t朱振彦\t09038087359\t1600023\t東京都新宿区西新宿6-15-1 3407\n30003\t関　由里子\t09063239369\t3610041\t埼玉県行田市棚田町1-47-1\n",
+  "stderr": "",
+  "execution_time_ms": 1654
+}

@@ -1,0 +1,15 @@
+{
+  "query": "SELECT COUNT(*) as total, SUM(CASE WHEN shippingAddress IS NOT NULL AND shippingAddress != '' THEN 1 ELSE 0 END) as with_address, SUM(CASE WHEN shippingAddress IS NULL OR shippingAddress = '' THEN 1 ELSE 0 END) as without_address FROM mall_orders;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT COUNT(*) as total, SUM(CASE WHEN shippingAddress IS NOT NULL AND shippingAddress != '' THEN 1 ELSE 0 END) as with_address, SUM(CASE WHEN shippingAddress IS NULL OR shippingAddress = '' THEN 1 ELSE 0 END) as without_address FROM mall_orders;",
+  "rows": [
+    {
+      "total": "13",
+      "with_address": "11",
+      "without_address": "2"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\twith_address\twithout_address\n13\t11\t2\n",
+  "stderr": "",
+  "execution_time_ms": 1594
+}

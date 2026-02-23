@@ -1,0 +1,90 @@
+{
+  "query": "SELECT id, shippingName, shippingPhone, shippingPostalCode, shippingAddress, paymentMethod FROM mall_orders ORDER BY id DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, shippingName, shippingPhone, shippingPostalCode, shippingAddress, paymentMethod FROM mall_orders ORDER BY id DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "90002",
+      "shippingName": "八木奈々",
+      "shippingPhone": "09072949841",
+      "shippingPostalCode": "8220033",
+      "shippingAddress": "福岡県直方市上新入2243-96",
+      "paymentMethod": "points"
+    },
+    {
+      "id": "90001",
+      "shippingName": "関　由里子",
+      "shippingPhone": "09063239369",
+      "shippingPostalCode": "3610041",
+      "shippingAddress": "埼玉県行田市棚田町1-47-1",
+      "paymentMethod": "points"
+    },
+    {
+      "id": "60003",
+      "shippingName": "いわつかりえ",
+      "shippingPhone": "08036498032",
+      "shippingPostalCode": "5016003",
+      "shippingAddress": "岐阜県羽島郡岐南町平島2の243の2",
+      "paymentMethod": "points"
+    },
+    {
+      "id": "60002",
+      "shippingName": "西脇早苗",
+      "shippingPhone": "09092631829",
+      "shippingPostalCode": "4700114",
+      "shippingAddress": "愛知県日進市南ケ丘1-22-7",
+      "paymentMethod": "points"
+    },
+    {
+      "id": "60001",
+      "shippingName": "伊藤　英里",
+      "shippingPhone": "09076534800",
+      "shippingPostalCode": "0690373",
+      "shippingAddress": "北海道岩見沢市幌向南三条2-231-58",
+      "paymentMethod": "points"
+    },
+    {
+      "id": "30004",
+      "shippingName": "京極",
+      "shippingPhone": "08088885052",
+      "shippingPostalCode": "1080073",
+      "shippingAddress": "東京都港区三田3-3-3",
+      "paymentMethod": "stripe"
+    },
+    {
+      "id": "30003",
+      "shippingName": "関　由里子",
+      "shippingPhone": "09063239369",
+      "shippingPostalCode": "3610041",
+      "shippingAddress": "埼玉県行田市棚田町1-47-1",
+      "paymentMethod": "points"
+    },
+    {
+      "id": "30002",
+      "shippingName": "朱振彦",
+      "shippingPhone": "09038087359",
+      "shippingPostalCode": "1600023",
+      "shippingAddress": "東京都新宿区西新宿6-15-1 3407",
+      "paymentMethod": "points"
+    },
+    {
+      "id": "30001",
+      "shippingName": "NULL",
+      "shippingPhone": "NULL",
+      "shippingPostalCode": "NULL",
+      "shippingAddress": "NULL",
+      "paymentMethod": "points"
+    },
+    {
+      "id": "4",
+      "shippingName": "京極",
+      "shippingPhone": "08088885052",
+      "shippingPostalCode": "1080073",
+      "shippingAddress": "東京都港区三田3-3-3",
+      "paymentMethod": "stripe"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tshippingName\tshippingPhone\tshippingPostalCode\tshippingAddress\tpaymentMethod\n90002\t八木奈々\t09072949841\t8220033\t福岡県直方市上新入2243-96\tpoints\n90001\t関　由里子\t09063239369\t3610041\t埼玉県行田市棚田町1-47-1\tpoints\n60003\tいわつかりえ\t08036498032\t5016003\t岐阜県羽島郡岐南町平島2の243の2\tpoints\n60002\t西脇早苗\t09092631829\t4700114\t愛知県日進市南ケ丘1-22-7\tpoints\n60001\t伊藤　英里\t09076534800\t0690373\t北海道岩見沢市幌向南三条2-231-58\tpoints\n30004\t京極\t08088885052\t1080073\t東京都港区三田3-3-3\tstripe\n30003\t関　由里子\t09063239369\t3610041\t埼玉県行田市棚田町1-47-1\tpoints\n30002\t朱振彦\t09038087359\t1600023\t東京都新宿区西新宿6-15-1 3407\tpoints\n30001\tNULL\tNULL\tNULL\tNULL\tpoints\n4\t京極\t08088885052\t1080073\t東京都港区三田3-3-3\tstripe\n",
+  "stderr": "",
+  "execution_time_ms": 1587
+}

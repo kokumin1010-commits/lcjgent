@@ -1,0 +1,35 @@
+{
+  "query": "SELECT shippingName, shippingPostalCode, shippingAddress FROM mall_orders WHERE shippingAddress IS NOT NULL LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT shippingName, shippingPostalCode, shippingAddress FROM mall_orders WHERE shippingAddress IS NOT NULL LIMIT 5;",
+  "rows": [
+    {
+      "shippingName": "京極",
+      "shippingPostalCode": "1080073",
+      "shippingAddress": "東京都港区三田3-3-3"
+    },
+    {
+      "shippingName": "京極",
+      "shippingPostalCode": "1080073",
+      "shippingAddress": "東京都港区三田3-3-3"
+    },
+    {
+      "shippingName": "京極",
+      "shippingPostalCode": "1080073",
+      "shippingAddress": "東京都港区三田3-3-3"
+    },
+    {
+      "shippingName": "朱振彦",
+      "shippingPostalCode": "1600023",
+      "shippingAddress": "東京都新宿区西新宿6-15-1 3407"
+    },
+    {
+      "shippingName": "関　由里子",
+      "shippingPostalCode": "3610041",
+      "shippingAddress": "埼玉県行田市棚田町1-47-1"
+    }
+  ],
+  "messages": [],
+  "stdout": "shippingName\tshippingPostalCode\tshippingAddress\n京極\t1080073\t東京都港区三田3-3-3\n京極\t1080073\t東京都港区三田3-3-3\n京極\t1080073\t東京都港区三田3-3-3\n朱振彦\t1600023\t東京都新宿区西新宿6-15-1 3407\n関　由里子\t3610041\t埼玉県行田市棚田町1-47-1\n",
+  "stderr": "",
+  "execution_time_ms": 1517
+}

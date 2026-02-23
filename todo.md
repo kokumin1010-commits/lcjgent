@@ -5961,3 +5961,9 @@
 - [x] フロントエンドのカート・チェックアウトUIに送料表示を追加（MallCart / MallProductDetail / LineMypage）
 - [x] 注文詳細・管理画面に送料表示を追加（OrderManagementの注文詳細ダイアログ）
 - [x] Vitestテスト作成・実行（shippingFee.test.ts 13テスト全パス）
+
+## 注文完了時の住所・名前自動保存機能（A案）
+- [x] 注文完了時に住所と名前をuser_addressesに自動保存
+- [x] 注文時の名前（フルネームでない場合も含む）をそのまま保存
+- [x] 既存住所がない場合は新規作成、ある場合は名前を更新
+- [x] Vitestテスト作成・全パス確認

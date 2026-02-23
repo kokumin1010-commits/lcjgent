@@ -6301,6 +6301,16 @@ export async function createMallOrder(data: {
   // カートをクリア
   await clearMallCart(data.lineUserId);
 
+  // 住所自動保存: 注文時の配送先情報をuser_addressesに自動保存
+  try {
+    if (data.shippingInfo?.name && data.shippingInfo?.postalCode && data.shippingInfo?.address) {
+      await autoSaveShippingAddress(data.lineUserId, data.shippingInfo);
+    }
+  } catch (addrError) {
+    // 住所保存に失敗しても注文自体は成功とする
+    console.error("[createMallOrder] 住所自動保存エラー:", addrError);
+  }
+
   return { orderId, orderNumber, totalAmount, pointsUsed, cashAmount };
 }
 
@@ -6750,6 +6760,161 @@ export async function setDefaultUserAddress(id: number, lineUserId: number) {
     .where(eq(userAddresses.id, id));
 }
 
+
+/**
+ * 注文時の配送先情報をuser_addressesに自動保存
+ * - 既存住所がない場合: 新規作成（デフォルト住所として登録）
+ * - 既存住所がある場合: 名前を更新（注文時の名前で上書き）
+ */
+export async function autoSaveShippingAddress(
+  lineUserId: number,
+  shippingInfo: {
+    name?: string;
+    phone?: string;
+    postalCode?: string;
+    address?: string;
+  }
+) {
+  const db = await getDb();
+  if (!db) return;
+
+  const name = shippingInfo.name?.trim();
+  const phone = shippingInfo.phone?.trim() || "";
+  const postalCode = shippingInfo.postalCode?.trim() || "";
+  const fullAddress = shippingInfo.address?.trim() || "";
+
+  if (!name || !postalCode || !fullAddress) return;
+
+  // 住所を解析: 都道府県・市区町村・番地・建物名に分割
+  const parsed = parseJapaneseAddress(fullAddress);
+
+  // 既存住所を確認
+  const existingAddresses = await db
+    .select()
+    .from(userAddresses)
+    .where(eq(userAddresses.lineUserId, lineUserId))
+    .orderBy(desc(userAddresses.isDefault), desc(userAddresses.createdAt));
+
+  if (existingAddresses.length === 0) {
+    // 新規作成: デフォルト住所として登録
+    await db.insert(userAddresses).values({
+      lineUserId,
+      label: "自宅",
+      recipientName: name,
+      phoneNumber: phone,
+      postalCode,
+      prefecture: parsed.prefecture,
+      city: parsed.city,
+      addressLine1: parsed.addressLine1,
+      addressLine2: parsed.addressLine2 || undefined,
+      isDefault: true,
+    });
+    console.log(`[autoSaveShippingAddress] 新規住所保存: lineUserId=${lineUserId}, name=${name}`);
+  } else {
+    // 既存住所がある場合: デフォルト住所の名前を更新
+    const defaultAddr = existingAddresses.find(a => a.isDefault) || existingAddresses[0];
+    
+    // 同じ郵便番号の住所があるか確認
+    const matchingAddr = existingAddresses.find(a => a.postalCode === postalCode);
+    
+    if (matchingAddr) {
+      // 同じ郵便番号の住所がある場合: 名前と電話番号を更新
+      await db
+        .update(userAddresses)
+        .set({
+          recipientName: name,
+          phoneNumber: phone || matchingAddr.phoneNumber,
+          prefecture: parsed.prefecture || matchingAddr.prefecture,
+          city: parsed.city || matchingAddr.city,
+          addressLine1: parsed.addressLine1 || matchingAddr.addressLine1,
+          addressLine2: parsed.addressLine2 || matchingAddr.addressLine2,
+        })
+        .where(eq(userAddresses.id, matchingAddr.id));
+      console.log(`[autoSaveShippingAddress] 住所更新: id=${matchingAddr.id}, name=${name}`);
+    } else {
+      // 新しい郵便番号の住所: 追加保存（デフォルトにはしない）
+      await db.insert(userAddresses).values({
+        lineUserId,
+        label: "配送先",
+        recipientName: name,
+        phoneNumber: phone,
+        postalCode,
+        prefecture: parsed.prefecture,
+        city: parsed.city,
+        addressLine1: parsed.addressLine1,
+        addressLine2: parsed.addressLine2 || undefined,
+        isDefault: false,
+      });
+      console.log(`[autoSaveShippingAddress] 新規住所追加: lineUserId=${lineUserId}, name=${name}, postalCode=${postalCode}`);
+    }
+  }
+}
+
+/**
+ * 日本の住所文字列を都道府県・市区町村・番地・建物名に分割
+ * 例: "東京都港区三田3-3-3" -> { prefecture: "東京都", city: "港区三田", addressLine1: "3-3-3", addressLine2: null }
+ * 例: "東京都新宿区西新宿6-15-1 3407" -> { prefecture: "東京都", city: "新宿区西新宿", addressLine1: "6-15-1", addressLine2: "3407" }
+ */
+export function parseJapaneseAddress(address: string): {
+  prefecture: string;
+  city: string;
+  addressLine1: string;
+  addressLine2: string | null;
+} {
+  // デフォルト値
+  const result = {
+    prefecture: "",
+    city: "",
+    addressLine1: address,
+    addressLine2: null as string | null,
+  };
+
+  // 都道府県を抽出
+  const prefectureMatch = address.match(/^(北海道|東京都|京都府|大阪府|.{2,3}県)/);
+  if (!prefectureMatch) {
+    // 都道府県が見つからない場合は全体をaddressLine1に
+    return result;
+  }
+
+  result.prefecture = prefectureMatch[1];
+  let remaining = address.slice(result.prefecture.length);
+
+  // 市区町村を抽出
+  // 政令指定都市の区（例: 港区、新宿区）、市、町、村、郡を検出
+  const cityMatch = remaining.match(/^(.+?[市区町村郡])(.+?)(?=\d|$)/);
+  if (cityMatch) {
+    result.city = cityMatch[1] + cityMatch[2];
+    remaining = remaining.slice(result.city.length);
+  } else {
+    // 数字が始まる前までを市区町村として扱う
+    const numStart = remaining.search(/\d/);
+    if (numStart > 0) {
+      result.city = remaining.slice(0, numStart);
+      remaining = remaining.slice(numStart);
+    } else {
+      result.city = remaining;
+      remaining = "";
+    }
+  }
+
+  // 残りを番地と建物名に分割
+  if (remaining) {
+    // スペースで分割（番地と建物名）
+    const spaceIndex = remaining.indexOf(" ");
+    const fullWidthSpaceIndex = remaining.indexOf("　");
+    const splitIndex = spaceIndex >= 0 ? spaceIndex : fullWidthSpaceIndex;
+    
+    if (splitIndex > 0) {
+      result.addressLine1 = remaining.slice(0, splitIndex).trim();
+      result.addressLine2 = remaining.slice(splitIndex + 1).trim() || null;
+    } else {
+      result.addressLine1 = remaining.trim();
+      result.addressLine2 = null;
+    }
+  }
+
+  return result;
+}
 
 // ========================================
 // Email Authentication Functions
