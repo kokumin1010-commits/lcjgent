@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ShoppingBag, Coins, Receipt, LogOut, ArrowLeft, Clock, CheckCircle, XCircle, AlertCircle, TrendingUp, TrendingDown, ShoppingCart, History, Link2, Copy, RefreshCw, ExternalLink, Upload, Package, Truck, ChevronDown, ChevronUp, CreditCard, Gift, X, Heart } from "lucide-react";
+import { Loader2, ShoppingBag, Coins, Receipt, LogOut, ArrowLeft, Clock, CheckCircle, XCircle, AlertCircle, TrendingUp, TrendingDown, ShoppingCart, History, Link2, Copy, RefreshCw, ExternalLink, Upload, Package, Truck, ChevronDown, ChevronUp, CreditCard, Gift, X, Heart, MapPin, User, Pencil, Trash2, Star, Plus, Phone, Mail } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -489,18 +491,26 @@ export default function LineMypage() {
 
         {/* Tabs */}
         <Tabs defaultValue="orders" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-4 sm:grid-cols-7">
             <TabsTrigger value="orders" className="text-xs px-1">注文履歴</TabsTrigger>
             <TabsTrigger value="favorites" className="text-xs px-1 flex items-center gap-0.5">
               <Heart className="h-3 w-3" />
-              お気に入り
+              <span className="hidden sm:inline">お気に入り</span>
             </TabsTrigger>
             <TabsTrigger value="viewed" className="text-xs px-1 flex items-center gap-0.5">
               <Clock className="h-3 w-3" />
-              最近見た
+              <span className="hidden sm:inline">最近見た</span>
             </TabsTrigger>
             <TabsTrigger value="history" className="text-xs px-1">ポイント</TabsTrigger>
             <TabsTrigger value="receipts" className="text-xs px-1">レシート</TabsTrigger>
+            <TabsTrigger value="addresses" className="text-xs px-1 flex items-center gap-0.5">
+              <MapPin className="h-3 w-3" />
+              <span className="hidden sm:inline">住所</span>
+            </TabsTrigger>
+            <TabsTrigger value="profile" className="text-xs px-1 flex items-center gap-0.5">
+              <User className="h-3 w-3" />
+              <span className="hidden sm:inline">プロフィール</span>
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="orders">
@@ -967,6 +977,14 @@ export default function LineMypage() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="addresses">
+            <AddressBookSection />
+          </TabsContent>
+
+          <TabsContent value="profile">
+            <ProfileEditSection />
           </TabsContent>
 
           <TabsContent value="receipts">
@@ -1492,4 +1510,568 @@ function formatViewedAt(date: Date | string): string {
   if (diffHour < 24) return `${diffHour}時間前`;
   if (diffDay < 7) return `${diffDay}日前`;
   return format(viewed, "M/d", { locale: ja });
+}
+
+
+// ===== 住所帳セクション =====
+function AddressBookSection() {
+  const utils = trpc.useUtils();
+  const { data: addresses, isLoading } = trpc.mall.getMyAddresses.useQuery();
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+
+  // フォーム状態
+  const [formData, setFormData] = useState({
+    label: "自宅",
+    recipientName: "",
+    phoneNumber: "",
+    postalCode: "",
+    prefecture: "",
+    city: "",
+    addressLine1: "",
+    addressLine2: "",
+  });
+
+  const addMutation = trpc.mall.addAddress.useMutation({
+    onSuccess: () => {
+      utils.mall.getMyAddresses.invalidate();
+      toast.success("住所を追加しました");
+      resetForm();
+    },
+    onError: (err) => toast.error(err.message || "住所の追加に失敗しました"),
+  });
+
+  const updateMutation = trpc.mall.updateAddress.useMutation({
+    onSuccess: () => {
+      utils.mall.getMyAddresses.invalidate();
+      toast.success("住所を更新しました");
+      resetForm();
+    },
+    onError: (err) => toast.error(err.message || "住所の更新に失敗しました"),
+  });
+
+  const deleteMutation = trpc.mall.deleteAddress.useMutation({
+    onSuccess: () => {
+      utils.mall.getMyAddresses.invalidate();
+      toast.success("住所を削除しました");
+      setDeleteConfirmId(null);
+    },
+    onError: (err) => toast.error(err.message || "住所の削除に失敗しました"),
+  });
+
+  const setDefaultMutation = trpc.mall.setDefaultAddress.useMutation({
+    onSuccess: () => {
+      utils.mall.getMyAddresses.invalidate();
+      toast.success("デフォルト住所を変更しました");
+    },
+    onError: (err) => toast.error(err.message || "変更に失敗しました"),
+  });
+
+  // 郵便番号検索
+  const searchPostalCode = async (code: string) => {
+    const cleaned = code.replace(/[^0-9]/g, "");
+    if (cleaned.length !== 7) return;
+    try {
+      const res = await fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${cleaned}`);
+      const data = await res.json();
+      if (data.results && data.results.length > 0) {
+        const r = data.results[0];
+        setFormData(prev => ({
+          ...prev,
+          postalCode: cleaned,
+          prefecture: r.address1 || "",
+          city: (r.address2 || "") + (r.address3 || ""),
+        }));
+      }
+    } catch {
+      // silently fail
+    }
+  };
+
+  const resetForm = () => {
+    setEditingId(null);
+    setIsAdding(false);
+    setFormData({
+      label: "自宅",
+      recipientName: "",
+      phoneNumber: "",
+      postalCode: "",
+      prefecture: "",
+      city: "",
+      addressLine1: "",
+      addressLine2: "",
+    });
+  };
+
+  const startEdit = (addr: any) => {
+    setEditingId(addr.id);
+    setIsAdding(false);
+    setFormData({
+      label: addr.label || "自宅",
+      recipientName: addr.recipientName || "",
+      phoneNumber: addr.phoneNumber || "",
+      postalCode: addr.postalCode || "",
+      prefecture: addr.prefecture || "",
+      city: addr.city || "",
+      addressLine1: addr.addressLine1 || "",
+      addressLine2: addr.addressLine2 || "",
+    });
+  };
+
+  const handleSubmit = () => {
+    if (!formData.recipientName || !formData.postalCode || !formData.prefecture || !formData.addressLine1) {
+      toast.error("必須項目を入力してください");
+      return;
+    }
+    if (editingId) {
+      updateMutation.mutate({ id: editingId, ...formData });
+    } else {
+      addMutation.mutate(formData);
+    }
+  };
+
+  const isSaving = addMutation.isPending || updateMutation.isPending;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <MapPin className="h-5 w-5 text-rose-500" />
+              住所帳
+            </CardTitle>
+            <CardDescription>配送先住所の管理</CardDescription>
+          </div>
+          {!isAdding && !editingId && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-rose-500 border-rose-200 hover:bg-rose-50"
+              onClick={() => { resetForm(); setIsAdding(true); }}
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              追加
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* 追加/編集フォーム */}
+        {(isAdding || editingId) && (
+          <div className="border border-rose-200 rounded-lg p-4 bg-rose-50/50 space-y-3">
+            <h4 className="font-medium text-sm text-rose-700">
+              {editingId ? "住所を編集" : "新しい住所を追加"}
+            </h4>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2 sm:col-span-1">
+                <Label className="text-xs">ラベル</Label>
+                <Select value={formData.label} onValueChange={(v) => setFormData(prev => ({ ...prev, label: v }))}>
+                  <SelectTrigger className="h-9 bg-white"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="自宅">自宅</SelectItem>
+                    <SelectItem value="会社">会社</SelectItem>
+                    <SelectItem value="配送先">配送先</SelectItem>
+                    <SelectItem value="その他">その他</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-2 sm:col-span-1">
+                <Label className="text-xs">受取人名 <span className="text-red-500">*</span></Label>
+                <Input
+                  className="h-9 bg-white"
+                  placeholder="例: 京極 龍"
+                  value={formData.recipientName}
+                  onChange={(e) => setFormData(prev => ({ ...prev, recipientName: e.target.value }))}
+                />
+              </div>
+              <div className="col-span-2 sm:col-span-1">
+                <Label className="text-xs">電話番号</Label>
+                <Input
+                  className="h-9 bg-white"
+                  placeholder="例: 090-1234-5678"
+                  value={formData.phoneNumber}
+                  onChange={(e) => setFormData(prev => ({ ...prev, phoneNumber: e.target.value }))}
+                />
+              </div>
+              <div className="col-span-2 sm:col-span-1">
+                <Label className="text-xs">郵便番号 <span className="text-red-500">*</span></Label>
+                <Input
+                  className="h-9 bg-white"
+                  placeholder="例: 1600023"
+                  value={formData.postalCode}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/[^0-9]/g, "");
+                    setFormData(prev => ({ ...prev, postalCode: v }));
+                    if (v.length === 7) searchPostalCode(v);
+                  }}
+                  maxLength={7}
+                />
+              </div>
+              <div className="col-span-2 sm:col-span-1">
+                <Label className="text-xs">都道府県 <span className="text-red-500">*</span></Label>
+                <Input
+                  className="h-9 bg-white"
+                  placeholder="例: 東京都"
+                  value={formData.prefecture}
+                  onChange={(e) => setFormData(prev => ({ ...prev, prefecture: e.target.value }))}
+                />
+              </div>
+              <div className="col-span-2 sm:col-span-1">
+                <Label className="text-xs">市区町村</Label>
+                <Input
+                  className="h-9 bg-white"
+                  placeholder="例: 新宿区西新宿"
+                  value={formData.city}
+                  onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value }))}
+                />
+              </div>
+              <div className="col-span-2">
+                <Label className="text-xs">番地 <span className="text-red-500">*</span></Label>
+                <Input
+                  className="h-9 bg-white"
+                  placeholder="例: 6-15-1"
+                  value={formData.addressLine1}
+                  onChange={(e) => setFormData(prev => ({ ...prev, addressLine1: e.target.value }))}
+                />
+              </div>
+              <div className="col-span-2">
+                <Label className="text-xs">建物名・部屋番号</Label>
+                <Input
+                  className="h-9 bg-white"
+                  placeholder="例: マンション名 101号室"
+                  value={formData.addressLine2}
+                  onChange={(e) => setFormData(prev => ({ ...prev, addressLine2: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button
+                size="sm"
+                className="bg-rose-500 hover:bg-rose-600 text-white"
+                onClick={handleSubmit}
+                disabled={isSaving}
+              >
+                {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                {editingId ? "更新" : "追加"}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={resetForm}>
+                キャンセル
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* 住所一覧 */}
+        {isLoading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-rose-500" />
+          </div>
+        ) : !addresses || addresses.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <MapPin className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+            <p className="font-medium">住所が登録されていません</p>
+            <p className="text-sm mt-1 text-gray-400">「追加」ボタンから住所を登録しましょう</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {addresses.map((addr: any) => (
+              <div
+                key={addr.id}
+                className={`border rounded-lg p-3 transition-all ${
+                  addr.isDefault
+                    ? "border-rose-300 bg-rose-50/50"
+                    : "border-gray-200 hover:border-gray-300"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant={addr.isDefault ? "default" : "outline"} className={addr.isDefault ? "bg-rose-500 text-white text-[10px]" : "text-[10px]"}>
+                        {addr.label}
+                      </Badge>
+                      {addr.isDefault && (
+                        <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-600">
+                          <Star className="h-2.5 w-2.5 mr-0.5 fill-amber-400" />
+                          デフォルト
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="font-medium text-sm">{addr.recipientName}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      〒{addr.postalCode?.replace(/(\d{3})(\d{4})/, "$1-$2")}
+                    </p>
+                    <p className="text-xs text-gray-700">
+                      {addr.prefecture}{addr.city}{addr.addressLine1}
+                      {addr.addressLine2 ? ` ${addr.addressLine2}` : ""}
+                    </p>
+                    {addr.phoneNumber && (
+                      <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+                        <Phone className="h-3 w-3" />
+                        {addr.phoneNumber}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0 text-gray-400 hover:text-rose-500"
+                      onClick={() => startEdit(addr)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    {!addr.isDefault && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0 text-gray-400 hover:text-amber-500"
+                          onClick={() => setDefaultMutation.mutate({ id: addr.id })}
+                          title="デフォルトに設定"
+                        >
+                          <Star className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0 text-gray-400 hover:text-red-500"
+                          onClick={() => setDeleteConfirmId(addr.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* 削除確認 */}
+                {deleteConfirmId === addr.id && (
+                  <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs">
+                    <p className="text-red-700 mb-2">この住所を削除しますか？</p>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="h-7 text-xs"
+                        onClick={() => deleteMutation.mutate({ id: addr.id })}
+                        disabled={deleteMutation.isPending}
+                      >
+                        {deleteMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "削除"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs"
+                        onClick={() => setDeleteConfirmId(null)}
+                      >
+                        キャンセル
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ===== プロフィール編集セクション =====
+function ProfileEditSection() {
+  const utils = trpc.useUtils();
+  const { data: profile, isLoading } = trpc.lineLogin.getMyProfile.useQuery();
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState({
+    displayName: "",
+    phone: "",
+    email: "",
+  });
+
+  // プロフィールデータが取得されたらフォームに反映
+  useEffect(() => {
+    if (profile) {
+      setFormData({
+        displayName: profile.displayName || "",
+        phone: profile.phone || "",
+        email: profile.email || "",
+      });
+    }
+  }, [profile]);
+
+  const updateMutation = trpc.lineLogin.updateMyProfile.useMutation({
+    onSuccess: () => {
+      utils.lineLogin.getMyProfile.invalidate();
+      toast.success("プロフィールを更新しました");
+      setIsEditing(false);
+    },
+    onError: (err) => toast.error(err.message || "更新に失敗しました"),
+  });
+
+  const handleSave = () => {
+    if (!formData.displayName.trim()) {
+      toast.error("名前を入力してください");
+      return;
+    }
+    updateMutation.mutate({
+      displayName: formData.displayName.trim(),
+      phone: formData.phone.trim(),
+      email: formData.email.trim() || undefined,
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="p-6 flex justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-rose-500" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <User className="h-5 w-5 text-rose-500" />
+              プロフィール
+            </CardTitle>
+            <CardDescription>アカウント情報の確認・編集</CardDescription>
+          </div>
+          {!isEditing && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-rose-500 border-rose-200 hover:bg-rose-50"
+              onClick={() => setIsEditing(true)}
+            >
+              <Pencil className="h-4 w-4 mr-1" />
+              編集
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* プロフィール画像 */}
+        {profile?.pictureUrl && (
+          <div className="flex justify-center">
+            <img
+              src={profile.pictureUrl}
+              alt="プロフィール"
+              className="w-20 h-20 rounded-full border-2 border-rose-200 object-cover"
+            />
+          </div>
+        )}
+
+        {isEditing ? (
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">名前 <span className="text-red-500">*</span></Label>
+              <Input
+                className="h-9"
+                placeholder="名前を入力"
+                value={formData.displayName}
+                onChange={(e) => setFormData(prev => ({ ...prev, displayName: e.target.value }))}
+              />
+              <p className="text-[10px] text-gray-400 mt-1">フルネームでなくてもOKです</p>
+            </div>
+            <div>
+              <Label className="text-xs">電話番号</Label>
+              <Input
+                className="h-9"
+                placeholder="例: 090-1234-5678"
+                value={formData.phone}
+                onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label className="text-xs">メールアドレス</Label>
+              <Input
+                className="h-9"
+                type="email"
+                placeholder="例: example@email.com"
+                value={formData.email}
+                onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+              />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button
+                size="sm"
+                className="bg-rose-500 hover:bg-rose-600 text-white"
+                onClick={handleSave}
+                disabled={updateMutation.isPending}
+              >
+                {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                保存
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setIsEditing(false);
+                  if (profile) {
+                    setFormData({
+                      displayName: profile.displayName || "",
+                      phone: profile.phone || "",
+                      email: profile.email || "",
+                    });
+                  }
+                }}
+              >
+                キャンセル
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+              <User className="h-4 w-4 text-gray-400 shrink-0" />
+              <div>
+                <p className="text-[10px] text-gray-400">名前</p>
+                <p className="text-sm font-medium">{profile?.displayName || "未設定"}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+              <Phone className="h-4 w-4 text-gray-400 shrink-0" />
+              <div>
+                <p className="text-[10px] text-gray-400">電話番号</p>
+                <p className="text-sm font-medium">{profile?.phone || "未設定"}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+              <Mail className="h-4 w-4 text-gray-400 shrink-0" />
+              <div>
+                <p className="text-[10px] text-gray-400">メールアドレス</p>
+                <p className="text-sm font-medium">{profile?.email || "未設定"}</p>
+              </div>
+            </div>
+            {profile?.lineUserId && (
+              <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
+                <svg className="h-4 w-4 text-green-500 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63h2.386c.349 0 .63.285.63.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63.349 0 .631.285.631.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
+                </svg>
+                <div>
+                  <p className="text-[10px] text-gray-400">LINE連携</p>
+                  <p className="text-sm font-medium text-green-600">連携済み</p>
+                </div>
+              </div>
+            )}
+            {profile?.createdAt && (
+              <div className="text-center pt-2">
+                <p className="text-[10px] text-gray-400">
+                  登録日: {format(new Date(profile.createdAt), "yyyy年M月d日", { locale: ja })}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }

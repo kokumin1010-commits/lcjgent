@@ -6811,14 +6811,21 @@ export async function autoSaveShippingAddress(
     });
     console.log(`[autoSaveShippingAddress] 新規住所保存: lineUserId=${lineUserId}, name=${name}`);
   } else {
-    // 既存住所がある場合: デフォルト住所の名前を更新
-    const defaultAddr = existingAddresses.find(a => a.isDefault) || existingAddresses[0];
-    
-    // 同じ郵便番号の住所があるか確認
-    const matchingAddr = existingAddresses.find(a => a.postalCode === postalCode);
+    // 重複チェック強化: 郵便番号 + 番地（addressLine1）の組み合わせで判定
+    // 同じ郵便番号でも異なる番地の住所は別住所として保存する
+    const normalizeAddr = (s: string) => s.replace(/[\s　-－ー]/g, "").toLowerCase();
+    const matchingAddr = existingAddresses.find(a => {
+      if (a.postalCode !== postalCode) return false;
+      // 郵便番号が一致 + 番地も一致する場合のみ「同じ住所」と判定
+      if (parsed.addressLine1 && a.addressLine1) {
+        return normalizeAddr(a.addressLine1) === normalizeAddr(parsed.addressLine1);
+      }
+      // 番地が解析できない場合は郵便番号のみで判定（後方互換）
+      return true;
+    });
     
     if (matchingAddr) {
-      // 同じ郵便番号の住所がある場合: 名前と電話番号を更新
+      // 同じ住所が見つかった場合: 名前・電話番号・建物名を更新
       await db
         .update(userAddresses)
         .set({
@@ -6830,9 +6837,9 @@ export async function autoSaveShippingAddress(
           addressLine2: parsed.addressLine2 || matchingAddr.addressLine2,
         })
         .where(eq(userAddresses.id, matchingAddr.id));
-      console.log(`[autoSaveShippingAddress] 住所更新: id=${matchingAddr.id}, name=${name}`);
+      console.log(`[autoSaveShippingAddress] 住所更新: id=${matchingAddr.id}, name=${name}, postalCode=${postalCode}, addressLine1=${parsed.addressLine1}`);
     } else {
-      // 新しい郵便番号の住所: 追加保存（デフォルトにはしない）
+      // 新しい住所（郵便番号または番地が異なる）: 追加保存（デフォルトにはしない）
       await db.insert(userAddresses).values({
         lineUserId,
         label: "配送先",
@@ -6845,7 +6852,7 @@ export async function autoSaveShippingAddress(
         addressLine2: parsed.addressLine2 || undefined,
         isDefault: false,
       });
-      console.log(`[autoSaveShippingAddress] 新規住所追加: lineUserId=${lineUserId}, name=${name}, postalCode=${postalCode}`);
+      console.log(`[autoSaveShippingAddress] 新規住所追加: lineUserId=${lineUserId}, name=${name}, postalCode=${postalCode}, addressLine1=${parsed.addressLine1}`);
     }
   }
 }

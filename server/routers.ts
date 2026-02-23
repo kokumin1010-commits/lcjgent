@@ -2195,6 +2195,62 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       console.log(`[RegistrationBonus] ${input.points}pt awarded to user ${user.id}`);
       return { awarded: true, points: input.points };
     }),
+
+  // ===== プロフィール編集API =====
+  updateMyProfile: publicProcedure
+    .input(z.object({
+      displayName: z.string().min(1, "名前を入力してください").max(100).optional(),
+      phone: z.string().max(20).optional(),
+      email: z.string().email("有効なメールアドレスを入力してください").max(320).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const result = await getLineUserFromSession(ctx);
+      if (!result || !result.lineUser) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+      }
+      const lineUser = result.lineUser;
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+
+      // メールアドレスの重複チェック（変更する場合）
+      if (input.email && input.email !== lineUser.email) {
+        const existing = await db.select().from(lineUsers).where(eq(lineUsers.email, input.email)).limit(1);
+        if (existing.length > 0 && existing[0].id !== lineUser.id) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "このメールアドレスは既に使用されています" });
+        }
+      }
+
+      const updateData: Record<string, any> = {};
+      if (input.displayName !== undefined) updateData.displayName = input.displayName;
+      if (input.phone !== undefined) updateData.phone = input.phone || null;
+      if (input.email !== undefined) updateData.email = input.email;
+
+      if (Object.keys(updateData).length === 0) {
+        return { success: true };
+      }
+
+      await db.update(lineUsers).set(updateData).where(eq(lineUsers.id, lineUser.id));
+      return { success: true };
+    }),
+
+  // プロフィール情報取得（編集画面用）
+  getMyProfile: publicProcedure
+    .query(async ({ ctx }) => {
+      const result = await getLineUserFromSession(ctx);
+      if (!result || !result.lineUser) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "ログインが必要です" });
+      }
+      const u = result.lineUser;
+      return {
+        id: u.id,
+        displayName: u.displayName || "",
+        email: u.email || "",
+        phone: u.phone || "",
+        pictureUrl: u.pictureUrl || null,
+        lineUserId: u.lineUserId || null,
+        createdAt: u.createdAt,
+      };
+    }),
 });
 
 export const appRouter = router({
@@ -12349,6 +12405,13 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .input(z.object({ lineUserId: z.number() }))
       .query(async ({ ctx, input }) => {
         return await getMallOrdersByLineUser(input.lineUserId);
+      }),
+
+    // 管理者用: 特定会員の保存済み住所一覧取得
+    getMemberAddresses: protectedProcedure
+      .input(z.object({ lineUserId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        return await getUserAddresses(input.lineUserId);
       }),
 
     // 管理者用: 会員のレシート統計（累計購入金額等）

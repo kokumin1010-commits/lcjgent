@@ -362,6 +362,9 @@ export default function MemberDetail() {
           </CardContent>
         </Card>
 
+        {/* ===== 保存済み住所セクション ===== */}
+        <MemberAddressesCard memberId={memberId} />
+
         {/* ===== ポイントセクション ===== */}
         <Card>
           <CardHeader>
@@ -709,5 +712,88 @@ export default function MemberDetail() {
         </Card>
       </div>
     </div>
+  );
+}
+
+// ===== 管理者用: 会員の保存済み住所一覧 =====
+function MemberAddressesCard({ memberId }: { memberId: number }) {
+  const { data: addresses, isLoading } = trpc.mall.getMemberAddresses.useQuery(
+    { lineUserId: memberId },
+    { enabled: memberId > 0 }
+  );
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <MapPin className="h-4 w-4 text-pink-500" />
+          保存済み住所
+        </CardTitle>
+        <CardDescription>会員が登録している配送先住所</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex justify-center py-4">
+            <Loader2 className="h-5 w-5 animate-spin text-pink-500" />
+          </div>
+        ) : !addresses || addresses.length === 0 ? (
+          <div className="text-center text-muted-foreground py-6 border rounded-lg">
+            <MapPin className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+            <p className="text-sm">保存済み住所がありません</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {addresses.map((addr: any) => (
+              <div
+                key={addr.id}
+                className={`border rounded-lg p-3 ${
+                  addr.isDefault ? "border-pink-300 bg-pink-50/50" : "border-gray-200"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant={addr.isDefault ? "default" : "outline"} className={addr.isDefault ? "bg-pink-500 text-white text-[10px]" : "text-[10px]"}>
+                        {addr.label || "住所"}
+                      </Badge>
+                      {addr.isDefault && (
+                        <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-600">
+                          デフォルト
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="font-medium text-sm">{addr.recipientName}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      〒{addr.postalCode?.replace(/(\d{3})(\d{4})/, "$1-$2")}
+                    </p>
+                    <p className="text-xs">
+                      {addr.prefecture}{addr.city}{addr.addressLine1}
+                      {addr.addressLine2 ? ` ${addr.addressLine2}` : ""}
+                    </p>
+                    {addr.phoneNumber && (
+                      <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                        <Phone className="h-3 w-3" />
+                        {addr.phoneNumber}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => {
+                      const fullAddr = `${addr.postalCode ? `〒${addr.postalCode.replace(/(\d{3})(\d{4})/, "$1-$2")} ` : ""}${addr.prefecture}${addr.city}${addr.addressLine1}${addr.addressLine2 ? ` ${addr.addressLine2}` : ""}`;
+                      navigator.clipboard.writeText(fullAddr);
+                      toast.success("住所をコピーしました");
+                    }}
+                    className="text-muted-foreground hover:text-foreground p-1"
+                    title="住所をコピー"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
