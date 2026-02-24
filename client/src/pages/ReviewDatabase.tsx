@@ -36,12 +36,14 @@ import {
 
 // ===== プラットフォームバッジ設定 =====
 const PLATFORM_CONFIG: Record<string, { label: string; color: string; icon: string }> = {
-  tiktok: { label: "TikTok Shop", color: "bg-gray-900 text-white", icon: "♪" },
-  qoo10: { label: "Qoo10", color: "bg-red-500 text-white", icon: "Q" },
-  amazon: { label: "Amazon", color: "bg-orange-500 text-white", icon: "A" },
-  rakuten: { label: "楽天", color: "bg-red-600 text-white", icon: "R" },
-  shein: { label: "SHEIN", color: "bg-black text-white", icon: "S" },
-  lcjmall: { label: "LCJ MALL", color: "bg-rose-500 text-white", icon: "L" },
+  "TikTok Shop": { label: "TikTok Shop", color: "bg-gray-900 text-white", icon: "♪" },
+  "Qoo10": { label: "Qoo10", color: "bg-red-500 text-white", icon: "Q" },
+  "Amazon": { label: "Amazon", color: "bg-orange-500 text-white", icon: "A" },
+  "楽天市場": { label: "楽天市場", color: "bg-red-600 text-white", icon: "R" },
+  "SHEIN": { label: "SHEIN", color: "bg-black text-white", icon: "S" },
+  "LCJ MALL": { label: "LCJ MALL", color: "bg-rose-500 text-white", icon: "L" },
+  "Yahoo!ショッピング": { label: "Yahoo!", color: "bg-red-400 text-white", icon: "Y" },
+  "メルカリShops": { label: "メルカリ", color: "bg-red-500 text-white", icon: "M" },
   other: { label: "その他", color: "bg-gray-400 text-white", icon: "?" },
 };
 
