@@ -507,7 +507,6 @@ import {
   getBlogTagArticleCounts,
   getProductDataForBlogArticle,
   getAllMallProductBuyerCounts,
-  getAllProductReviewStats,
   getAllMallBrands,
   listAutoPostSchedules,
   getAutoPostScheduleById,

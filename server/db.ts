@@ -14919,8 +14919,8 @@ export async function getMallBrandReviews(brandId: number, limit: number = 20) {
       productName: mallProducts.name,
       productImageUrl: mallProducts.imageUrl,
       rating: mallProductReviews.rating,
-      comment: mallProductReviews.comment,
-      imageUrl: mallProductReviews.imageUrl,
+      comment: mallProductReviews.content,
+      imageUrl: mallProductReviews.imageUrls,
       createdAt: mallProductReviews.createdAt,
     })
     .from(mallProductReviews)

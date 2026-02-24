@@ -6075,3 +6075,10 @@
 - [x] autoPostSchedulerにタイプ別画像生成を統合
 - [x] triggerNowにタイプ別画像生成を統合
 - [x] カバー画像生成ユーティリティのテスト作成
+
+## サイドメニュー統合
+- [x] サイドメニューから「AI自動投稿」メニュー項目を削除
+- [x] ブログ管理ページに自動投稿タブが統合されていることを確認
+- [x] App.tsxからAutoPostAdminルートを削除
+- [x] AutoPostAdminの全機能（ダッシュボード・スケジュール・キーワード・実行ログ）をBlogAdminの自動投稿タブに統合
+- [x] TypeScriptエラー修正（重複インポート、カラム名不一致、tsconfig target設定）

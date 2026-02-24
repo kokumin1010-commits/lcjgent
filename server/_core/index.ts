@@ -984,8 +984,7 @@ async function startServer() {
       // Mall product pages
       let productUrls: string[] = [];
       try {
-        const productsResult = await getMallProducts({ limit: 500 });
-        const products = productsResult?.products || productsResult || [];
+        const products = await getMallProducts({ limit: 500 }) || [];
         productUrls = (Array.isArray(products) ? products : []).map((p: any) =>
           `  <url>\n    <loc>${baseUrl}/mall/products/${p.id}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.7</priority>${p.imageUrl ? `\n    <image:image>\n      <image:loc>${p.imageUrl}</image:loc>\n      <image:title>${(p.name || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</image:title>\n    </image:image>` : ""}\n  </url>`
         );

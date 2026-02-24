@@ -107,7 +107,6 @@ function DashboardLayoutContent({
     { icon: Calculator, label: "配信シミュレーター", path: "/master/simulator" },
     { icon: Store, label: "LCJ MALL", path: "/master/mall" },
     { icon: Newspaper, label: "ブログ管理", path: "/master/blog" },
-    { icon: Bot, label: "AI自動投稿", path: "/master/auto-post" },
     { icon: Megaphone, label: "紹介コード管理", path: "/master/referral", adminOnly: true },
     { icon: Receipt, label: "レシート管理", path: "/master/receipts" },
     { icon: BarChart3, label: "レシート分析", path: "/master/receipt-analytics" },
