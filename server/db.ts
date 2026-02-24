@@ -15625,3 +15625,67 @@ export async function getReceiptReviewCount() {
   }).from(receiptReviews).where(eq(receiptReviews.isVisible, true));
   return result[0]?.count || 0;
 }
+
+
+// ===== 管理用レビュー一覧取得（ページネーション・ソート・検索対応） =====
+
+export async function getAdminReceiptReviews(options: {
+  query?: string;
+  page: number;
+  limit: number;
+  sortBy: "newest" | "oldest" | "highest" | "lowest";
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const conditions: any[] = [];
+  if (options.query && options.query.trim().length > 0) {
+    conditions.push(like(receiptReviews.productName, `%${options.query}%`));
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const orderByClause = options.sortBy === "oldest"
+    ? asc(receiptReviews.createdAt)
+    : options.sortBy === "highest"
+    ? desc(receiptReviews.rating)
+    : options.sortBy === "lowest"
+    ? asc(receiptReviews.rating)
+    : desc(receiptReviews.createdAt);
+
+  const offset = (options.page - 1) * options.limit;
+
+  const reviews = await db.select().from(receiptReviews)
+    .where(whereClause)
+    .orderBy(orderByClause)
+    .limit(options.limit)
+    .offset(offset);
+
+  const countResult = await db.select({
+    count: sql<number>`COUNT(*)`,
+  }).from(receiptReviews).where(whereClause);
+
+  return {
+    reviews,
+    totalCount: countResult[0]?.count || 0,
+  };
+}
+
+// ===== 管理用Kakuhen統計（avgBoostRate, totalBoostedPoints追加） =====
+
+export async function getKakuhenAdminStats() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const stats = await db.select({
+    totalPlays: sql<number>`COUNT(*)`,
+    kakuhenCount: sql<number>`SUM(CASE WHEN isKakuhen = true THEN 1 ELSE 0 END)`,
+    jackpotCount: sql<number>`SUM(CASE WHEN isJackpot = true THEN 1 ELSE 0 END)`,
+    avgBoostRate: sql<number>`ROUND(AVG(CAST(boostedRate AS DECIMAL(5,2))), 2)`,
+    totalBoostedPoints: sql<number>`SUM(bonusPoints)`,
+    totalBasePoints: sql<number>`SUM(basePoints)`,
+    totalActualPoints: sql<number>`SUM(actualPoints)`,
+    totalBonusPoints: sql<number>`SUM(bonusPoints)`,
+    totalOrderAmount: sql<number>`SUM(orderAmount)`,
+  }).from(receiptKakuhenResults);
+  return stats[0];
+}

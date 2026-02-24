@@ -28,6 +28,8 @@ import MallBrandCategoryManagement from "./MallBrandCategoryManagement";
 import OrderManagement from "./OrderManagement";
 import MallMembers from "./MallMembers";
 import LineReceiptManagement from "./LineReceiptManagement";
+import ReviewManagement from "./ReviewManagement";
+import KakuhenManagement from "./KakuhenManagement";
 
 const TABS = [
   { id: "dashboard", label: "ダッシュボード", icon: LayoutDashboard },
@@ -36,6 +38,8 @@ const TABS = [
   { id: "orders", label: "注文管理", icon: ShoppingCart },
   { id: "members", label: "会員様", icon: UserCheck },
   { id: "receipts", label: "レシート管理", icon: Receipt },
+  { id: "reviews", label: "口コミ管理", icon: Receipt },
+  { id: "kakuhen", label: "確変チャンス", icon: TrendingUp },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -411,6 +415,8 @@ export default function MallDashboardPage() {
         {activeTab === "orders" && <OrderManagement />}
         {activeTab === "members" && <MallMembers />}
         {activeTab === "receipts" && <LineReceiptManagement />}
+        {activeTab === "reviews" && <ReviewManagement />}
+        {activeTab === "kakuhen" && <KakuhenManagement />}
       </div>
     </div>
   );

@@ -543,6 +543,8 @@ import {
   getReceiptReviewStats,
   getProductReviewRanking,
   getReceiptReviewCount,
+  getAdminReceiptReviews,
+  getKakuhenAdminStats,
 } from "./db";
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
@@ -14117,7 +14119,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         if (ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
         }
-        return await getKakuhenStats();
+        return await getKakuhenAdminStats();
       }),
   }),
 
@@ -14237,6 +14239,28 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
     stats: publicProcedure
       .query(async () => {
         return await getReceiptReviewStats();
+      }),
+
+    /**
+     * 管理用レビュー一覧（ページネーション・ソート・検索対応）
+     */
+    adminSearch: protectedProcedure
+      .input(z.object({
+        query: z.string().optional(),
+        page: z.number().min(1).default(1),
+        limit: z.number().min(1).max(100).default(20),
+        sortBy: z.enum(["newest", "oldest", "highest", "lowest"]).default("newest"),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        return await getAdminReceiptReviews({
+          query: input.query,
+          page: input.page,
+          limit: input.limit,
+          sortBy: input.sortBy,
+        });
       }),
 
     /**
