@@ -6143,3 +6143,19 @@
 - [x] 確変チャンス管理コンポーネント（KakuhenManagement.tsx）を実装
 - [x] 管理用サーバーAPIの不足分を追加（receiptReview.adminSearch, kakuhen.statsなど）
 - [x] 動作確認・テスト
+
+
+## レビューページ（/reviews）大幅改善
+- [x] DBスキーマ拡張: receipt_reviewsにproductImageUrl, purchasePlatform, videoUrl, liveCommerceUrl追加
+- [x] DBスキーマ: review_reactions（私も買った！/欲しい！）テーブル追加
+- [x] DBスキーマ: review_questions（Q&A）テーブル追加
+- [x] サーバーAPI: 動画フィード取得（videoUrl付きレビュー一覧）
+- [x] サーバーAPI: リアクション（私も買った！/欲しい！）CRUD
+- [x] サーバーAPI: Q&A（質問投稿・回答）CRUD
+- [x] サーバーAPI: レビュアー認証枚数取得
+- [x] UI: 動画フィードセクション（TikTok風自動再生カルーセル）
+- [x] UI: レビューカードリニューアル（商品写真・金額レンジ・プラットフォーム・認証枚数・ぼかし）
+- [x] UI: リアクションボタン（私も買った！/欲しい！）
+- [x] UI: Q&Aセクション
+- [x] UI: サイドバー（プラットフォーム分布・欲しい！ランキング）
+- [x] vitest テスト作成

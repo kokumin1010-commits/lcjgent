@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, gte, lte, gt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -15688,4 +15688,243 @@ export async function getKakuhenAdminStats() {
     totalOrderAmount: sql<number>`SUM(orderAmount)`,
   }).from(receiptKakuhenResults);
   return stats[0];
+}
+
+
+// ===== 動画フィード取得（動画URL付きレビュー） =====
+export async function getVideoReviews(limit: number = 10) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return await db.select().from(receiptReviews)
+    .where(and(
+      eq(receiptReviews.isVisible, true),
+      or(
+        isNotNull(receiptReviews.tiktokUrl),
+        isNotNull(receiptReviews.videoUrl),
+        isNotNull(receiptReviews.liveCommerceUrl)
+      )
+    ))
+    .orderBy(desc(receiptReviews.createdAt))
+    .limit(limit);
+}
+
+// ===== リアクション関連 =====
+export async function addReviewReaction(data: InsertReviewReaction) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(reviewReactions).values(data);
+}
+
+export async function removeReviewReaction(reviewId: number, userId: number | null, lineUserId: string | null, reactionType: "bought" | "want") {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [
+    eq(reviewReactions.reviewId, reviewId),
+    eq(reviewReactions.reactionType, reactionType),
+  ];
+  if (userId) conditions.push(eq(reviewReactions.userId, userId));
+  if (lineUserId) conditions.push(eq(reviewReactions.lineUserId, lineUserId));
+  await db.delete(reviewReactions).where(and(...conditions));
+}
+
+export async function getReviewReactionCounts(reviewId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const counts = await db.select({
+    reactionType: reviewReactions.reactionType,
+    count: sql<number>`COUNT(*)`,
+  }).from(reviewReactions)
+    .where(eq(reviewReactions.reviewId, reviewId))
+    .groupBy(reviewReactions.reactionType);
+  
+  const result = { bought: 0, want: 0 };
+  for (const row of counts) {
+    if (row.reactionType === "bought") result.bought = row.count;
+    if (row.reactionType === "want") result.want = row.count;
+  }
+  return result;
+}
+
+export async function getReviewReactionCountsBatch(reviewIds: number[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (reviewIds.length === 0) return {};
+  const counts = await db.select({
+    reviewId: reviewReactions.reviewId,
+    reactionType: reviewReactions.reactionType,
+    count: sql<number>`COUNT(*)`,
+  }).from(reviewReactions)
+    .where(inArray(reviewReactions.reviewId, reviewIds))
+    .groupBy(reviewReactions.reviewId, reviewReactions.reactionType);
+  
+  const result: Record<number, { bought: number; want: number }> = {};
+  for (const row of counts) {
+    if (!result[row.reviewId]) result[row.reviewId] = { bought: 0, want: 0 };
+    if (row.reactionType === "bought") result[row.reviewId].bought = row.count;
+    if (row.reactionType === "want") result[row.reviewId].want = row.count;
+  }
+  return result;
+}
+
+export async function getUserReactions(reviewIds: number[], userId: number | null, lineUserId: string | null) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (reviewIds.length === 0 || (!userId && !lineUserId)) return {};
+  const conditions = [inArray(reviewReactions.reviewId, reviewIds)];
+  if (userId) conditions.push(eq(reviewReactions.userId, userId));
+  if (lineUserId) conditions.push(eq(reviewReactions.lineUserId, lineUserId));
+  
+  const rows = await db.select({
+    reviewId: reviewReactions.reviewId,
+    reactionType: reviewReactions.reactionType,
+  }).from(reviewReactions).where(and(...conditions));
+  
+  const result: Record<number, { bought: boolean; want: boolean }> = {};
+  for (const row of rows) {
+    if (!result[row.reviewId]) result[row.reviewId] = { bought: false, want: false };
+    if (row.reactionType === "bought") result[row.reviewId].bought = true;
+    if (row.reactionType === "want") result[row.reviewId].want = true;
+  }
+  return result;
+}
+
+// ===== Q&A関連 =====
+export async function createReviewQuestion(data: InsertReviewQuestion) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(reviewQuestions).values(data);
+  return result[0].insertId;
+}
+
+export async function answerReviewQuestion(questionId: number, answerUserId: number | null, answerLineUserId: string | null, answerText: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(reviewQuestions).set({
+    answerUserId,
+    answerLineUserId,
+    answerText,
+    answeredAt: new Date(),
+  }).where(eq(reviewQuestions.id, questionId));
+}
+
+export async function getReviewQuestions(reviewId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return await db.select().from(reviewQuestions)
+    .where(and(eq(reviewQuestions.reviewId, reviewId), eq(reviewQuestions.isVisible, true)))
+    .orderBy(desc(reviewQuestions.createdAt));
+}
+
+export async function getProductQuestions(productName: string, limit: number = 10) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return await db.select().from(reviewQuestions)
+    .where(and(eq(reviewQuestions.productName, productName), eq(reviewQuestions.isVisible, true)))
+    .orderBy(desc(reviewQuestions.createdAt))
+    .limit(limit);
+}
+
+export async function getLatestQuestions(limit: number = 10) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return await db.select().from(reviewQuestions)
+    .where(eq(reviewQuestions.isVisible, true))
+    .orderBy(desc(reviewQuestions.createdAt))
+    .limit(limit);
+}
+
+// ===== レビュアー認証枚数取得 =====
+export async function getReviewerCertifiedCounts(userIds: number[], lineUserIds: string[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result: Record<string, number> = {};
+  
+  if (userIds.length > 0) {
+    const webCounts = await db.select({
+      userId: receiptReviews.userId,
+      count: sql<number>`COUNT(*)`,
+    }).from(receiptReviews)
+      .where(and(isNotNull(receiptReviews.userId), inArray(receiptReviews.userId, userIds)))
+      .groupBy(receiptReviews.userId);
+    for (const row of webCounts) {
+      if (row.userId) result[`web_${row.userId}`] = row.count;
+    }
+  }
+  
+  if (lineUserIds.length > 0) {
+    const lineCounts = await db.select({
+      lineUserId: receiptReviews.lineUserId,
+      count: sql<number>`COUNT(*)`,
+    }).from(receiptReviews)
+      .where(and(isNotNull(receiptReviews.lineUserId), inArray(receiptReviews.lineUserId, lineUserIds)))
+      .groupBy(receiptReviews.lineUserId);
+    for (const row of lineCounts) {
+      if (row.lineUserId) result[`line_${row.lineUserId}`] = row.count;
+    }
+  }
+  
+  return result;
+}
+
+// ===== プラットフォーム分布取得 =====
+export async function getPlatformDistribution() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return await db.select({
+    platform: receiptReviews.purchasePlatform,
+    count: sql<number>`COUNT(*)`,
+  }).from(receiptReviews)
+    .where(and(eq(receiptReviews.isVisible, true), isNotNull(receiptReviews.purchasePlatform)))
+    .groupBy(receiptReviews.purchasePlatform)
+    .orderBy(desc(sql`COUNT(*)`));
+}
+
+// ===== 「欲しい！」ランキング =====
+export async function getWantRanking(limit: number = 10) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const ranking = await db.select({
+    reviewId: reviewReactions.reviewId,
+    wantCount: sql<number>`COUNT(*)`,
+  }).from(reviewReactions)
+    .where(eq(reviewReactions.reactionType, "want"))
+    .groupBy(reviewReactions.reviewId)
+    .orderBy(desc(sql`COUNT(*)`))
+    .limit(limit);
+  
+  if (ranking.length === 0) return [];
+  
+  const reviewIds = ranking.map(r => r.reviewId);
+  const reviews = await db.select().from(receiptReviews)
+    .where(inArray(receiptReviews.id, reviewIds));
+  
+  return ranking.map(r => {
+    const review = reviews.find(rev => rev.id === r.reviewId);
+    return { ...review, wantCount: r.wantCount };
+  }).filter(r => r.productName);
+}
+
+// ===== 商品ランキング拡張（商品画像・金額レンジ付き） =====
+export async function getProductReviewRankingEnhanced(limit: number = 20) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return await db.select({
+    productName: receiptReviews.productName,
+    brandName: receiptReviews.brandName,
+    shopName: receiptReviews.shopName,
+    category: receiptReviews.category,
+    reviewCount: sql<number>`COUNT(*)`,
+    avgRating: sql<number>`ROUND(AVG(rating), 1)`,
+    totalHelpful: sql<number>`SUM(helpfulCount)`,
+    minPrice: sql<number>`MIN(purchaseAmount)`,
+    maxPrice: sql<number>`MAX(purchaseAmount)`,
+    // 最新の商品画像を取得
+    latestImageUrl: sql<string>`(SELECT productImageUrl FROM receipt_reviews r2 WHERE r2.productName = receipt_reviews.productName AND r2.productImageUrl IS NOT NULL ORDER BY r2.createdAt DESC LIMIT 1)`,
+    // 購入プラットフォーム一覧
+    platforms: sql<string>`GROUP_CONCAT(DISTINCT purchasePlatform)`,
+  }).from(receiptReviews)
+    .where(eq(receiptReviews.isVisible, true))
+    .groupBy(receiptReviews.productName, receiptReviews.brandName, receiptReviews.shopName, receiptReviews.category)
+    .orderBy(desc(sql`COUNT(*)`))
+    .limit(limit);
 }

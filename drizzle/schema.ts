@@ -3216,8 +3216,16 @@ export const receiptReviews = mysqlTable("receipt_reviews", {
   // レシート画像（購入証明）
   receiptImageUrl: text("receiptImageUrl"), // レシート画像URL（証明用）
   
-  // TikTok関連
-  tiktokUrl: text("tiktokUrl"), // 関連TikTok動画URL
+  // 商品画像
+  productImageUrl: text("productImageUrl"), // 商品画像URL
+  
+  // 購入プラットフォーム
+  purchasePlatform: varchar("purchasePlatform", { length: 50 }), // TikTok Shop, Qoo10, Amazon, 楽天, SHEIN, LCJ MALL等
+  
+  // 動画・ライブコマースリンク
+  tiktokUrl: text("tiktokUrl"), // TikTok動画URL
+  videoUrl: text("videoUrl"), // その他動画URL（YouTube等）
+  liveCommerceUrl: text("liveCommerceUrl"), // ライブコマース録画URL
   
   // モデレーション
   isVisible: boolean("isVisible").default(true).notNull(), // 表示/非表示
@@ -3231,3 +3239,41 @@ export const receiptReviews = mysqlTable("receipt_reviews", {
 });
 export type ReceiptReview = typeof receiptReviews.$inferSelect;
 export type InsertReceiptReview = typeof receiptReviews.$inferInsert;
+
+
+/**
+ * レビューリアクション（「私も買った！」「欲しい！」）
+ */
+export const reviewReactions = mysqlTable("review_reactions", {
+  id: int("id").autoincrement().primaryKey(),
+  reviewId: int("reviewId").notNull(), // receipt_reviews.id
+  userId: int("userId"), // Web users
+  lineUserId: varchar("lineUserId", { length: 64 }), // LINE users
+  reactionType: mysqlEnum("reactionType", ["bought", "want"]).notNull(), // bought=私も買った！, want=欲しい！
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ReviewReaction = typeof reviewReactions.$inferSelect;
+export type InsertReviewReaction = typeof reviewReactions.$inferInsert;
+
+/**
+ * レビューQ&A（商品への質問・回答）
+ */
+export const reviewQuestions = mysqlTable("review_questions", {
+  id: int("id").autoincrement().primaryKey(),
+  reviewId: int("reviewId").notNull(), // receipt_reviews.id
+  productName: text("productName").notNull(), // 商品名（検索用）
+  userId: int("userId"), // 質問者のWeb user ID
+  lineUserId: varchar("lineUserId", { length: 64 }), // 質問者のLINE user ID
+  questionText: text("questionText").notNull(), // 質問内容
+  
+  // 回答
+  answerUserId: int("answerUserId"), // 回答者のWeb user ID
+  answerLineUserId: varchar("answerLineUserId", { length: 64 }), // 回答者のLINE user ID
+  answerText: text("answerText"), // 回答内容
+  answeredAt: timestamp("answeredAt"), // 回答日時
+  
+  isVisible: boolean("isVisible").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ReviewQuestion = typeof reviewQuestions.$inferSelect;
+export type InsertReviewQuestion = typeof reviewQuestions.$inferInsert;

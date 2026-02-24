@@ -545,6 +545,19 @@ import {
   getReceiptReviewCount,
   getAdminReceiptReviews,
   getKakuhenAdminStats,
+  getVideoReviews,
+  addReviewReaction,
+  removeReviewReaction,
+  getReviewReactionCountsBatch,
+  getUserReactions,
+  createReviewQuestion,
+  answerReviewQuestion,
+  getReviewQuestions,
+  getLatestQuestions,
+  getReviewerCertifiedCounts,
+  getPlatformDistribution,
+  getWantRanking,
+  getProductReviewRankingEnhanced,
 } from "./db";
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
@@ -14270,6 +14283,174 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .input(z.object({ limit: z.number().optional() }).optional())
       .query(async ({ input }) => {
         return await getProductReviewRanking(input?.limit || 20);
+      }),
+
+    /**
+     * 商品別レビューランキング拡張（商品画像・金額レンジ付き）
+     */
+    productRankingEnhanced: publicProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        return await getProductReviewRankingEnhanced(input?.limit || 20);
+      }),
+
+    /**
+     * 動画フィード（動画URL付きレビュー）
+     */
+    videoFeed: publicProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        return await getVideoReviews(input?.limit || 10);
+      }),
+
+    /**
+     * リアクション追加（私も買った！ / 欲しい！）
+     */
+    addReaction: publicProcedure
+      .input(z.object({
+        reviewId: z.number(),
+        reactionType: z.enum(["bought", "want"]),
+        lineUserId: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await addReviewReaction({
+          reviewId: input.reviewId,
+          userId: ctx.user?.id || null,
+          lineUserId: input.lineUserId || null,
+          reactionType: input.reactionType,
+        });
+        return { success: true };
+      }),
+
+    /**
+     * リアクション削除
+     */
+    removeReaction: publicProcedure
+      .input(z.object({
+        reviewId: z.number(),
+        reactionType: z.enum(["bought", "want"]),
+        lineUserId: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await removeReviewReaction(
+          input.reviewId,
+          ctx.user?.id || null,
+          input.lineUserId || null,
+          input.reactionType
+        );
+        return { success: true };
+      }),
+
+    /**
+     * レビュー一覧のリアクション数をバッチ取得
+     */
+    reactionCounts: publicProcedure
+      .input(z.object({ reviewIds: z.array(z.number()) }))
+      .query(async ({ input }) => {
+        return await getReviewReactionCountsBatch(input.reviewIds);
+      }),
+
+    /**
+     * ユーザーのリアクション状態を取得
+     */
+    userReactions: publicProcedure
+      .input(z.object({
+        reviewIds: z.array(z.number()),
+        lineUserId: z.string().optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        return await getUserReactions(
+          input.reviewIds,
+          ctx.user?.id || null,
+          input.lineUserId || null
+        );
+      }),
+
+    /**
+     * Q&A: 質問を投稿
+     */
+    askQuestion: publicProcedure
+      .input(z.object({
+        reviewId: z.number(),
+        productName: z.string(),
+        questionText: z.string().min(1),
+        lineUserId: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const questionId = await createReviewQuestion({
+          reviewId: input.reviewId,
+          productName: input.productName,
+          userId: ctx.user?.id || null,
+          lineUserId: input.lineUserId || null,
+          questionText: input.questionText,
+        });
+        return { success: true, questionId };
+      }),
+
+    /**
+     * Q&A: 質問に回答
+     */
+    answerQuestion: publicProcedure
+      .input(z.object({
+        questionId: z.number(),
+        answerText: z.string().min(1),
+        lineUserId: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await answerReviewQuestion(
+          input.questionId,
+          ctx.user?.id || null,
+          input.lineUserId || null,
+          input.answerText
+        );
+        return { success: true };
+      }),
+
+    /**
+     * Q&A: レビューのQ&A一覧
+     */
+    questions: publicProcedure
+      .input(z.object({ reviewId: z.number() }))
+      .query(async ({ input }) => {
+        return await getReviewQuestions(input.reviewId);
+      }),
+
+    /**
+     * Q&A: 最新の質問一覧
+     */
+    latestQuestions: publicProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        return await getLatestQuestions(input?.limit || 10);
+      }),
+
+    /**
+     * レビュアー認証枚数をバッチ取得
+     */
+    reviewerCertifiedCounts: publicProcedure
+      .input(z.object({
+        userIds: z.array(z.number()),
+        lineUserIds: z.array(z.string()),
+      }))
+      .query(async ({ input }) => {
+        return await getReviewerCertifiedCounts(input.userIds, input.lineUserIds);
+      }),
+
+    /**
+     * 購入プラットフォーム分布
+     */
+    platformDistribution: publicProcedure
+      .query(async () => {
+        return await getPlatformDistribution();
+      }),
+
+    /**
+     * 「欲しい！」ランキング
+     */
+    wantRanking: publicProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        return await getWantRanking(input?.limit || 10);
       }),
   }),
 
