@@ -4,7 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ShoppingBag, Gift, ArrowRight, Coins, Receipt, Check, ChevronDown, ChevronUp, ShieldCheck, HelpCircle, Sparkles, MessageCircle, UserPlus, TrendingUp, Crown, Medal, Award, Flame, Heart, Star, X, User } from "lucide-react";
+import { ShoppingBag, Gift, ArrowRight, Coins, Receipt, Check, ChevronDown, ChevronUp, ShieldCheck, HelpCircle, Sparkles, MessageCircle, UserPlus, TrendingUp, Crown, Medal, Award, Flame, Heart, Star, X, User, MessageSquare } from "lucide-react";
 import { useLocation, Link } from "wouter";
 import LuxurySpinWheel, { Confetti, Fireworks, ScreenFlash, FallingCoins, GlowCard, useCountUp, FloatingParticles } from "@/components/LuxurySpinWheel";
 import sfx from "@/lib/soundEffects";
@@ -762,6 +762,63 @@ export default function MallHome() {
         </div>
       </section>
 
+      {/* リアル口コミDB セクション */}
+      <section className="py-10 md:py-14 px-4 bg-gradient-to-b from-pink-50/50 to-white">
+        <div className="container mx-auto max-w-4xl">
+          <div className="text-center mb-6 md:mb-8">
+            <div className="inline-flex items-center gap-2 bg-pink-100 text-pink-700 px-3 py-1 rounded-full text-xs font-bold mb-3">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              購入証明付き
+            </div>
+            <h2 className="text-2xl md:text-3xl font-bold text-gray-900">リアル口コミ DB</h2>
+            <p className="text-gray-500 text-sm md:text-base mt-2">レシートがある人だけが書ける、100%リアルな口コミ</p>
+          </div>
+          <div
+            onClick={() => setLocation("/reviews")}
+            className="bg-white rounded-2xl p-5 md:p-8 shadow-lg border border-pink-100 cursor-pointer hover:shadow-xl transition-all group"
+          >
+            <div className="flex items-center gap-4 mb-4">
+              <div className="h-12 w-12 md:h-14 md:w-14 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 flex items-center justify-center shrink-0">
+                <MessageSquare className="h-6 w-6 md:h-7 md:w-7 text-white" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg md:text-xl font-bold text-gray-900">TikTokでバズってるアレ、本当に良い？</h3>
+                <p className="text-gray-500 text-xs md:text-sm">ステマゼロ。実際に買った人のリアルな声だけ</p>
+              </div>
+              <ArrowRight className="h-5 w-5 text-pink-400 group-hover:translate-x-1 transition-transform shrink-0" />
+            </div>
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="bg-pink-50 rounded-xl p-3">
+                <div className="text-xs text-gray-500">信頼度</div>
+                <div className="text-lg font-bold text-pink-600">100%</div>
+                <div className="text-[10px] text-gray-400">購入証明済</div>
+              </div>
+              <div className="bg-pink-50 rounded-xl p-3">
+                <div className="text-xs text-gray-500">ステマ</div>
+                <div className="text-lg font-bold text-pink-600">0件</div>
+                <div className="text-[10px] text-gray-400">企業案件なし</div>
+              </div>
+              <div className="bg-pink-50 rounded-xl p-3">
+                <div className="text-xs text-gray-500">AI監視</div>
+                <div className="text-lg font-bold text-pink-600">24h</div>
+                <div className="text-[10px] text-gray-400">不正自動検知</div>
+              </div>
+            </div>
+          </div>
+          <div className="text-center mt-6">
+            <Button
+              size="lg"
+              className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white gap-2 text-base md:text-lg py-5 md:py-6 px-6 md:px-8 shadow-lg hover:shadow-xl transition-all"
+              onClick={() => setLocation("/reviews")}
+            >
+              <MessageSquare className="h-5 w-5" />
+              口コミを見る
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </section>
+
       {/* おすすめ商品セクション */}
       <RecommendedSection />
 
@@ -906,6 +963,7 @@ export default function MallHome() {
           <div className="flex items-center justify-center gap-4 mb-3 text-xs md:text-sm text-gray-400">
             <Link href="/mall/products" className="hover:text-white transition-colors">商品一覧</Link>
             <Link href="/ranking" className="hover:text-white transition-colors">売れ筋ランキング</Link>
+            <Link href="/reviews" className="hover:text-white transition-colors">口コミDB</Link>
             <Link href="/legal/tokushoho" className="hover:text-white transition-colors">特定商取引法</Link>
             <Link href="/legal/privacy" className="hover:text-white transition-colors">プライバシーポリシー</Link>
           </div>

@@ -98,6 +98,8 @@ import BlogListPage from "./pages/BlogListPage";
 import BlogTagPage from "./pages/BlogTagPage";
 import BrandListPage from "./pages/BrandListPage";
 import BrandDetailPage from "./pages/BrandDetailPage";
+import ReviewDatabase from "./pages/ReviewDatabase";
+import ProductReviews from "./pages/ProductReviews";
 
 function Router() {
   return (
@@ -119,6 +121,8 @@ function Router() {
       <Route path="/point-request" component={PointRequest} />
       <Route path="/receipt-upload" component={ReceiptUpload} />
       <Route path="/ranking" component={ProductRanking} />
+      <Route path="/reviews" component={ReviewDatabase} />
+      <Route path="/reviews/product/:name" component={ProductReviews} />
       <Route path="/friend-challenge" component={FriendReferralChallenge} />
       <Route path="/spin-demo" component={SpinDemo} />
       <Route path="/register/:code" component={Register} />
