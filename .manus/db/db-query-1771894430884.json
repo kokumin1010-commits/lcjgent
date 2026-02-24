@@ -1,0 +1,210 @@
+{
+  "query": "SELECT keyword, category, priority FROM preset_keywords ORDER BY category, priority DESC LIMIT 50;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT keyword, category, priority FROM preset_keywords ORDER BY category, priority DESC LIMIT 50;",
+  "rows": [
+    {
+      "keyword": "EC 最新トレンド 2026",
+      "category": "EC全般",
+      "priority": "6"
+    },
+    {
+      "keyword": "越境EC TikTok",
+      "category": "EC全般",
+      "priority": "6"
+    },
+    {
+      "keyword": "ソーシャルコマース トレンド",
+      "category": "EC全般",
+      "priority": "6"
+    },
+    {
+      "keyword": "D2C TikTok Shop",
+      "category": "EC全般",
+      "priority": "5"
+    },
+    {
+      "keyword": "LCJ MALL TikTok Shop",
+      "category": "LCJ MALL",
+      "priority": "10"
+    },
+    {
+      "keyword": "LCJ MALL おすすめ",
+      "category": "LCJ MALL",
+      "priority": "9"
+    },
+    {
+      "keyword": "LCJ MALL 評判",
+      "category": "LCJ MALL",
+      "priority": "8"
+    },
+    {
+      "keyword": "LCJ MALL 使い方",
+      "category": "LCJ MALL",
+      "priority": "8"
+    },
+    {
+      "keyword": "TikTok Shop クーポン",
+      "category": "TikTok Shopキャンペーン",
+      "priority": "8"
+    },
+    {
+      "keyword": "TikTok Shop セール",
+      "category": "TikTok Shopキャンペーン",
+      "priority": "7"
+    },
+    {
+      "keyword": "TikTok Shop キャンペーン",
+      "category": "TikTok Shopキャンペーン",
+      "priority": "7"
+    },
+    {
+      "keyword": "TikTok Shop おすすめ商品",
+      "category": "TikTok Shop商品",
+      "priority": "9"
+    },
+    {
+      "keyword": "TikTok Shop コスメ",
+      "category": "TikTok Shop商品",
+      "priority": "8"
+    },
+    {
+      "keyword": "TikTok Shop 美容",
+      "category": "TikTok Shop商品",
+      "priority": "8"
+    },
+    {
+      "keyword": "TikTok Shop 食品",
+      "category": "TikTok Shop商品",
+      "priority": "7"
+    },
+    {
+      "keyword": "TikTok Shop ファッション",
+      "category": "TikTok Shop商品",
+      "priority": "7"
+    },
+    {
+      "keyword": "TikTok Shop ガジェット",
+      "category": "TikTok Shop商品",
+      "priority": "6"
+    },
+    {
+      "keyword": "TikTok Shop 始め方",
+      "category": "TikTok Shop基礎",
+      "priority": "10"
+    },
+    {
+      "keyword": "TikTok Shop 使い方",
+      "category": "TikTok Shop基礎",
+      "priority": "10"
+    },
+    {
+      "keyword": "TikTok Shop 出店方法",
+      "category": "TikTok Shop基礎",
+      "priority": "9"
+    },
+    {
+      "keyword": "TikTok Shop 日本 いつから",
+      "category": "TikTok Shop基礎",
+      "priority": "9"
+    },
+    {
+      "keyword": "TikTok Shop 日本 対応",
+      "category": "TikTok Shop基礎",
+      "priority": "8"
+    },
+    {
+      "keyword": "TikTok Shop 手数料",
+      "category": "TikTok Shop基礎",
+      "priority": "8"
+    },
+    {
+      "keyword": "TikTok Shop 購入方法",
+      "category": "TikTok Shop基礎",
+      "priority": "8"
+    },
+    {
+      "keyword": "TikTok Shop 安全性",
+      "category": "TikTok Shop基礎",
+      "priority": "8"
+    },
+    {
+      "keyword": "TikTok Shop 決済方法",
+      "category": "TikTok Shop基礎",
+      "priority": "7"
+    },
+    {
+      "keyword": "TikTok Shop 送料",
+      "category": "TikTok Shop基礎",
+      "priority": "7"
+    },
+    {
+      "keyword": "TikTok Shop 口コミ",
+      "category": "TikTok Shop基礎",
+      "priority": "7"
+    },
+    {
+      "keyword": "TikTok Shop 売れる商品",
+      "category": "TikTok Shop販売",
+      "priority": "9"
+    },
+    {
+      "keyword": "TikTok Shop 売上アップ コツ",
+      "category": "TikTok Shop販売",
+      "priority": "8"
+    },
+    {
+      "keyword": "TikTok Shop アフィリエイト",
+      "category": "TikTok Shop販売",
+      "priority": "7"
+    },
+    {
+      "keyword": "TikTok インフルエンサー 商品紹介",
+      "category": "TikTokマーケ",
+      "priority": "7"
+    },
+    {
+      "keyword": "TikTok マーケティング 最新",
+      "category": "TikTokマーケ",
+      "priority": "7"
+    },
+    {
+      "keyword": "TikTok 広告 効果",
+      "category": "TikTokマーケ",
+      "priority": "6"
+    },
+    {
+      "keyword": "TikTok Shop ライブコマース",
+      "category": "ライブコマース",
+      "priority": "9"
+    },
+    {
+      "keyword": "TikTok ライブ配信 売り方",
+      "category": "ライブコマース",
+      "priority": "8"
+    },
+    {
+      "keyword": "ライブコマース 成功事例",
+      "category": "ライブコマース",
+      "priority": "7"
+    },
+    {
+      "keyword": "TikTok Shop vs Amazon",
+      "category": "比較",
+      "priority": "7"
+    },
+    {
+      "keyword": "TikTok Shop vs 楽天",
+      "category": "比較",
+      "priority": "7"
+    },
+    {
+      "keyword": "TikTok Shop vs メルカリ",
+      "category": "比較",
+      "priority": "6"
+    }
+  ],
+  "messages": [],
+  "stdout": "keyword\tcategory\tpriority\nEC 最新トレンド 2026\tEC全般\t6\n越境EC TikTok\tEC全般\t6\nソーシャルコマース トレンド\tEC全般\t6\nD2C TikTok Shop\tEC全般\t5\nLCJ MALL TikTok Shop\tLCJ MALL\t10\nLCJ MALL おすすめ\tLCJ MALL\t9\nLCJ MALL 評判\tLCJ MALL\t8\nLCJ MALL 使い方\tLCJ MALL\t8\nTikTok Shop クーポン\tTikTok Shopキャンペーン\t8\nTikTok Shop セール\tTikTok Shopキャンペーン\t7\nTikTok Shop キャンペーン\tTikTok Shopキャンペーン\t7\nTikTok Shop おすすめ商品\tTikTok Shop商品\t9\nTikTok Shop コスメ\tTikTok Shop商品\t8\nTikTok Shop 美容\tTikTok Shop商品\t8\nTikTok Shop 食品\tTikTok Shop商品\t7\nTikTok Shop ファッション\tTikTok Shop商品\t7\nTikTok Shop ガジェット\tTikTok Shop商品\t6\nTikTok Shop 始め方\tTikTok Shop基礎\t10\nTikTok Shop 使い方\tTikTok Shop基礎\t10\nTikTok Shop 出店方法\tTikTok Shop基礎\t9\nTikTok Shop 日本 いつから\tTikTok Shop基礎\t9\nTikTok Shop 日本 対応\tTikTok Shop基礎\t8\nTikTok Shop 手数料\tTikTok Shop基礎\t8\nTikTok Shop 購入方法\tTikTok Shop基礎\t8\nTikTok Shop 安全性\tTikTok Shop基礎\t8\nTikTok Shop 決済方法\tTikTok Shop基礎\t7\nTikTok Shop 送料\tTikTok Shop基礎\t7\nTikTok Shop 口コミ\tTikTok Shop基礎\t7\nTikTok Shop 売れる商品\tTikTok Shop販売\t9\nTikTok Shop 売上アップ コツ\tTikTok Shop販売\t8\nTikTok Shop アフィリエイト\tTikTok Shop販売\t7\nTikTok インフルエンサー 商品紹介\tTikTokマーケ\t7\nTikTok マーケティング 最新\tTikTokマーケ\t7\nTikTok 広告 効果\tTikTokマーケ\t6\nTikTok Shop ライブコマース\tライブコマース\t9\nTikTok ライブ配信 売り方\tライブコマース\t8\nライブコマース 成功事例\tライブコマース\t7\nTikTok Shop vs Amazon\t比較\t7\nTikTok Shop vs 楽天\t比較\t7\nTikTok Shop vs メルカリ\t比較\t6\n",
+  "stderr": "",
+  "execution_time_ms": 1527
+}

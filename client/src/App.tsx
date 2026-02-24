@@ -95,6 +95,7 @@ import BlogAdmin from "./pages/BlogAdmin";
 import BlogEditor from "./pages/BlogEditor";
 import BlogArticlePage from "./pages/BlogArticlePage";
 import BlogListPage from "./pages/BlogListPage";
+import BlogTagPage from "./pages/BlogTagPage";
 import AutoPostAdmin from "./pages/AutoPostAdmin";
 
 function Router() {
@@ -296,6 +297,7 @@ function Router() {
       <Route path={"/master/blog/edit/:id"} component={BlogEditor} />
       <Route path={"/master/blog"} component={BlogAdmin} />
       <Route path={"/master/auto-post"} component={AutoPostAdmin} />
+      <Route path={"/blog/tag/:tagId"} component={BlogTagPage} />
       <Route path={"/blog/:slug"} component={BlogArticlePage} />
       <Route path={"/blog"} component={BlogListPage} />
       <Route path={"/master/mall/member/:id"} component={MemberDetail} />

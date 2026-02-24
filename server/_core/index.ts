@@ -912,7 +912,7 @@ async function startServer() {
   <article>
     <h1>${escapeHtml(title)}</h1>
     ${coverImage ? `<img src="${escapeHtml(coverImage)}" alt="${escapeHtml(title)}">` : ""}
-    <div>${article.content || ""}</div>
+    <div>${article.contentHtml || ""}</div>
   </article>
   <p>${escapeHtml(plainContent.substring(0, 300))}</p>
   <a href="${baseUrl}">LCJ MALL</a>
@@ -929,9 +929,10 @@ async function startServer() {
   // --- Blog Sitemap & robots.txt & Search Console ---
   app.get("/sitemap.xml", async (req, res) => {
     try {
-      const { listBlogArticles, getAllBlogCategories } = await import("../db");
+      const { listBlogArticles, getAllBlogCategories, getAllBlogTags, getMallProducts } = await import("../db");
       const { articles } = await listBlogArticles({ status: "published", limit: 1000 });
       const categories = await getAllBlogCategories();
+      const tags = await getAllBlogTags();
       const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
       const today = new Date().toISOString().split("T")[0];
 
@@ -939,11 +940,17 @@ async function startServer() {
       const staticUrls = [
         `  <url>\n    <loc>${baseUrl}/</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>`,
         `  <url>\n    <loc>${baseUrl}/blog</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n  </url>`,
+        `  <url>\n    <loc>${baseUrl}/mall</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n  </url>`,
       ];
 
       // Category pages
       const categoryUrls = categories.map((c: any) =>
         `  <url>\n    <loc>${baseUrl}/blog?category=${c.id}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.7</priority>\n  </url>`
+      );
+
+      // Tag pages
+      const tagUrls = tags.map((t: any) =>
+        `  <url>\n    <loc>${baseUrl}/blog/tag/${t.id}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.6</priority>\n  </url>`
       );
 
       // Article pages with image sitemap
@@ -955,7 +962,19 @@ async function startServer() {
         return `  <url>\n    <loc>${baseUrl}/blog/${a.slug}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>${imageTag}\n  </url>`;
       });
 
-      const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n${staticUrls.join("\n")}\n${categoryUrls.join("\n")}\n${articleUrls.join("\n")}\n</urlset>`;
+      // Mall product pages
+      let productUrls: string[] = [];
+      try {
+        const productsResult = await getMallProducts({ limit: 500 });
+        const products = productsResult?.products || productsResult || [];
+        productUrls = (Array.isArray(products) ? products : []).map((p: any) =>
+          `  <url>\n    <loc>${baseUrl}/mall/products/${p.id}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.7</priority>${p.imageUrl ? `\n    <image:image>\n      <image:loc>${p.imageUrl}</image:loc>\n      <image:title>${(p.name || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</image:title>\n    </image:image>` : ""}\n  </url>`
+        );
+      } catch (e) {
+        console.warn("[Sitemap] Failed to fetch products:", e);
+      }
+
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n${staticUrls.join("\n")}\n${categoryUrls.join("\n")}\n${tagUrls.join("\n")}\n${articleUrls.join("\n")}\n${productUrls.join("\n")}\n</urlset>`;
       res.setHeader("Content-Type", "application/xml");
       res.setHeader("Cache-Control", "public, max-age=3600");
       res.send(xml);
@@ -968,7 +987,7 @@ async function startServer() {
   app.get("/robots.txt", (req, res) => {
     const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
     res.setHeader("Content-Type", "text/plain");
-    res.send(`User-agent: *\nAllow: /\nAllow: /blog/\nDisallow: /master/\nDisallow: /api/\n\nSitemap: ${baseUrl}/sitemap.xml`);
+    res.send(`User-agent: *\nAllow: /\nAllow: /blog/\nAllow: /mall/\nDisallow: /master/\nDisallow: /api/\nDisallow: /settings/\n\nSitemap: ${baseUrl}/sitemap.xml`);
   });
 
   // Google Search Console verification file

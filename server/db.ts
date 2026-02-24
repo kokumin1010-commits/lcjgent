@@ -14368,3 +14368,424 @@ export async function getStuckAutoPostLogs() {
       )
     );
 }
+
+
+// =============================================
+// EC統合型SEOブログ ヘルパー関数
+// =============================================
+
+/**
+ * MALL商品の売上ランキング（注文数ベース）
+ * ブログ記事内の「人気商品ランキング」セクション用
+ */
+export async function getMallProductSalesRanking(limit: number = 10) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const orderCountSubquery = db
+    .select({
+      productId: mallOrderItems.productId,
+      orderCount: sql<number>`COUNT(DISTINCT ${mallOrderItems.orderId})`.as("orderCount"),
+      totalQuantity: sql<number>`SUM(${mallOrderItems.quantity})`.as("totalQuantity"),
+      totalRevenue: sql<number>`SUM(${mallOrderItems.subtotal})`.as("totalRevenue"),
+    })
+    .from(mallOrderItems)
+    .groupBy(mallOrderItems.productId)
+    .as("orderCounts");
+
+  const results = await db
+    .select({
+      id: mallProducts.id,
+      name: mallProducts.name,
+      price: mallProducts.price,
+      pointPrice: mallProducts.pointPrice,
+      imageUrl: mallProducts.imageUrl,
+      description: mallProducts.description,
+      brandId: mallProducts.brandId,
+      categoryId: mallProducts.categoryId,
+      brandName: mallBrands.name,
+      categoryName: mallCategories.name,
+      orderCount: sql<number>`COALESCE(${orderCountSubquery.orderCount}, 0)`,
+      totalQuantity: sql<number>`COALESCE(${orderCountSubquery.totalQuantity}, 0)`,
+      totalRevenue: sql<number>`COALESCE(${orderCountSubquery.totalRevenue}, 0)`,
+    })
+    .from(mallProducts)
+    .leftJoin(mallBrands, eq(mallProducts.brandId, mallBrands.id))
+    .leftJoin(mallCategories, eq(mallProducts.categoryId, mallCategories.id))
+    .leftJoin(orderCountSubquery, eq(mallProducts.id, orderCountSubquery.productId))
+    .where(eq(mallProducts.status, "active"))
+    .orderBy(sql`COALESCE(${orderCountSubquery.orderCount}, 0) DESC`)
+    .limit(limit);
+
+  return results.map(r => ({
+    ...r,
+    orderCount: Number(r.orderCount),
+    totalQuantity: Number(r.totalQuantity),
+    totalRevenue: Number(r.totalRevenue),
+  }));
+}
+
+/**
+ * カテゴリ別の商品ランキング
+ */
+export async function getMallProductRankingByCategory(categoryId: number, limit: number = 10) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const orderCountSubquery = db
+    .select({
+      productId: mallOrderItems.productId,
+      orderCount: sql<number>`COUNT(DISTINCT ${mallOrderItems.orderId})`.as("orderCount"),
+    })
+    .from(mallOrderItems)
+    .groupBy(mallOrderItems.productId)
+    .as("orderCounts");
+
+  const results = await db
+    .select({
+      id: mallProducts.id,
+      name: mallProducts.name,
+      price: mallProducts.price,
+      pointPrice: mallProducts.pointPrice,
+      imageUrl: mallProducts.imageUrl,
+      description: mallProducts.description,
+      brandName: mallBrands.name,
+      orderCount: sql<number>`COALESCE(${orderCountSubquery.orderCount}, 0)`,
+    })
+    .from(mallProducts)
+    .leftJoin(mallBrands, eq(mallProducts.brandId, mallBrands.id))
+    .leftJoin(orderCountSubquery, eq(mallProducts.id, orderCountSubquery.productId))
+    .where(and(eq(mallProducts.status, "active"), eq(mallProducts.categoryId, categoryId)))
+    .orderBy(sql`COALESCE(${orderCountSubquery.orderCount}, 0) DESC`)
+    .limit(limit);
+
+  return results.map(r => ({
+    ...r,
+    orderCount: Number(r.orderCount),
+  }));
+}
+
+/**
+ * ブランド別の商品一覧（ブランドページ用）
+ */
+export async function getMallProductsByBrand(brandId: number, limit: number = 20) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const orderCountSubquery = db
+    .select({
+      productId: mallOrderItems.productId,
+      orderCount: sql<number>`COUNT(DISTINCT ${mallOrderItems.orderId})`.as("orderCount"),
+    })
+    .from(mallOrderItems)
+    .groupBy(mallOrderItems.productId)
+    .as("orderCounts");
+
+  return db
+    .select({
+      id: mallProducts.id,
+      name: mallProducts.name,
+      price: mallProducts.price,
+      pointPrice: mallProducts.pointPrice,
+      imageUrl: mallProducts.imageUrl,
+      description: mallProducts.description,
+      brandName: mallBrands.name,
+      categoryName: mallCategories.name,
+      orderCount: sql<number>`COALESCE(${orderCountSubquery.orderCount}, 0)`,
+    })
+    .from(mallProducts)
+    .leftJoin(mallBrands, eq(mallProducts.brandId, mallBrands.id))
+    .leftJoin(mallCategories, eq(mallProducts.categoryId, mallCategories.id))
+    .leftJoin(orderCountSubquery, eq(mallProducts.id, orderCountSubquery.productId))
+    .where(and(eq(mallProducts.status, "active"), eq(mallProducts.brandId, brandId)))
+    .orderBy(sql`COALESCE(${orderCountSubquery.orderCount}, 0) DESC`)
+    .limit(limit);
+}
+
+/**
+ * 商品の購入者数を取得
+ */
+export async function getMallProductBuyerCount(productId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+
+  const result = await db
+    .select({
+      buyerCount: sql<number>`COUNT(DISTINCT ${mallOrders.lineUserId})`,
+    })
+    .from(mallOrderItems)
+    .innerJoin(mallOrders, eq(mallOrderItems.orderId, mallOrders.id))
+    .where(
+      and(
+        eq(mallOrderItems.productId, productId),
+        inArray(mallOrders.status, ["paid", "confirmed", "shipped", "delivered"])
+      )
+    );
+
+  return Number(result[0]?.buyerCount || 0);
+}
+
+/**
+ * 全商品の購入者数を一括取得（ランキング表示用）
+ */
+export async function getAllMallProductBuyerCounts(): Promise<Record<number, number>> {
+  const db = await getDb();
+  if (!db) return {};
+
+  const results = await db
+    .select({
+      productId: mallOrderItems.productId,
+      buyerCount: sql<number>`COUNT(DISTINCT ${mallOrders.lineUserId})`,
+    })
+    .from(mallOrderItems)
+    .innerJoin(mallOrders, eq(mallOrderItems.orderId, mallOrders.id))
+    .where(inArray(mallOrders.status, ["paid", "confirmed", "shipped", "delivered"]))
+    .groupBy(mallOrderItems.productId);
+
+  const counts: Record<number, number> = {};
+  for (const r of results) {
+    counts[r.productId] = Number(r.buyerCount);
+  }
+  return counts;
+}
+
+/**
+ * 記事に関連する商品をキーワードマッチで検索（記事内自動リンク用）
+ */
+export async function findRelatedProductsForArticle(articleTitle: string, articleContent: string, limit: number = 6): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  // タイトルとコンテンツからキーワードを抽出
+  const text = `${articleTitle} ${articleContent}`.replace(/<[^>]*>/g, '');
+  
+  // 全アクティブ商品を取得してテキストマッチ
+  const products = await db
+    .select({
+      id: mallProducts.id,
+      name: mallProducts.name,
+      price: mallProducts.price,
+      pointPrice: mallProducts.pointPrice,
+      imageUrl: mallProducts.imageUrl,
+      description: mallProducts.description,
+      brandName: mallBrands.name,
+      categoryName: mallCategories.name,
+    })
+    .from(mallProducts)
+    .leftJoin(mallBrands, eq(mallProducts.brandId, mallBrands.id))
+    .leftJoin(mallCategories, eq(mallProducts.categoryId, mallCategories.id))
+    .where(eq(mallProducts.status, "active"));
+
+  // 商品名が記事テキストに含まれるかスコアリング
+  const scored = products.map(p => {
+    let score = 0;
+    const productName = p.name.toLowerCase();
+    const textLower = text.toLowerCase();
+    
+    // 商品名が記事に含まれる
+    if (textLower.includes(productName)) score += 10;
+    
+    // 商品名の各単語が記事に含まれる
+    const words = productName.split(/[\s　・]+/).filter(w => w.length >= 2);
+    for (const word of words) {
+      if (textLower.includes(word.toLowerCase())) score += 2;
+    }
+    
+    // ブランド名が記事に含まれる
+    if (p.brandName && textLower.includes(p.brandName.toLowerCase())) score += 5;
+    
+    // カテゴリ名が記事に含まれる
+    if (p.categoryName && textLower.includes(p.categoryName.toLowerCase())) score += 3;
+    
+    return { ...p, relevanceScore: score };
+  }).filter(p => p.relevanceScore > 0);
+
+  // スコア順にソートしてlimit件返す
+  scored.sort((a, b) => b.relevanceScore - a.relevanceScore);
+  return scored.slice(0, limit);
+}
+
+/**
+ * 関連記事を取得（同カテゴリ・同タグの記事）
+ */
+export async function getRelatedBlogArticles(articleId: number, categoryId: number | null, tagIds: number[], limit: number = 5): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  // 同カテゴリの記事
+  const sameCategoryArticles = categoryId ? await db
+    .select({
+      id: blogArticles.id,
+      title: blogArticles.title,
+      slug: blogArticles.slug,
+      excerpt: blogArticles.excerpt,
+      coverImageUrl: blogArticles.coverImageUrl,
+      publishedAt: blogArticles.publishedAt,
+      viewCount: blogArticles.viewCount,
+      categoryId: blogArticles.categoryId,
+    })
+    .from(blogArticles)
+    .where(
+      and(
+        eq(blogArticles.status, "published"),
+        eq(blogArticles.categoryId, categoryId),
+        not(eq(blogArticles.id, articleId))
+      )
+    )
+    .orderBy(desc(blogArticles.publishedAt))
+    .limit(limit) : [];
+
+  // 同タグの記事
+  let sameTagArticles: any[] = [];
+  if (tagIds.length > 0) {
+    sameTagArticles = await db
+      .select({
+        id: blogArticles.id,
+        title: blogArticles.title,
+        slug: blogArticles.slug,
+        excerpt: blogArticles.excerpt,
+        coverImageUrl: blogArticles.coverImageUrl,
+        publishedAt: blogArticles.publishedAt,
+        viewCount: blogArticles.viewCount,
+        categoryId: blogArticles.categoryId,
+      })
+      .from(blogArticles)
+      .innerJoin(blogArticleTags, eq(blogArticles.id, blogArticleTags.articleId))
+      .where(
+        and(
+          eq(blogArticles.status, "published"),
+          inArray(blogArticleTags.tagId, tagIds),
+          not(eq(blogArticles.id, articleId))
+        )
+      )
+      .orderBy(desc(blogArticles.publishedAt))
+      .limit(limit);
+  }
+
+  // 重複排除してマージ
+  const seen = new Set<number>();
+  const merged: any[] = [];
+  for (const a of [...sameCategoryArticles, ...sameTagArticles]) {
+    if (!seen.has(a.id)) {
+      seen.add(a.id);
+      merged.push(a);
+    }
+  }
+
+  return merged.slice(0, limit);
+}
+
+/**
+ * カテゴリハブ用：カテゴリごとの記事数を取得
+ */
+export async function getBlogCategoryArticleCounts(): Promise<Record<number, number>> {
+  const db = await getDb();
+  if (!db) return {};
+
+  const results = await db
+    .select({
+      categoryId: blogArticles.categoryId,
+      count: sql<number>`COUNT(*)`,
+    })
+    .from(blogArticles)
+    .where(
+      and(
+        eq(blogArticles.status, "published"),
+        sql`${blogArticles.categoryId} IS NOT NULL`
+      )
+    )
+    .groupBy(blogArticles.categoryId);
+
+  const counts: Record<number, number> = {};
+  for (const r of results) {
+    if (r.categoryId) counts[r.categoryId] = Number(r.count);
+  }
+  return counts;
+}
+
+/**
+ * タグハブ用：タグごとの記事数を取得
+ */
+export async function getBlogTagArticleCounts(): Promise<Record<number, number>> {
+  const db = await getDb();
+  if (!db) return {};
+
+  const results = await db
+    .select({
+      tagId: blogArticleTags.tagId,
+      count: sql<number>`COUNT(DISTINCT ${blogArticleTags.articleId})`,
+    })
+    .from(blogArticleTags)
+    .innerJoin(blogArticles, eq(blogArticleTags.articleId, blogArticles.id))
+    .where(eq(blogArticles.status, "published"))
+    .groupBy(blogArticleTags.tagId);
+
+  const counts: Record<number, number> = {};
+  for (const r of results) {
+    counts[r.tagId] = Number(r.count);
+  }
+  return counts;
+}
+
+/**
+ * 商品の平均評価・レビュー数を一括取得（記事内商品カード用）
+ */
+export async function getProductReviewStatsForIds(productIds: number[]): Promise<Record<number, { avgRating: number; totalReviews: number }>> {
+  const db = await getDb();
+  if (!db) return {};
+  if (productIds.length === 0) return {};
+
+  const stats = await db
+    .select({
+      productId: mallProductReviews.productId,
+      avgRating: sql<number>`AVG(${mallProductReviews.rating})`,
+      totalReviews: sql<number>`COUNT(*)`,
+    })
+    .from(mallProductReviews)
+    .where(inArray(mallProductReviews.productId, productIds))
+    .groupBy(mallProductReviews.productId);
+
+  const result: Record<number, { avgRating: number; totalReviews: number }> = {};
+  for (const s of stats) {
+    result[s.productId] = {
+      avgRating: Number(s.avgRating) || 0,
+      totalReviews: Number(s.totalReviews) || 0,
+    };
+  }
+  return result;
+}
+
+/**
+ * ブログ記事用：商品データ + レビュー統計 + 購入者数を一括取得
+ */
+export async function getProductDataForBlogArticle(productIds: number[]): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+  if (productIds.length === 0) return [];
+
+  const reviewStats = await getProductReviewStatsForIds(productIds);
+  const buyerCounts = await getAllMallProductBuyerCounts();
+
+  const products = await db
+    .select({
+      id: mallProducts.id,
+      name: mallProducts.name,
+      price: mallProducts.price,
+      pointPrice: mallProducts.pointPrice,
+      imageUrl: mallProducts.imageUrl,
+      description: mallProducts.description,
+      brandName: mallBrands.name,
+      categoryName: mallCategories.name,
+    })
+    .from(mallProducts)
+    .leftJoin(mallBrands, eq(mallProducts.brandId, mallBrands.id))
+    .leftJoin(mallCategories, eq(mallProducts.categoryId, mallCategories.id))
+    .where(inArray(mallProducts.id, productIds));
+
+  return products.map(p => ({
+    ...p,
+    avgRating: reviewStats[p.id]?.avgRating || 0,
+    totalReviews: reviewStats[p.id]?.totalReviews || 0,
+    buyerCount: buyerCounts[p.id] || 0,
+  }));
+}

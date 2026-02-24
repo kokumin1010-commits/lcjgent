@@ -6,7 +6,7 @@
  * is due for execution.
  */
 
-import { listAutoPostSchedules, getNextUnusedKeyword, createAutoPostLog, updateAutoPostLog, markKeywordUsed, incrementScheduleGenerated, createBlogArticle, getBlogArticleBySlug, updateBlogArticle, updateAutoPostSchedule, listPresetKeywordsDb, createPresetKeywordDb } from "./db";
+import { listAutoPostSchedules, getNextUnusedKeyword, createAutoPostLog, updateAutoPostLog, markKeywordUsed, incrementScheduleGenerated, createBlogArticle, getBlogArticleBySlug, updateBlogArticle, updateAutoPostSchedule, listPresetKeywordsDb, createPresetKeywordDb, getMallProductSalesRanking, getAllMallProductBuyerCounts, getAllProductReviewStats, findRelatedProductsForArticle } from "./db";
 import { invokeLLM } from "./_core/llm";
 import { generateImage } from "./_core/imageGeneration";
 import { storagePut } from "./storage";
@@ -235,21 +235,53 @@ async function executeAutoPost(schedule: any) {
     await updateAutoPostLog(log.id, { status: 'generating', keyword });
     console.log(`[AutoPost Scheduler] Generating article for keyword: "${keyword}"`);
 
-    // Step 2: Generate article with LLM
+    // Step 2: Fetch real EC data to enrich article
+    let realDataContext = '';
+    try {
+      const salesRanking = await getMallProductSalesRanking(10);
+      const buyerCounts = await getAllMallProductBuyerCounts();
+      const reviewStats = await getAllProductReviewStats();
+      const relatedProducts = await findRelatedProductsForArticle(keyword, keyword, 8);
+
+      if (salesRanking.length > 0) {
+        realDataContext += `\n\n## LCJ MALL 売上ランキング（実データ）\n`;
+        salesRanking.forEach((p: any, i: number) => {
+          const buyers = buyerCounts[p.id] || 0;
+          const review = reviewStats[p.id];
+          const rating = review ? `★${review.avgRating.toFixed(1)}（${review.totalReviews}件）` : '未レビュー';
+          realDataContext += `${i + 1}. ${p.name}（¥${p.price}）- 購入者${buyers}人 - ${rating}\n`;
+        });
+      }
+
+      if (relatedProducts.length > 0) {
+        realDataContext += `\n## キーワード「${keyword}」に関連する商品\n`;
+        relatedProducts.forEach((p: any) => {
+          const buyers = buyerCounts[p.id] || 0;
+          const review = reviewStats[p.id];
+          const rating = review ? `★${review.avgRating.toFixed(1)}（${review.totalReviews}件）` : '';
+          realDataContext += `- ${p.name}（¥${p.price}）${rating} ${buyers > 0 ? `購入者${buyers}人` : ''}\n`;
+        });
+      }
+    } catch (dataErr: any) {
+      console.warn('[AutoPost Scheduler] Failed to fetch EC data:', dataErr.message);
+    }
+
+    // Generate article with LLM
     const lengthGuide = schedule.articleLength === 'short' ? '1500-2000' : schedule.articleLength === 'long' ? '5000-6000' : '3000-4000';
     const articlePrompt = `あなたはSEO/GEO最適化のプロフェッショナルライターです。
 以下の条件で、検索エンジンとAI検索エンジン（ChatGPT、Perplexity、Google AI Overview）の両方で上位表示される記事を生成してください。
 
 メインキーワード: ${keyword}
-サイト: LCJ MALL（TikTok Shop商品を扱うECサイト）
+サイト: LCJ MALL（美容・ヘアケア商品を扱うECサイト。TikTok Shop連携あり）
 記事タイプ: ${schedule.articleType}
 トーン: ${schedule.tone}
 言語: ${schedule.language === 'ja' ? '日本語' : schedule.language === 'en' ? 'English' : schedule.language}
 文字数: ${lengthGuide}字
+${realDataContext}
 
 JSON形式で以下を出力してください:
 {
-  "title": "記事タイトル",
+  "title": "記事タイトル（購買意図を含む魅力的なタイトル）",
   "slug": "url-friendly-slug",
   "excerpt": "120字以内の抽出",
   "contentHtml": "HTML形式の記事本文（h2, h3, p, ul, ol, blockquoteタグ使用）",
@@ -260,10 +292,16 @@ JSON形式で以下を出力してください:
 
 SEO/GEO最適化要件:
 - メインキーワードをタイトル、最初の段落、h2見出しに自然に含める
+- 上記の実売データ（売上ランキング・購入者数・レビュー評価）を記事内に自然に組み込む
+- 「LCJ MALLで○○人が購入」「★4.5の高評価」など具体的な数字を活用
+- 商品紹介セクションでは <div data-type="product-card" data-product-id="PRODUCT_ID"></div> プレースホルダーを配置
 - 統計データや具体的な数字を含める（AI検索が引用しやすい）
-- FAQセクションを含める（「よくある質問」形式）
-- 内部リンクとしてLCJ MALLの商品ページへの参照を含める
+- FAQセクションを含める（「よくある質問」形式、3-5個）
+- HowToセクションを含める（具体的な手順を番号付きで）
+- 比較表を含める（Markdown表形式で商品を比較）
+- 内部リンクとして /mall/products/ID 形式のリンクを含める
 - 構造化された見出し階層（h2 > h3）を使用
+- E-E-A-T: 美容師監修・専門家の視点を含める
 - 専門的で信頼性の高い記述を心がける`;
 
     const response = await invokeLLM({

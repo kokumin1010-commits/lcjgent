@@ -498,6 +498,16 @@ import {
   setBlogArticleTags,
   getBlogArticleTagIds,
   searchMallProductsForBlog,
+  findRelatedProductsForArticle,
+  getRelatedBlogArticles,
+  getMallProductSalesRanking,
+  getMallProductRankingByCategory,
+  getMallProductsByBrand,
+  getBlogCategoryArticleCounts,
+  getBlogTagArticleCounts,
+  getProductDataForBlogArticle,
+  getAllMallProductBuyerCounts,
+  getAllProductReviewStats,
   listAutoPostSchedules,
   getAutoPostScheduleById,
   createAutoPostSchedule,
@@ -15745,6 +15755,163 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         return await listBlogArticles({ status: "published", ...input });
       }),
 
+    // --- EC統合型SEOブログ API ---
+
+    // 商品売上ランキング（記事内埋め込み用）
+    productRanking: publicProcedure
+      .input(z.object({
+        categoryId: z.number().optional(),
+        limit: z.number().default(10),
+      }).optional())
+      .query(async ({ input }) => {
+        if (input?.categoryId) {
+          return await getMallProductRankingByCategory(input.categoryId, input?.limit || 10);
+        }
+        return await getMallProductSalesRanking(input?.limit || 10);
+      }),
+
+    // ブランド別商品一覧
+    productsByBrand: publicProcedure
+      .input(z.object({ brandId: z.number(), limit: z.number().default(20) }))
+      .query(async ({ input }) => {
+        return await getMallProductsByBrand(input.brandId, input.limit);
+      }),
+
+    // 記事に関連する商品を自動検索
+    relatedProducts: publicProcedure
+      .input(z.object({ articleId: z.number() }))
+      .query(async ({ input }) => {
+        const article = await getBlogArticleById(input.articleId);
+        if (!article) return [];
+        return await findRelatedProductsForArticle(
+          article.title,
+          article.contentHtml || '',
+          6
+        );
+      }),
+
+    // 関連記事を取得
+    relatedArticles: publicProcedure
+      .input(z.object({ articleId: z.number(), slug: z.string().optional() }))
+      .query(async ({ input }) => {
+        const article = await getBlogArticleById(input.articleId);
+        if (!article) return [];
+        const tagIds = await getBlogArticleTagIds(input.articleId);
+        return await getRelatedBlogArticles(input.articleId, article.categoryId, tagIds, 5);
+      }),
+
+    // カテゴリハブ（カテゴリ一覧 + 記事数）
+    categoryHub: publicProcedure.query(async () => {
+      const categories = await getAllBlogCategories();
+      const counts = await getBlogCategoryArticleCounts();
+      return categories.map(c => ({
+        ...c,
+        articleCount: counts[c.id] || 0,
+      }));
+    }),
+
+    // タグハブ（タグ一覧 + 記事数）
+    tagHub: publicProcedure.query(async () => {
+      const tags = await getAllBlogTags();
+      const counts = await getBlogTagArticleCounts();
+      return tags.map(t => ({
+        ...t,
+        articleCount: counts[t.id] || 0,
+      }));
+    }),
+
+    // 商品データ一括取得（記事内商品カード用：レビュー統計 + 購入者数付き）
+    productCards: publicProcedure
+      .input(z.object({ productIds: z.array(z.number()) }))
+      .query(async ({ input }) => {
+        return await getProductDataForBlogArticle(input.productIds);
+      }),
+
+    // 記事詳細拡張版（関連商品・関連記事・構造化データ付き）
+    getBySlugEnriched: publicProcedure
+      .input(z.object({ slug: z.string() }))
+      .query(async ({ input }) => {
+        const article = await getBlogArticleBySlug(input.slug);
+        if (!article) throw new TRPCError({ code: "NOT_FOUND", message: "Article not found" });
+        
+        // Increment view count
+        await updateBlogArticle(article.id, { viewCount: article.viewCount + 1 });
+        const tagIds = await getBlogArticleTagIds(article.id);
+        
+        // 関連商品を自動検索
+        const relatedProducts = await findRelatedProductsForArticle(
+          article.title,
+          article.contentHtml || '',
+          6
+        );
+        
+        // 関連商品のレビュー統計と購入者数
+        const productIds = relatedProducts.map((p: any) => p.id);
+        let productReviewStats: Record<number, { avgRating: number; totalReviews: number }> = {};
+        let buyerCounts: Record<number, number> = {};
+        if (productIds.length > 0) {
+          productReviewStats = await getAllProductReviewStats();
+          buyerCounts = await getAllMallProductBuyerCounts();
+        }
+        
+        const enrichedProducts = relatedProducts.map((p: any) => ({
+          ...p,
+          avgRating: productReviewStats[p.id]?.avgRating || 0,
+          totalReviews: productReviewStats[p.id]?.totalReviews || 0,
+          buyerCount: buyerCounts[p.id] || 0,
+        }));
+        
+        // 関連記事
+        const relatedArticles = await getRelatedBlogArticles(article.id, article.categoryId, tagIds, 5);
+        
+        // 売上ランキング（トップ5）
+        const salesRanking = await getMallProductSalesRanking(5);
+        
+        return {
+          ...article,
+          tagIds,
+          relatedProducts: enrichedProducts,
+          relatedArticles,
+          salesRanking,
+        };
+      }),
+
+    // タグ別記事一覧
+    listByTag: publicProcedure
+      .input(z.object({
+        tagId: z.number(),
+        limit: z.number().default(12),
+        offset: z.number().default(0),
+      }))
+      .query(async ({ input }) => {
+        const db = await import('./db').then(m => m.getDb());
+        if (!db) return { articles: [], total: 0 };
+        const { blogArticles, blogArticleTags } = await import('../drizzle/schema');
+        const { eq, and, desc, sql, inArray } = await import('drizzle-orm');
+        
+        // 該当タグの記事IDを取得
+        const tagArticles = await db
+          .select({ articleId: blogArticleTags.articleId })
+          .from(blogArticleTags)
+          .where(eq(blogArticleTags.tagId, input.tagId));
+        
+        const articleIds = tagArticles.map(a => a.articleId);
+        if (articleIds.length === 0) return { articles: [], total: 0 };
+        
+        const articles = await db
+          .select()
+          .from(blogArticles)
+          .where(and(
+            eq(blogArticles.status, 'published'),
+            inArray(blogArticles.id, articleIds)
+          ))
+          .orderBy(desc(blogArticles.publishedAt))
+          .limit(input.limit)
+          .offset(input.offset);
+        
+        return { articles, total: articleIds.length };
+      }),
+
     // --- AI Article Generation (SEO/GEO Optimized) ---
     generateArticle: protectedProcedure
       .input(z.object({
@@ -15778,22 +15945,58 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             ? "请用中文撰写文章。" 
             : "Write the article in English.";
 
+        // Fetch real EC data for enrichment
+        let realDataSection = '';
+        try {
+          const salesRanking = await getMallProductSalesRanking(10);
+          const buyerCounts = await getAllMallProductBuyerCounts();
+          const reviewStats = await getAllProductReviewStats();
+          const relatedProducts = await findRelatedProductsForArticle(
+            input.topic,
+            input.keywords.join(' '),
+            8
+          );
+
+          if (salesRanking.length > 0) {
+            realDataSection += `\n\n## LCJ MALL 売上ランキング（実データ）\n`;
+            salesRanking.forEach((p: any, i: number) => {
+              const buyers = buyerCounts[p.id] || 0;
+              const review = reviewStats[p.id];
+              const rating = review ? `★${review.avgRating.toFixed(1)}（${review.totalReviews}件）` : '未レビュー';
+              realDataSection += `${i + 1}. ${p.name}（¥${p.price}）- 購入者${buyers}人 - ${rating} [ID:${p.id}]\n`;
+            });
+          }
+
+          if (relatedProducts.length > 0) {
+            realDataSection += `\n## キーワードに関連する商品\n`;
+            relatedProducts.forEach((p: any) => {
+              const buyers = buyerCounts[p.id] || 0;
+              const review = reviewStats[p.id];
+              const rating = review ? `★${review.avgRating.toFixed(1)}（${review.totalReviews}件）` : '';
+              realDataSection += `- ${p.name}（¥${p.price}）${rating} ${buyers > 0 ? `購入者${buyers}人` : ''} [ID:${p.id}]\n`;
+            });
+          }
+        } catch (dataErr: any) {
+          console.warn('[triggerNow] Failed to fetch EC data:', dataErr);
+        }
+
         const systemPrompt = `あなたはSEO/GEO（Generative Engine Optimization）に精通したプロのコンテンツライターです。
-以下の要件に従って、検索エンジンとAI検索エンジン（ChatGPT、Perplexity、Google AI Overview）の両方で上位表示・引用されるよう最適化された記事を生成してください。
+LCJ MALL（美容・ヘアケア商品を扱うECサイト。TikTok Shop連携あり）の専属ライターとして、検索エンジンとAI検索エンジン（ChatGPT、Perplexity、Google AI Overview）の両方で上位表示・引用される記事を生成してください。
 
 ## SEO/GEO最適化ルール
-1. **見出し階層**: H2→H3→H4の論理的な階層構造を使用。各H2セクションは独立した回答として機能するように書く
-2. **冒頭の直接回答**: 記事冒頭で検索意図に対する直接的な回答を提供（AI検索で引用されやすい）
-3. **統計・数値の引用**: 具体的な数字やデータを含める（例：「〇〇は前年比30%増加」）
-4. **FAQ形式**: 記事末尾に関連するFAQ（よくある質問）を3-5個含める
-5. **比較表**: 適切な場面ではMarkdown表形式で情報を整理する
-6. **引用可能な文章**: 定義文や要約文は、そのまま引用できる簡潔で正確な表現にする
-7. **E-E-A-T**: 経験・専門性・権威性・信頼性を示す表現を含める
-8. **内部リンク提案**: [関連記事リンク] のプレースホルダーを適切な箇所に配置
-9. **最新情報**: 2025-2026年の最新トレンドや情報を反映
+1. **見出し階層**: H2→H3→H4の論理的な階層構造を使用。各H2セクションは独立した回答として機能
+2. **冒頭の直接回答**: 記事冒頭で検索意図に対する直接的な回答を提供
+3. **リアルデータ活用**: LCJ MALLの実売データ（購入者数・レビュー評価・売上ランキング）を自然に組み込む
+4. **FAQ形式**: 記事末尾に関連FAQを3-5個含める
+5. **比較表**: HTML表形式で商品を比較
+6. **引用可能な文章**: 定義文や要約文は簡潔で正確に
+7. **E-E-A-T**: 美容師監修・専門家の視点を含める
+8. **商品カード**: 商品紹介箇所に <div data-type="product-card" data-product-id="PRODUCT_ID"></div> を配置（[ID:XX]のXXを使用）
+9. **内部リンク**: /mall/products/ID 形式のリンクを含める
+10. **最新情報**: 2025-2026年の最新トレンドを反映
 
 ## 出力形式
-記事本文をTiptap互換のHTML形式で出力してください。以下のタグを使用：
+記事本文をTiptap互換のHTML形式で出力。以下のタグを使用：
 - <h2>, <h3>, <h4> — 見出し
 - <p> — 段落
 - <ul><li>, <ol><li> — リスト
@@ -15801,9 +16004,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
 - <blockquote> — 引用
 - <table><thead><tr><th>...<tbody><tr><td>... — 表
 - <a href=""> — リンク
-
-商品紹介が必要な場合は、以下の形式で商品カードプレースホルダーを配置：
-<div data-type="product-card" data-product-id="PRODUCT_ID"></div>
+- <div data-type="product-card" data-product-id="ID"></div> — 商品カード
 
 ${langInstruction}`;
 
@@ -15815,12 +16016,14 @@ ${langInstruction}`;
 **トーン**: ${input.tone}
 **目標文字数**: ${lengthGuide[input.targetLength]}
 **商品紹介を含める**: ${input.includeProductRecommendations ? "はい（適切な箇所に商品カードプレースホルダーを配置）" : "いいえ"}
+${realDataSection}
 
 以下の構造で記事を生成してください：
 1. 導入文（検索意図への直接回答を含む）
 2. 本文（H2/H3で構造化、各セクション300-500文字）
-3. FAQ（3-5個のQ&A）
-4. まとめ
+3. 商品ランキング・比較セクション（実データを活用）
+4. FAQ（3-5個のQ&A）
+5. まとめ
 
 記事本文のHTMLのみを出力してください。メタ情報は含めないでください。`;
 
