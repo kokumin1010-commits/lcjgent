@@ -16711,7 +16711,7 @@ SEO/GEO最適化要件:
           // Step 5: Generate inline images if enabled
           if (schedule.generateImages && articleId) {
             try {
-              await updateAutoPostLog(log.id, { status: 'inline_image_generating' });
+              await updateAutoPostLog(log.id, { status: 'image_generating' });
               const inlineStyleGuide: Record<string, string> = {
                 modern: "Modern, clean digital illustration with subtle gradients",
                 minimal: "Minimalist illustration with simple shapes and muted colors",

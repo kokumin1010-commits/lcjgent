@@ -29,6 +29,7 @@ import {
   Send,
   FileCode,
   Link2,
+  Bot,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
@@ -125,8 +126,9 @@ function SEOTools() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            記事を公開すると自動的にIndexNowでGoogle・Bing等の検索エンジンに通知されます。
-            以下のボタンで全公開記事を手動で再送信できます。
+            記事を公開すると自動的にIndexNowでBing・Yandex等の検索エンジンに通知されます。
+            Googleへは、Search Consoleでサイトマップを送信してください。
+            以下のボタンで全公開記事をIndexNowに手動で再送信できます。
           </p>
           <div className="flex items-center gap-3">
             <Button onClick={handleSubmitAll} disabled={submittingAll} className="gap-2">
@@ -184,7 +186,8 @@ function SEOTools() {
               <div>
                 <p className="font-medium">完了</p>
                 <p className="text-sm text-muted-foreground">
-                  記事公開時に自動でIndexNow通知が送信され、Googleがクロールします
+                  サイトマップ送信後、Googleが自動的に新しい記事をクロールします。
+                  IndexNowはBing・Yandex向けに自動送信されます
                 </p>
               </div>
             </div>
@@ -208,9 +211,10 @@ function SEOTools() {
               { name: "JSON-LD構造化データ", desc: "Article + BreadcrumbListスキーマ", active: true },
               { name: "OGPメタタグ", desc: "Open Graph + Twitter Card対応", active: true },
               { name: "canonical URL", desc: "重複コンテンツ防止", active: true },
-              { name: "IndexNow自動通知", desc: "記事公開時に検索エンジンに自動通知", active: true },
+              { name: "IndexNow自動通知", desc: "記事公開時にBing・Yandexに自動通知", active: true },
               { name: "画像サイトマップ", desc: "カバー画像をサイトマップに含む", active: true },
               { name: "SEOメタ自動生成", desc: "AI記事生成時にSEOタイトル・ディスクリプション自動生成", active: true },
+              { name: "Botプリレンダリング", desc: "Googlebot等にSSR HTMLを返却（メタタグ・構造化データ完備）", active: true },
             ].map((feature, i) => (
               <div key={i} className="flex items-center gap-2 p-2 rounded-lg border">
                 <CheckCircle2 className={`h-4 w-4 ${feature.active ? "text-green-600" : "text-muted-foreground"}`} />
@@ -223,6 +227,131 @@ function SEOTools() {
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// --- Auto Post Quick Access ---
+function AutoPostQuickAccess() {
+  const [, navigate] = useLocation();
+  const triggerMutation = trpc.autoPost.triggerNow.useMutation({
+    onSuccess: (result) => {
+      if (result.success) {
+        toast.success(`記事「${result.title || ''}」を${result.status === 'published' ? '公開' : '生成'}しました`);
+      } else {
+        toast.error(result.message || '自動投稿に失敗しました');
+      }
+    },
+    onError: (err) => toast.error(err.message),
+  });
+  const { data: schedules } = trpc.autoPost.listSchedules.useQuery();
+  const { data: logs } = trpc.autoPost.listLogs.useQuery({ limit: 5 });
+  const { data: keywords } = trpc.autoPost.listKeywords.useQuery({ status: "pending", limit: 5 });
+
+  const enabledSchedules = schedules?.filter((s: any) => s.isEnabled) || [];
+  const pendingKeywords = keywords?.keywords || [];
+
+  return (
+    <div className="space-y-4">
+      {/* Quick Actions */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Bot className="h-5 w-5" />
+            AI自動投稿
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-3">
+            <Button
+              onClick={() => triggerMutation.mutate({})}
+              disabled={triggerMutation.isPending}
+              className="gap-2"
+            >
+              {triggerMutation.isPending ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+              今すぐ記事を生成
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => navigate("/master/auto-post")}
+              className="gap-2"
+            >
+              <BarChart3 className="h-4 w-4" />
+              詳細設定を開く
+            </Button>
+          </div>
+
+          {/* Status Summary */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="bg-muted/50 rounded-lg p-3">
+              <p className="text-xs text-muted-foreground">有効なスケジュール</p>
+              <p className="text-2xl font-bold">{enabledSchedules.length}件</p>
+            </div>
+            <div className="bg-muted/50 rounded-lg p-3">
+              <p className="text-xs text-muted-foreground">待機中キーワード</p>
+              <p className="text-2xl font-bold">{pendingKeywords.length}件</p>
+            </div>
+            <div className="bg-muted/50 rounded-lg p-3">
+              <p className="text-xs text-muted-foreground">最新の実行</p>
+              <p className="text-sm font-medium mt-1">
+                {logs?.logs?.[0]
+                  ? new Date(logs.logs[0].createdAt).toLocaleString("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+                  : "なし"}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Recent Logs */}
+      {logs?.logs && logs.logs.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">最近の自動投稿履歴</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {logs.logs.map((log: any) => (
+                <div key={log.id} className="flex items-center justify-between text-sm border-b pb-2 last:border-0">
+                  <div className="flex items-center gap-2">
+                    {log.status === "published" ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    ) : log.status === "failed" ? (
+                      <AlertCircle className="h-4 w-4 text-red-500" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4 text-yellow-500" />
+                    )}
+                    <span className="truncate max-w-[200px]">{log.title || log.keyword || "不明"}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(log.createdAt).toLocaleString("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Pending Keywords Preview */}
+      {pendingKeywords.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">次に使われるキーワード</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {pendingKeywords.map((kw: any) => (
+                <Badge key={kw.id} variant="secondary">{kw.keyword}</Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
@@ -749,6 +878,10 @@ export default function BlogAdmin() {
             <Globe className="h-4 w-4" />
             SEO
           </TabsTrigger>
+          <TabsTrigger value="autopost" className="gap-1.5">
+            <Bot className="h-4 w-4" />
+            自動投稿
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="articles" className="mt-4">
           <ArticleList />
@@ -761,6 +894,9 @@ export default function BlogAdmin() {
         </TabsContent>
         <TabsContent value="seo" className="mt-4">
           <SEOTools />
+        </TabsContent>
+        <TabsContent value="autopost" className="mt-4">
+          <AutoPostQuickAccess />
         </TabsContent>
       </Tabs>
     </div>

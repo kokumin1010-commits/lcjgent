@@ -18,6 +18,15 @@ import { startLineReminderScheduler } from "../lineReminderScheduler";
 import { startAutoPostScheduler } from "../autoPostScheduler";
 import { trackingRouter } from "../tracking";
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
     const server = net.createServer();
@@ -836,6 +845,87 @@ async function startServer() {
     }
   });
 
+  // --- Blog article prerender for SEO (Googlebot gets full HTML with meta tags) ---
+  app.get("/blog/:slug", async (req, res, next) => {
+    try {
+      const ua = (req.headers["user-agent"] || "").toLowerCase();
+      const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot/i.test(ua);
+      if (!isBot) return next();
+
+      const { getBlogArticleBySlug } = await import("../db");
+      const article = await getBlogArticleBySlug(req.params.slug);
+      if (!article || article.status !== "published") return next();
+
+      const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+      const articleUrl = `${baseUrl}/blog/${article.slug}`;
+      const title = article.seoTitle || article.title || "";
+      const description = article.seoDescription || article.excerpt || "";
+      const coverImage = article.coverImageUrl || "";
+      const publishedAt = article.publishedAt ? new Date(article.publishedAt).toISOString() : "";
+      const updatedAt = article.updatedAt ? new Date(article.updatedAt).toISOString() : publishedAt;
+
+      // Strip HTML tags for plain text content
+      const plainContent = (article.content || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().substring(0, 5000);
+
+      // JSON-LD structured data
+      const jsonLd = JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "Article",
+        headline: title,
+        description: description,
+        image: coverImage || undefined,
+        datePublished: publishedAt || undefined,
+        dateModified: updatedAt || undefined,
+        author: { "@type": "Organization", name: "LCJ MALL" },
+        publisher: {
+          "@type": "Organization",
+          name: "LCJ MALL",
+          url: baseUrl,
+        },
+        mainEntityOfPage: { "@type": "WebPage", "@id": articleUrl },
+      });
+
+      const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(title)} | LCJ MALL</title>
+  <meta name="description" content="${escapeHtml(description)}">
+  <link rel="canonical" href="${articleUrl}">
+  <meta property="og:title" content="${escapeHtml(title)}">
+  <meta property="og:description" content="${escapeHtml(description)}">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="${articleUrl}">
+  ${coverImage ? `<meta property="og:image" content="${escapeHtml(coverImage)}">` : ""}
+  <meta property="og:site_name" content="LCJ MALL">
+  <meta property="og:locale" content="ja_JP">
+  ${publishedAt ? `<meta property="article:published_time" content="${publishedAt}">` : ""}
+  ${updatedAt ? `<meta property="article:modified_time" content="${updatedAt}">` : ""}
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${escapeHtml(title)}">
+  <meta name="twitter:description" content="${escapeHtml(description)}">
+  ${coverImage ? `<meta name="twitter:image" content="${escapeHtml(coverImage)}">` : ""}
+  <script type="application/ld+json">${jsonLd}</script>
+</head>
+<body>
+  <article>
+    <h1>${escapeHtml(title)}</h1>
+    ${coverImage ? `<img src="${escapeHtml(coverImage)}" alt="${escapeHtml(title)}">` : ""}
+    <div>${article.content || ""}</div>
+  </article>
+  <p>${escapeHtml(plainContent.substring(0, 300))}</p>
+  <a href="${baseUrl}">LCJ MALL</a>
+</body>
+</html>`;
+
+      res.status(200).set({ "Content-Type": "text/html; charset=utf-8" }).end(html);
+    } catch (error) {
+      console.error("[Prerender] Error:", error);
+      next();
+    }
+  });
+
   // --- Blog Sitemap & robots.txt & Search Console ---
   app.get("/sitemap.xml", async (req, res) => {
     try {
@@ -913,15 +1003,10 @@ async function startServer() {
         body: JSON.stringify(indexNowPayload),
       });
 
-      // Also ping Google sitemap
-      const googlePingUrl = `https://www.google.com/ping?sitemap=${encodeURIComponent(`${baseUrl}/sitemap.xml`)}`;
-      const googleResp = await fetch(googlePingUrl);
-
-      console.log(`[IndexNow] Submitted ${urls.length} URLs. IndexNow: ${indexNowResp.status}, Google Ping: ${googleResp.status}`);
+      console.log(`[IndexNow] Submitted ${urls.length} URLs. IndexNow: ${indexNowResp.status}`);
       res.json({
         success: true,
         indexNowStatus: indexNowResp.status,
-        googlePingStatus: googleResp.status,
         submittedUrls: urls.length,
       });
     } catch (error) {
