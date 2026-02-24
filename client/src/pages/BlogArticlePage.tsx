@@ -215,6 +215,30 @@ export default function BlogArticlePage() {
       }
       canonicalLink.href = window.location.href;
 
+      // Set hreflang tags for GEO/SEO
+      let hreflangJa = document.querySelector('link[hreflang="ja"]') as HTMLLinkElement;
+      if (!hreflangJa) {
+        hreflangJa = document.createElement("link");
+        hreflangJa.rel = "alternate";
+        hreflangJa.hreflang = "ja";
+        document.head.appendChild(hreflangJa);
+      }
+      hreflangJa.href = window.location.href;
+
+      let hreflangDefault = document.querySelector('link[hreflang="x-default"]') as HTMLLinkElement;
+      if (!hreflangDefault) {
+        hreflangDefault = document.createElement("link");
+        hreflangDefault.rel = "alternate";
+        hreflangDefault.hreflang = "x-default";
+        document.head.appendChild(hreflangDefault);
+      }
+      hreflangDefault.href = window.location.href;
+
+      // Set GEO meta tags
+      setMetaTag("geo.region", "JP");
+      setMetaTag("geo.placename", "Japan");
+      setMetaTag("ICBM", "35.6762, 139.6503");
+
       // Remove existing LD+JSON
       const existingLd = document.querySelectorAll('script[type="application/ld+json"][data-blog]');
       existingLd.forEach(el => el.remove());

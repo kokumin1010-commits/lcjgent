@@ -508,6 +508,7 @@ import {
   getProductDataForBlogArticle,
   getAllMallProductBuyerCounts,
   getAllProductReviewStats,
+  getAllMallBrands,
   listAutoPostSchedules,
   getAutoPostScheduleById,
   createAutoPostSchedule,
@@ -537,6 +538,7 @@ import { ENV } from "./_core/env";
 import { authRouter } from "./auth";
 import { liverRouter } from "./liverRouter";
 import { checkAndSendReminders } from "./reminderScheduler";
+import { detectCategoryForKeyword, insertBrandLinks } from "./autoPostScheduler";
 import { completionRouter } from "./completion";
 import { sendReminderEmail } from "./emailService";
 import { transcribeAudio } from "./_core/voiceTranscription";
@@ -17138,40 +17140,88 @@ SEO/GEO最適化要件:
         });
 
         try {
-          // Step 2: Generate article with LLM
+          // Step 2: Auto-detect category from keyword
+          const blogCategories = await getAllBlogCategories();
+          let categoryId = detectCategoryForKeyword(keyword, blogCategories);
+          console.log(`[triggerNow] Auto-detected category: ${categoryId ? blogCategories.find(c => c.id === categoryId)?.name : 'none'}`);
+
+          // Step 3: Fetch real EC data to enrich article
+          let realDataContext = '';
+          try {
+            const salesRanking = await getMallProductSalesRanking(10);
+            const buyerCounts = await getAllMallProductBuyerCounts();
+            const reviewStats = await getAllProductReviewStats();
+            const relatedProducts = await findRelatedProductsForArticle(keyword, keyword, 8);
+
+            if (salesRanking.length > 0) {
+              realDataContext += `\n\n## LCJ MALL 売上ランキング（実データ）\n`;
+              salesRanking.forEach((p: any, i: number) => {
+                const buyers = buyerCounts[p.id] || 0;
+                const review = reviewStats[p.id];
+                const rating = review ? `★${review.avgRating.toFixed(1)}（${review.totalReviews}件）` : '未レビュー';
+                realDataContext += `${i + 1}. ${p.name}（¥${p.price}）- 購入者${buyers}人 - ${rating}\n`;
+              });
+            }
+
+            if (relatedProducts.length > 0) {
+              realDataContext += `\n## キーワード「${keyword}」に関連する商品\n`;
+              relatedProducts.forEach((p: any) => {
+                const buyers = buyerCounts[p.id] || 0;
+                const review = reviewStats[p.id];
+                const rating = review ? `★${review.avgRating.toFixed(1)}（${review.totalReviews}件）` : '';
+                realDataContext += `- ${p.name}（¥${p.price}）${rating} ${buyers > 0 ? `購入者${buyers}人` : ''} [商品ID: ${p.id}]\n`;
+              });
+            }
+          } catch (dataErr: any) {
+            console.warn('[triggerNow] Failed to fetch EC data:', dataErr.message);
+          }
+
+          // Step 4: Generate article with LLM (enhanced with real data + GEO)
           const lengthGuide = opts.articleLength === 'short' ? '1500-2000' : opts.articleLength === 'long' ? '5000-6000' : '3000-4000';
+          const categoryName = categoryId ? blogCategories.find(c => c.id === categoryId)?.name || '' : '';
+
           const articlePrompt = `あなたはSEO/GEO最適化のプロフェッショナルライターです。
 以下の条件で、検索エンジンとAI検索エンジン（ChatGPT、Perplexity、Google AI Overview）の両方で上位表示される記事を生成してください。
 
 メインキーワード: ${keyword}
-サイト: LCJ MALL（TikTok Shop商品を扱うECサイト）
+サイト: LCJ MALL（美容・ヘアケア商品を扱うECサイト。ドメイン: lcjmall.com。TikTok Shop連携あり）
+記事カテゴリ: ${categoryName || '自動判定'}
 記事タイプ: ${opts.articleType || 'guide'}
 トーン: ${opts.tone || 'professional'}
 言語: ${(opts.language || 'ja') === 'ja' ? '日本語' : (opts.language || 'ja') === 'en' ? 'English' : opts.language}
 文字数: ${lengthGuide}字
+${realDataContext}
 
 JSON形式で以下を出力してください:
 {
-  "title": "記事タイトル",
-  "slug": "url-friendly-slug",
+  "title": "記事タイトル（購買意図を含む魅力的なタイトル）",
+  "slug": "url-friendly-slug（英語のみ、ハイフン区切り）",
   "excerpt": "120字以内の抽出",
-  "contentHtml": "HTML形式の記事本文（h2, h3, p, ul, ol, blockquoteタグ使用）",
+  "contentHtml": "HTML形式の記事本文（h2, h3, p, ul, ol, blockquote, tableタグ使用）",
   "seoTitle": "SEO用タイトル（60字以内）",
   "seoDescription": "SEO用ディスクリプション（155字以内）",
-  "tags": ["推奨タグ名1", "推奨タグ名2"]
+  "tags": ["推奨タグ名1", "推奨タグ名2", "推奨タグ名3"],
+  "suggestedCategory": "最適なカテゴリ名"
 }
 
 SEO/GEO最適化要件:
 - メインキーワードをタイトル、最初の段落、h2見出しに自然に含める
+- 上記の実売データ（売上ランキング・購入者数・レビュー評価）を記事内に自然に組み込む
+- 「LCJ MALLで○○人が購入」「★4.5の高評価」など具体的な数字を活用
+- 商品紹介セクションでは商品名と /mall/products/商品ID 形式のリンクを含める
 - 統計データや具体的な数字を含める（AI検索が引用しやすい）
-- FAQセクションを含める（「よくある質問」形式）
-- 内部リンクとしてLCJ MALLの商品ページへの参照を含める
+- FAQセクションを含める（「よくある質問」形式、3-5個）
+- HowToセクションを含める（具体的な手順を番号付きで）
+- 比較表を含める（<table>タグで商品を比較）
 - 構造化された見出し階層（h2 > h3）を使用
-- 専門的で信頼性の高い記述を心がける`;
+- E-E-A-T: 美容師監修・専門家の視点を含める
+- 専門的で信頼性の高い記述を心がける
+- 日本語SEO: 自然な日本語表現、共起語を含める
+- GEO最適化: AI検索エンジンが引用しやすい明確な回答文を含める`;
 
           const response = await invokeLLM({
             messages: [
-              { role: 'system', content: 'You are a professional SEO/GEO optimized content writer. Always respond with valid JSON only.' },
+              { role: 'system', content: 'You are a professional SEO/GEO optimized content writer for a Japanese beauty e-commerce site. Always respond with valid JSON only.' },
               { role: 'user', content: articlePrompt },
             ],
             response_format: {
@@ -17189,8 +17239,9 @@ SEO/GEO最適化要件:
                     seoTitle: { type: 'string' },
                     seoDescription: { type: 'string' },
                     tags: { type: 'array', items: { type: 'string' } },
+                    suggestedCategory: { type: 'string' },
                   },
-                  required: ['title', 'slug', 'excerpt', 'contentHtml', 'seoTitle', 'seoDescription', 'tags'],
+                  required: ['title', 'slug', 'excerpt', 'contentHtml', 'seoTitle', 'seoDescription', 'tags', 'suggestedCategory'],
                   additionalProperties: false,
                 },
               },
@@ -17203,33 +17254,54 @@ SEO/GEO最適化要件:
             throw new Error('LLMから有効な記事データを取得できませんでした');
           }
 
+          // Step 5: Resolve category (use LLM suggestion if not already set)
+          if (!categoryId && articleData.suggestedCategory) {
+            const suggestedCat = blogCategories.find(c => c.name === articleData.suggestedCategory);
+            if (suggestedCat) {
+              categoryId = suggestedCat.id;
+              console.log(`[triggerNow] LLM suggested category: ${suggestedCat.name}`);
+            }
+          }
+
+          // Step 6: Insert brand internal links
+          let processedHtml = articleData.contentHtml;
+          try {
+            const mallBrands = await getAllMallBrands();
+            if (mallBrands.length > 0) {
+              processedHtml = insertBrandLinks(processedHtml, mallBrands);
+              console.log(`[triggerNow] Brand links inserted for ${mallBrands.length} brands`);
+            }
+          } catch (brandErr: any) {
+            console.warn('[triggerNow] Brand link insertion failed:', brandErr.message);
+          }
+
           // Ensure unique slug
           const baseSlug = articleData.slug || nanoid(12);
           const existingArticle = await getBlogArticleBySlug(baseSlug);
           const finalSlug = existingArticle ? `${baseSlug}-${nanoid(6)}` : baseSlug;
 
-          // Step 3: Create blog article
+          // Step 7: Create blog article with auto-assigned category
           const publishStatus = (opts.autoPublish || 'publish') === 'publish' ? 'published' : 'draft';
           const articleResult = await createBlogArticle({
             title: articleData.title,
             slug: finalSlug,
             excerpt: articleData.excerpt,
-            contentHtml: articleData.contentHtml,
+            contentHtml: processedHtml,
             seoTitle: articleData.seoTitle,
             seoDescription: articleData.seoDescription,
             status: publishStatus as any,
             publishedAt: publishStatus === 'published' ? new Date() : null,
             authorId: 1,
-            categoryId: null,
+            categoryId: categoryId,
           });
 
-          const articleId = (articleResult as any).id || (articleResult as any)[0]?.insertId || (articleResult as any).insertId;
+          const articleId = (articleResult as any).id;
 
-          // Step 4: Generate cover image if enabled
+          // Step 8: Generate cover image if enabled
           if ((opts.generateImages !== false) && articleId) {
             await updateAutoPostLog(log.id, { status: 'image_generating' });
             try {
-              const imagePrompt = `Professional blog cover image for "${articleData.title}". Modern, clean design with TikTok Shop and e-commerce theme. High quality, vibrant colors. No text overlay.`;
+              const imagePrompt = `Professional blog cover image for "${articleData.title}". Modern, clean design with beauty and hair care theme. High quality, vibrant colors. Japanese aesthetic. No text overlay.`;
               const { url: imageUrl } = await generateImage({ prompt: imagePrompt });
               if (imageUrl) {
                 const imageResponse = await fetch(imageUrl);
@@ -17276,6 +17348,7 @@ SEO/GEO最適化要件:
             articleId,
             title: articleData.title,
             keyword,
+            category: categoryId ? blogCategories.find(c => c.id === categoryId)?.name : null,
             status: publishStatus,
           };
 

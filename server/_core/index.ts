@@ -893,6 +893,8 @@ async function startServer() {
   <title>${escapeHtml(title)} | LCJ MALL</title>
   <meta name="description" content="${escapeHtml(description)}">
   <link rel="canonical" href="${articleUrl}">
+  <link rel="alternate" hreflang="ja" href="${articleUrl}">
+  <link rel="alternate" hreflang="x-default" href="${articleUrl}">
   <meta property="og:title" content="${escapeHtml(title)}">
   <meta property="og:description" content="${escapeHtml(description)}">
   <meta property="og:type" content="article">
@@ -900,6 +902,9 @@ async function startServer() {
   ${coverImage ? `<meta property="og:image" content="${escapeHtml(coverImage)}">` : ""}
   <meta property="og:site_name" content="LCJ MALL">
   <meta property="og:locale" content="ja_JP">
+  <meta name="geo.region" content="JP">
+  <meta name="geo.placename" content="Japan">
+  <meta name="ICBM" content="35.6762, 139.6503">
   ${publishedAt ? `<meta property="article:published_time" content="${publishedAt}">` : ""}
   ${updatedAt ? `<meta property="article:modified_time" content="${updatedAt}">` : ""}
   <meta name="twitter:card" content="summary_large_image">

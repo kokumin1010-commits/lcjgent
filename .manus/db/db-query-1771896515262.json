@@ -1,0 +1,19 @@
+{
+  "query": "SELECT * FROM blog_categories ORDER BY sortOrder;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT * FROM blog_categories ORDER BY sortOrder;",
+  "rows": [
+    {
+      "id": "9",
+      "name": "Eコマース",
+      "slug": "eコマース",
+      "description": "NULL",
+      "sortOrder": "0",
+      "createdAt": "2026-02-21 03:24:46",
+      "updatedAt": "2026-02-21 03:24:46"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tslug\tdescription\tsortOrder\tcreatedAt\tupdatedAt\n9\tEコマース\teコマース\tNULL\t0\t2026-02-21 03:24:46\t2026-02-21 03:24:46\n",
+  "stderr": "",
+  "execution_time_ms": 1538
+}

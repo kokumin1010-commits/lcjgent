@@ -1,0 +1,9 @@
+{
+  "query": "INSERT IGNORE INTO blog_categories (name, slug, description, sortOrder) VALUES\n('シャンプー・トリートメント', 'shampoo-treatment', 'シャンプー・トリートメントに関する記事', 1),\n('カラーケア', 'color-care', 'ヘアカラーケアに関する記事', 2),\n('ダメージケア', 'damage-care', 'ダメージケア・修復に関する記事', 3),\n('成分解析', 'ingredient-analysis', '美容成分の解析・比較記事', 4),\n('美容師監修ケア', 'professional-care', '美容師監修のヘアケア記事', 5),\n('スキンケア', 'skincare', 'スキンケアに関する記事', 6),\n('美容家電', 'beauty-gadgets', '美容家電・ガジェットに関する記事', 7),\n('TikTok Shop', 'tiktok-shop', 'TikTok Shop・ライブコマースに関する記事', 8),\n('ランキング・比較', 'ranking-comparison', '商品ランキング・比較記事', 9),\n('美容トレンド', 'beauty-trends', '美容トレンド・最新情報', 10);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute INSERT IGNORE INTO blog_categories (name, slug, description, sortOrder) VALUES\n('シャンプー・トリートメント', 'shampoo-treatment', 'シャンプー・トリートメントに関する記事', 1),\n('カラーケア', 'color-care', 'ヘアカラーケアに関する記事', 2),\n('ダメージケア', 'damage-care', 'ダメージケア・修復に関する記事', 3),\n('成分解析', 'ingredient-analysis', '美容成分の解析・比較記事', 4),\n('美容師監修ケア', 'professional-care', '美容師監修のヘアケア記事', 5),\n('スキンケア', 'skincare', 'スキンケアに関する記事', 6),\n('美容家電', 'beauty-gadgets', '美容家電・ガジェットに関する記事', 7),\n('TikTok Shop', 'tiktok-shop', 'TikTok Shop・ライブコマースに関する記事', 8),\n('ランキング・比較', 'ranking-comparison', '商品ランキング・比較記事', 9),\n('美容トレンド', 'beauty-trends', '美容トレンド・最新情報', 10);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1635
+}
