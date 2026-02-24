@@ -540,6 +540,7 @@ import { liverRouter } from "./liverRouter";
 import { checkAndSendReminders } from "./reminderScheduler";
 import { detectCategoryForKeyword, insertBrandLinks } from "./autoPostScheduler";
 import { buildProductDataForLLMPrompt, postProcessArticleHtml, type ProductCardData } from "./productCardRenderer";
+import { generateCoverImagePrompt, detectArticleType, getArticleTypeLabel } from "./coverImageStyles";
 import { completionRouter } from "./completion";
 import { sendReminderEmail } from "./emailService";
 import { transcribeAudio } from "./_core/voiceTranscription";
@@ -16301,22 +16302,20 @@ TikTok Shop、ECモール、ライブコマース関連のキーワードに特�
         title: z.string().min(1).describe("記事タイトル"),
         keywords: z.array(z.string()).optional(),
         style: z.enum(["modern", "minimal", "vibrant", "professional", "creative"]).default("modern"),
+        articleType: z.enum(["guide", "review", "comparison", "news", "howto", "listicle", "ranking", "ingredient_analysis", "auto"]).default("auto").describe("記事タイプ（autoで自動検出）"),
         articleId: z.number().optional().describe("既存記事IDに紐付ける場合"),
       }))
       .mutation(async ({ input }) => {
-        const styleGuide: Record<string, string> = {
-          modern: "Modern, clean design with subtle gradients and geometric shapes",
-          minimal: "Minimalist design with lots of white space and simple elements",
-          vibrant: "Vibrant, colorful design with bold patterns and dynamic composition",
-          professional: "Professional, corporate style with muted tones and structured layout",
-          creative: "Creative, artistic design with unique textures and abstract elements",
-        };
-
-        const keywordContext = input.keywords?.length
-          ? ` Related topics: ${input.keywords.join(", ")}.`
-          : "";
-
-        const imagePrompt = `Professional blog cover image for an article titled "${input.title}".${keywordContext} ${styleGuide[input.style]}. E-commerce and TikTok Shop theme. High quality, visually appealing. No text overlay on the image.`;
+        // Use article-type-specific prompt if articleType is set, otherwise fall back to style-based
+        let imagePrompt: string;
+        if (input.articleType && input.articleType !== 'auto') {
+          imagePrompt = generateCoverImagePrompt(input.title, input.articleType, input.keywords?.[0]);
+        } else {
+          // Auto-detect from title and keywords
+          const autoType = detectArticleType(input.keywords?.[0] || '', input.title);
+          imagePrompt = generateCoverImagePrompt(input.title, autoType, input.keywords?.[0]);
+          console.log(`[generateCoverImage] Auto-detected type: ${getArticleTypeLabel(autoType)}`);
+        }
 
         try {
           const { url: imageUrl } = await generateImage({ prompt: imagePrompt });
@@ -16923,7 +16922,10 @@ SEO/GEO最適化要件:
           if (schedule.generateImages && articleId) {
             await updateAutoPostLog(log.id, { status: 'image_generating' });
             try {
-              const imagePrompt = `Professional blog cover image for "${articleData.title}". Modern, clean design with TikTok Shop and e-commerce theme. High quality, vibrant colors. No text overlay.`;
+              const detectedType = detectArticleType(keyword, articleData.title);
+              const resolvedType = schedule.articleType || detectedType;
+              const imagePrompt = generateCoverImagePrompt(articleData.title, resolvedType, keyword);
+              console.log(`[autoPost] Cover image style: ${getArticleTypeLabel(detectedType)} (${resolvedType})`);
               const { url: imageUrl } = await generateImage({ prompt: imagePrompt });
               if (imageUrl) {
                 const imageResponse = await fetch(imageUrl);
@@ -17084,7 +17086,7 @@ SEO/GEO最適化要件:
             try {
               const article = await getBlogArticleById(log.articleId);
               if (article && !article.coverImageUrl) {
-                const imagePrompt = `Professional blog cover image for "${article.title}". Modern, clean design with TikTok Shop and e-commerce theme. High quality, vibrant colors. No text overlay.`;
+                const imagePrompt = generateCoverImagePrompt(article.title, detectArticleType('', article.title));
                 const { url: imageUrl } = await generateImage({ prompt: imagePrompt });
                 if (imageUrl) {
                   const imageResponse = await fetch(imageUrl);
@@ -17294,7 +17296,10 @@ SEO/GEO最適化要件:
           if ((opts.generateImages !== false) && articleId) {
             await updateAutoPostLog(log.id, { status: 'image_generating' });
             try {
-              const imagePrompt = `Professional blog cover image for "${articleData.title}". Modern, clean design with beauty and hair care theme. High quality, vibrant colors. Japanese aesthetic. No text overlay.`;
+              const triggerDetectedType = detectArticleType(keyword, articleData.title);
+              const triggerResolvedType = opts.articleType || triggerDetectedType;
+              const imagePrompt = generateCoverImagePrompt(articleData.title, triggerResolvedType, keyword);
+              console.log(`[triggerNow] Cover image style: ${getArticleTypeLabel(triggerDetectedType)} (${triggerResolvedType})`);
               const { url: imageUrl } = await generateImage({ prompt: imagePrompt });
               if (imageUrl) {
                 const imageResponse = await fetch(imageUrl);

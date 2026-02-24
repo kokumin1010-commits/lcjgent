@@ -19,6 +19,7 @@ import { generateImage } from "./_core/imageGeneration";
 import { storagePut } from "./storage";
 import { nanoid } from "nanoid";
 import { buildProductDataForLLMPrompt, postProcessArticleHtml, type ProductCardData } from "./productCardRenderer";
+import { generateCoverImagePrompt, detectArticleType, getArticleTypeLabel } from "./coverImageStyles";
 
 // Check interval: every 1 hour
 const CHECK_INTERVAL_MS = 60 * 60 * 1000;
@@ -507,7 +508,10 @@ SEO/GEO最適化要件:
     if (schedule.generateImages && articleId) {
       await updateAutoPostLog(log.id, { status: 'image_generating' });
       try {
-        const imagePrompt = `Professional blog cover image for "${articleData.title}". Modern, clean design with beauty and hair care theme. High quality, vibrant colors. Japanese aesthetic. No text overlay.`;
+        const detectedType = detectArticleType(keyword, articleData.title);
+        const resolvedArticleType = schedule.articleType || detectedType;
+        const imagePrompt = generateCoverImagePrompt(articleData.title, resolvedArticleType, keyword);
+        console.log(`[AutoPost Scheduler] Cover image style: ${getArticleTypeLabel(detectedType)} (${resolvedArticleType})`);
         const { url: imageUrl } = await generateImage({ prompt: imagePrompt });
         if (imageUrl) {
           const imageResponse = await fetch(imageUrl);
