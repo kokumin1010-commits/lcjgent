@@ -14789,3 +14789,143 @@ export async function getProductDataForBlogArticle(productIds: number[]): Promis
     buyerCount: buyerCounts[p.id] || 0,
   }));
 }
+
+
+// ============================================
+// ブランドページ用ヘルパー関数
+// ============================================
+
+/**
+ * アクティブなMALLブランド一覧（商品数・注文数付き）
+ */
+export async function getActiveMallBrandsWithStats() {
+  const db = await getDb();
+  if (!db) return [];
+
+  const allBrands = await db
+    .select()
+    .from(mallBrands)
+    .where(eq(mallBrands.isActive, "yes"))
+    .orderBy(asc(mallBrands.sortOrder), asc(mallBrands.name));
+
+  const brandsWithStats = await Promise.all(
+    allBrands.map(async (brand) => {
+      // 商品数
+      const productCountResult = await db!
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(mallProducts)
+        .where(and(eq(mallProducts.brandId, brand.id), eq(mallProducts.status, "active")));
+      const productCount = productCountResult[0]?.count || 0;
+
+      // 注文数（購入者数の代わり）
+      const orderCountResult = await db!
+        .select({ count: sql<number>`COUNT(DISTINCT ${mallOrders.id})` })
+        .from(mallOrderItems)
+        .innerJoin(mallOrders, eq(mallOrderItems.orderId, mallOrders.id))
+        .innerJoin(mallProducts, eq(mallOrderItems.productId, mallProducts.id))
+        .where(eq(mallProducts.brandId, brand.id));
+      const orderCount = orderCountResult[0]?.count || 0;
+
+      // レビュー平均
+      const reviewResult = await db!
+        .select({
+          avgRating: sql<number>`COALESCE(AVG(${mallProductReviews.rating}), 0)`,
+          reviewCount: sql<number>`COUNT(*)`,
+        })
+        .from(mallProductReviews)
+        .innerJoin(mallProducts, eq(mallProductReviews.productId, mallProducts.id))
+        .where(eq(mallProducts.brandId, brand.id));
+      const avgRating = Number(reviewResult[0]?.avgRating || 0);
+      const reviewCount = reviewResult[0]?.reviewCount || 0;
+
+      return {
+        ...brand,
+        productCount,
+        orderCount,
+        avgRating: Math.round(avgRating * 10) / 10,
+        reviewCount,
+      };
+    })
+  );
+
+  return brandsWithStats;
+}
+
+/**
+ * ブランドに関連するブログ記事を取得（ブランド名・商品名で記事を検索）
+ */
+export async function getBlogArticlesByBrand(brandId: number, limit: number = 10) {
+  const db = await getDb();
+  if (!db) return [];
+
+  // ブランド情報を取得
+  const brand = await db
+    .select()
+    .from(mallBrands)
+    .where(eq(mallBrands.id, brandId))
+    .limit(1);
+  if (brand.length === 0) return [];
+
+  const brandName = brand[0].name;
+
+  // ブランドの商品名を取得
+  const products = await db
+    .select({ name: mallProducts.name })
+    .from(mallProducts)
+    .where(and(eq(mallProducts.brandId, brandId), eq(mallProducts.status, "active")))
+    .limit(20);
+
+  // ブランド名または商品名がcontentHtmlに含まれる記事を検索
+  const searchTerms = [brandName, ...products.map((p) => p.name)];
+  const conditions = searchTerms.map((term) =>
+    like(blogArticles.contentHtml, `%${term}%`)
+  );
+
+  const articles = await db
+    .select({
+      id: blogArticles.id,
+      title: blogArticles.title,
+      slug: blogArticles.slug,
+      excerpt: blogArticles.excerpt,
+      coverImageUrl: blogArticles.coverImageUrl,
+      publishedAt: blogArticles.publishedAt,
+      viewCount: blogArticles.viewCount,
+      categoryId: blogArticles.categoryId,
+    })
+    .from(blogArticles)
+    .where(
+      and(
+        eq(blogArticles.status, "published"),
+        or(...conditions)
+      )
+    )
+    .orderBy(desc(blogArticles.publishedAt))
+    .limit(limit);
+
+  return articles;
+}
+
+/**
+ * ブランドの全体レビュー一覧（最新順）
+ */
+export async function getMallBrandReviews(brandId: number, limit: number = 20) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db
+    .select({
+      id: mallProductReviews.id,
+      productId: mallProductReviews.productId,
+      productName: mallProducts.name,
+      productImageUrl: mallProducts.imageUrl,
+      rating: mallProductReviews.rating,
+      comment: mallProductReviews.comment,
+      imageUrl: mallProductReviews.imageUrl,
+      createdAt: mallProductReviews.createdAt,
+    })
+    .from(mallProductReviews)
+    .innerJoin(mallProducts, eq(mallProductReviews.productId, mallProducts.id))
+    .where(eq(mallProducts.brandId, brandId))
+    .orderBy(desc(mallProductReviews.createdAt))
+    .limit(limit);
+}

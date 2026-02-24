@@ -929,7 +929,7 @@ async function startServer() {
   // --- Blog Sitemap & robots.txt & Search Console ---
   app.get("/sitemap.xml", async (req, res) => {
     try {
-      const { listBlogArticles, getAllBlogCategories, getAllBlogTags, getMallProducts } = await import("../db");
+      const { listBlogArticles, getAllBlogCategories, getAllBlogTags, getMallProducts, getActiveMallBrandsWithStats } = await import("../db");
       const { articles } = await listBlogArticles({ status: "published", limit: 1000 });
       const categories = await getAllBlogCategories();
       const tags = await getAllBlogTags();
@@ -962,6 +962,20 @@ async function startServer() {
         return `  <url>\n    <loc>${baseUrl}/blog/${a.slug}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>${imageTag}\n  </url>`;
       });
 
+      // Brand pages
+      let brandUrls: string[] = [];
+      try {
+        const brands = await getActiveMallBrandsWithStats();
+        brandUrls = [
+          `  <url>\n    <loc>${baseUrl}/brands</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.7</priority>\n  </url>`,
+          ...brands.map((b: any) =>
+            `  <url>\n    <loc>${baseUrl}/brands/${b.id}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.7</priority>${b.logoUrl ? `\n    <image:image>\n      <image:loc>${b.logoUrl}</image:loc>\n      <image:title>${(b.name || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</image:title>\n    </image:image>` : ""}\n  </url>`
+          ),
+        ];
+      } catch (e) {
+        console.warn("[Sitemap] Failed to fetch brands:", e);
+      }
+
       // Mall product pages
       let productUrls: string[] = [];
       try {
@@ -974,7 +988,7 @@ async function startServer() {
         console.warn("[Sitemap] Failed to fetch products:", e);
       }
 
-      const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n${staticUrls.join("\n")}\n${categoryUrls.join("\n")}\n${tagUrls.join("\n")}\n${articleUrls.join("\n")}\n${productUrls.join("\n")}\n</urlset>`;
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n${staticUrls.join("\n")}\n${categoryUrls.join("\n")}\n${tagUrls.join("\n")}\n${brandUrls.join("\n")}\n${articleUrls.join("\n")}\n${productUrls.join("\n")}\n</urlset>`;
       res.setHeader("Content-Type", "application/xml");
       res.setHeader("Cache-Control", "public, max-age=3600");
       res.send(xml);
@@ -987,7 +1001,7 @@ async function startServer() {
   app.get("/robots.txt", (req, res) => {
     const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
     res.setHeader("Content-Type", "text/plain");
-    res.send(`User-agent: *\nAllow: /\nAllow: /blog/\nAllow: /mall/\nDisallow: /master/\nDisallow: /api/\nDisallow: /settings/\n\nSitemap: ${baseUrl}/sitemap.xml`);
+    res.send(`User-agent: *\nAllow: /\nAllow: /blog/\nAllow: /mall/\nAllow: /brands/\nDisallow: /master/\nDisallow: /api/\nDisallow: /settings/\n\nSitemap: ${baseUrl}/sitemap.xml`);
   });
 
   // Google Search Console verification file

@@ -15912,6 +15912,27 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         return { articles, total: articleIds.length };
       }),
 
+    // --- Brand Page Endpoints ---
+    brandList: publicProcedure
+      .query(async () => {
+        const { getActiveMallBrandsWithStats } = await import('./db');
+        return await getActiveMallBrandsWithStats();
+      }),
+
+    brandDetail: publicProcedure
+      .input(z.object({ brandId: z.number() }))
+      .query(async ({ input }) => {
+        const { getMallBrandById, getMallProductsByBrand, getBlogArticlesByBrand, getMallBrandReviews } = await import('./db');
+        const brand = await getMallBrandById(input.brandId);
+        if (!brand) return null;
+        const [products, articles, reviews] = await Promise.all([
+          getMallProductsByBrand(input.brandId, 50),
+          getBlogArticlesByBrand(input.brandId, 10),
+          getMallBrandReviews(input.brandId, 20),
+        ]);
+        return { brand, products, articles, reviews };
+      }),
+
     // --- AI Article Generation (SEO/GEO Optimized) ---
     generateArticle: protectedProcedure
       .input(z.object({

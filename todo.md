@@ -6009,10 +6009,22 @@
 - [x] robots.txt更新（/mall/許可、/settings/除外追加）
 - [x] SSRプリレンダリング修正（contentHtml参照エラー修正）
 - [x] Vitestテスト2054件全パス確認
-- [ ] ブランドページ（ブランド別商品一覧＋記事一覧）
+- [x] ブランドページ（ブランド別商品一覧＋記事一覧 /brands・/brands/:brandId）
 
 ## バグ修正：ブログ記事のカバー画像が生成されない
 - [x] カバー画像生成ロジックの調査（triggerNow・autoPostScheduler）
 - [x] 原因特定：createArticleの戻り値{id}vs insertIdの不一致を修正
 - [x] 既存のカバー画像なし記事2件の画像を手動生成・更新
 - [x] Vitest 2054件全パス確認
+
+## ブランドページ実装（ブランド別商品一覧＋関連記事一覧）
+- [x] DBヘルパー：ブランド詳細・ブランド別商品・ブランド別記事取得
+- [x] tRPCプロシージャ：ブランド一覧・ブランド詳細（商品＋記事）
+- [x] フロントエンド：ブランド一覧ページ（/brands）
+- [x] フロントエンド：ブランド詳細ページ（/brands/:brandId）
+- [x] 構造化データ（Brand schema / BreadcrumbList / Product ItemList）
+- [x] パンくずナビ
+- [x] sitemap.xmlにブランドページ追加
+- [x] robots.txtに/brands/許可追加
+- [x] ルーティング追加（App.tsx）
+- [x] Vitestテスト2054件全パス確認
