@@ -1277,6 +1277,11 @@ export const pointTransactions = mysqlTable("point_transactions", {
   // Description
   description: text("description"),
   
+  // Expiration (3 months from earn date, null for non-earn types)
+  expiresAt: timestamp("expiresAt"),
+  expired: int("expired").default(0).notNull(), // 0 = active, 1 = expired (processed)
+  remainingAmount: bigint("remainingAmount", { mode: "number" }), // Remaining points not yet used/expired (for earn type FIFO tracking)
+  
   // Timestamps
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
@@ -1417,6 +1422,11 @@ export const linePointTransactions = mysqlTable("line_point_transactions", {
   
   // Description
   description: text("description"),
+  
+  // Expiration (3 months from earn date, null for non-earn types)
+  expiresAt: timestamp("expiresAt"),
+  expired: int("expired").default(0).notNull(), // 0 = active, 1 = expired (processed)
+  remainingAmount: bigint("remainingAmount", { mode: "number" }), // Remaining points not yet used/expired (for earn type FIFO tracking)
   
   // Timestamps
   createdAt: timestamp("createdAt").defaultNow().notNull(),

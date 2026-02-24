@@ -197,6 +197,30 @@ export default function MyPoints() {
                   </span>
                 </div>
               </div>
+              {/* Expiring Points Warning */}
+              {balance?.expiring && (balance.expiring.in7Days > 0 || balance.expiring.in30Days > 0) && (
+                <div className="mt-4 space-y-2">
+                  {balance.expiring.in7Days > 0 && (
+                    <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                      <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                      <span className="text-sm text-red-700">
+                        <strong>{balance.expiring.in7Days.toLocaleString()}pt</strong> が7日以内に失効します
+                      </span>
+                    </div>
+                  )}
+                  {balance.expiring.in30Days > 0 && balance.expiring.in7Days !== balance.expiring.in30Days && (
+                    <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2">
+                      <Clock className="w-4 h-4 text-yellow-500 flex-shrink-0" />
+                      <span className="text-sm text-yellow-700">
+                        <strong>{balance.expiring.in30Days.toLocaleString()}pt</strong> が30日以内に失効予定です
+                      </span>
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    ※ ポイントは付与日から3ヶ月で失効します
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </CardContent>

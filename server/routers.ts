@@ -315,6 +315,8 @@ import {
   rejectPointRequest,
   getUserPointBalance,
   getUserPointTransactions,
+  getExpiringPoints,
+  getExpiringLinePoints,
   createUserPasswordResetToken,
   getUserPasswordResetToken,
   markUserPasswordResetTokenUsed,
@@ -1532,12 +1534,22 @@ export const lineLoginRouter = router({
       const pointLookupId = lineUser.lineUserId || `email_${lineUser.id}`;
       const pointBalance = await getLinePointBalance(pointLookupId);
       const transactions = await getLinePointTransactions(pointLookupId, { limit: 50 });
+      const expiring = await getExpiringLinePoints(pointLookupId);
       
       return {
         balance: pointBalance?.balance || 0,
         lifetimeEarned: pointBalance?.totalEarned || 0,
         lifetimeUsed: pointBalance?.totalUsed || 0,
         transactions,
+        expiring: {
+          in7Days: expiring.expiringIn7Days,
+          in30Days: expiring.expiringIn30Days,
+          in60Days: expiring.expiringIn60Days,
+          breakdown: expiring.breakdown.map(b => ({
+            expiresAt: b.expiresAt.getTime(),
+            amount: b.amount,
+          })),
+        },
       };
     } catch (error) {
       if (error instanceof TRPCError) throw error;
@@ -11003,9 +11015,21 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
     
     // Get current user's point balance
     getBalance: protectedProcedure.query(async ({ ctx }) => {
-      const { getOrCreatePointBalance } = await import("./db");
+      const { getOrCreatePointBalance, getExpiringPoints } = await import("./db");
       const balance = await getOrCreatePointBalance(ctx.user.id);
-      return balance;
+      const expiring = await getExpiringPoints(ctx.user.id);
+      return {
+        ...balance,
+        expiring: {
+          in7Days: expiring.expiringIn7Days,
+          in30Days: expiring.expiringIn30Days,
+          in60Days: expiring.expiringIn60Days,
+          breakdown: expiring.breakdown.map(b => ({
+            expiresAt: b.expiresAt.getTime(),
+            amount: b.amount,
+          })),
+        },
+      };
     }),
     
     // Get current user's point transaction history
@@ -13768,7 +13792,21 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
     myBalance: protectedProcedure
       .query(async ({ ctx }) => {
         const balance = await getUserPointBalance(ctx.user.id);
-        return balance || { balance: 0, totalEarned: 0, totalUsed: 0 };
+        const expiring = await getExpiringPoints(ctx.user.id);
+        return {
+          balance: balance?.balance || 0,
+          totalEarned: balance?.totalEarned || 0,
+          totalUsed: balance?.totalUsed || 0,
+          expiring: {
+            in7Days: expiring.expiringIn7Days,
+            in30Days: expiring.expiringIn30Days,
+            in60Days: expiring.expiringIn60Days,
+            breakdown: expiring.breakdown.map(b => ({
+              expiresAt: b.expiresAt.getTime(),
+              amount: b.amount,
+            })),
+          },
+        };
       }),
 
     // 自分のポイント取引履歴を取得

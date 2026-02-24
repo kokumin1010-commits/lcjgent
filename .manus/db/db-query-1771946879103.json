@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE point_transactions \nSET expiresAt = DATE_ADD(createdAt, INTERVAL 3 MONTH), \n    remainingAmount = amount,\n    expired = CASE WHEN DATE_ADD(createdAt, INTERVAL 3 MONTH) < NOW() THEN 1 ELSE 0 END\nWHERE type = 'earn' AND expiresAt IS NULL;\n\nUPDATE line_point_transactions \nSET expiresAt = DATE_ADD(createdAt, INTERVAL 3 MONTH), \n    remainingAmount = amount,\n    expired = CASE WHEN DATE_ADD(createdAt, INTERVAL 3 MONTH) < NOW() THEN 1 ELSE 0 END\nWHERE type = 'earn' AND expiresAt IS NULL;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute UPDATE point_transactions \nSET expiresAt = DATE_ADD(createdAt, INTERVAL 3 MONTH), \n    remainingAmount = amount,\n    expired = CASE WHEN DATE_ADD(createdAt, INTERVAL 3 MONTH) < NOW() THEN 1 ELSE 0 END\nWHERE type = 'earn' AND expiresAt IS NULL;\n\nUPDATE line_point_transactions \nSET expiresAt = DATE_ADD(createdAt, INTERVAL 3 MONTH), \n    remainingAmount = amount,\n    expired = CASE WHEN DATE_ADD(createdAt, INTERVAL 3 MONTH) < NOW() THEN 1 ELSE 0 END\nWHERE type = 'earn' AND expiresAt IS NULL;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1976
+}

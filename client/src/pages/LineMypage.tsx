@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ShoppingBag, Coins, Receipt, LogOut, ArrowLeft, Clock, CheckCircle, XCircle, AlertCircle, TrendingUp, TrendingDown, ShoppingCart, History, Link2, Copy, RefreshCw, ExternalLink, Upload, Package, Truck, ChevronDown, ChevronUp, CreditCard, Gift, X, Heart, MapPin, User, Pencil, Trash2, Star, Plus, Phone, Mail } from "lucide-react";
+import { Loader2, ShoppingBag, Coins, Receipt, LogOut, ArrowLeft, Clock, CheckCircle, XCircle, AlertCircle, AlertTriangle, TrendingUp, TrendingDown, ShoppingCart, History, Link2, Copy, RefreshCw, ExternalLink, Upload, Package, Truck, ChevronDown, ChevronUp, CreditCard, Gift, X, Heart, MapPin, User, Pencil, Trash2, Star, Plus, Phone, Mail } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -475,6 +475,30 @@ export default function LineMypage() {
                     <p className="text-lg font-bold text-blue-600">-{pointsData?.lifetimeUsed.toLocaleString() || 0} pt</p>
                   </div>
                 </div>
+                {/* Expiring Points Warning */}
+                {pointsData?.expiring && (pointsData.expiring.in7Days > 0 || pointsData.expiring.in30Days > 0) && (
+                  <div className="mt-4 space-y-2">
+                    {pointsData.expiring.in7Days > 0 && (
+                      <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                        <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
+                        <span className="text-sm text-red-700">
+                          <strong>{pointsData.expiring.in7Days.toLocaleString()}pt</strong> が7日以内に失効
+                        </span>
+                      </div>
+                    )}
+                    {pointsData.expiring.in30Days > 0 && pointsData.expiring.in7Days !== pointsData.expiring.in30Days && (
+                      <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2">
+                        <Clock className="h-4 w-4 text-yellow-500 flex-shrink-0" />
+                        <span className="text-sm text-yellow-700">
+                          <strong>{pointsData.expiring.in30Days.toLocaleString()}pt</strong> が30日以内に失効予定
+                        </span>
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      ※ ポイントは付与日から3ヶ月で失効します
+                    </p>
+                  </div>
+                )}
                 <div className="mt-4 pt-4 border-t border-rose-200">
                   <Button 
                     className="w-full bg-rose-500 hover:bg-rose-600 gap-2"

@@ -6082,3 +6082,12 @@
 - [x] App.tsxからAutoPostAdminルートを削除
 - [x] AutoPostAdminの全機能（ダッシュボード・スケジュール・キーワード・実行ログ）をBlogAdminの自動投稿タブに統合
 - [x] TypeScriptエラー修正（重複インポート、カラム名不一致、tsconfig target設定）
+
+## ポイント有効期限3ヶ月（個別カウント）+ 失効前LINE通知
+- [x] DBスキーマにexpiresAt・ remainingAmount・expiredカラム追加（pointTransactions + linePointTransactions）
+- [x] ポイント付与時に3ヶ月後の失効日を自動設定
+- [x] ポイント残高計算で失効済みポイントを除外
+- [x] ポイント使用時に古い（失効日が近い）ポイントから優先消費（FIFO）
+- [x] 失効前LINE通知スケジューラー（1ヶ月前・1週間前）
+- [x] マイページに失効予定ポイント表示UI（Web + LINE両方）
+- [x] ポイント有効期限関連のテスト作成（13件全パス）

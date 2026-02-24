@@ -16,6 +16,7 @@ import { startResponseReminderScheduler } from "../responseReminderScheduler";
 import { startScheduleReminderScheduler } from "../scheduleReminderScheduler";
 import { startLineReminderScheduler } from "../lineReminderScheduler";
 import { startAutoPostScheduler } from "../autoPostScheduler";
+import { initPointExpiryScheduler } from "../pointExpiryScheduler";
 import { trackingRouter } from "../tracking";
 
 function escapeHtml(str: string): string {
@@ -1212,6 +1213,9 @@ async function startServer() {
     
     // Start auto post scheduler (generates SEO articles based on configured schedules)
     startAutoPostScheduler();
+    
+    // Start point expiry scheduler (processes expired points daily, sends LINE notifications)
+    initPointExpiryScheduler();
   });
 }
 

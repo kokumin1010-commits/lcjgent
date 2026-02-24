@@ -4715,6 +4715,14 @@ export async function createPointTransaction(data: {
   const balance = await getOrCreatePointBalance(data.userId);
   const balanceAfter = balance.balance + data.amount;
   
+  // Calculate expiration for earn-type transactions (3 months from now)
+  const expiresAt = (data.type === "earn" || data.type === "refund")
+    ? new Date(Date.now() + 90 * 24 * 60 * 60 * 1000) // 3 months (90 days)
+    : null;
+  const remainingAmount = (data.type === "earn" || data.type === "refund")
+    ? data.amount
+    : null;
+  
   // Create transaction
   await db.insert(pointTransactions).values({
     userId: data.userId,
@@ -4724,6 +4732,8 @@ export async function createPointTransaction(data: {
     referenceType: data.referenceType,
     referenceId: data.referenceId,
     description: data.description,
+    expiresAt,
+    remainingAmount,
   });
   
   // Update balance
@@ -5290,6 +5300,14 @@ export async function createLinePointTransaction(data: {
   const balance = await getOrCreateLinePointBalance(data.lineUserId);
   const balanceAfter = balance.balance + data.amount;
   
+  // Calculate expiration for earn-type transactions (3 months from now)
+  const expiresAt = (data.type === "earn" || data.type === "refund")
+    ? new Date(Date.now() + 90 * 24 * 60 * 60 * 1000) // 3 months (90 days)
+    : null;
+  const remainingAmount = (data.type === "earn" || data.type === "refund")
+    ? data.amount
+    : null;
+  
   // Create transaction
   await db.insert(linePointTransactions).values({
     lineUserId: data.lineUserId,
@@ -5299,6 +5317,8 @@ export async function createLinePointTransaction(data: {
     referenceType: data.referenceType,
     referenceId: data.referenceId,
     description: data.description,
+    expiresAt,
+    remainingAmount,
   });
   
   // Update balance
@@ -7561,7 +7581,8 @@ export async function addPointsToUser(userId: number, points: number, pointReque
       .where(eq(pointBalances.userId, userId));
   }
   
-  // Record transaction
+  // Record transaction with 3-month expiration
+  const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
   await db.insert(pointTransactions).values({
     userId,
     type: "earn",
@@ -7570,6 +7591,8 @@ export async function addPointsToUser(userId: number, points: number, pointReque
     referenceType: "receipt",
     referenceId: pointRequestId,
     description,
+    expiresAt,
+    remainingAmount: points,
   });
   
   return currentBalance;
@@ -14928,4 +14951,445 @@ export async function getMallBrandReviews(brandId: number, limit: number = 20) {
     .where(eq(mallProducts.brandId, brandId))
     .orderBy(desc(mallProductReviews.createdAt))
     .limit(limit);
+}
+
+
+// ============================================================
+// Point Expiration System (3-month individual expiry)
+// ============================================================
+
+const POINT_EXPIRY_MONTHS = 3;
+const POINT_EXPIRY_MS = 90 * 24 * 60 * 60 * 1000; // ~3 months in ms
+
+/**
+ * Get the valid (non-expired) point balance for a web user.
+ * Sums remainingAmount from earn/refund transactions that haven't expired yet.
+ */
+export async function getValidPointBalance(userId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  
+  const result = await db
+    .select({ total: sql<number>`COALESCE(SUM(${pointTransactions.remainingAmount}), 0)` })
+    .from(pointTransactions)
+    .where(and(
+      eq(pointTransactions.userId, userId),
+      or(eq(pointTransactions.type, "earn"), eq(pointTransactions.type, "refund")),
+      eq(pointTransactions.expired, 0),
+      gt(pointTransactions.expiresAt, new Date()),
+      gt(pointTransactions.remainingAmount, 0)
+    ));
+  
+  return Number(result[0]?.total ?? 0);
+}
+
+/**
+ * Get the valid (non-expired) point balance for a LINE user.
+ */
+export async function getValidLinePointBalance(lineUserId: string): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  
+  const result = await db
+    .select({ total: sql<number>`COALESCE(SUM(${linePointTransactions.remainingAmount}), 0)` })
+    .from(linePointTransactions)
+    .where(and(
+      eq(linePointTransactions.lineUserId, lineUserId),
+      or(eq(linePointTransactions.type, "earn"), eq(linePointTransactions.type, "refund")),
+      eq(linePointTransactions.expired, 0),
+      gt(linePointTransactions.expiresAt, new Date()),
+      gt(linePointTransactions.remainingAmount, 0)
+    ));
+  
+  return Number(result[0]?.total ?? 0);
+}
+
+/**
+ * Get points expiring soon for a web user.
+ * Returns breakdown by expiry date.
+ */
+export async function getExpiringPoints(userId: number): Promise<{
+  expiringIn7Days: number;
+  expiringIn30Days: number;
+  expiringIn60Days: number;
+  breakdown: Array<{ expiresAt: Date; amount: number }>;
+}> {
+  const db = await getDb();
+  if (!db) return { expiringIn7Days: 0, expiringIn30Days: 0, expiringIn60Days: 0, breakdown: [] };
+  
+  const now = new Date();
+  const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const in60Days = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
+  
+  const activeEarns = await db
+    .select({
+      expiresAt: pointTransactions.expiresAt,
+      remainingAmount: pointTransactions.remainingAmount,
+    })
+    .from(pointTransactions)
+    .where(and(
+      eq(pointTransactions.userId, userId),
+      or(eq(pointTransactions.type, "earn"), eq(pointTransactions.type, "refund")),
+      eq(pointTransactions.expired, 0),
+      gt(pointTransactions.expiresAt, now),
+      gt(pointTransactions.remainingAmount, 0)
+    ))
+    .orderBy(asc(pointTransactions.expiresAt));
+  
+  let expiringIn7Days = 0;
+  let expiringIn30Days = 0;
+  let expiringIn60Days = 0;
+  const breakdown: Array<{ expiresAt: Date; amount: number }> = [];
+  
+  for (const row of activeEarns) {
+    if (!row.expiresAt || !row.remainingAmount) continue;
+    const amt = Number(row.remainingAmount);
+    if (row.expiresAt <= in7Days) expiringIn7Days += amt;
+    if (row.expiresAt <= in30Days) expiringIn30Days += amt;
+    if (row.expiresAt <= in60Days) expiringIn60Days += amt;
+    breakdown.push({ expiresAt: row.expiresAt, amount: amt });
+  }
+  
+  return { expiringIn7Days, expiringIn30Days, expiringIn60Days, breakdown };
+}
+
+/**
+ * Get points expiring soon for a LINE user.
+ */
+export async function getExpiringLinePoints(lineUserId: string): Promise<{
+  expiringIn7Days: number;
+  expiringIn30Days: number;
+  expiringIn60Days: number;
+  breakdown: Array<{ expiresAt: Date; amount: number }>;
+}> {
+  const db = await getDb();
+  if (!db) return { expiringIn7Days: 0, expiringIn30Days: 0, expiringIn60Days: 0, breakdown: [] };
+  
+  const now = new Date();
+  const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const in60Days = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
+  
+  const activeEarns = await db
+    .select({
+      expiresAt: linePointTransactions.expiresAt,
+      remainingAmount: linePointTransactions.remainingAmount,
+    })
+    .from(linePointTransactions)
+    .where(and(
+      eq(linePointTransactions.lineUserId, lineUserId),
+      or(eq(linePointTransactions.type, "earn"), eq(linePointTransactions.type, "refund")),
+      eq(linePointTransactions.expired, 0),
+      gt(linePointTransactions.expiresAt, now),
+      gt(linePointTransactions.remainingAmount, 0)
+    ))
+    .orderBy(asc(linePointTransactions.expiresAt));
+  
+  let expiringIn7Days = 0;
+  let expiringIn30Days = 0;
+  let expiringIn60Days = 0;
+  const breakdown: Array<{ expiresAt: Date; amount: number }> = [];
+  
+  for (const row of activeEarns) {
+    if (!row.expiresAt || !row.remainingAmount) continue;
+    const amt = Number(row.remainingAmount);
+    if (row.expiresAt <= in7Days) expiringIn7Days += amt;
+    if (row.expiresAt <= in30Days) expiringIn30Days += amt;
+    if (row.expiresAt <= in60Days) expiringIn60Days += amt;
+    breakdown.push({ expiresAt: row.expiresAt, amount: amt });
+  }
+  
+  return { expiringIn7Days, expiringIn30Days, expiringIn60Days, breakdown };
+}
+
+/**
+ * Process expired points for all web users.
+ * Marks expired earn transactions and deducts from balances.
+ * Returns number of users affected.
+ */
+export async function processExpiredPoints(): Promise<{ usersAffected: number; totalExpired: number }> {
+  const db = await getDb();
+  if (!db) return { usersAffected: 0, totalExpired: 0 };
+  
+  const now = new Date();
+  
+  // Find all expired but unprocessed earn transactions
+  const expiredTxns = await db
+    .select({
+      id: pointTransactions.id,
+      userId: pointTransactions.userId,
+      remainingAmount: pointTransactions.remainingAmount,
+    })
+    .from(pointTransactions)
+    .where(and(
+      or(eq(pointTransactions.type, "earn"), eq(pointTransactions.type, "refund")),
+      eq(pointTransactions.expired, 0),
+      lte(pointTransactions.expiresAt, now),
+      gt(pointTransactions.remainingAmount, 0)
+    ));
+  
+  if (expiredTxns.length === 0) return { usersAffected: 0, totalExpired: 0 };
+  
+  // Group by user
+  const userExpiry = new Map<number, number>();
+  for (const txn of expiredTxns) {
+    const amt = Number(txn.remainingAmount ?? 0);
+    userExpiry.set(txn.userId, (userExpiry.get(txn.userId) ?? 0) + amt);
+    
+    // Mark as expired
+    await db.update(pointTransactions)
+      .set({ expired: 1, remainingAmount: 0 })
+      .where(eq(pointTransactions.id, txn.id));
+  }
+  
+  let totalExpired = 0;
+  
+  // Deduct from each user's balance and create expire transaction
+  for (const [userId, expiredAmount] of userExpiry) {
+    totalExpired += expiredAmount;
+    
+    const balance = await getOrCreatePointBalance(userId);
+    const newBalance = Math.max(0, balance.balance - expiredAmount);
+    
+    // Create expire transaction
+    await db.insert(pointTransactions).values({
+      userId,
+      type: "expire",
+      amount: -expiredAmount,
+      balanceAfter: newBalance,
+      referenceType: "system",
+      description: `ポイント失効（有効期限${POINT_EXPIRY_MONTHS}ヶ月）`,
+    });
+    
+    // Update balance
+    await db.update(pointBalances)
+      .set({ balance: newBalance })
+      .where(eq(pointBalances.userId, userId));
+  }
+  
+  return { usersAffected: userExpiry.size, totalExpired };
+}
+
+/**
+ * Process expired points for all LINE users.
+ */
+export async function processExpiredLinePoints(): Promise<{ usersAffected: number; totalExpired: number }> {
+  const db = await getDb();
+  if (!db) return { usersAffected: 0, totalExpired: 0 };
+  
+  const now = new Date();
+  
+  const expiredTxns = await db
+    .select({
+      id: linePointTransactions.id,
+      lineUserId: linePointTransactions.lineUserId,
+      remainingAmount: linePointTransactions.remainingAmount,
+    })
+    .from(linePointTransactions)
+    .where(and(
+      or(eq(linePointTransactions.type, "earn"), eq(linePointTransactions.type, "refund")),
+      eq(linePointTransactions.expired, 0),
+      lte(linePointTransactions.expiresAt, now),
+      gt(linePointTransactions.remainingAmount, 0)
+    ));
+  
+  if (expiredTxns.length === 0) return { usersAffected: 0, totalExpired: 0 };
+  
+  const userExpiry = new Map<string, number>();
+  for (const txn of expiredTxns) {
+    const amt = Number(txn.remainingAmount ?? 0);
+    userExpiry.set(txn.lineUserId, (userExpiry.get(txn.lineUserId) ?? 0) + amt);
+    
+    await db.update(linePointTransactions)
+      .set({ expired: 1, remainingAmount: 0 })
+      .where(eq(linePointTransactions.id, txn.id));
+  }
+  
+  let totalExpired = 0;
+  
+  for (const [lineUserId, expiredAmount] of userExpiry) {
+    totalExpired += expiredAmount;
+    
+    const balance = await getOrCreateLinePointBalance(lineUserId);
+    const newBalance = Math.max(0, balance.balance - expiredAmount);
+    
+    await db.insert(linePointTransactions).values({
+      lineUserId,
+      type: "expire",
+      amount: -expiredAmount,
+      balanceAfter: newBalance,
+      referenceType: "system",
+      description: `ポイント失効（有効期限${POINT_EXPIRY_MONTHS}ヶ月）`,
+    });
+    
+    await db.update(linePointBalances)
+      .set({ balance: newBalance })
+      .where(eq(linePointBalances.lineUserId, lineUserId));
+  }
+  
+  return { usersAffected: userExpiry.size, totalExpired };
+}
+
+/**
+ * Use points with FIFO (oldest expiring first) for web user.
+ * Deducts from earn transactions with earliest expiresAt first.
+ */
+export async function usePointsFIFO(userId: number, amount: number, description: string, referenceId?: number): Promise<{ success: boolean; balanceAfter: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Check valid balance
+  const validBalance = await getValidPointBalance(userId);
+  if (validBalance < amount) {
+    return { success: false, balanceAfter: validBalance };
+  }
+  
+  // Get active earn transactions ordered by expiresAt (FIFO - oldest first)
+  const activeEarns = await db
+    .select()
+    .from(pointTransactions)
+    .where(and(
+      eq(pointTransactions.userId, userId),
+      or(eq(pointTransactions.type, "earn"), eq(pointTransactions.type, "refund")),
+      eq(pointTransactions.expired, 0),
+      gt(pointTransactions.expiresAt, new Date()),
+      gt(pointTransactions.remainingAmount, 0)
+    ))
+    .orderBy(asc(pointTransactions.expiresAt));
+  
+  let remaining = amount;
+  for (const earn of activeEarns) {
+    if (remaining <= 0) break;
+    const available = Number(earn.remainingAmount ?? 0);
+    const deduct = Math.min(available, remaining);
+    
+    await db.update(pointTransactions)
+      .set({ remainingAmount: available - deduct })
+      .where(eq(pointTransactions.id, earn.id));
+    
+    remaining -= deduct;
+  }
+  
+  // Update balance
+  const balance = await getOrCreatePointBalance(userId);
+  const newBalance = balance.balance - amount;
+  
+  await db.update(pointBalances)
+    .set({ 
+      balance: newBalance,
+      totalUsed: sql`${pointBalances.totalUsed} + ${amount}`,
+    })
+    .where(eq(pointBalances.userId, userId));
+  
+  // Create use transaction
+  await db.insert(pointTransactions).values({
+    userId,
+    type: "use",
+    amount: -amount,
+    balanceAfter: newBalance,
+    referenceType: "order",
+    referenceId,
+    description,
+  });
+  
+  return { success: true, balanceAfter: newBalance };
+}
+
+/**
+ * Use points with FIFO for LINE user.
+ */
+export async function useLinePointsFIFO(lineUserId: string, amount: number, description: string, referenceId?: number): Promise<{ success: boolean; balanceAfter: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const validBalance = await getValidLinePointBalance(lineUserId);
+  if (validBalance < amount) {
+    return { success: false, balanceAfter: validBalance };
+  }
+  
+  const activeEarns = await db
+    .select()
+    .from(linePointTransactions)
+    .where(and(
+      eq(linePointTransactions.lineUserId, lineUserId),
+      or(eq(linePointTransactions.type, "earn"), eq(linePointTransactions.type, "refund")),
+      eq(linePointTransactions.expired, 0),
+      gt(linePointTransactions.expiresAt, new Date()),
+      gt(linePointTransactions.remainingAmount, 0)
+    ))
+    .orderBy(asc(linePointTransactions.expiresAt));
+  
+  let remaining = amount;
+  for (const earn of activeEarns) {
+    if (remaining <= 0) break;
+    const available = Number(earn.remainingAmount ?? 0);
+    const deduct = Math.min(available, remaining);
+    
+    await db.update(linePointTransactions)
+      .set({ remainingAmount: available - deduct })
+      .where(eq(linePointTransactions.id, earn.id));
+    
+    remaining -= deduct;
+  }
+  
+  const balance = await getOrCreateLinePointBalance(lineUserId);
+  const newBalance = balance.balance - amount;
+  
+  await db.update(linePointBalances)
+    .set({ 
+      balance: newBalance,
+      totalUsed: sql`${linePointBalances.totalUsed} + ${amount}`,
+    })
+    .where(eq(linePointBalances.lineUserId, lineUserId));
+  
+  await db.insert(linePointTransactions).values({
+    lineUserId,
+    type: "use",
+    amount: -amount,
+    balanceAfter: newBalance,
+    referenceType: "order",
+    referenceId,
+    description,
+  });
+  
+  return { success: true, balanceAfter: newBalance };
+}
+
+/**
+ * Get users with points expiring within a given number of days (for LINE notification).
+ * Returns LINE users who have points expiring soon.
+ */
+export async function getLineUsersWithExpiringPoints(withinDays: number): Promise<Array<{
+  lineUserId: string;
+  expiringAmount: number;
+  earliestExpiry: Date;
+}>> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const now = new Date();
+  const deadline = new Date(now.getTime() + withinDays * 24 * 60 * 60 * 1000);
+  
+  const results = await db
+    .select({
+      lineUserId: linePointTransactions.lineUserId,
+      expiringAmount: sql<number>`COALESCE(SUM(${linePointTransactions.remainingAmount}), 0)`,
+      earliestExpiry: sql<Date>`MIN(${linePointTransactions.expiresAt})`,
+    })
+    .from(linePointTransactions)
+    .where(and(
+      or(eq(linePointTransactions.type, "earn"), eq(linePointTransactions.type, "refund")),
+      eq(linePointTransactions.expired, 0),
+      gt(linePointTransactions.expiresAt, now),
+      lte(linePointTransactions.expiresAt, deadline),
+      gt(linePointTransactions.remainingAmount, 0)
+    ))
+    .groupBy(linePointTransactions.lineUserId);
+  
+  return results.map(r => ({
+    lineUserId: r.lineUserId,
+    expiringAmount: Number(r.expiringAmount),
+    earliestExpiry: r.earliestExpiry,
+  }));
 }
