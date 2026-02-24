@@ -1,0 +1,80 @@
+{
+  "query": "SELECT id, name, price, imageUrl, brandId FROM mall_products WHERE status = 'active' AND imageUrl IS NOT NULL AND imageUrl != '' LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, name, price, imageUrl, brandId FROM mall_products WHERE status = 'active' AND imageUrl IS NOT NULL AND imageUrl != '' LIMIT 10;",
+  "rows": [
+    {
+      "id": "30023",
+      "name": "KYOGOKU シグネチャー ステムセル モーニングマスク",
+      "price": "1463",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/vTQtrN-0hk6O1f3tNMWve.jpg",
+      "brandId": "1"
+    },
+    {
+      "id": "90006",
+      "name": "KYOGOKU ケラチンヘアマスクキャップ",
+      "price": "1463",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/aSxyayOY2F_VEvpbbWo1g.jpg",
+      "brandId": "1"
+    },
+    {
+      "id": "90013",
+      "name": "KYOGOKU クリスタルスキン ブライトニングマスク",
+      "price": "1210",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/8FcwiuMz4fBkSIuZA3jvc.jpg",
+      "brandId": "1"
+    },
+    {
+      "id": "90015",
+      "name": "KYOGOKU アイシンク 目元美顔器",
+      "price": "10648",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/sSUB3mumMjVOuVioD3Zut.jpg",
+      "brandId": "1"
+    },
+    {
+      "id": "90021",
+      "name": "【フォーミングウォッシュ 90ml 】デリケートゾーンのニオイを吸着する天然ミネラル配合 90ml ブレスオブガーデンの香り ",
+      "price": "2420",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/tB6QFFlaaKe4BJYoLCdbi.png",
+      "brandId": "120002"
+    },
+    {
+      "id": "90022",
+      "name": "【ブライトニングジェル】デリケートブライトニングセラムN30ml  イヴピアッツェローズの香り／医薬部外品／くすみ／ トーンアップ／顔・脇・背中・デリケートゾーン・かかと",
+      "price": "7480",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/BChB_e37DNdueOJ0wEvf_.png",
+      "brandId": "120002"
+    },
+    {
+      "id": "90023",
+      "name": "バランシングボディオイル 100ml",
+      "price": "11880",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/OUP8buTqH8vzkAZTp2wU_.png",
+      "brandId": "120002"
+    },
+    {
+      "id": "90024",
+      "name": "【全身用マルチオイル 30ml 】デリケートなパーツのエイジングケア/ブレスオブガーデンの香り/うるおいケア/乾燥やホルモンバランスの変化で 肌が硬くなり、不快感や違和感を感じている人が、 “からだをやわらかい状態に戻す”",
+      "price": "3960",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/iGUK23tepDXRttme7xkei.webp",
+      "brandId": "120002"
+    },
+    {
+      "id": "90025",
+      "name": "【ボディクリーム150g】 しっとりりさらさらイヴピアッツェローズの香り",
+      "price": "4950",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/vvvmko3UD-IlccxrRijYu.webp",
+      "brandId": "120002"
+    },
+    {
+      "id": "90026",
+      "name": "【初めてのデリケートボディウォッシュ250ml 】イヴピアッツェローズの香り／やさしく洗って、うるおす。 はじめてのフェムケアに。／生理・妊娠・出産・更年期・閉経すべての女性のライフステージに寄り添う",
+      "price": "3740",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/gmSdm6HfDClSkBYQEUjZ9.webp",
+      "brandId": "120002"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tprice\timageUrl\tbrandId\n30023\tKYOGOKU シグネチャー ステムセル モーニングマスク\t1463\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/vTQtrN-0hk6O1f3tNMWve.jpg\t1\n90006\tKYOGOKU ケラチンヘアマスクキャップ\t1463\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/aSxyayOY2F_VEvpbbWo1g.jpg\t1\n90013\tKYOGOKU クリスタルスキン ブライトニングマスク\t1210\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/8FcwiuMz4fBkSIuZA3jvc.jpg\t1\n90015\tKYOGOKU アイシンク 目元美顔器\t10648\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/sSUB3mumMjVOuVioD3Zut.jpg\t1\n90021\t【フォーミングウォッシュ 90ml 】デリケートゾーンのニオイを吸着する天然ミネラル配合 90ml ブレスオブガーデンの香り \t2420\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/tB6QFFlaaKe4BJYoLCdbi.png\t120002\n90022\t【ブライトニングジェル】デリケートブライトニングセラムN30ml  イヴピアッツェローズの香り／医薬部外品／くすみ／ トーンアップ／顔・脇・背中・デリケートゾーン・かかと\t7480\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/BChB_e37DNdueOJ0wEvf_.png\t120002\n90023\tバランシングボディオイル 100ml\t11880\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/OUP8buTqH8vzkAZTp2wU_.png\t120002\n90024\t【全身用マルチオイル 30ml 】デリケートなパーツのエイジングケア/ブレスオブガーデンの香り/うるおいケア/乾燥やホルモンバランスの変化で 肌が硬くなり、不快感や違和感を感じている人が、 “からだをやわらかい状態に戻す”\t3960\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/iGUK23tepDXRttme7xkei.webp\t120002\n90025\t【ボディクリーム150g】 しっとりりさらさらイヴピアッツェローズの香り\t4950\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/vvvmko3UD-IlccxrRijYu.webp\t120002\n90026\t【初めてのデリケートボディウォッシュ250ml 】イヴピアッツェローズの香り／やさしく洗って、うるおす。 はじめてのフェムケアに。／生理・妊娠・出産・更年期・閉経すべての女性のライフステージに寄り添う\t3740\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/gmSdm6HfDClSkBYQEUjZ9.webp\t120002\n",
+  "stderr": "",
+  "execution_time_ms": 1562
+}

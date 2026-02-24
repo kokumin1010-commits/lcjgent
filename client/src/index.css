@@ -329,3 +329,72 @@
 .tech-progress-bar-green {
   background: linear-gradient(90deg, #10b981, #34d399);
 }
+
+/* =============================================
+   Blog Article Content - Product Card Styles
+   ============================================= */
+.blog-article-content .product-card {
+  display: inline-block;
+  vertical-align: top;
+  margin: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  max-width: 320px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.blog-article-content .product-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+}
+.blog-article-content .product-card a {
+  text-decoration: none !important;
+  color: inherit !important;
+  border-bottom: none !important;
+}
+.blog-article-content .product-card img {
+  margin: 0 !important;
+}
+
+.blog-article-content .product-ranking {
+  margin: 24px 0;
+}
+.blog-article-content .product-ranking a {
+  text-decoration: none !important;
+  color: inherit !important;
+  border-bottom: none !important;
+}
+.blog-article-content .product-ranking img {
+  margin: 0 !important;
+}
+
+.blog-article-content .product-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: center;
+  margin: 24px 0;
+}
+.blog-article-content .product-grid a {
+  text-decoration: none !important;
+  color: inherit !important;
+  border-bottom: none !important;
+}
+.blog-article-content .product-grid img {
+  margin: 0 !important;
+}
+
+/* Responsive product cards in article */
+@media (max-width: 640px) {
+  .blog-article-content .product-card {
+    max-width: 100%;
+    display: block;
+    margin: 8px 0;
+  }
+  .blog-article-content .product-grid {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

@@ -18,6 +18,7 @@ import { invokeLLM } from "./_core/llm";
 import { generateImage } from "./_core/imageGeneration";
 import { storagePut } from "./storage";
 import { nanoid } from "nanoid";
+import { buildProductDataForLLMPrompt, postProcessArticleHtml, type ProductCardData } from "./productCardRenderer";
 
 // Check interval: every 1 hour
 const CHECK_INTERVAL_MS = 60 * 60 * 1000;
@@ -354,33 +355,16 @@ async function executeAutoPost(schedule: any) {
       console.log(`[AutoPost Scheduler] Auto-detected category: ${categoryId ? blogCategories.find(c => c.id === categoryId)?.name : 'none'}`);
     }
 
-    // Step 3: Fetch real EC data to enrich article
+    // Step 3: Fetch real EC data with product images for enriched article
     let realDataContext = '';
+    let productSalesRanking: ProductCardData[] = [];
+    let productRelated: ProductCardData[] = [];
     try {
-      const salesRanking = await getMallProductSalesRanking(10);
-      const buyerCounts = await getAllMallProductBuyerCounts();
-      const reviewStats = await getAllProductReviewStats();
-      const relatedProducts = await findRelatedProductsForArticle(keyword, keyword, 8);
-
-      if (salesRanking.length > 0) {
-        realDataContext += `\n\n## LCJ MALL 売上ランキング（実データ）\n`;
-        salesRanking.forEach((p: any, i: number) => {
-          const buyers = buyerCounts[p.id] || 0;
-          const review = reviewStats[p.id];
-          const rating = review ? `★${review.avgRating.toFixed(1)}（${review.totalReviews}件）` : '未レビュー';
-          realDataContext += `${i + 1}. ${p.name}（¥${p.price}）- 購入者${buyers}人 - ${rating}\n`;
-        });
-      }
-
-      if (relatedProducts.length > 0) {
-        realDataContext += `\n## キーワード「${keyword}」に関連する商品\n`;
-        relatedProducts.forEach((p: any) => {
-          const buyers = buyerCounts[p.id] || 0;
-          const review = reviewStats[p.id];
-          const rating = review ? `★${review.avgRating.toFixed(1)}（${review.totalReviews}件）` : '';
-          realDataContext += `- ${p.name}（¥${p.price}）${rating} ${buyers > 0 ? `購入者${buyers}人` : ''} [商品ID: ${p.id}]\n`;
-        });
-      }
+      const productData = await buildProductDataForLLMPrompt(keyword, 10);
+      realDataContext = productData.context;
+      productSalesRanking = productData.salesRanking;
+      productRelated = productData.relatedProducts;
+      console.log(`[AutoPost Scheduler] Fetched ${productSalesRanking.length} ranking products, ${productRelated.length} related products with images`);
     } catch (dataErr: any) {
       console.warn('[AutoPost Scheduler] Failed to fetch EC data:', dataErr.message);
     }
@@ -417,7 +401,8 @@ SEO/GEO最適化要件:
 - メインキーワードをタイトル、最初の段落、h2見出しに自然に含める
 - 上記の実売データ（売上ランキング・購入者数・レビュー評価）を記事内に自然に組み込む
 - 「LCJ MALLで○○人が購入」「★4.5の高評価」など具体的な数字を活用
-- 商品紹介セクションでは商品名と /mall/products/商品ID 形式のリンクを含める
+- 商品紹介セクションでは <div data-type="product-card" data-product-id="商品ID"></div> プレースホルダーを配置（後で実商品写真・価格・評価カードに自動変換される）
+- 商品ランキングセクションでは各商品に上記プレースホルダーを配置
 - 統計データや具体的な数字を含める（AI検索が引用しやすい）
 - FAQセクションを含める（「よくある質問」形式、3-5個）
 - HowToセクションを含める（具体的な手順を番号付きで）
@@ -486,6 +471,14 @@ SEO/GEO最適化要件:
       }
     } catch (brandErr: any) {
       console.warn('[AutoPost Scheduler] Brand link insertion failed:', brandErr.message);
+    }
+
+    // Step 6.5: Replace product-card placeholders with rich product cards (real photos, prices, reviews)
+    try {
+      processedHtml = await postProcessArticleHtml(processedHtml, productSalesRanking, productRelated);
+      console.log(`[AutoPost Scheduler] Product cards rendered with real product images and data`);
+    } catch (cardErr: any) {
+      console.warn('[AutoPost Scheduler] Product card rendering failed:', cardErr.message);
     }
 
     // Ensure unique slug

@@ -1,0 +1,210 @@
+{
+  "query": "SELECT mp.id, mp.name, mp.price, mp.pointPrice, mp.imageUrl, mp.status, mb.name as brandName, mc.name as categoryName FROM mall_products mp LEFT JOIN mall_brands mb ON mp.brandId = mb.id LEFT JOIN mall_categories mc ON mp.categoryId = mc.id WHERE mp.status = 'active' ORDER BY mp.id LIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT mp.id, mp.name, mp.price, mp.pointPrice, mp.imageUrl, mp.status, mb.name as brandName, mc.name as categoryName FROM mall_products mp LEFT JOIN mall_brands mb ON mp.brandId = mb.id LEFT JOIN mall_categories mc ON mp.categoryId = mc.id WHERE mp.status = 'active' ORDER BY mp.id LIMIT 20;",
+  "rows": [
+    {
+      "id": "30023",
+      "name": "KYOGOKU シグネチャー ステムセル モーニングマスク",
+      "price": "1463",
+      "pointPrice": "550",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/vTQtrN-0hk6O1f3tNMWve.jpg",
+      "status": "active",
+      "brandName": "KYOGOKU JAPAN",
+      "categoryName": "スキンケア"
+    },
+    {
+      "id": "90006",
+      "name": "KYOGOKU ケラチンヘアマスクキャップ",
+      "price": "1463",
+      "pointPrice": "550",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/aSxyayOY2F_VEvpbbWo1g.jpg",
+      "status": "active",
+      "brandName": "KYOGOKU JAPAN",
+      "categoryName": "ヘアケア"
+    },
+    {
+      "id": "90013",
+      "name": "KYOGOKU クリスタルスキン ブライトニングマスク",
+      "price": "1210",
+      "pointPrice": "550",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/8FcwiuMz4fBkSIuZA3jvc.jpg",
+      "status": "active",
+      "brandName": "KYOGOKU JAPAN",
+      "categoryName": "スキンケア"
+    },
+    {
+      "id": "90015",
+      "name": "KYOGOKU アイシンク 目元美顔器",
+      "price": "10648",
+      "pointPrice": "4000",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/sSUB3mumMjVOuVioD3Zut.jpg",
+      "status": "active",
+      "brandName": "KYOGOKU JAPAN",
+      "categoryName": "美容家電・ガジェット"
+    },
+    {
+      "id": "90021",
+      "name": "【フォーミングウォッシュ 90ml 】デリケートゾーンのニオイを吸着する天然ミネラル配合 90ml ブレスオブガーデンの香り ",
+      "price": "2420",
+      "pointPrice": "1694",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/tB6QFFlaaKe4BJYoLCdbi.png",
+      "status": "active",
+      "brandName": "NULL",
+      "categoryName": "スキンケア"
+    },
+    {
+      "id": "90022",
+      "name": "【ブライトニングジェル】デリケートブライトニングセラムN30ml  イヴピアッツェローズの香り／医薬部外品／くすみ／ トーンアップ／顔・脇・背中・デリケートゾーン・かかと",
+      "price": "7480",
+      "pointPrice": "5236",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/BChB_e37DNdueOJ0wEvf_.png",
+      "status": "active",
+      "brandName": "NULL",
+      "categoryName": "スキンケア"
+    },
+    {
+      "id": "90023",
+      "name": "バランシングボディオイル 100ml",
+      "price": "11880",
+      "pointPrice": "8316",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/OUP8buTqH8vzkAZTp2wU_.png",
+      "status": "active",
+      "brandName": "NULL",
+      "categoryName": "スキンケア"
+    },
+    {
+      "id": "90024",
+      "name": "【全身用マルチオイル 30ml 】デリケートなパーツのエイジングケア/ブレスオブガーデンの香り/うるおいケア/乾燥やホルモンバランスの変化で 肌が硬くなり、不快感や違和感を感じている人が、 “からだをやわらかい状態に戻す”",
+      "price": "3960",
+      "pointPrice": "2772",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/iGUK23tepDXRttme7xkei.webp",
+      "status": "active",
+      "brandName": "NULL",
+      "categoryName": "スキンケア"
+    },
+    {
+      "id": "90025",
+      "name": "【ボディクリーム150g】 しっとりりさらさらイヴピアッツェローズの香り",
+      "price": "4950",
+      "pointPrice": "3465",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/vvvmko3UD-IlccxrRijYu.webp",
+      "status": "active",
+      "brandName": "NULL",
+      "categoryName": "スキンケア"
+    },
+    {
+      "id": "90026",
+      "name": "【初めてのデリケートボディウォッシュ250ml 】イヴピアッツェローズの香り／やさしく洗って、うるおす。 はじめてのフェムケアに。／生理・妊娠・出産・更年期・閉経すべての女性のライフステージに寄り添う",
+      "price": "3740",
+      "pointPrice": "2618",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/gmSdm6HfDClSkBYQEUjZ9.webp",
+      "status": "active",
+      "brandName": "NULL",
+      "categoryName": "スキンケア"
+    },
+    {
+      "id": "90027",
+      "name": "【単品】モイストトリートメント300g",
+      "price": "3850",
+      "pointPrice": "2695",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/jQ5vXw8odfW1sH89NeuJq.webp",
+      "status": "active",
+      "brandName": "NULL",
+      "categoryName": "スキンケア"
+    },
+    {
+      "id": "90028",
+      "name": "セインムー ボーテロンド 美容液 セラム バストアップ エイジングケア 機能性メイク クリーム スキンケア ボディケア バストケア デコルテケア ハリ ",
+      "price": "23100",
+      "pointPrice": "16170",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/x22gycstHaUfCDXD802rc.webp",
+      "status": "active",
+      "brandName": "NULL",
+      "categoryName": "スキンケア"
+    },
+    {
+      "id": "90029",
+      "name": "シャンパーニュカーボン セインムー 炭酸ガスパック 美容液 クリーム ハリ 保湿 潤いい リフトアップ",
+      "price": "19925",
+      "pointPrice": "13948",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/Xc8IRgSW_7xmhbv4MwgUL.webp",
+      "status": "active",
+      "brandName": "NULL",
+      "categoryName": "スキンケア"
+    },
+    {
+      "id": "90030",
+      "name": "リニューアル版 クラッキングWエクソソーム 180ml セインムー 炭酸ガス美容液 ヒト乾燥細胞 乾燥植物幹細胞 エイジングケア たるみ 引きき締めめ ツヤ ハリ 潤いい",
+      "price": "11553",
+      "pointPrice": "8088",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/f13G_rEsvbTAcfNvb17l8.webp",
+      "status": "active",
+      "brandName": "NULL",
+      "categoryName": "スキンケア"
+    },
+    {
+      "id": "90039",
+      "name": "KYOGOKU ローラージャンボコーム",
+      "price": "1210",
+      "pointPrice": "847",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/qdQt1JtQLxQYEX-OMrZnM.jpg",
+      "status": "active",
+      "brandName": "KYOGOKU JAPAN",
+      "categoryName": "美容家電・ガジェット"
+    },
+    {
+      "id": "90040",
+      "name": "KYOGOKU イヤホンコアエアー core air",
+      "price": "12800",
+      "pointPrice": "8960",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/R3cZvWhKvCAOkWT_DVC0t.jpg",
+      "status": "active",
+      "brandName": "KYOGOKU JAPAN",
+      "categoryName": "美容家電・ガジェット"
+    },
+    {
+      "id": "90041",
+      "name": "KYOGOKUミラクルフィットキャップ",
+      "price": "990",
+      "pointPrice": "693",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/ilbYenusNNzH8pvDxt22U.png",
+      "status": "active",
+      "brandName": "KYOGOKU JAPAN",
+      "categoryName": "美容家電・ガジェット"
+    },
+    {
+      "id": "90042",
+      "name": "KYOGOKUエアホールドクリップ",
+      "price": "990",
+      "pointPrice": "693",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/1Qei105mDkBytMNbHTSM1.jpg",
+      "status": "active",
+      "brandName": "KYOGOKU JAPAN",
+      "categoryName": "ヘアケア"
+    },
+    {
+      "id": "90043",
+      "name": "KYOGOKU スパークリングフォームマスク",
+      "price": "1430",
+      "pointPrice": "1001",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/rP800YSNEEU7NI_VgTU23.jpg",
+      "status": "active",
+      "brandName": "KYOGOKU JAPAN",
+      "categoryName": "スキンケア"
+    },
+    {
+      "id": "90044",
+      "name": "KYOGOKUリサイクルバッグ",
+      "price": "990",
+      "pointPrice": "693",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/vijaB5j11pGeQPUte7qPx.jpg",
+      "status": "active",
+      "brandName": "KYOGOKU JAPAN",
+      "categoryName": "美容家電・ガジェット"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tprice\tpointPrice\timageUrl\tstatus\tbrandName\tcategoryName\n30023\tKYOGOKU シグネチャー ステムセル モーニングマスク\t1463\t550\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/vTQtrN-0hk6O1f3tNMWve.jpg\tactive\tKYOGOKU JAPAN\tスキンケア\n90006\tKYOGOKU ケラチンヘアマスクキャップ\t1463\t550\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/aSxyayOY2F_VEvpbbWo1g.jpg\tactive\tKYOGOKU JAPAN\tヘアケア\n90013\tKYOGOKU クリスタルスキン ブライトニングマスク\t1210\t550\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/8FcwiuMz4fBkSIuZA3jvc.jpg\tactive\tKYOGOKU JAPAN\tスキンケア\n90015\tKYOGOKU アイシンク 目元美顔器\t10648\t4000\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/sSUB3mumMjVOuVioD3Zut.jpg\tactive\tKYOGOKU JAPAN\t美容家電・ガジェット\n90021\t【フォーミングウォッシュ 90ml 】デリケートゾーンのニオイを吸着する天然ミネラル配合 90ml ブレスオブガーデンの香り \t2420\t1694\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/tB6QFFlaaKe4BJYoLCdbi.png\tactive\tNULL\tスキンケア\n90022\t【ブライトニングジェル】デリケートブライトニングセラムN30ml  イヴピアッツェローズの香り／医薬部外品／くすみ／ トーンアップ／顔・脇・背中・デリケートゾーン・かかと\t7480\t5236\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/BChB_e37DNdueOJ0wEvf_.png\tactive\tNULL\tスキンケア\n90023\tバランシングボディオイル 100ml\t11880\t8316\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/OUP8buTqH8vzkAZTp2wU_.png\tactive\tNULL\tスキンケア\n90024\t【全身用マルチオイル 30ml 】デリケートなパーツのエイジングケア/ブレスオブガーデンの香り/うるおいケア/乾燥やホルモンバランスの変化で 肌が硬くなり、不快感や違和感を感じている人が、 “からだをやわらかい状態に戻す”\t3960\t2772\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/iGUK23tepDXRttme7xkei.webp\tactive\tNULL\tスキンケア\n90025\t【ボディクリーム150g】 しっとりりさらさらイヴピアッツェローズの香り\t4950\t3465\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/vvvmko3UD-IlccxrRijYu.webp\tactive\tNULL\tスキンケア\n90026\t【初めてのデリケートボディウォッシュ250ml 】イヴピアッツェローズの香り／やさしく洗って、うるおす。 はじめてのフェムケアに。／生理・妊娠・出産・更年期・閉経すべての女性のライフステージに寄り添う\t3740\t2618\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/gmSdm6HfDClSkBYQEUjZ9.webp\tactive\tNULL\tスキンケア\n90027\t【単品】モイストトリートメント300g\t3850\t2695\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/jQ5vXw8odfW1sH89NeuJq.webp\tactive\tNULL\tスキンケア\n90028\tセインムー ボーテロンド 美容液 セラム バストアップ エイジングケア 機能性メイク クリーム スキンケア ボディケア バストケア デコルテケア ハリ \t23100\t16170\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/x22gycstHaUfCDXD802rc.webp\tactive\tNULL\tスキンケア\n90029\tシャンパーニュカーボン セインムー 炭酸ガスパック 美容液 クリーム ハリ 保湿 潤いい リフトアップ\t19925\t13948\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/Xc8IRgSW_7xmhbv4MwgUL.webp\tactive\tNULL\tスキンケア\n90030\tリニューアル版 クラッキングWエクソソーム 180ml セインムー 炭酸ガス美容液 ヒト乾燥細胞 乾燥植物幹細胞 エイジングケア たるみ 引きき締めめ ツヤ ハリ 潤いい\t11553\t8088\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/f13G_rEsvbTAcfNvb17l8.webp\tactive\tNULL\tスキンケア\n90039\tKYOGOKU ローラージャンボコーム\t1210\t847\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/qdQt1JtQLxQYEX-OMrZnM.jpg\tactive\tKYOGOKU JAPAN\t美容家電・ガジェット\n90040\tKYOGOKU イヤホンコアエアー core air\t12800\t8960\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/R3cZvWhKvCAOkWT_DVC0t.jpg\tactive\tKYOGOKU JAPAN\t美容家電・ガジェット\n90041\tKYOGOKUミラクルフィットキャップ\t990\t693\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/ilbYenusNNzH8pvDxt22U.png\tactive\tKYOGOKU JAPAN\t美容家電・ガジェット\n90042\tKYOGOKUエアホールドクリップ\t990\t693\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/1Qei105mDkBytMNbHTSM1.jpg\tactive\tKYOGOKU JAPAN\tヘアケア\n90043\tKYOGOKU スパークリングフォームマスク\t1430\t1001\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/rP800YSNEEU7NI_VgTU23.jpg\tactive\tKYOGOKU JAPAN\tスキンケア\n90044\tKYOGOKUリサイクルバッグ\t990\t693\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mall/products/vijaB5j11pGeQPUte7qPx.jpg\tactive\tKYOGOKU JAPAN\t美容家電・ガジェット\n",
+  "stderr": "",
+  "execution_time_ms": 1635
+}

@@ -1,0 +1,34 @@
+{
+  "query": "SELECT oi.productId, p.name, LEFT(p.imageUrl, 80) as imgUrl, COUNT(DISTINCT oi.orderId) as orderCount FROM mall_order_items oi JOIN mall_products p ON oi.productId = p.id JOIN mall_orders o ON oi.orderId = o.id WHERE o.status IN ('paid','confirmed','shipped','delivered') GROUP BY oi.productId, p.name, p.imageUrl ORDER BY orderCount DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT oi.productId, p.name, LEFT(p.imageUrl, 80) as imgUrl, COUNT(DISTINCT oi.orderId) as orderCount FROM mall_order_items oi JOIN mall_products p ON oi.productId = p.id JOIN mall_orders o ON oi.orderId = o.id WHERE o.status IN ('paid','confirmed','shipped','delivered') GROUP BY oi.productId, p.name, p.imageUrl ORDER BY orderCount DESC LIMIT 10;",
+  "rows": [
+    {
+      "productId": "30023",
+      "name": "KYOGOKU シグネチャー ステムセル モーニングマスク",
+      "imgUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/",
+      "orderCount": "6"
+    },
+    {
+      "productId": "90006",
+      "name": "KYOGOKU ケラチンヘアマスクキャップ",
+      "imgUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/",
+      "orderCount": "3"
+    },
+    {
+      "productId": "90072",
+      "name": "KYOGOKUミラクルホワイトブラシ",
+      "imgUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/",
+      "orderCount": "1"
+    },
+    {
+      "productId": "90013",
+      "name": "KYOGOKU クリスタルスキン ブライトニングマスク",
+      "imgUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/",
+      "orderCount": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "productId\tname\timgUrl\torderCount\n30023\tKYOGOKU シグネチャー ステムセル モーニングマスク\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/\t6\n90006\tKYOGOKU ケラチンヘアマスクキャップ\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/\t3\n90072\tKYOGOKUミラクルホワイトブラシ\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/\t1\n90013\tKYOGOKU クリスタルスキン ブライトニングマスク\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/\t1\n",
+  "stderr": "",
+  "execution_time_ms": 1616
+}
