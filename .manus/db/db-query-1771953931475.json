@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `receipt_kakuhen_results` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`receiptType` enum('point_request','line_receipt') NOT NULL,\n\t`receiptId` int NOT NULL,\n\t`userId` int,\n\t`lineUserId` varchar(64),\n\t`tiktokUrl` text,\n\t`baseRate` decimal(5,2) NOT NULL DEFAULT '1.00',\n\t`boostedRate` decimal(5,2) NOT NULL DEFAULT '1.00',\n\t`isKakuhen` boolean NOT NULL DEFAULT false,\n\t`lotteryNumber` varchar(10),\n\t`winningNumber` varchar(10),\n\t`isJackpot` boolean NOT NULL DEFAULT false,\n\t`orderAmount` int NOT NULL,\n\t`basePoints` int NOT NULL,\n\t`actualPoints` int NOT NULL,\n\t`bonusPoints` int NOT NULL DEFAULT 0,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `receipt_kakuhen_results_id` PRIMARY KEY(`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute CREATE TABLE IF NOT EXISTS `receipt_kakuhen_results` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`receiptType` enum('point_request','line_receipt') NOT NULL,\n\t`receiptId` int NOT NULL,\n\t`userId` int,\n\t`lineUserId` varchar(64),\n\t`tiktokUrl` text,\n\t`baseRate` decimal(5,2) NOT NULL DEFAULT '1.00',\n\t`boostedRate` decimal(5,2) NOT NULL DEFAULT '1.00',\n\t`isKakuhen` boolean NOT NULL DEFAULT false,\n\t`lotteryNumber` varchar(10),\n\t`winningNumber` varchar(10),\n\t`isJackpot` boolean NOT NULL DEFAULT false,\n\t`orderAmount` int NOT NULL,\n\t`basePoints` int NOT NULL,\n\t`actualPoints` int NOT NULL,\n\t`bonusPoints` int NOT NULL DEFAULT 0,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `receipt_kakuhen_results_id` PRIMARY KEY(`id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1771
+}

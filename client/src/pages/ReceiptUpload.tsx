@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Upload, Receipt, CheckCircle, Clock, XCircle, AlertTriangle, ArrowLeft, Camera, X, Image as ImageIcon, Loader2, ShieldCheck, Gift } from "lucide-react";
 import { Link } from "wouter";
+import KakuhenChance from "@/components/KakuhenChance";
 
 type UploadedImage = {
   file: File;
@@ -53,10 +54,13 @@ type AnalysisResult = {
   fraudFlags?: string[];
 };
 
+type FlowPhase = "upload" | "analysis_result" | "kakuhen" | "complete";
+
 export default function ReceiptUpload() {
   const [images, setImages] = useState<UploadedImage[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [flowPhase, setFlowPhase] = useState<FlowPhase>("upload");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [tokenRestored, setTokenRestored] = useState(false);
 
@@ -65,9 +69,7 @@ export default function ReceiptUpload() {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
     if (token) {
-      // トークンをlocalStorageに保存して認証を復元
       localStorage.setItem('lcj_session_token', token);
-      // URLからtokenパラメータを削除（セキュリティ対策）
       const url = new URL(window.location.href);
       url.searchParams.delete('token');
       window.history.replaceState({}, '', url.pathname + url.search);
@@ -91,14 +93,19 @@ export default function ReceiptUpload() {
 
   const submitMutation = trpc.lineLogin.submitWebReceipt.useMutation({
     onSuccess: (data) => {
-      setAnalysisResult(data as AnalysisResult);
-      if (data.status === "success") {
+      const result = data as AnalysisResult;
+      setAnalysisResult(result);
+      if (result.status === "success") {
         haptic.success();
         toast.success("レシートの解析が完了しました！");
-      } else if (data.status === "on_hold") {
+        // 解析成功 → 確変チャンス＋レビューフローへ
+        setFlowPhase("analysis_result");
+      } else if (result.status === "on_hold") {
         toast.info("確認中です。スタッフが確認後、結果をお知らせします。");
+        setFlowPhase("analysis_result");
       } else {
-        toast.error(data.message);
+        toast.error(result.message);
+        setFlowPhase("analysis_result");
       }
     },
     onError: (error) => {
@@ -175,6 +182,7 @@ export default function ReceiptUpload() {
       return;
     }
     setAnalysisResult(null);
+    setFlowPhase("upload");
     submitMutation.mutate({
       images: images.map(img => ({
         base64: img.base64,
@@ -187,6 +195,20 @@ export default function ReceiptUpload() {
   const resetForm = useCallback(() => {
     setImages([]);
     setAnalysisResult(null);
+    setFlowPhase("upload");
+  }, []);
+
+  const handleStartKakuhen = useCallback(() => {
+    setFlowPhase("kakuhen");
+  }, []);
+
+  const handleKakuhenComplete = useCallback(() => {
+    setFlowPhase("complete");
+    toast.success("ポイント申請＋レビューが完了しました！");
+  }, []);
+
+  const handleKakuhenSkip = useCallback(() => {
+    setFlowPhase("complete");
   }, []);
 
   // Loading
@@ -226,6 +248,76 @@ export default function ReceiptUpload() {
     );
   }
 
+  // ===== 確変チャンス＋レビューフロー =====
+  if (flowPhase === "kakuhen" && analysisResult?.receiptId && analysisResult.ocrData) {
+    const orderAmount = analysisResult.ocrData.totalAmount || analysisResult.ocrData.paymentInfo?.totalAmount || 0;
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900">
+        {/* Header */}
+        <div className="sticky top-0 z-10 bg-gray-950/80 backdrop-blur-md border-b border-gray-800">
+          <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-center">
+            <h1 className="font-bold text-lg text-white">🎰 確変チャンス＋レビュー</h1>
+          </div>
+        </div>
+
+        <div className="max-w-lg mx-auto px-4 py-6">
+          <KakuhenChance
+            receiptId={analysisResult.receiptId}
+            receiptType="line_receipt"
+            orderAmount={orderAmount}
+            ocrData={analysisResult.ocrData}
+            receiptImageUrl={analysisResult.imageUrls?.[0]}
+            receiptImagePreview={images[0]?.preview}
+            onComplete={handleKakuhenComplete}
+            onSkip={handleKakuhenSkip}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // ===== 完了画面 =====
+  if (flowPhase === "complete") {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-rose-50 to-white">
+        <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b">
+          <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
+            <Link href="/mypage">
+              <Button variant="ghost" size="sm">
+                <ArrowLeft className="h-4 w-4 mr-1" />
+                マイページ
+              </Button>
+            </Link>
+            <h1 className="font-bold text-lg">レシート申請</h1>
+            <div className="w-20" />
+          </div>
+        </div>
+
+        <div className="max-w-lg mx-auto px-4 py-12 text-center space-y-6">
+          <div className="text-6xl">🎉</div>
+          <h2 className="text-2xl font-black text-gray-900">申請完了！</h2>
+          <p className="text-gray-600">
+            レシート申請とレビューが正常に完了しました。<br />
+            ポイントは審査後に付与されます。
+          </p>
+          <div className="flex flex-col gap-3 max-w-xs mx-auto">
+            <Button
+              className="w-full bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600"
+              onClick={resetForm}
+            >
+              別のレシートを申請する
+            </Button>
+            <Link href="/mypage">
+              <Button variant="outline" className="w-full">
+                マイページに戻る
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-rose-50 to-white">
       {/* Header */}
@@ -251,10 +343,11 @@ export default function ReceiptUpload() {
                 <Gift className="h-5 w-5 text-white" />
               </div>
               <div>
-                <h3 className="font-bold text-rose-700 mb-1">購入金額の1%をポイント還元</h3>
+                <h3 className="font-bold text-rose-700 mb-1">購入金額の1%〜をポイント還元</h3>
                 <p className="text-sm text-rose-600/80">
                   TikTok Shopの注文詳細画面のスクリーンショットをアップロードしてください。
                   AIが自動で解析し、ポイントを計算します。
+                  <span className="font-bold"> さらに確変チャンスで還元率UP！</span>
                 </p>
               </div>
             </div>
@@ -262,7 +355,7 @@ export default function ReceiptUpload() {
         </Card>
 
         {/* Analysis Result */}
-        {analysisResult && (
+        {analysisResult && flowPhase === "analysis_result" && (
           <Card className={`border-2 ${
             analysisResult.status === "success" ? "border-green-300 bg-green-50" :
             analysisResult.status === "on_hold" ? "border-amber-300 bg-amber-50" :
@@ -350,51 +443,6 @@ export default function ReceiptUpload() {
                           ))}
                         </div>
                       )}
-
-                      {/* 配送先情報 */}
-                      {analysisResult.ocrData.deliveryInfo && (
-                        <div className="border-t pt-2">
-                          <h5 className="text-xs font-medium text-gray-500 mb-1">配送先情報</h5>
-                          <div className="grid grid-cols-1 gap-1 text-sm">
-                            {analysisResult.ocrData.deliveryInfo.recipientName && (
-                              <div>
-                                <span className="text-muted-foreground">氏名: </span>
-                                <span className="font-medium">{analysisResult.ocrData.deliveryInfo.recipientName}</span>
-                              </div>
-                            )}
-                            {analysisResult.ocrData.deliveryInfo.phoneNumber && (
-                              <div>
-                                <span className="text-muted-foreground">電話: </span>
-                                <span className="font-medium">{analysisResult.ocrData.deliveryInfo.phoneNumber}</span>
-                              </div>
-                            )}
-                            {analysisResult.ocrData.deliveryInfo.address && (
-                              <div>
-                                <span className="text-muted-foreground">住所: </span>
-                                <span className="font-medium">{analysisResult.ocrData.deliveryInfo.postalCode ? `〒${analysisResult.ocrData.deliveryInfo.postalCode} ` : ""}{analysisResult.ocrData.deliveryInfo.address}</span>
-                              </div>
-                            )}
-                            {analysisResult.ocrData.deliveryInfo.deliveryStatus && (
-                              <div>
-                                <span className="text-muted-foreground">配送状況: </span>
-                                <span className="font-medium">{analysisResult.ocrData.deliveryInfo.deliveryStatus}</span>
-                              </div>
-                            )}
-                            {analysisResult.ocrData.deliveryInfo.deliveryDate && (
-                              <div>
-                                <span className="text-muted-foreground">配達日: </span>
-                                <span className="font-medium">{analysisResult.ocrData.deliveryInfo.deliveryDate}</span>
-                              </div>
-                            )}
-                            {analysisResult.ocrData.deliveryInfo.returnDeadline && (
-                              <div>
-                                <span className="text-muted-foreground">返品期限: </span>
-                                <span className="font-medium">{analysisResult.ocrData.deliveryInfo.returnDeadline}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   )}
 
@@ -421,15 +469,24 @@ export default function ReceiptUpload() {
                     </div>
                   )}
 
-                  {/* Reset button */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-4"
-                    onClick={resetForm}
-                  >
-                    別のレシートを申請する
-                  </Button>
+                  {/* Action Buttons */}
+                  <div className="mt-4 flex flex-col gap-2">
+                    {analysisResult.status === "success" && analysisResult.receiptId && (
+                      <Button
+                        className="w-full bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 text-white font-bold h-12"
+                        onClick={handleStartKakuhen}
+                      >
+                        🎰 確変チャンス＋レビューへ進む
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={resetForm}
+                    >
+                      別のレシートを申請する
+                    </Button>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -437,7 +494,7 @@ export default function ReceiptUpload() {
         )}
 
         {/* Upload Area */}
-        {!analysisResult && (
+        {flowPhase === "upload" && !analysisResult && (
           <>
             <Card>
               <CardHeader>
@@ -576,6 +633,23 @@ export default function ReceiptUpload() {
                     <span>注文日から30日以内の注文が対象です</span>
                   </li>
                 </ul>
+              </CardContent>
+            </Card>
+
+            {/* New: 確変チャンス説明 */}
+            <Card className="border-orange-200 bg-gradient-to-br from-orange-50 to-yellow-50">
+              <CardContent className="pt-6">
+                <div className="flex items-start gap-3">
+                  <div className="text-3xl">🎰</div>
+                  <div>
+                    <h3 className="font-bold text-orange-700 mb-1">確変チャンスとは？</h3>
+                    <p className="text-sm text-orange-600/80">
+                      レシート申請後、TikTok動画URLを入力すると還元率が<span className="font-bold">1% → 1.5%</span>にUP！
+                      さらに全額ポイントバックの抽選チャンスも。
+                      商品レビューを投稿して、みんなの参考になる口コミを残しましょう。
+                    </p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </>

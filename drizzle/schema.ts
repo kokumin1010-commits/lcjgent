@@ -3142,3 +3142,92 @@ export const autoPostLogs = mysqlTable("auto_post_logs", {
 });
 export type AutoPostLog = typeof autoPostLogs.$inferSelect;
 export type InsertAutoPostLog = typeof autoPostLogs.$inferInsert;
+
+
+// ============================================
+// レシート確変チャンス＋購入証明付きレビュー
+// ============================================
+
+/**
+ * Receipt Kakuhen Chance - 確変チャンス結果テーブル
+ * レシート申請時の確変チャンス（還元率UP＋全額還元抽選）の結果を記録
+ */
+export const receiptKakuhenResults = mysqlTable("receipt_kakuhen_results", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // 紐付け（pointRequests or lineReceipts）
+  receiptType: mysqlEnum("receiptType", ["point_request", "line_receipt"]).notNull(),
+  receiptId: int("receiptId").notNull(), // 各テーブルのID
+  userId: int("userId"), // Web users (nullable for LINE users)
+  lineUserId: varchar("lineUserId", { length: 64 }), // LINE users
+  
+  // TikTok URL（確変チャンスの条件）
+  tiktokUrl: text("tiktokUrl"),
+  
+  // 確変チャンス結果
+  baseRate: decimal("baseRate", { precision: 5, scale: 2 }).notNull().default("1.00"), // 基本還元率（%）
+  boostedRate: decimal("boostedRate", { precision: 5, scale: 2 }).notNull().default("1.00"), // 確変後の還元率（%）
+  isKakuhen: boolean("isKakuhen").default(false).notNull(), // 確変モードに入ったか
+  
+  // 全額還元抽選
+  lotteryNumber: varchar("lotteryNumber", { length: 10 }), // 抽選番号（ユーザーの番号）
+  winningNumber: varchar("winningNumber", { length: 10 }), // 当選番号
+  isJackpot: boolean("isJackpot").default(false).notNull(), // 全額還元当選か
+  
+  // ポイント計算
+  orderAmount: int("orderAmount").notNull(), // 注文金額
+  basePoints: int("basePoints").notNull(), // 通常ポイント（1%）
+  actualPoints: int("actualPoints").notNull(), // 実際に付与されたポイント
+  bonusPoints: int("bonusPoints").default(0).notNull(), // ボーナスポイント（確変分）
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ReceiptKakuhenResult = typeof receiptKakuhenResults.$inferSelect;
+export type InsertReceiptKakuhenResult = typeof receiptKakuhenResults.$inferInsert;
+
+
+/**
+ * Receipt Reviews - 購入証明付きレビューテーブル
+ * レシート（購入証明）がある人だけが書ける100%リアルな口コミ
+ * @cosmeキラー：ステマなしの信頼できるレビューDB
+ */
+export const receiptReviews = mysqlTable("receipt_reviews", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // 紐付け
+  receiptType: mysqlEnum("receiptType", ["point_request", "line_receipt"]).notNull(),
+  receiptId: int("receiptId").notNull(), // 各テーブルのID
+  kakuhenResultId: int("kakuhenResultId"), // 確変チャンス結果への紐付け（任意）
+  userId: int("userId"), // Web users
+  lineUserId: varchar("lineUserId", { length: 64 }), // LINE users
+  
+  // 商品情報（レシートOCRから自動認識）
+  productName: text("productName").notNull(), // 商品名
+  brandName: varchar("brandName", { length: 255 }), // ブランド名
+  shopName: varchar("shopName", { length: 255 }), // ショップ名
+  purchaseAmount: int("purchaseAmount"), // 購入金額
+  category: varchar("category", { length: 100 }), // カテゴリ（コスメ、ファッション等）
+  
+  // レビュー内容
+  rating: int("rating").notNull(), // 星評価（1-5）
+  reviewText: text("reviewText").notNull(), // レビュー本文
+  tags: json("tags").$type<string[]>(), // タグ（例：["コスパ最高", "リピ確定"]）
+  
+  // レシート画像（購入証明）
+  receiptImageUrl: text("receiptImageUrl"), // レシート画像URL（証明用）
+  
+  // TikTok関連
+  tiktokUrl: text("tiktokUrl"), // 関連TikTok動画URL
+  
+  // モデレーション
+  isVisible: boolean("isVisible").default(true).notNull(), // 表示/非表示
+  reportCount: int("reportCount").default(0).notNull(), // 通報回数
+  
+  // 統計
+  helpfulCount: int("helpfulCount").default(0).notNull(), // 「参考になった」数
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type ReceiptReview = typeof receiptReviews.$inferSelect;
+export type InsertReceiptReview = typeof receiptReviews.$inferInsert;

@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>レシート確変チャンス - UIプロトタイプ v3.1</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #0a0a1a; color: #fff; overflow-x: hidden; min-height: 100vh; }
+
+  /* ===== Step Common ===== */
+  .step { display: none; min-height: 100vh; position: relative; }
+  .step.active { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+
+  /* ===== Step 1: Receipt Upload ===== */
+  #step1 { background: linear-gradient(135deg, #0f1628 0%, #1a1a3e 100%); }
+  .receipt-box { border: 2px dashed rgba(255,255,255,0.3); border-radius: 16px; padding: 40px; text-align: center; margin: 20px; cursor: pointer; transition: all 0.3s; }
+  .receipt-box:hover { border-color: rgba(255,255,255,0.6); background: rgba(255,255,255,0.05); }
+  .receipt-icon { font-size: 48px; margin-bottom: 12px; }
+  .receipt-label { color: rgba(255,255,255,0.6); font-size: 14px; }
+  .btn-submit { background: linear-gradient(135deg, #ff6b6b, #ff8e53); border: none; color: #fff; padding: 16px 48px; border-radius: 50px; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 24px; transition: all 0.3s; box-shadow: 0 4px 20px rgba(255,107,107,0.4); }
+  .btn-submit:hover { transform: scale(1.05); box-shadow: 0 6px 30px rgba(255,107,107,0.6); }
+
+  /* ===== Step 2: Emergency Chance Popup ===== */
+  #step2 { background: #000; }
+  .overlay-dark { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 10; }
+  .chance-popup { position: relative; z-index: 20; max-width: 400px; width: 90%; text-align: center; }
+  .chance-badge { display: inline-block; background: linear-gradient(135deg, #ff0000, #ff6600); padding: 8px 24px; border-radius: 50px; font-weight: bold; font-size: 14px; margin-bottom: 16px; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+  .chance-title { font-size: 24px; font-weight: 900; margin-bottom: 8px; }
+  .chance-title .highlight { color: #ffdd00; font-size: 32px; }
+
+  /* Return Rate Display */
+  .rate-display { background: rgba(255,255,255,0.08); border-radius: 16px; padding: 20px; margin: 20px 0; border: 1px solid rgba(255,255,255,0.1); }
+  .rate-label { font-size: 13px; color: rgba(255,255,255,0.5); margin-bottom: 8px; }
+  .rate-current { font-size: 48px; font-weight: 900; color: #666; }
+  .rate-current span { font-size: 24px; }
+  .rate-arrow { font-size: 32px; margin: 8px 0; color: #ff4444; animation: bounceDown 1s infinite; }
+  @keyframes bounceDown { 0%,100% { transform: translateY(0); } 50% { transform: translateY(8px); } }
+
+  /* Kakuhen Card */
+  .kakuhen-card { background: linear-gradient(135deg, rgba(255,0,0,0.15), rgba(255,100,0,0.15)); border: 2px solid rgba(255,80,0,0.6); border-radius: 16px; padding: 24px; margin: 16px 0; cursor: pointer; transition: all 0.3s; position: relative; overflow: hidden; }
+  .kakuhen-card:hover { transform: scale(1.02); border-color: #ff6600; box-shadow: 0 0 30px rgba(255,100,0,0.3); }
+  .kakuhen-card::before { content: ''; position: absolute; inset: 0; background: linear-gradient(45deg, transparent 40%, rgba(255,255,255,0.05) 50%, transparent 60%); animation: shimmer 3s infinite; }
+  @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+  .card-badge { position: absolute; top: -1px; right: -1px; background: linear-gradient(135deg, #ff0000, #ff6600); padding: 6px 16px; border-radius: 0 14px 0 14px; font-size: 12px; font-weight: bold; }
+  .card-icon { font-size: 36px; margin-bottom: 8px; }
+  .card-title { font-size: 18px; font-weight: 900; color: #ff8800; margin-bottom: 4px; }
+  .card-rate { font-size: 28px; font-weight: 900; background: linear-gradient(135deg, #ffdd00, #ff6600); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; }
+  .card-bonus { background: rgba(255,0,0,0.2); border: 1px solid rgba(255,0,0,0.4); border-radius: 8px; padding: 8px 12px; font-size: 13px; color: #ff6666; margin-top: 8px; }
+  .card-bonus strong { color: #ffdd00; font-size: 15px; }
+  .card-desc { font-size: 13px; color: rgba(255,255,255,0.6); margin-top: 8px; line-height: 1.5; }
+
+  .skip-btn { background: none; border: none; color: rgba(255,255,255,0.3); font-size: 13px; cursor: pointer; margin-top: 20px; padding: 8px; }
+  .skip-btn:hover { color: rgba(255,255,255,0.5); }
+
+  /* ===== Step 3: URL Input ===== */
+  #step3 { background: linear-gradient(180deg, #1a0a2e 0%, #0f1628 100%); padding: 40px 20px; }
+  .input-header { text-align: center; margin-bottom: 32px; }
+  .mode-badge { display: inline-block; background: linear-gradient(135deg, #ff0000, #ff6600); padding: 6px 20px; border-radius: 50px; font-size: 13px; font-weight: bold; margin-bottom: 12px; }
+  .input-title { font-size: 22px; font-weight: 900; margin-bottom: 8px; }
+  .input-subtitle { font-size: 14px; color: rgba(255,255,255,0.6); }
+
+  /* Tabs */
+  .tab-row { display: flex; gap: 8px; margin-bottom: 24px; max-width: 400px; width: 100%; }
+  .tab-item { flex: 1; padding: 16px 8px; border-radius: 12px; text-align: center; cursor: pointer; transition: all 0.3s; border: 2px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03); }
+  .tab-item.active { border-color: #ff6600; background: rgba(255,100,0,0.1); }
+  .tab-icon { font-size: 24px; margin-bottom: 4px; display: block; }
+  .tab-label { font-size: 13px; font-weight: bold; }
+
+  /* URL Input */
+  .url-section { max-width: 400px; width: 100%; }
+  .url-label { font-size: 14px; font-weight: bold; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .url-input { width: 100%; background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.15); border-radius: 12px; padding: 16px; color: #fff; font-size: 16px; outline: none; transition: all 0.3s; }
+  .url-input:focus { border-color: #ff6600; box-shadow: 0 0 20px rgba(255,100,0,0.2); }
+  .url-input::placeholder { color: rgba(255,255,255,0.3); font-size: 14px; }
+  .url-hint { background: rgba(255,255,255,0.05); border-radius: 10px; padding: 12px 16px; margin-top: 12px; display: flex; align-items: flex-start; gap: 8px; }
+  .url-hint-icon { font-size: 18px; flex-shrink: 0; }
+  .url-hint-text { font-size: 12px; color: rgba(255,255,255,0.5); line-height: 1.5; }
+
+  .btn-kakuhen { width: 100%; max-width: 400px; background: linear-gradient(135deg, #ff0000, #ff8800, #ffdd00); border: none; color: #fff; padding: 18px; border-radius: 50px; font-size: 18px; font-weight: 900; cursor: pointer; margin-top: 24px; transition: all 0.3s; box-shadow: 0 4px 30px rgba(255,100,0,0.5); text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+  .btn-kakuhen:hover { transform: scale(1.03); box-shadow: 0 6px 40px rgba(255,100,0,0.7); }
+  .btn-kakuhen:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .btn-skip2 { background: none; border: none; color: rgba(255,255,255,0.3); font-size: 13px; cursor: pointer; margin-top: 16px; padding: 8px; }
+
+  /* ===== Step 3.5: Product Review ===== */
+  #step3b { background: linear-gradient(180deg, #0f1628 0%, #1a1a3e 100%); padding: 40px 20px; }
+  .review-container { max-width: 420px; width: 100%; }
+  .review-header { text-align: center; margin-bottom: 28px; }
+  .review-badge { display: inline-block; background: linear-gradient(135deg, #4CAF50, #2E7D32); padding: 6px 20px; border-radius: 50px; font-size: 13px; font-weight: bold; margin-bottom: 12px; }
+  .review-title { font-size: 22px; font-weight: 900; margin-bottom: 6px; }
+  .review-subtitle { font-size: 14px; color: rgba(255,255,255,0.5); line-height: 1.5; }
+
+  /* Receipt Preview + AI Recognition */
+  .receipt-preview { margin-bottom: 24px; }
+  .receipt-preview-label { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+  .receipt-preview-card { display: flex; gap: 16px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 16px; position: relative; overflow: hidden; }
+  .receipt-preview-card::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(76,175,80,0.03), rgba(255,200,0,0.03)); pointer-events: none; }
+  .receipt-img-wrap { position: relative; flex-shrink: 0; }
+  .receipt-preview-img { width: 110px; height: auto; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); }
+  .receipt-scan-badge { position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%); background: #4CAF50; color: #fff; font-size: 10px; font-weight: bold; padding: 3px 10px; border-radius: 10px; white-space: nowrap; box-shadow: 0 2px 8px rgba(76,175,80,0.4); }
+  .receipt-detail { flex: 1; display: flex; flex-direction: column; gap: 10px; position: relative; z-index: 1; }
+  .ai-badge { display: inline-flex; align-items: center; gap: 4px; background: linear-gradient(135deg, rgba(0,150,255,0.15), rgba(0,200,255,0.1)); border: 1px solid rgba(0,150,255,0.3); border-radius: 8px; padding: 4px 10px; font-size: 11px; font-weight: bold; color: #4dc9f6; width: fit-content; }
+  .recognized-product { display: flex; gap: 10px; align-items: flex-start; }
+  .recognized-emoji { font-size: 32px; flex-shrink: 0; background: rgba(255,255,255,0.06); border-radius: 10px; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; }
+  .recognized-info { flex: 1; }
+  .recognized-name { font-size: 14px; font-weight: 900; line-height: 1.4; margin-bottom: 2px; }
+  .recognized-brand { font-size: 11px; color: rgba(255,255,255,0.4); margin-bottom: 4px; }
+  .recognized-price { font-size: 18px; font-weight: 900; color: #ff8800; }
+  .recognized-meta { display: flex; gap: 12px; font-size: 11px; color: rgba(255,255,255,0.35); }
+
+  /* Star Rating */
+  .star-section { margin-bottom: 24px; }
+  .star-label { font-size: 14px; font-weight: bold; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+  .star-row { display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; }
+  .star-btn { font-size: 44px; cursor: pointer; transition: all 0.2s; filter: grayscale(1) brightness(0.4); user-select: none; -webkit-tap-highlight-color: transparent; }
+  .star-btn.active { filter: none; transform: scale(1.15); }
+  .star-btn:hover { transform: scale(1.2); }
+  .star-btn.active:hover { transform: scale(1.25); }
+  .star-text { text-align: center; font-size: 14px; color: rgba(255,255,255,0.4); min-height: 20px; transition: all 0.3s; }
+  .star-text.filled { color: #ffdd00; font-weight: bold; }
+
+  /* Review Text */
+  .review-section { margin-bottom: 24px; }
+  .review-label { font-size: 14px; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+  .review-textarea { width: 100%; background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.15); border-radius: 14px; padding: 16px; color: #fff; font-size: 15px; outline: none; resize: none; min-height: 100px; transition: all 0.3s; font-family: inherit; line-height: 1.6; }
+  .review-textarea:focus { border-color: #4CAF50; box-shadow: 0 0 20px rgba(76,175,80,0.2); }
+  .review-textarea::placeholder { color: rgba(255,255,255,0.25); font-size: 14px; }
+  .review-meta { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+  .char-count { font-size: 12px; color: rgba(255,255,255,0.3); transition: color 0.3s; }
+  .char-count.warn { color: #ff4444; }
+  .char-count.ok { color: #4CAF50; }
+  .review-tip { font-size: 11px; color: rgba(255,255,255,0.3); }
+
+  /* Quick Tags */
+  .quick-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .quick-tag { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); border-radius: 20px; padding: 6px 14px; font-size: 12px; color: rgba(255,255,255,0.6); cursor: pointer; transition: all 0.2s; }
+  .quick-tag:hover { background: rgba(76,175,80,0.1); border-color: rgba(76,175,80,0.4); color: #4CAF50; }
+  .quick-tag.selected { background: rgba(76,175,80,0.15); border-color: #4CAF50; color: #4CAF50; }
+
+  /* Review Submit Button */
+  .btn-review-submit { width: 100%; background: linear-gradient(135deg, #4CAF50, #2E7D32); border: none; color: #fff; padding: 18px; border-radius: 50px; font-size: 17px; font-weight: 900; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 25px rgba(76,175,80,0.4); }
+  .btn-review-submit:hover { transform: scale(1.03); box-shadow: 0 6px 35px rgba(76,175,80,0.6); }
+  .btn-review-submit:disabled { opacity: 0.35; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  /* Review Reward Hint */
+  .review-reward { background: linear-gradient(135deg, rgba(255,200,0,0.08), rgba(255,100,0,0.08)); border: 1px solid rgba(255,200,0,0.2); border-radius: 12px; padding: 12px 16px; margin-bottom: 24px; display: flex; align-items: center; gap: 10px; }
+  .review-reward-icon { font-size: 28px; flex-shrink: 0; }
+  .review-reward-text { font-size: 12px; color: rgba(255,255,255,0.6); line-height: 1.5; }
+  .review-reward-text strong { color: #ffdd00; }
+
+  /* ===== Step 4: Meter Animation ===== */
+  #step4 { background: #000; }
+  .meter-container { max-width: 400px; width: 90%; text-align: center; position: relative; z-index: 5; }
+  .meter-title { font-size: 16px; color: rgba(255,255,255,0.6); margin-bottom: 8px; }
+  .meter-value { font-size: 80px; font-weight: 900; font-family: 'Courier New', monospace; transition: all 0.1s; }
+  .meter-value.normal { color: #666; }
+  .meter-value.boosting { color: #ff6600; text-shadow: 0 0 40px rgba(255,100,0,0.8); }
+  .meter-value.boosted { background: linear-gradient(135deg, #ffdd00, #ff6600); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 20px rgba(255,200,0,0.6)); }
+  .meter-percent { font-size: 36px; }
+  .meter-bar { width: 100%; height: 12px; background: rgba(255,255,255,0.1); border-radius: 6px; margin: 16px 0; overflow: hidden; }
+  .meter-fill { height: 100%; border-radius: 6px; transition: width 0.1s; }
+  .meter-fill.normal { width: 10%; background: #666; }
+  .meter-fill.boosted { background: linear-gradient(90deg, #ff0000, #ff6600, #ffdd00); }
+
+  /* Jackpot Banner */
+  .jackpot-banner { opacity: 0; transform: scale(0.5); transition: all 0.5s; margin-top: 24px; }
+  .jackpot-banner.show { opacity: 1; transform: scale(1); }
+  .jackpot-inner { background: linear-gradient(135deg, rgba(255,0,0,0.2), rgba(255,100,0,0.2)); border: 2px solid #ff6600; border-radius: 16px; padding: 20px; }
+  .jackpot-icon { font-size: 48px; margin-bottom: 8px; }
+  .jackpot-text { font-size: 18px; font-weight: 900; color: #ffdd00; margin-bottom: 4px; }
+  .jackpot-sub { font-size: 13px; color: rgba(255,255,255,0.6); }
+  .jackpot-odds { display: inline-block; background: rgba(255,0,0,0.3); border: 1px solid rgba(255,0,0,0.5); border-radius: 8px; padding: 4px 12px; font-size: 12px; color: #ff6666; margin-top: 8px; }
+
+  /* Flash overlay */
+  .flash-overlay { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 100; }
+  .flash-overlay.flash { animation: flashAnim 0.15s ease-out; }
+  @keyframes flashAnim { 0% { opacity: 0.8; } 100% { opacity: 0; } }
+
+  /* Particles */
+  .particle { position: fixed; width: 4px; height: 4px; border-radius: 50%; pointer-events: none; z-index: 50; }
+
+  /* ===== Step 5: Lottery Result ===== */
+  #step5 { background: radial-gradient(ellipse at center, #1a0a2e 0%, #000 100%); }
+  .lottery-container { max-width: 400px; width: 90%; text-align: center; }
+  .lottery-title { font-size: 16px; color: rgba(255,255,255,0.5); margin-bottom: 16px; }
+
+  /* Slot Machine */
+  .slot-machine { background: linear-gradient(135deg, #1a1a3e, #0f0f2e); border: 3px solid #ff6600; border-radius: 20px; padding: 24px; margin: 20px 0; box-shadow: 0 0 40px rgba(255,100,0,0.2); }
+  .slot-label { font-size: 14px; color: rgba(255,255,255,0.5); margin-bottom: 12px; }
+  .slot-display { display: flex; justify-content: center; align-items: center; gap: 4px; }
+  .slot-digit { width: 48px; height: 64px; background: #000; border: 2px solid rgba(255,255,255,0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: 900; font-family: 'Courier New', monospace; color: #ff6600; overflow: hidden; position: relative; }
+  .slot-digit.spinning .digit-inner { animation: slotSpin 0.1s linear infinite; }
+  @keyframes slotSpin { 0% { transform: translateY(-100%); } 100% { transform: translateY(100%); } }
+  .slot-separator { font-size: 32px; font-weight: 900; color: rgba(255,255,255,0.3); }
+
+  /* Result */
+  .result-box { margin-top: 24px; opacity: 0; transform: translateY(20px); transition: all 0.5s; }
+  .result-box.show { opacity: 1; transform: translateY(0); }
+  .result-normal { background: linear-gradient(135deg, rgba(255,100,0,0.15), rgba(255,200,0,0.15)); border: 2px solid rgba(255,150,0,0.5); border-radius: 16px; padding: 24px; }
+  .result-jackpot { background: linear-gradient(135deg, rgba(255,0,0,0.2), rgba(255,200,0,0.2)); border: 3px solid #ffdd00; border-radius: 16px; padding: 24px; animation: jackpotGlow 1s infinite alternate; }
+  @keyframes jackpotGlow { 0% { box-shadow: 0 0 20px rgba(255,200,0,0.3); } 100% { box-shadow: 0 0 60px rgba(255,200,0,0.6); } }
+  .result-icon { font-size: 48px; margin-bottom: 8px; }
+  .result-title { font-size: 22px; font-weight: 900; margin-bottom: 4px; }
+  .result-rate { font-size: 40px; font-weight: 900; margin: 8px 0; }
+  .result-rate.normal-rate { color: #ff8800; }
+  .result-rate.jackpot-rate { background: linear-gradient(135deg, #ffdd00, #ff0000); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .result-desc { font-size: 14px; color: rgba(255,255,255,0.6); }
+  .result-amount { font-size: 16px; color: #ffdd00; font-weight: bold; margin-top: 8px; }
+
+  .btn-complete { background: linear-gradient(135deg, #4CAF50, #45a049); border: none; color: #fff; padding: 16px 48px; border-radius: 50px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 24px; }
+
+  /* ===== Rainbow Lines ===== */
+  .rainbow-line { position: fixed; height: 3px; background: linear-gradient(90deg, #ff0000, #ff8800, #ffdd00, #00ff00, #0088ff, #8800ff); z-index: 90; opacity: 0; }
+
+  /* ===== Demo Navigation ===== */
+  .demo-nav { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.9); border-top: 1px solid rgba(255,255,255,0.1); padding: 8px; display: flex; align-items: center; justify-content: center; gap: 4px; z-index: 200; flex-wrap: wrap; }
+  .demo-nav span { font-size: 11px; color: rgba(255,255,255,0.4); }
+  .demo-btn { padding: 5px 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.7); font-size: 10px; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+  .demo-btn:hover, .demo-btn.active { background: rgba(255,100,0,0.2); border-color: #ff6600; color: #ff8800; }
+
+  /* ===== Confetti ===== */
+  .confetti { position: fixed; width: 8px; height: 8px; z-index: 80; pointer-events: none; }
+
+  /* ===== Step Progress Indicator ===== */
+  .step-progress { display: flex; align-items: center; justify-content: center; gap: 4px; margin-bottom: 20px; }
+  .step-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.15); transition: all 0.3s; }
+  .step-dot.active { background: #ff6600; width: 24px; border-radius: 4px; }
+  .step-dot.done { background: #4CAF50; }
+  .step-line { width: 16px; height: 2px; background: rgba(255,255,255,0.1); }
+</style>
+</head>
+<body>
+
+<div class="flash-overlay" id="flashOverlay"></div>
+
+<!-- ===== STEP 1: Receipt Upload ===== -->
+<div class="step active" id="step1">
+  <h2 style="font-size:24px; margin-bottom:8px;">📸 レシート送信</h2>
+  <p style="color:rgba(255,255,255,0.5); font-size:14px; margin-bottom:24px;">購入レシートを撮影して送信してください</p>
+  <div class="receipt-box" onclick="this.style.borderColor='#ff6600'; this.querySelector('.receipt-icon').textContent='✅'; this.querySelector('.receipt-label').textContent='レシート画像を選択済み';">
+    <div class="receipt-icon">🧾</div>
+    <div class="receipt-label">レシート画像をアップロード<br><small style="color:rgba(255,255,255,0.3)">（デモ用：タップで選択）</small></div>
+  </div>
+  <div style="background:rgba(255,255,255,0.05); border-radius:12px; padding:16px; margin:0 20px; max-width:360px; width:100%;">
+    <div style="display:flex; justify-content:space-between; font-size:13px; color:rgba(255,255,255,0.5); margin-bottom:4px;">
+      <span>今回の購入金額</span><span style="color:#fff; font-weight:bold;">¥3,980</span>
+    </div>
+    <div style="display:flex; justify-content:space-between; font-size:13px; color:rgba(255,255,255,0.5);">
+      <span>通常還元（1%）</span><span style="color:#ff8800; font-weight:bold;">+39pt</span>
+    </div>
+  </div>
+  <button class="btn-submit" onclick="goStep(2)">レシートを送信する 📤</button>
+</div>
+
+<!-- ===== STEP 2: Emergency Chance ===== -->
+<div class="step" id="step2">
+  <div class="overlay-dark"></div>
+  <div class="chance-popup">
+    <div class="chance-badge">⚠️ 緊急チャンス発生！</div>
+    <div class="chance-title">
+      還元率を<br><span class="highlight">爆上げ</span>しませんか？
+    </div>
+
+    <div class="rate-display">
+      <div class="rate-label">現在の還元率</div>
+      <div class="rate-current">1<span>%</span></div>
+      <div style="font-size:12px; color:rgba(255,255,255,0.4);">通常モード</div>
+    </div>
+
+    <div class="rate-arrow">⬇️</div>
+
+    <div class="kakuhen-card" onclick="goStep(3)">
+      <div class="card-badge">🔥 確変モード</div>
+      <div class="card-icon">🔥</div>
+      <div class="card-title">TikTokのURLを貼るだけで...</div>
+      <div class="card-rate">還元率 1.5% に UP！</div>
+      <div class="card-bonus">
+        🎊 <strong>全額（100%）ポイントバック</strong>のチャンスも！
+      </div>
+      <div class="card-desc">
+        動画を見て買った → 動画URL<br>
+        ライブで買った → ライバーのプロフィールURL<br>
+        どちらでもOK！
+      </div>
+    </div>
+
+    <button class="skip-btn" onclick="goStep(6, 'skip')">今回はスキップして通常還元（1%）へ →</button>
+  </div>
+</div>
+
+<!-- ===== STEP 3: URL Input ===== -->
+<div class="step" id="step3">
+  <div class="input-header">
+    <div class="mode-badge">🔥 確変モード</div>
+    <div class="input-title">TikTokのURLを貼り付け</div>
+    <div class="input-subtitle">購入のキッカケになったTikTokのURLを<br>貼り付けるだけで確変モード突入！</div>
+  </div>
+
+  <div class="tab-row">
+    <div class="tab-item active" id="tabVideo" onclick="switchTab('video')">
+      <span class="tab-icon">🎬</span>
+      <span class="tab-label">動画を見て買った</span>
+    </div>
+    <div class="tab-item" id="tabLive" onclick="switchTab('live')">
+      <span class="tab-icon">📡</span>
+      <span class="tab-label">ライブで買った</span>
+    </div>
+  </div>
+
+  <div class="url-section">
+    <div class="url-label" id="urlLabel">🎬 TikTok動画URL</div>
+    <input type="url" class="url-input" id="urlInput" placeholder="https://www.tiktok.com/@user/video/..." oninput="checkUrl()">
+    <div class="url-hint">
+      <span class="url-hint-icon">💡</span>
+      <span class="url-hint-text" id="urlHintText">TikTokアプリで動画を開き、「シェア」→「リンクをコピー」でURLを取得できます</span>
+    </div>
+  </div>
+
+  <button class="btn-kakuhen" id="btnKakuhen" disabled onclick="goStep('3b')">🔥 確変モード突入！ 🔥</button>
+  <button class="btn-skip2" onclick="goStep(6, 'skip')">スキップして通常還元へ</button>
+</div>
+
+<!-- ===== STEP 3b: Product Review ===== -->
+<div class="step" id="step3b">
+  <div class="review-container">
+    <div class="review-header">
+      <div class="step-progress">
+        <div class="step-dot done"></div>
+        <div class="step-line"></div>
+        <div class="step-dot done"></div>
+        <div class="step-line"></div>
+        <div class="step-dot active"></div>
+        <div class="step-line"></div>
+        <div class="step-dot"></div>
+      </div>
+      <div class="review-badge">📝 あと少し！</div>
+      <div class="review-title">買った商品のレビュー</div>
+      <div class="review-subtitle">レビューを書いてポイントGET！<br>あなたの声が誰かの参考になります</div>
+    </div>
+
+    <div class="review-reward">
+      <div class="review-reward-icon">🎁</div>
+      <div class="review-reward-text">
+        レビューを書くと<strong>確変モード確定</strong>！<br>
+        さらに<strong>全額還元抽選</strong>の権利もGET！
+      </div>
+    </div>
+
+    <!-- Receipt Image + AI Recognized Product -->
+    <div class="receipt-preview">
+      <div class="receipt-preview-label">🧾 アップロードしたレシート</div>
+      <div class="receipt-preview-card">
+        <div class="receipt-img-wrap">
+          <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='280' fill='none'%3E%3Crect width='200' height='280' rx='8' fill='%23f5f5f0'/%3E%3Ctext x='100' y='30' text-anchor='middle' font-size='11' fill='%23333' font-family='sans-serif'%3ETikTok Shop%3C/text%3E%3Cline x1='20' y1='40' x2='180' y2='40' stroke='%23ddd'/%3E%3Ctext x='24' y='60' font-size='9' fill='%23666' font-family='sans-serif'%3E2025/02/24 14:32%3C/text%3E%3Ctext x='24' y='85' font-size='10' fill='%23333' font-family='sans-serif'%3ETIRTIR マスクフィット%3C/text%3E%3Ctext x='24' y='100' font-size='10' fill='%23333' font-family='sans-serif'%3Eクッション ×1%3C/text%3E%3Ctext x='176' y='92' text-anchor='end' font-size='10' fill='%23333' font-family='sans-serif'%3E¥3,980%3C/text%3E%3Cline x1='20' y1='115' x2='180' y2='115' stroke='%23eee'/%3E%3Ctext x='24' y='135' font-size='10' fill='%23333' font-family='sans-serif'%3E送料%3C/text%3E%3Ctext x='176' y='135' text-anchor='end' font-size='10' fill='%23333' font-family='sans-serif'%3E¥0%3C/text%3E%3Cline x1='20' y1='150' x2='180' y2='150' stroke='%23ddd' stroke-dasharray='4'/%3E%3Ctext x='24' y='172' font-size='12' fill='%23333' font-weight='bold' font-family='sans-serif'%3E合計%3C/text%3E%3Ctext x='176' y='172' text-anchor='end' font-size='12' fill='%23333' font-weight='bold' font-family='sans-serif'%3E¥3,980%3C/text%3E%3Cline x1='20' y1='185' x2='180' y2='185' stroke='%23ddd'/%3E%3Ctext x='100' y='210' text-anchor='middle' font-size='8' fill='%23999' font-family='sans-serif'%3E注文番号: TS-20250224-8847291%3C/text%3E%3Ctext x='100' y='225' text-anchor='middle' font-size='8' fill='%23999' font-family='sans-serif'%3Eお支払い: クレジットカード%3C/text%3E%3Crect x='60' y='240' width='80' height='25' rx='4' fill='%23eee'/%3E%3Ctext x='100' y='257' text-anchor='middle' font-size='8' fill='%23aaa' font-family='sans-serif'%3Eバーコード%3C/text%3E%3C/svg%3E" alt="レシート" class="receipt-preview-img">
+          <div class="receipt-scan-badge">✅ AI読取済み</div>
+        </div>
+        <div class="receipt-detail">
+          <div class="ai-badge">🤖 AI自動認識</div>
+          <div class="recognized-product">
+            <div class="recognized-emoji">💄</div>
+            <div class="recognized-info">
+              <div class="recognized-name">TIRTIR マスクフィットクッション</div>
+              <div class="recognized-brand">TIRTIR｜TikTok Shop</div>
+              <div class="recognized-price">¥3,980</div>
+            </div>
+          </div>
+          <div class="recognized-meta">
+            <span>📅 2025/02/24</span>
+            <span>🏷️ コスメ</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Star Rating -->
+    <div class="star-section">
+      <div class="star-label">⭐ 総合評価 <span class="required">必須</span></div>
+      <div class="star-row" id="starRow">
+        <span class="star-btn" data-rating="1" onclick="setRating(1)">⭐</span>
+        <span class="star-btn" data-rating="2" onclick="setRating(2)">⭐</span>
+        <span class="star-btn" data-rating="3" onclick="setRating(3)">⭐</span>
+        <span class="star-btn" data-rating="4" onclick="setRating(4)">⭐</span>
+        <span class="star-btn" data-rating="5" onclick="setRating(5)">⭐</span>
+      </div>
+      <div class="star-text" id="starText">タップして評価してください</div>
+    </div>
+
+    <!-- Review Text -->
+    <div class="review-section">
+      <div class="review-label">💬 一言レビュー <span class="required">必須</span></div>
+      <textarea class="review-textarea" id="reviewText" placeholder="使ってみた感想を教えてください！&#10;例：「TikTokで見て即買い！香りが最高で毎日使ってます」" oninput="updateCharCount()"></textarea>
+      <div class="review-meta">
+        <span class="char-count" id="charCount">0文字</span>
+        <span class="review-tip">正直な感想でOK！</span>
+      </div>
+
+      <div class="quick-tags" id="quickTags">
+        <span class="quick-tag" onclick="toggleTag(this)">コスパ最高</span>
+        <span class="quick-tag" onclick="toggleTag(this)">リピ確定</span>
+        <span class="quick-tag" onclick="toggleTag(this)">TikTokで見て買った</span>
+        <span class="quick-tag" onclick="toggleTag(this)">期待以上</span>
+        <span class="quick-tag" onclick="toggleTag(this)">香りが良い</span>
+        <span class="quick-tag" onclick="toggleTag(this)">使いやすい</span>
+        <span class="quick-tag" onclick="toggleTag(this)">肌に合った</span>
+        <span class="quick-tag" onclick="toggleTag(this)">見た目が可愛い</span>
+      </div>
+    </div>
+
+    <button class="btn-review-submit" id="btnReviewSubmit" disabled onclick="submitReview()">
+      レビューを送信して確変モードへ 🔥
+    </button>
+  </div>
+</div>
+
+<!-- ===== STEP 4: Meter Animation ===== -->
+<div class="step" id="step4">
+  <div class="meter-container">
+    <div class="meter-title">あなたの還元率</div>
+    <div class="meter-value normal" id="meterValue">1.0<span class="meter-percent">%</span></div>
+    <div class="meter-bar"><div class="meter-fill normal" id="meterFill"></div></div>
+    <div id="meterStatus" style="font-size:14px; color:rgba(255,255,255,0.4);">通常モード</div>
+
+    <div class="jackpot-banner" id="jackpotBanner">
+      <div class="jackpot-inner">
+        <div class="jackpot-icon">🎰</div>
+        <div class="jackpot-text">🔥 全額還元の抽選対象になりました！</div>
+        <div class="jackpot-sub">今回の購入 ¥3,980 が全額ポイントバックされるチャンス！</div>
+        <div class="jackpot-odds">超激レア全額還元チャンス！</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== STEP 5: Lottery Result ===== -->
+<div class="step" id="step5">
+  <!-- (same as step6 but kept for demo nav compat) -->
+</div>
+
+<!-- ===== STEP 6: Lottery Result (actual) ===== -->
+<div class="step" id="step6">
+  <div class="lottery-container">
+    <!-- Normal result (1.5% confirmed) -->
+    <div id="resultNormal" style="display:none;">
+      <div class="lottery-title">全額還元抽選中...</div>
+      <div class="slot-machine">
+        <div class="slot-label">あなたの抽選番号</div>
+        <div class="slot-display">
+          <div class="slot-digit" id="d1"><span class="digit-inner">0</span></div>
+          <div class="slot-digit" id="d2"><span class="digit-inner">0</span></div>
+          <div class="slot-digit" id="d3"><span class="digit-inner">0</span></div>
+          <div class="slot-separator">,</div>
+          <div class="slot-digit" id="d4"><span class="digit-inner">0</span></div>
+          <div class="slot-digit" id="d5"><span class="digit-inner">0</span></div>
+          <div class="slot-digit" id="d6"><span class="digit-inner">0</span></div>
+        </div>
+        <div style="margin-top:12px; font-size:12px; color:rgba(255,255,255,0.3);">当選番号: <span id="winNumber">---,---</span></div>
+      </div>
+
+      <div class="result-box" id="resultBox">
+        <div class="result-normal" id="resultNormalInner">
+          <div class="result-icon">🎉</div>
+          <div class="result-title">確変モード確定！</div>
+          <div class="result-rate normal-rate">1.5%還元</div>
+          <div class="result-amount">¥3,980 × 1.5% = <strong style="color:#ffdd00; font-size:20px;">+59pt</strong> 獲得！</div>
+          <div class="result-desc" style="margin-top:8px;">通常（39pt）より <strong style="color:#ff8800;">+20pt</strong> お得！</div>
+          <div style="margin-top:12px; font-size:12px; color:rgba(255,255,255,0.3);">全額還元は惜しくもハズレ...次回もチャレンジ！</div>
+        </div>
+      </div>
+
+      <!-- Review Summary in Result -->
+      <div id="reviewSummary" style="display:none; margin-top:16px; background:rgba(76,175,80,0.1); border:1px solid rgba(76,175,80,0.3); border-radius:12px; padding:16px; text-align:left;">
+        <div style="font-size:13px; font-weight:bold; color:#4CAF50; margin-bottom:8px;">📝 あなたのレビュー</div>
+        <div style="display:flex; gap:4px; margin-bottom:6px;" id="summaryStars"></div>
+        <div style="font-size:13px; color:rgba(255,255,255,0.7); line-height:1.5;" id="summaryText"></div>
+        <div style="font-size:11px; color:rgba(255,255,255,0.3); margin-top:8px;">✅ レビューが投稿されました！他のユーザーの参考になります</div>
+      </div>
+
+      <button class="btn-complete" onclick="goStep(1)" style="display:none;" id="btnComplete">完了 ✨</button>
+    </div>
+
+    <!-- Jackpot result (demo only) -->
+    <div id="resultJackpot" style="display:none;">
+      <div class="lottery-title">全額還元抽選中...</div>
+      <div class="slot-machine" style="border-color:#ffdd00;">
+        <div class="slot-label">あなたの抽選番号</div>
+        <div class="slot-display">
+          <div class="slot-digit" id="jd1"><span class="digit-inner">0</span></div>
+          <div class="slot-digit" id="jd2"><span class="digit-inner">0</span></div>
+          <div class="slot-digit" id="jd3"><span class="digit-inner">0</span></div>
+          <div class="slot-separator">,</div>
+          <div class="slot-digit" id="jd4"><span class="digit-inner">0</span></div>
+          <div class="slot-digit" id="jd5"><span class="digit-inner">0</span></div>
+          <div class="slot-digit" id="jd6"><span class="digit-inner">0</span></div>
+        </div>
+        <div style="margin-top:12px; font-size:12px; color:rgba(255,255,255,0.3);">当選番号: <span id="winNumberJ">---,---</span></div>
+      </div>
+
+      <div class="result-box" id="resultJackpotBox">
+        <div class="result-jackpot">
+          <div class="result-icon">🎊🎊🎊</div>
+          <div class="result-title" style="color:#ffdd00; font-size:28px;">全額還元 大当たり！！！</div>
+          <div class="result-rate jackpot-rate">100%還元</div>
+          <div class="result-amount" style="font-size:24px;">¥3,980 → <strong style="color:#ffdd00; font-size:32px;">+3,980pt</strong> 全額バック！！</div>
+          <div class="result-desc" style="margin-top:8px; color:#ffdd00;">🏆 超激レア全額還元に当選！！</div>
+        </div>
+      </div>
+
+      <button class="btn-complete" onclick="goStep(1)" style="display:none;" id="btnCompleteJ">完了 ✨</button>
+    </div>
+
+    <!-- Skip result -->
+    <div id="resultSkip" style="display:none; text-align:center;">
+      <div style="font-size:48px; margin-bottom:16px;">📦</div>
+      <div style="font-size:20px; font-weight:bold; margin-bottom:8px;">レシート受付完了</div>
+      <div style="font-size:14px; color:rgba(255,255,255,0.5); margin-bottom:16px;">通常還元が適用されます</div>
+      <div style="background:rgba(255,255,255,0.08); border-radius:12px; padding:20px; max-width:300px; margin:0 auto;">
+        <div style="font-size:14px; color:rgba(255,255,255,0.5); margin-bottom:4px;">還元率</div>
+        <div style="font-size:36px; font-weight:900; color:#666;">1%</div>
+        <div style="font-size:16px; color:#888; margin-top:8px;">¥3,980 × 1% = <strong>+39pt</strong></div>
+      </div>
+      <div style="margin-top:16px; font-size:13px; color:rgba(255,255,255,0.3);">次回はURLを貼って確変モードに挑戦しよう！</div>
+      <button class="btn-complete" onclick="goStep(1)" style="margin-top:24px;">完了</button>
+    </div>
+  </div>
+</div>
+
+<!-- Demo Navigation -->
+<div class="demo-nav">
+  <span>DEMO:</span>
+  <button class="demo-btn active" onclick="goStep(1)">①レシート</button>
+  <button class="demo-btn" onclick="goStep(2)">②チャンス</button>
+  <button class="demo-btn" onclick="goStep(3)">③URL</button>
+  <button class="demo-btn" onclick="goStep('3b')">④レビュー</button>
+  <button class="demo-btn" onclick="goStep(4)">⑤メーター</button>
+  <button class="demo-btn" onclick="goStep(6, 'normal')">⑥結果</button>
+  <button class="demo-btn" onclick="goStep(6, 'jackpot')">⑥大当たり</button>
+</div>
+
+<script>
+let currentTab = 'video';
+let selectedRating = 0;
+let selectedProduct = null;
+let selectedTags = new Set();
+
+// Demo product data
+const demoProducts = [
+  { id: 1, name: 'TIRTIR マスクフィットクッション', price: '¥3,980', emoji: '💄', brand: 'TIRTIR' },
+  { id: 2, name: 'rom&nd ジューシーラスティングティント', price: '¥1,320', emoji: '💋', brand: 'rom&nd' },
+  { id: 3, name: 'COSRX アドバンスドスネイルエッセンス', price: '¥2,480', emoji: '🧴', brand: 'COSRX' },
+  { id: 4, name: 'Anua ドクダミ77%トナー', price: '¥2,200', emoji: '🌿', brand: 'Anua' },
+  { id: 5, name: 'Beauty of Joseon 日焼け止め', price: '¥1,890', emoji: '☀️', brand: 'Beauty of Joseon' },
+  { id: 6, name: 'SKIN1004 マダガスカルセンテラアンプル', price: '¥1,780', emoji: '💧', brand: 'SKIN1004' },
+];
+
+const starLabels = ['', '😞 イマイチ...', '🤔 まぁまぁ', '😊 普通に良い', '😍 かなり良い！', '🤩 最高！神コスメ！'];
+
+function initProducts() {
+  renderProducts(demoProducts);
+}
+
+function renderProducts(products) {
+  const grid = document.getElementById('productGrid');
+  grid.innerHTML = products.map(p => `
+    <div class="product-card" id="prod-${p.id}" onclick="selectProduct(${p.id})">
+      <div class="product-img">${p.emoji}</div>
+      <div class="product-name">${p.name}</div>
+      <div class="product-price">${p.price}</div>
+    </div>
+  `).join('');
+}
+
+function filterProducts(query) {
+  const q = query.toLowerCase();
+  const filtered = q ? demoProducts.filter(p => 
+    p.name.toLowerCase().includes(q) || p.brand.toLowerCase().includes(q)
+  ) : demoProducts;
+  renderProducts(filtered);
+  // Re-apply selection
+  if (selectedProduct) {
+    const el = document.getElementById('prod-' + selectedProduct);
+    if (el) el.classList.add('selected');
+  }
+}
+
+function selectProduct(id) {
+  // Deselect all
+  document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected'));
+  // Select this one
+  selectedProduct = id;
+  document.getElementById('prod-' + id).classList.add('selected');
+  checkReviewReady();
+}
+
+function setRating(n) {
+  selectedRating = n;
+  const stars = document.querySelectorAll('.star-btn');
+  stars.forEach((s, i) => {
+    s.classList.toggle('active', i < n);
+  });
+  const textEl = document.getElementById('starText');
+  textEl.textContent = starLabels[n];
+  textEl.classList.add('filled');
+  
+  // Star animation
+  stars[n-1].style.transform = 'scale(1.4)';
+  setTimeout(() => { stars[n-1].style.transform = ''; }, 200);
+  
+  if (navigator.vibrate) navigator.vibrate(15);
+  checkReviewReady();
+}
+
+function updateCharCount() {
+  const text = document.getElementById('reviewText').value;
+  const count = text.length;
+  const el = document.getElementById('charCount');
+  el.textContent = count + '文字';
+  el.classList.remove('warn', 'ok');
+  if (count > 0) {
+    el.classList.add('ok');
+  }
+  checkReviewReady();
+}
+
+function toggleTag(el) {
+  const tag = el.textContent;
+  if (selectedTags.has(tag)) {
+    selectedTags.delete(tag);
+    el.classList.remove('selected');
+  } else {
+    selectedTags.add(tag);
+    el.classList.add('selected');
+  }
+  
+  // Auto-append tag to review text
+  const textarea = document.getElementById('reviewText');
+  const currentText = textarea.value;
+  if (el.classList.contains('selected')) {
+    if (currentText.length > 0 && !currentText.endsWith(' ') && !currentText.endsWith('\n')) {
+      textarea.value += ' ';
+    }
+    textarea.value += '#' + tag + ' ';
+  }
+  updateCharCount();
+}
+
+function checkReviewReady() {
+  const text = document.getElementById('reviewText').value;
+  const ready = selectedRating > 0 && text.length > 0;
+  document.getElementById('btnReviewSubmit').disabled = !ready;
+}
+
+function submitReview() {
+  // Show a quick success animation
+  const btn = document.getElementById('btnReviewSubmit');
+  btn.textContent = '✅ レビュー送信完了！';
+  btn.style.background = 'linear-gradient(135deg, #2E7D32, #1B5E20)';
+  
+  if (navigator.vibrate) navigator.vibrate([50, 30, 100]);
+  
+  // Store review data for result display
+  window._reviewData = {
+    product: { name: 'TIRTIR マスクフィットクッション', price: '¥3,980', emoji: '💄' },
+    rating: selectedRating,
+    text: document.getElementById('reviewText').value
+  };
+  
+  setTimeout(() => {
+    goStep(4);
+  }, 800);
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('tabVideo').classList.toggle('active', tab === 'video');
+  document.getElementById('tabLive').classList.toggle('active', tab === 'live');
+  const input = document.getElementById('urlInput');
+  const label = document.getElementById('urlLabel');
+  const hint = document.getElementById('urlHintText');
+  if (tab === 'video') {
+    label.textContent = '🎬 TikTok動画URL';
+    input.placeholder = 'https://www.tiktok.com/@user/video/...';
+    hint.textContent = 'TikTokアプリで動画を開き、「シェア」→「リンクをコピー」でURLを取得できます';
+  } else {
+    label.textContent = '📡 ライバーのプロフィールURL';
+    input.placeholder = 'https://www.tiktok.com/@username';
+    hint.textContent = 'ライブ配信者のプロフィールページを開き、「シェア」→「リンクをコピー」でURLを取得できます';
+  }
+  input.value = '';
+  checkUrl();
+}
+
+function checkUrl() {
+  const val = document.getElementById('urlInput').value.trim();
+  document.getElementById('btnKakuhen').disabled = val.length < 10;
+}
+
+function goStep(n, mode) {
+  const stepId = typeof n === 'string' ? n : String(n);
+  document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+  const targetStep = document.getElementById('step' + stepId);
+  if (targetStep) targetStep.classList.add('active');
+
+  // Update demo nav
+  const stepMap = {'1':0, '2':1, '3':2, '3b':3, '4':4, '6':5};
+  document.querySelectorAll('.demo-btn').forEach((b, i) => {
+    b.classList.remove('active');
+    if (i === stepMap[stepId]) b.classList.add('active');
+    if (stepId === '6' && mode === 'jackpot' && i === 6) b.classList.add('active');
+    if (stepId === '6' && mode === 'normal' && i === 5) b.classList.add('active');
+  });
+
+  if (stepId === '3b') {
+    // Reset review state
+    selectedRating = 0;
+    selectedTags.clear();
+    document.querySelectorAll('.star-btn').forEach(s => s.classList.remove('active'));
+    document.getElementById('starText').textContent = 'タップして評価してください';
+    document.getElementById('starText').classList.remove('filled');
+    document.getElementById('reviewText').value = '';
+    document.getElementById('charCount').textContent = '0文字';
+    document.getElementById('charCount').classList.remove('warn', 'ok');
+    document.querySelectorAll('.quick-tag').forEach(t => t.classList.remove('selected'));
+    const btn = document.getElementById('btnReviewSubmit');
+    btn.disabled = true;
+    btn.textContent = 'レビューを送信して確変モードへ 🔥';
+    btn.style.background = '';
+  }
+
+  if (n === 4 || stepId === '4') runMeterAnimation();
+  if (n === 6 || stepId === '6') {
+    if (mode === 'skip') {
+      document.getElementById('resultNormal').style.display = 'none';
+      document.getElementById('resultJackpot').style.display = 'none';
+      document.getElementById('resultSkip').style.display = 'block';
+    } else if (mode === 'jackpot') {
+      document.getElementById('resultNormal').style.display = 'none';
+      document.getElementById('resultSkip').style.display = 'none';
+      document.getElementById('resultJackpot').style.display = 'block';
+      runLottery('jackpot');
+    } else {
+      document.getElementById('resultJackpot').style.display = 'none';
+      document.getElementById('resultSkip').style.display = 'none';
+      document.getElementById('resultNormal').style.display = 'block';
+      runLottery('normal');
+    }
+  }
+}
+
+function flash() {
+  const el = document.getElementById('flashOverlay');
+  el.classList.remove('flash');
+  void el.offsetWidth;
+  el.classList.add('flash');
+}
+
+function spawnParticles(count, colors) {
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    p.style.left = Math.random() * 100 + 'vw';
+    p.style.top = Math.random() * 100 + 'vh';
+    p.style.background = colors[Math.floor(Math.random() * colors.length)];
+    p.style.width = p.style.height = (Math.random() * 6 + 2) + 'px';
+    document.body.appendChild(p);
+    const dx = (Math.random() - 0.5) * 300;
+    const dy = (Math.random() - 0.5) * 300;
+    p.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px,${dy}px) scale(0)`, opacity: 0 }
+    ], { duration: 1500 + Math.random() * 1000, easing: 'ease-out' });
+    setTimeout(() => p.remove(), 2500);
+  }
+}
+
+function spawnConfetti(count) {
+  const colors = ['#ff0000','#ff8800','#ffdd00','#00ff88','#0088ff','#ff00ff','#ffffff'];
+  for (let i = 0; i < count; i++) {
+    const c = document.createElement('div');
+    c.className = 'confetti';
+    c.style.left = Math.random() * 100 + 'vw';
+    c.style.top = '-10px';
+    c.style.background = colors[Math.floor(Math.random() * colors.length)];
+    c.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
+    c.style.width = (Math.random() * 8 + 4) + 'px';
+    c.style.height = (Math.random() * 8 + 4) + 'px';
+    document.body.appendChild(c);
+    const duration = 2000 + Math.random() * 3000;
+    const dx = (Math.random() - 0.5) * 200;
+    c.animate([
+      { transform: `translate(0, 0) rotate(0deg)`, opacity: 1 },
+      { transform: `translate(${dx}px, ${window.innerHeight + 50}px) rotate(${Math.random()*720}deg)`, opacity: 0.5 }
+    ], { duration, easing: 'ease-in' });
+    setTimeout(() => c.remove(), duration);
+  }
+}
+
+function showRainbowLines() {
+  const positions = ['top:0;left:0;right:0;', 'bottom:0;left:0;right:0;', 'top:0;bottom:0;left:0;width:3px;', 'top:0;bottom:0;right:0;width:3px;'];
+  positions.forEach((pos, i) => {
+    const line = document.createElement('div');
+    line.className = 'rainbow-line';
+    line.style.cssText = pos;
+    document.body.appendChild(line);
+    setTimeout(() => {
+      line.style.transition = 'opacity 0.3s';
+      line.style.opacity = '1';
+    }, i * 100);
+    setTimeout(() => {
+      line.style.opacity = '0';
+      setTimeout(() => line.remove(), 500);
+    }, 2000);
+  });
+}
+
+async function runMeterAnimation() {
+  const meterValue = document.getElementById('meterValue');
+  const meterFill = document.getElementById('meterFill');
+  const meterStatus = document.getElementById('meterStatus');
+  const jackpotBanner = document.getElementById('jackpotBanner');
+
+  // Reset
+  meterValue.className = 'meter-value normal';
+  meterValue.innerHTML = '1.0<span class="meter-percent">%</span>';
+  meterFill.className = 'meter-fill normal';
+  meterFill.style.width = '10%';
+  meterStatus.textContent = '通常モード';
+  meterStatus.style.color = 'rgba(255,255,255,0.4)';
+  jackpotBanner.classList.remove('show');
+
+  await sleep(800);
+
+  // Start boosting
+  meterValue.className = 'meter-value boosting';
+  meterFill.className = 'meter-fill boosted';
+
+  const steps = [
+    { val: '1.0', w: 10 }, { val: '1.1', w: 15 }, { val: '1.1', w: 20 },
+    { val: '1.2', w: 30 }, { val: '1.2', w: 40 }, { val: '1.3', w: 50 },
+    { val: '1.3', w: 55 }, { val: '1.4', w: 65 }, { val: '1.4', w: 75 },
+    { val: '1.5', w: 85 }
+  ];
+
+  for (let i = 0; i < steps.length; i++) {
+    meterValue.innerHTML = steps[i].val + '<span class="meter-percent">%</span>';
+    meterFill.style.width = steps[i].w + '%';
+    meterStatus.textContent = '確変チャージ中...';
+    meterStatus.style.color = '#ff6600';
+    if (i > 2) flash();
+    if (navigator.vibrate) navigator.vibrate(30);
+    await sleep(120 + i * 20);
+  }
+
+  // Final boost
+  flash();
+  flash();
+  meterValue.className = 'meter-value boosted';
+  meterValue.innerHTML = '1.5<span class="meter-percent">%</span>';
+  meterFill.style.width = '100%';
+  meterStatus.innerHTML = '🔥 <strong style="color:#ffdd00;">確変モード確定！</strong>';
+  spawnParticles(40, ['#ff0000','#ff6600','#ffdd00','#ff8800']);
+  showRainbowLines();
+  if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 200]);
+
+  await sleep(1200);
+
+  // Show jackpot banner
+  jackpotBanner.classList.add('show');
+  flash();
+  spawnParticles(20, ['#ffdd00','#ff0000','#ff6600']);
+  if (navigator.vibrate) navigator.vibrate([50, 30, 50, 30, 100]);
+
+  await sleep(2500);
+
+  // Auto advance to step 6
+  goStep(6, 'normal');
+}
+
+async function runLottery(mode) {
+  const prefix = mode === 'jackpot' ? 'j' : '';
+  const digits = [1,2,3,4,5,6].map(i => document.getElementById(prefix + 'd' + i));
+  const resultBox = document.getElementById(mode === 'jackpot' ? 'resultJackpotBox' : 'resultBox');
+  const btnComplete = document.getElementById(mode === 'jackpot' ? 'btnCompleteJ' : 'btnComplete');
+
+  // Reset
+  resultBox.classList.remove('show');
+  btnComplete.style.display = 'none';
+  document.getElementById('reviewSummary').style.display = 'none';
+  digits.forEach(d => {
+    d.querySelector('.digit-inner').textContent = '0';
+    d.classList.add('spinning');
+  });
+
+  // Target numbers
+  let target;
+  // Generate random winning number each time
+  const winNum = Array.from({length: 6}, () => Math.floor(Math.random() * 10));
+  const winStr = winNum.slice(0,3).join('') + ',' + winNum.slice(3).join('');
+  
+  // Update displayed winning number
+  const winEl = document.getElementById(mode === 'jackpot' ? 'winNumberJ' : 'winNumber');
+  if (winEl) winEl.textContent = winStr;
+
+  if (mode === 'jackpot') {
+    target = [...winNum]; // Match the winning number
+  } else {
+    // Generate random 6-digit number that doesn't match winning number
+    target = Array.from({length: 6}, () => Math.floor(Math.random() * 10));
+    // Make sure it doesn't accidentally match the winning number
+    if (target.join('') === winNum.join('')) target[0] = (target[0] + 1) % 10;
+  }
+
+  // Stop digits one by one
+  for (let i = 0; i < 6; i++) {
+    await sleep(400 + i * 200);
+    digits[i].classList.remove('spinning');
+    digits[i].querySelector('.digit-inner').textContent = target[i];
+    if (navigator.vibrate) navigator.vibrate(20);
+
+    // For jackpot, add suspense on last digits
+    if (mode === 'jackpot' && i >= 3) {
+      flash();
+      await sleep(300);
+    }
+  }
+
+  await sleep(800);
+
+  // Show result
+  if (mode === 'jackpot') {
+    flash(); flash();
+    spawnConfetti(100);
+    spawnParticles(60, ['#ffdd00','#ff0000','#ff6600','#ffffff']);
+    showRainbowLines();
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 500]);
+  }
+
+  resultBox.classList.add('show');
+
+  // Show review summary if available
+  if (mode === 'normal' && window._reviewData) {
+    await sleep(600);
+    const summary = document.getElementById('reviewSummary');
+    const starsEl = document.getElementById('summaryStars');
+    const textEl = document.getElementById('summaryText');
+    starsEl.innerHTML = '';
+    for (let i = 0; i < 5; i++) {
+      const s = document.createElement('span');
+      s.textContent = '⭐';
+      s.style.fontSize = '16px';
+      s.style.filter = i < window._reviewData.rating ? 'none' : 'grayscale(1) brightness(0.3)';
+      starsEl.appendChild(s);
+    }
+    textEl.textContent = window._reviewData.text;
+    summary.style.display = 'block';
+    summary.style.opacity = '0';
+    summary.style.transform = 'translateY(10px)';
+    requestAnimationFrame(() => {
+      summary.style.transition = 'all 0.5s';
+      summary.style.opacity = '1';
+      summary.style.transform = 'translateY(0)';
+    });
+  }
+
+  await sleep(500);
+  btnComplete.style.display = 'inline-block';
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// Initialize
+// Products are now auto-recognized from receipt, no manual init needed
+</script>
+
+</body>
+</html>

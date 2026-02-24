@@ -526,6 +526,23 @@ import {
   createAutoPostLog,
   updateAutoPostLog,
   getStuckAutoPostLogs,
+  createKakuhenResult,
+  getKakuhenResultById,
+  getKakuhenResultsByUserId,
+  getKakuhenResultsByLineUserId,
+  getJackpotWinners,
+  getKakuhenStats,
+  createReceiptReview,
+  getReceiptReviewById,
+  searchReceiptReviewsByProduct,
+  getLatestReceiptReviews,
+  getReceiptReviewsByUserId,
+  getReceiptReviewsByLineUserId,
+  incrementReviewHelpful,
+  reportReceiptReview,
+  getReceiptReviewStats,
+  getProductReviewRanking,
+  getReceiptReviewCount,
 } from "./db";
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
@@ -13982,6 +13999,253 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         }
 
         return request;
+      }),
+  }),
+
+  // ===== 確変チャンス＋購入証明付きレビュー Router =====
+  kakuhen: router({
+    /**
+     * 確変チャンスを実行（レシート申請時にTikTok URLを入力した場合）
+     * 還元率1%→1.5%にブースト + 全額還元抽選
+     */
+    play: protectedProcedure
+      .input(z.object({
+        receiptType: z.enum(["point_request", "line_receipt"]),
+        receiptId: z.number(),
+        orderAmount: z.number().min(1),
+        tiktokUrl: z.string().url().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const BASE_RATE = 1.0; // 基本還元率 1%
+        const BOOSTED_RATE = 1.5; // 確変後 1.5%
+        const JACKPOT_ODDS = 1000000; // 全額還元の確率 1/1,000,000
+
+        // TikTok URLがある場合のみ確変チャンス発動
+        const hasUrl = !!input.tiktokUrl && input.tiktokUrl.trim().length > 0;
+        const isKakuhen = hasUrl; // URL入力 = 確変モード確定
+        const rate = isKakuhen ? BOOSTED_RATE : BASE_RATE;
+
+        // 全額還元抽選（6桁のランダム番号）
+        const lotteryNumber = String(Math.floor(Math.random() * 1000000)).padStart(6, "0");
+        const winningNumber = String(Math.floor(Math.random() * 1000000)).padStart(6, "0");
+        const isJackpot = lotteryNumber === winningNumber;
+
+        // ポイント計算
+        const basePoints = Math.floor(input.orderAmount * (BASE_RATE / 100));
+        let actualPoints: number;
+        let bonusPoints: number;
+
+        if (isJackpot) {
+          // 全額還元！
+          actualPoints = input.orderAmount;
+          bonusPoints = input.orderAmount - basePoints;
+        } else if (isKakuhen) {
+          // 確変モード 1.5%
+          actualPoints = Math.floor(input.orderAmount * (BOOSTED_RATE / 100));
+          bonusPoints = actualPoints - basePoints;
+        } else {
+          // 通常 1%
+          actualPoints = basePoints;
+          bonusPoints = 0;
+        }
+
+        // DB保存
+        const resultId = await createKakuhenResult({
+          receiptType: input.receiptType,
+          receiptId: input.receiptId,
+          userId: ctx.user.id,
+          tiktokUrl: input.tiktokUrl,
+          baseRate: String(BASE_RATE),
+          boostedRate: String(rate),
+          isKakuhen,
+          lotteryNumber,
+          winningNumber,
+          isJackpot,
+          orderAmount: input.orderAmount,
+          basePoints,
+          actualPoints,
+          bonusPoints,
+        });
+
+        return {
+          resultId,
+          isKakuhen,
+          isJackpot,
+          baseRate: BASE_RATE,
+          boostedRate: rate,
+          lotteryNumber,
+          winningNumber,
+          basePoints,
+          actualPoints,
+          bonusPoints,
+          orderAmount: input.orderAmount,
+        };
+      }),
+
+    /**
+     * 確変チャンス結果を取得
+     */
+    getResult: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return await getKakuhenResultById(input.id);
+      }),
+
+    /**
+     * 自分の確変チャンス履歴
+     */
+    myHistory: protectedProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        return await getKakuhenResultsByUserId(ctx.user.id, input?.limit || 20);
+      }),
+
+    /**
+     * ジャックポット当選者一覧（公開）
+     */
+    jackpotWinners: publicProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        return await getJackpotWinners(input?.limit || 10);
+      }),
+
+    /**
+     * 確変チャンス統計（管理者用）
+     */
+    stats: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        return await getKakuhenStats();
+      }),
+  }),
+
+  // ===== 購入証明付きレビュー Router =====
+  receiptReview: router({
+    /**
+     * レビューを投稿（レシート申請のフローの一部として）
+     */
+    submit: protectedProcedure
+      .input(z.object({
+        receiptType: z.enum(["point_request", "line_receipt"]),
+        receiptId: z.number(),
+        kakuhenResultId: z.number().optional(),
+        productName: z.string().min(1),
+        brandName: z.string().optional(),
+        shopName: z.string().optional(),
+        purchaseAmount: z.number().optional(),
+        category: z.string().optional(),
+        rating: z.number().min(1).max(5),
+        reviewText: z.string().min(1),
+        tags: z.array(z.string()).optional(),
+        receiptImageUrl: z.string().optional(),
+        tiktokUrl: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const reviewId = await createReceiptReview({
+          receiptType: input.receiptType,
+          receiptId: input.receiptId,
+          kakuhenResultId: input.kakuhenResultId,
+          userId: ctx.user.id,
+          productName: input.productName,
+          brandName: input.brandName,
+          shopName: input.shopName,
+          purchaseAmount: input.purchaseAmount,
+          category: input.category,
+          rating: input.rating,
+          reviewText: input.reviewText,
+          tags: input.tags || [],
+          receiptImageUrl: input.receiptImageUrl,
+          tiktokUrl: input.tiktokUrl,
+        });
+
+        return { success: true, reviewId };
+      }),
+
+    /**
+     * レビュー一覧（最新順、公開用）
+     */
+    latest: publicProcedure
+      .input(z.object({
+        limit: z.number().optional(),
+        offset: z.number().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        const reviews = await getLatestReceiptReviews(input?.limit || 20, input?.offset || 0);
+        const totalCount = await getReceiptReviewCount();
+        return { reviews, totalCount };
+      }),
+
+    /**
+     * 商品名で検索
+     */
+    search: publicProcedure
+      .input(z.object({
+        query: z.string().min(1),
+        limit: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        return await searchReceiptReviewsByProduct(input.query, input.limit || 20);
+      }),
+
+    /**
+     * 自分のレビュー一覧
+     */
+    myReviews: protectedProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        return await getReceiptReviewsByUserId(ctx.user.id, input?.limit || 20);
+      }),
+
+    /**
+     * レビュー詳細
+     */
+    getById: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const review = await getReceiptReviewById(input.id);
+        if (!review || !review.isVisible) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "レビューが見つかりません" });
+        }
+        return review;
+      }),
+
+    /**
+     * 「参考になった」をインクリメント
+     */
+    helpful: publicProcedure
+      .input(z.object({ reviewId: z.number() }))
+      .mutation(async ({ input }) => {
+        await incrementReviewHelpful(input.reviewId);
+        return { success: true };
+      }),
+
+    /**
+     * レビューを通報
+     */
+    report: publicProcedure
+      .input(z.object({ reviewId: z.number() }))
+      .mutation(async ({ input }) => {
+        await reportReceiptReview(input.reviewId);
+        return { success: true };
+      }),
+
+    /**
+     * レビュー統計（公開用）
+     */
+    stats: publicProcedure
+      .query(async () => {
+        return await getReceiptReviewStats();
+      }),
+
+    /**
+     * 商品別レビューランキング（公開用）
+     */
+    productRanking: publicProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        return await getProductReviewRanking(input?.limit || 20);
       }),
   }),
 
