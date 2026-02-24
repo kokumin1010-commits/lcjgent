@@ -6179,6 +6179,7 @@ export async function createMallOrder(data: {
     postalCode?: string;
     address?: string;
   };
+  shippingFee?: number; // 送料
   notes?: string;
 }) {
   const db = await getDb();

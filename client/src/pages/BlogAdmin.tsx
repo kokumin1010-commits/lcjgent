@@ -246,10 +246,10 @@ function AutoPostQuickAccess() {
   });
   const { data: schedules } = trpc.autoPost.listSchedules.useQuery();
   const { data: logs } = trpc.autoPost.listLogs.useQuery({ limit: 5 });
-  const { data: keywords } = trpc.autoPost.listKeywords.useQuery({ status: "pending", limit: 5 });
+  const { data: keywords } = trpc.autoPost.listKeywords.useQuery({ enabled: true });
 
   const enabledSchedules = schedules?.filter((s: any) => s.isEnabled) || [];
-  const pendingKeywords = keywords?.keywords || [];
+  const pendingKeywords = keywords || [];
 
   return (
     <div className="space-y-4">
@@ -264,7 +264,7 @@ function AutoPostQuickAccess() {
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-3">
             <Button
-              onClick={() => triggerMutation.mutate({})}
+              onClick={() => triggerMutation.mutate({ autoPublish: 'publish' })}
               disabled={triggerMutation.isPending}
               className="gap-2"
             >
@@ -298,8 +298,8 @@ function AutoPostQuickAccess() {
             <div className="bg-muted/50 rounded-lg p-3">
               <p className="text-xs text-muted-foreground">最新の実行</p>
               <p className="text-sm font-medium mt-1">
-                {logs?.logs?.[0]
-                  ? new Date(logs.logs[0].createdAt).toLocaleString("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+                {logs?.[0]
+                  ? new Date(logs[0].createdAt).toLocaleString("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
                   : "なし"}
               </p>
             </div>
@@ -308,14 +308,14 @@ function AutoPostQuickAccess() {
       </Card>
 
       {/* Recent Logs */}
-      {logs?.logs && logs.logs.length > 0 && (
+      {logs && logs.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-medium">最近の自動投稿履歴</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {logs.logs.map((log: any) => (
+              {logs.map((log: any) => (
                 <div key={log.id} className="flex items-center justify-between text-sm border-b pb-2 last:border-0">
                   <div className="flex items-center gap-2">
                     {log.status === "published" ? (

@@ -5984,3 +5984,10 @@
 - [x] TypeScriptエラー修正（inline_image_generating→image_generating）
 - [x] Googleインデックス問題修正（Botプリレンダリング・Google Ping廃止対応・SEO説明文修正）
 - [x] Vitestテスト作成・全パス確認（19テスト全パス）
+
+## バグ修正：自動投稿「今すぐ記事を生成」ボタンのエラー
+- [x] autoPost.triggerNowプロシージャを新規実装（スケジュールIDなしで即座に記事生成）
+- [x] BlogAdmin.tsxのデータ参照エラー修正（logs.logs→logs、keywords.keywords→keywords）
+- [x] TypeScriptエラー全修正（LLMレスポンスcontent型、shippingFee型、contentHtml参照）
+- [x] Vitestテスト66件全パス確認
+- [ ] Googleインデックス改善（lcjmall.comドメインでのサイトマップ確認）

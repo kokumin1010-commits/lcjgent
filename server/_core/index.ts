@@ -865,7 +865,7 @@ async function startServer() {
       const updatedAt = article.updatedAt ? new Date(article.updatedAt).toISOString() : publishedAt;
 
       // Strip HTML tags for plain text content
-      const plainContent = (article.content || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().substring(0, 5000);
+      const plainContent = (article.contentHtml || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().substring(0, 5000);
 
       // JSON-LD structured data
       const jsonLd = JSON.stringify({

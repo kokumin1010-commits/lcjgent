@@ -124,7 +124,8 @@ JSON形式で返してください:`,
             },
           });
 
-          const parsed = JSON.parse(response.choices[0].message.content || '{"keywords":[]}');
+          const kwRawSch = response.choices[0].message.content;
+          const parsed = JSON.parse((typeof kwRawSch === 'string' ? kwRawSch : '') || '{"keywords":[]}');
           let insertedCount = 0;
           for (const kw of parsed.keywords) {
             if (kw.keyword && !existingList.includes(kw.keyword)) {
@@ -293,7 +294,8 @@ SEO/GEO最適化要件:
       },
     });
 
-    const articleData = JSON.parse(response.choices[0].message.content || '{}');
+    const artRaw = response.choices[0].message.content;
+    const articleData = JSON.parse((typeof artRaw === 'string' ? artRaw : '') || '{}');
     if (!articleData.title || !articleData.contentHtml) {
       throw new Error('Invalid article data from LLM');
     }
@@ -381,7 +383,8 @@ SEO/GEO最適化要件:
             },
           },
         });
-        const inlinePlan = JSON.parse(inlineAnalysis.choices[0].message.content || '{"images":[]}');
+        const inlineRawSch = inlineAnalysis.choices[0].message.content;
+        const inlinePlan = JSON.parse((typeof inlineRawSch === 'string' ? inlineRawSch : '') || '{"images":[]}');
         if (inlinePlan.images && inlinePlan.images.length > 0) {
           let updatedHtml = articleData.contentHtml;
           for (const imgPlan of inlinePlan.images.slice(0, 2)) {
