@@ -1,0 +1,70 @@
+{
+  "query": "SELECT id, scheduleId, articleId, status, keyword, errorMessage, startedAt, completedAt FROM auto_post_logs ORDER BY id DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, scheduleId, articleId, status, keyword, errorMessage, startedAt, completedAt FROM auto_post_logs ORDER BY id DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "6",
+      "scheduleId": "0",
+      "articleId": "NULL",
+      "status": "completed",
+      "keyword": "__test_nonexistent_keyword__",
+      "errorMessage": "NULL",
+      "startedAt": "2026-02-24 00:55:21",
+      "completedAt": "2026-02-24 00:55:37"
+    },
+    {
+      "id": "5",
+      "scheduleId": "0",
+      "articleId": "NULL",
+      "status": "completed",
+      "keyword": "TikTok Shop 使い方",
+      "errorMessage": "NULL",
+      "startedAt": "2026-02-24 00:37:53",
+      "completedAt": "2026-02-24 00:38:14"
+    },
+    {
+      "id": "4",
+      "scheduleId": "0",
+      "articleId": "NULL",
+      "status": "completed",
+      "keyword": "__test_nonexistent_keyword__",
+      "errorMessage": "NULL",
+      "startedAt": "2026-02-24 00:30:34",
+      "completedAt": "2026-02-24 00:30:51"
+    },
+    {
+      "id": "3",
+      "scheduleId": "0",
+      "articleId": "NULL",
+      "status": "completed",
+      "keyword": "__test_nonexistent_keyword__",
+      "errorMessage": "NULL",
+      "startedAt": "2026-02-24 00:29:50",
+      "completedAt": "2026-02-24 00:30:10"
+    },
+    {
+      "id": "2",
+      "scheduleId": "0",
+      "articleId": "NULL",
+      "status": "failed",
+      "keyword": "テスト用キーワード",
+      "errorMessage": "No article ID, cannot recover",
+      "startedAt": "2026-02-24 00:29:19",
+      "completedAt": "NULL"
+    },
+    {
+      "id": "1",
+      "scheduleId": "0",
+      "articleId": "NULL",
+      "status": "failed",
+      "keyword": "TikTok Shop 使い方",
+      "errorMessage": "No article ID, cannot recover",
+      "startedAt": "2026-02-24 00:29:15",
+      "completedAt": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tscheduleId\tarticleId\tstatus\tkeyword\terrorMessage\tstartedAt\tcompletedAt\n6\t0\tNULL\tcompleted\t__test_nonexistent_keyword__\tNULL\t2026-02-24 00:55:21\t2026-02-24 00:55:37\n5\t0\tNULL\tcompleted\tTikTok Shop 使い方\tNULL\t2026-02-24 00:37:53\t2026-02-24 00:38:14\n4\t0\tNULL\tcompleted\t__test_nonexistent_keyword__\tNULL\t2026-02-24 00:30:34\t2026-02-24 00:30:51\n3\t0\tNULL\tcompleted\t__test_nonexistent_keyword__\tNULL\t2026-02-24 00:29:50\t2026-02-24 00:30:10\n2\t0\tNULL\tfailed\tテスト用キーワード\tNo article ID, cannot recover\t2026-02-24 00:29:19\tNULL\n1\t0\tNULL\tfailed\tTikTok Shop 使い方\tNo article ID, cannot recover\t2026-02-24 00:29:15\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1588
+}

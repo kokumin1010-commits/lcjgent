@@ -16893,7 +16893,7 @@ SEO/GEO最適化要件:
             categoryId: schedule.categoryId,
           });
 
-          const articleId = (articleResult as any)[0]?.insertId || (articleResult as any).insertId;
+          const articleId = (articleResult as any).id || (articleResult as any)[0]?.insertId || (articleResult as any).insertId;
 
           // Step 4: Generate cover image if enabled
           if (schedule.generateImages && articleId) {
@@ -17202,7 +17202,7 @@ SEO/GEO最適化要件:
             categoryId: null,
           });
 
-          const articleId = (articleResult as any)[0]?.insertId || (articleResult as any).insertId;
+          const articleId = (articleResult as any).id || (articleResult as any)[0]?.insertId || (articleResult as any).insertId;
 
           // Step 4: Generate cover image if enabled
           if ((opts.generateImages !== false) && articleId) {
