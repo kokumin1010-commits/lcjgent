@@ -1,0 +1,18 @@
+{
+  "query": "SELECT 'product_master' as tbl, COUNT(*) as cnt FROM product_master UNION ALL SELECT 'unique_review_products' as tbl, COUNT(DISTINCT productName) as cnt FROM receipt_reviews WHERE isVisible = 1",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT 'product_master' as tbl, COUNT(*) as cnt FROM product_master UNION ALL SELECT 'unique_review_products' as tbl, COUNT(DISTINCT productName) as cnt FROM receipt_reviews WHERE isVisible = 1",
+  "rows": [
+    {
+      "tbl": "product_master",
+      "cnt": "15"
+    },
+    {
+      "tbl": "unique_review_products",
+      "cnt": "1626"
+    }
+  ],
+  "messages": [],
+  "stdout": "tbl\tcnt\nproduct_master\t15\nunique_review_products\t1626\n",
+  "stderr": "",
+  "execution_time_ms": 1579
+}

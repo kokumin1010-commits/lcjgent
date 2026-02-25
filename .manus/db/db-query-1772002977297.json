@@ -1,0 +1,90 @@
+{
+  "query": "SELECT id, canonicalName, sourceUrl, imageUrl, imageStatus, imageSource FROM product_master LIMIT 10",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, canonicalName, sourceUrl, imageUrl, imageStatus, imageSource FROM product_master LIMIT 10",
+  "rows": [
+    {
+      "id": "1",
+      "canonicalName": "KYOGOKU MEGAガチャ袋",
+      "sourceUrl": "NULL",
+      "imageUrl": "NULL",
+      "imageStatus": "none",
+      "imageSource": "NULL"
+    },
+    {
+      "id": "2",
+      "canonicalName": "KYOGOKU クリスタルスキン エッセンスローション2本",
+      "sourceUrl": "NULL",
+      "imageUrl": "NULL",
+      "imageStatus": "none",
+      "imageSource": "NULL"
+    },
+    {
+      "id": "3",
+      "canonicalName": "KYOGOKU ステムセル フェイシャルオイル",
+      "sourceUrl": "NULL",
+      "imageUrl": "NULL",
+      "imageStatus": "none",
+      "imageSource": "NULL"
+    },
+    {
+      "id": "4",
+      "canonicalName": "【1箱購入で1箱プレゼント",
+      "sourceUrl": "NULL",
+      "imageUrl": "NULL",
+      "imageStatus": "none",
+      "imageSource": "NULL"
+    },
+    {
+      "id": "5",
+      "canonicalName": "KYOGOKU ステムセル フェイシャルオ...",
+      "sourceUrl": "NULL",
+      "imageUrl": "NULL",
+      "imageStatus": "none",
+      "imageSource": "NULL"
+    },
+    {
+      "id": "6",
+      "canonicalName": "来年発送 予約販売 KYOGOKU ダーマ...",
+      "sourceUrl": "NULL",
+      "imageUrl": "NULL",
+      "imageStatus": "none",
+      "imageSource": "NULL"
+    },
+    {
+      "id": "7",
+      "canonicalName": "トリートメント",
+      "sourceUrl": "NULL",
+      "imageUrl": "NULL",
+      "imageStatus": "none",
+      "imageSource": "NULL"
+    },
+    {
+      "id": "8",
+      "canonicalName": "KYOGOKU ステムセル モーニングマスク",
+      "sourceUrl": "NULL",
+      "imageUrl": "NULL",
+      "imageStatus": "none",
+      "imageSource": "NULL"
+    },
+    {
+      "id": "9",
+      "canonicalName": "KYOGOKU ステムセル フェイシャル...",
+      "sourceUrl": "NULL",
+      "imageUrl": "NULL",
+      "imageStatus": "none",
+      "imageSource": "NULL"
+    },
+    {
+      "id": "10",
+      "canonicalName": "来年発送 予約販売 KYOGOKU ダーマデ...",
+      "sourceUrl": "NULL",
+      "imageUrl": "NULL",
+      "imageStatus": "none",
+      "imageSource": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tcanonicalName\tsourceUrl\timageUrl\timageStatus\timageSource\n1\tKYOGOKU MEGAガチャ袋\tNULL\tNULL\tnone\tNULL\n2\tKYOGOKU クリスタルスキン エッセンスローション2本\tNULL\tNULL\tnone\tNULL\n3\tKYOGOKU ステムセル フェイシャルオイル\tNULL\tNULL\tnone\tNULL\n4\t【1箱購入で1箱プレゼント\tNULL\tNULL\tnone\tNULL\n5\tKYOGOKU ステムセル フェイシャルオ...\tNULL\tNULL\tnone\tNULL\n6\t来年発送 予約販売 KYOGOKU ダーマ...\tNULL\tNULL\tnone\tNULL\n7\tトリートメント\tNULL\tNULL\tnone\tNULL\n8\tKYOGOKU ステムセル モーニングマスク\tNULL\tNULL\tnone\tNULL\n9\tKYOGOKU ステムセル フェイシャル...\tNULL\tNULL\tnone\tNULL\n10\t来年発送 予約販売 KYOGOKU ダーマデ...\tNULL\tNULL\tnone\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1564
+}

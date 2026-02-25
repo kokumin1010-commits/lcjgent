@@ -559,6 +559,8 @@ import {
   getPlatformDistribution,
   getWantRanking,
   getProductReviewRankingEnhanced,
+  getReviewProductList,
+  bulkUpdateProductSourceUrls,
 } from "./db";
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
@@ -11016,6 +11018,37 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           .from(productMaster)
           .where(sql`${productMaster.imageUrl} IS NULL OR ${productMaster.imageStatus} = 'none' OR ${productMaster.imageStatus} = 'rejected'`)
           .orderBy(asc(productMaster.canonicalName));
+      }),
+
+    // レビュー商品一覧（ユニーク商品名 + レビュー数 + 平均評価 + product_master紐付け）
+    reviewProductList: protectedProcedure
+      .input(z.object({
+        query: z.string().optional(),
+        page: z.number().min(1).default(1),
+        limit: z.number().min(1).max(100).default(30),
+        sortBy: z.enum(["reviewCount", "avgRating", "productName"]).default("reviewCount"),
+        imageFilter: z.enum(["all", "with_image", "without_image"]).default("all"),
+      }))
+      .query(async ({ input }) => {
+        return await getReviewProductList({
+          query: input.query,
+          page: input.page,
+          limit: input.limit,
+          sortBy: input.sortBy,
+          imageFilter: input.imageFilter,
+        });
+      }),
+
+    // 一括URL登録（商品名とURLのペアを受け取ってproduct_masterを更新）
+    bulkUpdateUrls: protectedProcedure
+      .input(z.object({
+        pairs: z.array(z.object({
+          productName: z.string().min(1),
+          sourceUrl: z.string().url(),
+        })).min(1).max(100),
+      }))
+      .mutation(async ({ input }) => {
+        return await bulkUpdateProductSourceUrls(input.pairs);
       }),
   }),
 

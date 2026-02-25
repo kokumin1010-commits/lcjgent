@@ -1,0 +1,25 @@
+{
+  "query": "SELECT COUNT(*) as total FROM product_master; SELECT COUNT(*) as with_image FROM product_master WHERE imageUrl IS NOT NULL AND imageStatus != 'none'; SELECT COUNT(*) as without_image FROM product_master WHERE imageUrl IS NULL OR imageStatus = 'none' OR imageStatus = 'rejected';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT COUNT(*) as total FROM product_master; SELECT COUNT(*) as with_image FROM product_master WHERE imageUrl IS NOT NULL AND imageStatus != 'none'; SELECT COUNT(*) as without_image FROM product_master WHERE imageUrl IS NULL OR imageStatus = 'none' OR imageStatus = 'rejected';",
+  "rows": [
+    {
+      "total": "15"
+    },
+    {
+      "total": "with_image"
+    },
+    {
+      "total": "0"
+    },
+    {
+      "total": "without_image"
+    },
+    {
+      "total": "15"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\n15\nwith_image\n0\nwithout_image\n15\n",
+  "stderr": "",
+  "execution_time_ms": 2056
+}
