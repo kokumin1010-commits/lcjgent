@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useLocation, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,6 +35,11 @@ import {
   Camera,
   X,
   ImageIcon,
+  Award,
+  Zap,
+  CheckCircle2,
+  ArrowRight,
+  Trophy,
 } from "lucide-react";
 
 // ===== プラットフォームバッジ設定 =====
@@ -94,34 +99,75 @@ function StarRating({ rating, size = "sm" }: { rating: number; size?: "sm" | "md
   );
 }
 
+// ===== カウントアップアニメーション =====
+function AnimatedCounter({ target, duration = 1500 }: { target: number; duration?: number }) {
+  const [count, setCount] = useState(0);
+  const ref = useRef<HTMLSpanElement>(null);
+  const [hasAnimated, setHasAnimated] = useState(false);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !hasAnimated) {
+          setHasAnimated(true);
+          const startTime = Date.now();
+          const animate = () => {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            setCount(Math.floor(eased * target));
+            if (progress < 1) requestAnimationFrame(animate);
+          };
+          requestAnimationFrame(animate);
+        }
+      },
+      { threshold: 0.3 }
+    );
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, [target, duration, hasAnimated]);
+
+  return <span ref={ref}>{count.toLocaleString()}</span>;
+}
+
 // ===== 評価分布バー =====
 function RatingDistribution({ stats }: { stats: any }) {
   if (!stats) return null;
   const total = stats.totalReviews || 1;
   const bars = [
-    { label: "5", count: stats.fiveStarCount || 0, color: "bg-amber-400" },
-    { label: "4", count: stats.fourStarCount || 0, color: "bg-amber-300" },
-    { label: "3", count: stats.threeStarCount || 0, color: "bg-yellow-300" },
-    { label: "2", count: stats.twoStarCount || 0, color: "bg-orange-300" },
-    { label: "1", count: stats.oneStarCount || 0, color: "bg-red-300" },
+    { label: "5", count: stats.fiveStarCount || 0, color: "from-amber-400 to-yellow-300" },
+    { label: "4", count: stats.fourStarCount || 0, color: "from-amber-300 to-yellow-200" },
+    { label: "3", count: stats.threeStarCount || 0, color: "from-yellow-300 to-yellow-200" },
+    { label: "2", count: stats.twoStarCount || 0, color: "from-orange-300 to-orange-200" },
+    { label: "1", count: stats.oneStarCount || 0, color: "from-red-300 to-red-200" },
   ];
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       {bars.map((bar) => (
         <div key={bar.label} className="flex items-center gap-2 text-sm">
-          <span className="w-4 text-gray-500 font-medium">{bar.label}</span>
+          <span className="w-4 text-gray-500 font-bold">{bar.label}</span>
           <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-          <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+          <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
             <div
-              className={`h-full ${bar.color} rounded-full transition-all duration-500`}
+              className={`h-full bg-gradient-to-r ${bar.color} rounded-full transition-all duration-700 ease-out`}
               style={{ width: `${(bar.count / total) * 100}%` }}
             />
           </div>
-          <span className="w-8 text-right text-gray-400 text-xs">{bar.count}</span>
+          <span className="w-10 text-right text-gray-500 text-xs font-medium">{bar.count}</span>
         </div>
       ))}
     </div>
+  );
+}
+
+// ===== 購入確認済みバッジ =====
+function VerifiedPurchaseBadge({ compact = false }: { compact?: boolean }) {
+  return (
+    <span className={`inline-flex items-center gap-1 ${compact ? 'px-1.5 py-0.5 text-[9px]' : 'px-2 py-0.5 text-[10px]'} rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold`}>
+      <CheckCircle2 className={compact ? "h-2.5 w-2.5" : "h-3 w-3"} />
+      購入確認済み
+    </span>
   );
 }
 
@@ -131,13 +177,6 @@ function VideoFeedCard({ review }: { review: any }) {
   const isLive = !!review.liveCommerceUrl;
   const videoUrl = review.videoUrl || review.tiktokUrl || review.liveCommerceUrl;
 
-  // TikTok URLからembed URLを生成
-  const getTikTokEmbedUrl = (url: string) => {
-    const match = url.match(/video\/(\d+)/);
-    if (match) return `https://www.tiktok.com/embed/v2/${match[1]}`;
-    return null;
-  };
-
   const handleClick = () => {
     if (videoUrl) {
       window.open(videoUrl, "_blank");
@@ -146,28 +185,22 @@ function VideoFeedCard({ review }: { review: any }) {
 
   return (
     <div
-      className="relative flex-shrink-0 w-[200px] md:w-[240px] h-[320px] md:h-[380px] rounded-2xl overflow-hidden cursor-pointer group shadow-lg"
+      className="relative flex-shrink-0 w-[200px] md:w-[240px] h-[320px] md:h-[380px] rounded-2xl overflow-hidden cursor-pointer group shadow-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-1"
       onClick={handleClick}
     >
-      {/* 背景グラデーション */}
       <div className="absolute inset-0 bg-gradient-to-b from-gray-800 via-gray-700 to-gray-900" />
-
-      {/* 商品画像（背景として） */}
       {review.productImageUrl && (
         <img
           src={review.productImageUrl}
           alt={review.productName}
-          className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-80 transition-opacity"
+          className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-80 group-hover:scale-105 transition-all duration-500"
         />
       )}
-
-      {/* オーバーレイ */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30" />
 
-      {/* プラットフォームバッジ */}
       <div className="absolute top-3 left-3 z-10">
         {isLive ? (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-red-600 text-white">
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-red-600 text-white shadow-lg shadow-red-600/30">
             <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
             LIVE録画
           </span>
@@ -178,22 +211,18 @@ function VideoFeedCard({ review }: { review: any }) {
         )}
       </div>
 
-      {/* 再生ボタン */}
       <div className="absolute inset-0 flex items-center justify-center z-10">
-        <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center group-hover:bg-white/30 transition-all group-hover:scale-110">
-          <Play className="h-7 w-7 text-white fill-white ml-1" />
+        <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center group-hover:bg-white/30 transition-all group-hover:scale-110 shadow-xl">
+          <Play className="h-8 w-8 text-white fill-white ml-1" />
         </div>
       </div>
 
-      {/* 下部情報 */}
-      <div className="absolute bottom-0 left-0 right-0 p-3 z-10">
-        <div className="flex items-center gap-2 mb-1.5">
+      <div className="absolute bottom-0 left-0 right-0 p-4 z-10">
+        <div className="flex items-center gap-2 mb-2">
           <StarRating rating={review.rating} size="sm" />
-          <Badge variant="outline" className="text-[9px] border-emerald-400/50 text-emerald-300 bg-emerald-900/30">
-            ✅ 購入証明済
-          </Badge>
+          <VerifiedPurchaseBadge compact />
         </div>
-        <h4 className="text-white font-bold text-sm line-clamp-2 mb-1.5">{review.productName}</h4>
+        <h4 className="text-white font-bold text-sm line-clamp-2 mb-2 drop-shadow-lg">{review.productName}</h4>
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-full bg-gray-500/50 backdrop-blur-sm flex items-center justify-center" style={{ filter: "blur(1px)" }}>
             <User className="h-3 w-3 text-white/70" />
@@ -222,9 +251,15 @@ function VideoFeedSection() {
   if (!videoReviews || videoReviews.length === 0) return null;
 
   return (
-    <section className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 py-8 md:py-10">
-      <div className="container mx-auto px-4 max-w-6xl">
-        <div className="flex items-center justify-between mb-5">
+    <section className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 py-10 md:py-14 relative overflow-hidden">
+      {/* 背景エフェクト */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-64 h-64 bg-rose-500/5 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl" />
+      </div>
+
+      <div className="container mx-auto px-4 max-w-6xl relative z-10">
+        <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-xl md:text-2xl font-black text-white flex items-center gap-2">
               <Video className="h-6 w-6 text-rose-400" />
@@ -233,10 +268,10 @@ function VideoFeedSection() {
             <p className="text-gray-400 text-sm mt-1">購入者のリアルな動画レビューをチェック</p>
           </div>
           <div className="flex gap-2">
-            <button onClick={scrollLeft} className="w-10 h-10 rounded-full bg-gray-700 hover:bg-gray-600 flex items-center justify-center text-white transition-colors">
+            <button onClick={scrollLeft} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all backdrop-blur-sm">
               <ChevronLeft className="h-5 w-5" />
             </button>
-            <button onClick={scrollRight} className="w-10 h-10 rounded-full bg-gray-700 hover:bg-gray-600 flex items-center justify-center text-white transition-colors">
+            <button onClick={scrollRight} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all backdrop-blur-sm">
               <ChevronRight className="h-5 w-5" />
             </button>
           </div>
@@ -244,7 +279,7 @@ function VideoFeedSection() {
 
         <div
           ref={scrollRef}
-          className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory"
+          className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
           {videoReviews.map((review: any) => (
@@ -255,6 +290,152 @@ function VideoFeedSection() {
         </div>
       </div>
     </section>
+  );
+}
+
+// ===== 脳汁爆上がりランキングカード =====
+function TopRankingCard({ product, rank }: { product: any; rank: number }) {
+  const [, setLocation] = useLocation();
+
+  const rankConfig: Record<number, { bg: string; border: string; glow: string; icon: string; label: string }> = {
+    1: {
+      bg: "bg-gradient-to-br from-amber-50 via-yellow-50 to-amber-50",
+      border: "border-2 border-amber-300 shadow-lg shadow-amber-200/50",
+      glow: "ring-4 ring-amber-100",
+      icon: "🥇",
+      label: "1st",
+    },
+    2: {
+      bg: "bg-gradient-to-br from-gray-50 via-slate-50 to-gray-50",
+      border: "border-2 border-gray-300 shadow-lg shadow-gray-200/50",
+      glow: "ring-4 ring-gray-100",
+      icon: "🥈",
+      label: "2nd",
+    },
+    3: {
+      bg: "bg-gradient-to-br from-orange-50 via-amber-50 to-orange-50",
+      border: "border-2 border-amber-400/60 shadow-lg shadow-amber-200/30",
+      glow: "ring-4 ring-orange-100",
+      icon: "🥉",
+      label: "3rd",
+    },
+  };
+
+  const config = rankConfig[rank];
+  if (!config) return null;
+
+  const isFirst = rank === 1;
+
+  return (
+    <div
+      className={`relative rounded-2xl overflow-hidden cursor-pointer group transition-all duration-300 hover:-translate-y-1 ${config.bg} ${config.border} ${config.glow}`}
+      onClick={() => setLocation(`/reviews/product/${encodeURIComponent(product.productName)}`)}
+    >
+      {/* 1位だけ特大表示 */}
+      <div className={`p-5 ${isFirst ? 'md:p-6' : 'p-4'}`}>
+        <div className="flex items-start gap-4">
+          {/* ランクアイコン */}
+          <div className={`shrink-0 ${isFirst ? 'text-4xl' : 'text-3xl'}`}>
+            {config.icon}
+          </div>
+
+          {/* 商品画像 */}
+          <div className={`shrink-0 ${isFirst ? 'w-24 h-24 md:w-28 md:h-28' : 'w-16 h-16 md:w-20 md:h-20'} rounded-xl overflow-hidden bg-white shadow-md`}>
+            {product.images && product.images[0] ? (
+              <img
+                src={product.images[0]}
+                alt={product.productName}
+                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                <ShoppingBag className="h-8 w-8 text-gray-300" />
+              </div>
+            )}
+          </div>
+
+          {/* 商品情報 */}
+          <div className="flex-1 min-w-0">
+            <h3 className={`font-black text-gray-900 group-hover:text-rose-600 transition-colors line-clamp-2 ${isFirst ? 'text-lg md:text-xl' : 'text-sm md:text-base'}`}>
+              {product.productName}
+            </h3>
+            {product.brandName && (
+              <p className="text-xs text-gray-500 mt-0.5">{product.brandName}</p>
+            )}
+            <div className="flex items-center gap-3 mt-2 flex-wrap">
+              <div className="flex items-center gap-1">
+                <StarRating rating={Math.round(Number(product.avgRating))} size={isFirst ? "md" : "sm"} />
+                <span className={`font-bold text-amber-500 ${isFirst ? 'text-base' : 'text-sm'}`}>{product.avgRating}</span>
+              </div>
+              <span className="text-xs text-gray-400">|</span>
+              <span className={`font-bold text-rose-500 ${isFirst ? 'text-base' : 'text-sm'}`}>
+                <AnimatedCounter target={product.reviewCount} /> 件の口コミ
+              </span>
+            </div>
+            {isFirst && product.reviewCount >= 5 && (
+              <div className="flex items-center gap-1 mt-2">
+                <Flame className="h-4 w-4 text-orange-500" />
+                <span className="text-xs font-bold text-orange-600">HOT — 今話題の商品</span>
+              </div>
+            )}
+          </div>
+
+          <ChevronRight className="h-5 w-5 text-gray-300 group-hover:text-rose-400 transition-colors shrink-0 mt-2" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ===== 通常ランキングカード（4位以降） =====
+function RankingListItem({ product, rank }: { product: any; rank: number }) {
+  const [, setLocation] = useLocation();
+  const isHot = product.reviewCount >= 5;
+
+  return (
+    <div
+      className="flex items-center gap-3 p-3 md:p-4 rounded-xl hover:bg-rose-50/50 transition-all duration-200 cursor-pointer group border border-transparent hover:border-rose-100"
+      onClick={() => setLocation(`/reviews/product/${encodeURIComponent(product.productName)}`)}
+    >
+      {/* ランク番号 */}
+      <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm font-black text-gray-500 shrink-0">
+        {rank}
+      </div>
+
+      {/* 商品画像 */}
+      <div className="w-14 h-14 rounded-xl overflow-hidden bg-white shadow-sm shrink-0 border border-gray-100">
+        {product.images && product.images[0] ? (
+          <img src={product.images[0]} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-gray-50">
+            <ShoppingBag className="h-5 w-5 text-gray-300" />
+          </div>
+        )}
+      </div>
+
+      {/* 商品情報 */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          <h4 className="font-semibold text-sm text-gray-900 line-clamp-1 group-hover:text-rose-600 transition-colors">
+            {product.productName}
+          </h4>
+          {isHot && <Flame className="h-3.5 w-3.5 text-orange-500 shrink-0" />}
+        </div>
+        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+          {product.brandName && <span className="text-xs text-gray-500">{product.brandName}</span>}
+          <div className="flex items-center gap-0.5">
+            <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+            <span className="text-xs font-medium text-gray-700">{product.avgRating}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* レビュー数 */}
+      <div className="text-right shrink-0">
+        <div className="text-sm font-bold text-rose-500">{product.reviewCount}件</div>
+      </div>
+      <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-rose-400 transition-colors shrink-0" />
+    </div>
   );
 }
 
@@ -269,7 +450,6 @@ function EnhancedReviewCard({ review, onHelpful }: { review: any; onHelpful: (id
     : "";
   const isNew = review.createdAt && (Date.now() - new Date(review.createdAt).getTime()) < 24 * 60 * 60 * 1000;
 
-  // リアクション
   const addReaction = trpc.receiptReview.addReaction.useMutation();
   const { data: questions } = trpc.receiptReview.questions.useQuery(
     { reviewId: review.id },
@@ -302,29 +482,29 @@ function EnhancedReviewCard({ review, onHelpful }: { review: any; onHelpful: (id
   };
 
   return (
-    <Card className="border border-gray-100 hover:shadow-lg transition-all duration-300 overflow-hidden">
+    <Card className="border border-gray-100 hover:shadow-xl transition-all duration-300 overflow-hidden group hover:border-rose-100">
       <CardContent className="p-0">
         {/* 上部：商品情報 */}
         <div className="p-4 pb-3">
           <div className="flex gap-3">
-            {/* 商品画像（クリックでライトボックス） */}
+            {/* 商品画像 */}
             {review.productImageUrl ? (
               <div
-                className="w-20 h-20 md:w-24 md:h-24 rounded-xl overflow-hidden bg-gray-100 shrink-0 cursor-pointer relative group"
+                className="w-20 h-20 md:w-24 md:h-24 rounded-xl overflow-hidden bg-gray-100 shrink-0 cursor-pointer relative group/img shadow-sm"
                 onClick={() => setLightboxOpen(true)}
               >
                 <img
                   src={review.productImageUrl}
                   alt={review.productName}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                  className="w-full h-full object-cover group-hover/img:scale-110 transition-transform duration-300"
                 />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                  <Camera className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/20 transition-colors flex items-center justify-center">
+                  <Camera className="h-5 w-5 text-white opacity-0 group-hover/img:opacity-100 transition-opacity" />
                 </div>
               </div>
             ) : (
-              <div className="w-20 h-20 md:w-24 md:h-24 rounded-xl bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center shrink-0">
-                <ShoppingBag className="h-8 w-8 text-gray-300" />
+              <div className="w-20 h-20 md:w-24 md:h-24 rounded-xl bg-gradient-to-br from-rose-50 to-pink-50 flex items-center justify-center shrink-0">
+                <ShoppingBag className="h-8 w-8 text-rose-200" />
               </div>
             )}
 
@@ -332,11 +512,9 @@ function EnhancedReviewCard({ review, onHelpful }: { review: any; onHelpful: (id
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-2">
                 <h4 className="font-bold text-gray-900 text-sm line-clamp-2">{review.productName}</h4>
-                <div className="flex gap-1 shrink-0">
-                  {isNew && (
-                    <Badge className="bg-rose-500 text-white text-[9px] px-1.5">NEW</Badge>
-                  )}
-                </div>
+                {isNew && (
+                  <Badge className="bg-gradient-to-r from-rose-500 to-pink-500 text-white text-[9px] px-1.5 shrink-0 shadow-sm">NEW</Badge>
+                )}
               </div>
 
               {review.brandName && (
@@ -349,21 +527,14 @@ function EnhancedReviewCard({ review, onHelpful }: { review: any; onHelpful: (id
               </div>
 
               <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                <Badge variant="outline" className="text-[10px] border-emerald-200 text-emerald-600 bg-emerald-50">
-                  ✅ 購入証明済
-                </Badge>
+                <VerifiedPurchaseBadge compact />
                 <PlatformBadge platform={review.purchasePlatform} />
-                {review.purchaseAmount && (
-                  <span className="text-xs text-gray-500 font-medium">
-                    ¥{review.purchaseAmount.toLocaleString()}
-                  </span>
-                )}
               </div>
             </div>
           </div>
         </div>
 
-        {/* 動画・ライブコマースリンク */}
+        {/* 動画リンク */}
         {(review.videoUrl || review.tiktokUrl || review.liveCommerceUrl) && (
           <div className="px-4 pb-2 flex gap-2 flex-wrap">
             {(review.videoUrl || review.tiktokUrl) && (
@@ -371,7 +542,7 @@ function EnhancedReviewCard({ review, onHelpful }: { review: any; onHelpful: (id
                 href={review.videoUrl || review.tiktokUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-900 text-white text-xs font-medium hover:bg-gray-700 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-900 text-white text-xs font-medium hover:bg-gray-700 transition-colors shadow-sm"
               >
                 <Play className="h-3.5 w-3.5" />
                 TikTok動画を見る
@@ -396,11 +567,10 @@ function EnhancedReviewCard({ review, onHelpful }: { review: any; onHelpful: (id
         {/* レビュー本文 */}
         <div className="px-4 pb-3">
           <p className="text-sm text-gray-700 leading-relaxed">{review.reviewText}</p>
-
           {tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-2">
               {tags.map((tag: string, i: number) => (
-                <span key={i} className="text-xs bg-rose-50 text-rose-600 px-2 py-0.5 rounded-full">
+                <span key={i} className="text-xs bg-gradient-to-r from-rose-50 to-pink-50 text-rose-600 px-2.5 py-0.5 rounded-full border border-rose-100">
                   #{tag}
                 </span>
               ))}
@@ -419,7 +589,7 @@ function EnhancedReviewCard({ review, onHelpful }: { review: any; onHelpful: (id
         </div>
 
         {/* リアクションバー */}
-        <div className="px-4 py-3 border-t border-gray-50 flex items-center gap-2 flex-wrap">
+        <div className="px-4 py-3 border-t border-gray-50 bg-gray-50/30 flex items-center gap-2 flex-wrap">
           <button
             onClick={() => onHelpful(review.id)}
             className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs text-gray-500 hover:text-rose-500 hover:bg-rose-50 transition-all"
@@ -467,8 +637,6 @@ function EnhancedReviewCard({ review, onHelpful }: { review: any; onHelpful: (id
                 <HelpCircle className="h-3.5 w-3.5" />
                 この商品への質問
               </h5>
-
-              {/* 既存の質問 */}
               {questions && questions.length > 0 && (
                 <div className="space-y-2 mb-3">
                   {questions.map((q: any) => (
@@ -487,8 +655,6 @@ function EnhancedReviewCard({ review, onHelpful }: { review: any; onHelpful: (id
                   ))}
                 </div>
               )}
-
-              {/* 質問入力 */}
               <div className="flex gap-2">
                 <Input
                   value={questionText}
@@ -513,162 +679,6 @@ function EnhancedReviewCard({ review, onHelpful }: { review: any; onHelpful: (id
   );
 }
 
-// ===== 改善版商品ランキングカード =====
-function EnhancedProductRankingCard({ product, rank }: { product: any; rank: number }) {
-  const [, setLocation] = useLocation();
-  const [showGallery, setShowGallery] = useState(false);
-  const rankColors: Record<number, string> = {
-    1: "bg-gradient-to-br from-amber-400 to-amber-500 text-white shadow-amber-200",
-    2: "bg-gradient-to-br from-gray-300 to-gray-400 text-white shadow-gray-200",
-    3: "bg-gradient-to-br from-amber-600 to-amber-700 text-white shadow-amber-300",
-  };
-
-  const isHot = product.reviewCount >= 5;
-
-  return (
-    <div
-      className="flex items-center gap-3 p-3 rounded-xl hover:bg-rose-50/50 transition-all duration-200 cursor-pointer group"
-      onClick={() => setLocation(`/reviews/product/${encodeURIComponent(product.productName)}`)}
-    >
-      {/* ランク */}
-      <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-black shrink-0 shadow-sm ${
-        rankColors[rank] || "bg-gray-100 text-gray-500"
-      }`}>
-        {rank <= 3 ? (
-          <Crown className="h-4 w-4" />
-        ) : (
-          rank
-        )}
-      </div>
-
-      {/* 商品画像（クリックで拡大） */}
-      {product.images && product.images.length > 0 ? (
-        <div
-          className="relative shrink-0 cursor-pointer group"
-          onClick={(e) => { e.stopPropagation(); setShowGallery(true); }}
-        >
-          <div className="w-14 h-14 rounded-xl overflow-hidden border-2 border-white shadow-md">
-            <img src={product.images[0]} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200" />
-          </div>
-          {product.images.length > 1 && (
-            <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center shadow-sm">
-              {product.images.length}
-            </div>
-          )}
-          <div className="absolute inset-0 w-14 h-14 rounded-xl bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-            <Eye className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-          </div>
-        </div>
-      ) : (
-        <div className="w-14 h-14 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
-          <ShoppingBag className="h-6 w-6 text-gray-300" />
-        </div>
-      )}
-
-      {/* 商品情報 */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          <h4 className="font-semibold text-sm text-gray-900 line-clamp-1 group-hover:text-rose-600 transition-colors">
-            {product.productName}
-          </h4>
-          {isHot && (
-            <Flame className="h-3.5 w-3.5 text-orange-500 shrink-0" />
-          )}
-        </div>
-        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-          {product.brandName && (
-            <span className="text-xs text-gray-500">{product.brandName}</span>
-          )}
-          <div className="flex items-center gap-0.5">
-            <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-            <span className="text-xs font-medium text-gray-700">{product.avgRating}</span>
-          </div>
-          {product.minPrice && product.maxPrice && (
-            <span className="text-xs text-gray-400">
-              ¥{Number(product.minPrice).toLocaleString()}
-              {product.minPrice !== product.maxPrice && `〜¥${Number(product.maxPrice).toLocaleString()}`}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* レビュー数・写真数 */}
-      <div className="text-right shrink-0">
-        <div className="text-sm font-bold text-rose-500">{product.reviewCount}件</div>
-        <div className="flex items-center gap-1 justify-end">
-          {product.imageCount > 0 && (
-            <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
-              <Camera className="h-3 w-3" />
-              {product.imageCount}
-            </span>
-          )}
-        </div>
-      </div>
-      <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-rose-400 transition-colors shrink-0" />
-
-      {/* 商品画像ギャラリーライトボックス */}
-      {showGallery && product.images && product.images.length > 0 && (
-        <PhotoLightbox
-          images={product.images}
-          initialIndex={0}
-          onClose={() => setShowGallery(false)}
-        />
-      )}
-    </div>
-  );
-}
-
-// ===== TikTok Shop 専用プラットフォームカード =====
-function PlatformDistributionCard() {
-  const { data: statsData } = trpc.receiptReview.stats.useQuery();
-  const totalReviews = statsData?.totalReviews || 0;
-
-  return (
-    <Card className="border-0 shadow-sm overflow-hidden">
-      <CardContent className="p-0">
-        {/* TikTok Shop ブランドヘッダー */}
-        <div className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-sm flex items-center justify-center">
-              <span className="text-lg">♪</span>
-            </div>
-            <div>
-              <h3 className="font-bold text-white text-sm">TikTok Shop</h3>
-              <p className="text-gray-400 text-[10px]">全レビューのTikTok Shop購入証明済み</p>
-            </div>
-          </div>
-        </div>
-        <div className="p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center">
-                <span className="text-white text-xs font-bold">♪</span>
-              </div>
-              <div>
-                <span className="text-sm font-bold text-gray-900">TikTok Shop</span>
-                <div className="flex items-center gap-1">
-                  <div className="w-4 h-4 rounded-full bg-emerald-100 flex items-center justify-center">
-                    <Shield className="h-2.5 w-2.5 text-emerald-600" />
-                  </div>
-                  <span className="text-[10px] text-emerald-600 font-medium">購入証明済</span>
-                </div>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-lg font-black text-gray-900">{totalReviews.toLocaleString()}</div>
-              <div className="text-[10px] text-gray-400">口コミ数</div>
-            </div>
-          </div>
-          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-gray-800 to-gray-600 rounded-full w-full" />
-          </div>
-          <p className="text-[10px] text-gray-400 mt-2 text-center">※ 現在TikTok Shopのみ対応。他モールは順次拡大予定。</p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 // ===== 写真ライトボックス =====
 function PhotoLightbox({ images, initialIndex, onClose }: { images: string[]; initialIndex: number; onClose: () => void }) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
@@ -684,7 +694,7 @@ function PhotoLightbox({ images, initialIndex, onClose }: { images: string[]; in
   }, [images.length, onClose]);
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center" onClick={onClose}>
+    <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center backdrop-blur-sm" onClick={onClose}>
       <button className="absolute top-4 right-4 text-white/80 hover:text-white z-10" onClick={onClose}>
         <X className="h-8 w-8" />
       </button>
@@ -722,16 +732,18 @@ function WantRankingCard() {
   if (!wantRanking || wantRanking.length === 0) return null;
 
   return (
-    <Card className="border-0 shadow-sm">
-      <CardContent className="p-4">
-        <h3 className="font-bold text-gray-900 text-sm mb-3 flex items-center gap-1.5">
-          <Heart className="h-4 w-4 text-pink-500" />
-          みんなが欲しい！
-        </h3>
-        <div className="space-y-2">
+    <Card className="border-0 shadow-sm overflow-hidden">
+      <CardContent className="p-0">
+        <div className="bg-gradient-to-r from-pink-500 to-rose-500 px-4 py-3">
+          <h3 className="font-bold text-white text-sm flex items-center gap-1.5">
+            <Heart className="h-4 w-4 fill-white" />
+            みんなが欲しい！
+          </h3>
+        </div>
+        <div className="p-4 space-y-2.5">
           {wantRanking.map((item: any, i: number) => (
-            <div key={i} className="flex items-center gap-2">
-              <span className="text-xs font-bold text-gray-400 w-5">{i + 1}</span>
+            <div key={i} className="flex items-center gap-2.5">
+              <span className={`text-xs font-black w-5 ${i === 0 ? 'text-pink-500' : 'text-gray-400'}`}>{i + 1}</span>
               <span className="text-xs text-gray-700 flex-1 line-clamp-1">{item.productName}</span>
               <span className="text-xs text-pink-500 font-bold flex items-center gap-0.5">
                 <Heart className="h-3 w-3 fill-pink-500" />
@@ -751,13 +763,15 @@ function LatestQuestionsCard() {
   if (!questions || questions.length === 0) return null;
 
   return (
-    <Card className="border-0 shadow-sm">
-      <CardContent className="p-4">
-        <h3 className="font-bold text-gray-900 text-sm mb-3 flex items-center gap-1.5">
-          <HelpCircle className="h-4 w-4 text-purple-500" />
-          最新の質問
-        </h3>
-        <div className="space-y-2.5">
+    <Card className="border-0 shadow-sm overflow-hidden">
+      <CardContent className="p-0">
+        <div className="bg-gradient-to-r from-purple-500 to-indigo-500 px-4 py-3">
+          <h3 className="font-bold text-white text-sm flex items-center gap-1.5">
+            <HelpCircle className="h-4 w-4" />
+            最新の質問
+          </h3>
+        </div>
+        <div className="p-4 space-y-3">
           {questions.map((q: any) => (
             <div key={q.id} className="text-xs">
               <div className="flex items-start gap-1.5">
@@ -768,7 +782,7 @@ function LatestQuestionsCard() {
                 </div>
               </div>
               {q.answerText && (
-                <div className="flex items-start gap-1.5 mt-1 pl-3 border-l-2 border-emerald-200">
+                <div className="flex items-start gap-1.5 mt-1.5 pl-3 border-l-2 border-emerald-200">
                   <span className="text-emerald-500 font-bold shrink-0">A:</span>
                   <p className="text-gray-600 line-clamp-2">{q.answerText}</p>
                 </div>
@@ -778,406 +792,6 @@ function LatestQuestionsCard() {
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-// ===== メインコンポーネント =====
-export default function ReviewDatabase() {
-  const [, setLocation] = useLocation();
-  const { data: lineUser } = trpc.lineLogin.me.useQuery();
-  const isLoggedIn = !!lineUser;
-
-  const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<"ranking" | "latest" | "qa">("ranking");
-
-  // API calls
-  const { data: statsData } = trpc.receiptReview.stats.useQuery();
-  const { data: rankingData } = trpc.receiptReview.productRankingEnhanced.useQuery({ limit: 20 });
-  const { data: latestData } = trpc.receiptReview.latest.useQuery({ limit: 20 });
-  const { data: searchResults, isLoading: isSearching } = trpc.receiptReview.search.useQuery(
-    { query: searchQuery, limit: 20 },
-    { enabled: searchQuery.length > 0 }
-  );
-
-  const helpfulMutation = trpc.receiptReview.helpful.useMutation();
-
-  const handleHelpful = (reviewId: number) => {
-    helpfulMutation.mutate({ reviewId });
-  };
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-  };
-
-  const displayReviews = searchQuery.length > 0 ? searchResults : latestData?.reviews;
-  const totalCount = latestData?.totalCount || 0;
-  const avgRating = statsData?.avgRating ? Number(statsData.avgRating).toFixed(1) : "0.0";
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-gray-100">
-        <div className="container mx-auto px-4 h-14 md:h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setLocation("/")}>
-            <ShoppingBag className="h-6 w-6 md:h-7 md:w-7 text-rose-500" />
-            <span className="text-lg md:text-xl font-bold bg-gradient-to-r from-rose-500 to-pink-500 bg-clip-text text-transparent">
-              LCJ MALL
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            {isLoggedIn ? (
-              <Button
-                size="sm"
-                className="bg-rose-500 hover:bg-rose-600 text-white gap-1 text-xs md:text-sm"
-                onClick={() => setLocation("/mypage")}
-              >
-                <User className="h-4 w-4" />
-                マイページ
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                className="bg-rose-500 hover:bg-rose-600 text-white gap-1 text-xs md:text-sm"
-                onClick={() => setLocation("/line-login")}
-              >
-                <UserPlus className="h-4 w-4" />
-                無料ではじめる
-              </Button>
-            )}
-          </div>
-        </div>
-      </header>
-
-      {/* Hero Section */}
-      <section className="bg-gradient-to-br from-rose-500 via-pink-500 to-fuchsia-500 text-white py-10 md:py-16 px-4 relative overflow-hidden">
-        {/* 背景パーティクル */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-10 left-10 w-20 h-20 bg-white/5 rounded-full blur-xl animate-pulse" />
-          <div className="absolute bottom-10 right-20 w-32 h-32 bg-white/5 rounded-full blur-xl animate-pulse" style={{ animationDelay: "1s" }} />
-          <div className="absolute top-1/2 left-1/3 w-16 h-16 bg-white/5 rounded-full blur-xl animate-pulse" style={{ animationDelay: "2s" }} />
-        </div>
-
-        <div className="container mx-auto max-w-4xl text-center relative z-10">
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <Shield className="h-6 w-6 text-white/90" />
-            <span className="text-sm font-medium text-white/90 tracking-wide">購入証明付き口コミ</span>
-          </div>
-          <h1 className="text-3xl md:text-5xl font-black mb-3 leading-tight">
-            リアル口コミDB
-          </h1>
-          <p className="text-white/80 text-sm md:text-base max-w-xl mx-auto mb-6">
-            レシート（購入証明）がある人だけが書ける、100%リアルな口コミデータベース。
-            <br className="hidden md:block" />
-            ステマゼロ。TikTokでバズってるアレ、本当に良いのか？ここでわかる。
-          </p>
-
-          {/* 統計 */}
-          <div className="flex items-center justify-center gap-6 md:gap-10 mb-8">
-            <div className="text-center">
-              <div className="text-2xl md:text-4xl font-black">{totalCount.toLocaleString()}</div>
-              <div className="text-xs text-white/70">口コミ数</div>
-            </div>
-            <div className="w-px h-10 bg-white/20" />
-            <div className="text-center">
-              <div className="flex items-center justify-center gap-1">
-                <Star className="h-5 w-5 md:h-7 md:w-7 fill-amber-300 text-amber-300" />
-                <span className="text-2xl md:text-4xl font-black">{avgRating}</span>
-              </div>
-              <div className="text-xs text-white/70">平均評価</div>
-            </div>
-            <div className="w-px h-10 bg-white/20" />
-            <div className="text-center">
-              <div className="text-2xl md:text-4xl font-black">100%</div>
-              <div className="text-xs text-white/70">購入証明済</div>
-            </div>
-          </div>
-
-          {/* 検索バー */}
-          <form onSubmit={handleSearch} className="max-w-lg mx-auto">
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <Input
-                type="text"
-                placeholder="商品名で検索（例：TIRTIR、rom&nd...）"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-12 pr-4 h-12 rounded-full bg-white text-gray-900 border-0 shadow-lg text-sm md:text-base placeholder:text-gray-400"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-          </form>
-        </div>
-      </section>
-
-      {/* Trust Badges */}
-      <section className="bg-white border-b border-gray-100 py-4">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-center gap-4 md:gap-8 text-xs md:text-sm text-gray-500 flex-wrap">
-            <div className="flex items-center gap-1.5">
-              <Receipt className="h-4 w-4 text-emerald-500" />
-              <span>レシート認証済みのみ</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Shield className="h-4 w-4 text-blue-500" />
-              <span>ステマ・やらせゼロ</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Sparkles className="h-4 w-4 text-purple-500" />
-              <span>AI不正検知搭載</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 動画フィード */}
-      <VideoFeedSection />
-
-      <div className="container mx-auto px-4 py-6 md:py-8 max-w-6xl">
-        {/* 検索結果 */}
-        {searchQuery.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-lg font-bold text-gray-900 mb-4">
-              「{searchQuery}」の検索結果
-              {searchResults && <span className="text-sm font-normal text-gray-500 ml-2">({searchResults.length}件)</span>}
-            </h2>
-            {isSearching ? (
-              <div className="text-center py-8 text-gray-400">検索中...</div>
-            ) : searchResults && searchResults.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {searchResults.map((review: any) => (
-                  <EnhancedReviewCard key={review.id} review={review} onHelpful={handleHelpful} />
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <MessageSquare className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500">「{searchQuery}」に一致するレビューはまだありません</p>
-                <p className="text-sm text-gray-400 mt-1">最初のレビュアーになりませんか？</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* メインコンテンツ */}
-        {searchQuery.length === 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-            {/* 左カラム */}
-            <div className="lg:col-span-2">
-              {/* タブ切り替え */}
-              <div className="flex items-center gap-1 mb-4 bg-gray-100 rounded-lg p-1">
-                <button
-                  onClick={() => setActiveTab("ranking")}
-                  className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-md text-sm font-medium transition-all ${
-                    activeTab === "ranking"
-                      ? "bg-white text-rose-600 shadow-sm"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  <Crown className="h-4 w-4" />
-                  商品ランキング
-                </button>
-                <button
-                  onClick={() => setActiveTab("latest")}
-                  className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-md text-sm font-medium transition-all ${
-                    activeTab === "latest"
-                      ? "bg-white text-rose-600 shadow-sm"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  <Clock className="h-4 w-4" />
-                  最新レビュー
-                </button>
-                <button
-                  onClick={() => setActiveTab("qa")}
-                  className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-md text-sm font-medium transition-all ${
-                    activeTab === "qa"
-                      ? "bg-white text-rose-600 shadow-sm"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  <HelpCircle className="h-4 w-4" />
-                  Q&A
-                </button>
-              </div>
-
-              {/* 商品ランキング */}
-              {activeTab === "ranking" && (
-                <Card className="border-0 shadow-sm">
-                  <CardContent className="p-2 md:p-4">
-                    {rankingData && rankingData.length > 0 ? (
-                      <div className="divide-y divide-gray-50">
-                        {rankingData.map((product: any, index: number) => (
-                          <EnhancedProductRankingCard
-                            key={product.productName}
-                            product={product}
-                            rank={index + 1}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-12">
-                        <TrendingUp className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                        <p className="text-gray-500">まだランキングデータがありません</p>
-                        <p className="text-sm text-gray-400 mt-1">レシートを送ってレビューを書こう！</p>
-                        <Button
-                          className="mt-4 bg-rose-500 hover:bg-rose-600"
-                          onClick={() => setLocation("/receipt-upload")}
-                        >
-                          レシートを送る
-                        </Button>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* 最新レビュー */}
-              {activeTab === "latest" && (
-                <div>
-                  {displayReviews && displayReviews.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {displayReviews.map((review: any) => (
-                        <EnhancedReviewCard key={review.id} review={review} onHelpful={handleHelpful} />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-12">
-                      <MessageSquare className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                      <p className="text-gray-500">まだレビューがありません</p>
-                      <p className="text-sm text-gray-400 mt-1">最初のレビュアーになりませんか？</p>
-                      <Button
-                        className="mt-4 bg-rose-500 hover:bg-rose-600"
-                        onClick={() => setLocation("/receipt-upload")}
-                      >
-                        レシートを送ってレビューする
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Q&Aタブ */}
-              {activeTab === "qa" && (
-                <LatestQuestionsFullView />
-              )}
-            </div>
-
-            {/* 右カラム: サイドバー */}
-            <div className="space-y-6">
-              {/* 評価分布 */}
-              <Card className="border-0 shadow-sm">
-                <CardContent className="p-4">
-                  <h3 className="font-bold text-gray-900 text-sm mb-3 flex items-center gap-1.5">
-                    <BarChart3 className="h-4 w-4 text-rose-500" />
-                    評価分布
-                  </h3>
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="text-center">
-                      <div className="text-3xl font-black text-gray-900">{avgRating}</div>
-                      <StarRating rating={Number(avgRating)} size="sm" />
-                      <div className="text-xs text-gray-400 mt-1">{totalCount}件の評価</div>
-                    </div>
-                    <div className="flex-1">
-                      <RatingDistribution stats={statsData} />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* プラットフォーム分布 */}
-              <PlatformDistributionCard />
-
-              {/* 欲しい！ランキング */}
-              <WantRankingCard />
-
-              {/* 最新の質問 */}
-              <LatestQuestionsCard />
-
-              {/* LCJの特徴 */}
-              <Card className="border-0 shadow-sm bg-gradient-to-br from-rose-50 to-pink-50">
-                <CardContent className="p-4">
-                  <h3 className="font-bold text-gray-900 text-sm mb-3">
-                    なぜLCJの口コミは信頼できるのか？
-                  </h3>
-                  <div className="space-y-3">
-                    <div className="flex items-start gap-2">
-                      <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 mt-0.5">
-                        <Receipt className="h-3.5 w-3.5 text-emerald-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">購入証明必須</p>
-                        <p className="text-xs text-gray-500">レシートがないと書けません</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center shrink-0 mt-0.5">
-                        <Shield className="h-3.5 w-3.5 text-blue-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">ステマ完全排除</p>
-                        <p className="text-xs text-gray-500">企業からの依頼レビューゼロ</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center shrink-0 mt-0.5">
-                        <Sparkles className="h-3.5 w-3.5 text-purple-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">AI不正検知</p>
-                        <p className="text-xs text-gray-500">不自然なレビューを自動検出</p>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* CTA */}
-              <Card className="border-0 shadow-sm bg-gradient-to-br from-gray-900 to-gray-800 text-white">
-                <CardContent className="p-4 text-center">
-                  <h3 className="font-bold text-sm mb-2">あなたもレビュアーに</h3>
-                  <p className="text-xs text-gray-300 mb-4">
-                    レシートを送るだけでポイント還元＋口コミ投稿。
-                    TikTokで買ったアレの感想を共有しよう！
-                  </p>
-                  <Button
-                    className="w-full bg-rose-500 hover:bg-rose-600 text-white"
-                    onClick={() => setLocation("/receipt-upload")}
-                  >
-                    <Receipt className="h-4 w-4 mr-1.5" />
-                    レシートを送ってレビューする
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Footer */}
-      <footer className="bg-gray-900 text-gray-400 py-8 mt-12">
-        <div className="container mx-auto px-4 text-center">
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <ShoppingBag className="h-5 w-5 text-rose-400" />
-            <span className="text-white font-bold">LCJ MALL</span>
-          </div>
-          <p className="text-xs text-gray-500">リアル口コミDB — 購入証明付き口コミだけの信頼できるレビューメディア</p>
-          <div className="flex items-center justify-center gap-4 mt-4 text-xs">
-            <Link href="/" className="hover:text-white transition-colors">トップ</Link>
-            <Link href="/mall/products" className="hover:text-white transition-colors">商品一覧</Link>
-            <Link href="/ranking" className="hover:text-white transition-colors">売れ筋ランキング</Link>
-            <Link href="/legal/privacy" className="hover:text-white transition-colors">プライバシーポリシー</Link>
-          </div>
-        </div>
-      </footer>
-    </div>
   );
 }
 
@@ -1221,7 +835,6 @@ function LatestQuestionsFullView() {
                 <p className="text-xs text-gray-400 mt-1">{q.productName}</p>
               </div>
             </div>
-
             {q.answerText ? (
               <div className="flex items-start gap-2 mt-3 pl-4 border-l-2 border-emerald-200">
                 <span className="text-emerald-500 font-bold text-sm shrink-0">A:</span>
@@ -1251,6 +864,485 @@ function LatestQuestionsFullView() {
           </CardContent>
         </Card>
       ))}
+    </div>
+  );
+}
+
+// ===== メインコンポーネント =====
+export default function ReviewDatabase() {
+  const [, setLocation] = useLocation();
+  const { data: lineUser } = trpc.lineLogin.me.useQuery();
+  const isLoggedIn = !!lineUser;
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeTab, setActiveTab] = useState<"ranking" | "latest" | "qa">("ranking");
+
+  // API calls
+  const { data: statsData } = trpc.receiptReview.stats.useQuery();
+  const { data: rankingData } = trpc.receiptReview.productRankingEnhanced.useQuery({ limit: 20 });
+  const { data: latestData } = trpc.receiptReview.latest.useQuery({ limit: 20 });
+  const { data: searchResults, isLoading: isSearching } = trpc.receiptReview.search.useQuery(
+    { query: searchQuery, limit: 20 },
+    { enabled: searchQuery.length > 0 }
+  );
+
+  const helpfulMutation = trpc.receiptReview.helpful.useMutation();
+
+  const handleHelpful = (reviewId: number) => {
+    helpfulMutation.mutate({ reviewId });
+  };
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+  };
+
+  const displayReviews = searchQuery.length > 0 ? searchResults : latestData?.reviews;
+  const totalCount = latestData?.totalCount || 0;
+  const avgRating = statsData?.avgRating ? Number(statsData.avgRating).toFixed(1) : "0.0";
+
+  // ランキングデータを上位3位とそれ以降に分割
+  const topThree = rankingData?.slice(0, 3) || [];
+  const restRanking = rankingData?.slice(3) || [];
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-sm">
+        <div className="container mx-auto px-4 h-14 md:h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setLocation("/")}>
+            <ShoppingBag className="h-6 w-6 md:h-7 md:w-7 text-rose-500" />
+            <span className="text-lg md:text-xl font-bold bg-gradient-to-r from-rose-500 to-pink-500 bg-clip-text text-transparent">
+              LCJ MALL
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            {isLoggedIn ? (
+              <Button
+                size="sm"
+                className="bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white gap-1 text-xs md:text-sm shadow-md shadow-rose-200/50"
+                onClick={() => setLocation("/mypage")}
+              >
+                <User className="h-4 w-4" />
+                マイページ
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                className="bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white gap-1 text-xs md:text-sm shadow-md shadow-rose-200/50"
+                onClick={() => setLocation("/line-login")}
+              >
+                <UserPlus className="h-4 w-4" />
+                無料ではじめる
+              </Button>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* Hero Section — 脳汁爆上がりデザイン */}
+      <section className="relative overflow-hidden">
+        {/* 複層グラデーション背景 */}
+        <div className="absolute inset-0 bg-gradient-to-br from-rose-600 via-pink-500 to-fuchsia-600" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-amber-300/20 via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-purple-600/20 via-transparent to-transparent" />
+
+        {/* フローティングパーティクル */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-10 left-[10%] w-3 h-3 bg-white/20 rounded-full animate-bounce" style={{ animationDelay: "0s", animationDuration: "3s" }} />
+          <div className="absolute top-20 right-[15%] w-2 h-2 bg-white/15 rounded-full animate-bounce" style={{ animationDelay: "0.5s", animationDuration: "4s" }} />
+          <div className="absolute bottom-20 left-[20%] w-4 h-4 bg-white/10 rounded-full animate-bounce" style={{ animationDelay: "1s", animationDuration: "3.5s" }} />
+          <div className="absolute top-1/3 right-[30%] w-2 h-2 bg-amber-300/30 rounded-full animate-bounce" style={{ animationDelay: "1.5s", animationDuration: "4.5s" }} />
+          <div className="absolute bottom-10 right-[10%] w-3 h-3 bg-white/15 rounded-full animate-bounce" style={{ animationDelay: "2s", animationDuration: "3s" }} />
+          {/* 大きなぼかし円 */}
+          <div className="absolute -top-20 -left-20 w-60 h-60 bg-white/5 rounded-full blur-3xl" />
+          <div className="absolute -bottom-20 -right-20 w-80 h-80 bg-purple-400/10 rounded-full blur-3xl" />
+        </div>
+
+        <div className="relative z-10 py-12 md:py-20 px-4">
+          <div className="container mx-auto max-w-4xl text-center">
+            {/* トラストバッジ */}
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/15 backdrop-blur-sm border border-white/20 mb-5">
+              <Shield className="h-4 w-4 text-white" />
+              <span className="text-sm font-medium text-white/90 tracking-wide">購入証明付き口コミ</span>
+            </div>
+
+            <h1 className="text-4xl md:text-6xl font-black text-white mb-4 leading-tight tracking-tight">
+              リアル口コミ
+              <span className="block md:inline">データベース</span>
+            </h1>
+            <p className="text-white/80 text-sm md:text-lg max-w-2xl mx-auto mb-8 leading-relaxed">
+              レシート（購入証明）がある人だけが書ける、100%リアルな口コミ。
+              <br className="hidden md:block" />
+              ステマゼロ。TikTokでバズってるアレ、本当に良いのか？ここでわかる。
+            </p>
+
+            {/* 統計カウンター */}
+            <div className="flex items-center justify-center gap-6 md:gap-12 mb-10">
+              <div className="text-center">
+                <div className="text-3xl md:text-5xl font-black text-white">
+                  <AnimatedCounter target={totalCount} duration={2000} />
+                </div>
+                <div className="text-xs md:text-sm text-white/60 mt-1">口コミ数</div>
+              </div>
+              <div className="w-px h-12 md:h-16 bg-white/20" />
+              <div className="text-center">
+                <div className="flex items-center justify-center gap-1.5">
+                  <Star className="h-6 w-6 md:h-8 md:w-8 fill-amber-300 text-amber-300 drop-shadow-lg" />
+                  <span className="text-3xl md:text-5xl font-black text-white">{avgRating}</span>
+                </div>
+                <div className="text-xs md:text-sm text-white/60 mt-1">平均評価</div>
+              </div>
+              <div className="w-px h-12 md:h-16 bg-white/20" />
+              <div className="text-center">
+                <div className="text-3xl md:text-5xl font-black text-white">100<span className="text-xl md:text-3xl">%</span></div>
+                <div className="text-xs md:text-sm text-white/60 mt-1">購入証明済</div>
+              </div>
+            </div>
+
+            {/* 検索バー */}
+            <form onSubmit={handleSearch} className="max-w-xl mx-auto">
+              <div className="relative group">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-rose-500 transition-colors" />
+                <Input
+                  type="text"
+                  placeholder="商品名で検索（例：TIRTIR、rom&nd...）"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-12 pr-4 h-14 rounded-2xl bg-white text-gray-900 border-0 shadow-2xl shadow-black/20 text-sm md:text-base placeholder:text-gray-400 focus:ring-4 focus:ring-white/30"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      {/* Trust Badges Strip */}
+      <section className="bg-white border-b border-gray-100 py-3">
+        <div className="container mx-auto px-4">
+          <div className="flex items-center justify-center gap-6 md:gap-10 text-xs md:text-sm text-gray-500 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center">
+                <Receipt className="h-3.5 w-3.5 text-emerald-600" />
+              </div>
+              <span className="font-medium">レシート認証済みのみ</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
+                <Shield className="h-3.5 w-3.5 text-blue-600" />
+              </div>
+              <span className="font-medium">ステマ・やらせゼロ</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center">
+                <Sparkles className="h-3.5 w-3.5 text-purple-600" />
+              </div>
+              <span className="font-medium">AI不正検知搭載</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 動画フィード */}
+      <VideoFeedSection />
+
+      <div className="container mx-auto px-4 py-8 md:py-10 max-w-6xl">
+        {/* 検索結果 */}
+        {searchQuery.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">
+              「{searchQuery}」の検索結果
+              {searchResults && <span className="text-sm font-normal text-gray-500 ml-2">({searchResults.length}件)</span>}
+            </h2>
+            {isSearching ? (
+              <div className="text-center py-8 text-gray-400">検索中...</div>
+            ) : searchResults && searchResults.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {searchResults.map((review: any) => (
+                  <EnhancedReviewCard key={review.id} review={review} onHelpful={handleHelpful} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <MessageSquare className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">「{searchQuery}」に一致するレビューはまだありません</p>
+                <p className="text-sm text-gray-400 mt-1">最初のレビュアーになりませんか？</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* メインコンテンツ */}
+        {searchQuery.length === 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+            {/* 左カラム */}
+            <div className="lg:col-span-2">
+              {/* タブ切り替え */}
+              <div className="flex items-center gap-1 mb-6 bg-gray-100 rounded-xl p-1">
+                <button
+                  onClick={() => setActiveTab("ranking")}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
+                    activeTab === "ranking"
+                      ? "bg-white text-rose-600 shadow-md"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  <Trophy className="h-4 w-4" />
+                  商品ランキング
+                </button>
+                <button
+                  onClick={() => setActiveTab("latest")}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
+                    activeTab === "latest"
+                      ? "bg-white text-rose-600 shadow-md"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  <Clock className="h-4 w-4" />
+                  最新レビュー
+                </button>
+                <button
+                  onClick={() => setActiveTab("qa")}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
+                    activeTab === "qa"
+                      ? "bg-white text-rose-600 shadow-md"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  <HelpCircle className="h-4 w-4" />
+                  Q&A
+                </button>
+              </div>
+
+              {/* 商品ランキング — 脳汁爆上がり版 */}
+              {activeTab === "ranking" && (
+                <div>
+                  {rankingData && rankingData.length > 0 ? (
+                    <>
+                      {/* TOP 3 — 特大カード */}
+                      <div className="space-y-4 mb-6">
+                        {topThree.map((product: any, index: number) => (
+                          <TopRankingCard
+                            key={product.productName}
+                            product={product}
+                            rank={index + 1}
+                          />
+                        ))}
+                      </div>
+
+                      {/* 4位以降 — コンパクトリスト */}
+                      {restRanking.length > 0 && (
+                        <Card className="border-0 shadow-sm">
+                          <CardContent className="p-2 md:p-3">
+                            <div className="divide-y divide-gray-50">
+                              {restRanking.map((product: any, index: number) => (
+                                <RankingListItem
+                                  key={product.productName}
+                                  product={product}
+                                  rank={index + 4}
+                                />
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-center py-12">
+                      <TrendingUp className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-gray-500">まだランキングデータがありません</p>
+                      <p className="text-sm text-gray-400 mt-1">レシートを送ってレビューを書こう！</p>
+                      <Button
+                        className="mt-4 bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 shadow-md"
+                        onClick={() => setLocation("/receipt-upload")}
+                      >
+                        レシートを送る
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 最新レビュー */}
+              {activeTab === "latest" && (
+                <div>
+                  {displayReviews && displayReviews.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {displayReviews.map((review: any) => (
+                        <EnhancedReviewCard key={review.id} review={review} onHelpful={handleHelpful} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <MessageSquare className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-gray-500">まだレビューがありません</p>
+                      <p className="text-sm text-gray-400 mt-1">最初のレビュアーになりませんか？</p>
+                      <Button
+                        className="mt-4 bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600"
+                        onClick={() => setLocation("/receipt-upload")}
+                      >
+                        レシートを送ってレビューする
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Q&Aタブ */}
+              {activeTab === "qa" && (
+                <LatestQuestionsFullView />
+              )}
+            </div>
+
+            {/* 右カラム: サイドバー */}
+            <div className="space-y-6">
+              {/* 評価分布 */}
+              <Card className="border-0 shadow-sm overflow-hidden">
+                <CardContent className="p-0">
+                  <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-3">
+                    <h3 className="font-bold text-white text-sm flex items-center gap-1.5">
+                      <BarChart3 className="h-4 w-4" />
+                      評価分布
+                    </h3>
+                  </div>
+                  <div className="p-4">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="text-center">
+                        <div className="text-3xl font-black text-gray-900">{avgRating}</div>
+                        <StarRating rating={Number(avgRating)} size="sm" />
+                        <div className="text-xs text-gray-400 mt-1">{totalCount}件の評価</div>
+                      </div>
+                      <div className="flex-1">
+                        <RatingDistribution stats={statsData} />
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* TikTok Shop プラットフォームカード */}
+              <Card className="border-0 shadow-sm overflow-hidden">
+                <CardContent className="p-0">
+                  <div className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-sm flex items-center justify-center">
+                        <span className="text-lg">♪</span>
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-white text-sm">TikTok Shop</h3>
+                        <p className="text-gray-400 text-[10px]">全レビューのTikTok Shop購入証明済み</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <VerifiedPurchaseBadge />
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-black text-gray-900">{totalCount.toLocaleString()}</div>
+                        <div className="text-[10px] text-gray-400">口コミ数</div>
+                      </div>
+                    </div>
+                    <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-gray-800 to-gray-600 rounded-full w-full" />
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-2 text-center">※ 現在TikTok Shopのみ対応。他モールは順次拡大予定。</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* 欲しい！ランキング */}
+              <WantRankingCard />
+
+              {/* 最新の質問 */}
+              <LatestQuestionsCard />
+
+              {/* LCJの特徴 */}
+              <Card className="border-0 shadow-sm bg-gradient-to-br from-rose-50 via-pink-50 to-fuchsia-50 overflow-hidden">
+                <CardContent className="p-5">
+                  <h3 className="font-bold text-gray-900 text-sm mb-4">
+                    なぜLCJの口コミは信頼できるのか？
+                  </h3>
+                  <div className="space-y-3.5">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                        <Receipt className="h-4 w-4 text-emerald-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">購入証明必須</p>
+                        <p className="text-xs text-gray-500">レシートがないと書けません</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                        <Shield className="h-4 w-4 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">ステマ完全排除</p>
+                        <p className="text-xs text-gray-500">企業からの依頼レビューゼロ</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
+                        <Sparkles className="h-4 w-4 text-purple-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">AI不正検知</p>
+                        <p className="text-xs text-gray-500">不自然なレビューを自動検出</p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* CTA */}
+              <Card className="border-0 shadow-lg bg-gradient-to-br from-gray-900 to-gray-800 text-white overflow-hidden relative">
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-rose-500/20 via-transparent to-transparent" />
+                <CardContent className="p-5 text-center relative z-10">
+                  <h3 className="font-bold text-base mb-2">あなたもレビュアーに</h3>
+                  <p className="text-xs text-gray-300 mb-4 leading-relaxed">
+                    レシートを送るだけでポイント還元＋口コミ投稿。
+                    TikTokで買ったアレの感想を共有しよう！
+                  </p>
+                  <Button
+                    className="w-full bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white shadow-lg shadow-rose-500/30"
+                    onClick={() => setLocation("/receipt-upload")}
+                  >
+                    <Receipt className="h-4 w-4 mr-1.5" />
+                    レシートを送ってレビューする
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 text-gray-400 py-10 mt-12">
+        <div className="container mx-auto px-4 text-center">
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <ShoppingBag className="h-5 w-5 text-rose-400" />
+            <span className="text-white font-bold text-lg">LCJ MALL</span>
+          </div>
+          <p className="text-xs text-gray-500 mb-4">リアル口コミDB — 購入証明付き口コミだけの信頼できるレビューメディア</p>
+          <div className="flex items-center justify-center gap-6 text-xs">
+            <Link href="/" className="hover:text-white transition-colors">トップ</Link>
+            <Link href="/mall/products" className="hover:text-white transition-colors">商品一覧</Link>
+            <Link href="/ranking" className="hover:text-white transition-colors">売れ筋ランキング</Link>
+            <Link href="/legal/privacy" className="hover:text-white transition-colors">プライバシーポリシー</Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

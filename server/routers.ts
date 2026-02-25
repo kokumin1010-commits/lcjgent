@@ -564,7 +564,7 @@ import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
-import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress } from "../drizzle/schema";
+import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster } from "../drizzle/schema";
 import { eq, and, not, isNotNull, desc, gt } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
@@ -10879,6 +10879,143 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         }
         
         return result;
+      }),
+
+    // OGP画像自動取得（URLを入力するとog:imageを取得してS3に保存）
+    fetchOgpImage: protectedProcedure
+      .input(z.object({
+        productMasterId: z.number(),
+        sourceUrl: z.string().url(),
+      }))
+      .mutation(async ({ input }) => {
+        const { storagePut } = await import("./storage");
+        
+        // 1. URLからOGP画像を取得
+        const response = await fetch(input.sourceUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; OGPFetcher/1.0)',
+            'Accept': 'text/html,application/xhtml+xml',
+          },
+          redirect: 'follow',
+        });
+        
+        if (!response.ok) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `URLの取得に失敗しました (${response.status})` });
+        }
+        
+        const html = await response.text();
+        
+        // og:imageを抽出
+        const ogImageMatch = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i)
+          || html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i);
+        
+        if (!ogImageMatch || !ogImageMatch[1]) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "OGP画像が見つかりませんでした" });
+        }
+        
+        let imageUrl = ogImageMatch[1];
+        // 相対URLを絶対URLに変換
+        if (imageUrl.startsWith('//')) {
+          imageUrl = 'https:' + imageUrl;
+        } else if (imageUrl.startsWith('/')) {
+          const urlObj = new URL(input.sourceUrl);
+          imageUrl = urlObj.origin + imageUrl;
+        }
+        
+        // 2. 画像をダウンロード
+        const imgResponse = await fetch(imageUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; OGPFetcher/1.0)' },
+          redirect: 'follow',
+        });
+        
+        if (!imgResponse.ok) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `画像のダウンロードに失敗しました (${imgResponse.status})` });
+        }
+        
+        const imgBuffer = Buffer.from(await imgResponse.arrayBuffer());
+        const contentType = imgResponse.headers.get('content-type') || 'image/jpeg';
+        const ext = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg';
+        
+        // 3. S3にアップロード
+        const randomSuffix = Math.random().toString(36).substring(2, 10);
+        const fileKey = `product-images/${input.productMasterId}-${randomSuffix}.${ext}`;
+        const { url: s3Url } = await storagePut(fileKey, imgBuffer, contentType);
+        
+        // 4. DB更新
+        await updateProductMaster(input.productMasterId, {
+          sourceUrl: input.sourceUrl,
+          imageUrl: s3Url,
+          imageKey: fileKey,
+          imageStatus: "auto_fetched",
+          imageSource: "ogp",
+        });
+        
+        return { success: true, imageUrl: s3Url, originalOgpUrl: imageUrl };
+      }),
+
+    // 手動画像アップロード（Base64画像を受け取ってS3に保存）
+    uploadImage: protectedProcedure
+      .input(z.object({
+        productMasterId: z.number(),
+        imageBase64: z.string(),
+        contentType: z.string().default("image/jpeg"),
+      }))
+      .mutation(async ({ input }) => {
+        const { storagePut } = await import("./storage");
+        
+        const imgBuffer = Buffer.from(input.imageBase64, 'base64');
+        const ext = input.contentType.includes('png') ? 'png' : input.contentType.includes('webp') ? 'webp' : 'jpg';
+        
+        const randomSuffix = Math.random().toString(36).substring(2, 10);
+        const fileKey = `product-images/${input.productMasterId}-manual-${randomSuffix}.${ext}`;
+        const { url: s3Url } = await storagePut(fileKey, imgBuffer, input.contentType);
+        
+        await updateProductMaster(input.productMasterId, {
+          imageUrl: s3Url,
+          imageKey: fileKey,
+          imageStatus: "confirmed",
+          imageSource: "manual",
+        });
+        
+        return { success: true, imageUrl: s3Url };
+      }),
+
+    // 画像ステータスを更新（確認済み/却下）
+    updateImageStatus: protectedProcedure
+      .input(z.object({
+        productMasterId: z.number(),
+        status: z.enum(["confirmed", "rejected"]),
+      }))
+      .mutation(async ({ input }) => {
+        await updateProductMaster(input.productMasterId, {
+          imageStatus: input.status,
+        });
+        return { success: true };
+      }),
+
+    // sourceUrlを更新
+    updateSourceUrl: protectedProcedure
+      .input(z.object({
+        productMasterId: z.number(),
+        sourceUrl: z.string().url(),
+      }))
+      .mutation(async ({ input }) => {
+        await updateProductMaster(input.productMasterId, {
+          sourceUrl: input.sourceUrl,
+        });
+        return { success: true };
+      }),
+
+    // 画像未設定の商品一覧
+    withoutImages: protectedProcedure
+      .query(async () => {
+        const db = await getDb();
+        if (!db) return [];
+        const { sql, asc } = await import('drizzle-orm');
+        return await db.select()
+          .from(productMaster)
+          .where(sql`${productMaster.imageUrl} IS NULL OR ${productMaster.imageStatus} = 'none' OR ${productMaster.imageStatus} = 'rejected'`)
+          .orderBy(asc(productMaster.canonicalName));
       }),
   }),
 

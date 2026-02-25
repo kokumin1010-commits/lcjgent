@@ -2132,6 +2132,22 @@ export const productMaster = mysqlTable("product_master", {
   category: varchar("category", { length: 255 }), // 商品カテゴリ
   description: text("description"), // 商品説明
   
+  // 公式サイト・ECサイトURL（OGP画像取得元）
+  sourceUrl: text("sourceUrl"), // 公式サイトまたはECサイトのURL
+  
+  // 商品画像
+  imageUrl: text("imageUrl"), // 確定済み商品画像URL（S3）
+  imageKey: varchar("imageKey", { length: 512 }), // S3キー
+  imageStatus: mysqlEnum("imageStatus", ["none", "auto_fetched", "confirmed", "rejected"]).default("none").notNull(),
+  imageSource: varchar("imageSource", { length: 255 }), // 画像の取得元（ogp, manual等）
+  
+  // 価格帯
+  regularPrice: int("regularPrice"), // 通常価格
+  specialPrice: int("specialPrice"), // セール価格
+  
+  // 有効/無効
+  isActive: boolean("isActive").default(true).notNull(),
+  
   // タイムスタンプ
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

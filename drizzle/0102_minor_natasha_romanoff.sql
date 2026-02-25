@@ -1,0 +1,1 @@
+ALTER TABLE `product_master` ADD `sourceUrl` text;

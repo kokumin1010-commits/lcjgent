@@ -1,0 +1,8 @@
+Review page (/reviews) current state:
+- Shows "まだランキングデータがありません" - ranking data not loading
+- Rating distribution section visible but empty
+- TikTok Shop platform badge visible
+- Trust section with 3 cards (購入証明必須, ステマ完全排除, AI不正検知)
+- CTA section at bottom
+- No review cards visible, no product rankings visible
+- The page seems to have a data loading issue - 822 reviews exist in DB but not showing

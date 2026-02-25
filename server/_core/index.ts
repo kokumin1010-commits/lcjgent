@@ -846,6 +846,211 @@ async function startServer() {
     }
   });
 
+  // --- Product Review page prerender for SEO (Schema.org Product + Review + dynamic OGP) ---
+  app.get("/reviews/product/:name", async (req, res, next) => {
+    try {
+      const ua = (req.headers["user-agent"] || "").toLowerCase();
+      const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot|chatgpt|gptbot|claudebot|perplexity|anthropic/i.test(ua);
+      if (!isBot) return next();
+
+      const { searchReceiptReviewsByProduct } = await import("../db");
+      const productName = decodeURIComponent(req.params.name);
+      const reviews = await searchReceiptReviewsByProduct(productName, 50);
+      if (!reviews || reviews.length === 0) return next();
+
+      const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+      const pageUrl = `${baseUrl}/reviews/product/${encodeURIComponent(productName)}`;
+      const brandName = reviews[0].brandName || "";
+      const avgRating = (reviews.reduce((sum: number, r: any) => sum + (r.rating || 0), 0) / reviews.length).toFixed(1);
+      const reviewCount = reviews.length;
+      const description = `${productName}のリアルな口コミ${reviewCount}件。平均評価${avgRating}/5.0。TikTok Shopで実際に購入したユーザーの購入証明済みレビュー。`;
+      const title = `${productName} 口コミ・評判 (${reviewCount}件) | LCJ MALL`;
+
+      // Find product image from product_master or reviews
+      let productImageUrl = "";
+      try {
+        const mysql = await import("mysql2/promise");
+        const conn = await (mysql as any).createConnection(process.env.DATABASE_URL);
+        const [pmRows]: any = await conn.execute(
+          `SELECT imageUrl FROM product_master WHERE canonicalName = ? AND imageUrl IS NOT NULL LIMIT 1`,
+          [productName]
+        );
+        if (pmRows.length > 0 && pmRows[0].imageUrl) {
+          productImageUrl = pmRows[0].imageUrl;
+        } else {
+          // Fallback to latest review product image
+          const reviewWithImage = reviews.find((r: any) => r.productImageUrl);
+          if (reviewWithImage) productImageUrl = (reviewWithImage as any).productImageUrl;
+        }
+        await conn.end();
+      } catch (e) {
+        console.warn("[Review Prerender] Failed to fetch product image:", e);
+      }
+
+      // Schema.org Product + AggregateRating + individual Reviews
+      const reviewJsonLd = reviews.slice(0, 10).map((r: any) => ({
+        "@type": "Review",
+        reviewRating: {
+          "@type": "Rating",
+          ratingValue: r.rating,
+          bestRating: 5,
+        },
+        reviewBody: r.reviewText || "",
+        datePublished: r.createdAt ? new Date(r.createdAt).toISOString().split("T")[0] : undefined,
+        author: { "@type": "Person", name: "購入確認済みユーザー" },
+      }));
+
+      const productJsonLd = JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "Product",
+        name: productName,
+        brand: brandName ? { "@type": "Brand", name: brandName } : undefined,
+        image: productImageUrl || undefined,
+        description: `${productName}${brandName ? ` by ${brandName}` : ""}。TikTok Shopで購入可能。`,
+        aggregateRating: {
+          "@type": "AggregateRating",
+          ratingValue: avgRating,
+          bestRating: 5,
+          reviewCount: reviewCount,
+        },
+        review: reviewJsonLd,
+      });
+
+      // BreadcrumbList
+      const breadcrumbJsonLd = JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "LCJ MALL", item: baseUrl },
+          { "@type": "ListItem", position: 2, name: "口コミDB", item: `${baseUrl}/reviews` },
+          { "@type": "ListItem", position: 3, name: productName, item: pageUrl },
+        ],
+      });
+
+      // Generate review HTML for bots
+      const reviewsHtml = reviews.slice(0, 20).map((r: any) => {
+        const stars = "★".repeat(r.rating || 0) + "☆".repeat(5 - (r.rating || 0));
+        const date = r.createdAt ? new Date(r.createdAt).toLocaleDateString("ja-JP") : "";
+        return `<div class="review"><p>${stars} ${date}</p><p>${escapeHtml(r.reviewText || "")}</p></div>`;
+      }).join("\n");
+
+      const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(title)}</title>
+  <meta name="description" content="${escapeHtml(description)}">
+  <link rel="canonical" href="${pageUrl}">
+  <meta property="og:title" content="${escapeHtml(title)}">
+  <meta property="og:description" content="${escapeHtml(description)}">
+  <meta property="og:type" content="product">
+  <meta property="og:url" content="${pageUrl}">
+  ${productImageUrl ? `<meta property="og:image" content="${escapeHtml(productImageUrl)}">` : ""}
+  <meta property="og:site_name" content="LCJ MALL">
+  <meta property="og:locale" content="ja_JP">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${escapeHtml(title)}">
+  <meta name="twitter:description" content="${escapeHtml(description)}">
+  ${productImageUrl ? `<meta name="twitter:image" content="${escapeHtml(productImageUrl)}">` : ""}
+  <script type="application/ld+json">${productJsonLd}</script>
+  <script type="application/ld+json">${breadcrumbJsonLd}</script>
+</head>
+<body>
+  <nav><a href="${baseUrl}">LCJ MALL</a> &gt; <a href="${baseUrl}/reviews">口コミDB</a> &gt; ${escapeHtml(productName)}</nav>
+  <h1>${escapeHtml(productName)} 口コミ・評判</h1>
+  ${brandName ? `<p>ブランド: ${escapeHtml(brandName)}</p>` : ""}
+  ${productImageUrl ? `<img src="${escapeHtml(productImageUrl)}" alt="${escapeHtml(productName)}">` : ""}
+  <section>
+    <h2>評価サマリー</h2>
+    <p>平均評価: ${avgRating}/5.0 (${reviewCount}件のレビュー)</p>
+    <p>全レビューは購入証明済み（レシート確認済み）です。</p>
+  </section>
+  <section>
+    <h2>口コミ一覧</h2>
+    ${reviewsHtml}
+  </section>
+  <p><a href="${baseUrl}/reviews">他の商品の口コミを見る</a></p>
+</body>
+</html>`;
+
+      res.status(200).set({ "Content-Type": "text/html; charset=utf-8" }).end(html);
+    } catch (error) {
+      console.error("[Review Prerender] Error:", error);
+      next();
+    }
+  });
+
+  // --- Reviews listing page prerender for SEO ---
+  app.get("/reviews", async (req, res, next) => {
+    try {
+      const ua = (req.headers["user-agent"] || "").toLowerCase();
+      const isBot = /googlebot|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|applebot|semrushbot|ahrefsbot|mj12bot|chatgpt|gptbot|claudebot|perplexity|anthropic/i.test(ua);
+      if (!isBot) return next();
+
+      const { getProductReviewRankingEnhanced } = await import("../db");
+      const rankings = await getProductReviewRankingEnhanced(50);
+      const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+      const pageUrl = `${baseUrl}/reviews`;
+      const title = "口コミDB - TikTok Shop購入証明済みレビュー | LCJ MALL";
+      const description = "TikTok Shopで実際に購入したユーザーによる購入証明済みの口コミデータベース。商品ランキング、評価、リアルなレビューを掲載。";
+
+      const rankingHtml = (rankings || []).map((r: any, i: number) => {
+        const stars = "★".repeat(Math.round(r.avgRating || 0)) + "☆".repeat(5 - Math.round(r.avgRating || 0));
+        return `<li><a href="${baseUrl}/reviews/product/${encodeURIComponent(r.productName)}">${i + 1}. ${escapeHtml(r.productName)} ${stars} (${r.reviewCount}件)</a></li>`;
+      }).join("\n");
+
+      // ItemList structured data
+      const itemListJsonLd = JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        name: "TikTok Shop 口コミランキング",
+        description: description,
+        numberOfItems: (rankings || []).length,
+        itemListElement: (rankings || []).slice(0, 20).map((r: any, i: number) => ({
+          "@type": "ListItem",
+          position: i + 1,
+          name: r.productName,
+          url: `${baseUrl}/reviews/product/${encodeURIComponent(r.productName)}`,
+        })),
+      });
+
+      const html = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(title)}</title>
+  <meta name="description" content="${escapeHtml(description)}">
+  <link rel="canonical" href="${pageUrl}">
+  <meta property="og:title" content="${escapeHtml(title)}">
+  <meta property="og:description" content="${escapeHtml(description)}">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="${pageUrl}">
+  <meta property="og:site_name" content="LCJ MALL">
+  <meta property="og:locale" content="ja_JP">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="${escapeHtml(title)}">
+  <meta name="twitter:description" content="${escapeHtml(description)}">
+  <script type="application/ld+json">${itemListJsonLd}</script>
+</head>
+<body>
+  <nav><a href="${baseUrl}">LCJ MALL</a> &gt; 口コミDB</nav>
+  <h1>口コミDB - TikTok Shop購入証明済みレビュー</h1>
+  <p>${escapeHtml(description)}</p>
+  <h2>商品ランキング</h2>
+  <ol>${rankingHtml}</ol>
+  <p><a href="${baseUrl}">LCJ MALLトップへ</a></p>
+</body>
+</html>`;
+
+      res.status(200).set({ "Content-Type": "text/html; charset=utf-8" }).end(html);
+    } catch (error) {
+      console.error("[Reviews Prerender] Error:", error);
+      next();
+    }
+  });
+
   // --- Blog article prerender for SEO (Googlebot gets full HTML with meta tags) ---
   app.get("/blog/:slug", async (req, res, next) => {
     try {
@@ -993,7 +1198,22 @@ async function startServer() {
         console.warn("[Sitemap] Failed to fetch products:", e);
       }
 
-      const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n${staticUrls.join("\n")}\n${categoryUrls.join("\n")}\n${tagUrls.join("\n")}\n${brandUrls.join("\n")}\n${articleUrls.join("\n")}\n${productUrls.join("\n")}\n</urlset>`;
+      // Review pages (product review pages with SEO structured data)
+      let reviewUrls: string[] = [];
+      try {
+        const { getProductReviewRankingEnhanced: getRankings } = await import("../db");
+        const rankings = await getRankings(100);
+        reviewUrls = [
+          `  <url>\n    <loc>${baseUrl}/reviews</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n  </url>`,
+          ...(rankings || []).map((r: any) =>
+            `  <url>\n    <loc>${baseUrl}/reviews/product/${encodeURIComponent(r.productName)}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>\n  </url>`
+          ),
+        ];
+      } catch (e) {
+        console.warn("[Sitemap] Failed to fetch review rankings:", e);
+      }
+
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n${staticUrls.join("\n")}\n${categoryUrls.join("\n")}\n${tagUrls.join("\n")}\n${brandUrls.join("\n")}\n${articleUrls.join("\n")}\n${productUrls.join("\n")}\n${reviewUrls.join("\n")}\n</urlset>`;
       res.setHeader("Content-Type", "application/xml");
       res.setHeader("Cache-Control", "public, max-age=3600");
       res.send(xml);
@@ -1006,7 +1226,7 @@ async function startServer() {
   app.get("/robots.txt", (req, res) => {
     const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
     res.setHeader("Content-Type", "text/plain");
-    res.send(`User-agent: *\nAllow: /\nAllow: /blog/\nAllow: /mall/\nAllow: /brands/\nDisallow: /master/\nDisallow: /api/\nDisallow: /settings/\n\nSitemap: ${baseUrl}/sitemap.xml`);
+    res.send(`User-agent: *\nAllow: /\nAllow: /blog/\nAllow: /mall/\nAllow: /brands/\nAllow: /reviews/\nDisallow: /master/\nDisallow: /api/\nDisallow: /settings/\n\nSitemap: ${baseUrl}/sitemap.xml`);
   });
 
   // Google Search Console verification file

@@ -12,7 +12,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Crown, Clock, TrendingUp, ChevronDown, ChevronUp, Users, DollarSign, Activity, Zap, ArrowUpRight, ArrowDownRight, Sparkles, Radio, BarChart3, Package, Grid3X3, Brain, Loader2, Plus, Link2, X, Check, AlertCircle, Search, RefreshCw, CheckCircle2, XCircle, AlertTriangle, History } from "lucide-react";
+import { Crown, Clock, TrendingUp, ChevronDown, ChevronUp, Users, DollarSign, Activity, Zap, ArrowUpRight, ArrowDownRight, Sparkles, Radio, BarChart3, Package, Grid3X3, Brain, Loader2, Plus, Link2, X, Check, AlertCircle, Search, RefreshCw, CheckCircle2, XCircle, AlertTriangle, History, Image, Upload, ExternalLink, Globe } from "lucide-react";
+import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -121,6 +122,10 @@ export default function LiverDashboardNew() {
   const [newMasterName, setNewMasterName] = useState("");
   const [selectedProductForLink, setSelectedProductForLink] = useState<string | null>(null);
   const [selectedMasterForLink, setSelectedMasterForLink] = useState<number | null>(null);
+  const [showImageDialog, setShowImageDialog] = useState(false);
+  const [selectedMasterForImage, setSelectedMasterForImage] = useState<{ id: number; canonicalName: string; imageUrl?: string | null; sourceUrl?: string | null; imageStatus?: string } | null>(null);
+  const [ogpUrl, setOgpUrl] = useState("");
+  const imageInputRef = useRef<HTMLInputElement>(null);
   
   const { data: rankings, isLoading } = trpc.liverManagement.rankings.useQuery({
     month: selectedMonth,
@@ -197,6 +202,54 @@ export default function LiverDashboardNew() {
     enabled: activeTab === "productMaster",
   });
   
+  // Product image mutations
+  const fetchOgpMutation = trpc.productMaster.fetchOgpImage.useMutation({
+    onSuccess: (data) => {
+      toast.success("OGP画像を取得しました");
+      refetchMasters();
+      if (selectedMasterForImage) {
+        setSelectedMasterForImage({ ...selectedMasterForImage, imageUrl: data.imageUrl, imageStatus: "auto_fetched" });
+      }
+      setOgpUrl("");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const uploadImageMutation = trpc.productMaster.uploadImage.useMutation({
+    onSuccess: (data) => {
+      toast.success("画像をアップロードしました");
+      refetchMasters();
+      if (selectedMasterForImage) {
+        setSelectedMasterForImage({ ...selectedMasterForImage, imageUrl: data.imageUrl, imageStatus: "confirmed" });
+      }
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const updateImageStatusMutation = trpc.productMaster.updateImageStatus.useMutation({
+    onSuccess: () => {
+      toast.success("ステータスを更新しました");
+      refetchMasters();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const handleManualImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedMasterForImage) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(',')[1];
+      uploadImageMutation.mutate({
+        productMasterId: selectedMasterForImage.id,
+        imageBase64: base64,
+        contentType: file.type,
+      });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
   const createMasterMutation = trpc.productMaster.create.useMutation({
     onSuccess: () => {
       refetchMasters();
@@ -1459,7 +1512,7 @@ export default function LiverDashboardNew() {
                   
                   <div className="space-y-3 max-h-[500px] overflow-y-auto">
                     {productMasters && productMasters.length > 0 ? (
-                      productMasters.map((master: { id: number; canonicalName: string; aliasCount: number }) => (
+                      productMasters.map((master: { id: number; canonicalName: string; aliasCount: number; imageUrl?: string | null; sourceUrl?: string | null; imageStatus?: string }) => (
                         <div
                           key={master.id}
                           className={`p-4 rounded-lg border transition-all cursor-pointer ${
@@ -1469,18 +1522,54 @@ export default function LiverDashboardNew() {
                           }`}
                           onClick={() => setSelectedMasterForLink(selectedMasterForLink === master.id ? null : master.id)}
                         >
-                          <div className="flex items-center justify-between">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="text-cyan-100 font-medium truncate flex-1 mr-2 cursor-help">{master.canonicalName}</span>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="max-w-md bg-[#0a1a2a] border border-cyan-500/50 text-cyan-100">
-                                <p className="break-words">{master.canonicalName}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                            <span className="text-xs text-cyan-500/70 bg-cyan-900/30 px-2 py-1 rounded flex-shrink-0">
-                              {master.aliasCount}件の紐付け
-                            </span>
+                          <div className="flex items-center gap-3">
+                            {/* Product Image Thumbnail */}
+                            <div className="w-12 h-12 rounded-lg overflow-hidden bg-cyan-900/30 border border-cyan-500/20 flex-shrink-0 flex items-center justify-center">
+                              {master.imageUrl ? (
+                                <img src={master.imageUrl} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <Image className="w-5 h-5 text-cyan-500/40" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between">
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="text-cyan-100 font-medium truncate flex-1 mr-2 cursor-help">{master.canonicalName}</span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="max-w-md bg-[#0a1a2a] border border-cyan-500/50 text-cyan-100">
+                                    <p className="break-words">{master.canonicalName}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                  <span className="text-xs text-cyan-500/70 bg-cyan-900/30 px-2 py-1 rounded">
+                                    {master.aliasCount}件
+                                  </span>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/20"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedMasterForImage(master);
+                                      setShowImageDialog(true);
+                                      setOgpUrl(master.sourceUrl || "");
+                                    }}
+                                  >
+                                    <Image className="w-3.5 h-3.5" />
+                                  </Button>
+                                </div>
+                              </div>
+                              {master.imageStatus && master.imageStatus !== "none" && (
+                                <span className={`text-xs mt-1 inline-block px-1.5 py-0.5 rounded ${
+                                  master.imageStatus === "confirmed" ? "bg-emerald-500/20 text-emerald-400" :
+                                  master.imageStatus === "auto_fetched" ? "bg-blue-500/20 text-blue-400" :
+                                  "bg-red-500/20 text-red-400"
+                                }`}>
+                                  {master.imageStatus === "confirmed" ? "✓ 確認済み" : master.imageStatus === "auto_fetched" ? "自動取得" : "却下"}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))
@@ -1647,6 +1736,132 @@ export default function LiverDashboardNew() {
           </TabsContent>
         </Tabs>
         
+        {/* Product Image Management Dialog */}
+        <Dialog open={showImageDialog} onOpenChange={setShowImageDialog}>
+          <DialogContent className="bg-[#0a1a2a] border-cyan-500/30 max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="text-cyan-100 flex items-center gap-2">
+                <Image className="w-5 h-5 text-cyan-400" />
+                商品画像管理
+              </DialogTitle>
+            </DialogHeader>
+            {selectedMasterForImage && (
+              <div className="space-y-4">
+                <p className="text-sm text-cyan-300 font-medium">{selectedMasterForImage.canonicalName}</p>
+                
+                {/* Current Image Preview */}
+                <div className="flex justify-center">
+                  <div className="w-48 h-48 rounded-xl overflow-hidden bg-cyan-900/20 border border-cyan-500/20 flex items-center justify-center">
+                    {selectedMasterForImage.imageUrl ? (
+                      <img src={selectedMasterForImage.imageUrl} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="text-center">
+                        <Image className="w-12 h-12 text-cyan-500/30 mx-auto mb-2" />
+                        <p className="text-xs text-cyan-500/50">画像未設定</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* OGP URL Input */}
+                <div className="space-y-2">
+                  <label className="text-sm text-cyan-400 flex items-center gap-1.5">
+                    <Globe className="w-4 h-4" />
+                    公式サイト・ECサイトURL
+                  </label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={ogpUrl}
+                      onChange={(e) => setOgpUrl(e.target.value)}
+                      placeholder="https://shop.tiktok.com/..."
+                      className="bg-cyan-900/20 border-cyan-500/30 text-cyan-100 flex-1"
+                    />
+                    <Button
+                      onClick={() => {
+                        if (ogpUrl && selectedMasterForImage) {
+                          fetchOgpMutation.mutate({
+                            productMasterId: selectedMasterForImage.id,
+                            sourceUrl: ogpUrl,
+                          });
+                        }
+                      }}
+                      disabled={!ogpUrl || fetchOgpMutation.isPending}
+                      className="bg-cyan-600 hover:bg-cyan-500 text-white"
+                    >
+                      {fetchOgpMutation.isPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <><ExternalLink className="w-4 h-4 mr-1" />取得</>
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-cyan-500/50">URLを入力すると、OGP画像（SNSシェア用画像）を自動取得します</p>
+                </div>
+
+                {/* Manual Upload */}
+                <div className="space-y-2">
+                  <label className="text-sm text-cyan-400 flex items-center gap-1.5">
+                    <Upload className="w-4 h-4" />
+                    手動アップロード
+                  </label>
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleManualImageUpload}
+                    className="hidden"
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => imageInputRef.current?.click()}
+                    disabled={uploadImageMutation.isPending}
+                    className="w-full border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/20"
+                  >
+                    {uploadImageMutation.isPending ? (
+                      <><Loader2 className="w-4 h-4 mr-1 animate-spin" />アップロード中...</>
+                    ) : (
+                      <><Upload className="w-4 h-4 mr-1" />画像を選択してアップロード</>
+                    )}
+                  </Button>
+                </div>
+
+                {/* Image Status Actions */}
+                {selectedMasterForImage.imageUrl && selectedMasterForImage.imageStatus !== "confirmed" && (
+                  <div className="flex gap-2 pt-2 border-t border-cyan-500/20">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        updateImageStatusMutation.mutate({
+                          productMasterId: selectedMasterForImage.id,
+                          status: "confirmed",
+                        });
+                        setSelectedMasterForImage({ ...selectedMasterForImage, imageStatus: "confirmed" });
+                      }}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white flex-1"
+                    >
+                      <Check className="w-4 h-4 mr-1" />この画像で確定
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        updateImageStatusMutation.mutate({
+                          productMasterId: selectedMasterForImage.id,
+                          status: "rejected",
+                        });
+                        setSelectedMasterForImage({ ...selectedMasterForImage, imageUrl: null, imageStatus: "rejected" });
+                      }}
+                      className="border-red-500/50 text-red-400 hover:bg-red-500/20 flex-1"
+                    >
+                      <X className="w-4 h-4 mr-1" />却下
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
         {/* New Master Dialog */}
         <Dialog open={showNewMasterDialog} onOpenChange={setShowNewMasterDialog}>
           <DialogContent className="bg-[#0a1a2a] border-cyan-500/30">
