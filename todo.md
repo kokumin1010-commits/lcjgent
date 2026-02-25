@@ -6239,3 +6239,4 @@
 ## レビュー商品一覧バグ修正
 - [x] レビュー商品一覧が0件表示になるバグを修正（getReviewProductList SQLクエリの問題）
 - [x] レビューに登録されている商品画像URL（productImageUrl）を一覧に表示する
+- [x] Drizzle ORMのGROUP BYでTEXT型カラムの完全修飾名参照がエラーになる問題を修正（sql`productName`を使用）
