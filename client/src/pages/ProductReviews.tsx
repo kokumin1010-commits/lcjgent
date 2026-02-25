@@ -323,10 +323,12 @@ export default function ProductReviews() {
 
   const [sortBy, setSortBy] = useState<"newest" | "highest" | "lowest">("newest");
 
-  const { data: reviews, isLoading } = trpc.receiptReview.search.useQuery(
+  const { data: searchResult, isLoading } = trpc.receiptReview.search.useQuery(
     { query: productName, limit: 50 },
     { enabled: productName.length > 0 }
   );
+  const reviews = searchResult?.reviews;
+  const masterImage = searchResult?.masterImage;
 
   const helpfulMutation = trpc.receiptReview.helpful.useMutation();
 
@@ -366,8 +368,8 @@ export default function ProductReviews() {
     return reviews.filter((r: any) => r.videoUrl || r.tiktokUrl || r.liveCommerceUrl);
   }, [reviews]);
 
-  // 商品画像（最初のレビューから取得）
-  const productImage = reviews?.[0]?.productImageUrl;
+  // 商品画像（product_masterの画像を優先、なければレビューの画像をフォールバック）
+  const productImage = masterImage?.imageUrl || reviews?.[0]?.productImageUrl;
   const brandName = reviews?.[0]?.brandName;
 
   return (

@@ -16212,3 +16212,45 @@ export async function bulkUpdateProductSourceUrls(pairs: Array<{ productName: st
   
   return results;
 }
+
+/**
+ * 商品名でproduct_masterの画像情報を取得
+ * canonicalNameが完全一致する場合に画像情報を返す
+ */
+export async function getProductMasterImageByName(productName: string) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  try {
+    const result = await db.select({
+      imageUrl: productMaster.imageUrl,
+      imageStatus: productMaster.imageStatus,
+      sourceUrl: productMaster.sourceUrl,
+      canonicalName: productMaster.canonicalName,
+    }).from(productMaster)
+      .where(eq(productMaster.canonicalName, productName))
+      .limit(1);
+    
+    if (result.length > 0 && result[0].imageUrl) {
+      return result[0];
+    }
+    
+    // 部分一致でも検索（LIKE）
+    const partialResult = await db.select({
+      imageUrl: productMaster.imageUrl,
+      imageStatus: productMaster.imageStatus,
+      sourceUrl: productMaster.sourceUrl,
+      canonicalName: productMaster.canonicalName,
+    }).from(productMaster)
+      .where(and(
+        like(productMaster.canonicalName, `%${productName}%`),
+        isNotNull(productMaster.imageUrl)
+      ))
+      .limit(1);
+    
+    return partialResult.length > 0 ? partialResult[0] : null;
+  } catch (error) {
+    console.error("[getProductMasterImageByName] Error:", error);
+    return null;
+  }
+}

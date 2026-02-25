@@ -881,10 +881,11 @@ export default function ReviewDatabase() {
   const { data: statsData } = trpc.receiptReview.stats.useQuery();
   const { data: rankingData } = trpc.receiptReview.productRankingEnhanced.useQuery({ limit: 20 });
   const { data: latestData } = trpc.receiptReview.latest.useQuery({ limit: 20 });
-  const { data: searchResults, isLoading: isSearching } = trpc.receiptReview.search.useQuery(
+  const { data: searchResultData, isLoading: isSearching } = trpc.receiptReview.search.useQuery(
     { query: searchQuery, limit: 20 },
     { enabled: searchQuery.length > 0 }
   );
+  const searchResults = searchResultData?.reviews;
 
   const helpfulMutation = trpc.receiptReview.helpful.useMutation();
 
@@ -896,7 +897,7 @@ export default function ReviewDatabase() {
     e.preventDefault();
   };
 
-  const displayReviews = searchQuery.length > 0 ? searchResults : latestData?.reviews;
+  const displayReviews = searchQuery.length > 0 ? searchResults : latestData?.reviews;  
   const totalCount = latestData?.totalCount || 0;
   const avgRating = statsData?.avgRating ? Number(statsData.avgRating).toFixed(1) : "0.0";
 

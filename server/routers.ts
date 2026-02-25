@@ -561,6 +561,7 @@ import {
   getProductReviewRankingEnhanced,
   getReviewProductList,
   bulkUpdateProductSourceUrls,
+  getProductMasterImageByName,
 } from "./db";
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
@@ -14364,7 +14365,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       }),
 
     /**
-     * 商品名で検索
+     * 商品名で検索（product_masterの画像情報も返す）
      */
     search: publicProcedure
       .input(z.object({
@@ -14372,7 +14373,13 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         limit: z.number().optional(),
       }))
       .query(async ({ input }) => {
-        return await searchReceiptReviewsByProduct(input.query, input.limit || 20);
+        const reviews = await searchReceiptReviewsByProduct(input.query, input.limit || 20);
+        // product_masterから商品画像を取得
+        const masterImage = await getProductMasterImageByName(input.query);
+        return {
+          reviews,
+          masterImage, // { imageUrl, imageStatus, sourceUrl } or null
+        };
       }),
 
     /**
