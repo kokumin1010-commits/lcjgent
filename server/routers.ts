@@ -219,6 +219,7 @@ import {
   getBrandEditLogs,
   logBrandEdit,
   getProductImages,
+  getProductReviewImages,
   addProductImage,
   deleteProductImage,
   reorderProductImages,
@@ -14442,6 +14443,18 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
     platformDistribution: publicProcedure
       .query(async () => {
         return await getPlatformDistribution();
+      }),
+
+    /**
+     * 商品別の累積写真ギャラリー
+     */
+    productImages: publicProcedure
+      .input(z.object({
+        productName: z.string().min(1),
+        limit: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        return await getProductReviewImages(input.productName, input.limit || 50);
       }),
 
     /**

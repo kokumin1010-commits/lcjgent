@@ -32,6 +32,9 @@ import {
   Eye,
   Flame,
   ShoppingCart,
+  Camera,
+  X,
+  ImageIcon,
 } from "lucide-react";
 
 // ===== プラットフォームバッジ設定 =====
@@ -259,6 +262,7 @@ function VideoFeedSection() {
 function EnhancedReviewCard({ review, onHelpful }: { review: any; onHelpful: (id: number) => void }) {
   const [showQA, setShowQA] = useState(false);
   const [questionText, setQuestionText] = useState("");
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const tags = Array.isArray(review.tags) ? review.tags : [];
   const dateStr = review.createdAt
     ? new Date(review.createdAt).toLocaleDateString("ja-JP", { year: "numeric", month: "short", day: "numeric" })
@@ -303,14 +307,20 @@ function EnhancedReviewCard({ review, onHelpful }: { review: any; onHelpful: (id
         {/* 上部：商品情報 */}
         <div className="p-4 pb-3">
           <div className="flex gap-3">
-            {/* 商品画像 */}
+            {/* 商品画像（クリックでライトボックス） */}
             {review.productImageUrl ? (
-              <div className="w-20 h-20 md:w-24 md:h-24 rounded-xl overflow-hidden bg-gray-100 shrink-0">
+              <div
+                className="w-20 h-20 md:w-24 md:h-24 rounded-xl overflow-hidden bg-gray-100 shrink-0 cursor-pointer relative group"
+                onClick={() => setLightboxOpen(true)}
+              >
                 <img
                   src={review.productImageUrl}
                   alt={review.productName}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                 />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                  <Camera className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
               </div>
             ) : (
               <div className="w-20 h-20 md:w-24 md:h-24 rounded-xl bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center shrink-0">
@@ -440,6 +450,15 @@ function EnhancedReviewCard({ review, onHelpful }: { review: any; onHelpful: (id
           </button>
         </div>
 
+        {/* ライトボックス */}
+        {lightboxOpen && review.productImageUrl && (
+          <PhotoLightbox
+            images={[review.productImageUrl, ...(review.receiptImageUrl ? [review.receiptImageUrl] : [])]}
+            initialIndex={0}
+            onClose={() => setLightboxOpen(false)}
+          />
+        )}
+
         {/* Q&Aセクション */}
         {showQA && (
           <div className="px-4 pb-4 border-t border-gray-50 bg-gray-50/50">
@@ -568,53 +587,118 @@ function EnhancedProductRankingCard({ product, rank }: { product: any; rank: num
         </div>
       </div>
 
-      {/* レビュー数 */}
+      {/* レビュー数・写真数 */}
       <div className="text-right shrink-0">
         <div className="text-sm font-bold text-rose-500">{product.reviewCount}件</div>
-        <div className="text-[10px] text-gray-400">レビュー</div>
+        <div className="flex items-center gap-1 justify-end">
+          {product.imageCount > 0 && (
+            <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
+              <Camera className="h-3 w-3" />
+              {product.imageCount}
+            </span>
+          )}
+        </div>
       </div>
       <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-rose-400 transition-colors shrink-0" />
     </div>
   );
 }
 
-// ===== プラットフォーム分布セクション =====
+// ===== TikTok Shop 専用プラットフォームカード =====
 function PlatformDistributionCard() {
-  const { data: distribution } = trpc.receiptReview.platformDistribution.useQuery();
-  if (!distribution || distribution.length === 0) return null;
-
-  const total = distribution.reduce((sum: number, d: any) => sum + d.count, 0);
+  const { data: statsData } = trpc.receiptReview.stats.useQuery();
+  const totalReviews = statsData?.totalReviews || 0;
 
   return (
-    <Card className="border-0 shadow-sm">
-      <CardContent className="p-4">
-        <h3 className="font-bold text-gray-900 text-sm mb-3 flex items-center gap-1.5">
-          <ShoppingCart className="h-4 w-4 text-rose-500" />
-          購入プラットフォーム
-        </h3>
-        <div className="space-y-2">
-          {distribution.map((d: any) => {
-            const config = PLATFORM_CONFIG[d.platform] || PLATFORM_CONFIG.other;
-            const pct = total > 0 ? Math.round((d.count / total) * 100) : 0;
-            return (
-              <div key={d.platform} className="flex items-center gap-2">
-                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${config.color}`}>
-                  {config.icon}
-                </span>
-                <span className="text-xs text-gray-700 w-20 truncate">{config.label}</span>
-                <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-rose-400 rounded-full transition-all duration-500"
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-                <span className="text-xs text-gray-500 w-10 text-right">{pct}%</span>
+    <Card className="border-0 shadow-sm overflow-hidden">
+      <CardContent className="p-0">
+        {/* TikTok Shop ブランドヘッダー */}
+        <div className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-sm flex items-center justify-center">
+              <span className="text-lg">♪</span>
+            </div>
+            <div>
+              <h3 className="font-bold text-white text-sm">TikTok Shop</h3>
+              <p className="text-gray-400 text-[10px]">全レビューのTikTok Shop購入証明済み</p>
+            </div>
+          </div>
+        </div>
+        <div className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center">
+                <span className="text-white text-xs font-bold">♪</span>
               </div>
-            );
-          })}
+              <div>
+                <span className="text-sm font-bold text-gray-900">TikTok Shop</span>
+                <div className="flex items-center gap-1">
+                  <div className="w-4 h-4 rounded-full bg-emerald-100 flex items-center justify-center">
+                    <Shield className="h-2.5 w-2.5 text-emerald-600" />
+                  </div>
+                  <span className="text-[10px] text-emerald-600 font-medium">購入証明済</span>
+                </div>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-lg font-black text-gray-900">{totalReviews.toLocaleString()}</div>
+              <div className="text-[10px] text-gray-400">口コミ数</div>
+            </div>
+          </div>
+          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-gray-800 to-gray-600 rounded-full w-full" />
+          </div>
+          <p className="text-[10px] text-gray-400 mt-2 text-center">※ 現在TikTok Shopのみ対応。他モールは順次拡大予定。</p>
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+// ===== 写真ライトボックス =====
+function PhotoLightbox({ images, initialIndex, onClose }: { images: string[]; initialIndex: number; onClose: () => void }) {
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowLeft") setCurrentIndex(i => Math.max(0, i - 1));
+      if (e.key === "ArrowRight") setCurrentIndex(i => Math.min(images.length - 1, i + 1));
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [images.length, onClose]);
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center" onClick={onClose}>
+      <button className="absolute top-4 right-4 text-white/80 hover:text-white z-10" onClick={onClose}>
+        <X className="h-8 w-8" />
+      </button>
+      <div className="relative max-w-4xl max-h-[90vh] w-full px-4" onClick={(e) => e.stopPropagation()}>
+        <img
+          src={images[currentIndex]}
+          alt=""
+          className="w-full h-auto max-h-[80vh] object-contain rounded-lg"
+        />
+        <div className="flex items-center justify-center gap-4 mt-4">
+          <button
+            onClick={() => setCurrentIndex(i => Math.max(0, i - 1))}
+            disabled={currentIndex === 0}
+            className="text-white/60 hover:text-white disabled:opacity-30 transition-colors"
+          >
+            <ChevronLeft className="h-8 w-8" />
+          </button>
+          <span className="text-white/60 text-sm">{currentIndex + 1} / {images.length}</span>
+          <button
+            onClick={() => setCurrentIndex(i => Math.min(images.length - 1, i + 1))}
+            disabled={currentIndex === images.length - 1}
+            className="text-white/60 hover:text-white disabled:opacity-30 transition-colors"
+          >
+            <ChevronRight className="h-8 w-8" />
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

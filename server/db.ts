@@ -15904,6 +15904,27 @@ export async function getWantRanking(limit: number = 10) {
   }).filter(r => r.productName);
 }
 
+// ===== 商品別の累積写真を取得 =====
+export async function getProductReviewImages(productName: string, limit: number = 50) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return await db.select({
+    id: receiptReviews.id,
+    productImageUrl: receiptReviews.productImageUrl,
+    receiptImageUrl: receiptReviews.receiptImageUrl,
+    reviewerName: sql<string>`NULL`, // privacy
+    rating: receiptReviews.rating,
+    createdAt: receiptReviews.createdAt,
+  }).from(receiptReviews)
+    .where(and(
+      eq(receiptReviews.isVisible, true),
+      eq(receiptReviews.productName, productName),
+      isNotNull(receiptReviews.productImageUrl)
+    ))
+    .orderBy(desc(receiptReviews.createdAt))
+    .limit(limit);
+}
+
 // ===== 商品ランキング拡張（商品画像・金額レンジ付き） =====
 export async function getProductReviewRankingEnhanced(limit: number = 20) {
   const db = await getDb();
@@ -15920,6 +15941,10 @@ export async function getProductReviewRankingEnhanced(limit: number = 20) {
     maxPrice: sql<number>`MAX(purchaseAmount)`,
     // 最新の商品画像を取得
     latestImageUrl: sql<string>`(SELECT productImageUrl FROM receipt_reviews r2 WHERE r2.productName = receipt_reviews.productName AND r2.productImageUrl IS NOT NULL ORDER BY r2.createdAt DESC LIMIT 1)`,
+    // 累積写真枚数
+    imageCount: sql<number>`SUM(CASE WHEN productImageUrl IS NOT NULL THEN 1 ELSE 0 END)`,
+    // 最新3枚の画像URL
+    images: sql<string>`(SELECT JSON_ARRAYAGG(img) FROM (SELECT productImageUrl as img FROM receipt_reviews r3 WHERE r3.productName = receipt_reviews.productName AND r3.productImageUrl IS NOT NULL AND r3.isVisible = 1 ORDER BY r3.createdAt DESC LIMIT 3) sub)`,
     // 購入プラットフォーム一覧
     platforms: sql<string>`GROUP_CONCAT(DISTINCT purchasePlatform)`,
   }).from(receiptReviews)
