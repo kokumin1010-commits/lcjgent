@@ -15500,7 +15500,30 @@ export async function getReceiptReviewById(id: number) {
 export async function searchReceiptReviewsByProduct(productName: string, limit: number = 20) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return await db.select().from(receiptReviews)
+  return await db.select({
+    id: receiptReviews.id,
+    receiptId: receiptReviews.receiptId,
+    userId: receiptReviews.userId,
+    lineUserId: receiptReviews.lineUserId,
+    productName: receiptReviews.productName,
+    brandName: receiptReviews.brandName,
+    shopName: receiptReviews.shopName,
+    category: receiptReviews.category,
+    purchaseAmount: receiptReviews.purchaseAmount,
+    purchasePlatform: receiptReviews.purchasePlatform,
+    rating: receiptReviews.rating,
+    reviewText: receiptReviews.reviewText,
+    isVisible: receiptReviews.isVisible,
+    helpfulCount: receiptReviews.helpfulCount,
+    tags: receiptReviews.tags,
+    // receiptImageUrl is excluded for privacy protection
+    productImageUrl: receiptReviews.productImageUrl,
+    videoUrl: receiptReviews.videoUrl,
+    tiktokUrl: receiptReviews.tiktokUrl,
+    liveCommerceUrl: receiptReviews.liveCommerceUrl,
+    createdAt: receiptReviews.createdAt,
+    updatedAt: receiptReviews.updatedAt,
+  }).from(receiptReviews)
     .where(and(
       like(receiptReviews.productName, `%${productName}%`),
       eq(receiptReviews.isVisible, true)
@@ -15515,7 +15538,30 @@ export async function searchReceiptReviewsByProduct(productName: string, limit: 
 export async function getLatestReceiptReviews(limit: number = 20, offset: number = 0) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return await db.select().from(receiptReviews)
+  return await db.select({
+    id: receiptReviews.id,
+    receiptId: receiptReviews.receiptId,
+    userId: receiptReviews.userId,
+    lineUserId: receiptReviews.lineUserId,
+    productName: receiptReviews.productName,
+    brandName: receiptReviews.brandName,
+    shopName: receiptReviews.shopName,
+    category: receiptReviews.category,
+    purchaseAmount: receiptReviews.purchaseAmount,
+    purchasePlatform: receiptReviews.purchasePlatform,
+    rating: receiptReviews.rating,
+    reviewText: receiptReviews.reviewText,
+    isVisible: receiptReviews.isVisible,
+    helpfulCount: receiptReviews.helpfulCount,
+    tags: receiptReviews.tags,
+    // receiptImageUrl is excluded for privacy protection
+    productImageUrl: receiptReviews.productImageUrl,
+    videoUrl: receiptReviews.videoUrl,
+    tiktokUrl: receiptReviews.tiktokUrl,
+    liveCommerceUrl: receiptReviews.liveCommerceUrl,
+    createdAt: receiptReviews.createdAt,
+    updatedAt: receiptReviews.updatedAt,
+  }).from(receiptReviews)
     .where(eq(receiptReviews.isVisible, true))
     .orderBy(desc(receiptReviews.createdAt))
     .limit(limit)
@@ -15695,7 +15741,19 @@ export async function getKakuhenAdminStats() {
 export async function getVideoReviews(limit: number = 10) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return await db.select().from(receiptReviews)
+  return await db.select({
+    id: receiptReviews.id,
+    productName: receiptReviews.productName,
+    brandName: receiptReviews.brandName,
+    rating: receiptReviews.rating,
+    reviewText: receiptReviews.reviewText,
+    productImageUrl: receiptReviews.productImageUrl,
+    videoUrl: receiptReviews.videoUrl,
+    tiktokUrl: receiptReviews.tiktokUrl,
+    liveCommerceUrl: receiptReviews.liveCommerceUrl,
+    purchasePlatform: receiptReviews.purchasePlatform,
+    createdAt: receiptReviews.createdAt,
+  }).from(receiptReviews)
     .where(and(
       eq(receiptReviews.isVisible, true),
       or(
@@ -15911,7 +15969,7 @@ export async function getProductReviewImages(productName: string, limit: number 
   return await db.select({
     id: receiptReviews.id,
     productImageUrl: receiptReviews.productImageUrl,
-    receiptImageUrl: receiptReviews.receiptImageUrl,
+    // receiptImageUrl is excluded from public API for privacy protection
     reviewerName: sql<string>`NULL`, // privacy
     rating: receiptReviews.rating,
     createdAt: receiptReviews.createdAt,

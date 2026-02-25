@@ -453,7 +453,7 @@ function EnhancedReviewCard({ review, onHelpful }: { review: any; onHelpful: (id
         {/* ライトボックス */}
         {lightboxOpen && review.productImageUrl && (
           <PhotoLightbox
-            images={[review.productImageUrl, ...(review.receiptImageUrl ? [review.receiptImageUrl] : [])]}
+            images={[review.productImageUrl]}
             initialIndex={0}
             onClose={() => setLightboxOpen(false)}
           />

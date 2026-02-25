@@ -1,0 +1,4 @@
+Review page check:
+- Page loads but shows "まだランキングデータがありません" 
+- No review cards visible, might be a data loading issue
+- Need to check if the API is returning data correctly after the field changes
