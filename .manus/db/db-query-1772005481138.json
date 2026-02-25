@@ -1,0 +1,15 @@
+{
+  "query": "SELECT COUNT(*) as total, SUM(CASE WHEN isVisible = 1 THEN 1 ELSE 0 END) as visible, SUM(CASE WHEN isVisible = 0 THEN 1 ELSE 0 END) as hidden FROM receipt_reviews;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT COUNT(*) as total, SUM(CASE WHEN isVisible = 1 THEN 1 ELSE 0 END) as visible, SUM(CASE WHEN isVisible = 0 THEN 1 ELSE 0 END) as hidden FROM receipt_reviews;",
+  "rows": [
+    {
+      "total": "2000",
+      "visible": "2000",
+      "hidden": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\tvisible\thidden\n2000\t2000\t0\n",
+  "stderr": "",
+  "execution_time_ms": 1580
+}

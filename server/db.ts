@@ -16024,99 +16024,110 @@ export async function getReviewProductList(options: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  const offset = (options.page - 1) * options.limit;
-  
-  // Build WHERE conditions
-  const conditions: any[] = [eq(receiptReviews.isVisible, true)];
-  
-  if (options.query && options.query.trim()) {
-    conditions.push(sql`${receiptReviews.productName} LIKE ${`%${options.query.trim()}%`}`);
-  }
-  
-  const whereClause = conditions.length > 1 ? and(...conditions) : conditions[0];
-  
-  // Get total unique product count
-  const countResult = await db.select({
-    count: sql<number>`COUNT(DISTINCT ${receiptReviews.productName})`,
-  }).from(receiptReviews).where(whereClause);
-  
-  const totalCount = countResult[0]?.count || 0;
-  
-  // Sort order
-  let orderClause;
-  switch (options.sortBy) {
-    case "avgRating":
-      orderClause = desc(sql`AVG(${receiptReviews.rating})`);
-      break;
-    case "productName":
-      orderClause = asc(receiptReviews.productName);
-      break;
-    default:
-      orderClause = desc(sql`COUNT(*)`);
-  }
-  
-  // Main query: unique products with stats
-  const products = await db.select({
-    productName: receiptReviews.productName,
-    brandName: sql<string>`MAX(${receiptReviews.brandName})`,
-    category: sql<string>`MAX(${receiptReviews.category})`,
-    reviewCount: sql<number>`COUNT(*)`,
-    avgRating: sql<number>`ROUND(AVG(${receiptReviews.rating}), 1)`,
-    latestReviewDate: sql<string>`MAX(${receiptReviews.createdAt})`,
-    imageCount: sql<number>`SUM(CASE WHEN ${receiptReviews.productImageUrl} IS NOT NULL THEN 1 ELSE 0 END)`,
-    latestImageUrl: sql<string>`(SELECT r2.productImageUrl FROM receipt_reviews r2 WHERE r2.productName = receipt_reviews.productName AND r2.productImageUrl IS NOT NULL ORDER BY r2.createdAt DESC LIMIT 1)`,
-  }).from(receiptReviews)
-    .where(whereClause)
-    .groupBy(receiptReviews.productName)
-    .orderBy(orderClause)
-    .limit(options.limit)
-    .offset(offset);
-  
-  // Get all product masters to match
-  const masters = await db.select().from(productMaster);
-  
-  // Get all aliases for mapping
-  const aliases = await db.select().from(productNameAliases);
-  
-  // Build mapping: productName -> productMaster
-  const nameToMaster: Record<string, typeof masters[0]> = {};
-  for (const m of masters) {
-    nameToMaster[m.canonicalName] = m;
-  }
-  for (const a of aliases) {
-    const master = masters.find(m => m.id === a.productMasterId);
-    if (master) {
-      nameToMaster[a.aliasName] = master;
+  try {
+    const offset = (options.page - 1) * options.limit;
+    
+    // Build WHERE conditions using Drizzle sql template
+    const conditions: any[] = [eq(receiptReviews.isVisible, true)];
+    
+    if (options.query && options.query.trim()) {
+      conditions.push(sql`CAST(${receiptReviews.productName} AS CHAR(500)) LIKE ${`%${options.query.trim()}%`}`);
     }
-  }
-  
-  // Enrich products with product_master data
-  const enrichedProducts = products.map(p => {
-    const master = nameToMaster[p.productName] || null;
+    
+    const whereClause = conditions.length > 1 ? and(...conditions) : conditions[0];
+    
+    // Get total unique product count
+    const countResult = await db.select({
+      count: sql<number>`COUNT(DISTINCT CAST(${receiptReviews.productName} AS CHAR(500)))`,
+    }).from(receiptReviews).where(whereClause);
+    
+    const totalCount = Number(countResult[0]?.count || 0);
+    
+    // Sort order
+    let orderClause;
+    switch (options.sortBy) {
+      case "avgRating":
+        orderClause = desc(sql`avgRating`);
+        break;
+      case "productName":
+        orderClause = asc(sql`productName`);
+        break;
+      default:
+        orderClause = desc(sql`reviewCount`);
+    }
+    
+    // Main query: unique products with stats
+    // Use CAST to CHAR(500) to avoid TEXT GROUP BY issues in some MySQL versions
+    const products = await db.select({
+      productName: sql<string>`CAST(${receiptReviews.productName} AS CHAR(500))`.as('productName'),
+      brandName: sql<string>`MAX(${receiptReviews.brandName})`.as('brandName'),
+      category: sql<string>`MAX(${receiptReviews.category})`.as('category'),
+      reviewCount: sql<number>`COUNT(*)`.as('reviewCount'),
+      avgRating: sql<number>`ROUND(AVG(${receiptReviews.rating}), 1)`.as('avgRating'),
+      latestReviewDate: sql<string>`MAX(${receiptReviews.createdAt})`.as('latestReviewDate'),
+      imageCount: sql<number>`SUM(CASE WHEN ${receiptReviews.productImageUrl} IS NOT NULL AND ${receiptReviews.productImageUrl} != '' THEN 1 ELSE 0 END)`.as('imageCount'),
+      latestImageUrl: sql<string>`MAX(${receiptReviews.productImageUrl})`.as('latestImageUrl'),
+    }).from(receiptReviews)
+      .where(whereClause)
+      .groupBy(sql`CAST(${receiptReviews.productName} AS CHAR(500))`)
+      .orderBy(orderClause)
+      .limit(options.limit)
+      .offset(offset);
+    
+    // Get all product masters to match
+    const masters = await db.select().from(productMaster);
+    
+    // Get all aliases for mapping
+    const aliases = await db.select().from(productNameAliases);
+    
+    // Build mapping: productName -> productMaster
+    const nameToMaster: Record<string, typeof masters[0]> = {};
+    for (const m of masters) {
+      nameToMaster[m.canonicalName] = m;
+    }
+    for (const a of aliases) {
+      const master = masters.find(m => m.id === a.productMasterId);
+      if (master) {
+        nameToMaster[a.aliasName] = master;
+      }
+    }
+    
+    // Enrich products with product_master data
+    const enrichedProducts = products.map(p => {
+      const master = nameToMaster[p.productName] || null;
+      return {
+        ...p,
+        productMasterId: master?.id || null,
+        masterCanonicalName: master?.canonicalName || null,
+        masterImageUrl: master?.imageUrl || null,
+        masterImageStatus: master?.imageStatus || null,
+        masterSourceUrl: master?.sourceUrl || null,
+      };
+    });
+    
+    // Apply image filter if needed
+    let filteredProducts = enrichedProducts;
+    if (options.imageFilter === "with_image") {
+      filteredProducts = enrichedProducts.filter(p => p.masterImageUrl || p.latestImageUrl);
+    } else if (options.imageFilter === "without_image") {
+      filteredProducts = enrichedProducts.filter(p => !p.masterImageUrl && !p.latestImageUrl);
+    }
+    
     return {
-      ...p,
-      productMasterId: master?.id || null,
-      masterCanonicalName: master?.canonicalName || null,
-      masterImageUrl: master?.imageUrl || null,
-      masterImageStatus: master?.imageStatus || null,
-      masterSourceUrl: master?.sourceUrl || null,
+      products: filteredProducts,
+      totalCount,
+      page: options.page,
+      totalPages: Math.ceil(totalCount / options.limit),
     };
-  });
-  
-  // Apply image filter if needed
-  let filteredProducts = enrichedProducts;
-  if (options.imageFilter === "with_image") {
-    filteredProducts = enrichedProducts.filter(p => p.masterImageUrl || p.latestImageUrl);
-  } else if (options.imageFilter === "without_image") {
-    filteredProducts = enrichedProducts.filter(p => !p.masterImageUrl && !p.latestImageUrl);
+  } catch (error) {
+    console.error('[getReviewProductList] Error:', error);
+    return {
+      products: [],
+      totalCount: 0,
+      page: options.page,
+      totalPages: 0,
+    };
   }
-  
-  return {
-    products: filteredProducts,
-    totalCount,
-    page: options.page,
-    totalPages: Math.ceil(totalCount / options.limit),
-  };
 }
 
 // ===== 一括URL登録（商品名とURLのペアを受け取ってproduct_masterを更新） =====

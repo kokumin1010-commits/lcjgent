@@ -1,0 +1,70 @@
+{
+  "query": "SELECT productName, productImageUrl, rating, isVisible FROM receipt_reviews ORDER BY createdAt DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT productName, productImageUrl, rating, isVisible FROM receipt_reviews ORDER BY createdAt DESC LIMIT 10;",
+  "rows": [
+    {
+      "productName": "OEING 【2点セット】秋冬に暖... チョコレート+ブラック, L",
+      "productImageUrl": "NULL",
+      "rating": "5",
+      "isVisible": "1"
+    },
+    {
+      "productName": "KYOGOKU ヒト幹細胞配合 エクソソー... アイクリーム&フェイシャルオイル",
+      "productImageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/cropped-products/review-361-ab978952.jpg",
+      "rating": "4",
+      "isVisible": "1"
+    },
+    {
+      "productName": "【京極琉限定】MISTINE保湿×抗酸化で...",
+      "productImageUrl": "NULL",
+      "rating": "4",
+      "isVisible": "1"
+    },
+    {
+      "productName": "【ABITOKYO】innerTIDE バブル...",
+      "productImageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/cropped-products/review-1781-34fae2b0.jpg",
+      "rating": "5",
+      "isVisible": "1"
+    },
+    {
+      "productName": "【StemBeaute公式】ヒト幹細...",
+      "productImageUrl": "NULL",
+      "rating": "5",
+      "isVisible": "1"
+    },
+    {
+      "productName": "ケイト リップモンスター 19【口染め...】",
+      "productImageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/cropped-products/review-777-82b96b37.jpg",
+      "rating": "5",
+      "isVisible": "1"
+    },
+    {
+      "productName": "KYOGOKU ネイチャーブースター+ 育毛... / KYOGOKU カーボン フェイスウォッシュパフ",
+      "productImageUrl": "NULL",
+      "rating": "3",
+      "isVisible": "1"
+    },
+    {
+      "productName": "KYOGOKU ハイライトコーム シグ... ミスト",
+      "productImageUrl": "NULL",
+      "rating": "5",
+      "isVisible": "1"
+    },
+    {
+      "productName": "KYOGOKU クリスタルス... エッセンスローション2本",
+      "productImageUrl": "NULL",
+      "rating": "5",
+      "isVisible": "1"
+    },
+    {
+      "productName": "KYOGOKU MEGAガチャ袋",
+      "productImageUrl": "NULL",
+      "rating": "4",
+      "isVisible": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "productName\tproductImageUrl\trating\tisVisible\nOEING 【2点セット】秋冬に暖... チョコレート+ブラック, L\tNULL\t5\t1\nKYOGOKU ヒト幹細胞配合 エクソソー... アイクリーム&フェイシャルオイル\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/cropped-products/review-361-ab978952.jpg\t4\t1\n【京極琉限定】MISTINE保湿×抗酸化で...\tNULL\t4\t1\n【ABITOKYO】innerTIDE バブル...\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/cropped-products/review-1781-34fae2b0.jpg\t5\t1\n【StemBeaute公式】ヒト幹細...\tNULL\t5\t1\nケイト リップモンスター 19【口染め...】\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/cropped-products/review-777-82b96b37.jpg\t5\t1\nKYOGOKU ネイチャーブースター+ 育毛... / KYOGOKU カーボン フェイスウォッシュパフ\tNULL\t3\t1\nKYOGOKU ハイライトコーム シグ... ミスト\tNULL\t5\t1\nKYOGOKU クリスタルス... エッセンスローション2本\tNULL\t5\t1\nKYOGOKU MEGAガチャ袋\tNULL\t4\t1\n",
+  "stderr": "",
+  "execution_time_ms": 1605
+}

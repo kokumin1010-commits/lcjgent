@@ -75,7 +75,7 @@ export default function ReviewProductList() {
   const utils = trpc.useUtils();
 
   // Fetch review product list
-  const { data, isLoading } = trpc.productMaster.reviewProductList.useQuery({
+  const { data, isLoading, error } = trpc.productMaster.reviewProductList.useQuery({
     query: searchQuery || undefined,
     page,
     limit: pageSize,
@@ -320,6 +320,16 @@ export default function ReviewProductList() {
             <Card key={i}><CardContent className="p-4"><Skeleton className="h-20" /></CardContent></Card>
           ))}
         </div>
+      ) : error ? (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <div className="text-red-500 font-medium mb-2">データの取得に失敗しました</div>
+            <div className="text-sm text-muted-foreground mb-4">{error.message}</div>
+            <Button variant="outline" size="sm" onClick={() => utils.productMaster.reviewProductList.invalidate()}>
+              再読み込み
+            </Button>
+          </CardContent>
+        </Card>
       ) : products.length === 0 ? (
         <Card>
           <CardContent className="p-12 text-center text-muted-foreground">

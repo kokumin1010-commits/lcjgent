@@ -1,0 +1,16 @@
+{
+  "query": "SELECT COUNT(*) as total, SUM(CASE WHEN isVisible = true THEN 1 ELSE 0 END) as visible_count, COUNT(DISTINCT productName) as unique_products, SUM(CASE WHEN productImageUrl IS NOT NULL AND productImageUrl != '' THEN 1 ELSE 0 END) as with_image FROM receipt_reviews LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT COUNT(*) as total, SUM(CASE WHEN isVisible = true THEN 1 ELSE 0 END) as visible_count, COUNT(DISTINCT productName) as unique_products, SUM(CASE WHEN productImageUrl IS NOT NULL AND productImageUrl != '' THEN 1 ELSE 0 END) as with_image FROM receipt_reviews LIMIT 1;",
+  "rows": [
+    {
+      "total": "2000",
+      "visible_count": "2000",
+      "unique_products": "1626",
+      "with_image": "822"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\tvisible_count\tunique_products\twith_image\n2000\t2000\t1626\t822\n",
+  "stderr": "",
+  "execution_time_ms": 1557
+}
