@@ -516,6 +516,7 @@ function EnhancedReviewCard({ review, onHelpful }: { review: any; onHelpful: (id
 // ===== 改善版商品ランキングカード =====
 function EnhancedProductRankingCard({ product, rank }: { product: any; rank: number }) {
   const [, setLocation] = useLocation();
+  const [showGallery, setShowGallery] = useState(false);
   const rankColors: Record<number, string> = {
     1: "bg-gradient-to-br from-amber-400 to-amber-500 text-white shadow-amber-200",
     2: "bg-gradient-to-br from-gray-300 to-gray-400 text-white shadow-gray-200",
@@ -540,23 +541,27 @@ function EnhancedProductRankingCard({ product, rank }: { product: any; rank: num
         )}
       </div>
 
-      {/* 商品画像 */}
+      {/* 商品画像（クリックで拡大） */}
       {product.images && product.images.length > 0 ? (
-        <div className="flex -space-x-2 shrink-0">
-          {product.images.slice(0, 3).map((img: string, i: number) => (
-            <div key={i} className="w-10 h-10 rounded-lg overflow-hidden border-2 border-white shadow-sm">
-              <img src={img} alt="" className="w-full h-full object-cover" />
-            </div>
-          ))}
-          {product.images.length > 3 && (
-            <div className="w-10 h-10 rounded-lg bg-gray-100 border-2 border-white shadow-sm flex items-center justify-center text-[10px] text-gray-500 font-bold">
-              +{product.images.length - 3}
+        <div
+          className="relative shrink-0 cursor-pointer group"
+          onClick={(e) => { e.stopPropagation(); setShowGallery(true); }}
+        >
+          <div className="w-14 h-14 rounded-xl overflow-hidden border-2 border-white shadow-md">
+            <img src={product.images[0]} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200" />
+          </div>
+          {product.images.length > 1 && (
+            <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center shadow-sm">
+              {product.images.length}
             </div>
           )}
+          <div className="absolute inset-0 w-14 h-14 rounded-xl bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+            <Eye className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+          </div>
         </div>
       ) : (
-        <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
-          <ShoppingBag className="h-5 w-5 text-gray-300" />
+        <div className="w-14 h-14 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
+          <ShoppingBag className="h-6 w-6 text-gray-300" />
         </div>
       )}
 
@@ -600,6 +605,15 @@ function EnhancedProductRankingCard({ product, rank }: { product: any; rank: num
         </div>
       </div>
       <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-rose-400 transition-colors shrink-0" />
+
+      {/* 商品画像ギャラリーライトボックス */}
+      {showGallery && product.images && product.images.length > 0 && (
+        <PhotoLightbox
+          images={product.images}
+          initialIndex={0}
+          onClose={() => setShowGallery(false)}
+        />
+      )}
     </div>
   );
 }
