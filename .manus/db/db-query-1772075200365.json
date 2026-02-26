@@ -1,0 +1,143 @@
+{
+  "query": "SELECT id, canonicalName, imageStatus, CASE WHEN imageUrl IS NOT NULL THEN 'HAS_IMAGE' ELSE 'NO_IMAGE' END as hasImage, CASE WHEN sourceUrl IS NOT NULL THEN 'HAS_URL' ELSE 'NO_URL' END as hasUrl FROM product_master ORDER BY id",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, canonicalName, imageStatus, CASE WHEN imageUrl IS NOT NULL THEN 'HAS_IMAGE' ELSE 'NO_IMAGE' END as hasImage, CASE WHEN sourceUrl IS NOT NULL THEN 'HAS_URL' ELSE 'NO_URL' END as hasUrl FROM product_master ORDER BY id",
+  "rows": [
+    {
+      "id": "1",
+      "canonicalName": "KYOGOKU MEGAガチャ袋",
+      "imageStatus": "none",
+      "hasImage": "NO_IMAGE",
+      "hasUrl": "NO_URL"
+    },
+    {
+      "id": "2",
+      "canonicalName": "KYOGOKU クリスタルスキン エッセンスローション2本",
+      "imageStatus": "none",
+      "hasImage": "NO_IMAGE",
+      "hasUrl": "NO_URL"
+    },
+    {
+      "id": "3",
+      "canonicalName": "KYOGOKU ステムセル フェイシャルオイル",
+      "imageStatus": "none",
+      "hasImage": "NO_IMAGE",
+      "hasUrl": "NO_URL"
+    },
+    {
+      "id": "4",
+      "canonicalName": "【1箱購入で1箱プレゼント",
+      "imageStatus": "none",
+      "hasImage": "NO_IMAGE",
+      "hasUrl": "NO_URL"
+    },
+    {
+      "id": "5",
+      "canonicalName": "KYOGOKU ステムセル フェイシャルオ...",
+      "imageStatus": "none",
+      "hasImage": "NO_IMAGE",
+      "hasUrl": "NO_URL"
+    },
+    {
+      "id": "6",
+      "canonicalName": "来年発送 予約販売 KYOGOKU ダーマ...",
+      "imageStatus": "none",
+      "hasImage": "NO_IMAGE",
+      "hasUrl": "NO_URL"
+    },
+    {
+      "id": "7",
+      "canonicalName": "トリートメント",
+      "imageStatus": "none",
+      "hasImage": "NO_IMAGE",
+      "hasUrl": "NO_URL"
+    },
+    {
+      "id": "8",
+      "canonicalName": "KYOGOKU ステムセル モーニングマスク",
+      "imageStatus": "none",
+      "hasImage": "NO_IMAGE",
+      "hasUrl": "NO_URL"
+    },
+    {
+      "id": "9",
+      "canonicalName": "KYOGOKU ステムセル フェイシャル...",
+      "imageStatus": "none",
+      "hasImage": "NO_IMAGE",
+      "hasUrl": "NO_URL"
+    },
+    {
+      "id": "10",
+      "canonicalName": "来年発送 予約販売 KYOGOKU ダーマデ...",
+      "imageStatus": "none",
+      "hasImage": "NO_IMAGE",
+      "hasUrl": "NO_URL"
+    },
+    {
+      "id": "11",
+      "canonicalName": "KYOGOKU MEGAガチャ袋",
+      "imageStatus": "none",
+      "hasImage": "NO_IMAGE",
+      "hasUrl": "NO_URL"
+    },
+    {
+      "id": "12",
+      "canonicalName": "KYOGOKU クリスタルスキン エッセンスローション2本",
+      "imageStatus": "none",
+      "hasImage": "NO_IMAGE",
+      "hasUrl": "NO_URL"
+    },
+    {
+      "id": "13",
+      "canonicalName": "KYOGOKU ステムセル フェイシャルオイル",
+      "imageStatus": "none",
+      "hasImage": "NO_IMAGE",
+      "hasUrl": "NO_URL"
+    },
+    {
+      "id": "14",
+      "canonicalName": "【1箱購入で1箱プレゼント",
+      "imageStatus": "none",
+      "hasImage": "NO_IMAGE",
+      "hasUrl": "NO_URL"
+    },
+    {
+      "id": "15",
+      "canonicalName": "来年発送 予約販売 KYOGOKU ダーマ...",
+      "imageStatus": "none",
+      "hasImage": "NO_IMAGE",
+      "hasUrl": "NO_URL"
+    },
+    {
+      "id": "30001",
+      "canonicalName": "KYOGOKU MEGAガチャ袋",
+      "imageStatus": "auto_fetched",
+      "hasImage": "HAS_IMAGE",
+      "hasUrl": "HAS_URL"
+    },
+    {
+      "id": "30002",
+      "canonicalName": "KYOGOKU クリスタルスキン エッセンスローション2本",
+      "imageStatus": "auto_fetched",
+      "hasImage": "HAS_IMAGE",
+      "hasUrl": "HAS_URL"
+    },
+    {
+      "id": "30003",
+      "canonicalName": "KYOGOKU クリスタルスキン エッセンスローション2本",
+      "imageStatus": "auto_fetched",
+      "hasImage": "HAS_IMAGE",
+      "hasUrl": "HAS_URL"
+    },
+    {
+      "id": "30004",
+      "canonicalName": "KYOGOKU クリスタルスキン エッセンスローション2本",
+      "imageStatus": "auto_fetched",
+      "hasImage": "HAS_IMAGE",
+      "hasUrl": "HAS_URL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tcanonicalName\timageStatus\thasImage\thasUrl\n1\tKYOGOKU MEGAガチャ袋\tnone\tNO_IMAGE\tNO_URL\n2\tKYOGOKU クリスタルスキン エッセンスローション2本\tnone\tNO_IMAGE\tNO_URL\n3\tKYOGOKU ステムセル フェイシャルオイル\tnone\tNO_IMAGE\tNO_URL\n4\t【1箱購入で1箱プレゼント\tnone\tNO_IMAGE\tNO_URL\n5\tKYOGOKU ステムセル フェイシャルオ...\tnone\tNO_IMAGE\tNO_URL\n6\t来年発送 予約販売 KYOGOKU ダーマ...\tnone\tNO_IMAGE\tNO_URL\n7\tトリートメント\tnone\tNO_IMAGE\tNO_URL\n8\tKYOGOKU ステムセル モーニングマスク\tnone\tNO_IMAGE\tNO_URL\n9\tKYOGOKU ステムセル フェイシャル...\tnone\tNO_IMAGE\tNO_URL\n10\t来年発送 予約販売 KYOGOKU ダーマデ...\tnone\tNO_IMAGE\tNO_URL\n11\tKYOGOKU MEGAガチャ袋\tnone\tNO_IMAGE\tNO_URL\n12\tKYOGOKU クリスタルスキン エッセンスローション2本\tnone\tNO_IMAGE\tNO_URL\n13\tKYOGOKU ステムセル フェイシャルオイル\tnone\tNO_IMAGE\tNO_URL\n14\t【1箱購入で1箱プレゼント\tnone\tNO_IMAGE\tNO_URL\n15\t来年発送 予約販売 KYOGOKU ダーマ...\tnone\tNO_IMAGE\tNO_URL\n30001\tKYOGOKU MEGAガチャ袋\tauto_fetched\tHAS_IMAGE\tHAS_URL\n30002\tKYOGOKU クリスタルスキン エッセンスローション2本\tauto_fetched\tHAS_IMAGE\tHAS_URL\n30003\tKYOGOKU クリスタルスキン エッセンスローション2本\tauto_fetched\tHAS_IMAGE\tHAS_URL\n30004\tKYOGOKU クリスタルスキン エッセンスローション2本\tauto_fetched\tHAS_IMAGE\tHAS_URL\n",
+  "stderr": "",
+  "execution_time_ms": 1623
+}

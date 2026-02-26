@@ -6241,5 +6241,17 @@
 - [x] レビューに登録されている商品画像URL（productImageUrl）を一覧に表示する
 - [x] Drizzle ORMのGROUP BYでTEXT型カラムの完全修飾名参照がエラーになる問題を修正（sql`productName`を使用）
 ## 商品詳細ページの画像反映問題
-- [ ] 商品詳細ページ（/reviews/商品名）のヘッダー画像にproduct_masterで管理している画像が反映されない問題を修正
-- [ ] レビュー商品一覧タブの0件表示問題の確認（Publish済みか確認）
+- [x] 商品詳細ページ（/reviews/商品名）のヘッダー画像にproduct_masterで管理している画像が反映されない問題を修正
+- [x] レビュー商品一覧タブの0件表示問題の確認（Publish済みか確認）
+
+## 画像管理ダイアログのOGP画像取得バグ修正
+- [x] 画像管理ダイアログでURL貼り→OGP画像取得→保存しても反映されないバグを修正
+- [x] フロントエンド（ReviewProductList.tsx）の画像管理フローを確認
+- [x] バックエンド（routers.ts）のfetchOgpImage/updateSourceUrl APIを確認
+- [x] product_masterへの保存・読み出しフローを確認
+
+## product_masterデータベース重複問題の修正
+- [x] product_masterテーブルの重複レコードを削除（id 1-15の空レコード、id 30003-30004の重複）
+- [x] createProductMaster関数にupsertロジックを追加（同じcanonicalNameの重複作成を防止）
+- [x] routers.tsのcreate APIの返り値を新しい形式（id, success, updated）に対応
+- [x] テスト12件追加（重複防止、masterMap構築、画像優先順位、部分一致検索）

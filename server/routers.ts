@@ -10704,7 +10704,8 @@ ${liverProductSummary.map(l => `### ${l.liverName}的擅长商品\n${l.topProduc
         description: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
-        return await createProductMaster(input);
+        const result = await createProductMaster(input);
+        return { id: result.id, success: true, updated: result.updated || false };
       }),
 
     // Update a product master

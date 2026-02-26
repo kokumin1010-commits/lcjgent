@@ -9489,8 +9489,33 @@ export async function createProductMaster(data: InsertProductMaster) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
+  // Check for existing record with same canonicalName to prevent duplicates
+  if (data.canonicalName) {
+    const existing = await db.select({ id: productMaster.id })
+      .from(productMaster)
+      .where(eq(productMaster.canonicalName, data.canonicalName))
+      .limit(1);
+    
+    if (existing.length > 0) {
+      // Update existing record instead of creating duplicate
+      const updateData: Partial<InsertProductMaster> = {};
+      if (data.imageUrl) updateData.imageUrl = data.imageUrl;
+      if (data.imageStatus) updateData.imageStatus = data.imageStatus;
+      if (data.sourceUrl) updateData.sourceUrl = data.sourceUrl;
+      
+      if (Object.keys(updateData).length > 0) {
+        await db.update(productMaster)
+          .set(updateData)
+          .where(eq(productMaster.id, existing[0].id));
+      }
+      return { id: existing[0].id, updated: true };
+    }
+  }
+  
   const result = await db.insert(productMaster).values(data);
-  return result;
+  // Extract insertId from MySQL result
+  const insertId = (result as any)[0]?.insertId ?? (result as any).insertId;
+  return { id: insertId, updated: false };
 }
 
 // Update a product master
@@ -16077,22 +16102,47 @@ export async function getReviewProductList(options: {
     .limit(options.limit)
     .offset(offset);
   
-  // Map to clean output (no product_master enrichment for simplicity)
-  const cleanProducts = products.map(p => ({
-    productName: p.productName,
-    brandName: p.brandName,
-    category: p.category,
-    reviewCount: Number(p.reviewCount || 0),
-    avgRating: Number(p.avgRating || 0),
-    latestReviewDate: p.latestReviewDate,
-    imageCount: Number(p.imageCount || 0),
-    latestImageUrl: p.latestImageUrl || null,
-    productMasterId: null as number | null,
-    masterCanonicalName: null as string | null,
-    masterImageUrl: null as string | null,
-    masterImageStatus: null as string | null,
-    masterSourceUrl: null as string | null,
-  }));
+  // Enrich with product_master data
+  const productNames = products.map(p => p.productName).filter(Boolean);
+  let masterMap = new Map<string, { id: number; canonicalName: string; imageUrl: string | null; imageStatus: string | null; sourceUrl: string | null }>();
+  
+  if (productNames.length > 0) {
+    try {
+      const masters = await db.select({
+        id: productMaster.id,
+        canonicalName: productMaster.canonicalName,
+        imageUrl: productMaster.imageUrl,
+        imageStatus: productMaster.imageStatus,
+        sourceUrl: productMaster.sourceUrl,
+      }).from(productMaster)
+        .where(sql`${productMaster.canonicalName} IN (${sql.join(productNames.map(n => sql`${n}`), sql`, `)})`);
+      
+      for (const m of masters) {
+        masterMap.set(m.canonicalName, m);
+      }
+    } catch (e) {
+      console.error('[getReviewProductList] product_master lookup failed:', e);
+    }
+  }
+  
+  const cleanProducts = products.map(p => {
+    const master = masterMap.get(p.productName);
+    return {
+      productName: p.productName,
+      brandName: p.brandName,
+      category: p.category,
+      reviewCount: Number(p.reviewCount || 0),
+      avgRating: Number(p.avgRating || 0),
+      latestReviewDate: p.latestReviewDate,
+      imageCount: Number(p.imageCount || 0),
+      latestImageUrl: p.latestImageUrl || null,
+      productMasterId: master?.id || null,
+      masterCanonicalName: master?.canonicalName || null,
+      masterImageUrl: master?.imageUrl || null,
+      masterImageStatus: master?.imageStatus || null,
+      masterSourceUrl: master?.sourceUrl || null,
+    };
+  });
   
   // For "without_image" filter, we need products where NO review has an image
   // This is handled at SQL level for with_image, but without_image needs HAVING
@@ -16133,22 +16183,46 @@ export async function getReviewProductList(options: {
         .as('sub')
     );
     
+    // Enrich noImageProducts with product_master data
+    const noImageNames = noImageProducts.map(p => p.productName).filter(Boolean);
+    let noImageMasterMap = new Map<string, { id: number; canonicalName: string; imageUrl: string | null; imageStatus: string | null; sourceUrl: string | null }>();
+    if (noImageNames.length > 0) {
+      try {
+        const masters = await db.select({
+          id: productMaster.id,
+          canonicalName: productMaster.canonicalName,
+          imageUrl: productMaster.imageUrl,
+          imageStatus: productMaster.imageStatus,
+          sourceUrl: productMaster.sourceUrl,
+        }).from(productMaster)
+          .where(sql`${productMaster.canonicalName} IN (${sql.join(noImageNames.map(n => sql`${n}`), sql`, `)})`);
+        for (const m of masters) {
+          noImageMasterMap.set(m.canonicalName, m);
+        }
+      } catch (e) {
+        console.error('[getReviewProductList] noImage product_master lookup failed:', e);
+      }
+    }
+    
     return {
-      products: noImageProducts.map(p => ({
-        productName: p.productName,
-        brandName: p.brandName,
-        category: p.category,
-        reviewCount: Number(p.reviewCount || 0),
-        avgRating: Number(p.avgRating || 0),
-        latestReviewDate: p.latestReviewDate,
-        imageCount: 0,
-        latestImageUrl: null,
-        productMasterId: null as number | null,
-        masterCanonicalName: null as string | null,
-        masterImageUrl: null as string | null,
-        masterImageStatus: null as string | null,
-        masterSourceUrl: null as string | null,
-      })),
+      products: noImageProducts.map(p => {
+        const master = noImageMasterMap.get(p.productName);
+        return {
+          productName: p.productName,
+          brandName: p.brandName,
+          category: p.category,
+          reviewCount: Number(p.reviewCount || 0),
+          avgRating: Number(p.avgRating || 0),
+          latestReviewDate: p.latestReviewDate,
+          imageCount: 0,
+          latestImageUrl: null,
+          productMasterId: master?.id || null,
+          masterCanonicalName: master?.canonicalName || null,
+          masterImageUrl: master?.imageUrl || null,
+          masterImageStatus: master?.imageStatus || null,
+          masterSourceUrl: master?.sourceUrl || null,
+        };
+      }),
       totalCount: Number(noImageCount[0]?.count || 0),
       page: options.page,
       totalPages: Math.ceil(Number(noImageCount[0]?.count || 0) / options.limit),

@@ -155,13 +155,16 @@ export default function ReviewProductList() {
         const result = await createMasterMutation.mutateAsync({
           canonicalName: product.productName,
         });
-        const newId = (result as any)[0]?.insertId;
+        const newId = result?.id;
         if (newId) {
+          setSelectedProduct({ ...product, productMasterId: newId });
           await updateSourceUrlMutation.mutateAsync({ productMasterId: newId, sourceUrl: url });
           await fetchOgpMutation.mutateAsync({ productMasterId: newId, sourceUrl: url });
+        } else {
+          toast.error("商品マスターIDの取得に失敗しました");
         }
-      } catch (e) {
-        toast.error("商品マスター作成に失敗しました");
+      } catch (e: any) {
+        toast.error("商品マスター作成に失敗: " + (e?.message || ""));
       }
       return;
     }
@@ -184,12 +187,15 @@ export default function ReviewProductList() {
         const result = await createMasterMutation.mutateAsync({
           canonicalName: product.productName,
         });
-        const newId = (result as any)[0]?.insertId;
+        const newId = result?.id;
         if (newId) {
+          setSelectedProduct({ ...product, productMasterId: newId });
           await updateSourceUrlMutation.mutateAsync({ productMasterId: newId, sourceUrl: urlInput });
+        } else {
+          toast.error("商品マスターIDの取得に失敗しました");
         }
-      } catch {
-        toast.error("保存に失敗しました");
+      } catch (e: any) {
+        toast.error("保存に失敗: " + (e?.message || ""));
       }
       return;
     }
@@ -535,12 +541,15 @@ export default function ReviewProductList() {
                       const result = await createMasterMutation.mutateAsync({
                         canonicalName: selectedProduct.productName,
                       });
-                      const newId = (result as any)[0]?.insertId;
+                      const newId = result?.id;
                       if (newId) {
                         setSelectedProduct({ ...selectedProduct, productMasterId: newId });
+                      } else {
+                        toast.error("商品マスターIDの取得に失敗しました");
+                        return;
                       }
-                    } catch {
-                      toast.error("商品マスター作成に失敗しました");
+                    } catch (e: any) {
+                      toast.error("商品マスター作成に失敗: " + (e?.message || ""));
                       return;
                     }
                   }

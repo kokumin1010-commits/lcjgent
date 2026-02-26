@@ -1,0 +1,143 @@
+{
+  "query": "SELECT id, canonicalName, imageUrl, imageStatus, sourceUrl FROM product_master LIMIT 20",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, canonicalName, imageUrl, imageStatus, sourceUrl FROM product_master LIMIT 20",
+  "rows": [
+    {
+      "id": "1",
+      "canonicalName": "KYOGOKU MEGAガチャ袋",
+      "imageUrl": "NULL",
+      "imageStatus": "none",
+      "sourceUrl": "NULL"
+    },
+    {
+      "id": "2",
+      "canonicalName": "KYOGOKU クリスタルスキン エッセンスローション2本",
+      "imageUrl": "NULL",
+      "imageStatus": "none",
+      "sourceUrl": "NULL"
+    },
+    {
+      "id": "3",
+      "canonicalName": "KYOGOKU ステムセル フェイシャルオイル",
+      "imageUrl": "NULL",
+      "imageStatus": "none",
+      "sourceUrl": "NULL"
+    },
+    {
+      "id": "4",
+      "canonicalName": "【1箱購入で1箱プレゼント",
+      "imageUrl": "NULL",
+      "imageStatus": "none",
+      "sourceUrl": "NULL"
+    },
+    {
+      "id": "5",
+      "canonicalName": "KYOGOKU ステムセル フェイシャルオ...",
+      "imageUrl": "NULL",
+      "imageStatus": "none",
+      "sourceUrl": "NULL"
+    },
+    {
+      "id": "6",
+      "canonicalName": "来年発送 予約販売 KYOGOKU ダーマ...",
+      "imageUrl": "NULL",
+      "imageStatus": "none",
+      "sourceUrl": "NULL"
+    },
+    {
+      "id": "7",
+      "canonicalName": "トリートメント",
+      "imageUrl": "NULL",
+      "imageStatus": "none",
+      "sourceUrl": "NULL"
+    },
+    {
+      "id": "8",
+      "canonicalName": "KYOGOKU ステムセル モーニングマスク",
+      "imageUrl": "NULL",
+      "imageStatus": "none",
+      "sourceUrl": "NULL"
+    },
+    {
+      "id": "9",
+      "canonicalName": "KYOGOKU ステムセル フェイシャル...",
+      "imageUrl": "NULL",
+      "imageStatus": "none",
+      "sourceUrl": "NULL"
+    },
+    {
+      "id": "10",
+      "canonicalName": "来年発送 予約販売 KYOGOKU ダーマデ...",
+      "imageUrl": "NULL",
+      "imageStatus": "none",
+      "sourceUrl": "NULL"
+    },
+    {
+      "id": "11",
+      "canonicalName": "KYOGOKU MEGAガチャ袋",
+      "imageUrl": "NULL",
+      "imageStatus": "none",
+      "sourceUrl": "NULL"
+    },
+    {
+      "id": "12",
+      "canonicalName": "KYOGOKU クリスタルスキン エッセンスローション2本",
+      "imageUrl": "NULL",
+      "imageStatus": "none",
+      "sourceUrl": "NULL"
+    },
+    {
+      "id": "13",
+      "canonicalName": "KYOGOKU ステムセル フェイシャルオイル",
+      "imageUrl": "NULL",
+      "imageStatus": "none",
+      "sourceUrl": "NULL"
+    },
+    {
+      "id": "14",
+      "canonicalName": "【1箱購入で1箱プレゼント",
+      "imageUrl": "NULL",
+      "imageStatus": "none",
+      "sourceUrl": "NULL"
+    },
+    {
+      "id": "15",
+      "canonicalName": "来年発送 予約販売 KYOGOKU ダーマ...",
+      "imageUrl": "NULL",
+      "imageStatus": "none",
+      "sourceUrl": "NULL"
+    },
+    {
+      "id": "30001",
+      "canonicalName": "KYOGOKU MEGAガチャ袋",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/product-images/30001-h14n3kzn.jpg",
+      "imageStatus": "auto_fetched",
+      "sourceUrl": "https://kyogokupro.com/products/2408/kyogoku_%E3%82%AF%E3%83%AA%E3%82%B9%E3%82%BF%E3%83%AB%E3%82%B9%E3%82%AD%E3%83%B3_%E3%82%A8%E3%83%83%E3%82%BB%E3%83%B3%E3%82%B9%E3%83%AD%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3"
+    },
+    {
+      "id": "30002",
+      "canonicalName": "KYOGOKU クリスタルスキン エッセンスローション2本",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/product-images/30002-bumepz1b.jpg",
+      "imageStatus": "auto_fetched",
+      "sourceUrl": "https://kyogokupro.com/products/2408/kyogoku_%E3%82%AF%E3%83%AA%E3%82%B9%E3%82%BF%E3%83%AB%E3%82%B9%E3%82%AD%E3%83%B3_%E3%82%A8%E3%83%83%E3%82%BB%E3%83%B3%E3%82%B9%E3%83%AD%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3"
+    },
+    {
+      "id": "30003",
+      "canonicalName": "KYOGOKU クリスタルスキン エッセンスローション2本",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/product-images/30003-x39hytog.jpg",
+      "imageStatus": "auto_fetched",
+      "sourceUrl": "https://kyogokupro.com/products/2408/kyogoku_%E3%82%AF%E3%83%AA%E3%82%B9%E3%82%BF%E3%83%AB%E3%82%B9%E3%82%AD%E3%83%B3_%E3%82%A8%E3%83%83%E3%82%BB%E3%83%B3%E3%82%B9%E3%83%AD%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3"
+    },
+    {
+      "id": "30004",
+      "canonicalName": "KYOGOKU クリスタルスキン エッセンスローション2本",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/product-images/30004-y9nvnzd4.jpg",
+      "imageStatus": "auto_fetched",
+      "sourceUrl": "https://kyogokupro.com/products/2408/kyogoku_%E3%82%AF%E3%83%AA%E3%82%B9%E3%82%BF%E3%83%AB%E3%82%B9%E3%82%AD%E3%83%B3_%E3%82%A8%E3%83%83%E3%82%BB%E3%83%B3%E3%82%B9%E3%83%AD%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tcanonicalName\timageUrl\timageStatus\tsourceUrl\n1\tKYOGOKU MEGAガチャ袋\tNULL\tnone\tNULL\n2\tKYOGOKU クリスタルスキン エッセンスローション2本\tNULL\tnone\tNULL\n3\tKYOGOKU ステムセル フェイシャルオイル\tNULL\tnone\tNULL\n4\t【1箱購入で1箱プレゼント\tNULL\tnone\tNULL\n5\tKYOGOKU ステムセル フェイシャルオ...\tNULL\tnone\tNULL\n6\t来年発送 予約販売 KYOGOKU ダーマ...\tNULL\tnone\tNULL\n7\tトリートメント\tNULL\tnone\tNULL\n8\tKYOGOKU ステムセル モーニングマスク\tNULL\tnone\tNULL\n9\tKYOGOKU ステムセル フェイシャル...\tNULL\tnone\tNULL\n10\t来年発送 予約販売 KYOGOKU ダーマデ...\tNULL\tnone\tNULL\n11\tKYOGOKU MEGAガチャ袋\tNULL\tnone\tNULL\n12\tKYOGOKU クリスタルスキン エッセンスローション2本\tNULL\tnone\tNULL\n13\tKYOGOKU ステムセル フェイシャルオイル\tNULL\tnone\tNULL\n14\t【1箱購入で1箱プレゼント\tNULL\tnone\tNULL\n15\t来年発送 予約販売 KYOGOKU ダーマ...\tNULL\tnone\tNULL\n30001\tKYOGOKU MEGAガチャ袋\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/product-images/30001-h14n3kzn.jpg\tauto_fetched\thttps://kyogokupro.com/products/2408/kyogoku_%E3%82%AF%E3%83%AA%E3%82%B9%E3%82%BF%E3%83%AB%E3%82%B9%E3%82%AD%E3%83%B3_%E3%82%A8%E3%83%83%E3%82%BB%E3%83%B3%E3%82%B9%E3%83%AD%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3\n30002\tKYOGOKU クリスタルスキン エッセンスローション2本\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/product-images/30002-bumepz1b.jpg\tauto_fetched\thttps://kyogokupro.com/products/2408/kyogoku_%E3%82%AF%E3%83%AA%E3%82%B9%E3%82%BF%E3%83%AB%E3%82%B9%E3%82%AD%E3%83%B3_%E3%82%A8%E3%83%83%E3%82%BB%E3%83%B3%E3%82%B9%E3%83%AD%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3\n30003\tKYOGOKU クリスタルスキン エッセンスローション2本\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/product-images/30003-x39hytog.jpg\tauto_fetched\thttps://kyogokupro.com/products/2408/kyogoku_%E3%82%AF%E3%83%AA%E3%82%B9%E3%82%BF%E3%83%AB%E3%82%B9%E3%82%AD%E3%83%B3_%E3%82%A8%E3%83%83%E3%82%BB%E3%83%B3%E3%82%B9%E3%83%AD%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3\n30004\tKYOGOKU クリスタルスキン エッセンスローション2本\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/product-images/30004-y9nvnzd4.jpg\tauto_fetched\thttps://kyogokupro.com/products/2408/kyogoku_%E3%82%AF%E3%83%AA%E3%82%B9%E3%82%BF%E3%83%AB%E3%82%B9%E3%82%AD%E3%83%B3_%E3%82%A8%E3%83%83%E3%82%BB%E3%83%B3%E3%82%B9%E3%83%AD%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3\n",
+  "stderr": "",
+  "execution_time_ms": 1671
+}
