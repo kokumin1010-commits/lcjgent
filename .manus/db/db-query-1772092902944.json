@@ -1,0 +1,24 @@
+{
+  "query": "SELECT id, canonicalName, imageUrl, imageStatus, sourceUrl FROM product_master WHERE canonicalName LIKE '%KYOGOKU%' OR canonicalName LIKE '%ガチャ%' LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, canonicalName, imageUrl, imageStatus, sourceUrl FROM product_master WHERE canonicalName LIKE '%KYOGOKU%' OR canonicalName LIKE '%ガチャ%' LIMIT 10;",
+  "rows": [
+    {
+      "id": "30001",
+      "canonicalName": "KYOGOKU MEGAガチャ袋",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/product-images/30001-ahh9j8fy.jpg",
+      "imageStatus": "confirmed",
+      "sourceUrl": "https://lcjmall.com/"
+    },
+    {
+      "id": "30002",
+      "canonicalName": "KYOGOKU クリスタルスキン エッセンスローション2本",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/product-images/30002-bumepz1b.jpg",
+      "imageStatus": "auto_fetched",
+      "sourceUrl": "https://kyogokupro.com/products/2408/kyogoku_%E3%82%AF%E3%83%AA%E3%82%B9%E3%82%BF%E3%83%AB%E3%82%B9%E3%82%AD%E3%83%B3_%E3%82%A8%E3%83%83%E3%82%BB%E3%83%B3%E3%82%B9%E3%83%AD%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tcanonicalName\timageUrl\timageStatus\tsourceUrl\n30001\tKYOGOKU MEGAガチャ袋\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/product-images/30001-ahh9j8fy.jpg\tconfirmed\thttps://lcjmall.com/\n30002\tKYOGOKU クリスタルスキン エッセンスローション2本\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/product-images/30002-bumepz1b.jpg\tauto_fetched\thttps://kyogokupro.com/products/2408/kyogoku_%E3%82%AF%E3%83%AA%E3%82%B9%E3%82%BF%E3%83%AB%E3%82%B9%E3%82%AD%E3%83%B3_%E3%82%A8%E3%83%83%E3%82%BB%E3%83%B3%E3%82%B9%E3%83%AD%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3\n",
+  "stderr": "",
+  "execution_time_ms": 1758
+}

@@ -6261,3 +6261,8 @@
 - [x] レシート承認時にreceipt_reviewsテーブルへレビューを自動作成する機能を実装
 - [x] 承認フロー（adminApproveLineReceipt / adminApproveReceipt）に自動レビュー作成＋画像処理を組み込む
 - [x] テスト作成・実行（10件PASS）
+
+## レビュー商品一覧の画像フォールバック表示
+- [x] product_master画像がない場合、レビューのスクショ画像（productImageUrl）をフォールバック表示
+- [x] バックエンドでgetReviewProductListにproductImageUrlフォールバックを追加（既に実装済み）
+- [x] フロントエンドで画像表示のフォールバックロジックを実装（clearMasterImage API + 削除ボタン追加）

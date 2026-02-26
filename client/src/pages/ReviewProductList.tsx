@@ -128,6 +128,15 @@ export default function ReviewProductList() {
     },
   });
 
+  const clearMasterImageMutation = trpc.productMaster.clearMasterImage.useMutation({
+    onSuccess: () => {
+      utils.productMaster.reviewProductList.invalidate();
+    },
+    onError: (err) => {
+      toast.error("画像リンクの削除に失敗: " + err.message);
+    },
+  });
+
   const bulkUpdateMutation = trpc.productMaster.bulkUpdateUrls.useMutation({
     onSuccess: (result) => {
       const successCount = result.filter((r: any) => r.success).length;
@@ -568,41 +577,74 @@ export default function ReviewProductList() {
 
             {/* Image Status Actions */}
             {selectedProduct?.productMasterId && selectedProduct?.masterImageUrl && (
-              <div className="flex gap-2">
-                {selectedProduct.masterImageStatus !== "confirmed" && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 text-emerald-600 border-emerald-200 hover:bg-emerald-50"
-                    onClick={() => {
-                      updateStatusMutation.mutate({
-                        productMasterId: selectedProduct.productMasterId,
-                        status: "confirmed",
-                      });
-                      setSelectedProduct({ ...selectedProduct, masterImageStatus: "confirmed" });
-                    }}
-                  >
-                    <Check className="h-4 w-4 mr-1" />
-                    画像を確認
-                  </Button>
-                )}
-                {selectedProduct.masterImageStatus !== "rejected" && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 text-red-500 border-red-200 hover:bg-red-50"
-                    onClick={() => {
-                      updateStatusMutation.mutate({
-                        productMasterId: selectedProduct.productMasterId,
-                        status: "rejected",
-                      });
-                      setSelectedProduct({ ...selectedProduct, masterImageStatus: "rejected" });
-                    }}
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  {selectedProduct.masterImageStatus !== "confirmed" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+                      onClick={() => {
+                        updateStatusMutation.mutate({
+                          productMasterId: selectedProduct.productMasterId,
+                          status: "confirmed",
+                        });
+                        setSelectedProduct({ ...selectedProduct, masterImageStatus: "confirmed" });
+                      }}
+                    >
+                      <Check className="h-4 w-4 mr-1" />
+                      画像を確認
+                    </Button>
+                  )}
+                  {selectedProduct.masterImageStatus !== "rejected" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 text-red-500 border-red-200 hover:bg-red-50"
+                      onClick={() => {
+                        updateStatusMutation.mutate({
+                          productMasterId: selectedProduct.productMasterId,
+                          status: "rejected",
+                        });
+                        setSelectedProduct({ ...selectedProduct, masterImageStatus: "rejected" });
+                      }}
                   >
                     <X className="h-4 w-4 mr-1" />
                     却下
                   </Button>
                 )}
+                </div>
+                {/* 画像リンク削除ボタン */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-orange-600 border-orange-200 hover:bg-orange-50"
+                  onClick={() => {
+                    if (!selectedProduct?.productMasterId) return;
+                    clearMasterImageMutation.mutate(
+                      { productMasterId: selectedProduct.productMasterId },
+                      {
+                        onSuccess: () => {
+                          toast.success("画像リンクを削除しました。レビューのスクショ画像が表示されます。");
+                          setSelectedProduct({
+                            ...selectedProduct,
+                            masterImageUrl: null,
+                            masterImageStatus: null,
+                            masterSourceUrl: null,
+                          });
+                        },
+                      }
+                    );
+                  }}
+                  disabled={clearMasterImageMutation.isPending}
+                >
+                  {clearMasterImageMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : (
+                    <X className="h-4 w-4 mr-1" />
+                  )}
+                  画像リンクを削除（スクショに戻す）
+                </Button>
               </div>
             )}
           </div>

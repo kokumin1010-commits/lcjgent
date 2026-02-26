@@ -11010,6 +11010,18 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         return { success: true };
       }),
 
+    // product_masterの画像リンクをクリア（レビューのスクショ画像にフォールバック）
+    clearMasterImage: protectedProcedure
+      .input(z.object({ productMasterId: z.number() }))
+      .mutation(async ({ input }) => {
+        await updateProductMaster(input.productMasterId, {
+          imageUrl: null,
+          sourceUrl: null,
+          imageStatus: "none",
+        });
+        return { success: true };
+      }),
+
     // 画像未設定の商品一覧
     withoutImages: protectedProcedure
       .query(async () => {
