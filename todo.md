@@ -6255,3 +6255,9 @@
 - [x] createProductMaster関数にupsertロジックを追加（同じcanonicalNameの重複作成を防止）
 - [x] routers.tsのcreate APIの返り値を新しい形式（id, success, updated）に対応
 - [x] テスト12件追加（重複防止、masterMap構築、画像優先順位、部分一致検索）
+
+## レシート承認時の自動レビュー作成＋プライバシー保護画像処理
+- [x] LLM Vision APIで商品画像切り抜き機能を実装（レシート画像→商品部分のみ切り抜き、住所・名前等を除去）
+- [x] レシート承認時にreceipt_reviewsテーブルへレビューを自動作成する機能を実装
+- [x] 承認フロー（adminApproveLineReceipt / adminApproveReceipt）に自動レビュー作成＋画像処理を組み込む
+- [x] テスト作成・実行（10件PASS）

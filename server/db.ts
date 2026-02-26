@@ -16328,3 +16328,276 @@ export async function getProductMasterImageByName(productName: string) {
     return null;
   }
 }
+
+
+// ===== レシート承認時の自動レビュー作成＋プライバシー保護画像処理 =====
+
+/**
+ * LLM Vision APIでレシート画像から商品部分の座標を取得し、
+ * sharpでクロップしてS3にアップロードする。
+ * プライバシー情報（住所、名前、電話番号等）を除去した商品画像を返す。
+ */
+export async function extractProductImageFromReceipt(
+  imageUrl: string,
+  productName?: string
+): Promise<{ productImageUrl: string | null; error?: string }> {
+  try {
+    const { invokeLLM } = await import("./_core/llm");
+    const { storagePut } = await import("./storage");
+    const sharp = (await import("sharp")).default;
+
+    // Step 1: LLM Vision APIで商品部分の座標を取得
+    const prompt = `この画像はTikTok Shopの注文詳細スクリーンショットです。
+画像内の「商品写真」の部分だけを切り抜きたいです。
+${productName ? `商品名: ${productName}` : ""}
+
+以下のルールに従ってください：
+1. 商品のサムネイル画像（商品写真）の位置を特定してください
+2. 住所、名前、電話番号、注文番号などの個人情報は絶対に含めないでください
+3. 商品画像が見つからない場合は found: false を返してください
+4. 座標は画像全体に対する割合（0.0〜1.0）で返してください
+
+JSON形式で返してください。`;
+
+    const response = await invokeLLM({
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            {
+              type: "image_url",
+              image_url: { url: imageUrl, detail: "high" },
+            },
+          ],
+        },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "product_image_crop",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              found: {
+                type: "boolean",
+                description: "商品画像が見つかったかどうか",
+              },
+              crop: {
+                type: "object",
+                description: "切り抜き座標（画像全体に対する割合 0.0〜1.0）",
+                properties: {
+                  x: { type: "number", description: "左上X座標の割合" },
+                  y: { type: "number", description: "左上Y座標の割合" },
+                  width: { type: "number", description: "幅の割合" },
+                  height: { type: "number", description: "高さの割合" },
+                },
+                required: ["x", "y", "width", "height"],
+                additionalProperties: false,
+              },
+            },
+            required: ["found", "crop"],
+            additionalProperties: false,
+          },
+        },
+      },
+    });
+
+    const content = response.choices?.[0]?.message?.content;
+    if (!content) {
+      return { productImageUrl: null, error: "LLM returned empty response" };
+    }
+
+    let parsed: { found: boolean; crop: { x: number; y: number; width: number; height: number } };
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      return { productImageUrl: null, error: "Failed to parse LLM response" };
+    }
+
+    if (!parsed.found) {
+      return { productImageUrl: null, error: "Product image not found in receipt" };
+    }
+
+    // Step 2: 元画像をfetchしてsharpでクロップ
+    const imageResponse = await fetch(imageUrl);
+    if (!imageResponse.ok) {
+      return { productImageUrl: null, error: `Failed to fetch image: ${imageResponse.status}` };
+    }
+    const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+    const metadata = await sharp(imageBuffer).metadata();
+    const imgWidth = metadata.width || 1;
+    const imgHeight = metadata.height || 1;
+
+    // 座標を実ピクセルに変換（割合→ピクセル）
+    const cropX = Math.max(0, Math.round(parsed.crop.x * imgWidth));
+    const cropY = Math.max(0, Math.round(parsed.crop.y * imgHeight));
+    const cropW = Math.min(Math.round(parsed.crop.width * imgWidth), imgWidth - cropX);
+    const cropH = Math.min(Math.round(parsed.crop.height * imgHeight), imgHeight - cropY);
+
+    if (cropW < 10 || cropH < 10) {
+      return { productImageUrl: null, error: "Crop area too small" };
+    }
+
+    const croppedBuffer = await sharp(imageBuffer)
+      .extract({ left: cropX, top: cropY, width: cropW, height: cropH })
+      .resize({ width: 400, height: 400, fit: "inside" })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+
+    // Step 3: S3にアップロード
+    const suffix = Math.random().toString(36).substring(2, 8);
+    const key = `product-images/auto-crop-${Date.now()}-${suffix}.jpg`;
+    const { url } = await storagePut(key, croppedBuffer, "image/jpeg");
+
+    console.log(`[ProductImage] Cropped product image from receipt: ${url}`);
+    return { productImageUrl: url };
+  } catch (err: any) {
+    console.error("[ProductImage] Failed to extract product image:", err.message);
+    return { productImageUrl: null, error: err.message };
+  }
+}
+
+/**
+ * LLMでレビュー文を自動生成する
+ */
+export async function generateAutoReviewText(
+  productName: string,
+  shopName?: string,
+  amount?: number
+): Promise<string> {
+  try {
+    const { invokeLLM } = await import("./_core/llm");
+
+    const response = await invokeLLM({
+      messages: [
+        {
+          role: "system",
+          content: `あなたはTikTok Shopで商品を購入したユーザーです。
+購入した商品について、簡潔で自然な日本語のレビューを1〜2文で書いてください。
+以下のルールに従ってください：
+- 実際に購入した人のような自然な口調で
+- 過度に褒めすぎない、リアルな感想
+- 絵文字は1〜2個まで
+- 50〜100文字程度`,
+        },
+        {
+          role: "user",
+          content: `商品名: ${productName}${shopName ? `\nショップ: ${shopName}` : ""}${amount ? `\n購入金額: ¥${amount.toLocaleString()}` : ""}`,
+        },
+      ],
+    });
+
+    const text = response.choices?.[0]?.message?.content?.trim();
+    return text || `${productName}を購入しました。`;
+  } catch (err: any) {
+    console.error("[AutoReview] Failed to generate review text:", err.message);
+    return `${productName}を購入しました。`;
+  }
+}
+
+/**
+ * レシート承認時に自動的にreceipt_reviewsにレビューを作成する。
+ * - OCRデータから商品名・金額・ショップ名を取得
+ * - LLMでレビュー文を自動生成
+ * - レシート画像から商品部分を切り抜いてproductImageUrlに設定
+ * - 重複チェック（同じreceiptId + receiptTypeの組み合わせ）
+ */
+export async function createAutoReviewOnApproval(params: {
+  receiptType: "point_request" | "line_receipt";
+  receiptId: number;
+  lineUserId?: string;
+  userId?: number;
+  imageUrl: string;
+  ocrRawText?: string | null;
+  storeName?: string | null;
+  totalAmount?: number | null;
+}): Promise<{ reviewId: number | null; error?: string }> {
+  try {
+    const db = await getDb();
+    if (!db) return { reviewId: null, error: "Database not available" };
+
+    // 重複チェック: 同じレシートで既にレビューが作成されていないか
+    const existing = await db
+      .select({ id: receiptReviews.id })
+      .from(receiptReviews)
+      .where(
+        and(
+          eq(receiptReviews.receiptType, params.receiptType),
+          eq(receiptReviews.receiptId, params.receiptId)
+        )
+      )
+      .limit(1);
+
+    if (existing.length > 0) {
+      console.log(`[AutoReview] Review already exists for ${params.receiptType} #${params.receiptId}`);
+      return { reviewId: existing[0].id, error: "Review already exists" };
+    }
+
+    // OCRデータから商品情報を抽出
+    let productName = "商品";
+    let shopName = params.storeName || undefined;
+    let purchaseAmount = params.totalAmount || undefined;
+
+    if (params.ocrRawText) {
+      try {
+        const ocrData = JSON.parse(params.ocrRawText);
+        if (ocrData.productName && ocrData.productName !== "undefined") {
+          productName = ocrData.productName;
+        }
+        if (ocrData.shopName) shopName = ocrData.shopName;
+        if (ocrData.totalAmount) purchaseAmount = ocrData.totalAmount;
+      } catch {
+        // OCRデータのパースに失敗した場合はデフォルト値を使用
+      }
+    }
+
+    // 複数商品の場合、最初の商品名を使用
+    if (productName.includes("、")) {
+      productName = productName.split("、")[0].trim();
+    }
+
+    // 並行処理: 商品画像切り抜き + レビュー文生成
+    const [imageResult, reviewText] = await Promise.all([
+      extractProductImageFromReceipt(params.imageUrl, productName),
+      generateAutoReviewText(productName, shopName, purchaseAmount),
+    ]);
+
+    // レビューを作成
+    const reviewData: any = {
+      receiptType: params.receiptType,
+      receiptId: params.receiptId,
+      productName,
+      brandName: null,
+      shopName: shopName || null,
+      purchaseAmount: purchaseAmount || null,
+      category: null,
+      rating: 4, // デフォルト星4
+      reviewText,
+      tags: [],
+      receiptImageUrl: null, // プライバシー保護: レシート画像は公開しない
+      productImageUrl: imageResult.productImageUrl || null,
+      purchasePlatform: "TikTok Shop",
+      isVisible: true,
+    };
+
+    // ユーザーIDの設定
+    if (params.userId) {
+      reviewData.userId = params.userId;
+    }
+    if (params.lineUserId) {
+      reviewData.lineUserId = params.lineUserId;
+    }
+
+    const result = await db.insert(receiptReviews).values(reviewData);
+    const reviewId = result[0].insertId;
+
+    console.log(`[AutoReview] Created review #${reviewId} for ${params.receiptType} #${params.receiptId} (product: ${productName}, image: ${imageResult.productImageUrl ? "yes" : "no"})`);
+
+    return { reviewId };
+  } catch (err: any) {
+    console.error(`[AutoReview] Failed to create auto review:`, err.message);
+    return { reviewId: null, error: err.message };
+  }
+}

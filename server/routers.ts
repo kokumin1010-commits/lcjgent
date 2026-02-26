@@ -11599,6 +11599,28 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           console.error("[ReviewLog] Failed to record approval log:", logErr);
         }
         
+        // Auto-create review with privacy-protected product image
+        try {
+          const { createAutoReviewOnApproval } = await import("./db");
+          const reviewResult = await createAutoReviewOnApproval({
+            receiptType: "point_request",
+            receiptId: input.id,
+            userId: receipt.userId,
+            imageUrl: receipt.imageUrl,
+            ocrRawText: receipt.ocrRawText,
+            storeName: receipt.storeName,
+            totalAmount: receipt.totalAmount,
+          });
+          if (reviewResult.reviewId) {
+            console.log(`[Receipt] Auto-created review #${reviewResult.reviewId} for receipt #${input.id}`);
+          } else {
+            console.log(`[Receipt] Auto-review skipped for receipt #${input.id}: ${reviewResult.error}`);
+          }
+        } catch (reviewErr: any) {
+          console.error(`[Receipt] Failed to auto-create review for receipt #${input.id}:`, reviewErr.message);
+          // Don't throw - review creation failure shouldn't fail the approval
+        }
+        
         return { success: true, pointsAwarded: pointsToAward };
       }),
     
@@ -12260,6 +12282,28 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           console.log(`[LINE Receipt] Extracted products for receipt #${input.id}`);
         } catch (extractErr) {
           console.error(`[LINE Receipt] Failed to extract products for receipt #${input.id}:`, extractErr);
+        }
+        
+        // Auto-create review with privacy-protected product image
+        try {
+          const { createAutoReviewOnApproval } = await import("./db");
+          const reviewResult = await createAutoReviewOnApproval({
+            receiptType: "line_receipt",
+            receiptId: input.id,
+            lineUserId: receipt.lineUserId,
+            imageUrl: receipt.imageUrl,
+            ocrRawText: receipt.ocrRawText,
+            storeName: receipt.storeName,
+            totalAmount: receipt.totalAmount,
+          });
+          if (reviewResult.reviewId) {
+            console.log(`[LINE Receipt] Auto-created review #${reviewResult.reviewId} for receipt #${input.id}`);
+          } else {
+            console.log(`[LINE Receipt] Auto-review skipped for receipt #${input.id}: ${reviewResult.error}`);
+          }
+        } catch (reviewErr: any) {
+          console.error(`[LINE Receipt] Failed to auto-create review for receipt #${input.id}:`, reviewErr.message);
+          // Don't throw - review creation failure shouldn't fail the approval
         }
         
         // Send LINE notification to user
