@@ -104,11 +104,21 @@ function AnimatedCounter({ target, duration = 1500 }: { target: number; duration
   const [count, setCount] = useState(0);
   const ref = useRef<HTMLSpanElement>(null);
   const [hasAnimated, setHasAnimated] = useState(false);
+  const prevTargetRef = useRef(0);
+
+  // targetが変わったらアニメーションをリセット
+  useEffect(() => {
+    if (target !== prevTargetRef.current && target > 0) {
+      prevTargetRef.current = target;
+      setHasAnimated(false);
+    }
+  }, [target]);
 
   useEffect(() => {
+    if (target === 0) return; // target=0の場合はアニメーションしない
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting && !hasAnimated) {
+        if (entry.isIntersecting && !hasAnimated && target > 0) {
           setHasAnimated(true);
           const startTime = Date.now();
           const animate = () => {

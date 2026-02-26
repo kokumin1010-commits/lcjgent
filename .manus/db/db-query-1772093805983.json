@@ -1,0 +1,14 @@
+{
+  "query": "SELECT isVisible, COUNT(*) as cnt FROM receipt_reviews GROUP BY isVisible;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT isVisible, COUNT(*) as cnt FROM receipt_reviews GROUP BY isVisible;",
+  "rows": [
+    {
+      "isVisible": "1",
+      "cnt": "2099"
+    }
+  ],
+  "messages": [],
+  "stdout": "isVisible\tcnt\n1\t2099\n",
+  "stderr": "",
+  "execution_time_ms": 1685
+}

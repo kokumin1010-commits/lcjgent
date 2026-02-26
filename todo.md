@@ -6266,3 +6266,7 @@
 - [x] product_master画像がない場合、レビューのスクショ画像（productImageUrl）をフォールバック表示
 - [x] バックエンドでgetReviewProductListにproductImageUrlフォールバックを追加（既に実装済み）
 - [x] フロントエンドで画像表示のフォールバックロジックを実装（clearMasterImage API + 削除ボタン追加）
+
+## バグ修正：公開レビューページの口コミ数が0になる
+- [x] 口コミ数0の原因を調査（AnimatedCounterがtarget=0でアニメーション完了し、データロード後に再実行されない問題）
+- [x] バグ修正（target変更時にアニメーションリセット、target=0ではアニメーション開始しないよう修正）
