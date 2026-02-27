@@ -50,6 +50,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import { SiTiktok, SiInstagram, SiYoutube } from "react-icons/si";
+import { toast } from "sonner";
 import { GoalAchievedConfetti } from "@/components/Confetti";
 import LiverReferralCard from "@/components/LiverReferralCard";
 
@@ -99,10 +100,23 @@ export default function LiverMypage() {
   }, [liverInfo, hasLoadedLiver]);
   
   // Get liver's livestream history (全期間取得)
-  const { data: livestreams, isLoading: isLoadingLivestreams } = trpc.liverManagement.getLivestreams.useQuery(
+  const { data: livestreams, isLoading: isLoadingLivestreams, refetch: refetchLivestreams } = trpc.liverManagement.getLivestreams.useQuery(
     { liverId: liverInfo?.id || 0 },
     { enabled: !!liverInfo?.id }
   );
+
+  // 配信履歴削除用
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
+  const deleteLivestreamMutation = trpc.liverManagement.deleteLivestream.useMutation({
+    onSuccess: () => {
+      toast.success('配信履歴を削除しました');
+      refetchLivestreams();
+      setDeleteTargetId(null);
+    },
+    onError: (error: any) => {
+      toast.error(`削除エラー: ${error.message}`);
+    },
+  });
 
   const logoutMutation = trpc.liver.logout.useMutation({
     onSuccess: () => {
@@ -997,7 +1011,8 @@ export default function LiverMypage() {
                 };
 
                 return (
-                  <Link key={ls.id} href={`/livestreams/${ls.id}`} className="block">
+                  <div key={ls.id} className="relative group">
+                    <Link href={`/livestreams/${ls.id}`} className="block">
                     <Card 
                       className="bg-gray-800/50 border-gray-700 hover:bg-gray-700/50 transition-colors cursor-pointer active:scale-[0.99]"
                     >
@@ -1070,7 +1085,19 @@ export default function LiverMypage() {
                       )}
                     </CardContent>
                     </Card>
-                  </Link>
+                    </Link>
+                    {/* 削除ボタン */}
+                    <button
+                      className="absolute top-1.5 right-1.5 h-6 w-6 flex items-center justify-center rounded-full bg-gray-700/80 text-gray-400 hover:text-red-400 hover:bg-red-900/50 transition-colors z-10"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setDeleteTargetId(ls.id);
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
                 );
               })}
             </div>
@@ -1353,6 +1380,32 @@ export default function LiverMypage() {
         </DialogContent>
       </Dialog>
 
+      {/* 配信履歴削除確認ダイアログ */}
+      <AlertDialog open={deleteTargetId !== null} onOpenChange={(open) => { if (!open) setDeleteTargetId(null); }}>
+        <AlertDialogContent className="bg-gray-900 border-gray-700">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">配信履歴を削除</AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-400">
+              この配信履歴を削除してもよろしいですか？この操作は取り消せません。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-gray-800 text-white border-gray-700 hover:bg-gray-700">
+              キャンセル
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteTargetId) {
+                  deleteLivestreamMutation.mutate({ id: deleteTargetId });
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deleteLivestreamMutation.isPending ? '削除中...' : '削除'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
