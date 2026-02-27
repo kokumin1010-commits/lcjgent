@@ -1,0 +1,1 @@
+ALTER TABLE `brand_livestreams` ADD `deletedAt` timestamp;

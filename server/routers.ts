@@ -6796,7 +6796,7 @@ Respond with a JSON object.`,
           createdBy: ctx.user.id,
         });
         
-        // Record edit log
+        // Record edit log with full data for recovery
         const dateStr = new Date(input.livestreamDate).toLocaleDateString('ja-JP');
         await logBrandEdit(
           input.brandId,
@@ -6806,7 +6806,9 @@ Respond with a JSON object.`,
           `${dateStr} ${resolvedStreamerName}`,
           `ライブ配信を追加：${dateStr} ${resolvedStreamerName}`,
           ctx.user.id,
-          ctx.user.name || ctx.user.email
+          ctx.user.name || ctx.user.email,
+          undefined,
+          JSON.stringify(livestream)
         );
         
         return livestream;
@@ -9532,6 +9534,25 @@ ${conversationText}
           } catch (error) {
             console.error("[LINE Coaching] Exception:", error);
           }
+        }
+        
+        // Record edit log with full data for recovery
+        try {
+          const dateStr = new Date(input.livestreamDate).toLocaleDateString('ja-JP');
+          await logBrandEdit(
+            input.brandId,
+            "create",
+            "livestream",
+            id,
+            `${dateStr} ${streamerName}`,
+            `ライブ配信を追加：${dateStr} ${streamerName}`,
+            ctx.user?.id || 0,
+            ctx.user?.name || ctx.user?.email || 'liver',
+            undefined,
+            JSON.stringify(livestreamResult)
+          );
+        } catch (logError) {
+          console.error('[logBrandEdit] Failed to log create:', logError);
         }
         
         // セット組みデータの保存

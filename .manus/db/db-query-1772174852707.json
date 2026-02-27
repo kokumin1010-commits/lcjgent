@@ -1,0 +1,9 @@
+{
+  "query": "DELETE FROM brand_livestreams WHERE id IN (240017, 240021, 300006, 300014, 300018, 300019, 330005, 360024, 1020082, 1020083, 1020087, 1020088, 1020089, 1020090, 1020091)",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute DELETE FROM brand_livestreams WHERE id IN (240017, 240021, 300006, 300014, 300018, 300019, 330005, 360024, 1020082, 1020083, 1020087, 1020088, 1020089, 1020090, 1020091)",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1734
+}

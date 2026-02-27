@@ -1,4 +1,4 @@
-import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, gte, lte, gt } from "drizzle-orm";
+import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, isNull, gte, lte, gt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion } from "../drizzle/schema";
 
@@ -851,7 +851,7 @@ export async function getAllBrands(filters?: { status?: string; search?: string 
       const livestreams = await db
         .select({ gmv: brandLivestreams.gmv })
         .from(brandLivestreams)
-        .where(eq(brandLivestreams.brandId, brand.id));
+        .where(and(eq(brandLivestreams.brandId, brand.id), isNull(brandLivestreams.deletedAt)));
       
       const totalGmv = livestreams.reduce((sum, ls) => sum + (ls.gmv || 0), 0);
       
@@ -942,7 +942,8 @@ export async function getProductsByBrandIdWithGmv(brandId: number) {
   const livestreams = await db.select().from(brandLivestreams).where(
     and(
       eq(brandLivestreams.brandId, brandId),
-      isNotNull(brandLivestreams.productId)
+      isNotNull(brandLivestreams.productId),
+      isNull(brandLivestreams.deletedAt)
     )
   );
   
@@ -1059,7 +1060,7 @@ export async function getLivestreamsByBrandId(brandId: number) {
   const db = await getDb();
   if (!db) return [];
   
-  const livestreams = await db.select().from(brandLivestreams).where(eq(brandLivestreams.brandId, brandId)).orderBy(desc(brandLivestreams.livestreamDate));
+  const livestreams = await db.select().from(brandLivestreams).where(and(eq(brandLivestreams.brandId, brandId), isNull(brandLivestreams.deletedAt))).orderBy(desc(brandLivestreams.livestreamDate));
   
   // 各直播の商品別GMV合計を取得
   const livestreamsWithGmv = await Promise.all(
@@ -1091,12 +1092,13 @@ export async function updateBrandLivestream(id: number, livestreamData: Partial<
   await db.update(brandLivestreams).set(livestreamData).where(eq(brandLivestreams.id, id));
 }
 
-// Delete livestream
+// Delete livestream (soft delete)
 export async function deleteBrandLivestream(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  await db.delete(brandLivestreams).where(eq(brandLivestreams.id, id));
+  // ソフトデリート: deletedAtを設定して論理削除
+  await db.update(brandLivestreams).set({ deletedAt: new Date() }).where(eq(brandLivestreams.id, id));
 }
 
 // Get all livestreams (for statistics)
@@ -1104,7 +1106,7 @@ export async function getAllLivestreams() {
   const db = await getDb();
   if (!db) return [];
   
-  return await db.select().from(brandLivestreams).orderBy(desc(brandLivestreams.livestreamDate));
+  return await db.select().from(brandLivestreams).where(isNull(brandLivestreams.deletedAt)).orderBy(desc(brandLivestreams.livestreamDate));
 }
 
 // Get livestream statistics for a brand
@@ -1112,7 +1114,7 @@ export async function getLivestreamStatsByBrandId(brandId: number) {
   const db = await getDb();
   if (!db) return { totalSales: 0, totalStreams: 0, avgSales: 0 };
   
-  const livestreams = await db.select().from(brandLivestreams).where(eq(brandLivestreams.brandId, brandId));
+  const livestreams = await db.select().from(brandLivestreams).where(and(eq(brandLivestreams.brandId, brandId), isNull(brandLivestreams.deletedAt)));
   
   const totalSales = livestreams.reduce((sum, ls) => sum + (ls.salesAmount || 0), 0);
   const totalStreams = livestreams.length;
@@ -2394,7 +2396,7 @@ export async function getLiverInteractionSummary(liverId: number) {
   const livestreams = await db
     .select({ count: sql<number>`count(*)` })
     .from(brandLivestreams)
-    .where(eq(brandLivestreams.liverId, liverId));
+    .where(and(eq(brandLivestreams.liverId, liverId), isNull(brandLivestreams.deletedAt)));
   const livestreamCount = livestreams[0]?.count || 0;
   
   // Get recent livestreams with AI advice
@@ -2409,7 +2411,7 @@ export async function getLiverInteractionSummary(liverId: number) {
       result: brandLivestreams.result,
     })
     .from(brandLivestreams)
-    .where(eq(brandLivestreams.liverId, liverId))
+    .where(and(eq(brandLivestreams.liverId, liverId), isNull(brandLivestreams.deletedAt)))
     .orderBy(desc(brandLivestreams.livestreamDate))
     .limit(5);
   
@@ -3466,7 +3468,7 @@ export async function getAllLivestreamProductsForBrand(brandId: number) {
   const livestreamList = await db
     .select()
     .from(brandLivestreams)
-    .where(eq(brandLivestreams.brandId, brandId));
+    .where(and(eq(brandLivestreams.brandId, brandId), isNull(brandLivestreams.deletedAt)));
   
   // Get all products for these livestreams
   const livestreamIds = livestreamList.map(ls => ls.id);
@@ -3496,7 +3498,7 @@ export async function getMonthlyGmvSummary(brandId: number) {
   const livestreamList = await db
     .select()
     .from(brandLivestreams)
-    .where(eq(brandLivestreams.brandId, brandId))
+    .where(and(eq(brandLivestreams.brandId, brandId), isNull(brandLivestreams.deletedAt)))
     .orderBy(desc(brandLivestreams.livestreamDate));
   
   if (livestreamList.length === 0) return [];
@@ -3617,7 +3619,7 @@ export async function getContractLinkedLivestreams(contractId: number) {
   const livestreams = await db
     .select()
     .from(brandLivestreams)
-    .where(inArray(brandLivestreams.id, livestreamIds))
+    .where(and(inArray(brandLivestreams.id, livestreamIds), isNull(brandLivestreams.deletedAt)))
     .orderBy(desc(brandLivestreams.livestreamDate));
   
   return livestreams;
@@ -3735,7 +3737,8 @@ export async function getLivestreamsByLiverId(liverId: number, month?: string) {
   return await db
     .select()
     .from(brandLivestreams)
-    .where(and(...conditions))
+    .where(and(
+      isNull(brandLivestreams.deletedAt),...conditions))
     .orderBy(desc(brandLivestreams.livestreamDate));
 }
 
@@ -3759,7 +3762,8 @@ export async function getLiverStatistics(liverId: number, month?: string) {
       livestreamCount: sql<number>`COUNT(*)`,
     })
     .from(brandLivestreams)
-    .where(and(...conditions));
+    .where(and(
+      isNull(brandLivestreams.deletedAt),...conditions));
   
   return result[0];
 }
@@ -3783,6 +3787,7 @@ export async function getLiverRankings(month: string) {
     .from(brandLivestreams)
     .where(
       and(
+        isNull(brandLivestreams.deletedAt),
         sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
         sql`${brandLivestreams.livestreamDate} <= ${endDate}`,
         isNotNull(brandLivestreams.liverId)
@@ -3803,6 +3808,7 @@ export async function getLiverRankings(month: string) {
     .from(brandLivestreams)
     .where(
       and(
+        isNull(brandLivestreams.deletedAt),
         sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
         sql`${brandLivestreams.livestreamDate} <= ${endDate}`,
         isNotNull(brandLivestreams.liverId)
@@ -3823,7 +3829,7 @@ export async function getLivestreamById(id: number) {
   const result = await db
     .select()
     .from(brandLivestreams)
-    .where(eq(brandLivestreams.id, id))
+    .where(and(eq(brandLivestreams.id, id), isNull(brandLivestreams.deletedAt)))
     .limit(1);
   
   return result.length > 0 ? result[0] : null;
@@ -3872,6 +3878,7 @@ export async function getLiversWithStats(month: string) {
         .from(brandLivestreams)
         .where(
           and(
+            isNull(brandLivestreams.deletedAt),
             eq(brandLivestreams.liverId, liver.id),
             sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
             sql`${brandLivestreams.livestreamDate} <= ${endDate}`
@@ -4220,6 +4227,7 @@ export async function findExistingLivestream(
     .from(brandLivestreams)
     .where(
       and(
+        isNull(brandLivestreams.deletedAt),
         eq(brandLivestreams.brandId, brandId),
         sql`${brandLivestreams.livestreamDate} >= ${startRange}`,
         sql`${brandLivestreams.livestreamDate} <= ${endRange}`,
@@ -4280,6 +4288,7 @@ export async function getCsvImportedLivestreams(brandId: number) {
     .from(brandLivestreams)
     .where(
       and(
+        isNull(brandLivestreams.deletedAt),
         eq(brandLivestreams.brandId, brandId),
         eq(brandLivestreams.csvImported, "yes")
       )
@@ -4382,7 +4391,7 @@ export async function getCsvImportHistoryByBrand(brandId: number) {
   const livestreamList = await db
     .select()
     .from(brandLivestreams)
-    .where(eq(brandLivestreams.brandId, brandId));
+    .where(and(eq(brandLivestreams.brandId, brandId), isNull(brandLivestreams.deletedAt)));
   
   const livestreamIds = livestreamList.map(ls => ls.id);
   if (livestreamIds.length === 0) return [];
@@ -4479,17 +4488,19 @@ export async function deleteLivestreamCsvImportHistory(historyId: number) {
   
   const { liverId, brandId, dateRangeStart, dateRangeEnd } = history[0];
   
-  // Delete all livestreams within the date range that were imported via CSV
+  // Soft delete all livestreams within the date range that were imported via CSV
   if (dateRangeStart && dateRangeEnd) {
     await db
-      .delete(brandLivestreams)
+      .update(brandLivestreams)
+      .set({ deletedAt: new Date() })
       .where(
         and(
           eq(brandLivestreams.liverId, liverId),
           eq(brandLivestreams.brandId, brandId),
           eq(brandLivestreams.csvImported, "yes"),
           gte(brandLivestreams.livestreamDate, dateRangeStart),
-          lte(brandLivestreams.livestreamDate, dateRangeEnd)
+          lte(brandLivestreams.livestreamDate, dateRangeEnd),
+          isNull(brandLivestreams.deletedAt)
         )
       );
   }
@@ -7922,7 +7933,7 @@ export async function getLivestreamsByStreamerName(streamerName: string, month?:
   const livestreams = await db
     .select()
     .from(brandLivestreams)
-    .where(whereConditions)
+    .where(and(whereConditions, isNull(brandLivestreams.deletedAt)))
     .orderBy(sql`${brandLivestreams.livestreamDate} DESC`);
   
   const totalSales = livestreams.reduce((sum, l) => sum + (l.gmv || 0), 0);
@@ -8162,6 +8173,7 @@ export async function getLiverSalesStatsByBrand(brandId: number) {
   })
     .from(brandLivestreams)
     .where(and(
+      isNull(brandLivestreams.deletedAt),
       inArray(brandLivestreams.productId, productIds),
       isNotNull(brandLivestreams.liverId)
     ));
@@ -8581,6 +8593,7 @@ export async function getLiverDashboardStats(liverId: number, yearMonth: string)
   const currentMonthStreams = await db.select()
     .from(brandLivestreams)
     .where(and(
+      isNull(brandLivestreams.deletedAt),
       eq(brandLivestreams.liverId, liverId),
       gte(brandLivestreams.livestreamDate, startDate),
       lte(brandLivestreams.livestreamDate, endDate)
@@ -8599,6 +8612,7 @@ export async function getLiverDashboardStats(liverId: number, yearMonth: string)
   const prevMonthStreams = await db.select()
     .from(brandLivestreams)
     .where(and(
+      isNull(brandLivestreams.deletedAt),
       eq(brandLivestreams.liverId, liverId),
       gte(brandLivestreams.livestreamDate, prevStartDate),
       lte(brandLivestreams.livestreamDate, prevEndDate)
@@ -8619,6 +8633,7 @@ export async function getLiverDashboardStats(liverId: number, yearMonth: string)
     const monthStreams = await db.select()
       .from(brandLivestreams)
       .where(and(
+        isNull(brandLivestreams.deletedAt),
         eq(brandLivestreams.liverId, liverId),
         gte(brandLivestreams.livestreamDate, mStartDate),
         lte(brandLivestreams.livestreamDate, mEndDate)
@@ -8777,6 +8792,7 @@ export async function getTotalLiverSalesSummary(month: string) {
     .from(brandLivestreams)
     .where(
       and(
+        isNull(brandLivestreams.deletedAt),
         sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
         sql`${brandLivestreams.livestreamDate} <= ${endDate}`
       )
@@ -8793,6 +8809,7 @@ export async function getTotalLiverSalesSummary(month: string) {
     .from(brandLivestreams)
     .where(
       and(
+        isNull(brandLivestreams.deletedAt),
         sql`${brandLivestreams.livestreamDate} >= ${prevStartDate}`,
         sql`${brandLivestreams.livestreamDate} <= ${prevEndDate}`
       )
@@ -8855,6 +8872,7 @@ export async function getLiverMonthlySalesTrend() {
       .from(brandLivestreams)
       .where(
         and(
+          isNull(brandLivestreams.deletedAt),
           sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
           sql`${brandLivestreams.livestreamDate} <= ${endDate}`
         )
@@ -8897,7 +8915,7 @@ export async function getLiverDetailWithStats(liverId: number) {
       totalLivestreams: sql<number>`COUNT(*)`,
     })
     .from(brandLivestreams)
-    .where(eq(brandLivestreams.liverId, liverId));
+    .where(and(eq(brandLivestreams.liverId, liverId), isNull(brandLivestreams.deletedAt)));
   
   // Get current month statistics (JST-based)
   const now = new Date();
@@ -8914,6 +8932,7 @@ export async function getLiverDetailWithStats(liverId: number) {
     })
     .from(brandLivestreams)
     .where(and(
+      isNull(brandLivestreams.deletedAt),
       eq(brandLivestreams.liverId, liverId),
       sql`${brandLivestreams.livestreamDate} >= ${currentMonthStart}`,
       sql`${brandLivestreams.livestreamDate} <= ${currentMonthEnd}`
@@ -8933,6 +8952,7 @@ export async function getLiverDetailWithStats(liverId: number) {
     })
     .from(brandLivestreams)
     .where(and(
+      isNull(brandLivestreams.deletedAt),
       eq(brandLivestreams.liverId, liverId),
       sql`${brandLivestreams.livestreamDate} >= ${prevMonthStart}`,
       sql`${brandLivestreams.livestreamDate} <= ${prevMonthEnd}`
@@ -8996,6 +9016,7 @@ export async function getLiverMonthlySalesTrendById(liverId: number) {
       })
       .from(brandLivestreams)
       .where(and(
+        isNull(brandLivestreams.deletedAt),
         eq(brandLivestreams.liverId, liverId),
         sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
         sql`${brandLivestreams.livestreamDate} <= ${endDate}`
@@ -9037,7 +9058,7 @@ export async function getLiverRecentLivestreams(liverId: number, limit: number =
     })
     .from(brandLivestreams)
     .leftJoin(brands, eq(brandLivestreams.brandId, brands.id))
-    .where(eq(brandLivestreams.liverId, liverId))
+    .where(and(eq(brandLivestreams.liverId, liverId), isNull(brandLivestreams.deletedAt)))
     .orderBy(desc(brandLivestreams.livestreamDate))
     .limit(limit);
   
@@ -9062,7 +9083,7 @@ export async function getLiverBrandPerformance(liverId: number) {
     })
     .from(brandLivestreams)
     .leftJoin(brands, eq(brandLivestreams.brandId, brands.id))
-    .where(eq(brandLivestreams.liverId, liverId))
+    .where(and(eq(brandLivestreams.liverId, liverId), isNull(brandLivestreams.deletedAt)))
     .groupBy(brandLivestreams.brandId, brands.name)
     .orderBy(sql`SUM(${brandLivestreams.salesAmount}) DESC`);
   
@@ -9100,6 +9121,7 @@ export async function getTopSellingProducts(month: string, limit: number = 10) {
     .from(brandLivestreams)
     .where(
       and(
+        isNull(brandLivestreams.deletedAt),
         sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
         sql`${brandLivestreams.livestreamDate} <= ${endDate}`,
         isNotNull(brandLivestreams.liverId)
@@ -9219,6 +9241,7 @@ export async function getLiverProductMatrix(month: string, topProductsLimit: num
     .from(brandLivestreams)
     .where(
       and(
+        isNull(brandLivestreams.deletedAt),
         sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
         sql`${brandLivestreams.livestreamDate} <= ${endDate}`,
         isNotNull(brandLivestreams.liverId)
@@ -9766,6 +9789,7 @@ export async function getHourlySalesAnalysis(month?: string) {
     })
     .from(brandLivestreams)
     .where(and(
+      isNull(brandLivestreams.deletedAt),
       isNotNull(brandLivestreams.liverId),
       dateFilter
     ));
@@ -9835,6 +9859,7 @@ export async function getDayOfWeekPerformance(month?: string) {
     })
     .from(brandLivestreams)
     .where(and(
+      isNull(brandLivestreams.deletedAt),
       isNotNull(brandLivestreams.liverId),
       dateFilter
     ));
@@ -10509,7 +10534,7 @@ export async function getTopProductsByLiver(liverId: number, limit: number = 20)
   const liverLivestreams = await db
     .select({ id: brandLivestreams.id })
     .from(brandLivestreams)
-    .where(eq(brandLivestreams.liverId, liverId));
+    .where(and(eq(brandLivestreams.liverId, liverId), isNull(brandLivestreams.deletedAt)));
   
   if (liverLivestreams.length === 0) return [];
   
@@ -10553,7 +10578,7 @@ export async function getLiverCategoryAnalysis(liverId: number) {
   const liverLivestreams = await db
     .select({ id: brandLivestreams.id })
     .from(brandLivestreams)
-    .where(eq(brandLivestreams.liverId, liverId));
+    .where(and(eq(brandLivestreams.liverId, liverId), isNull(brandLivestreams.deletedAt)));
   
   if (liverLivestreams.length === 0) return [];
   
@@ -10743,13 +10768,13 @@ export async function getLiverPerformanceStats(liverId: number, options?: { cate
 
   // Get all livestreams by this liver (use liverId first, fallback to streamerName)
   let allStreams = await db.select().from(brandLivestreams)
-    .where(eq(brandLivestreams.liverId, liverId))
+    .where(and(eq(brandLivestreams.liverId, liverId), isNull(brandLivestreams.deletedAt)))
     .orderBy(desc(brandLivestreams.livestreamDate));
 
   // Fallback: if no streams found by liverId, try matching by streamerName
   if (!allStreams.length) {
     allStreams = await db.select().from(brandLivestreams)
-      .where(eq(brandLivestreams.streamerName, liverName))
+      .where(and(eq(brandLivestreams.streamerName, liverName), isNull(brandLivestreams.deletedAt)))
       .orderBy(desc(brandLivestreams.livestreamDate));
   }
 
@@ -10875,6 +10900,7 @@ export async function findSimilarCases(params: {
   // Only include streams with GMV > 0 (exclude zero/null GMV)
   let streams = await db.select().from(brandLivestreams)
     .where(and(
+      isNull(brandLivestreams.deletedAt),
       eq(brandLivestreams.liverId, params.liverId),
       isNotNull(brandLivestreams.gmv),
     ))
@@ -10885,6 +10911,7 @@ export async function findSimilarCases(params: {
   if (!streams.length) {
     streams = await db.select().from(brandLivestreams)
       .where(and(
+        isNull(brandLivestreams.deletedAt),
         eq(brandLivestreams.streamerName, liverName),
         isNotNull(brandLivestreams.gmv),
       ))
