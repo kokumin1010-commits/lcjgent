@@ -16404,7 +16404,8 @@ JSON形式で返してください。`;
       },
     });
 
-    const content = response.choices?.[0]?.message?.content;
+    const rawContent = response.choices?.[0]?.message?.content;
+    const content = typeof rawContent === 'string' ? rawContent : Array.isArray(rawContent) ? rawContent.find(c => c.type === 'text')?.text || '' : '';
     if (!content) {
       return { productImageUrl: null, error: "LLM returned empty response" };
     }
@@ -16489,7 +16490,8 @@ export async function generateAutoReviewText(
       ],
     });
 
-    const text = response.choices?.[0]?.message?.content?.trim();
+    const rawContent2 = response.choices?.[0]?.message?.content;
+    const text = (typeof rawContent2 === 'string' ? rawContent2 : Array.isArray(rawContent2) ? rawContent2.find(c => c.type === 'text')?.text || '' : '')?.trim();
     return text || `${productName}を購入しました。`;
   } catch (err: any) {
     console.error("[AutoReview] Failed to generate review text:", err.message);
