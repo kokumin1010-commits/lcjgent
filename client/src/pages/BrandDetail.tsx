@@ -60,7 +60,7 @@ const translations = {
     listPrice: "定価",
     specialPrice: "特価",
     gmv: "GMV",
-    livestreamPerformance: "直播パフォーマンス",
+    livestreamPerformance: "ライブコマース",
     date: "日付",
     account: "アカウント",
     platform: "プラットフォーム",
@@ -208,7 +208,7 @@ const translations = {
     listPrice: "定价",
     specialPrice: "特价",
     gmv: "GMV",
-    livestreamPerformance: "直播表现",
+    livestreamPerformance: "直播带货",
     date: "日期",
     account: "账号",
     platform: "平台",
@@ -2401,7 +2401,7 @@ ${proposal.proposalContent}
                       <td colSpan={14} className="text-center text-gray-500 py-8">{t.noData}</td>
                     </tr>
                   ) : (
-                    livestreams.slice(0, 10).map((ls) => (
+                    livestreams.map((ls) => (
                       <tr key={ls.id} className="border-b border-red-900/20 hover:bg-red-900/10 transition-colors group">
                         <td className="py-3 px-2 text-gray-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                           {formatDate(ls.livestreamDate)}
