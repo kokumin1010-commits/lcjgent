@@ -3769,22 +3769,25 @@ export async function getLiverStatistics(liverId: number, month?: string) {
 }
 
 // Get liver rankings (sales ranking, duration ranking)
-// Group by liverId only to avoid duplicate entries for same liver with different streamerName
+// JOIN livers table to get correct liver name and avatar instead of streamerName
 export async function getLiverRankings(month: string) {
   const db = await getDb();
   if (!db) return { salesRanking: [], durationRanking: [] };
   
   const { startDate, endDate } = getJSTMonthRange(month);
   
-  // Sales ranking - group by liverId only, use MAX for streamerName
+  // Sales ranking - JOIN livers to get correct name and avatar
   const salesRanking = await db
     .select({
       liverId: brandLivestreams.liverId,
-      streamerName: sql<string>`MAX(${brandLivestreams.streamerName})`,
+      streamerName: sql<string>`COALESCE(${livers.name}, MAX(${brandLivestreams.streamerName}))`,
+      liverName: livers.name,
+      avatarUrl: livers.avatarUrl,
       totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
       totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
     })
     .from(brandLivestreams)
+    .leftJoin(livers, eq(brandLivestreams.liverId, livers.id))
     .where(
       and(
         isNull(brandLivestreams.deletedAt),
@@ -3793,19 +3796,22 @@ export async function getLiverRankings(month: string) {
         isNotNull(brandLivestreams.liverId)
       )
     )
-    .groupBy(brandLivestreams.liverId)
+    .groupBy(brandLivestreams.liverId, livers.name, livers.avatarUrl)
     .orderBy(sql`SUM(${brandLivestreams.salesAmount}) DESC`)
     .limit(10);
   
-  // Duration ranking - group by liverId only, use MAX for streamerName
+  // Duration ranking - JOIN livers to get correct name and avatar
   const durationRanking = await db
     .select({
       liverId: brandLivestreams.liverId,
-      streamerName: sql<string>`MAX(${brandLivestreams.streamerName})`,
+      streamerName: sql<string>`COALESCE(${livers.name}, MAX(${brandLivestreams.streamerName}))`,
+      liverName: livers.name,
+      avatarUrl: livers.avatarUrl,
       totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
       totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
     })
     .from(brandLivestreams)
+    .leftJoin(livers, eq(brandLivestreams.liverId, livers.id))
     .where(
       and(
         isNull(brandLivestreams.deletedAt),
@@ -3814,7 +3820,7 @@ export async function getLiverRankings(month: string) {
         isNotNull(brandLivestreams.liverId)
       )
     )
-    .groupBy(brandLivestreams.liverId)
+    .groupBy(brandLivestreams.liverId, livers.name, livers.avatarUrl)
     .orderBy(sql`SUM(${brandLivestreams.duration}) DESC`)
     .limit(10);
   

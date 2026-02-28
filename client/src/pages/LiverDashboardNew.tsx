@@ -109,7 +109,8 @@ export default function LiverDashboardNew() {
     return options;
   }, []);
   
-  const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].value);
+  // Default to previous month since current month often has no data yet
+  const [selectedMonth, setSelectedMonth] = useState(monthOptions[1]?.value || monthOptions[0].value);
   const [showAllSales, setShowAllSales] = useState(false);
   const [showAllDuration, setShowAllDuration] = useState(false);
   const [showAllProducts, setShowAllProducts] = useState(false);
@@ -663,13 +664,13 @@ export default function LiverDashboardNew() {
                         {getRankIcon(index + 1)}
                       </div>
                       <Avatar className="w-14 h-14 ring-2 ring-cyan-500/30 group-hover:ring-cyan-400/50 transition-all">
-                        <AvatarImage src={livers?.find(l => l.id === item.liverId)?.avatarUrl || undefined} />
+                        <AvatarImage src={(item as any).avatarUrl || undefined} />
                         <AvatarFallback className="bg-gradient-to-br from-cyan-900 to-blue-900 text-cyan-100 text-lg">
-                          {(livers?.find(l => l.id === item.liverId)?.name || item.streamerName)?.charAt(0) || "?"}
+                          {((item as any).liverName || item.streamerName)?.charAt(0) || "?"}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1">
-                        <p className="font-semibold text-cyan-100 group-hover:text-cyan-50 transition-colors">{livers?.find(l => l.id === item.liverId)?.name || item.streamerName || "不明"}</p>
+                        <p className="font-semibold text-cyan-100 group-hover:text-cyan-50 transition-colors">{(item as any).liverName || item.streamerName || "不明"}</p>
                         <div className="flex items-center gap-6 mt-2">
                           <div className="flex-1">
                             <div className="flex items-center justify-between mb-1">
@@ -1425,13 +1426,13 @@ export default function LiverDashboardNew() {
                         {getRankIcon(index + 1)}
                       </div>
                       <Avatar className="w-14 h-14 ring-2 ring-cyan-500/30 group-hover:ring-cyan-400/50 transition-all">
-                        <AvatarImage src={livers?.find(l => l.id === item.liverId)?.avatarUrl || undefined} />
+                        <AvatarImage src={(item as any).avatarUrl || undefined} />
                         <AvatarFallback className="bg-gradient-to-br from-cyan-900 to-blue-900 text-cyan-100 text-lg">
-                          {(livers?.find(l => l.id === item.liverId)?.name || item.streamerName)?.charAt(0) || "?"}
+                          {((item as any).liverName || item.streamerName)?.charAt(0) || "?"}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1">
-                        <p className="font-semibold text-cyan-100 group-hover:text-cyan-50 transition-colors">{livers?.find(l => l.id === item.liverId)?.name || item.streamerName || "不明"}</p>
+                        <p className="font-semibold text-cyan-100 group-hover:text-cyan-50 transition-colors">{(item as any).liverName || item.streamerName || "不明"}</p>
                         <div className="flex items-center gap-6 mt-2">
                           <div className="w-28">
                             <span className="text-yellow-400 font-mono">

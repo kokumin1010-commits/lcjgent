@@ -1,0 +1,46 @@
+{
+  "query": "\nSELECT liverId, MAX(streamerName) as sname, \n       COALESCE(SUM(salesAmount), 0) as totalSales,\n       COUNT(*) as cnt\nFROM brand_livestreams \nWHERE deletedAt IS NULL \n  AND livestreamDate >= '2025-10-31 15:00:00'\n  AND livestreamDate <= '2025-11-30 14:59:59'\n  AND liverId IS NOT NULL\nGROUP BY liverId\nORDER BY totalSales DESC\nLIMIT 10\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute \nSELECT liverId, MAX(streamerName) as sname, \n       COALESCE(SUM(salesAmount), 0) as totalSales,\n       COUNT(*) as cnt\nFROM brand_livestreams \nWHERE deletedAt IS NULL \n  AND livestreamDate >= '2025-10-31 15:00:00'\n  AND livestreamDate <= '2025-11-30 14:59:59'\n  AND liverId IS NOT NULL\nGROUP BY liverId\nORDER BY totalSales DESC\nLIMIT 10\n",
+  "rows": [
+    {
+      "liverId": "120005",
+      "sname": "Ryu kyogoku ",
+      "totalSales": "90294209",
+      "cnt": "44"
+    },
+    {
+      "liverId": "720019",
+      "sname": "KYOGOKU",
+      "totalSales": "12214965",
+      "cnt": "29"
+    },
+    {
+      "liverId": "750041",
+      "sname": "KYOGOKU",
+      "totalSales": "2437170",
+      "cnt": "16"
+    },
+    {
+      "liverId": "360013",
+      "sname": "KYOGOKU",
+      "totalSales": "1965955",
+      "cnt": "17"
+    },
+    {
+      "liverId": "360029",
+      "sname": "KYOGOKU",
+      "totalSales": "362597",
+      "cnt": "10"
+    },
+    {
+      "liverId": "360009",
+      "sname": "KYOGOKU",
+      "totalSales": "40991",
+      "cnt": "19"
+    }
+  ],
+  "messages": [],
+  "stdout": "liverId\tsname\ttotalSales\tcnt\n120005\tRyu kyogoku \t90294209\t44\n720019\tKYOGOKU\t12214965\t29\n750041\tKYOGOKU\t2437170\t16\n360013\tKYOGOKU\t1965955\t17\n360029\tKYOGOKU\t362597\t10\n360009\tKYOGOKU\t40991\t19\n",
+  "stderr": "",
+  "execution_time_ms": 1598
+}

@@ -1,0 +1,15 @@
+{
+  "query": "\nSELECT \n  COUNT(*) as total_livestreams,\n  SUM(CASE WHEN liverId IS NULL THEN 1 ELSE 0 END) as null_liver_id,\n  SUM(CASE WHEN liverId IS NOT NULL THEN 1 ELSE 0 END) as has_liver_id\nFROM brand_livestreams \nWHERE deletedAt IS NULL\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute \nSELECT \n  COUNT(*) as total_livestreams,\n  SUM(CASE WHEN liverId IS NULL THEN 1 ELSE 0 END) as null_liver_id,\n  SUM(CASE WHEN liverId IS NOT NULL THEN 1 ELSE 0 END) as has_liver_id\nFROM brand_livestreams \nWHERE deletedAt IS NULL\n",
+  "rows": [
+    {
+      "total_livestreams": "1291",
+      "null_liver_id": "219",
+      "has_liver_id": "1072"
+    }
+  ],
+  "messages": [],
+  "stdout": "total_livestreams\tnull_liver_id\thas_liver_id\n1291\t219\t1072\n",
+  "stderr": "",
+  "execution_time_ms": 1611
+}

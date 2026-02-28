@@ -31,7 +31,8 @@ export default function LiverList() {
     return options;
   }, []);
   
-  const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].value);
+  // Default to previous month since current month often has no data yet
+  const [selectedMonth, setSelectedMonth] = useState(monthOptions[1]?.value || monthOptions[0].value);
   const [showAllSales, setShowAllSales] = useState(false);
   const [showAllDuration, setShowAllDuration] = useState(false);
   const [showAllReferral, setShowAllReferral] = useState(false);
@@ -299,13 +300,13 @@ export default function LiverList() {
                     <div className="flex items-center gap-4 p-3 rounded-lg hover:bg-gray-800/50 transition-colors cursor-pointer">
                       {getRankIcon(index + 1)}
                       <Avatar className="w-12 h-12">
-                        <AvatarImage src={livers?.find(l => l.id === item.liverId)?.avatarUrl || undefined} />
+                        <AvatarImage src={(item as any).avatarUrl || livers?.find(l => l.id === item.liverId)?.avatarUrl || undefined} />
                         <AvatarFallback className="bg-gray-700 text-white">
-                          {item.streamerName?.charAt(0) || "?"}
+                          {((item as any).liverName || item.streamerName)?.charAt(0) || "?"}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1">
-                        <p className="font-medium text-white">{item.streamerName || "不明"}</p>
+                        <p className="font-medium text-white">{(item as any).liverName || item.streamerName || "不明"}</p>
                         <div className="flex items-center gap-4 text-sm">
                           <div>
                             <span className="text-yellow-500 font-bold">
@@ -491,13 +492,13 @@ export default function LiverList() {
                     <div className="flex items-center gap-4 p-3 rounded-lg hover:bg-gray-800/50 transition-colors cursor-pointer">
                       {getRankIcon(index + 1)}
                       <Avatar className="w-12 h-12">
-                        <AvatarImage src={livers?.find(l => l.id === item.liverId)?.avatarUrl || undefined} />
+                        <AvatarImage src={(item as any).avatarUrl || livers?.find(l => l.id === item.liverId)?.avatarUrl || undefined} />
                         <AvatarFallback className="bg-gray-700 text-white">
-                          {item.streamerName?.charAt(0) || "?"}
+                          {((item as any).liverName || item.streamerName)?.charAt(0) || "?"}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1">
-                        <p className="font-medium text-white">{item.streamerName || "不明"}</p>
+                        <p className="font-medium text-white">{(item as any).liverName || item.streamerName || "不明"}</p>
                         <div className="flex items-center gap-4 text-sm">
                           <div>
                             <span className="text-yellow-500">

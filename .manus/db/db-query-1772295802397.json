@@ -1,0 +1,52 @@
+{
+  "query": "SELECT bl.liverId, l.name as liverName, MAX(bl.streamerName) as sname, \n       COALESCE(SUM(bl.salesAmount), 0) as totalSales,\n       COUNT(*) as cnt\nFROM brand_livestreams bl\nLEFT JOIN livers l ON bl.liverId = l.id\nWHERE bl.deletedAt IS NULL \n  AND bl.livestreamDate >= '2025-10-31 15:00:00'\n  AND bl.livestreamDate <= '2025-11-30 14:59:59'\n  AND bl.liverId IS NOT NULL\nGROUP BY bl.liverId, l.name\nORDER BY totalSales DESC\nLIMIT 10",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT bl.liverId, l.name as liverName, MAX(bl.streamerName) as sname, \n       COALESCE(SUM(bl.salesAmount), 0) as totalSales,\n       COUNT(*) as cnt\nFROM brand_livestreams bl\nLEFT JOIN livers l ON bl.liverId = l.id\nWHERE bl.deletedAt IS NULL \n  AND bl.livestreamDate >= '2025-10-31 15:00:00'\n  AND bl.livestreamDate <= '2025-11-30 14:59:59'\n  AND bl.liverId IS NOT NULL\nGROUP BY bl.liverId, l.name\nORDER BY totalSales DESC\nLIMIT 10",
+  "rows": [
+    {
+      "liverId": "120005",
+      "liverName": "Ryu kyogoku ",
+      "sname": "Ryu kyogoku ",
+      "totalSales": "90294209",
+      "cnt": "44"
+    },
+    {
+      "liverId": "720019",
+      "liverName": "in sky株式会社",
+      "sname": "KYOGOKU",
+      "totalSales": "12214965",
+      "cnt": "29"
+    },
+    {
+      "liverId": "750041",
+      "liverName": "つじひとみ",
+      "sname": "KYOGOKU",
+      "totalSales": "2437170",
+      "cnt": "16"
+    },
+    {
+      "liverId": "360013",
+      "liverName": "NANA",
+      "sname": "KYOGOKU",
+      "totalSales": "1965955",
+      "cnt": "17"
+    },
+    {
+      "liverId": "360029",
+      "liverName": "SHIHO",
+      "sname": "KYOGOKU",
+      "totalSales": "362597",
+      "cnt": "10"
+    },
+    {
+      "liverId": "360009",
+      "liverName": "はづき",
+      "sname": "KYOGOKU",
+      "totalSales": "40991",
+      "cnt": "19"
+    }
+  ],
+  "messages": [],
+  "stdout": "liverId\tliverName\tsname\ttotalSales\tcnt\n120005\tRyu kyogoku \tRyu kyogoku \t90294209\t44\n720019\tin sky株式会社\tKYOGOKU\t12214965\t29\n750041\tつじひとみ\tKYOGOKU\t2437170\t16\n360013\tNANA\tKYOGOKU\t1965955\t17\n360029\tSHIHO\tKYOGOKU\t362597\t10\n360009\tはづき\tKYOGOKU\t40991\t19\n",
+  "stderr": "",
+  "execution_time_ms": 1595
+}
