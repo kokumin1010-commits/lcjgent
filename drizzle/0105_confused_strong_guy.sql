@@ -1,0 +1,1 @@
+ALTER TABLE `bw_linked_accounts` ADD `bwCustomerId` int;

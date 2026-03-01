@@ -736,6 +736,13 @@
       "when": 1772346334045,
       "tag": "0104_wild_richard_fisk",
       "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "5",
+      "when": 1772360610568,
+      "tag": "0105_confused_strong_guy",
+      "breakpoints": true
     }
   ]
 }

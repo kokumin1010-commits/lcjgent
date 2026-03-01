@@ -6332,3 +6332,14 @@
 - [x] フロントエンド: マイページにBW交換への導線バナー
 - [x] 管理画面: 交換集計・月次レポート表示（MallダッシュボードのBW交換タブ）
 - [x] テスト: 交換ロジック・連携ロジックのvitestテスト（18件全PASS）
+
+## BW API連携（LCJ MALL側）
+- [x] 環境変数設定: BW_API_SECRET, BW_API_URL
+- [x] bw-api.ts: BW API呼び出しヘルパー（lookup, exchange, confirm）
+- [x] routers.ts: exchange mutationにBW API自動呼び出しを追加（pending→processing→completed/failed）
+- [x] routers.ts: startLinkにメールベース自動連携を追加（bwLookupCustomer使用）
+- [x] db.ts: completeBwLinkにオブジェクト引数パターン追加（bwCustomerId対応）
+- [x] schema.ts: bwLinkedAccountsにbwCustomerIdカラム追加
+- [x] テスト: bw-api.test.ts 13件全PASS
+- [x] テスト: bw-api-secret.test.ts 3件全PASS
+- [ ] BW側のlcj-exchange-api.tsが実装されたら結合テスト

@@ -3314,6 +3314,7 @@ export const bwLinkedAccounts = mysqlTable("bw_linked_accounts", {
   
   // BW側のアカウント情報
   bwUserId: varchar("bwUserId", { length: 128 }).notNull(), // Beauty Wallet側のユーザーID
+  bwCustomerId: int("bwCustomerId"), // BW側のsb_customers.id（トークン付与API用）
   bwDisplayName: varchar("bwDisplayName", { length: 255 }), // BW側の表示名
   bwEmail: varchar("bwEmail", { length: 320 }), // BW側のメールアドレス
   

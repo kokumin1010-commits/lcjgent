@@ -591,6 +591,7 @@ import { generateCoverImagePrompt, detectArticleType, getArticleTypeLabel } from
 import { completionRouter } from "./completion";
 import { sendReminderEmail } from "./emailService";
 import { transcribeAudio } from "./_core/voiceTranscription";
+import { bwExchangeTokens, bwLookupCustomer } from "./bw-api";
 
 // ============================================
 // LINE Login API for MALL (General User Authentication)
@@ -18180,15 +18181,46 @@ SEO/GEO最適化要件:
         };
       }),
 
-    // BW連携開始（リンクURL生成）
+    // BW連携開始（メールベース自動連携 + リンクURL生成）
     startLink: protectedProcedure
-      .input(z.object({ lineUserId: z.number() }))
+      .input(z.object({
+        lineUserId: z.number(),
+        email: z.string().email().optional(), // メールアドレスで自動連携を試みる
+      }))
       .mutation(async ({ input }) => {
+        // メールアドレスが提供された場合、BW側で顧客検索を試みる
+        if (input.email) {
+          try {
+            const lookupResult = await bwLookupCustomer(input.email);
+            if (lookupResult.success && lookupResult.customer) {
+              // BW側にアカウントが見つかった→自動連携
+              const linked = await completeBwLink({
+                lineUserId: input.lineUserId,
+                bwUserId: lookupResult.customer.id.toString(),
+                bwDisplayName: lookupResult.customer.displayName,
+                bwEmail: lookupResult.customer.email,
+                bwCustomerId: lookupResult.customer.id,
+              });
+              return {
+                autoLinked: true,
+                linkUrl: null,
+                token: null,
+                account: {
+                  bwDisplayName: lookupResult.customer.displayName,
+                  bwEmail: lookupResult.customer.email,
+                },
+              };
+            }
+          } catch (err) {
+            console.error("[BW Link] Auto-link lookup failed:", err);
+            // 自動連携失敗時は手動連携にフォールバック
+          }
+        }
+
+        // 自動連携できなかった場合はリンクURLを生成
         const token = await createBwLinkToken(input.lineUserId);
-        // BW側のOAuth連携URLを生成
-        // TODO: BW側のURLが確定したら変更
         const bwLinkUrl = `https://beautypass.ai/link?token=${token}&source=lcj`;
-        return { linkUrl: bwLinkUrl, token };
+        return { autoLinked: false, linkUrl: bwLinkUrl, token };
       }),
 
     // BWコールバック処理
@@ -18248,6 +18280,28 @@ SEO/GEO最適化要件:
           input.lcjPoints,
           linked.id,
         );
+
+        // BW側APIにトークン付与をリクエスト（非同期で実行、失敗しても交換レコードは保持）
+        if (linked.bwCustomerId) {
+          try {
+            await updateBwTransferStatus(result.exchangeId, "processing");
+            const bwResult = await bwExchangeTokens({
+              bwCustomerId: Number(linked.bwCustomerId),
+              tokens: result.bwTokens,
+              lcjExchangeId: result.exchangeId,
+              lcjPointsUsed: input.lcjPoints,
+            });
+
+            if (bwResult.success && bwResult.transactionId) {
+              await updateBwTransferStatus(result.exchangeId, "completed", bwResult.transactionId);
+            } else {
+              await updateBwTransferStatus(result.exchangeId, "failed", undefined, bwResult.error || "Unknown error");
+            }
+          } catch (err) {
+            console.error("[BW Exchange] API call failed:", err);
+            await updateBwTransferStatus(result.exchangeId, "failed", undefined, (err as Error).message);
+          }
+        }
 
         return {
           exchangeId: result.exchangeId,

@@ -16696,10 +16696,53 @@ export async function createBwLinkToken(lineUserId: number): Promise<string> {
 /**
  * BWコールバック処理：トークン検証してBWアカウント情報を紐付け
  */
-export async function completeBwLink(linkToken: string, bwUserId: string, bwDisplayName?: string, bwEmail?: string) {
+export async function completeBwLink(linkTokenOrParams: string | {
+  lineUserId: number;
+  bwUserId: string;
+  bwDisplayName?: string;
+  bwEmail?: string;
+  bwCustomerId?: number;
+}, bwUserId?: string, bwDisplayName?: string, bwEmail?: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
+  // オブジェクト引数パターン（メールベース自動連携用）
+  if (typeof linkTokenOrParams === 'object') {
+    const params = linkTokenOrParams;
+    // lineUserIdで既存のレコードを検索、なければ新規作成
+    const existing = await db.select().from(bwLinkedAccounts)
+      .where(eq(bwLinkedAccounts.lineUserId, params.lineUserId))
+      .limit(1);
+    
+    if (existing.length > 0) {
+      await db.update(bwLinkedAccounts)
+        .set({
+          bwUserId: params.bwUserId,
+          bwCustomerId: params.bwCustomerId ?? null,
+          bwDisplayName: params.bwDisplayName ?? null,
+          bwEmail: params.bwEmail ?? null,
+          status: "active",
+          linkedAt: new Date(),
+          linkToken: null,
+          linkTokenExpiresAt: null,
+        })
+        .where(eq(bwLinkedAccounts.id, existing[0].id));
+      return existing[0].id;
+    } else {
+      const result = await db.insert(bwLinkedAccounts).values({
+        lineUserId: params.lineUserId,
+        bwUserId: params.bwUserId,
+        bwCustomerId: params.bwCustomerId ?? null,
+        bwDisplayName: params.bwDisplayName ?? null,
+        bwEmail: params.bwEmail ?? null,
+        status: "active",
+      });
+      return Number(result[0].insertId);
+    }
+  }
+  
+  // 既存のリンクトークンパターン（OAuthコールバック用）
+  const linkToken = linkTokenOrParams;
   const record = await db.select().from(bwLinkedAccounts)
     .where(and(
       eq(bwLinkedAccounts.linkToken, linkToken),
@@ -16713,7 +16756,7 @@ export async function completeBwLink(linkToken: string, bwUserId: string, bwDisp
   
   await db.update(bwLinkedAccounts)
     .set({
-      bwUserId,
+      bwUserId: bwUserId!,
       bwDisplayName: bwDisplayName ?? null,
       bwEmail: bwEmail ?? null,
       status: "active",

@@ -15,4 +15,7 @@ export const ENV = {
   // Stripe
   stripeSecretKey: process.env.STRIPE_SECRET_KEY ?? "",
   stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? "",
+  // Beauty Wallet連携
+  bwApiUrl: process.env.BW_API_URL ?? "",
+  bwApiSecret: process.env.BW_API_SECRET ?? "",
 };
