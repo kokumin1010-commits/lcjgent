@@ -226,6 +226,13 @@ export default function BeautyWallet() {
                     <Link2Off className="h-4 w-4" />
                   </Button>
                 </div>
+                <Button
+                  className="w-full bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-700 hover:to-pink-700 gap-2"
+                  onClick={() => window.open("https://beautypass.ai/customer-guide", "_blank")}
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Beauty Wallet を開く
+                </Button>
               </div>
             ) : (
               <div className="space-y-4">
@@ -473,7 +480,7 @@ export default function BeautyWallet() {
                   LCJポイントをBeauty Tokenに交換して、提携サロンでのお支払いにご利用いただけます。
                 </p>
                 <a
-                  href="https://beautypass.ai/guide"
+                  href="https://beautypass.ai/customer-guide"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-xs text-violet-600 hover:text-violet-700 font-medium"

@@ -6383,3 +6383,9 @@
 - [x] ページリフレッシュ時にセッションが正しく復元されるように修正
   - main.tsx: isLcjMallPageに/beauty-walletパスを追加
   - BeautyWallet.tsx: sessionToken同期のuseEffectを追加
+
+## Beauty Walletとは？の「詳しくはこちら」リンク先変更
+- [x] BeautyWallet.tsxの「詳しくはこちら」リンクをhttps://beautypass.ai/customer-guideに変更
+
+## 連携済みユーザー向け「Beauty Walletを開く」ボタン追加
+- [x] 連携済みの場合、アカウント連携カード内にBeauty Walletページへ遷移するボタンを追加
