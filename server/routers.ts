@@ -1974,37 +1974,72 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         
         // Validate TikTok Shop
         if (!ocrData.isTikTokShop) {
-          const { deleteLineReceipt } = await import("./db");
-          await deleteLineReceipt(receiptId);
+          // レシートを削除せず、OCRデータを保存してai_rejected状態で保持
+          const { updateLineReceiptOcr: updateOcrForRejected } = await import("./db");
+          await updateOcrForRejected(receiptId, {
+            storeName: ocrData.shopName || "不明",
+            purchaseDate: ocrData.orderDate ? new Date(ocrData.orderDate) : undefined,
+            totalAmount: ocrData.totalAmount,
+            currency: "JPY",
+            ocrRawText: JSON.stringify(ocrData),
+            pointsCalculated: 0,
+            imageUrls: uploadedImages.map(i => i.url),
+            imageKeys: uploadedImages.map(i => i.key),
+          });
           return {
-            receiptId: null,
+            receiptId,
             status: "not_tiktok" as const,
-            message: "TikTok Shopの注文詳細画面ではないようです。TikTok Shopの注文詳細画面のスクリーンショットをアップロードしてください。",
+            message: "TikTok Shopの注文詳細画面ではないようです。",
+            aiRejectionReason: "TikTok Shopの注文画面として認識されませんでした",
+            ocrData,
             imageUrls: uploadedImages.map(i => i.url),
           };
         }
         
         // Validate delivery status
         if (!ocrData.isDelivered) {
-          const { deleteLineReceipt } = await import("./db");
-          await deleteLineReceipt(receiptId);
+          // レシートを削除せず、OCRデータを保存して保持
+          const { updateLineReceiptOcr: updateOcrForNotDelivered } = await import("./db");
+          await updateOcrForNotDelivered(receiptId, {
+            storeName: ocrData.shopName || "TikTok Shop",
+            purchaseDate: ocrData.orderDate ? new Date(ocrData.orderDate) : undefined,
+            totalAmount: ocrData.totalAmount,
+            currency: "JPY",
+            ocrRawText: JSON.stringify(ocrData),
+            pointsCalculated: ocrData.totalAmount ? Math.floor(ocrData.totalAmount * 0.01) : 0,
+            imageUrls: uploadedImages.map(i => i.url),
+            imageKeys: uploadedImages.map(i => i.key),
+          });
           return {
-            receiptId: null,
+            receiptId,
             status: "not_delivered" as const,
-            message: "この注文はまだ配達済みになっていません。商品が配達された後に再度申請してください。",
+            message: "この注文はまだ配達済みになっていないようです。",
+            aiRejectionReason: "配達ステータスが「配達済み」と確認できませんでした",
             ocrData,
+            pointsCalculated: ocrData.totalAmount ? Math.floor(ocrData.totalAmount * 0.01) : undefined,
             imageUrls: uploadedImages.map(i => i.url),
           };
         }
         
         // Validate required fields - 金額は必須、注文番号は後から手動入力可能
         if (!ocrData.totalAmount) {
-          const { deleteLineReceipt } = await import("./db");
-          await deleteLineReceipt(receiptId);
+          // レシートを削除せず保持
+          const { updateLineReceiptOcr: updateOcrForIncomplete } = await import("./db");
+          await updateOcrForIncomplete(receiptId, {
+            storeName: ocrData.shopName || "TikTok Shop",
+            purchaseDate: ocrData.orderDate ? new Date(ocrData.orderDate) : undefined,
+            totalAmount: 0,
+            currency: "JPY",
+            ocrRawText: JSON.stringify(ocrData),
+            pointsCalculated: 0,
+            imageUrls: uploadedImages.map(i => i.url),
+            imageKeys: uploadedImages.map(i => i.key),
+          });
           return {
-            receiptId: null,
+            receiptId,
             status: "incomplete" as const,
-            message: "金額を読み取れませんでした。金額が見える画像をアップロードしてください。",
+            message: "金額を読み取れませんでした。",
+            aiRejectionReason: "購入金額を画像から読み取ることができませんでした",
             ocrData,
             imageUrls: uploadedImages.map(i => i.url),
           };
@@ -2118,6 +2153,31 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           message: "レシートの処理中にエラーが発生しました。しばらくしてからもう一度お試しください。",
         });
       }
+    }),
+
+  // 強制申請（AIが弾いたレシートをそれでもアップロード）
+  forceSubmitWebReceipt: publicProcedure
+    .input(z.object({
+      receiptId: z.number(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const result = await getLineUserFromSession(ctx);
+      if (!result || !result.lineUser) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "ログインが必要です",
+        });
+      }
+      
+      const { updateLineReceiptStatus } = await import("./db");
+      await updateLineReceiptStatus(input.receiptId, "on_hold", 0, "AI自動判定で弾かれたが、お客様が強制申請。手動審査が必要です。");
+      
+      console.log(`[Web Receipt] Force submitted receipt ${input.receiptId} by user ${result.lineUser.id}`);
+      
+      return {
+        success: true,
+        message: "レシートを申請しました。スタッフが確認後、結果をお知らせします。",
+      };
     }),
 
   // ==========================================

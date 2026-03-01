@@ -6389,3 +6389,21 @@
 
 ## 連携済みユーザー向け「Beauty Walletを開く」ボタン追加
 - [x] 連携済みの場合、アカウント連携カード内にBeauty Walletページへ遷移するボタンを追加
+
+## レシートAI解析エラー時のUX改善
+- [x] エラー表示を柔らかいUIに変更（「AIが自動判定で一度弾いたレシートです」）
+  - アンバー色のカード表示（border-amber-300 bg-amber-50）
+  - AlertTriangleアイコン（XCircleではなく）
+  - toast.info（toast.errorではなく）
+  - haptic.warning（柔らかい振動フィードバック）
+- [x] 「それでもアップロードしますか？」ボタンを追加
+  - forceSubmitWebReceipt mutationで強制申請
+  - ローディング状態表示（「申請中...」）
+  - 申請後はon_holdステータスに更新
+- [x] 再申請時は手動審査待ちステータスで保存
+  - on_holdステータスで保存
+  - reviewNoteに「AI自動判定で弾かれたが、お客様が強制申請。手動審査が必要です。」を記録
+- [x] AI弾き時にレシートを削除せず保持（not_tiktok/not_delivered/incomplete全パターン）
+  - OCRデータをDB保存してai_rejectedステータスで保持
+  - aiRejectionReasonをフロントエンドに返却
+- [x] ユニットテスト22件作成・全PASS（receiptAiRejection.test.ts）
