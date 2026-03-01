@@ -1930,11 +1930,17 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           jsonStr = jsonStr.trim();
           ocrData = JSON.parse(jsonStr);
         } catch (parseError: any) {
-          // AI analysis failed - return partial result
+          // AI analysis failed - save rejection info and return with aiRejectionReason
+          const { updateLineReceiptAiRejection: updateAiRejFailed } = await import("./db");
+          await updateAiRejFailed(receiptId, {
+            aiRejectionReason: "画像の解析に失敗しました。画像が鮮明でない可能性があります。",
+            aiRejectionCategory: "other",
+          });
           return {
             receiptId,
             status: "analysis_failed" as const,
             message: "画像の解析に失敗しました。画像が鮮明であることを確認して、再度お試しください。",
+            aiRejectionReason: "画像の解析に失敗しました。画像が鮮明でない可能性があります。",
             imageUrls: uploadedImages.map(i => i.url),
           };
         }
@@ -2106,16 +2112,23 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             fraudFlags.push("duplicate_order");
             fraudScore += 100;
             
-            const { deleteLineReceipt } = await import("./db");
-            await deleteLineReceipt(receiptId);
-            
             const isSameUser = duplicateOrder.lineUserId === lineUserId;
+            const rejectionMsg = isSameUser
+              ? `この注文は既にポイント申請済みです。注文番号: ${ocrData.orderNumber}`
+              : `この注文番号は既に他の方が申請済みです。注文番号: ${ocrData.orderNumber}`;
+            
+            // Save AI rejection info instead of deleting
+            const { updateLineReceiptAiRejection: updateAiRejDuplicate } = await import("./db");
+            await updateAiRejDuplicate(receiptId, {
+              aiRejectionReason: rejectionMsg,
+              aiRejectionCategory: "other",
+            });
+            
             return {
-              receiptId: null,
+              receiptId,
               status: "duplicate" as const,
-              message: isSameUser
-                ? `この注文は既にポイント申請済みです。注文番号: ${ocrData.orderNumber}`
-                : `この注文番号は既に他の方が申請済みです。注文番号: ${ocrData.orderNumber}`,
+              message: rejectionMsg,
+              aiRejectionReason: rejectionMsg,
               ocrData,
               imageUrls: uploadedImages.map(i => i.url),
             };

@@ -104,12 +104,10 @@ export default function ReceiptUpload() {
       } else if (result.status === "on_hold") {
         toast.info("確認中です。スタッフが確認後、結果をお知らせします。");
         setFlowPhase("analysis_result");
-      } else if (result.aiRejectionReason) {
+      } else {
+        // すべてのエラー（AI弾き含む）で柔らかい通知
         haptic.warning();
         toast.info("AIが自動判定しました。内容をご確認ください。");
-        setFlowPhase("analysis_result");
-      } else {
-        toast.error(result.message);
         setFlowPhase("analysis_result");
       }
     },
@@ -375,7 +373,7 @@ export default function ReceiptUpload() {
           <Card className={`border-2 ${
             analysisResult.status === "success" ? "border-green-300 bg-green-50" :
             analysisResult.status === "on_hold" ? "border-amber-300 bg-amber-50" :
-            (analysisResult.aiRejectionReason ? "border-amber-300 bg-amber-50" : "border-red-300 bg-red-50")
+            "border-amber-300 bg-amber-50"
           }`}>
             <CardContent className="pt-6">
               <div className="flex items-start gap-3">
@@ -383,35 +381,31 @@ export default function ReceiptUpload() {
                   <CheckCircle className="h-6 w-6 text-green-600 flex-shrink-0 mt-0.5" />
                 ) : analysisResult.status === "on_hold" ? (
                   <Clock className="h-6 w-6 text-amber-600 flex-shrink-0 mt-0.5" />
-                ) : analysisResult.aiRejectionReason ? (
-                  <AlertTriangle className="h-6 w-6 text-amber-600 flex-shrink-0 mt-0.5" />
                 ) : (
-                  <XCircle className="h-6 w-6 text-red-600 flex-shrink-0 mt-0.5" />
+                  <AlertTriangle className="h-6 w-6 text-amber-600 flex-shrink-0 mt-0.5" />
                 )}
                 <div className="flex-1">
                   <h3 className={`font-bold mb-1 ${
                     analysisResult.status === "success" ? "text-green-700" :
-                    analysisResult.status === "on_hold" ? "text-amber-700" :
-                    (analysisResult.aiRejectionReason ? "text-amber-700" : "text-red-700")
+                    "text-amber-700"
                   }`}>
                     {analysisResult.status === "success" ? "解析成功" :
                      analysisResult.status === "on_hold" ? "確認中" :
-                     (analysisResult.aiRejectionReason ? "AI自動判定" : "エラー")}
+                     "AI自動判定"}
                   </h3>
-                  {analysisResult.aiRejectionReason ? (
+                  {analysisResult.status !== "success" && analysisResult.status !== "on_hold" ? (
                     <div className="space-y-2">
                       <p className="text-sm text-amber-700">
                         AIが自動判定で一度弾いたレシートです。
                       </p>
                       <div className="bg-amber-100/60 rounded-md p-2 text-sm text-amber-800">
-                        <span className="font-medium">理由: </span>{analysisResult.aiRejectionReason}
+                        <span className="font-medium">理由: </span>{analysisResult.aiRejectionReason || analysisResult.message}
                       </div>
                     </div>
                   ) : (
                   <p className={`text-sm ${
                     analysisResult.status === "success" ? "text-green-600" :
-                    analysisResult.status === "on_hold" ? "text-amber-600" :
-                    "text-red-600"
+                    "text-amber-600"
                   }`}>
                     {analysisResult.message}
                   </p>
@@ -508,7 +502,7 @@ export default function ReceiptUpload() {
                         🎰 確変チャンス＋レビューへ進む
                       </Button>
                     )}
-                    {analysisResult.aiRejectionReason && analysisResult.receiptId && (
+                    {analysisResult.status !== "success" && analysisResult.status !== "on_hold" && analysisResult.receiptId && (
                       <Button
                         className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold h-12"
                         onClick={() => {

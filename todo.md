@@ -6419,3 +6419,15 @@
 - [x] フロントエンド: 右側レシート一覧に「AI弾き」バッジ表示（アンバー色）
 - [x] フロントエンド: 詳細パネルに「AI弾き→強制申請レシート」カード（カテゴリ、理由、強制申請日時、学習データ蓄積の注記）
 - [x] テスト19件作成・全PASS（aiReviewFeedback.test.ts）
+
+## すべてのAI弾きエラーで「それでもアップロードしますか？」UIに統一
+- [x] 赤いエラー表示（XCircle + エラー）をアンバー色の柔らかい表示に変更
+  - 全エラーステータスでborder-amber-300 bg-amber-50に統一
+  - AlertTriangleアイコンに統一（XCircle完全廃止）
+  - 見出し「エラー」→「AI自動判定」に変更
+- [x] すべてのAI弾きパターン（not_tiktok/not_delivered/incomplete/duplicate/analysis_failed）で「それでもアップロードしますか？」ボタンを表示
+  - duplicate: レシート削除を廃止、receiptIdを保持して強制申請可能に
+  - analysis_failed: aiRejectionReasonを追加してアンバーUI表示
+- [x] 「別のレシートを申請する」ボタンも残す（選択肢を与える）
+- [x] toast通知もerrorからinfoに変更（全エラーでtoast.infoに統一）
+- [x] テスト25件全PASS（receiptAiRejection.test.ts）

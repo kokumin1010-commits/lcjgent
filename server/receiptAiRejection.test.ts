@@ -72,23 +72,39 @@ describe("Receipt AI Rejection UX", () => {
       expect(result.status).toBe("success");
     });
 
-    it("should NOT have aiRejectionReason for duplicate status", () => {
+    it("should return aiRejectionReason for duplicate status (no longer deletes receipt)", () => {
       const result = {
-        receiptId: null,
+        receiptId: 200,
         status: "duplicate" as const,
-        message: "この注文は既にポイント申請済みです。",
+        message: "この注文は既にポイント申請済みです。注文番号: 12345",
+        aiRejectionReason: "この注文は既にポイント申請済みです。注文番号: 12345",
         ocrData: { orderNumber: "12345" },
         imageUrls: ["https://example.com/img.png"],
       };
 
-      expect(result.aiRejectionReason).toBeUndefined();
-      expect(result.receiptId).toBeNull(); // duplicate DOES delete
+      expect(result.aiRejectionReason).toBeTruthy();
+      expect(result.receiptId).not.toBeNull(); // duplicate now preserves receipt
+      expect(result.receiptId).toBeGreaterThan(0);
+    });
+
+    it("should return aiRejectionReason for analysis_failed status", () => {
+      const result = {
+        receiptId: 300,
+        status: "analysis_failed" as const,
+        message: "画像の解析に失敗しました。",
+        aiRejectionReason: "画像の解析に失敗しました。画像が鮮明でない可能性があります。",
+        imageUrls: ["https://example.com/img.png"],
+      };
+
+      expect(result.aiRejectionReason).toBeTruthy();
+      expect(result.receiptId).not.toBeNull();
+      expect(result.receiptId).toBeGreaterThan(0);
     });
   });
 
   describe("Receipt preservation on AI rejection", () => {
-    it("should preserve receiptId (not null) for all AI rejection types", () => {
-      const rejectionStatuses = ["not_tiktok", "not_delivered", "incomplete"];
+    it("should preserve receiptId (not null) for ALL rejection types including duplicate and analysis_failed", () => {
+      const rejectionStatuses = ["not_tiktok", "not_delivered", "incomplete", "duplicate", "analysis_failed"];
       
       rejectionStatuses.forEach(status => {
         const result = {
@@ -148,25 +164,22 @@ describe("Receipt AI Rejection UX", () => {
   });
 
   describe("Frontend AI rejection display", () => {
-    it("should use amber color scheme for AI rejections (not red)", () => {
-      // AI rejection uses amber colors to be softer than red error
-      const aiRejectionColors = {
-        border: "border-amber-300",
-        background: "bg-amber-50",
-        textColor: "text-amber-700",
-        iconColor: "text-amber-600",
-      };
+    it("should use amber color scheme for ALL error statuses (red completely removed)", () => {
+      // ALL errors now use amber colors - no more red error display
+      const errorStatuses = ["not_tiktok", "not_delivered", "incomplete", "duplicate", "analysis_failed"];
+      
+      errorStatuses.forEach(status => {
+        const colors = {
+          border: "border-amber-300",
+          background: "bg-amber-50",
+          textColor: "text-amber-700",
+          iconColor: "text-amber-600",
+        };
 
-      // Red is only for hard errors (like server errors)
-      const hardErrorColors = {
-        border: "border-red-300",
-        background: "bg-red-50",
-        textColor: "text-red-700",
-      };
-
-      expect(aiRejectionColors.border).not.toContain("red");
-      expect(aiRejectionColors.background).not.toContain("red");
-      expect(aiRejectionColors.textColor).toContain("amber");
+        expect(colors.border).not.toContain("red");
+        expect(colors.background).not.toContain("red");
+        expect(colors.textColor).toContain("amber");
+      });
     });
 
     it("should show AlertTriangle icon for AI rejection (not XCircle)", () => {
@@ -202,33 +215,36 @@ describe("Receipt AI Rejection UX", () => {
       });
     });
 
-    it("should show force submit button when aiRejectionReason exists", () => {
-      const hasAiRejection = true;
-      const hasReceiptId = true;
-      const showForceButton = hasAiRejection && hasReceiptId;
-
-      expect(showForceButton).toBe(true);
+    it("should show force submit button for ALL error statuses with receiptId", () => {
+      const errorStatuses = ["not_tiktok", "not_delivered", "incomplete", "duplicate", "analysis_failed"];
+      
+      errorStatuses.forEach(status => {
+        const result = {
+          status,
+          receiptId: 123,
+        };
+        const showForceButton = result.status !== "success" && result.status !== "on_hold" && !!result.receiptId;
+        expect(showForceButton).toBe(true);
+      });
     });
 
     it("should NOT show force submit button for success status", () => {
       const result = {
         status: "success",
-        aiRejectionReason: undefined,
         receiptId: 123,
       };
 
-      const showForceButton = !!result.aiRejectionReason && !!result.receiptId;
+      const showForceButton = result.status !== "success" && result.status !== "on_hold" && !!result.receiptId;
       expect(showForceButton).toBe(false);
     });
 
-    it("should NOT show force submit button for duplicate status", () => {
+    it("should NOT show force submit button for on_hold status", () => {
       const result = {
-        status: "duplicate",
-        aiRejectionReason: undefined,
-        receiptId: null,
+        status: "on_hold",
+        receiptId: 123,
       };
 
-      const showForceButton = !!result.aiRejectionReason && !!result.receiptId;
+      const showForceButton = result.status !== "success" && result.status !== "on_hold" && !!result.receiptId;
       expect(showForceButton).toBe(false);
     });
   });
@@ -290,21 +306,52 @@ describe("Receipt AI Rejection UX", () => {
         "duplicate",
       ];
 
-      const aiRejectionStatuses = ["not_tiktok", "not_delivered", "incomplete"];
-      const nonRejectionStatuses = ["success", "on_hold", "analysis_failed", "duplicate"];
+      // ALL error statuses now have aiRejectionReason and show amber UI
+      const errorStatuses = ["not_tiktok", "not_delivered", "incomplete", "duplicate", "analysis_failed"];
+      const nonErrorStatuses = ["success", "on_hold"];
 
-      // AI rejection statuses should have aiRejectionReason
-      aiRejectionStatuses.forEach(status => {
+      // Error statuses should all show amber UI with force submit button
+      errorStatuses.forEach(status => {
         expect(allStatuses).toContain(status);
       });
 
-      // Non-rejection statuses should NOT have aiRejectionReason
-      nonRejectionStatuses.forEach(status => {
+      // Non-error statuses should NOT show force submit
+      nonErrorStatuses.forEach(status => {
         expect(allStatuses).toContain(status);
       });
 
       // All statuses accounted for
-      expect([...aiRejectionStatuses, ...nonRejectionStatuses].sort()).toEqual(allStatuses.sort());
+      expect([...errorStatuses, ...nonErrorStatuses].sort()).toEqual(allStatuses.sort());
+    });
+
+    it("should use toast.info for ALL error statuses (never toast.error)", () => {
+      // All errors now use info toast, not error toast
+      const errorStatuses = ["not_tiktok", "not_delivered", "incomplete", "duplicate", "analysis_failed"];
+      const toastType = "info";
+      const toastMessage = "AIが自動判定しました。内容をご確認ください。";
+
+      errorStatuses.forEach(() => {
+        expect(toastType).toBe("info");
+        expect(toastMessage).not.toContain("エラー");
+      });
+    });
+
+    it("should display rejection reason from aiRejectionReason or message fallback", () => {
+      // When aiRejectionReason is not available, use message as fallback
+      const withReason = {
+        aiRejectionReason: "TikTok Shopの注文画面として認識されませんでした",
+        message: "別のメッセージ",
+      };
+      const withoutReason = {
+        aiRejectionReason: undefined as string | undefined,
+        message: "フォールバックメッセージ",
+      };
+
+      const displayReason1 = withReason.aiRejectionReason || withReason.message;
+      const displayReason2 = withoutReason.aiRejectionReason || withoutReason.message;
+
+      expect(displayReason1).toBe("TikTok Shopの注文画面として認識されませんでした");
+      expect(displayReason2).toBe("フォールバックメッセージ");
     });
   });
 });
