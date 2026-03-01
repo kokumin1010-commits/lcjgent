@@ -12723,8 +12723,13 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           confirmPendingReferral,
           getLineUserByLineId,
           createAutoReviewOnApproval,
+          createAiAutoReviewLogsBatch,
+          updateAiAutoApproveSetting,
         } = await import("./db");
         const { pushMessage: pushMsg } = await import("./line");
+        
+        // Generate batch ID
+        const batchId = `batch_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
         
         // Results tracking
         const results: {
@@ -12734,6 +12739,10 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           confidence?: number;
           orderNumber?: string;
           amount?: number;
+          aiComment?: string;
+          lineUserId?: string;
+          storeName?: string;
+          imageUrl?: string;
         }[] = [];
         
         // ===== STEP 0: Get candidates =====
@@ -13145,14 +13154,222 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           rejectedDuplicate: results.filter(r => r.action === "rejected_duplicate").length,
         };
         
-        console.log(`[AI AutoApprove] Processed ${results.length} receipts: ${JSON.stringify(summary)}`);
+        console.log(`[AI AutoApprove] Batch ${batchId}: Processed ${results.length} receipts: ${JSON.stringify(summary)}`);
+        
+        // ===== Save AI review logs to DB =====
+        try {
+          const logEntries = results.map(r => {
+            const candidate = candidates.find(c => c.id === r.id);
+            // Generate human-readable AI comment
+            let aiComment = "";
+            if (r.action === "approved") {
+              aiComment = `✅ 承認: ${r.reason || "条件を満たしています"}${r.confidence ? ` (信頼度: ${r.confidence}%)` : ""}`;
+            } else if (r.action === "rejected_duplicate") {
+              aiComment = `❌ 重複却下: ${r.reason || "同一注文番号で既に承認済みのレシートが存在します"}`;
+            } else if (r.action === "held") {
+              aiComment = `⏸️ 保留: ${r.reason || "信頼度が閾値未満のため人間審査が必要です"}`;
+            } else {
+              aiComment = `⏭️ スキップ: ${r.reason || "処理条件を満たしていません"}`;
+            }
+            return {
+              batchId,
+              receiptId: r.id,
+              lineUserId: r.lineUserId || candidate?.lineUserId || null,
+              aiDecision: r.action,
+              aiConfidence: r.confidence ?? null,
+              aiComment,
+              aiReason: r.reason,
+              orderNumber: r.orderNumber || null,
+              totalAmount: r.amount ?? candidate?.totalAmount ?? null,
+              storeName: r.storeName || candidate?.storeName || null,
+              imageUrl: r.imageUrl || candidate?.imageUrl || null,
+              isDryRun: input.dryRun,
+            };
+          });
+          await createAiAutoReviewLogsBatch(logEntries);
+          console.log(`[AI AutoApprove] Saved ${logEntries.length} review logs for batch ${batchId}`);
+        } catch (logErr: any) {
+          console.error(`[AI AutoApprove] Failed to save review logs:`, logErr.message);
+        }
+        
+        // Update last run info
+        if (!input.dryRun) {
+          try {
+            await updateAiAutoApproveSetting({
+              lastRunAt: new Date(),
+              lastRunBatchId: batchId,
+              updatedBy: ctx.user.id,
+            });
+          } catch (settingErr: any) {
+            console.error(`[AI AutoApprove] Failed to update settings:`, settingErr.message);
+          }
+        }
         
         return {
           processed: results.length,
           results,
           summary,
           dryRun: input.dryRun,
+          batchId,
         };
+      }),
+  }),
+
+  // ===== AI自動審査ログ管理 =====
+  aiReview: router({
+    // AI審査ログ一覧取得
+    getLogs: protectedProcedure
+      .input(z.object({
+        batchId: z.string().optional(),
+        aiDecision: z.string().optional(),
+        humanOverride: z.string().nullable().optional(),
+        isDryRun: z.boolean().optional(),
+        limit: z.number().optional(),
+        offset: z.number().optional(),
+      }).optional())
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getAiAutoReviewLogs } = await import("./db");
+        return await getAiAutoReviewLogs(input ?? undefined);
+      }),
+    
+    // AI審査ログ統計
+    getStats: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const { getAiAutoReviewLogStats } = await import("./db");
+      return await getAiAutoReviewLogStats();
+    }),
+    
+    // バッチ一覧取得
+    getBatches: protectedProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getAiAutoReviewBatches } = await import("./db");
+        return await getAiAutoReviewBatches(input?.limit ?? 20);
+      }),
+    
+    // 人間がAI判定を修正
+    overrideDecision: protectedProcedure
+      .input(z.object({
+        logId: z.number(),
+        humanOverride: z.enum(["approved", "rejected"]),
+        humanComment: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { overrideAiAutoReviewLog, getLineReceiptById, updateLineReceiptStatus, awardPointsForLineReceipt, getLinePointBalance, confirmPendingReferral, getLineUserByLineId, createReceiptReviewLog, extractSingleReceiptProducts, createAutoReviewOnApproval } = await import("./db");
+        const { pushMessage: pushMsg } = await import("./line");
+        
+        // Update the log
+        const updatedLog = await overrideAiAutoReviewLog(input.logId, {
+          humanOverride: input.humanOverride,
+          humanComment: input.humanComment,
+          humanReviewedBy: ctx.user.id,
+        });
+        
+        if (!updatedLog) throw new TRPCError({ code: "NOT_FOUND", message: "ログが見つかりません" });
+        
+        // If human overrides to approve a previously held/rejected receipt
+        if (input.humanOverride === "approved" && updatedLog.aiDecision !== "approved") {
+          const receipt = await getLineReceiptById(updatedLog.receiptId);
+          if (receipt && receipt.status !== "approved") {
+            // Approve the receipt
+            await updateLineReceiptStatus(receipt.id, "approved", ctx.user.id,
+              `[人間介入] AI判定を修正: ${updatedLog.aiDecision} → 承認${input.humanComment ? ` - ${input.humanComment}` : ""}`);
+            
+            // Award points
+            const pointsToAward = receipt.pointsCalculated ?? 0;
+            if (pointsToAward > 0) {
+              await awardPointsForLineReceipt(receipt.id, pointsToAward);
+            }
+            
+            // Confirm referral
+            try {
+              const lineUserRecord = await getLineUserByLineId(receipt.lineUserId);
+              if (lineUserRecord) {
+                await confirmPendingReferral(receipt.lineUserId, lineUserRecord.id);
+              }
+            } catch (e) { /* ignore */ }
+            
+            // Review log
+            try {
+              await createReceiptReviewLog({
+                receiptType: "line_receipt",
+                receiptId: receipt.id,
+                decision: "approved",
+                ocrConfidence: receipt.ocrConfidence ?? undefined,
+                totalAmount: receipt.totalAmount ?? undefined,
+                hasOrderNumber: updatedLog.orderNumber ? "yes" : "no",
+                imageCount: receipt.imageUrls?.length ?? 1,
+                fraudScore: receipt.fraudScore ?? undefined,
+                fraudFlagCount: receipt.fraudFlags?.length ?? 0,
+                pointsCalculated: receipt.pointsCalculated ?? undefined,
+                pointsAwarded: pointsToAward,
+                reviewedBy: ctx.user.id,
+              });
+            } catch (e) { /* ignore */ }
+            
+            // Extract products
+            try { await extractSingleReceiptProducts(receipt.id); } catch (e) { /* ignore */ }
+            
+            // Auto review
+            try {
+              await createAutoReviewOnApproval({
+                receiptType: "line_receipt",
+                receiptId: receipt.id,
+                lineUserId: receipt.lineUserId,
+                imageUrl: receipt.imageUrl,
+                ocrRawText: receipt.ocrRawText,
+                storeName: receipt.storeName,
+                totalAmount: receipt.totalAmount,
+              });
+            } catch (e) { /* ignore */ }
+            
+            // LINE notification
+            try {
+              const balance = await getLinePointBalance(receipt.lineUserId);
+              const newBalance = balance?.balance ?? pointsToAward;
+              const storeName = receipt.storeName || "不明";
+              const amount = receipt.totalAmount ? `¥${receipt.totalAmount.toLocaleString()}` : "不明";
+              const appUrl = process.env.APP_URL || "https://lcjmall.com";
+              const message = `🎉 レシートが承認されました！\n\n🏠 店舗名: ${storeName}\n💰 購入金額: ${amount}\n⭐ 獲得ポイント: ${pointsToAward}ポイント\n\n📊 現在の残高: ${newBalance}ポイント\n\nご利用ありがとうございます！\n\n📋 ポイント履歴を確認する\n${appUrl}/mypage`;
+              await pushMsg(receipt.lineUserId, [{ type: "text", text: message }]);
+            } catch (e) { /* ignore */ }
+          }
+        }
+        
+        // If human overrides to reject a previously approved receipt
+        if (input.humanOverride === "rejected" && updatedLog.aiDecision === "approved") {
+          const receipt = await getLineReceiptById(updatedLog.receiptId);
+          if (receipt && receipt.status === "approved") {
+            await updateLineReceiptStatus(receipt.id, "rejected", ctx.user.id,
+              `[人間介入] AI承認を取消: ${input.humanComment || "管理者による修正"}`);
+            // Note: Point reversal would need separate logic
+          }
+        }
+        
+        return updatedLog;
+      }),
+    
+    // AI自動承認設定取得
+    getSettings: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const { getAiAutoApproveSetting } = await import("./db");
+      return await getAiAutoApproveSetting();
+    }),
+    
+    // AI自動承認設定更新（トグルON/OFF含む）
+    updateSettings: protectedProcedure
+      .input(z.object({
+        isEnabled: z.boolean().optional(),
+        confidenceThreshold: z.number().min(0).max(100).optional(),
+        batchSize: z.number().min(1).max(100).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { updateAiAutoApproveSetting } = await import("./db");
+        return await updateAiAutoApproveSetting({ ...input, updatedBy: ctx.user.id });
       }),
   }),
 

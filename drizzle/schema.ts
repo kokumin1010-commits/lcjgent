@@ -3421,3 +3421,43 @@ export const pointExchanges = mysqlTable("point_exchanges", {
 
 export type PointExchange = typeof pointExchanges.$inferSelect;
 export type InsertPointExchange = typeof pointExchanges.$inferInsert;
+
+// ===== AI自動審査ログ =====
+// AIが各レシートに対して行った判定の全履歴（人間が後から確認・修正するため）
+export const aiAutoReviewLogs = mysqlTable("ai_auto_review_logs", {
+  id: int("id").primaryKey().autoincrement(),
+  batchId: varchar("batchId", { length: 64 }).notNull(),
+  receiptId: int("receiptId").notNull(),
+  lineUserId: varchar("lineUserId", { length: 128 }),
+  aiDecision: varchar("aiDecision", { length: 32 }).notNull(),
+  aiConfidence: int("aiConfidence"),
+  aiComment: text("aiComment"),
+  aiReason: text("aiReason"),
+  orderNumber: varchar("orderNumber", { length: 64 }),
+  totalAmount: int("totalAmount"),
+  storeName: varchar("storeName", { length: 256 }),
+  imageUrl: text("imageUrl"),
+  humanOverride: varchar("humanOverride", { length: 32 }),
+  humanComment: text("humanComment"),
+  humanReviewedBy: int("humanReviewedBy"),
+  humanReviewedAt: timestamp("humanReviewedAt"),
+  isDryRun: boolean("isDryRun").default(false).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type AiAutoReviewLog = typeof aiAutoReviewLogs.$inferSelect;
+export type InsertAiAutoReviewLog = typeof aiAutoReviewLogs.$inferInsert;
+
+// ===== AI自動承認モード設定 =====
+export const aiAutoApproveSettings = mysqlTable("ai_auto_approve_settings", {
+  id: int("id").primaryKey().autoincrement(),
+  isEnabled: boolean("isEnabled").default(false).notNull(),
+  confidenceThreshold: int("confidenceThreshold").default(85).notNull(),
+  batchSize: int("batchSize").default(20).notNull(),
+  lastRunAt: timestamp("lastRunAt"),
+  lastRunBatchId: varchar("lastRunBatchId", { length: 64 }),
+  updatedBy: int("updatedBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type AiAutoApproveSetting = typeof aiAutoApproveSettings.$inferSelect;

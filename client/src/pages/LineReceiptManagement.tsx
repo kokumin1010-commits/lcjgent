@@ -52,9 +52,12 @@ import {
   Save,
   ExternalLink,
   Copy,
+  List,
+  FileText,
+  RotateCcw,
 } from "lucide-react";
 
-type ReceiptStatus = "pending" | "approved" | "rejected" | "on_hold";
+type ReceiptStatus = "pending" | "approved" | "rejected" | "on_hold" | "ai_log";
 
 // AI rejection reason categories for learning
 const REJECTION_CATEGORIES = [
@@ -858,7 +861,14 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
           </div>
           <Switch 
             checked={aiAutoMode} 
-            onCheckedChange={setAiAutoMode}
+            onCheckedChange={(checked) => {
+              setAiAutoMode(checked);
+              if (checked) {
+                // トグルON → 自動でバッチ処理を実行
+                toast.info("AI自動承認モードON: 自動処理を開始します...");
+                aiAutoApproveMutation.mutate({ limit: aiAutoApproveLimit, dryRun: false, confidenceThreshold: 85 });
+              }
+            }}
           />
         </div>
       
@@ -920,7 +930,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
       </div>
 
       {/* Statistics - Clickable Filter Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <Card 
           className={`cursor-pointer transition-all hover:shadow-md ${activeTab === "pending" ? "ring-2 ring-yellow-400 bg-yellow-50" : ""}`}
           onClick={() => { setActiveTab("pending"); setCalcReceiptId(null); setCalcAmount(""); }}
@@ -976,6 +986,20 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
               <span className="text-sm text-muted-foreground">{t("receipts.totalPoints")}</span>
             </div>
             <p className="text-2xl font-bold mt-1">{(stats?.totalPointsAwarded || 0).toLocaleString()} pt</p>
+          </CardContent>
+        </Card>
+        <Card 
+          className={`cursor-pointer transition-all hover:shadow-md ${activeTab === "ai_log" ? "ring-2 ring-purple-400 bg-purple-50" : ""}`}
+          onClick={() => { setActiveTab("ai_log" as ReceiptStatus); setCalcReceiptId(null); setCalcAmount(""); }}
+        >
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2">
+              <Bot className="w-4 h-4 text-purple-500" />
+              <span className="text-sm text-muted-foreground">AI審査ログ</span>
+            </div>
+            <p className="text-2xl font-bold mt-1">
+              <FileText className="w-5 h-5 inline text-purple-500" />
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -1733,6 +1757,13 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
             </div>
           )}
         </TabsContent>
+        
+        {/* AI審査ログタブ */}
+        {activeTab === "ai_log" && (
+          <div className="mt-4">
+            <AiReviewLogPanel />
+          </div>
+        )}
       </Tabs>
       
       {/* Image Viewer Dialog */}
@@ -2301,6 +2332,280 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ===== AI審査ログパネル =====
+function AiReviewLogPanel() {
+  const [filter, setFilter] = useState<string>("all");
+  const [selectedBatchId, setSelectedBatchId] = useState<string | undefined>(undefined);
+  const utils = trpc.useUtils();
+  
+  // Fetch batches
+  const { data: batches, isLoading: batchesLoading } = trpc.aiReview.getBatches.useQuery({ limit: 20 });
+  
+  // Fetch logs with filter
+  const logsInput = useMemo(() => {
+    const params: any = { isDryRun: false, limit: 100 };
+    if (selectedBatchId) params.batchId = selectedBatchId;
+    if (filter !== "all") params.aiDecision = filter;
+    return params;
+  }, [filter, selectedBatchId]);
+  
+  const { data: logs, isLoading: logsLoading } = trpc.aiReview.getLogs.useQuery(logsInput);
+  
+  // Override mutation
+  const overrideMutation = trpc.aiReview.overrideDecision.useMutation({
+    onSuccess: (data) => {
+      toast.success(`AI判定を修正しました: ${data.humanOverride === "approved" ? "承認" : "却下"}`);
+      utils.aiReview.getLogs.invalidate();
+      utils.aiReview.getBatches.invalidate();
+      utils.aiReview.getStats.invalidate();
+      utils.point.adminGetLineReceipts.invalidate();
+      utils.point.adminGetLineStatistics.invalidate();
+    },
+    onError: (err) => {
+      toast.error(`修正エラー: ${err.message}`);
+    },
+  });
+  
+  const getDecisionBadge = (decision: string) => {
+    switch (decision) {
+      case "approved":
+        return <Badge className="bg-green-100 text-green-700 border-green-200"><CheckCircle className="w-3 h-3 mr-1" />承認</Badge>;
+      case "rejected_duplicate":
+        return <Badge className="bg-red-100 text-red-700 border-red-200"><XCircle className="w-3 h-3 mr-1" />重複却下</Badge>;
+      case "held":
+        return <Badge className="bg-orange-100 text-orange-700 border-orange-200"><Clock className="w-3 h-3 mr-1" />保留</Badge>;
+      case "skipped":
+        return <Badge className="bg-gray-100 text-gray-700 border-gray-200"><SkipForward className="w-3 h-3 mr-1" />スキップ</Badge>;
+      default:
+        return <Badge variant="outline">{decision}</Badge>;
+    }
+  };
+  
+  const getOverrideBadge = (override: string | null) => {
+    if (!override) return null;
+    if (override === "approved") return <Badge className="bg-blue-100 text-blue-700 border-blue-200"><ThumbsUp className="w-3 h-3 mr-1" />人間承認</Badge>;
+    if (override === "rejected") return <Badge className="bg-pink-100 text-pink-700 border-pink-200"><ThumbsDown className="w-3 h-3 mr-1" />人間却下</Badge>;
+    return null;
+  };
+  
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-full bg-purple-100">
+            <Bot className="w-5 h-5 text-purple-600" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-lg">AI審査ログ</h3>
+            <p className="text-sm text-muted-foreground">AIが自動判定した全レシートの履歴・人間による修正</p>
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            utils.aiReview.getLogs.invalidate();
+            utils.aiReview.getBatches.invalidate();
+          }}
+        >
+          <RefreshCw className="w-4 h-4 mr-1" />
+          更新
+        </Button>
+      </div>
+      
+      {/* Batch History */}
+      {batches && batches.length > 0 && (
+        <Card>
+          <CardContent className="py-3">
+            <p className="text-sm font-medium mb-2">バッチ実行履歴</p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant={!selectedBatchId ? "default" : "outline"}
+                size="sm"
+                className="text-xs h-7"
+                onClick={() => setSelectedBatchId(undefined)}
+              >
+                全て
+              </Button>
+              {batches.map((batch: any) => (
+                <Button
+                  key={batch.batchId}
+                  variant={selectedBatchId === batch.batchId ? "default" : "outline"}
+                  size="sm"
+                  className="text-xs h-7"
+                  onClick={() => setSelectedBatchId(batch.batchId)}
+                >
+                  {new Date(batch.createdAt).toLocaleString("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  {" "}({batch.totalCount}件: ✅{batch.approvedCount} ❌{batch.rejectedCount} ⏸{batch.heldCount})
+                  {batch.humanOverrideCount > 0 && <span className="ml-1 text-blue-600">👤{batch.humanOverrideCount}</span>}
+                </Button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+      {/* Filters */}
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-muted-foreground">フィルター:</span>
+        {[
+          { value: "all", label: "全て", icon: List },
+          { value: "approved", label: "承認", icon: CheckCircle },
+          { value: "rejected_duplicate", label: "重複却下", icon: XCircle },
+          { value: "held", label: "保留", icon: Clock },
+          { value: "skipped", label: "スキップ", icon: SkipForward },
+        ].map(({ value, label, icon: Icon }) => (
+          <Button
+            key={value}
+            variant={filter === value ? "default" : "outline"}
+            size="sm"
+            className="text-xs h-7"
+            onClick={() => setFilter(value)}
+          >
+            <Icon className="w-3 h-3 mr-1" />
+            {label}
+          </Button>
+        ))}
+      </div>
+      
+      {/* Log List */}
+      {logsLoading ? (
+        <div className="text-center py-8 text-muted-foreground">
+          <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+          読み込み中...
+        </div>
+      ) : !logs || logs.length === 0 ? (
+        <Card>
+          <CardContent className="py-8 text-center text-muted-foreground">
+            <Bot className="w-12 h-12 mx-auto mb-2 opacity-50" />
+            <p>AI審査ログはまだありません</p>
+            <p className="text-xs mt-1">AI自動承認モードをONにすると、ここに審査結果が記録されます</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {logs.map((log: any) => (
+            <Card key={log.id} className={`transition-all ${log.humanOverride ? "border-blue-200 bg-blue-50/30" : ""}`}>
+              <CardContent className="py-3">
+                <div className="flex items-start justify-between gap-4">
+                  {/* Left: Receipt info + AI comment */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className="text-sm font-mono text-muted-foreground">#{log.receiptId}</span>
+                      {getDecisionBadge(log.aiDecision)}
+                      {getOverrideBadge(log.humanOverride)}
+                      {log.aiConfidence && (
+                        <span className={`text-xs px-1.5 py-0.5 rounded border ${
+                          log.aiConfidence >= 85 ? "bg-green-50 text-green-700 border-green-200" :
+                          log.aiConfidence >= 60 ? "bg-yellow-50 text-yellow-700 border-yellow-200" :
+                          "bg-red-50 text-red-700 border-red-200"
+                        }`}>
+                          {log.aiConfidence}%
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* AI Comment */}
+                    <p className="text-sm text-foreground mb-1">{log.aiComment}</p>
+                    
+                    {/* Meta info */}
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                      {log.orderNumber && (
+                        <span className="flex items-center gap-1">
+                          <Hash className="w-3 h-3" />{log.orderNumber}
+                        </span>
+                      )}
+                      {log.storeName && (
+                        <span className="flex items-center gap-1">
+                          <Store className="w-3 h-3" />{log.storeName}
+                        </span>
+                      )}
+                      {log.totalAmount && (
+                        <span className="flex items-center gap-1">
+                          <DollarSign className="w-3 h-3" />¥{Number(log.totalAmount).toLocaleString()}
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        {new Date(log.createdAt).toLocaleString("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </div>
+                    
+                    {/* Human comment */}
+                    {log.humanComment && (
+                      <div className="mt-1 text-xs bg-blue-50 rounded px-2 py-1 border border-blue-200">
+                        <span className="font-medium text-blue-700">👤 人間コメント:</span> {log.humanComment}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Right: Image thumbnail + Action buttons */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {log.imageUrl && (
+                      <img 
+                        src={log.imageUrl} 
+                        alt="レシート" 
+                        className="w-12 h-12 object-cover rounded border"
+                      />
+                    )}
+                    
+                    {/* Human override buttons (only if not already overridden) */}
+                    {!log.humanOverride && (
+                      <div className="flex flex-col gap-1">
+                        {log.aiDecision !== "approved" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs border-green-300 text-green-700 hover:bg-green-50"
+                            onClick={() => {
+                              const comment = prompt("承認コメント（任意）:");
+                              overrideMutation.mutate({
+                                logId: log.id,
+                                humanOverride: "approved",
+                                humanComment: comment || undefined,
+                              });
+                            }}
+                            disabled={overrideMutation.isPending}
+                          >
+                            <ThumbsUp className="w-3 h-3 mr-1" />
+                            承認
+                          </Button>
+                        )}
+                        {log.aiDecision === "approved" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs border-red-300 text-red-700 hover:bg-red-50"
+                            onClick={() => {
+                              const comment = prompt("却下理由:");
+                              if (comment) {
+                                overrideMutation.mutate({
+                                  logId: log.id,
+                                  humanOverride: "rejected",
+                                  humanComment: comment,
+                                });
+                              }
+                            }}
+                            disabled={overrideMutation.isPending}
+                          >
+                            <ThumbsDown className="w-3 h-3 mr-1" />
+                            却下
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
