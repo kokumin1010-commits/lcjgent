@@ -142,9 +142,13 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
   const utils = trpc.useUtils();
   
   // Fetch receipts
+  // ai_logタブの場合はレシート一覧を取得しない（statusバリデーションエラー回避）
+  const receiptStatus = activeTab === "ai_log" ? undefined : activeTab;
   const { data: receipts, isLoading } = trpc.point.adminGetLineReceipts.useQuery({
-    status: activeTab,
+    status: receiptStatus as "pending" | "approved" | "rejected" | "on_hold" | undefined,
     limit: 100,
+  }, {
+    enabled: activeTab !== "ai_log",
   });
   
   // Fetch duplicate receipts detection
@@ -1115,7 +1119,9 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
       <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as ReceiptStatus); setCalcReceiptId(null); setCalcAmount(""); }}>
         
         <TabsContent value={activeTab} className="mt-4">
-          {isLoading ? (
+          {activeTab === "ai_log" ? (
+            <AiReviewLogPanel />
+          ) : isLoading ? (
             <div className="text-center py-8 text-muted-foreground">読み込み中...</div>
           ) : receipts?.length === 0 ? (
             <Card>
@@ -1758,12 +1764,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
           )}
         </TabsContent>
         
-        {/* AI審査ログタブ */}
-        {activeTab === "ai_log" && (
-          <div className="mt-4">
-            <AiReviewLogPanel />
-          </div>
-        )}
+
       </Tabs>
       
       {/* Image Viewer Dialog */}

@@ -1,0 +1,172 @@
+{
+  "query": "DESCRIBE ai_auto_review_logs; SELECT COUNT(*) as cnt, isDryRun FROM ai_auto_review_logs GROUP BY isDryRun; SELECT id, aiDecision, aiComment, isDryRun, createdAt FROM ai_auto_review_logs ORDER BY id DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute DESCRIBE ai_auto_review_logs; SELECT COUNT(*) as cnt, isDryRun FROM ai_auto_review_logs GROUP BY isDryRun; SELECT id, aiDecision, aiComment, isDryRun, createdAt FROM ai_auto_review_logs ORDER BY id DESC LIMIT 5;",
+  "rows": [
+    {
+      "Field": "id",
+      "Type": "int(11)",
+      "Null": "NO",
+      "Key": "PRI",
+      "Default": "NULL",
+      "Extra": "auto_increment"
+    },
+    {
+      "Field": "batchId",
+      "Type": "varchar(64)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "receiptId",
+      "Type": "int(11)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "lineUserId",
+      "Type": "varchar(128)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "aiDecision",
+      "Type": "varchar(32)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "aiConfidence",
+      "Type": "int(11)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "aiComment",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "aiReason",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "orderNumber",
+      "Type": "varchar(64)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "totalAmount",
+      "Type": "int(11)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "storeName",
+      "Type": "varchar(256)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "imageUrl",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "humanOverride",
+      "Type": "varchar(32)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "humanComment",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "humanReviewedBy",
+      "Type": "int(11)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "humanReviewedAt",
+      "Type": "timestamp",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "isDryRun",
+      "Type": "tinyint(1)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "createdAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": ""
+    },
+    {
+      "Field": "updatedAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+    }
+  ],
+  "messages": [
+    "cnt\tisDryRun",
+    "40\t0",
+    "20\t1",
+    "id\taiDecision\taiComment\tisDryRun\tcreatedAt",
+    "60\tapproved\t✅ 承認: OCRデータ良好: TikTok Shop確認済み + 配達済み + 注文番号あり + 金額あり (信頼度: 92%)\t1\t2026-03-01 15:22:29",
+    "59\tapproved\t✅ 承認: OCRデータ良好: TikTok Shop確認済み + 配達済み + 注文番号あり + 金額あり (信頼度: 92%)\t1\t2026-03-01 15:22:29",
+    "58\tskipped\t⏭️ スキップ: 注文番号なし\t1\t2026-03-01 15:22:29",
+    "57\tskipped\t⏭️ スキップ: 注文番号なし\t1\t2026-03-01 15:22:29",
+    "56\tapproved\t✅ 承認: OCRデータ良好: TikTok Shop確認済み + 配達済み + 注文番号あり + 金額あり (信頼度: 92%)\t1\t2026-03-01 15:22:29"
+  ],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nid\tint(11)\tNO\tPRI\tNULL\tauto_increment\nbatchId\tvarchar(64)\tNO\t\tNULL\t\nreceiptId\tint(11)\tNO\t\tNULL\t\nlineUserId\tvarchar(128)\tYES\t\tNULL\t\naiDecision\tvarchar(32)\tNO\t\tNULL\t\naiConfidence\tint(11)\tYES\t\tNULL\t\naiComment\ttext\tYES\t\tNULL\t\naiReason\ttext\tYES\t\tNULL\t\norderNumber\tvarchar(64)\tYES\t\tNULL\t\ntotalAmount\tint(11)\tYES\t\tNULL\t\nstoreName\tvarchar(256)\tYES\t\tNULL\t\nimageUrl\ttext\tYES\t\tNULL\t\nhumanOverride\tvarchar(32)\tYES\t\tNULL\t\nhumanComment\ttext\tYES\t\tNULL\t\nhumanReviewedBy\tint(11)\tYES\t\tNULL\t\nhumanReviewedAt\ttimestamp\tYES\t\tNULL\t\nisDryRun\ttinyint(1)\tNO\t\t0\t\ncreatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\t\nupdatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\tDEFAULT_GENERATED on update CURRENT_TIMESTAMP\ncnt\tisDryRun\n40\t0\n20\t1\nid\taiDecision\taiComment\tisDryRun\tcreatedAt\n60\tapproved\t✅ 承認: OCRデータ良好: TikTok Shop確認済み + 配達済み + 注文番号あり + 金額あり (信頼度: 92%)\t1\t2026-03-01 15:22:29\n59\tapproved\t✅ 承認: OCRデータ良好: TikTok Shop確認済み + 配達済み + 注文番号あり + 金額あり (信頼度: 92%)\t1\t2026-03-01 15:22:29\n58\tskipped\t⏭️ スキップ: 注文番号なし\t1\t2026-03-01 15:22:29\n57\tskipped\t⏭️ スキップ: 注文番号なし\t1\t2026-03-01 15:22:29\n56\tapproved\t✅ 承認: OCRデータ良好: TikTok Shop確認済み + 配達済み + 注文番号あり + 金額あり (信頼度: 92%)\t1\t2026-03-01 15:22:29\n",
+  "stderr": "",
+  "execution_time_ms": 2018
+}

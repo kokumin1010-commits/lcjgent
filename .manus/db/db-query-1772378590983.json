@@ -1,0 +1,26 @@
+{
+  "query": "SELECT aiDecision, COUNT(*) as cnt FROM ai_auto_review_logs GROUP BY aiDecision;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT aiDecision, COUNT(*) as cnt FROM ai_auto_review_logs GROUP BY aiDecision;",
+  "rows": [
+    {
+      "aiDecision": "approved",
+      "cnt": "49"
+    },
+    {
+      "aiDecision": "skipped",
+      "cnt": "8"
+    },
+    {
+      "aiDecision": "rejected_duplicate",
+      "cnt": "1"
+    },
+    {
+      "aiDecision": "held",
+      "cnt": "2"
+    }
+  ],
+  "messages": [],
+  "stdout": "aiDecision\tcnt\napproved\t49\nskipped\t8\nrejected_duplicate\t1\nheld\t2\n",
+  "stderr": "",
+  "execution_time_ms": 1516
+}

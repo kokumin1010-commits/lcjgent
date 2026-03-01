@@ -1,0 +1,67 @@
+{
+  "query": "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ai_auto_review_logs' ORDER BY ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ai_auto_review_logs' ORDER BY ORDINAL_POSITION;",
+  "rows": [
+    {
+      "COLUMN_NAME": "id"
+    },
+    {
+      "COLUMN_NAME": "batchId"
+    },
+    {
+      "COLUMN_NAME": "receiptId"
+    },
+    {
+      "COLUMN_NAME": "lineUserId"
+    },
+    {
+      "COLUMN_NAME": "aiDecision"
+    },
+    {
+      "COLUMN_NAME": "aiConfidence"
+    },
+    {
+      "COLUMN_NAME": "aiComment"
+    },
+    {
+      "COLUMN_NAME": "aiReason"
+    },
+    {
+      "COLUMN_NAME": "orderNumber"
+    },
+    {
+      "COLUMN_NAME": "totalAmount"
+    },
+    {
+      "COLUMN_NAME": "storeName"
+    },
+    {
+      "COLUMN_NAME": "imageUrl"
+    },
+    {
+      "COLUMN_NAME": "humanOverride"
+    },
+    {
+      "COLUMN_NAME": "humanComment"
+    },
+    {
+      "COLUMN_NAME": "humanReviewedBy"
+    },
+    {
+      "COLUMN_NAME": "humanReviewedAt"
+    },
+    {
+      "COLUMN_NAME": "isDryRun"
+    },
+    {
+      "COLUMN_NAME": "createdAt"
+    },
+    {
+      "COLUMN_NAME": "updatedAt"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\nid\nbatchId\nreceiptId\nlineUserId\naiDecision\naiConfidence\naiComment\naiReason\norderNumber\ntotalAmount\nstoreName\nimageUrl\nhumanOverride\nhumanComment\nhumanReviewedBy\nhumanReviewedAt\nisDryRun\ncreatedAt\nupdatedAt\n",
+  "stderr": "",
+  "execution_time_ms": 1598
+}

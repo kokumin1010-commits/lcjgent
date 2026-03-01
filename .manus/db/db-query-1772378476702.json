@@ -1,0 +1,31 @@
+{
+  "query": "SELECT * FROM ai_auto_review_logs LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT * FROM ai_auto_review_logs LIMIT 1;",
+  "rows": [
+    {
+      "id": "1",
+      "batchId": "batch_1772378213725_vwrg0x",
+      "receiptId": "185713",
+      "lineUserId": "email_930285",
+      "aiDecision": "approved",
+      "aiConfidence": "92",
+      "aiComment": "✅ 承認: OCRデータ良好: TikTok Shop確認済み + 配達済み + 注文番号あり + 金額あり (信頼度: 92%)",
+      "aiReason": "OCRデータ良好: TikTok Shop確認済み + 配達済み + 注文番号あり + 金額あり",
+      "orderNumber": "582560329185985626",
+      "totalAmount": "639",
+      "storeName": "Chic Straps",
+      "imageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/web-receipts/email_930285/1771499744661-jD-kcPyW.png",
+      "humanOverride": "NULL",
+      "humanComment": "NULL",
+      "humanReviewedBy": "NULL",
+      "humanReviewedAt": "NULL",
+      "isDryRun": "0",
+      "createdAt": "2026-03-01 15:18:38",
+      "updatedAt": "2026-03-01 15:18:38"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tbatchId\treceiptId\tlineUserId\taiDecision\taiConfidence\taiComment\taiReason\torderNumber\ttotalAmount\tstoreName\timageUrl\thumanOverride\thumanComment\thumanReviewedBy\thumanReviewedAt\tisDryRun\tcreatedAt\tupdatedAt\n1\tbatch_1772378213725_vwrg0x\t185713\temail_930285\tapproved\t92\t✅ 承認: OCRデータ良好: TikTok Shop確認済み + 配達済み + 注文番号あり + 金額あり (信頼度: 92%)\tOCRデータ良好: TikTok Shop確認済み + 配達済み + 注文番号あり + 金額あり\t582560329185985626\t639\tChic Straps\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/web-receipts/email_930285/1771499744661-jD-kcPyW.png\tNULL\tNULL\tNULL\tNULL\t0\t2026-03-01 15:18:38\t2026-03-01 15:18:38\n",
+  "stderr": "",
+  "execution_time_ms": 1536
+}

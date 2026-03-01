@@ -1,0 +1,13 @@
+{
+  "query": "SELECT COUNT(*) as total FROM ai_auto_review_logs;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT COUNT(*) as total FROM ai_auto_review_logs;",
+  "rows": [
+    {
+      "total": "20"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\n20\n",
+  "stderr": "",
+  "execution_time_ms": 1563
+}

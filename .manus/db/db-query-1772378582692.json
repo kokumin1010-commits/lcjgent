@@ -1,0 +1,55 @@
+{
+  "query": "SELECT id, batchId, receiptId, aiDecision, aiConfidence, isDryRun, createdAt FROM ai_auto_review_logs ORDER BY id DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, batchId, receiptId, aiDecision, aiConfidence, isDryRun, createdAt FROM ai_auto_review_logs ORDER BY id DESC LIMIT 5;",
+  "rows": [
+    {
+      "id": "60",
+      "batchId": "batch_1772378548709_hk9vod",
+      "receiptId": "185841",
+      "aiDecision": "approved",
+      "aiConfidence": "92",
+      "isDryRun": "1",
+      "createdAt": "2026-03-01 15:22:29"
+    },
+    {
+      "id": "59",
+      "batchId": "batch_1772378548709_hk9vod",
+      "receiptId": "185833",
+      "aiDecision": "approved",
+      "aiConfidence": "92",
+      "isDryRun": "1",
+      "createdAt": "2026-03-01 15:22:29"
+    },
+    {
+      "id": "58",
+      "batchId": "batch_1772378548709_hk9vod",
+      "receiptId": "185826",
+      "aiDecision": "skipped",
+      "aiConfidence": "NULL",
+      "isDryRun": "1",
+      "createdAt": "2026-03-01 15:22:29"
+    },
+    {
+      "id": "57",
+      "batchId": "batch_1772378548709_hk9vod",
+      "receiptId": "185824",
+      "aiDecision": "skipped",
+      "aiConfidence": "NULL",
+      "isDryRun": "1",
+      "createdAt": "2026-03-01 15:22:29"
+    },
+    {
+      "id": "56",
+      "batchId": "batch_1772378548709_hk9vod",
+      "receiptId": "185818",
+      "aiDecision": "approved",
+      "aiConfidence": "92",
+      "isDryRun": "1",
+      "createdAt": "2026-03-01 15:22:29"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tbatchId\treceiptId\taiDecision\taiConfidence\tisDryRun\tcreatedAt\n60\tbatch_1772378548709_hk9vod\t185841\tapproved\t92\t1\t2026-03-01 15:22:29\n59\tbatch_1772378548709_hk9vod\t185833\tapproved\t92\t1\t2026-03-01 15:22:29\n58\tbatch_1772378548709_hk9vod\t185826\tskipped\tNULL\t1\t2026-03-01 15:22:29\n57\tbatch_1772378548709_hk9vod\t185824\tskipped\tNULL\t1\t2026-03-01 15:22:29\n56\tbatch_1772378548709_hk9vod\t185818\tapproved\t92\t1\t2026-03-01 15:22:29\n",
+  "stderr": "",
+  "execution_time_ms": 1601
+}
