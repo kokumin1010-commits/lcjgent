@@ -1,0 +1,35 @@
+{
+  "query": "SELECT * FROM __drizzle_migrations ORDER BY id DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT * FROM __drizzle_migrations ORDER BY id DESC LIMIT 5;",
+  "rows": [
+    {
+      "id": "864812",
+      "hash": "e0d51bb45c9ac9c1db8c69ccfc5f4897a22518253a40fcc1793e63fd69d6e332",
+      "created_at": "1771960952172"
+    },
+    {
+      "id": "864811",
+      "hash": "0099_jazzy_the_spike",
+      "created_at": "1771953953000"
+    },
+    {
+      "id": "834862",
+      "hash": "2353ecce8eff6cc1f11a661896cdb6df1e80fe5bf60ae51f6463d4d7fe5ca5ea",
+      "created_at": "1771221448662"
+    },
+    {
+      "id": "834861",
+      "hash": "ca9bbb1450e764f6910dc8a644d9ee2589eaaaf95e0ab2545e668361fc3ae14e",
+      "created_at": "1771218229564"
+    },
+    {
+      "id": "834860",
+      "hash": "453ffb366b6ab090513c2aad4749f32091fc0933a2edfae0213114f86e48ee56",
+      "created_at": "1771207468135"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\thash\tcreated_at\n864812\te0d51bb45c9ac9c1db8c69ccfc5f4897a22518253a40fcc1793e63fd69d6e332\t1771960952172\n864811\t0099_jazzy_the_spike\t1771953953000\n834862\t2353ecce8eff6cc1f11a661896cdb6df1e80fe5bf60ae51f6463d4d7fe5ca5ea\t1771221448662\n834861\tca9bbb1450e764f6910dc8a644d9ee2589eaaaf95e0ab2545e668361fc3ae14e\t1771218229564\n834860\t453ffb366b6ab090513c2aad4749f32091fc0933a2edfae0213114f86e48ee56\t1771207468135\n",
+  "stderr": "",
+  "execution_time_ms": 1593
+}

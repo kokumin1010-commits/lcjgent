@@ -1,1 +1,2 @@
-ALTER TABLE `brand_livestreams` ADD `deletedAt` timestamp;
+-- Column already exists in production, skipping
+SELECT 1;

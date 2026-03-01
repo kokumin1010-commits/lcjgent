@@ -1,0 +1,31 @@
+{
+  "query": "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'product_master' AND COLUMN_NAME IN ('imageUrl', 'imageKey', 'imageStatus', 'imageSource', 'regularPrice', 'specialPrice', 'isActive');",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'product_master' AND COLUMN_NAME IN ('imageUrl', 'imageKey', 'imageStatus', 'imageSource', 'regularPrice', 'specialPrice', 'isActive');",
+  "rows": [
+    {
+      "COLUMN_NAME": "imageUrl"
+    },
+    {
+      "COLUMN_NAME": "imageKey"
+    },
+    {
+      "COLUMN_NAME": "imageStatus"
+    },
+    {
+      "COLUMN_NAME": "imageSource"
+    },
+    {
+      "COLUMN_NAME": "regularPrice"
+    },
+    {
+      "COLUMN_NAME": "specialPrice"
+    },
+    {
+      "COLUMN_NAME": "isActive"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\nimageUrl\nimageKey\nimageStatus\nimageSource\nregularPrice\nspecialPrice\nisActive\n",
+  "stderr": "",
+  "execution_time_ms": 1584
+}

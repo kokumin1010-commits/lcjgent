@@ -1,0 +1,60 @@
+{
+  "query": "SELECT id, hash, created_at FROM __drizzle_migrations ORDER BY id DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, hash, created_at FROM __drizzle_migrations ORDER BY id DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "864812",
+      "hash": "e0d51bb45c9ac9c1db8c69ccfc5f4897a22518253a40fcc1793e63fd69d6e332",
+      "created_at": "1771960952172"
+    },
+    {
+      "id": "864811",
+      "hash": "0099_jazzy_the_spike",
+      "created_at": "1771953953000"
+    },
+    {
+      "id": "834862",
+      "hash": "2353ecce8eff6cc1f11a661896cdb6df1e80fe5bf60ae51f6463d4d7fe5ca5ea",
+      "created_at": "1771221448662"
+    },
+    {
+      "id": "834861",
+      "hash": "ca9bbb1450e764f6910dc8a644d9ee2589eaaaf95e0ab2545e668361fc3ae14e",
+      "created_at": "1771218229564"
+    },
+    {
+      "id": "834860",
+      "hash": "453ffb366b6ab090513c2aad4749f32091fc0933a2edfae0213114f86e48ee56",
+      "created_at": "1771207468135"
+    },
+    {
+      "id": "834859",
+      "hash": "1fd6b858a2b3bb90be4b67d11f47f9fa959245d54c23ae750311ef23d3b89a34",
+      "created_at": "1771142839285"
+    },
+    {
+      "id": "834858",
+      "hash": "8bcea0fa0c9c695a75dd46e7ee9a649f3e3ae194f779ebb79076b7564735a21f",
+      "created_at": "1771129841028"
+    },
+    {
+      "id": "834857",
+      "hash": "bb16372baa9525eab99e4771806d9d96d68b67d64af25f0f97e2e320a5869fe0",
+      "created_at": "1771113655195"
+    },
+    {
+      "id": "834856",
+      "hash": "5360bdf3000ab964977efc98911ded27b545b8d9534b30e946dcd566cbdf75cf",
+      "created_at": "1771088440253"
+    },
+    {
+      "id": "834855",
+      "hash": "0b82ad37a0da31b11e0aa519888368a12ca0c4ddc63a45baee03c0faf2c57a6b",
+      "created_at": "1770982714137"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\thash\tcreated_at\n864812\te0d51bb45c9ac9c1db8c69ccfc5f4897a22518253a40fcc1793e63fd69d6e332\t1771960952172\n864811\t0099_jazzy_the_spike\t1771953953000\n834862\t2353ecce8eff6cc1f11a661896cdb6df1e80fe5bf60ae51f6463d4d7fe5ca5ea\t1771221448662\n834861\tca9bbb1450e764f6910dc8a644d9ee2589eaaaf95e0ab2545e668361fc3ae14e\t1771218229564\n834860\t453ffb366b6ab090513c2aad4749f32091fc0933a2edfae0213114f86e48ee56\t1771207468135\n834859\t1fd6b858a2b3bb90be4b67d11f47f9fa959245d54c23ae750311ef23d3b89a34\t1771142839285\n834858\t8bcea0fa0c9c695a75dd46e7ee9a649f3e3ae194f779ebb79076b7564735a21f\t1771129841028\n834857\tbb16372baa9525eab99e4771806d9d96d68b67d64af25f0f97e2e320a5869fe0\t1771113655195\n834856\t5360bdf3000ab964977efc98911ded27b545b8d9534b30e946dcd566cbdf75cf\t1771088440253\n834855\t0b82ad37a0da31b11e0aa519888368a12ca0c4ddc63a45baee03c0faf2c57a6b\t1770982714137\n",
+  "stderr": "",
+  "execution_time_ms": 1617
+}

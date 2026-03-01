@@ -1,1 +1,2 @@
-ALTER TABLE `bw_linked_accounts` ADD `bwCustomerId` int;
+-- Column already exists in production, skipping
+SELECT 1;

@@ -1,1 +1,2 @@
-ALTER TABLE `product_master` ADD `sourceUrl` text;
+-- Column already exists in production, skipping
+SELECT 1;

@@ -1986,6 +1986,12 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             imageUrls: uploadedImages.map(i => i.url),
             imageKeys: uploadedImages.map(i => i.key),
           });
+          // AI弾き情報をDBに保存
+          const { updateLineReceiptAiRejection } = await import("./db");
+          await updateLineReceiptAiRejection(receiptId, {
+            aiRejectionReason: "TikTok Shopの注文画面として認識されませんでした",
+            aiRejectionCategory: "not_tiktok",
+          });
           return {
             receiptId,
             status: "not_tiktok" as const,
@@ -2009,6 +2015,12 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             pointsCalculated: ocrData.totalAmount ? Math.floor(ocrData.totalAmount * 0.01) : 0,
             imageUrls: uploadedImages.map(i => i.url),
             imageKeys: uploadedImages.map(i => i.key),
+          });
+          // AI弾き情報をDBに保存
+          const { updateLineReceiptAiRejection: updateAiRejNotDelivered } = await import("./db");
+          await updateAiRejNotDelivered(receiptId, {
+            aiRejectionReason: "配達ステータスが「配達済み」と確認できませんでした",
+            aiRejectionCategory: "not_delivered",
           });
           return {
             receiptId,
@@ -2034,6 +2046,12 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             pointsCalculated: 0,
             imageUrls: uploadedImages.map(i => i.url),
             imageKeys: uploadedImages.map(i => i.key),
+          });
+          // AI弾き情報をDBに保存
+          const { updateLineReceiptAiRejection: updateAiRejIncomplete } = await import("./db");
+          await updateAiRejIncomplete(receiptId, {
+            aiRejectionReason: "購入金額を画像から読み取ることができませんでした",
+            aiRejectionCategory: "incomplete",
           });
           return {
             receiptId,
@@ -2169,8 +2187,9 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         });
       }
       
-      const { updateLineReceiptStatus } = await import("./db");
+      const { updateLineReceiptStatus, markLineReceiptAsForceSubmitted } = await import("./db");
       await updateLineReceiptStatus(input.receiptId, "on_hold", 0, "AI自動判定で弾かれたが、お客様が強制申請。手動審査が必要です。");
+      await markLineReceiptAsForceSubmitted(input.receiptId);
       
       console.log(`[Web Receipt] Force submitted receipt ${input.receiptId} by user ${result.lineUser.id}`);
       
@@ -12381,6 +12400,32 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           console.error("[ReviewLog] Failed to record LINE receipt approval log:", logErr);
         }
         
+        // Record AI feedback if this was a force-submitted (AI-rejected) receipt
+        if (receipt.isForceSubmitted && receipt.aiRejectionCategory) {
+          try {
+            const { createAiReviewFeedback } = await import("./db");
+            await createAiReviewFeedback({
+              receiptId: input.id,
+              receiptType: "line_receipt",
+              aiDecision: receipt.aiRejectionCategory as "not_tiktok" | "not_delivered" | "incomplete" | "other",
+              aiRejectionReason: receipt.aiRejectionReason || undefined,
+              humanDecision: "approved",
+              humanNote: input.note || undefined,
+              aiWasCorrect: false, // AIが弾いたが管理者が承認 = AIの判断ミス
+              imageUrl: receipt.imageUrl || undefined,
+              imageUrls: receipt.imageUrls || undefined,
+              ocrRawText: receipt.ocrRawText || undefined,
+              totalAmount: receipt.totalAmount ?? undefined,
+              storeName: receipt.storeName || undefined,
+              ocrConfidence: receipt.ocrConfidence ?? undefined,
+              reviewedBy: ctx.user.id,
+            });
+            console.log(`[AI Feedback] Recorded: AI rejected (${receipt.aiRejectionCategory}) but human approved receipt #${input.id}`);
+          } catch (fbErr) {
+            console.error("[AI Feedback] Failed to record feedback:", fbErr);
+          }
+        }
+        
         // Extract product data for purchase ranking
         try {
           await extractSingleReceiptProducts(input.id);
@@ -12537,6 +12582,32 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           });
         } catch (logErr) {
           console.error("[ReviewLog] Failed to record LINE receipt rejection log:", logErr);
+        }
+        
+        // Record AI feedback if this was a force-submitted (AI-rejected) receipt
+        if (receipt.isForceSubmitted && receipt.aiRejectionCategory) {
+          try {
+            const { createAiReviewFeedback } = await import("./db");
+            await createAiReviewFeedback({
+              receiptId: input.id,
+              receiptType: "line_receipt",
+              aiDecision: receipt.aiRejectionCategory as "not_tiktok" | "not_delivered" | "incomplete" | "other",
+              aiRejectionReason: receipt.aiRejectionReason || undefined,
+              humanDecision: "rejected",
+              humanNote: input.note || undefined,
+              aiWasCorrect: true, // AIが弾いて管理者も却下 = AIの判断が正しかった
+              imageUrl: receipt.imageUrl || undefined,
+              imageUrls: receipt.imageUrls || undefined,
+              ocrRawText: receipt.ocrRawText || undefined,
+              totalAmount: receipt.totalAmount ?? undefined,
+              storeName: receipt.storeName || undefined,
+              ocrConfidence: receipt.ocrConfidence ?? undefined,
+              reviewedBy: ctx.user.id,
+            });
+            console.log(`[AI Feedback] Recorded: AI rejected (${receipt.aiRejectionCategory}) and human also rejected receipt #${input.id}`);
+          } catch (fbErr) {
+            console.error("[AI Feedback] Failed to record feedback:", fbErr);
+          }
         }
         
         return { success: true };

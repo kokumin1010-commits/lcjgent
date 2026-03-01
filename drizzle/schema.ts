@@ -1474,6 +1474,12 @@ export const lineReceipts = mysqlTable("line_receipts", {
   reviewedAt: timestamp("reviewedAt"),
   reviewNote: text("reviewNote"), // Note from reviewer
   
+  // AI rejection tracking (for learning data)
+  aiRejectionReason: text("aiRejectionReason"), // AI弾き理由テキスト
+  aiRejectionCategory: mysqlEnum("aiRejectionCategory", ["not_tiktok", "not_delivered", "incomplete", "other"]), // AI弾きカテゴリ
+  isForceSubmitted: boolean("isForceSubmitted").default(false), // お客様が強制申請したか
+  forceSubmittedAt: timestamp("forceSubmittedAt"), // 強制申請日時
+  
   // Fraud detection
   fraudFlags: json("fraudFlags").$type<string[]>(), // Array of fraud flag codes
   fraudScore: decimal("fraudScore", { precision: 5, scale: 2 }).default("0"), // Risk score (0-100)
@@ -2841,6 +2847,47 @@ export const receiptReviewLogs = mysqlTable("receipt_review_logs", {
 });
 export type ReceiptReviewLog = typeof receiptReviewLogs.$inferSelect;
 export type InsertReceiptReviewLog = typeof receiptReviewLogs.$inferInsert;
+
+
+/**
+ * AI Review Feedback table
+ * AI自動判定の学習データ蓄積テーブル
+ * 管理者がAI弾きレシートを審査した結果をフィードバックとして記録
+ */
+export const aiReviewFeedback = mysqlTable("ai_review_feedback", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // レシート情報
+  receiptId: int("receiptId").notNull(), // line_receipts.id
+  receiptType: mysqlEnum("feedbackReceiptType", ["line_receipt", "web_receipt"]).notNull(),
+  
+  // AI判定情報
+  aiDecision: mysqlEnum("aiDecision", ["not_tiktok", "not_delivered", "incomplete", "other"]).notNull(),
+  aiRejectionReason: text("feedbackAiRejectionReason"),
+  
+  // 管理者の最終判断
+  humanDecision: mysqlEnum("humanDecision", ["approved", "rejected"]).notNull(),
+  humanNote: text("humanNote"),
+  
+  // AIの判断が正しかったか
+  aiWasCorrect: boolean("aiWasCorrect").notNull(), // true=AIが正しかった（管理者も却下）, false=AI判断ミス（管理者承認）
+  
+  // 学習用の特徴量
+  imageUrl: text("feedbackImageUrl"),
+  imageUrls: json("feedbackImageUrls").$type<string[]>(),
+  ocrRawText: text("feedbackOcrRawText"),
+  totalAmount: bigint("feedbackTotalAmount", { mode: "number" }),
+  storeName: varchar("feedbackStoreName", { length: 255 }),
+  ocrConfidence: decimal("feedbackOcrConfidence", { precision: 5, scale: 2 }),
+  
+  // 審査者情報
+  reviewedBy: int("feedbackReviewedBy").notNull(),
+  
+  // タイムスタンプ
+  createdAt: timestamp("feedbackCreatedAt").defaultNow().notNull(),
+});
+export type AiReviewFeedback = typeof aiReviewFeedback.$inferSelect;
+export type InsertAiReviewFeedback = typeof aiReviewFeedback.$inferInsert;
 
 
 // ===== Aitherhub Sync Logs =====

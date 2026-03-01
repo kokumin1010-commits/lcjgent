@@ -6407,3 +6407,15 @@
   - OCRデータをDB保存してai_rejectedステータスで保持
   - aiRejectionReasonをフロントエンドに返却
 - [x] ユニットテスト22件作成・全PASS（receiptAiRejection.test.ts）
+
+## 強制申請レシートの管理画面改善 & AI学習データ蓄積
+- [x] DBスキーマ: line_receiptsにaiRejectionReason/aiRejectionCategory/isForceSubmitted/forceSubmittedAtカラム追加
+- [x] DBスキーマ: ai_review_feedbackテーブル追加（AI判定理由・管理者判断・画像URL・OCRデータ・aiWasCorrect）
+- [x] サーバー: submitWebReceiptのAI弾き3パターンでaiRejectionReason/CategoryをDBに保存
+- [x] サーバー: forceSubmitWebReceiptでisForceSubmitted=trueとforceSubmittedAtを記録
+- [x] サーバー: adminApproveLineReceiptで強制申請レシート承認時にaiWasCorrect=falseでフィードバック記録
+- [x] サーバー: adminRejectLineReceiptで強制申請レシート却下時にaiWasCorrect=trueでフィードバック記録
+- [x] フロントエンド: 審査パネルに「AI弾き→強制申請」警告カード（アンバー色、カテゴリバッジ、AI判定理由表示）
+- [x] フロントエンド: 右側レシート一覧に「AI弾き」バッジ表示（アンバー色）
+- [x] フロントエンド: 詳細パネルに「AI弾き→強制申請レシート」カード（カテゴリ、理由、強制申請日時、学習データ蓄積の注記）
+- [x] テスト19件作成・全PASS（aiReviewFeedback.test.ts）

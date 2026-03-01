@@ -1103,6 +1103,31 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                               );
                             })()}
                             
+                            {/* AI弾き→強制申請 表示 */}
+                            {selectedCalcReceipt.receipt.isForceSubmitted && (
+                              <div className="bg-amber-50 border border-amber-300 rounded p-1.5 space-y-1">
+                                <div className="flex items-center gap-1">
+                                  <AlertTriangle className="w-3 h-3 text-amber-600 flex-shrink-0" />
+                                  <span className="font-bold text-amber-700 text-[10px]">AI弾き → 強制申請</span>
+                                </div>
+                                {selectedCalcReceipt.receipt.aiRejectionReason && (
+                                  <div className="text-[9px] text-amber-800 bg-amber-100 rounded px-1.5 py-0.5">
+                                    <span className="font-medium">AI判定理由:</span> {selectedCalcReceipt.receipt.aiRejectionReason}
+                                  </div>
+                                )}
+                                {selectedCalcReceipt.receipt.aiRejectionCategory && (
+                                  <div className="flex items-center gap-1">
+                                    <Badge variant="outline" className="text-[8px] px-1 py-0 border-amber-400 text-amber-700 bg-amber-100">
+                                      {selectedCalcReceipt.receipt.aiRejectionCategory === 'not_tiktok' ? 'TikTok以外' :
+                                       selectedCalcReceipt.receipt.aiRejectionCategory === 'not_delivered' ? '未配達' :
+                                       selectedCalcReceipt.receipt.aiRejectionCategory === 'incomplete' ? '金額不明' : 'その他'}
+                                    </Badge>
+                                    <span className="text-[8px] text-amber-600">→ お客様が強制申請</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            
                             {/* Order Number - Compact */}
                             <div className="space-y-0.5">
                               <div className="flex items-center gap-1">
@@ -1475,6 +1500,12 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                   {(receipt.fraudFlags as string[]).includes("similar_order_number") ? "類似" : (receipt.fraudFlags as string[]).includes("duplicate_order") ? "重複" : "不正"}
                                 </Badge>
                               )}
+                              {receipt.isForceSubmitted && (
+                                <Badge variant="outline" className="text-[10px] px-1 py-0 border-amber-400 text-amber-700 bg-amber-50">
+                                  <AlertTriangle className="w-2.5 h-2.5 mr-0.5" />
+                                  AI弾き
+                                </Badge>
+                              )}
                               {duplicateReceiptIds.ids.has(receipt.id) && (() => {
                                 const crossLink = duplicateReceiptIds.crossLinkMap.get(receipt.id);
                                 const others = crossLink?.others || [];
@@ -1810,6 +1841,45 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                           <span className="font-medium">{receiptDetails.receipt.reviewNote}</span>
                         </div>
                       )}
+                    </CardContent>
+                  </Card>
+                )}
+                
+                {/* AI弾き情報 */}
+                {receiptDetails.receipt.isForceSubmitted && (
+                  <Card className="border-amber-300 bg-amber-50">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm flex items-center gap-2 text-amber-700">
+                        <AlertTriangle className="w-4 h-4" />
+                        AI弾き → 強制申請レシート
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <div className="text-sm space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground">カテゴリ:</span>
+                          <Badge variant="outline" className="border-amber-400 text-amber-700 bg-amber-100">
+                            {receiptDetails.receipt.aiRejectionCategory === 'not_tiktok' ? 'TikTok以外の画面' :
+                             receiptDetails.receipt.aiRejectionCategory === 'not_delivered' ? '未配達' :
+                             receiptDetails.receipt.aiRejectionCategory === 'incomplete' ? '金額読み取り不可' : 'その他'}
+                          </Badge>
+                        </div>
+                        {receiptDetails.receipt.aiRejectionReason && (
+                          <div className="flex items-start gap-2">
+                            <span className="text-muted-foreground flex-shrink-0">理由:</span>
+                            <span className="font-medium text-amber-800">{receiptDetails.receipt.aiRejectionReason}</span>
+                          </div>
+                        )}
+                        {receiptDetails.receipt.forceSubmittedAt && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground">強制申請日時:</span>
+                            <span className="font-medium">{new Date(receiptDetails.receipt.forceSubmittedAt).toLocaleString("ja-JP")}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-amber-600 bg-amber-100 rounded p-1.5">
+                        ※ このレシートはAIが一度弾いたものですが、お客様が「それでもアップロード」を選択しました。審査結果はAI学習データとして蓄積されます。
+                      </div>
                     </CardContent>
                   </Card>
                 )}
