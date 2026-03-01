@@ -18192,13 +18192,13 @@ SEO/GEO最適化要件:
         if (input.email) {
           try {
             const lookupResult = await bwLookupCustomer(input.email);
-            if (lookupResult.success && lookupResult.customer) {
+            if (lookupResult.success && lookupResult.found && lookupResult.customer) {
               // BW側にアカウントが見つかった→自動連携
               const linked = await completeBwLink({
                 lineUserId: input.lineUserId,
                 bwUserId: lookupResult.customer.id.toString(),
-                bwDisplayName: lookupResult.customer.displayName,
-                bwEmail: lookupResult.customer.email,
+                bwDisplayName: lookupResult.customer.name || input.email,
+                bwEmail: input.email, // BW APIはemailを返さないので入力値を使用
                 bwCustomerId: lookupResult.customer.id,
               });
               return {
@@ -18206,8 +18206,8 @@ SEO/GEO最適化要件:
                 linkUrl: null,
                 token: null,
                 account: {
-                  bwDisplayName: lookupResult.customer.displayName,
-                  bwEmail: lookupResult.customer.email,
+                  bwDisplayName: lookupResult.customer.name || input.email,
+                  bwEmail: input.email,
                 },
               };
             }
@@ -18292,8 +18292,8 @@ SEO/GEO最適化要件:
               lcjPointsUsed: input.lcjPoints,
             });
 
-            if (bwResult.success && bwResult.transactionId) {
-              await updateBwTransferStatus(result.exchangeId, "completed", bwResult.transactionId);
+            if (bwResult.success && bwResult.exchangeId) {
+              await updateBwTransferStatus(result.exchangeId, "completed", bwResult.exchangeId);
             } else {
               await updateBwTransferStatus(result.exchangeId, "failed", undefined, bwResult.error || "Unknown error");
             }
@@ -18367,12 +18367,45 @@ SEO/GEO最適化要件:
           throw new TRPCError({ code: "FORBIDDEN" });
         }
         const pending = await getPendingExchanges();
-        // TODO: BW側APIが実装されたら、ここでAPIを叩く
-        // 今はpendingリストを返すだけ
+        let processed = 0;
+        let succeeded = 0;
+        let failed = 0;
+        const errors: string[] = [];
+
+        for (const exchange of pending) {
+          try {
+            await updateBwTransferStatus(exchange.id, "processing");
+            const bwResult = await bwExchangeTokens({
+              bwCustomerId: Number(exchange.bwUserId),
+              tokens: exchange.bwTokensReceived,
+              lcjExchangeId: exchange.id,
+              lcjPointsUsed: exchange.bwTokensReceived / 0.4, // 逆算
+            });
+
+            if (bwResult.success && bwResult.exchangeId) {
+              await updateBwTransferStatus(exchange.id, "completed", bwResult.exchangeId);
+              succeeded++;
+            } else {
+              await updateBwTransferStatus(exchange.id, "failed", undefined, bwResult.error || "Unknown error");
+              failed++;
+              errors.push(`Exchange #${exchange.id}: ${bwResult.error}`);
+            }
+            processed++;
+          } catch (err) {
+            await updateBwTransferStatus(exchange.id, "failed", undefined, (err as Error).message);
+            failed++;
+            errors.push(`Exchange #${exchange.id}: ${(err as Error).message}`);
+            processed++;
+          }
+        }
+
         return {
           pendingCount: pending.length,
-          exchanges: pending,
-          message: "BW側APIが未実装のため、手動確認が必要です",
+          processed,
+          succeeded,
+          failed,
+          errors: errors.length > 0 ? errors : undefined,
+          message: `${succeeded}件成功、${failed}件失敗（全${pending.length}件中）`,
         };
       }),
   }),

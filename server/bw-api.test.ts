@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// bw-api.ts のユニットテスト
-// 実際のAPI呼び出しはモックする
+// bw-api.ts のユニットテスト（BW側の実際のAPI仕様に合わせた版）
 
 describe("BW API Client", () => {
   beforeEach(() => {
@@ -9,15 +8,13 @@ describe("BW API Client", () => {
   });
 
   describe("bwLookupCustomer", () => {
-    it("should return customer data on successful lookup", async () => {
+    it("should return customer data when found", async () => {
       const mockResponse = {
         success: true,
-        customer: {
-          id: 123,
-          email: "test@example.com",
-          displayName: "テストユーザー",
-          walletBalance: 5000,
-        },
+        found: true,
+        customer_id: 123,
+        name: "テストユーザー",
+        has_wallet: true,
       };
 
       global.fetch = vi.fn().mockResolvedValue({
@@ -29,25 +26,53 @@ describe("BW API Client", () => {
       const result = await bwLookupCustomer("test@example.com");
 
       expect(result.success).toBe(true);
+      expect(result.found).toBe(true);
       expect(result.customer).toBeDefined();
       expect(result.customer!.id).toBe(123);
-      expect(result.customer!.email).toBe("test@example.com");
-      expect(result.customer!.displayName).toBe("テストユーザー");
-      expect(result.customer!.walletBalance).toBe(5000);
+      expect(result.customer!.name).toBe("テストユーザー");
+      expect(result.customer!.hasWallet).toBe(true);
+
+      // GETリクエストでemailがクエリパラメータとして送られることを確認
+      const fetchCall = (global.fetch as any).mock.calls[0];
+      expect(fetchCall[0]).toContain("email=test%40example.com");
+      expect(fetchCall[1].method).toBe("GET");
     });
 
-    it("should return error on API failure", async () => {
+    it("should return found=false when customer not found", async () => {
+      const mockResponse = {
+        success: true,
+        found: false,
+        customer_id: null,
+        name: null,
+        has_wallet: false,
+      };
+
       global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 404,
-        text: () => Promise.resolve("Not found"),
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
       });
 
       const { bwLookupCustomer } = await import("./bw-api");
       const result = await bwLookupCustomer("notfound@example.com");
 
+      expect(result.success).toBe(true);
+      expect(result.found).toBe(false);
+      expect(result.customer).toBeUndefined();
+    });
+
+    it("should return error on API failure", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        text: () => Promise.resolve("Unauthorized"),
+      });
+
+      const { bwLookupCustomer } = await import("./bw-api");
+      const result = await bwLookupCustomer("test@example.com");
+
       expect(result.success).toBe(false);
-      expect(result.error).toContain("404");
+      expect(result.found).toBe(false);
+      expect(result.error).toContain("401");
     });
 
     it("should handle network errors gracefully", async () => {
@@ -57,17 +82,18 @@ describe("BW API Client", () => {
       const result = await bwLookupCustomer("test@example.com");
 
       expect(result.success).toBe(false);
+      expect(result.found).toBe(false);
       expect(result.error).toContain("ECONNREFUSED");
     });
   });
 
   describe("bwExchangeTokens", () => {
-    it("should return transaction data on successful exchange", async () => {
+    it("should send correct snake_case parameters to BW API", async () => {
       const mockResponse = {
         success: true,
-        transactionId: "txn_abc123",
-        tokensAdded: 400,
-        newBalance: 5400,
+        exchange_id: "lcj_1",
+        tokens_added: 400,
+        tokens_total: 5400,
       };
 
       global.fetch = vi.fn().mockResolvedValue({
@@ -81,26 +107,28 @@ describe("BW API Client", () => {
         tokens: 400,
         lcjExchangeId: 1,
         lcjPointsUsed: 1000,
+        lineUserName: "テストさん",
       });
 
       expect(result.success).toBe(true);
-      expect(result.transactionId).toBe("txn_abc123");
+      expect(result.exchangeId).toBe("lcj_1");
       expect(result.tokensAdded).toBe(400);
-      expect(result.newBalance).toBe(5400);
+      expect(result.tokensTotal).toBe(5400);
 
-      // fetch呼び出しの引数を検証
+      // BW側のパラメータ名（snake_case）で送信されることを確認
       const fetchCall = (global.fetch as any).mock.calls[0];
       const body = JSON.parse(fetchCall[1].body);
-      expect(body.customerId).toBe(123);
-      expect(body.tokens).toBe(400);
-      expect(body.lcjExchangeId).toBe(1);
-      expect(body.lcjPointsUsed).toBe(1000);
+      expect(body.customer_id).toBe(123);
+      expect(body.beauty_tokens).toBe(400);
+      expect(body.exchange_id).toBe("lcj_1");
+      expect(body.lcj_points_used).toBe(1000);
+      expect(body.line_user_name).toBe("テストさん");
     });
 
     it("should include Authorization header with BW_API_SECRET", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({ success: true }),
+        json: () => Promise.resolve({ success: true, exchange_id: "lcj_1", tokens_added: 40, tokens_total: 40 }),
       });
 
       const { bwExchangeTokens } = await import("./bw-api");
@@ -153,10 +181,13 @@ describe("BW API Client", () => {
   });
 
   describe("bwConfirmExchange", () => {
-    it("should return status on successful confirmation", async () => {
+    it("should return verify data with exchange_id prefix", async () => {
       const mockResponse = {
         success: true,
-        status: "completed",
+        found: true,
+        exchange_id: "lcj_1",
+        tokens_added: 400,
+        processed_at: "2026-03-01 19:43:55",
       };
 
       global.fetch = vi.fn().mockResolvedValue({
@@ -165,21 +196,29 @@ describe("BW API Client", () => {
       });
 
       const { bwConfirmExchange } = await import("./bw-api");
-      const result = await bwConfirmExchange("txn_abc123");
+      const result = await bwConfirmExchange(1);
 
       expect(result.success).toBe(true);
-      expect(result.status).toBe("completed");
+      expect(result.found).toBe(true);
+      expect(result.exchangeId).toBe("lcj_1");
+      expect(result.tokensAdded).toBe(400);
+      expect(result.processedAt).toBe("2026-03-01 19:43:55");
+
+      // exchange_idがlcj_プレフィックス付きで送信されることを確認
+      const fetchCall = (global.fetch as any).mock.calls[0];
+      const body = JSON.parse(fetchCall[1].body);
+      expect(body.exchange_id).toBe("lcj_1");
     });
 
-    it("should handle not found transaction", async () => {
+    it("should handle not found exchange", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 404,
-        text: () => Promise.resolve("Transaction not found"),
+        text: () => Promise.resolve("Exchange not found"),
       });
 
       const { bwConfirmExchange } = await import("./bw-api");
-      const result = await bwConfirmExchange("txn_nonexistent");
+      const result = await bwConfirmExchange(999);
 
       expect(result.success).toBe(false);
       expect(result.error).toContain("404");

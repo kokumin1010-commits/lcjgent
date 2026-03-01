@@ -6342,4 +6342,19 @@
 - [x] schema.ts: bwLinkedAccountsにbwCustomerIdカラム追加
 - [x] テスト: bw-api.test.ts 13件全PASS
 - [x] テスト: bw-api-secret.test.ts 3件全PASS
-- [ ] BW側のlcj-exchange-api.tsが実装されたら結合テスト
+- [x] BW側のlcj-exchange-api.tsが実装されたら結合テスト
+
+## BW⇔LCJ結合テスト
+- [x] BW側のデプロイURL確認・ヘルスチェック
+- [x] LCJ MALL側からBW APIの顧客検索エンドポイントを呼び出しテスト
+- [x] LCJ MALL側からBW APIの交換エンドポイントを呼び出しテスト
+- [x] BW_API_URL環境変数を本番URLに設定
+
+## BW APIパス・レスポンス形式の不整合修正
+- [x] bw-api.ts: APIパスを/api/lcj-exchange/* → /api/lcj/*に修正
+- [x] bw-api.ts: BW側のsnake_caseレスポンスをLCJ側のcamelCaseにマッピング
+- [x] routers.ts: startLinkのlookup結果参照を修正（displayName→name、emailは入力値使用）
+- [x] routers.ts: exchange mutationのbwResult.transactionId→bwResult.exchangeIdに修正
+- [x] routers.ts: adminProcessPendingのTODOを実際のBW API呼び出しに置き換え
+- [x] ユニットテスト: bw-api.test.ts 14件全PASS
+- [x] 結合テスト: bw-api-integration.test.ts 9件全PASS（実際のBW本番APIへのリクエスト）
