@@ -110,6 +110,15 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
   // Order number search
   const [orderNumberSearch, setOrderNumberSearch] = useState("");
   
+  // AI Auto-Approve state
+  const [aiAutoApproveLimit, setAiAutoApproveLimit] = useState(20);
+  const [aiAutoApproveResult, setAiAutoApproveResult] = useState<{
+    processed: number;
+    results: { id: number; action: string; reason: string; confidence?: number; orderNumber?: string; amount?: number }[];
+    summary: { approved: number; skipped: number; held: number; rejectedDuplicate: number };
+    dryRun: boolean;
+  } | null>(null);
+  
   // Continuous processing state
   const [sessionProcessedCount, setSessionProcessedCount] = useState(0);
   const [lastProcessedId, setLastProcessedId] = useState<number | null>(null);
@@ -506,6 +515,24 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
     onError: (err) => {
       toast.error(`AI認識失敗: ${err.message}`);
       setIsAiRecognizing(false);
+    },
+  });
+  
+  // AI Auto-Approve mutation
+  const aiAutoApproveMutation = trpc.point.adminAiAutoApprove.useMutation({
+    onSuccess: (data) => {
+      setAiAutoApproveResult(data);
+      if (data.dryRun) {
+        toast.info(`プレビュー完了: ${data.processed}件分析 (承認予定: ${data.summary.approved}, 重複却下: ${data.summary.rejectedDuplicate}, 保留: ${data.summary.held})`);
+      } else {
+        toast.success(`AI自動承認完了: ${data.summary.approved}件承認, ${data.summary.rejectedDuplicate}件重複却下, ${data.summary.held}件保留`);
+        utils.point.adminGetLineReceipts.invalidate();
+        utils.point.adminGetLineStatistics.invalidate();
+        utils.point.adminDetectDuplicateReceipts.invalidate();
+      }
+    },
+    onError: (err) => {
+      toast.error(`AI自動承認エラー: ${err.message}`);
     },
   });
   
@@ -957,17 +984,105 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
       {aiAutoMode && (
         <Card className="border-purple-200 bg-gradient-to-r from-purple-50 to-blue-50">
           <CardContent className="py-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-purple-100">
-                <Sparkles className="w-5 h-5 text-purple-600" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-full bg-purple-100">
+                  <Sparkles className="w-5 h-5 text-purple-600" />
+                </div>
+                <div>
+                  <p className="font-medium text-purple-800">AI自動承認モード有効</p>
+                  <p className="text-sm text-purple-600">
+                    3段階パイプライン: 重複注文番号チェック → LLM画像判定 → 信頼度閾値判定
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="font-medium text-purple-800">AI自動承認モード有効</p>
-                <p className="text-sm text-purple-600">
-                  信頼度90%以上のレシートは自動承認されます。人間の判断データを蓄積中（将来的に精度向上）
-                </p>
+              <div className="flex items-center gap-2">
+                <Select
+                  value={String(aiAutoApproveLimit)}
+                  onValueChange={(v) => setAiAutoApproveLimit(Number(v))}
+                >
+                  <SelectTrigger className="w-[80px] h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10件</SelectItem>
+                    <SelectItem value="20">20件</SelectItem>
+                    <SelectItem value="50">50件</SelectItem>
+                    <SelectItem value="100">100件</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-purple-300 text-purple-700 hover:bg-purple-100"
+                  onClick={() => aiAutoApproveMutation.mutate({ limit: aiAutoApproveLimit, dryRun: true, confidenceThreshold: 85 })}
+                  disabled={aiAutoApproveMutation.isPending}
+                >
+                  {aiAutoApproveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Eye className="w-4 h-4 mr-1" />}
+                  プレビュー
+                </Button>
+                <Button
+                  size="sm"
+                  className="bg-purple-600 hover:bg-purple-700 text-white"
+                  onClick={() => {
+                    if (confirm(`AI自動承認を${aiAutoApproveLimit}件に対して実行しますか？\n\n重複注文番号は自動却下、信頼度85%未満は保留になります。`)) {
+                      aiAutoApproveMutation.mutate({ limit: aiAutoApproveLimit, dryRun: false, confidenceThreshold: 85 });
+                    }
+                  }}
+                  disabled={aiAutoApproveMutation.isPending}
+                >
+                  {aiAutoApproveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Zap className="w-4 h-4 mr-1" />}
+                  実行
+                </Button>
               </div>
             </div>
+            
+            {/* AI Auto-Approve Results */}
+            {aiAutoApproveResult && (
+              <div className="mt-3 border-t border-purple-200 pt-3">
+                <div className="flex items-center gap-4 mb-2">
+                  <Badge variant="outline" className="border-purple-300 text-purple-700">
+                    {aiAutoApproveResult.dryRun ? "プレビュー結果" : "実行結果"}
+                  </Badge>
+                  <span className="text-sm text-purple-700">処理: {aiAutoApproveResult.processed}件</span>
+                </div>
+                <div className="grid grid-cols-4 gap-2 mb-2">
+                  <div className="bg-green-100 rounded p-2 text-center">
+                    <p className="text-lg font-bold text-green-700">{aiAutoApproveResult.summary.approved}</p>
+                    <p className="text-xs text-green-600">承認</p>
+                  </div>
+                  <div className="bg-red-100 rounded p-2 text-center">
+                    <p className="text-lg font-bold text-red-700">{aiAutoApproveResult.summary.rejectedDuplicate}</p>
+                    <p className="text-xs text-red-600">重複却下</p>
+                  </div>
+                  <div className="bg-orange-100 rounded p-2 text-center">
+                    <p className="text-lg font-bold text-orange-700">{aiAutoApproveResult.summary.held}</p>
+                    <p className="text-xs text-orange-600">保留</p>
+                  </div>
+                  <div className="bg-gray-100 rounded p-2 text-center">
+                    <p className="text-lg font-bold text-gray-700">{aiAutoApproveResult.summary.skipped}</p>
+                    <p className="text-xs text-gray-600">スキップ</p>
+                  </div>
+                </div>
+                {/* Show details for duplicates and held */}
+                {aiAutoApproveResult.results.filter(r => r.action === "rejected_duplicate" || r.action === "held").length > 0 && (
+                  <div className="max-h-40 overflow-y-auto text-xs space-y-1">
+                    {aiAutoApproveResult.results.filter(r => r.action === "rejected_duplicate").map(r => (
+                      <div key={r.id} className="flex items-center gap-2 bg-red-50 rounded px-2 py-1">
+                        <XCircle className="w-3 h-3 text-red-500 flex-shrink-0" />
+                        <span className="text-red-700">#{r.id} {r.reason}</span>
+                      </div>
+                    ))}
+                    {aiAutoApproveResult.results.filter(r => r.action === "held").map(r => (
+                      <div key={r.id} className="flex items-center gap-2 bg-orange-50 rounded px-2 py-1">
+                        <AlertTriangle className="w-3 h-3 text-orange-500 flex-shrink-0" />
+                        <span className="text-orange-700">#{r.id} {r.reason} (信頼度: {r.confidence}%)</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

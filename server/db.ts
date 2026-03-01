@@ -17071,3 +17071,154 @@ export async function getAiReviewFeedbackList(limit: number = 100, offset: numbe
     .limit(limit)
     .offset(offset);
 }
+
+
+// ===== AI Auto-Approval Functions =====
+
+/**
+ * Get pending receipts that are candidates for AI auto-approval
+ * Returns receipts with OCR data, ordered by submission date
+ */
+export async function getAutoApprovalCandidates(limit: number = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db
+    .select({
+      id: lineReceipts.id,
+      lineUserId: lineReceipts.lineUserId,
+      imageUrl: lineReceipts.imageUrl,
+      imageUrls: lineReceipts.imageUrls,
+      storeName: lineReceipts.storeName,
+      totalAmount: lineReceipts.totalAmount,
+      ocrRawText: lineReceipts.ocrRawText,
+      ocrConfidence: lineReceipts.ocrConfidence,
+      pointsCalculated: lineReceipts.pointsCalculated,
+      fraudFlags: lineReceipts.fraudFlags,
+      fraudScore: lineReceipts.fraudScore,
+      isForceSubmitted: lineReceipts.isForceSubmitted,
+      aiRejectionCategory: lineReceipts.aiRejectionCategory,
+      submittedAt: lineReceipts.submittedAt,
+    })
+    .from(lineReceipts)
+    .where(eq(lineReceipts.status, "pending"))
+    .orderBy(asc(lineReceipts.submittedAt))
+    .limit(limit);
+}
+
+/**
+ * Batch check for duplicate order numbers among all non-rejected receipts
+ * Returns a map of orderNumber -> array of receipt IDs that share that order number
+ */
+export async function batchCheckDuplicateOrderNumbers(orderNumbers: string[]): Promise<Map<string, { id: number; status: string; lineUserId: string }[]>> {
+  const db = await getDb();
+  if (!db) return new Map();
+  if (orderNumbers.length === 0) return new Map();
+  
+  // Check lineReceipts table using JSON_EXTRACT
+  const results = await db
+    .select({
+      id: lineReceipts.id,
+      status: lineReceipts.status,
+      lineUserId: lineReceipts.lineUserId,
+      ocrRawText: lineReceipts.ocrRawText,
+    })
+    .from(lineReceipts)
+    .where(
+      and(
+        isNotNull(lineReceipts.ocrRawText),
+        sql`JSON_EXTRACT(${lineReceipts.ocrRawText}, '$.orderNumber') IS NOT NULL`,
+      )
+    );
+  
+  // Build map: orderNumber -> receipts
+  const dupeMap = new Map<string, { id: number; status: string; lineUserId: string }[]>();
+  
+  for (const r of results) {
+    try {
+      const ocr = typeof r.ocrRawText === "string" ? JSON.parse(r.ocrRawText) : r.ocrRawText;
+      const orderNum = String(ocr?.orderNumber || "").trim();
+      if (!orderNum || orderNum === "null") continue;
+      
+      if (orderNumbers.includes(orderNum)) {
+        if (!dupeMap.has(orderNum)) {
+          dupeMap.set(orderNum, []);
+        }
+        dupeMap.get(orderNum)!.push({
+          id: r.id,
+          status: r.status,
+          lineUserId: r.lineUserId,
+        });
+      }
+    } catch {
+      // Skip unparseable OCR data
+    }
+  }
+  
+  // Also check pointRequests table
+  const prResults = await db
+    .select({
+      id: pointRequests.id,
+      orderNumber: pointRequests.orderNumber,
+      status: pointRequests.status,
+    })
+    .from(pointRequests)
+    .where(inArray(pointRequests.orderNumber, orderNumbers));
+  
+  for (const pr of prResults) {
+    if (!pr.orderNumber) continue;
+    if (!dupeMap.has(pr.orderNumber)) {
+      dupeMap.set(pr.orderNumber, []);
+    }
+    dupeMap.get(pr.orderNumber)!.push({
+      id: pr.id,
+      status: pr.status || "unknown",
+      lineUserId: "pointRequest",
+    });
+  }
+  
+  return dupeMap;
+}
+
+/**
+ * Get recent review examples for LLM prompt context
+ * Returns a mix of approved and rejected receipts with their OCR data
+ */
+export async function getRecentReviewExamples(approvedCount: number = 5, rejectedCount: number = 5) {
+  const db = await getDb();
+  if (!db) return { approved: [], rejected: [] };
+  
+  const approved = await db
+    .select({
+      id: receiptReviewLogs.id,
+      receiptId: receiptReviewLogs.receiptId,
+      decision: receiptReviewLogs.decision,
+      totalAmount: receiptReviewLogs.totalAmount,
+      hasOrderNumber: receiptReviewLogs.hasOrderNumber,
+      fraudFlagCount: receiptReviewLogs.fraudFlagCount,
+      ocrConfidence: receiptReviewLogs.ocrConfidence,
+    })
+    .from(receiptReviewLogs)
+    .where(eq(receiptReviewLogs.decision, "approved"))
+    .orderBy(desc(receiptReviewLogs.createdAt))
+    .limit(approvedCount);
+  
+  const rejected = await db
+    .select({
+      id: receiptReviewLogs.id,
+      receiptId: receiptReviewLogs.receiptId,
+      decision: receiptReviewLogs.decision,
+      rejectionCategory: receiptReviewLogs.rejectionCategory,
+      rejectionNote: receiptReviewLogs.rejectionNote,
+      totalAmount: receiptReviewLogs.totalAmount,
+      hasOrderNumber: receiptReviewLogs.hasOrderNumber,
+      fraudFlagCount: receiptReviewLogs.fraudFlagCount,
+      ocrConfidence: receiptReviewLogs.ocrConfidence,
+    })
+    .from(receiptReviewLogs)
+    .where(eq(receiptReviewLogs.decision, "rejected"))
+    .orderBy(desc(receiptReviewLogs.createdAt))
+    .limit(rejectedCount);
+  
+  return { approved, rejected };
+}

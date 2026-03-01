@@ -12698,6 +12698,462 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       const { detectDuplicateLineReceipts } = await import("./db");
       return await detectDuplicateLineReceipts();
     }),
+    
+    // AI Auto-Approve Receipts (admin only)
+    // 3-stage pipeline: Rule Filter → LLM Image Judgment → Confidence Threshold
+    adminAiAutoApprove: protectedProcedure
+      .input(z.object({
+        limit: z.number().min(1).max(100).default(20),
+        dryRun: z.boolean().default(false), // If true, only simulate without actually approving
+        confidenceThreshold: z.number().min(0).max(100).default(85),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        
+        const {
+          getAutoApprovalCandidates,
+          batchCheckDuplicateOrderNumbers,
+          getRecentReviewExamples,
+          getLineReceiptById,
+          updateLineReceiptStatus,
+          awardPointsForLineReceipt,
+          getLinePointBalance,
+          confirmPendingReferral,
+          getLineUserByLineId,
+          createAutoReviewOnApproval,
+        } = await import("./db");
+        const { pushMessage: pushMsg } = await import("./line");
+        
+        // Results tracking
+        const results: {
+          id: number;
+          action: "approved" | "skipped" | "held" | "rejected_duplicate";
+          reason: string;
+          confidence?: number;
+          orderNumber?: string;
+          amount?: number;
+        }[] = [];
+        
+        // ===== STEP 0: Get candidates =====
+        const candidates = await getAutoApprovalCandidates(input.limit);
+        if (candidates.length === 0) {
+          return { processed: 0, results: [], summary: { approved: 0, skipped: 0, held: 0, rejectedDuplicate: 0 } };
+        }
+        
+        // ===== STEP 1: Rule Filter =====
+        // Extract order numbers for batch duplicate check
+        const orderNumberMap = new Map<number, string>(); // receiptId -> orderNumber
+        for (const c of candidates) {
+          if (c.ocrRawText) {
+            try {
+              const ocr = typeof c.ocrRawText === "string" ? JSON.parse(c.ocrRawText) : c.ocrRawText;
+              const orderNum = String(ocr?.orderNumber || "").trim();
+              if (orderNum && orderNum !== "null") {
+                orderNumberMap.set(c.id, orderNum);
+              }
+            } catch { /* skip */ }
+          }
+        }
+        
+        // Batch duplicate check (most important!)
+        const allOrderNumbers = Array.from(orderNumberMap.values());
+        const dupeMap = await batchCheckDuplicateOrderNumbers(allOrderNumbers);
+        
+        // Get review examples for LLM context
+        const reviewExamples = await getRecentReviewExamples(5, 5);
+        
+        // Process each candidate
+        for (const candidate of candidates) {
+          const orderNumber = orderNumberMap.get(candidate.id);
+          let ocrData: any = {};
+          try {
+            ocrData = candidate.ocrRawText
+              ? (typeof candidate.ocrRawText === "string" ? JSON.parse(candidate.ocrRawText) : candidate.ocrRawText)
+              : {};
+          } catch { ocrData = {}; }
+          
+          // --- Rule 1: Duplicate order number check (HIGHEST PRIORITY) ---
+          if (orderNumber) {
+            const dupes = dupeMap.get(orderNumber) || [];
+            // Filter out self
+            const otherDupes = dupes.filter(d => d.id !== candidate.id);
+            // If any approved receipt has the same order number → reject as duplicate
+            const approvedDupe = otherDupes.find(d => d.status === "approved");
+            if (approvedDupe) {
+              if (!input.dryRun) {
+                await updateLineReceiptStatus(candidate.id, "rejected", ctx.user.id, 
+                  `[AI自動] 重複注文番号: ${orderNumber} (承認済みレシート #${approvedDupe.id} と重複)`);
+                // Record review log
+                try {
+                  await createReceiptReviewLog({
+                    receiptType: "line_receipt",
+                    receiptId: candidate.id,
+                    decision: "rejected",
+                    rejectionCategory: "duplicate",
+                    rejectionNote: `AI自動却下: 重複注文番号 ${orderNumber}`,
+                    totalAmount: candidate.totalAmount ?? undefined,
+                    hasOrderNumber: "yes",
+                    imageCount: candidate.imageUrls?.length ?? 1,
+                    fraudScore: candidate.fraudScore ?? undefined,
+                    fraudFlagCount: candidate.fraudFlags?.length ?? 0,
+                    pointsCalculated: candidate.pointsCalculated ?? undefined,
+                    reviewedBy: ctx.user.id,
+                  });
+                } catch (logErr) {
+                  console.error("[AI AutoApprove] Failed to log duplicate rejection:", logErr);
+                }
+              }
+              results.push({
+                id: candidate.id,
+                action: "rejected_duplicate",
+                reason: `重複注文番号: ${orderNumber} (承認済み #${approvedDupe.id})`,
+                orderNumber,
+                amount: candidate.totalAmount ?? undefined,
+              });
+              continue;
+            }
+          }
+          
+          // --- Rule 2: Missing essential data → skip (leave for human review) ---
+          if (!orderNumber) {
+            results.push({
+              id: candidate.id,
+              action: "skipped",
+              reason: "注文番号なし",
+              amount: candidate.totalAmount ?? undefined,
+            });
+            continue;
+          }
+          
+          if (!candidate.totalAmount || candidate.totalAmount <= 0) {
+            results.push({
+              id: candidate.id,
+              action: "skipped",
+              reason: "金額なし",
+              orderNumber,
+            });
+            continue;
+          }
+          
+          // --- Rule 3: Force-submitted (AI-rejected) receipts → skip (needs human review) ---
+          if (candidate.isForceSubmitted) {
+            results.push({
+              id: candidate.id,
+              action: "skipped",
+              reason: "AI弾き→強制申請レシート（人間審査必要）",
+              orderNumber,
+              amount: candidate.totalAmount ?? undefined,
+            });
+            continue;
+          }
+          
+          // --- Rule 4: High fraud flags → skip ---
+          const fraudFlagCount = candidate.fraudFlags?.length ?? 0;
+          if (fraudFlagCount >= 3) {
+            results.push({
+              id: candidate.id,
+              action: "skipped",
+              reason: `不正フラグ${fraudFlagCount}件（人間審査必要）`,
+              orderNumber,
+              amount: candidate.totalAmount ?? undefined,
+            });
+            continue;
+          }
+          
+          // ===== STEP 2: LLM Image Judgment =====
+          // Check OCR data quality first - if isTikTokShop=true AND isDelivered=true, high confidence
+          const isTikTok = ocrData.isTikTokShop === true;
+          const isDelivered = ocrData.isDelivered === true;
+          
+          let aiConfidence = 0;
+          let aiReason = "";
+          
+          if (isTikTok && isDelivered && orderNumber && candidate.totalAmount > 0) {
+            // Best case: all OCR signals positive → high confidence without LLM call
+            aiConfidence = 92;
+            aiReason = "OCRデータ良好: TikTok Shop確認済み + 配達済み + 注文番号あり + 金額あり";
+          } else {
+            // Need LLM to evaluate the receipt image
+            try {
+              const allImageUrls: string[] = [];
+              if (candidate.imageUrls && Array.isArray(candidate.imageUrls)) {
+                allImageUrls.push(...candidate.imageUrls);
+              } else if (candidate.imageUrl) {
+                allImageUrls.push(candidate.imageUrl);
+              }
+              
+              if (allImageUrls.length === 0) {
+                results.push({
+                  id: candidate.id,
+                  action: "skipped",
+                  reason: "画像なし",
+                  orderNumber,
+                  amount: candidate.totalAmount ?? undefined,
+                });
+                continue;
+              }
+              
+              // Build LLM prompt with review examples
+              const exampleContext = [
+                "=== 過去の承認パターン ===",
+                ...reviewExamples.approved.map(e => 
+                  `承認: 金額=${e.totalAmount || "不明"}, 注文番号=${e.hasOrderNumber}, 不正フラグ=${e.fraudFlagCount}`
+                ),
+                "=== 過去の却下パターン ===",
+                ...reviewExamples.rejected.map(e => 
+                  `却下(${e.rejectionCategory || "other"}): 金額=${e.totalAmount || "不明"}, 注文番号=${e.hasOrderNumber}, 不正フラグ=${e.fraudFlagCount}`
+                ),
+              ].join("\n");
+              
+              const imageContents: any[] = allImageUrls.map(url => ({
+                type: "image_url" as const,
+                image_url: { url, detail: "low" as const },
+              }));
+              imageContents.push({
+                type: "text" as const,
+                text: `このレシート画像を審査してください。\n\nOCRデータ: ${JSON.stringify({
+                  orderNumber: ocrData.orderNumber,
+                  totalAmount: candidate.totalAmount,
+                  shopName: ocrData.shopName || candidate.storeName,
+                  isTikTokShop: ocrData.isTikTokShop,
+                  isDelivered: ocrData.isDelivered,
+                })}\n\n${exampleContext}`,
+              });
+              
+              const llmResult = await invokeLLM({
+                messages: [
+                  {
+                    role: "system",
+                    content: `あなたはTikTok Shopのレシート審査AIです。レシート画像とOCRデータを見て、承認すべきか判断してください。
+
+【承認基準】
+- TikTok Shopの注文詳細画面のスクリーンショットであること
+- 「配達済み」のステータスが確認できること
+- 注文番号（16-19桁の数字）が読み取れること
+- 合計金額が読み取れること
+
+【却下基準】
+- TikTok Shop以外のレシート
+- 配達が完了していない（配送中、キャンセル等）
+- 画像が不鮮明で情報が読み取れない
+- 明らかに加工・改ざんされた画像
+
+必ず以下のJSON形式で回答してください：
+{
+  "shouldApprove": true/false,
+  "confidence": 0-100,
+  "reason": "判断理由（日本語）",
+  "isTikTokShop": true/false/null,
+  "isDelivered": true/false/null,
+  "detectedOrderNumber": "string or null",
+  "detectedAmount": number or null
+}`,
+                  },
+                  {
+                    role: "user",
+                    content: imageContents,
+                  },
+                ],
+              });
+              
+              const msgContent = llmResult.choices[0]?.message?.content as string;
+              let parsed: any = {};
+              try {
+                let jsonStr = typeof msgContent === "string" ? msgContent : "{}";
+                if (jsonStr.includes("```json")) {
+                  jsonStr = jsonStr.replace(/```json\s*/g, "").replace(/```\s*/g, "");
+                } else if (jsonStr.includes("```")) {
+                  jsonStr = jsonStr.replace(/```\s*/g, "");
+                }
+                jsonStr = jsonStr.trim();
+                const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                  parsed = JSON.parse(jsonMatch[0]);
+                }
+              } catch {
+                // Parse error → skip
+                results.push({
+                  id: candidate.id,
+                  action: "skipped",
+                  reason: "LLM応答解析失敗",
+                  orderNumber,
+                  amount: candidate.totalAmount ?? undefined,
+                });
+                continue;
+              }
+              
+              aiConfidence = typeof parsed.confidence === "number" ? parsed.confidence : 0;
+              aiReason = parsed.reason || "LLM判定";
+              
+              // If LLM says don't approve → hold for human review
+              if (parsed.shouldApprove === false) {
+                if (!input.dryRun) {
+                  await updateLineReceiptStatus(candidate.id, "on_hold", ctx.user.id,
+                    `[AI自動] LLM判定: 承認不可 - ${aiReason} (confidence: ${aiConfidence})`);
+                }
+                results.push({
+                  id: candidate.id,
+                  action: "held",
+                  reason: `LLM判定: ${aiReason}`,
+                  confidence: aiConfidence,
+                  orderNumber,
+                  amount: candidate.totalAmount ?? undefined,
+                });
+                continue;
+              }
+            } catch (llmErr: any) {
+              console.error(`[AI AutoApprove] LLM error for receipt #${candidate.id}:`, llmErr.message);
+              results.push({
+                id: candidate.id,
+                action: "skipped",
+                reason: `LLMエラー: ${llmErr.message?.substring(0, 100)}`,
+                orderNumber,
+                amount: candidate.totalAmount ?? undefined,
+              });
+              continue;
+            }
+          }
+          
+          // ===== STEP 3: Confidence Threshold =====
+          if (aiConfidence < input.confidenceThreshold) {
+            if (!input.dryRun) {
+              await updateLineReceiptStatus(candidate.id, "on_hold", ctx.user.id,
+                `[AI自動] 信頼度不足: ${aiConfidence}% < 閾値${input.confidenceThreshold}% - ${aiReason}`);
+            }
+            results.push({
+              id: candidate.id,
+              action: "held",
+              reason: `信頼度不足: ${aiConfidence}% < 閾値${input.confidenceThreshold}%`,
+              confidence: aiConfidence,
+              orderNumber,
+              amount: candidate.totalAmount ?? undefined,
+            });
+            continue;
+          }
+          
+          // ===== STEP 4: Auto-Approve! =====
+          const pointsToAward = candidate.pointsCalculated ?? 0;
+          
+          if (!input.dryRun) {
+            try {
+              // Approve
+              await updateLineReceiptStatus(candidate.id, "approved", ctx.user.id,
+                `[AI自動承認] confidence: ${aiConfidence}% - ${aiReason}`);
+              
+              // Award points
+              if (pointsToAward > 0) {
+                await awardPointsForLineReceipt(candidate.id, pointsToAward);
+              }
+              
+              // Confirm pending referral
+              try {
+                const lineUserRecord = await getLineUserByLineId(candidate.lineUserId);
+                if (lineUserRecord) {
+                  const refResult = await confirmPendingReferral(candidate.lineUserId, lineUserRecord.id);
+                  if (refResult) {
+                    console.log(`[AI AutoApprove] Confirmed referral for LINE user ${lineUserRecord.id}`);
+                  }
+                }
+              } catch (refErr: any) {
+                console.error(`[AI AutoApprove] Referral error:`, refErr.message);
+              }
+              
+              // Record review log
+              try {
+                await createReceiptReviewLog({
+                  receiptType: "line_receipt",
+                  receiptId: candidate.id,
+                  decision: "approved",
+                  ocrConfidence: candidate.ocrConfidence ?? undefined,
+                  totalAmount: candidate.totalAmount ?? undefined,
+                  hasOrderNumber: "yes",
+                  imageCount: candidate.imageUrls?.length ?? 1,
+                  fraudScore: candidate.fraudScore ?? undefined,
+                  fraudFlagCount: candidate.fraudFlags?.length ?? 0,
+                  pointsCalculated: candidate.pointsCalculated ?? undefined,
+                  pointsAwarded: pointsToAward,
+                  reviewedBy: ctx.user.id,
+                });
+              } catch (logErr) {
+                console.error("[AI AutoApprove] Failed to log approval:", logErr);
+              }
+              
+              // Extract products
+              try {
+                await extractSingleReceiptProducts(candidate.id);
+              } catch (extractErr) {
+                console.error(`[AI AutoApprove] Product extraction error:`, extractErr);
+              }
+              
+              // Auto-create review
+              try {
+                await createAutoReviewOnApproval({
+                  receiptType: "line_receipt",
+                  receiptId: candidate.id,
+                  lineUserId: candidate.lineUserId,
+                  imageUrl: candidate.imageUrl,
+                  ocrRawText: candidate.ocrRawText,
+                  storeName: candidate.storeName,
+                  totalAmount: candidate.totalAmount,
+                });
+              } catch (reviewErr) {
+                console.error(`[AI AutoApprove] Auto-review error:`, reviewErr);
+              }
+              
+              // Send LINE notification
+              try {
+                const balance = await getLinePointBalance(candidate.lineUserId);
+                const newBalance = balance?.balance ?? pointsToAward;
+                const storeName = candidate.storeName || "不明";
+                const amount = candidate.totalAmount ? `¥${candidate.totalAmount.toLocaleString()}` : "不明";
+                const appUrl = process.env.APP_URL || "https://lcjmall.com";
+                const message = `🎉 レシートが承認されました！\n\n🏠 店舗名: ${storeName}\n💰 購入金額: ${amount}\n⭐ 獲得ポイント: ${pointsToAward}ポイント\n\n📊 現在の残高: ${newBalance}ポイント\n\nご利用ありがとうございます！\n\n📋 ポイント履歴を確認する\n${appUrl}/mypage`;
+                await pushMsg(candidate.lineUserId, [{ type: "text", text: message }]);
+              } catch (notifyErr) {
+                console.error(`[AI AutoApprove] LINE notification error:`, notifyErr);
+              }
+            } catch (approveErr: any) {
+              console.error(`[AI AutoApprove] Approval error for receipt #${candidate.id}:`, approveErr.message);
+              results.push({
+                id: candidate.id,
+                action: "skipped",
+                reason: `承認処理エラー: ${approveErr.message?.substring(0, 100)}`,
+                orderNumber,
+                amount: candidate.totalAmount ?? undefined,
+              });
+              continue;
+            }
+          }
+          
+          results.push({
+            id: candidate.id,
+            action: "approved",
+            reason: aiReason,
+            confidence: aiConfidence,
+            orderNumber,
+            amount: candidate.totalAmount ?? undefined,
+          });
+        }
+        
+        // Summary
+        const summary = {
+          approved: results.filter(r => r.action === "approved").length,
+          skipped: results.filter(r => r.action === "skipped").length,
+          held: results.filter(r => r.action === "held").length,
+          rejectedDuplicate: results.filter(r => r.action === "rejected_duplicate").length,
+        };
+        
+        console.log(`[AI AutoApprove] Processed ${results.length} receipts: ${JSON.stringify(summary)}`);
+        
+        return {
+          processed: results.length,
+          results,
+          summary,
+          dryRun: input.dryRun,
+        };
+      }),
   }),
 
   lineLogin: lineLoginRouter,
