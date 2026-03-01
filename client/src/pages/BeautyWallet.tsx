@@ -228,7 +228,7 @@ export default function BeautyWallet() {
                 </div>
                 <Button
                   className="w-full bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-700 hover:to-pink-700 gap-2"
-                  onClick={() => window.open("https://beautypass.ai/customer-guide", "_blank")}
+                  onClick={() => window.open("https://beautypass.ai/wallet", "_blank")}
                 >
                   <ExternalLink className="h-4 w-4" />
                   Beauty Wallet を開く
