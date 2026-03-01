@@ -6431,3 +6431,19 @@
 - [x] 「別のレシートを申請する」ボタンも残す（選択肢を与える）
 - [x] toast通知もerrorからinfoに変更（全エラーでtoast.infoに統一）
 - [x] テスト25件全PASS（receiptAiRejection.test.ts）
+
+## AI自動承認の本番運用準備 - データ品質改善
+- [x] OCR信頼度（confidence）を承認/却下時に審査ログ（receipt_review_logs）に保存開始
+  - adminReRecognizeOrderNumberでLLMが返すconfidence（0-100）をDBに保存するように修正
+  - line_receiptsのocrConfidenceカラムに保存（以前はNULLのまま）
+- [x] 却下時に具体的な理由カテゴリを選択するUI（現在は全て「other」）
+  - 9カテゴリ: blurry_image/missing_order_number/missing_amount/not_delivered/duplicate/wrong_store/suspicious/incomplete_info/other
+- [x] 却下理由カテゴリ選択UIの実装（ドロップダウン選択）
+  - 審査パネルと詳細パネルの両方にSelect UIを追加
+  - 却下理由を選択しないと却下ボタンが押せない仕様（disabled）
+  - キーボードショートカット(R)でも未選択時はtoastエラー表示
+  - 却下完了toastに選択した理由カテゴリを表示
+- [x] 既存2690件の「other」データのバックフィル検討
+  - reviewNoteが全て「不承認」のみで具体的理由なし→自動分類不可
+  - 今後の新規却下から正確なカテゴリが蓄積される
+- [x] テスト26件作成・全PASS（aiDataQuality.test.ts）

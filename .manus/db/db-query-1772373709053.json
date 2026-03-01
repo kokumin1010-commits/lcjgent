@@ -1,0 +1,31 @@
+{
+  "query": "SELECT decision, COUNT(*) as cnt, \n  AVG(CAST(ocrConfidence AS DECIMAL(5,2))) as avg_confidence,\n  SUM(CASE WHEN hasOrderNumber = 'yes' THEN 1 ELSE 0 END) as has_order,\n  SUM(CASE WHEN fraudFlagCount = 0 OR fraudFlagCount IS NULL THEN 1 ELSE 0 END) as no_fraud\nFROM receipt_review_logs \nGROUP BY decision;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT decision, COUNT(*) as cnt, \n  AVG(CAST(ocrConfidence AS DECIMAL(5,2))) as avg_confidence,\n  SUM(CASE WHEN hasOrderNumber = 'yes' THEN 1 ELSE 0 END) as has_order,\n  SUM(CASE WHEN fraudFlagCount = 0 OR fraudFlagCount IS NULL THEN 1 ELSE 0 END) as no_fraud\nFROM receipt_review_logs \nGROUP BY decision;",
+  "rows": [
+    {
+      "decision": "rejected",
+      "cnt": "2690",
+      "avg_confidence": "NULL",
+      "has_order": "1915",
+      "no_fraud": "2515"
+    },
+    {
+      "decision": "on_hold",
+      "cnt": "67",
+      "avg_confidence": "NULL",
+      "has_order": "60",
+      "no_fraud": "67"
+    },
+    {
+      "decision": "approved",
+      "cnt": "7739",
+      "avg_confidence": "NULL",
+      "has_order": "7739",
+      "no_fraud": "6478"
+    }
+  ],
+  "messages": [],
+  "stdout": "decision\tcnt\tavg_confidence\thas_order\tno_fraud\nrejected\t2690\tNULL\t1915\t2515\non_hold\t67\tNULL\t60\t67\napproved\t7739\tNULL\t7739\t6478\n",
+  "stderr": "",
+  "execution_time_ms": 1559
+}

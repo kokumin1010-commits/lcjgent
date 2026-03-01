@@ -12292,6 +12292,11 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           updateData.ocrRawText = JSON.stringify(ocrData);
         }
         
+        // Save confidence to DB
+        if (parsed.confidence && typeof parsed.confidence === "number") {
+          updateData.ocrConfidence = parsed.confidence.toString();
+        }
+        
         // Save to DB if we have any data to update
         if (Object.keys(updateData).length > 0) {
           await updateLineReceiptOcr(input.id, updateData);

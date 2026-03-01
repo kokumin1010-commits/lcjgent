@@ -401,7 +401,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
       const rejectedId = lastRejectedIdRef.current;
       // Track processing count
       setSessionProcessedCount(prev => prev + 1);
-      toast.success("却下完了（LINE送信済み）", { duration: 2000 });
+      toast.success(`却下完了（LINE送信済み）理由: ${rejectionCategory || "other"}`, { duration: 2000 });
       // Trigger auto-advance to next receipt
       if (autoAdvanceEnabled && rejectedId) {
         setLastProcessedId(rejectedId);
@@ -609,7 +609,11 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
       case "R": {
         e.preventDefault();
         if (selectedCalcReceipt && (selectedCalcReceipt.receipt.status === "pending" || selectedCalcReceipt.receipt.status === "on_hold") && !rejectMutation.isPending) {
-          handleDirectReject(selectedCalcReceipt.receipt.id);
+          if (!rejectionCategory) {
+            toast.error("却下理由を選択してください（AI学習に必要です）");
+          } else {
+            handleDirectReject(selectedCalcReceipt.receipt.id);
+          }
         }
         break;
       }
@@ -1317,13 +1321,30 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                   </>
                                 )}
                               </Button>
+                              {/* Rejection category selector */}
+                              <Select value={rejectionCategory} onValueChange={setRejectionCategory}>
+                                <SelectTrigger className="h-7 text-[10px]">
+                                  <SelectValue placeholder="却下理由を選択（AI学習用）" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="blurry_image">画像が不鮮明</SelectItem>
+                                  <SelectItem value="missing_order_number">注文番号が見えない</SelectItem>
+                                  <SelectItem value="missing_amount">金額が見えない</SelectItem>
+                                  <SelectItem value="not_delivered">未配達</SelectItem>
+                                  <SelectItem value="duplicate">重複申請</SelectItem>
+                                  <SelectItem value="wrong_store">TikTok Shop以外</SelectItem>
+                                  <SelectItem value="suspicious">不正の疑い</SelectItem>
+                                  <SelectItem value="incomplete_info">情報不足</SelectItem>
+                                  <SelectItem value="other">その他</SelectItem>
+                                </SelectContent>
+                              </Select>
                               <div className="flex gap-1.5">
                                 <Button 
                                   variant="destructive" 
                                   size="sm"
                                   className="flex-1 h-8 text-xs"
                                   onClick={() => handleDirectReject(selectedCalcReceipt.receipt.id)}
-                                  disabled={rejectMutation.isPending}
+                                  disabled={rejectMutation.isPending || !rejectionCategory}
                                 >
                                   {rejectMutation.isPending && lastRejectedIdRef.current === selectedCalcReceipt.receipt.id ? (
                                     <><Loader2 className="w-3 h-3 mr-1 animate-spin" />送信中</>
@@ -1920,25 +1941,43 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                 
                 {/* Quick Actions in Detail View */}
                 {(receiptDetails.receipt.status === "pending" || receiptDetails.receipt.status === "on_hold") && (
-                  <div className="flex gap-2 pt-2">
-                    <Button 
-                      className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                      onClick={() => {
-                        setSelectedReceipt(null);
-                        selectForCalc(receiptDetails.receipt.id);
-                      }}
-                    >
-                      <Calculator className="w-4 h-4 mr-2" />
-                      計算機で承認
-                    </Button>
+                  <div className="space-y-2 pt-2">
+                    <div className="flex gap-2">
+                      <Button 
+                        className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                        onClick={() => {
+                          setSelectedReceipt(null);
+                          selectForCalc(receiptDetails.receipt.id);
+                        }}
+                      >
+                        <Calculator className="w-4 h-4 mr-2" />
+                        計算機で承認
+                      </Button>
+                    </div>
+                    <Select value={rejectionCategory} onValueChange={setRejectionCategory}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="却下理由を選択（AI学習用）" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="blurry_image">画像が不鮮明</SelectItem>
+                        <SelectItem value="missing_order_number">注文番号が見えない</SelectItem>
+                        <SelectItem value="missing_amount">金額が見えない</SelectItem>
+                        <SelectItem value="not_delivered">未配達</SelectItem>
+                        <SelectItem value="duplicate">重複申請</SelectItem>
+                        <SelectItem value="wrong_store">TikTok Shop以外</SelectItem>
+                        <SelectItem value="suspicious">不正の疑い</SelectItem>
+                        <SelectItem value="incomplete_info">情報不足</SelectItem>
+                        <SelectItem value="other">その他</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <Button 
                       variant="destructive"
-                      className="flex-1"
+                      className="w-full"
                       onClick={() => {
                         setSelectedReceipt(null);
                         handleDirectReject(receiptDetails.receipt.id);
                       }}
-                      disabled={rejectMutation.isPending}
+                      disabled={rejectMutation.isPending || !rejectionCategory}
                     >
                       {rejectMutation.isPending ? (
                         <><Loader2 className="w-4 h-4 mr-2 animate-spin" />送信中...</>
