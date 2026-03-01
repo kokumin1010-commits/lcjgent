@@ -6363,3 +6363,14 @@
 - [x] BW連携コールバック後の遷移ロジックを調査
 - [x] 連携完了後に「ダッシュボード読み込み中...」で止まる問題を修正
 - [x] 連携完了後にポイント交換画面（交換数量入力UI）へ自動遷移するように修正
+
+## バグ修正：ポイント交換ステータスが「処理中」から「完了」にならない
+- [x] exchange mutationのBW API呼び出し後のステータス更新ロジックを調査
+  - 原因: bwCustomerIdがnullのためBW API呼び出しがスキップされていた
+  - bwEmailもnullだったためフォールバックも動作せず
+- [x] BW APIのexchange→verifyフローでステータスをcompletedに更新するように修正
+  - 対策: line_usersからemailを取得してBW lookupでbwCustomerIdを解決するフォールバックを追加
+  - completeBwLinkのOAuthコールバックパターンでもbwCustomerIdを保存するように修正
+- [x] 交換完了後にBeauty Walletページ（BW側）へ自動遷移するように修正
+  - 2秒後にwindow.open("https://beautypass.ai/wallet", "_blank")でBWページを開く
+  - 交換履歴のステータス表示を改善（processing/pending/completed/failedを区別表示）

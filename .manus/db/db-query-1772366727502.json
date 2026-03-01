@@ -1,0 +1,26 @@
+{
+  "query": "SELECT * FROM point_exchanges ORDER BY id DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT * FROM point_exchanges ORDER BY id DESC LIMIT 5;",
+  "rows": [
+    {
+      "id": "1",
+      "lineUserId": "660005",
+      "bwLinkedAccountId": "2",
+      "lcjPointsUsed": "5000",
+      "bwTokensReceived": "2000",
+      "exchangeRate": "0.4000",
+      "bwTransferStatus": "pending",
+      "bwTransactionId": "NULL",
+      "bwTransferError": "NULL",
+      "bwTransferredAt": "NULL",
+      "retryCount": "0",
+      "pointTransactionId": "NULL",
+      "createdAt": "2026-03-01 12:03:21",
+      "updatedAt": "2026-03-01 12:03:21"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tlineUserId\tbwLinkedAccountId\tlcjPointsUsed\tbwTokensReceived\texchangeRate\tbwTransferStatus\tbwTransactionId\tbwTransferError\tbwTransferredAt\tretryCount\tpointTransactionId\tcreatedAt\tupdatedAt\n1\t660005\t2\t5000\t2000\t0.4000\tpending\tNULL\tNULL\tNULL\t0\tNULL\t2026-03-01 12:03:21\t2026-03-01 12:03:21\n",
+  "stderr": "",
+  "execution_time_ms": 1607
+}

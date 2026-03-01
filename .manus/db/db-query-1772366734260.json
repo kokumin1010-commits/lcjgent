@@ -1,0 +1,19 @@
+{
+  "query": "SELECT id, bwTransferStatus, bwTransactionId, bwTransferError, bwTransferredAt, retryCount, createdAt FROM point_exchanges ORDER BY id DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, bwTransferStatus, bwTransactionId, bwTransferError, bwTransferredAt, retryCount, createdAt FROM point_exchanges ORDER BY id DESC LIMIT 5;",
+  "rows": [
+    {
+      "id": "1",
+      "bwTransferStatus": "pending",
+      "bwTransactionId": "NULL",
+      "bwTransferError": "NULL",
+      "bwTransferredAt": "NULL",
+      "retryCount": "0",
+      "createdAt": "2026-03-01 12:03:21"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tbwTransferStatus\tbwTransactionId\tbwTransferError\tbwTransferredAt\tretryCount\tcreatedAt\n1\tpending\tNULL\tNULL\tNULL\t0\t2026-03-01 12:03:21\n",
+  "stderr": "",
+  "execution_time_ms": 1621
+}

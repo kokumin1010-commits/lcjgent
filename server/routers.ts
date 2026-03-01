@@ -577,7 +577,7 @@ import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
-import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster } from "../drizzle/schema";
+import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts } from "../drizzle/schema";
 import { eq, and, not, isNotNull, desc, gt } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
@@ -18281,12 +18281,51 @@ SEO/GEO最適化要件:
           linked.id,
         );
 
-        // BW側APIにトークン付与をリクエスト（非同期で実行、失敗しても交換レコードは保持）
-        if (linked.bwCustomerId) {
+        // BW側APIにトークン付与をリクエスト
+        let bwCustId = linked.bwCustomerId ? Number(linked.bwCustomerId) : null;
+        
+        // bwCustomerIdがnullの場合、メールで再 lookupして取得を試みる
+        if (!bwCustId) {
+          // まずbwEmailを確認、なければline_usersから取得
+          let lookupEmail = linked.bwEmail;
+          if (!lookupEmail) {
+            const db = await getDb();
+            if (db) {
+              const lineUser = await db.select({ email: lineUsers.email })
+                .from(lineUsers)
+                .where(eq(lineUsers.id, input.lineUserId))
+                .limit(1);
+              if (lineUser.length > 0 && lineUser[0].email) {
+                lookupEmail = lineUser[0].email;
+              }
+            }
+          }
+          
+          if (lookupEmail) {
+            try {
+              const lookupResult = await bwLookupCustomer(lookupEmail);
+              if (lookupResult.success && lookupResult.found && lookupResult.customer) {
+                bwCustId = lookupResult.customer.id;
+                // DBも更新しておく
+                const db = await getDb();
+                if (db) {
+                  await db.update(bwLinkedAccounts)
+                    .set({ bwCustomerId: bwCustId, bwEmail: lookupEmail })
+                    .where(eq(bwLinkedAccounts.id, linked.id));
+                }
+                console.log(`[BW Exchange] Resolved bwCustomerId=${bwCustId} via email lookup (${lookupEmail}) for linked account ${linked.id}`);
+              }
+            } catch (lookupErr) {
+              console.error("[BW Exchange] Fallback lookup failed:", lookupErr);
+            }
+          }
+        }
+        
+        if (bwCustId) {
           try {
             await updateBwTransferStatus(result.exchangeId, "processing");
             const bwResult = await bwExchangeTokens({
-              bwCustomerId: Number(linked.bwCustomerId),
+              bwCustomerId: bwCustId,
               tokens: result.bwTokens,
               lcjExchangeId: result.exchangeId,
               lcjPointsUsed: input.lcjPoints,
@@ -18301,6 +18340,9 @@ SEO/GEO最適化要件:
             console.error("[BW Exchange] API call failed:", err);
             await updateBwTransferStatus(result.exchangeId, "failed", undefined, (err as Error).message);
           }
+        } else {
+          console.error(`[BW Exchange] No bwCustomerId available for linked account ${linked.id}, exchange ${result.exchangeId} remains pending`);
+          await updateBwTransferStatus(result.exchangeId, "failed", undefined, "BW customer ID not found");
         }
 
         return {

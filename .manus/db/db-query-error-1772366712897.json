@@ -1,0 +1,8 @@
+{
+  "query": "SELECT id, lcj_points_used, bw_tokens_received, bw_transfer_status, bw_transaction_id, bw_transfer_error, bw_transferred_at, created_at FROM point_exchanges ORDER BY id DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, lcj_points_used, bw_tokens_received, bw_transfer_status, bw_transaction_id, bw_transfer_error, bw_transferred_at, created_at FROM point_exchanges ORDER BY id DESC LIMIT 5;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'lcj_points_used' in 'field list'"
+  ]
+}

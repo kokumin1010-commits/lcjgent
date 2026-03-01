@@ -98,11 +98,19 @@ export default function BeautyWallet() {
     onSuccess: (data) => {
       haptic.celebration();
       toast.success(
-        `${data.lcjPointsUsed.toLocaleString()}pt → ${data.bwTokensReceived.toLocaleString()}BT に交換しました！`
+        `${data.lcjPointsUsed.toLocaleString()}pt → ${data.bwTokensReceived.toLocaleString()}BT に交換しました！`,
+        {
+          description: "Beauty Walletにトークンが付与されました",
+          duration: 5000,
+        }
       );
       setShowConfirmDialog(false);
       setExchangeAmount("");
       refetchHistory();
+      // 交換完了後にBeauty Walletページへ自動遷移（2秒後）
+      setTimeout(() => {
+        window.open("https://beautypass.ai/wallet", "_blank");
+      }, 2000);
     },
     onError: (error) => {
       toast.error(`交換に失敗しました: ${error.message}`);
@@ -413,10 +421,15 @@ export default function BeautyWallet() {
                           <CheckCircle className="h-3 w-3 mr-1" />
                           完了
                         </Badge>
+                      ) : ex.bwTransferStatus === "processing" ? (
+                        <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          処理中
+                        </Badge>
                       ) : ex.bwTransferStatus === "pending" ? (
                         <Badge className="bg-yellow-100 text-yellow-700 hover:bg-yellow-100">
                           <Clock className="h-3 w-3 mr-1" />
-                          処理中
+                          待機中
                         </Badge>
                       ) : ex.bwTransferStatus === "failed" ? (
                         <Badge className="bg-red-100 text-red-700 hover:bg-red-100">

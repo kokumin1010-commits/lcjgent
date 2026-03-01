@@ -16754,9 +16754,13 @@ export async function completeBwLink(linkTokenOrParams: string | {
     throw new Error("Invalid or expired link token");
   }
   
+  // bwUserIdからbwCustomerIdを数値として解析（BW側のcustomer ID）
+  const parsedBwCustomerId = bwUserId ? parseInt(bwUserId, 10) : null;
+  
   await db.update(bwLinkedAccounts)
     .set({
       bwUserId: bwUserId!,
+      bwCustomerId: !isNaN(parsedBwCustomerId as number) ? parsedBwCustomerId : null,
       bwDisplayName: bwDisplayName ?? null,
       bwEmail: bwEmail ?? null,
       status: "active",
