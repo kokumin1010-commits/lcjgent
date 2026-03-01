@@ -3294,3 +3294,82 @@ export const reviewQuestions = mysqlTable("review_questions", {
 });
 export type ReviewQuestion = typeof reviewQuestions.$inferSelect;
 export type InsertReviewQuestion = typeof reviewQuestions.$inferInsert;
+
+
+// ============================================
+// Beauty Wallet連携
+// LCJポイント → Beauty Walletトークン交換
+// ============================================
+
+/**
+ * BWアカウント連携テーブル
+ * LCJ MALLユーザーとBeauty Walletアカウントの紐付け
+ * OAuth的フローで連携：LCJ → BW登録/ログイン → コールバックで紐付け
+ */
+export const bwLinkedAccounts = mysqlTable("bw_linked_accounts", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // LCJ側のユーザー（line_users.id）
+  lineUserId: int("lineUserId").notNull().unique(), // References line_users.id
+  
+  // BW側のアカウント情報
+  bwUserId: varchar("bwUserId", { length: 128 }).notNull(), // Beauty Wallet側のユーザーID
+  bwDisplayName: varchar("bwDisplayName", { length: 255 }), // BW側の表示名
+  bwEmail: varchar("bwEmail", { length: 320 }), // BW側のメールアドレス
+  
+  // 連携状態
+  status: mysqlEnum("status", ["active", "unlinked"]).default("active").notNull(),
+  linkedAt: timestamp("linkedAt").defaultNow().notNull(), // 連携日時
+  unlinkedAt: timestamp("unlinkedAt"), // 連携解除日時
+  
+  // OAuth連携用
+  linkToken: varchar("linkToken", { length: 128 }), // 連携フロー用の一時トークン
+  linkTokenExpiresAt: timestamp("linkTokenExpiresAt"), // トークン有効期限
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type BwLinkedAccount = typeof bwLinkedAccounts.$inferSelect;
+export type InsertBwLinkedAccount = typeof bwLinkedAccounts.$inferInsert;
+
+/**
+ * ポイント交換履歴テーブル
+ * LCJポイント → Beauty Walletトークンの交換記録
+ * 交換レート: 100 LCJポイント = 40 Beauty Token（= 0.4円換算）
+ */
+export const pointExchanges = mysqlTable("point_exchanges", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // ユーザー情報
+  lineUserId: int("lineUserId").notNull(), // References line_users.id
+  bwLinkedAccountId: int("bwLinkedAccountId").notNull(), // References bw_linked_accounts.id
+  
+  // 交換内容
+  lcjPointsUsed: bigint("lcjPointsUsed", { mode: "number" }).notNull(), // 使用したLCJポイント
+  bwTokensReceived: bigint("bwTokensReceived", { mode: "number" }).notNull(), // 受け取ったBWトークン
+  exchangeRate: decimal("exchangeRate", { precision: 10, scale: 4 }).notNull(), // 交換レート（0.4000 = 100pt→40BT）
+  
+  // BW側への反映状態
+  bwTransferStatus: mysqlEnum("bwTransferStatus", [
+    "pending",    // BW側APIへの送信待ち
+    "processing", // BW側APIに送信中
+    "completed",  // BW側で反映完了
+    "failed",     // BW側への反映失敗
+  ]).default("pending").notNull(),
+  bwTransactionId: varchar("bwTransactionId", { length: 128 }), // BW側のトランザクションID（API応答）
+  bwTransferError: text("bwTransferError"), // エラーメッセージ（失敗時）
+  bwTransferredAt: timestamp("bwTransferredAt"), // BW側反映日時
+  retryCount: int("retryCount").default(0).notNull(), // リトライ回数
+  
+  // LCJ側のポイントトランザクション参照
+  pointTransactionId: int("pointTransactionId"), // References line_point_transactions.id
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type PointExchange = typeof pointExchanges.$inferSelect;
+export type InsertPointExchange = typeof pointExchanges.$inferInsert;

@@ -1,0 +1,19 @@
+{
+  "query": "SHOW TABLES LIKE 'bw_%'; SHOW TABLES LIKE 'point_exchanges';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SHOW TABLES LIKE 'bw_%'; SHOW TABLES LIKE 'point_exchanges';",
+  "rows": [
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (bw_%)": "bw_linked_accounts"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (bw_%)": "Tables_in_GgA9WvTBCZMf6mjyMMwACw (point_exchanges)"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (bw_%)": "point_exchanges"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_GgA9WvTBCZMf6mjyMMwACw (bw_%)\nbw_linked_accounts\nTables_in_GgA9WvTBCZMf6mjyMMwACw (point_exchanges)\npoint_exchanges\n",
+  "stderr": "",
+  "execution_time_ms": 1807
+}

@@ -499,13 +499,21 @@ export default function LineMypage() {
                     </p>
                   </div>
                 )}
-                <div className="mt-4 pt-4 border-t border-rose-200">
+                <div className="mt-4 pt-4 border-t border-rose-200 space-y-2">
                   <Button 
                     className="w-full bg-rose-500 hover:bg-rose-600 gap-2"
                     onClick={() => setLocation("/mall/products")}
                   >
                     <ShoppingBag className="h-4 w-4" />
                     ポイントで商品を購入
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    className="w-full border-violet-300 text-violet-700 hover:bg-violet-50 gap-2"
+                    onClick={() => setLocation("/beauty-wallet")}
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    Beauty Walletに交換
                   </Button>
                 </div>
               </>

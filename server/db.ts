@@ -1,6 +1,6 @@
-import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, isNull, gte, lte, gt } from "drizzle-orm";
+import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, isNull, gte, lte, gt, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -16635,4 +16635,297 @@ export async function createAutoReviewOnApproval(params: {
     console.error(`[AutoReview] Failed to create auto review:`, err.message);
     return { reviewId: null, error: err.message };
   }
+}
+
+
+// ============================================
+// Beauty Wallet連携
+// ============================================
+
+// 交換レート定数
+const BW_EXCHANGE_RATE = 0.4; // 100 LCJポイント = 40 Beauty Token
+
+/**
+ * BWアカウント連携を取得
+ */
+export async function getBwLinkedAccount(lineUserId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select().from(bwLinkedAccounts)
+    .where(and(
+      eq(bwLinkedAccounts.lineUserId, lineUserId),
+      eq(bwLinkedAccounts.status, "active")
+    ))
+    .limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+/**
+ * 連携用トークンを生成してBWアカウント連携レコードを作成（仮登録）
+ */
+export async function createBwLinkToken(lineUserId: number): Promise<string> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const crypto = await import("crypto");
+  const token = crypto.randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10分有効
+  
+  // 既存の未完了レコードがあれば更新、なければ新規作成
+  const existing = await db.select().from(bwLinkedAccounts)
+    .where(eq(bwLinkedAccounts.lineUserId, lineUserId))
+    .limit(1);
+  
+  if (existing.length > 0) {
+    await db.update(bwLinkedAccounts)
+      .set({ linkToken: token, linkTokenExpiresAt: expiresAt, status: "active" })
+      .where(eq(bwLinkedAccounts.lineUserId, lineUserId));
+  } else {
+    await db.insert(bwLinkedAccounts).values({
+      lineUserId,
+      bwUserId: "", // 仮 - コールバック時に更新
+      linkToken: token,
+      linkTokenExpiresAt: expiresAt,
+    });
+  }
+  
+  return token;
+}
+
+/**
+ * BWコールバック処理：トークン検証してBWアカウント情報を紐付け
+ */
+export async function completeBwLink(linkToken: string, bwUserId: string, bwDisplayName?: string, bwEmail?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const record = await db.select().from(bwLinkedAccounts)
+    .where(and(
+      eq(bwLinkedAccounts.linkToken, linkToken),
+      gt(bwLinkedAccounts.linkTokenExpiresAt, new Date())
+    ))
+    .limit(1);
+  
+  if (record.length === 0) {
+    throw new Error("Invalid or expired link token");
+  }
+  
+  await db.update(bwLinkedAccounts)
+    .set({
+      bwUserId,
+      bwDisplayName: bwDisplayName ?? null,
+      bwEmail: bwEmail ?? null,
+      status: "active",
+      linkedAt: new Date(),
+      linkToken: null,
+      linkTokenExpiresAt: null,
+    })
+    .where(eq(bwLinkedAccounts.id, record[0].id));
+  
+  return record[0].lineUserId;
+}
+
+/**
+ * BWアカウント連携を解除
+ */
+export async function unlinkBwAccount(lineUserId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(bwLinkedAccounts)
+    .set({ status: "unlinked", unlinkedAt: new Date() })
+    .where(eq(bwLinkedAccounts.lineUserId, lineUserId));
+}
+
+/**
+ * LCJポイント → BWトークン交換を実行
+ * 1. LCJポイント残高チェック
+ * 2. LCJポイント差し引き（FIFO）
+ * 3. 交換レコード作成（BW側への反映はpending）
+ */
+export async function exchangePointsToBw(
+  lineUserId: number,
+  lineUserIdStr: string, // linePointBalancesはvarchar lineUserId
+  lcjPoints: number,
+  bwLinkedAccountId: number,
+): Promise<{ exchangeId: number; bwTokens: number; balanceAfter: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // 交換レート計算
+  const bwTokens = Math.floor(lcjPoints * BW_EXCHANGE_RATE);
+  if (bwTokens <= 0) {
+    throw new Error("交換ポイントが少なすぎます（最低100ポイント）");
+  }
+  
+  // LCJポイント差し引き（FIFO方式）
+  const result = await useLinePointsFIFO(
+    lineUserIdStr,
+    lcjPoints,
+    `Beauty Wallet交換: ${lcjPoints}pt → ${bwTokens}BT`,
+  );
+  
+  if (!result.success) {
+    throw new Error("ポイント残高が不足しています");
+  }
+  
+  // 交換レコード作成
+  const insertResult = await db.insert(pointExchanges).values({
+    lineUserId,
+    bwLinkedAccountId,
+    lcjPointsUsed: lcjPoints,
+    bwTokensReceived: bwTokens,
+    exchangeRate: BW_EXCHANGE_RATE.toFixed(4),
+    bwTransferStatus: "pending",
+  });
+  
+  const exchangeId = Number(insertResult[0].insertId);
+  
+  return { exchangeId, bwTokens, balanceAfter: result.balanceAfter };
+}
+
+/**
+ * BW側への反映ステータスを更新
+ */
+export async function updateBwTransferStatus(
+  exchangeId: number,
+  status: "processing" | "completed" | "failed",
+  bwTransactionId?: string,
+  error?: string,
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(pointExchanges)
+    .set({
+      bwTransferStatus: status,
+      bwTransactionId: bwTransactionId ?? null,
+      bwTransferError: error ?? null,
+      bwTransferredAt: status === "completed" ? new Date() : undefined,
+      retryCount: status === "failed" ? sql`${pointExchanges.retryCount} + 1` : undefined,
+    })
+    .where(eq(pointExchanges.id, exchangeId));
+}
+
+/**
+ * ユーザーの交換履歴を取得
+ */
+export async function getPointExchangeHistory(
+  lineUserId: number,
+  options?: { limit?: number; offset?: number }
+) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const limit = options?.limit ?? 20;
+  const offset = options?.offset ?? 0;
+  
+  return db.select({
+    id: pointExchanges.id,
+    lcjPointsUsed: pointExchanges.lcjPointsUsed,
+    bwTokensReceived: pointExchanges.bwTokensReceived,
+    exchangeRate: pointExchanges.exchangeRate,
+    bwTransferStatus: pointExchanges.bwTransferStatus,
+    createdAt: pointExchanges.createdAt,
+  })
+    .from(pointExchanges)
+    .where(eq(pointExchanges.lineUserId, lineUserId))
+    .orderBy(desc(pointExchanges.createdAt))
+    .limit(limit)
+    .offset(offset);
+}
+
+/**
+ * 管理者用：月次交換集計
+ */
+export async function getMonthlyExchangeSummary(month: string) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const { startDate, endDate } = getJSTMonthRange(month);
+  
+  const result = await db.select({
+    totalExchanges: sql<number>`COUNT(*)`,
+    totalLcjPoints: sql<number>`COALESCE(SUM(${pointExchanges.lcjPointsUsed}), 0)`,
+    totalBwTokens: sql<number>`COALESCE(SUM(${pointExchanges.bwTokensReceived}), 0)`,
+    completedCount: sql<number>`SUM(CASE WHEN ${pointExchanges.bwTransferStatus} = 'completed' THEN 1 ELSE 0 END)`,
+    pendingCount: sql<number>`SUM(CASE WHEN ${pointExchanges.bwTransferStatus} = 'pending' THEN 1 ELSE 0 END)`,
+    failedCount: sql<number>`SUM(CASE WHEN ${pointExchanges.bwTransferStatus} = 'failed' THEN 1 ELSE 0 END)`,
+    uniqueUsers: sql<number>`COUNT(DISTINCT ${pointExchanges.lineUserId})`,
+  })
+    .from(pointExchanges)
+    .where(and(
+      gte(pointExchanges.createdAt, startDate),
+      lte(pointExchanges.createdAt, endDate),
+    ));
+  
+  return result[0] ?? null;
+}
+
+/**
+ * 管理者用：全交換履歴（ページネーション付き）
+ */
+export async function getAllPointExchanges(options?: { month?: string; limit?: number; offset?: number; status?: string }) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const limit = options?.limit ?? 50;
+  const offset = options?.offset ?? 0;
+  
+  const conditions = [];
+  if (options?.status) {
+    conditions.push(eq(pointExchanges.bwTransferStatus, options.status as any));
+  }
+  if (options?.month) {
+    const [year, month] = options.month.split('-').map(Number);
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 1);
+    conditions.push(gte(pointExchanges.createdAt, startDate));
+    conditions.push(lt(pointExchanges.createdAt, endDate));
+  }
+  
+  return db.select({
+    id: pointExchanges.id,
+    lineUserId: pointExchanges.lineUserId,
+    lcjPointsUsed: pointExchanges.lcjPointsUsed,
+    bwTokensReceived: pointExchanges.bwTokensReceived,
+    exchangeRate: pointExchanges.exchangeRate,
+    bwTransferStatus: pointExchanges.bwTransferStatus,
+    bwTransactionId: pointExchanges.bwTransactionId,
+    bwTransferError: pointExchanges.bwTransferError,
+    createdAt: pointExchanges.createdAt,
+    userName: lineUsers.displayName,
+    userEmail: lineUsers.email,
+  })
+    .from(pointExchanges)
+    .leftJoin(lineUsers, eq(pointExchanges.lineUserId, lineUsers.id))
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(pointExchanges.createdAt))
+    .limit(limit)
+    .offset(offset);
+}
+
+/**
+ * pending状態の交換を取得（BW API送信バッチ用）
+ */
+export async function getPendingExchanges() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select({
+    id: pointExchanges.id,
+    lineUserId: pointExchanges.lineUserId,
+    bwLinkedAccountId: pointExchanges.bwLinkedAccountId,
+    bwTokensReceived: pointExchanges.bwTokensReceived,
+    retryCount: pointExchanges.retryCount,
+    bwUserId: bwLinkedAccounts.bwUserId,
+  })
+    .from(pointExchanges)
+    .innerJoin(bwLinkedAccounts, eq(pointExchanges.bwLinkedAccountId, bwLinkedAccounts.id))
+    .where(and(
+      eq(pointExchanges.bwTransferStatus, "pending"),
+      lte(pointExchanges.retryCount, 3), // 最大3回リトライ
+    ))
+    .orderBy(asc(pointExchanges.createdAt));
 }

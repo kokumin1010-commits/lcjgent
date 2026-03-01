@@ -562,6 +562,16 @@ import {
   getReviewProductList,
   bulkUpdateProductSourceUrls,
   getProductMasterImageByName,
+  getBwLinkedAccount,
+  createBwLinkToken,
+  completeBwLink,
+  unlinkBwAccount,
+  exchangePointsToBw,
+  updateBwTransferStatus,
+  getPointExchangeHistory,
+  getMonthlyExchangeSummary,
+  getAllPointExchanges,
+  getPendingExchanges,
 } from "./db";
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
@@ -854,6 +864,7 @@ export const lineLoginRouter = router({
       const sessionToken = Buffer.from(JSON.stringify(session)).toString('base64');
       
       return {
+        id: lineUser.id, // line_users.id (int)
         lineUserId: lineUser.lineUserId || `email_${lineUser.id}`,
         displayName: lineUser.displayName,
         pictureUrl: lineUser.pictureUrl,
@@ -18148,6 +18159,168 @@ SEO/GEO最適化要件:
         totalPostsGenerated: allSchedules.reduce((sum, s) => sum + (s.totalGenerated || 0), 0),
       };
     }),
+  }),
+
+  // ============================================
+  // Beauty Wallet連携
+  // ============================================
+  beautyWallet: router({
+    // BWアカウント連携状態を取得
+    getLinkStatus: protectedProcedure
+      .input(z.object({ lineUserId: z.number() }))
+      .query(async ({ input }) => {
+        const linked = await getBwLinkedAccount(input.lineUserId);
+        return {
+          isLinked: !!linked,
+          account: linked ? {
+            bwDisplayName: linked.bwDisplayName,
+            bwEmail: linked.bwEmail,
+            linkedAt: linked.linkedAt,
+          } : null,
+        };
+      }),
+
+    // BW連携開始（リンクURL生成）
+    startLink: protectedProcedure
+      .input(z.object({ lineUserId: z.number() }))
+      .mutation(async ({ input }) => {
+        const token = await createBwLinkToken(input.lineUserId);
+        // BW側のOAuth連携URLを生成
+        // TODO: BW側のURLが確定したら変更
+        const bwLinkUrl = `https://beautypass.ai/link?token=${token}&source=lcj`;
+        return { linkUrl: bwLinkUrl, token };
+      }),
+
+    // BWコールバック処理
+    completeLink: publicProcedure
+      .input(z.object({
+        linkToken: z.string(),
+        bwUserId: z.string(),
+        bwDisplayName: z.string().optional(),
+        bwEmail: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const lineUserId = await completeBwLink(
+          input.linkToken,
+          input.bwUserId,
+          input.bwDisplayName,
+          input.bwEmail,
+        );
+        return { success: true, lineUserId };
+      }),
+
+    // BW連携解除
+    unlink: protectedProcedure
+      .input(z.object({ lineUserId: z.number() }))
+      .mutation(async ({ input }) => {
+        await unlinkBwAccount(input.lineUserId);
+        return { success: true };
+      }),
+
+    // ポイント交換実行
+    exchange: protectedProcedure
+      .input(z.object({
+        lineUserId: z.number(),
+        lineUserIdStr: z.string(), // linePointBalancesのlineUserId（varchar）
+        lcjPoints: z.number().min(100, "最低100ポイントから交換可能です"),
+      }))
+      .mutation(async ({ input }) => {
+        // BW連携チェック
+        const linked = await getBwLinkedAccount(input.lineUserId);
+        if (!linked) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Beauty Walletアカウントが連携されていません",
+          });
+        }
+
+        // 100ポイント単位チェック
+        if (input.lcjPoints % 100 !== 0) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "100ポイント単位で交換してください",
+          });
+        }
+
+        const result = await exchangePointsToBw(
+          input.lineUserId,
+          input.lineUserIdStr,
+          input.lcjPoints,
+          linked.id,
+        );
+
+        return {
+          exchangeId: result.exchangeId,
+          lcjPointsUsed: input.lcjPoints,
+          bwTokensReceived: result.bwTokens,
+          balanceAfter: result.balanceAfter,
+        };
+      }),
+
+    // 交換履歴取得
+    getExchangeHistory: protectedProcedure
+      .input(z.object({
+        lineUserId: z.number(),
+        limit: z.number().optional(),
+        offset: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        return getPointExchangeHistory(input.lineUserId, {
+          limit: input.limit,
+          offset: input.offset,
+        });
+      }),
+
+    // 交換レート情報
+    getExchangeRate: publicProcedure.query(() => {
+      return {
+        rate: 0.4, // 100 LCJポイント = 40 Beauty Token
+        minPoints: 100,
+        unit: 100, // 100ポイント単位
+        description: "100 LCJポイント = 40 Beauty Token",
+      };
+    }),
+
+    // 管理者用：月次交換集計
+    adminGetMonthlySummary: protectedProcedure
+      .input(z.object({ month: z.string() }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        return getMonthlyExchangeSummary(input.month);
+      }),
+
+    // 管理者用：全交換履歴
+    adminGetAllExchanges: protectedProcedure
+      .input(z.object({
+        month: z.string().optional(),
+        limit: z.number().optional(),
+        offset: z.number().optional(),
+        status: z.string().optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        return getAllPointExchanges(input);
+      }),
+
+    // 管理者用：pending交換をBW側に送信（手動トリガー）
+    adminProcessPending: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        const pending = await getPendingExchanges();
+        // TODO: BW側APIが実装されたら、ここでAPIを叩く
+        // 今はpendingリストを返すだけ
+        return {
+          pendingCount: pending.length,
+          exchanges: pending,
+          message: "BW側APIが未実装のため、手動確認が必要です",
+        };
+      }),
   }),
 });
 

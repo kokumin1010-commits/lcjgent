@@ -100,6 +100,7 @@ import BrandListPage from "./pages/BrandListPage";
 import BrandDetailPage from "./pages/BrandDetailPage";
 import ReviewDatabase from "./pages/ReviewDatabase";
 import ProductReviews from "./pages/ProductReviews";
+import BeautyWallet from "./pages/BeautyWallet";
 
 function Router() {
   return (
@@ -111,6 +112,7 @@ function Router() {
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/mypage" component={LineMypage} />
+      <Route path="/beauty-wallet" component={BeautyWallet} />
       <Route path="/mall/products" component={MallProducts} />
       <Route path="/mall/products/:id" component={MallProductDetail} />
       <Route path="/mall/cart" component={MallCart} />

@@ -20,6 +20,11 @@ import {
   CreditCard,
   Coins,
   Banknote,
+  Wallet,
+  ArrowRightLeft,
+  CheckCircle,
+  Clock,
+  XCircle,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -31,6 +36,7 @@ import LineReceiptManagement from "./LineReceiptManagement";
 import ReviewManagement from "./ReviewManagement";
 import KakuhenManagement from "./KakuhenManagement";
 import ReviewProductList from "./ReviewProductList";
+import BWExchangeAdmin from "./BWExchangeAdmin";
 
 const TABS = [
   { id: "dashboard", label: "ダッシュボード", icon: LayoutDashboard },
@@ -42,6 +48,7 @@ const TABS = [
   { id: "reviews", label: "口コミ管理", icon: Receipt },
   { id: "review-products", label: "レビュー商品一覧", icon: Package },
   { id: "kakuhen", label: "確変チャンス", icon: TrendingUp },
+  { id: "beauty-wallet", label: "BW交換", icon: Wallet },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -420,6 +427,7 @@ export default function MallDashboardPage() {
         {activeTab === "reviews" && <ReviewManagement />}
         {activeTab === "review-products" && <ReviewProductList />}
         {activeTab === "kakuhen" && <KakuhenManagement />}
+        {activeTab === "beauty-wallet" && <BWExchangeAdmin />}
       </div>
     </div>
   );
