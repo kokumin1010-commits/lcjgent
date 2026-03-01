@@ -62,8 +62,18 @@ export default function BeautyWallet() {
   const startLinkMutation = trpc.beautyWallet.startLink.useMutation({
     onSuccess: (data) => {
       haptic.doubleTap();
-      window.open(data.linkUrl, "_blank");
-      toast.info("Beauty Walletの連携ページを開きました");
+      if (data.autoLinked) {
+        // メールベースで自動連携成功
+        toast.success(
+          `${data.account?.bwDisplayName || "Beauty Wallet"} のアカウントと連携しました`
+        );
+        // 連携ステータスを再取得して交換セクションを表示
+        refetchLinkStatus();
+      } else if (data.linkUrl) {
+        // 手動連携（BWページを開く）
+        window.open(data.linkUrl, "_blank");
+        toast.info("Beauty Walletの連携ページを開きました");
+      }
     },
     onError: (error) => {
       toast.error(`連携に失敗しました: ${error.message}`);
@@ -218,7 +228,10 @@ export default function BeautyWallet() {
                   onClick={() => {
                     haptic.doubleTap();
                     if (user?.id) {
-                      startLinkMutation.mutate({ lineUserId: user.id });
+                      startLinkMutation.mutate({ 
+                        lineUserId: user.id,
+                        email: user.email || undefined,
+                      });
                     }
                   }}
                   disabled={startLinkMutation.isPending}

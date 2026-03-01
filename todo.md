@@ -6358,3 +6358,8 @@
 - [x] routers.ts: adminProcessPendingのTODOを実際のBW API呼び出しに置き換え
 - [x] ユニットテスト: bw-api.test.ts 14件全PASS
 - [x] 結合テスト: bw-api-integration.test.ts 9件全PASS（実際のBW本番APIへのリクエスト）
+
+## バグ修正：BW連携完了後にポイント交換画面へ自動遷移しない
+- [x] BW連携コールバック後の遷移ロジックを調査
+- [x] 連携完了後に「ダッシュボード読み込み中...」で止まる問題を修正
+- [x] 連携完了後にポイント交換画面（交換数量入力UI）へ自動遷移するように修正
