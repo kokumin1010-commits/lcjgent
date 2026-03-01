@@ -1,5 +1,5 @@
 import { trpc } from "@/lib/trpc";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import haptic from "@/lib/haptic";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,6 +37,13 @@ export default function BeautyWallet() {
 
   // ユーザー情報
   const { data: user, isLoading: userLoading } = trpc.lineLogin.me.useQuery();
+
+  // セッショントークンをlocalStorageに同期（ページリフレッシュ時のセッション維持用）
+  useEffect(() => {
+    if (user?.sessionToken) {
+      localStorage.setItem('lcj_session_token', user.sessionToken);
+    }
+  }, [user?.sessionToken]);
 
   // ポイント残高
   const { data: pointsData, isLoading: pointsLoading } = trpc.lineLogin.getMyPoints.useQuery(undefined, {

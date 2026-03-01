@@ -6374,3 +6374,12 @@
 - [x] 交換完了後にBeauty Walletページ（BW側）へ自動遷移するように修正
   - 2秒後にwindow.open("https://beautypass.ai/wallet", "_blank")でBWページを開く
   - 交換履歴のステータス表示を改善（processing/pending/completed/failedを区別表示）
+
+## バグ修正：/beauty-walletページリフレッシュ時に「ログインが必要です」と表示される
+- [x] BeautyWallet.tsxの認証チェックロジックを調査
+  - 原因: main.tsxのisLcjMallPage条件に/beauty-walletパスが含まれていなかった
+- [x] LINEログインセッションの持続性を確認
+  - lcj_session_tokenがAuthorizationヘッダーに送信されず、サーバーがセッションを認識できなかった
+- [x] ページリフレッシュ時にセッションが正しく復元されるように修正
+  - main.tsx: isLcjMallPageに/beauty-walletパスを追加
+  - BeautyWallet.tsx: sessionToken同期のuseEffectを追加
