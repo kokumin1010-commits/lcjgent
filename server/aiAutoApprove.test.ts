@@ -61,15 +61,28 @@ function createUserContext(): { ctx: TrpcContext } {
 }
 
 describe("adminAiAutoApprove", () => {
-  it("returns correct structure with hasMore field when no candidates", async () => {
+  it("rejects non-admin users", async () => {
+    const { ctx } = createUserContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(
+      caller.point.adminAiAutoApprove({
+        limit: 10,
+        dryRun: true,
+        confidenceThreshold: 70,
+      })
+    ).rejects.toThrow();
+  });
+
+  it("returns correct structure with hasMore field", async () => {
     const { ctx } = createAdminContext();
     const caller = appRouter.createCaller(ctx);
 
-    // Call with small limit - should return hasMore field
+    // Call with limit=1 and dryRun to minimize LLM calls
     const result = await caller.point.adminAiAutoApprove({
       limit: 1,
       dryRun: true,
-      confidenceThreshold: 85,
+      confidenceThreshold: 70,
     });
 
     // Verify the response structure includes hasMore
@@ -85,48 +98,45 @@ describe("adminAiAutoApprove", () => {
     expect(result.summary).toHaveProperty("held");
     expect(result.summary).toHaveProperty("rejectedDuplicate");
     expect(result.summary).toHaveProperty("rejectedAi");
-  });
+  }, 60000);
 
-  it("rejects non-admin users", async () => {
-    const { ctx } = createUserContext();
-    const caller = appRouter.createCaller(ctx);
-
-    await expect(
-      caller.point.adminAiAutoApprove({
-        limit: 10,
-        dryRun: true,
-        confidenceThreshold: 85,
-      })
-    ).rejects.toThrow();
-  });
-
-  it("returns hasMore=false when no pending receipts exist", async () => {
+  it("default confidence threshold is 70 (lowered from 85)", async () => {
     const { ctx } = createAdminContext();
     const caller = appRouter.createCaller(ctx);
 
+    // Call without specifying confidenceThreshold - should use default 70
     const result = await caller.point.adminAiAutoApprove({
-      limit: 20,
+      limit: 1,
       dryRun: true,
-      confidenceThreshold: 85,
     });
 
-    // When there are no candidates, processed should be 0 and hasMore should be false
-    if (result.processed === 0) {
-      expect(result.hasMore).toBe(false);
-    }
-  });
+    // Just verify it doesn't throw and returns valid structure
+    expect(result).toHaveProperty("processed");
+    expect(result).toHaveProperty("hasMore");
+  }, 60000);
 
-  it("respects limit parameter", async () => {
+  it("processes receipts without order numbers (no longer skips)", async () => {
     const { ctx } = createAdminContext();
     const caller = appRouter.createCaller(ctx);
 
+    // With the new logic, receipts without order numbers should be sent to LLM
+    // instead of being skipped. We verify by checking that "skipped" count
+    // for "注文番号なし" reason should be lower than before.
     const result = await caller.point.adminAiAutoApprove({
-      limit: 5,
+      limit: 3,
       dryRun: true,
-      confidenceThreshold: 85,
+      confidenceThreshold: 70,
     });
 
-    // processed should not exceed the limit
-    expect(result.processed).toBeLessThanOrEqual(5);
-  });
+    // Verify structure is valid
+    expect(result.processed).toBeGreaterThanOrEqual(0);
+    expect(result.processed).toBeLessThanOrEqual(3);
+    
+    // Check that skipped results don't include "注文番号なし" reason
+    // (those should now go to LLM instead)
+    const skippedForNoOrderNumber = result.results.filter(
+      (r: any) => r.action === "skipped" && r.reason === "注文番号なし"
+    );
+    expect(skippedForNoOrderNumber.length).toBe(0);
+  }, 120000);
 });

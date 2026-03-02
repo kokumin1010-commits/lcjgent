@@ -1,0 +1,15 @@
+{
+  "query": "\nSELECT \n  COUNT(*) as total_pending,\n  SUM(CASE WHEN ocrRawText IS NULL OR ocrRawText = '' THEN 1 ELSE 0 END) as no_ocr,\n  SUM(CASE WHEN ocrRawText IS NOT NULL AND ocrRawText != '' THEN 1 ELSE 0 END) as has_ocr\nFROM line_receipts \nWHERE status = 'pending';\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute \nSELECT \n  COUNT(*) as total_pending,\n  SUM(CASE WHEN ocrRawText IS NULL OR ocrRawText = '' THEN 1 ELSE 0 END) as no_ocr,\n  SUM(CASE WHEN ocrRawText IS NOT NULL AND ocrRawText != '' THEN 1 ELSE 0 END) as has_ocr\nFROM line_receipts \nWHERE status = 'pending';\n",
+  "rows": [
+    {
+      "total_pending": "2355",
+      "no_ocr": "717",
+      "has_ocr": "1638"
+    }
+  ],
+  "messages": [],
+  "stdout": "total_pending\tno_ocr\thas_ocr\n2355\t717\t1638\n",
+  "stderr": "",
+  "execution_time_ms": 1643
+}

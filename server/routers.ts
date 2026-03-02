@@ -12724,7 +12724,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .input(z.object({
         limit: z.number().min(1).max(100).default(20),
         dryRun: z.boolean().default(false), // If true, only simulate without actually approving
-        confidenceThreshold: z.number().min(0).max(100).default(85),
+        confidenceThreshold: z.number().min(0).max(100).default(70),
       }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") {
@@ -12744,6 +12744,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           createAutoReviewOnApproval,
           createAiAutoReviewLogsBatch,
           updateAiAutoApproveSetting,
+          buildStatisticsLearningPrompt,
         } = await import("./db");
         const { pushMessage: pushMsg } = await import("./line");
         
@@ -12792,8 +12793,16 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         const allOrderNumbers = Array.from(orderNumberMap.values());
         const dupeMap = await batchCheckDuplicateOrderNumbers(allOrderNumbers);
         
-        // Get review examples for LLM context
-        const reviewExamples = await getRecentReviewExamples(5, 5);
+        // Get review examples for LLM context (increased from 5 to 10 each)
+        const reviewExamples = await getRecentReviewExamples(10, 10);
+        
+        // Get comprehensive statistics learning prompt
+        let statisticsPrompt = "";
+        try {
+          statisticsPrompt = await buildStatisticsLearningPrompt();
+        } catch (e) {
+          console.error("[AI AutoApprove] Failed to build statistics prompt:", e);
+        }
         
         // Process each candidate
         for (const candidate of candidates) {
@@ -12847,26 +12856,12 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             }
           }
           
-          // --- Rule 2: Missing essential data → skip (leave for human review) ---
-          if (!orderNumber) {
-            results.push({
-              id: candidate.id,
-              action: "skipped",
-              reason: "注文番号なし",
-              amount: candidate.totalAmount ?? undefined,
-            });
-            continue;
-          }
-          
-          if (!candidate.totalAmount || candidate.totalAmount <= 0) {
-            results.push({
-              id: candidate.id,
-              action: "skipped",
-              reason: "金額なし",
-              orderNumber,
-            });
-            continue;
-          }
+          // --- Rule 2: Missing essential data → now handled by LLM instead of skipping ---
+          // Previously skipped receipts without order number or amount.
+          // Now we let LLM judge from the image - it can often read order numbers
+          // and amounts that OCR missed.
+          const missingOrderNumber = !orderNumber;
+          const missingAmount = !candidate.totalAmount || candidate.totalAmount <= 0;
           
           // --- Rule 3: Force-submitted (AI-rejected) receipts → skip (needs human review) ---
           if (candidate.isForceSubmitted) {
@@ -12903,11 +12898,11 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           
           // OCR confidence check - only bypass LLM if OCR is very confident
           const ocrConf = parseFloat(candidate.ocrConfidence || "0");
-          if (isTikTok && isDelivered && orderNumber && candidate.totalAmount > 0 && ocrConf >= 95) {
+          if (isTikTok && isDelivered && orderNumber && (candidate.totalAmount ?? 0) > 0 && ocrConf >= 95) {
             // Best case: all OCR signals positive AND high OCR confidence → bypass LLM
             aiConfidence = 92;
             aiReason = "OCRデータ良好(OCR信頼度" + ocrConf + "%): TikTok Shop確認済み + 配達済み + 注文番号あり + 金額あり";
-          } else if (isTikTok && isDelivered && orderNumber && candidate.totalAmount > 0 && ocrConf >= 80) {
+          } else if (isTikTok && isDelivered && orderNumber && (candidate.totalAmount ?? 0) > 0 && ocrConf >= 80) {
             // Medium OCR confidence: still use LLM but with positive bias
             aiConfidence = 80;
             aiReason = "OCRデータ良好だがOCR信頼度が中程度(" + ocrConf + "%) - LLM検証を実施";
@@ -12972,6 +12967,15 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
                 type: "image_url" as const,
                 image_url: { url, detail: "low" as const },
               }));
+              // Build additional context for missing data
+              let missingDataNote = "";
+              if (missingOrderNumber) {
+                missingDataNote += "\n\n❗ OCRで注文番号が取得できませんでした。画像から注文番号（16-19桁の数字）を読み取ってdetectedOrderNumberに設定してください。注文番号が画像から読み取れれば、それを基に判定してください。";
+              }
+              if (missingAmount) {
+                missingDataNote += "\n\n❗ OCRで金額が取得できませんでした。画像から合計金額を読み取ってdetectedAmountに設定してください。";
+              }
+              
               imageContents.push({
                 type: "text" as const,
                 text: `このレシート画像を審査してください。\n\nOCRデータ: ${JSON.stringify({
@@ -12980,7 +12984,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
                   shopName: ocrData.shopName || candidate.storeName,
                   isTikTokShop: ocrData.isTikTokShop,
                   isDelivered: ocrData.isDelivered,
-                })}\n\n${exampleContext}`,
+                })}${missingDataNote}\n\n${exampleContext}`,
               });
               
               // few-shot学習例を取得
@@ -13067,7 +13071,10 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
   "detectedOrderNumber": "string or null",
   "detectedAmount": number or null
 }
-※ rejectionCategoryはshouldApprove=falseの場合のみ設定。承認時はnull。${learningPrompt}`,
+※ rejectionCategoryはshouldApprove=falseの場合のみ設定。承認時はnull。
+
+★ 重要: OCRで注文番号や金額が取得できなかった場合でも、画像から読み取れる場合はそれを基に判定してください。
+★ 過去の審査実績では承認率約75%です。基準を満たすレシートは積極的に承認してください。${statisticsPrompt}${learningPrompt}`,
                   },
                   {
                     role: "user",
@@ -13104,6 +13111,19 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
               
               aiConfidence = typeof parsed.confidence === "number" ? parsed.confidence : 0;
               aiReason = parsed.reason || "LLM判定";
+              
+              // If LLM detected order number or amount that OCR missed, use them
+              if (missingOrderNumber && parsed.detectedOrderNumber) {
+                const detectedOrder = String(parsed.detectedOrderNumber).trim();
+                if (detectedOrder && detectedOrder !== "null" && detectedOrder.length >= 10) {
+                  // LLM found order number from image - update orderNumberMap for later use
+                  orderNumberMap.set(candidate.id, detectedOrder);
+                  console.log(`[AI AutoApprove] LLM detected order number for receipt #${candidate.id}: ${detectedOrder}`);
+                }
+              }
+              if (missingAmount && parsed.detectedAmount && typeof parsed.detectedAmount === "number" && parsed.detectedAmount > 0) {
+                console.log(`[AI AutoApprove] LLM detected amount for receipt #${candidate.id}: ${parsed.detectedAmount}`);
+              }
               
               // If LLM says don't approve → check confidence to decide reject or hold
               if (parsed.shouldApprove === false) {

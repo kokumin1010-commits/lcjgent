@@ -1,0 +1,80 @@
+{
+  "query": "\n-- 承認レシートの金額帯分布\nSELECT \n  CASE \n    WHEN totalAmount < 1000 THEN '0-999'\n    WHEN totalAmount < 3000 THEN '1000-2999'\n    WHEN totalAmount < 5000 THEN '3000-4999'\n    WHEN totalAmount < 10000 THEN '5000-9999'\n    WHEN totalAmount < 20000 THEN '10000-19999'\n    WHEN totalAmount < 50000 THEN '20000-49999'\n    ELSE '50000+'\n  END as amount_range,\n  COUNT(*) as cnt,\n  decision\nFROM receipt_review_logs\nWHERE decision IN ('approved', 'rejected')\nGROUP BY amount_range, decision\nORDER BY decision, amount_range;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute \n-- 承認レシートの金額帯分布\nSELECT \n  CASE \n    WHEN totalAmount < 1000 THEN '0-999'\n    WHEN totalAmount < 3000 THEN '1000-2999'\n    WHEN totalAmount < 5000 THEN '3000-4999'\n    WHEN totalAmount < 10000 THEN '5000-9999'\n    WHEN totalAmount < 20000 THEN '10000-19999'\n    WHEN totalAmount < 50000 THEN '20000-49999'\n    ELSE '50000+'\n  END as amount_range,\n  COUNT(*) as cnt,\n  decision\nFROM receipt_review_logs\nWHERE decision IN ('approved', 'rejected')\nGROUP BY amount_range, decision\nORDER BY decision, amount_range;\n",
+  "rows": [
+    {
+      "amount_range": "0-999",
+      "cnt": "293",
+      "decision": "approved"
+    },
+    {
+      "amount_range": "1000-2999",
+      "cnt": "2042",
+      "decision": "approved"
+    },
+    {
+      "amount_range": "10000-19999",
+      "cnt": "1104",
+      "decision": "approved"
+    },
+    {
+      "amount_range": "20000-49999",
+      "cnt": "334",
+      "decision": "approved"
+    },
+    {
+      "amount_range": "3000-4999",
+      "cnt": "2122",
+      "decision": "approved"
+    },
+    {
+      "amount_range": "5000-9999",
+      "cnt": "2613",
+      "decision": "approved"
+    },
+    {
+      "amount_range": "50000+",
+      "cnt": "50",
+      "decision": "approved"
+    },
+    {
+      "amount_range": "0-999",
+      "cnt": "102",
+      "decision": "rejected"
+    },
+    {
+      "amount_range": "1000-2999",
+      "cnt": "539",
+      "decision": "rejected"
+    },
+    {
+      "amount_range": "10000-19999",
+      "cnt": "329",
+      "decision": "rejected"
+    },
+    {
+      "amount_range": "20000-49999",
+      "cnt": "85",
+      "decision": "rejected"
+    },
+    {
+      "amount_range": "3000-4999",
+      "cnt": "554",
+      "decision": "rejected"
+    },
+    {
+      "amount_range": "5000-9999",
+      "cnt": "724",
+      "decision": "rejected"
+    },
+    {
+      "amount_range": "50000+",
+      "cnt": "492",
+      "decision": "rejected"
+    }
+  ],
+  "messages": [],
+  "stdout": "amount_range\tcnt\tdecision\n0-999\t293\tapproved\n1000-2999\t2042\tapproved\n10000-19999\t1104\tapproved\n20000-49999\t334\tapproved\n3000-4999\t2122\tapproved\n5000-9999\t2613\tapproved\n50000+\t50\tapproved\n0-999\t102\trejected\n1000-2999\t539\trejected\n10000-19999\t329\trejected\n20000-49999\t85\trejected\n3000-4999\t554\trejected\n5000-9999\t724\trejected\n50000+\t492\trejected\n",
+  "stderr": "",
+  "execution_time_ms": 1656
+}

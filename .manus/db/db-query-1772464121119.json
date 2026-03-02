@@ -1,0 +1,97 @@
+{
+  "query": "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'line_receipts' ORDER BY ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'line_receipts' ORDER BY ORDINAL_POSITION;",
+  "rows": [
+    {
+      "COLUMN_NAME": "id"
+    },
+    {
+      "COLUMN_NAME": "lineUserId"
+    },
+    {
+      "COLUMN_NAME": "lineMessageId"
+    },
+    {
+      "COLUMN_NAME": "imageUrl"
+    },
+    {
+      "COLUMN_NAME": "imageKey"
+    },
+    {
+      "COLUMN_NAME": "imageHash"
+    },
+    {
+      "COLUMN_NAME": "imageUrls"
+    },
+    {
+      "COLUMN_NAME": "imageKeys"
+    },
+    {
+      "COLUMN_NAME": "storeName"
+    },
+    {
+      "COLUMN_NAME": "purchaseDate"
+    },
+    {
+      "COLUMN_NAME": "totalAmount"
+    },
+    {
+      "COLUMN_NAME": "currency"
+    },
+    {
+      "COLUMN_NAME": "ocrRawText"
+    },
+    {
+      "COLUMN_NAME": "ocrConfidence"
+    },
+    {
+      "COLUMN_NAME": "pointsCalculated"
+    },
+    {
+      "COLUMN_NAME": "pointsAwarded"
+    },
+    {
+      "COLUMN_NAME": "status"
+    },
+    {
+      "COLUMN_NAME": "reviewedBy"
+    },
+    {
+      "COLUMN_NAME": "reviewedAt"
+    },
+    {
+      "COLUMN_NAME": "reviewNote"
+    },
+    {
+      "COLUMN_NAME": "fraudFlags"
+    },
+    {
+      "COLUMN_NAME": "fraudScore"
+    },
+    {
+      "COLUMN_NAME": "submittedAt"
+    },
+    {
+      "COLUMN_NAME": "createdAt"
+    },
+    {
+      "COLUMN_NAME": "updatedAt"
+    },
+    {
+      "COLUMN_NAME": "aiRejectionReason"
+    },
+    {
+      "COLUMN_NAME": "aiRejectionCategory"
+    },
+    {
+      "COLUMN_NAME": "isForceSubmitted"
+    },
+    {
+      "COLUMN_NAME": "forceSubmittedAt"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\nid\nlineUserId\nlineMessageId\nimageUrl\nimageKey\nimageHash\nimageUrls\nimageKeys\nstoreName\npurchaseDate\ntotalAmount\ncurrency\nocrRawText\nocrConfidence\npointsCalculated\npointsAwarded\nstatus\nreviewedBy\nreviewedAt\nreviewNote\nfraudFlags\nfraudScore\nsubmittedAt\ncreatedAt\nupdatedAt\naiRejectionReason\naiRejectionCategory\nisForceSubmitted\nforceSubmittedAt\n",
+  "stderr": "",
+  "execution_time_ms": 1578
+}

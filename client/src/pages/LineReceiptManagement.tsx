@@ -598,7 +598,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
           // Short delay before next batch to avoid overwhelming the server
           setTimeout(() => {
             if (aiAutoModeRef.current) {
-              aiAutoApproveMutation.mutate({ limit: aiAutoApproveLimit, dryRun: false, confidenceThreshold: 85 });
+              aiAutoApproveMutation.mutate({ limit: aiAutoApproveLimit, dryRun: false, confidenceThreshold: 70 });
             }
           }, 2000);
         } else if (aiAutoModeRef.current && !data.hasMore) {
@@ -959,7 +959,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                 setCumulativeStats({ totalProcessed: 0, totalApproved: 0, totalRejectedDuplicate: 0, totalRejectedAi: 0, totalHeld: 0, totalSkipped: 0, batchCount: 0 });
                 setAiAutoApproveResult(null);
                 toast.info(t("lr.aiAutoModeOn"));
-                aiAutoApproveMutation.mutate({ limit: aiAutoApproveLimit, dryRun: false, confidenceThreshold: 85 });
+                aiAutoApproveMutation.mutate({ limit: aiAutoApproveLimit, dryRun: false, confidenceThreshold: 70 });
               } else {
                 // トグルOFF → 停止メッセージ
                 toast.info("AI自動審査を停止しました");

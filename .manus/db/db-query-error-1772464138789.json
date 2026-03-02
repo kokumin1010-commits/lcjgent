@@ -1,0 +1,8 @@
+{
+  "query": "\nSELECT \n  COUNT(*) as total_pending,\n  SUM(CASE WHEN ocrRawText IS NULL OR ocrRawText = '' THEN 1 ELSE 0 END) as no_ocr,\n  SUM(CASE WHEN ocrRawText IS NOT NULL AND ocrRawText != '' THEN 1 ELSE 0 END) as has_ocr,\n  SUM(CASE WHEN order_number IS NOT NULL AND order_number != '' THEN 1 ELSE 0 END) as has_order_num_col\nFROM line_receipts \nWHERE status = 'pending';\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute \nSELECT \n  COUNT(*) as total_pending,\n  SUM(CASE WHEN ocrRawText IS NULL OR ocrRawText = '' THEN 1 ELSE 0 END) as no_ocr,\n  SUM(CASE WHEN ocrRawText IS NOT NULL AND ocrRawText != '' THEN 1 ELSE 0 END) as has_ocr,\n  SUM(CASE WHEN order_number IS NOT NULL AND order_number != '' THEN 1 ELSE 0 END) as has_order_num_col\nFROM line_receipts \nWHERE status = 'pending';\n",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 2: Unknown column 'order_number' in 'where clause'"
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "query": "\nSELECT \n  CASE \n    WHEN totalAmount < 1000 THEN '0-999'\n    WHEN totalAmount < 3000 THEN '1000-2999'\n    WHEN totalAmount < 5000 THEN '3000-4999'\n    WHEN totalAmount < 10000 THEN '5000-9999'\n    WHEN totalAmount < 20000 THEN '10000-19999'\n    WHEN totalAmount < 50000 THEN '20000-49999'\n    ELSE '50000+'\n  END as amount_range,\n  SUM(CASE WHEN decision = 'approved' THEN 1 ELSE 0 END) as approved_cnt,\n  SUM(CASE WHEN decision = 'rejected' THEN 1 ELSE 0 END) as rejected_cnt\nFROM receipt_review_logs\nWHERE decision IN ('approved', 'rejected')\nGROUP BY amount_range\nORDER BY MIN(totalAmount);\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute \nSELECT \n  CASE \n    WHEN totalAmount < 1000 THEN '0-999'\n    WHEN totalAmount < 3000 THEN '1000-2999'\n    WHEN totalAmount < 5000 THEN '3000-4999'\n    WHEN totalAmount < 10000 THEN '5000-9999'\n    WHEN totalAmount < 20000 THEN '10000-19999'\n    WHEN totalAmount < 50000 THEN '20000-49999'\n    ELSE '50000+'\n  END as amount_range,\n  SUM(CASE WHEN decision = 'approved' THEN 1 ELSE 0 END) as approved_cnt,\n  SUM(CASE WHEN decision = 'rejected' THEN 1 ELSE 0 END) as rejected_cnt\nFROM receipt_review_logs\nWHERE decision IN ('approved', 'rejected')\nGROUP BY amount_range\nORDER BY MIN(totalAmount);\n",
+  "rows": [
+    {
+      "amount_range": "0-999",
+      "approved_cnt": "293",
+      "rejected_cnt": "102"
+    },
+    {
+      "amount_range": "1000-2999",
+      "approved_cnt": "2042",
+      "rejected_cnt": "539"
+    },
+    {
+      "amount_range": "3000-4999",
+      "approved_cnt": "2122",
+      "rejected_cnt": "554"
+    },
+    {
+      "amount_range": "5000-9999",
+      "approved_cnt": "2613",
+      "rejected_cnt": "724"
+    },
+    {
+      "amount_range": "10000-19999",
+      "approved_cnt": "1104",
+      "rejected_cnt": "329"
+    },
+    {
+      "amount_range": "20000-49999",
+      "approved_cnt": "334",
+      "rejected_cnt": "85"
+    },
+    {
+      "amount_range": "50000+",
+      "approved_cnt": "50",
+      "rejected_cnt": "492"
+    }
+  ],
+  "messages": [],
+  "stdout": "amount_range\tapproved_cnt\trejected_cnt\n0-999\t293\t102\n1000-2999\t2042\t539\n3000-4999\t2122\t554\n5000-9999\t2613\t724\n10000-19999\t1104\t329\n20000-49999\t334\t85\n50000+\t50\t492\n",
+  "stderr": "",
+  "execution_time_ms": 1656
+}

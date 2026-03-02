@@ -17234,6 +17234,173 @@ export async function getRecentReviewExamples(approvedCount: number = 5, rejecte
   return { approved, rejected, rejectionStats };
 }
 
+/**
+ * Get comprehensive approval statistics for LLM learning
+ * Aggregates patterns from all approved and rejected receipts
+ */
+export async function getApprovalStatistics() {
+  const db = await getDb();
+  if (!db) return null;
+  
+  // Amount range distribution
+  const amountDistribution = await db.execute(sql`
+    SELECT 
+      CASE 
+        WHEN totalAmount IS NULL THEN 'NULL'
+        WHEN totalAmount < 1000 THEN '0-999'
+        WHEN totalAmount < 3000 THEN '1000-2999'
+        WHEN totalAmount < 5000 THEN '3000-4999'
+        WHEN totalAmount < 10000 THEN '5000-9999'
+        WHEN totalAmount < 20000 THEN '10000-19999'
+        WHEN totalAmount < 50000 THEN '20000-49999'
+        ELSE '50000+'
+      END as amount_range,
+      SUM(CASE WHEN decision = 'approved' THEN 1 ELSE 0 END) as approved_cnt,
+      SUM(CASE WHEN decision = 'rejected' THEN 1 ELSE 0 END) as rejected_cnt
+    FROM receipt_review_logs
+    WHERE decision IN ('approved', 'rejected')
+    GROUP BY amount_range
+    ORDER BY MIN(COALESCE(totalAmount, 0))
+  `);
+  
+  // Rejection category distribution
+  const rejectionCategories = await db.execute(sql`
+    SELECT rejectionCategory, COUNT(*) as cnt,
+      ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM receipt_review_logs WHERE decision = 'rejected'), 1) as pct
+    FROM receipt_review_logs
+    WHERE decision = 'rejected'
+    GROUP BY rejectionCategory
+    ORDER BY cnt DESC
+  `);
+  
+  // Overall totals
+  const totals = await db.execute(sql`
+    SELECT decision, COUNT(*) as cnt
+    FROM receipt_review_logs
+    GROUP BY decision
+  `);
+  
+  // Order number distribution
+  const orderNumberDist = await db.execute(sql`
+    SELECT decision, hasOrderNumber, COUNT(*) as cnt
+    FROM receipt_review_logs
+    WHERE decision IN ('approved', 'rejected')
+    GROUP BY decision, hasOrderNumber
+  `);
+  
+  // AI auto review human override stats (learning from corrections)
+  const humanOverrides = await db.execute(sql`
+    SELECT 
+      aiDecision,
+      humanOverride,
+      COUNT(*) as cnt
+    FROM ai_auto_review_logs
+    WHERE humanOverride IS NOT NULL AND isDryRun = 0
+    GROUP BY aiDecision, humanOverride
+  `);
+  
+  return {
+    amountDistribution: (amountDistribution as any)[0] || [],
+    rejectionCategories: (rejectionCategories as any)[0] || [],
+    totals: (totals as any)[0] || [],
+    orderNumberDist: (orderNumberDist as any)[0] || [],
+    humanOverrides: (humanOverrides as any)[0] || [],
+  };
+}
+
+/**
+ * Build a comprehensive statistics prompt for LLM learning
+ * Converts approval statistics into a text prompt for the LLM
+ */
+export async function buildStatisticsLearningPrompt(): Promise<string> {
+  const stats = await getApprovalStatistics();
+  if (!stats) return "";
+  
+  const lines: string[] = [
+    "",
+    "=== 過去の審査実績統計（11,000件以上のデータに基づく） ===",
+    "",
+  ];
+  
+  // Overall approval rate
+  const approvedTotal = (stats.totals as any[]).find((t: any) => t.decision === 'approved');
+  const rejectedTotal = (stats.totals as any[]).find((t: any) => t.decision === 'rejected');
+  const totalApproved = Number(approvedTotal?.cnt || 0);
+  const totalRejected = Number(rejectedTotal?.cnt || 0);
+  const totalAll = totalApproved + totalRejected;
+  if (totalAll > 0) {
+    const approvalRate = Math.round(totalApproved * 100 / totalAll);
+    lines.push(`全体承認率: ${approvalRate}% (承認: ${totalApproved}件, 却下: ${totalRejected}件)`);
+    lines.push("");
+  }
+  
+  // Amount distribution
+  lines.push("【金額帯別の承認率】");
+  for (const row of (stats.amountDistribution as any[])) {
+    const approved = Number(row.approved_cnt || 0);
+    const rejected = Number(row.rejected_cnt || 0);
+    const total = approved + rejected;
+    if (total > 0) {
+      const rate = Math.round(approved * 100 / total);
+      lines.push(`  ${row.amount_range}円: 承認率${rate}% (承認${approved}件/却下${rejected}件)`);
+    }
+  }
+  lines.push("");
+  
+  // Rejection categories
+  lines.push("【却下理由の分布】");
+  const catLabels: Record<string, string> = {
+    other: "その他",
+    duplicate: "重複申請",
+    not_order_detail: "注文詳細画面ではない",
+    not_tiktok_shop: "TikTok Shop以外",
+    not_delivered: "配達未完了",
+    blurry_image: "画像不鮮明",
+    missing_order_number: "注文番号なし",
+    missing_amount: "金額なし",
+    partial_screenshot: "スクショ不完全",
+    wrong_store: "対象外店舗",
+    suspicious: "不正の疑い",
+    incomplete_info: "情報不足",
+  };
+  for (const row of (stats.rejectionCategories as any[])) {
+    const label = catLabels[row.rejectionCategory || 'other'] || row.rejectionCategory;
+    lines.push(`  ${label}: ${row.cnt}件 (${row.pct}%)`);
+  }
+  lines.push("");
+  
+  // Order number distribution insight
+  lines.push("【注文番号の有無と承認率】");
+  const orderStats = stats.orderNumberDist as any[];
+  const approvedWithOrder = Number(orderStats.find((r: any) => r.decision === 'approved' && r.hasOrderNumber === 'yes')?.cnt || 0);
+  const rejectedWithOrder = Number(orderStats.find((r: any) => r.decision === 'rejected' && r.hasOrderNumber === 'yes')?.cnt || 0);
+  const approvedNoOrder = Number(orderStats.find((r: any) => r.decision === 'approved' && r.hasOrderNumber === 'no')?.cnt || 0);
+  const rejectedNoOrder = Number(orderStats.find((r: any) => r.decision === 'rejected' && r.hasOrderNumber === 'no')?.cnt || 0);
+  if (approvedWithOrder + rejectedWithOrder > 0) {
+    const rateWithOrder = Math.round(approvedWithOrder * 100 / (approvedWithOrder + rejectedWithOrder));
+    lines.push(`  注文番号あり: 承認率${rateWithOrder}% (承認${approvedWithOrder}件/却下${rejectedWithOrder}件)`);
+  }
+  if (approvedNoOrder + rejectedNoOrder > 0) {
+    const rateNoOrder = Math.round(approvedNoOrder * 100 / (approvedNoOrder + rejectedNoOrder));
+    lines.push(`  注文番号なし: 承認率${rateNoOrder}% (承認${approvedNoOrder}件/却下${rejectedNoOrder}件)`);
+  }
+  lines.push("");
+  
+  // Human override insights
+  if ((stats.humanOverrides as any[]).length > 0) {
+    lines.push("【AI判定の人間修正実績】");
+    for (const row of (stats.humanOverrides as any[])) {
+      lines.push(`  AI判定「${row.aiDecision}」→ 人間修正「${row.humanOverride}」: ${row.cnt}件`);
+    }
+    lines.push("");
+  }
+  
+  lines.push("上記の統計を参考に、承認率が高い金額帯・条件のレシートは積極的に承認してください。");
+  lines.push("注文番号がOCRで取れなくても、画像から読み取れる場合は承認可能です。");
+  
+  return lines.join("\n");
+}
+
 
 // ===== AI自動審査ログ関数 =====
 
