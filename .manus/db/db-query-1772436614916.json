@@ -1,0 +1,70 @@
+{
+  "query": "SELECT a.id, a.orderNumber, a.totalAmount, a.storeName, SUBSTRING(a.imageUrl, 1, 50) as log_img, a.aiDecision, r.totalAmount as r_amt, r.storeName as r_store, SUBSTRING(r.imageUrl, 1, 50) as r_img, r.pointsAwarded as r_pts FROM ai_auto_review_logs a LEFT JOIN line_receipts r ON a.receiptId = r.id WHERE a.isDryRun = 0 ORDER BY a.id DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT a.id, a.orderNumber, a.totalAmount, a.storeName, SUBSTRING(a.imageUrl, 1, 50) as log_img, a.aiDecision, r.totalAmount as r_amt, r.storeName as r_store, SUBSTRING(r.imageUrl, 1, 50) as r_img, r.pointsAwarded as r_pts FROM ai_auto_review_logs a LEFT JOIN line_receipts r ON a.receiptId = r.id WHERE a.isDryRun = 0 ORDER BY a.id DESC LIMIT 5;",
+  "rows": [
+    {
+      "id": "30590",
+      "orderNumber": "582612293209327565",
+      "totalAmount": "3003",
+      "storeName": "KYOGOKU JAPAN",
+      "log_img": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045",
+      "aiDecision": "approved",
+      "r_amt": "3003",
+      "r_store": "KYOGOKU JAPAN",
+      "r_img": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045",
+      "r_pts": "30"
+    },
+    {
+      "id": "30589",
+      "orderNumber": "582644424684373001",
+      "totalAmount": "3080",
+      "storeName": "コスメメゾン・セインムー [seins mous]",
+      "log_img": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045",
+      "aiDecision": "approved",
+      "r_amt": "3080",
+      "r_store": "コスメメゾン・セインムー [seins mous]",
+      "r_img": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045",
+      "r_pts": "30"
+    },
+    {
+      "id": "30588",
+      "orderNumber": "582613696070191053",
+      "totalAmount": "7775",
+      "storeName": "KYOGOKU JAPAN",
+      "log_img": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045",
+      "aiDecision": "approved",
+      "r_amt": "7775",
+      "r_store": "KYOGOKU JAPAN",
+      "r_img": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045",
+      "r_pts": "77"
+    },
+    {
+      "id": "30587",
+      "orderNumber": "NULL",
+      "totalAmount": "NULL",
+      "storeName": "NULL",
+      "log_img": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045",
+      "aiDecision": "skipped",
+      "r_amt": "NULL",
+      "r_store": "NULL",
+      "r_img": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045",
+      "r_pts": "NULL"
+    },
+    {
+      "id": "30586",
+      "orderNumber": "582309319922254955",
+      "totalAmount": "5312",
+      "storeName": "KYOGOKU JAPAN",
+      "log_img": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045",
+      "aiDecision": "approved",
+      "r_amt": "5312",
+      "r_store": "KYOGOKU JAPAN",
+      "r_img": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045",
+      "r_pts": "53"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\torderNumber\ttotalAmount\tstoreName\tlog_img\taiDecision\tr_amt\tr_store\tr_img\tr_pts\n30590\t582612293209327565\t3003\tKYOGOKU JAPAN\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045\tapproved\t3003\tKYOGOKU JAPAN\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045\t30\n30589\t582644424684373001\t3080\tコスメメゾン・セインムー [seins mous]\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045\tapproved\t3080\tコスメメゾン・セインムー [seins mous]\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045\t30\n30588\t582613696070191053\t7775\tKYOGOKU JAPAN\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045\tapproved\t7775\tKYOGOKU JAPAN\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045\t77\n30587\tNULL\tNULL\tNULL\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045\tskipped\tNULL\tNULL\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045\tNULL\n30586\t582309319922254955\t5312\tKYOGOKU JAPAN\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045\tapproved\t5312\tKYOGOKU JAPAN\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045\t53\n",
+  "stderr": "",
+  "execution_time_ms": 1650
+}
