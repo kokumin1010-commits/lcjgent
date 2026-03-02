@@ -1061,6 +1061,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                <span className="text-xs text-purple-600">{t("lr.batchSize")}:</span>
                 <Select
                   value={String(aiAutoApproveLimit)}
                   onValueChange={(v) => setAiAutoApproveLimit(Number(v))}
@@ -1075,29 +1076,12 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                     <SelectItem value="100">100件</SelectItem>
                   </SelectContent>
                 </Select>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="border-purple-300 text-purple-700 hover:bg-purple-100"
-                  onClick={() => aiAutoApproveMutation.mutate({ limit: aiAutoApproveLimit, dryRun: true, confidenceThreshold: 85 })}
-                  disabled={aiAutoApproveMutation.isPending}
-                >
-                  {aiAutoApproveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Eye className="w-4 h-4 mr-1" />}
-                  {t("lr.preview")}
-                </Button>
-                <Button
-                  size="sm"
-                  className="bg-purple-600 hover:bg-purple-700 text-white"
-                  onClick={() => {
-                    if (confirm(t("lr.aiAutoConfirm").replace("{count}", String(aiAutoApproveLimit)))) {
-                      aiAutoApproveMutation.mutate({ limit: aiAutoApproveLimit, dryRun: false, confidenceThreshold: 85 });
-                    }
-                  }}
-                  disabled={aiAutoApproveMutation.isPending}
-                >
-                  {aiAutoApproveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Zap className="w-4 h-4 mr-1" />}
-                  {t("lr.execute")}
-                </Button>
+                {aiAutoApproveMutation.isPending && (
+                  <div className="flex items-center gap-1 text-purple-600">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-xs">{t("lr.processing")}</span>
+                  </div>
+                )}
               </div>
             </div>
             
@@ -1106,7 +1090,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
               <div className="mt-3 border-t border-purple-200 pt-3">
                 <div className="flex items-center gap-4 mb-2">
                   <Badge variant="outline" className="border-purple-300 text-purple-700">
-                    {aiAutoApproveResult.dryRun ? `${t("lr.preview")}` : `${t("lr.execute")}`}
+                    {t("lr.execute")}
                   </Badge>
                   <span className="text-sm text-purple-700">{aiAutoApproveResult.processed}{t("lr.items")}</span>
                 </div>

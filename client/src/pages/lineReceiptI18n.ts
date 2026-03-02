@@ -131,6 +131,7 @@ export const lineReceiptJa: Record<string, string> = {
   "lr.enterDetailReason": "詳細な理由を入力してください",
   "lr.makeHold": "保留にする",
   "lr.processing": "処理中...",
+  "lr.batchSize": "バッチ件数",
 
   // Order number dialog (old keys)
   "lr.manualOrderNumber": "注文番号を手動入力",
@@ -410,6 +411,7 @@ export const lineReceiptZh: Record<string, string> = {
   "lr.enterDetailReason": "请输入详细原因",
   "lr.makeHold": "暂挂",
   "lr.processing": "处理中...",
+  "lr.batchSize": "批量数量",
 
   // Order number dialog (old keys)
   "lr.manualOrderNumber": "手动输入订单号",
