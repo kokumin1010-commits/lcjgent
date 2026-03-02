@@ -2601,7 +2601,7 @@ function AiReviewLogPanel() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {logs.map((log: any) => {
             const config = decisionConfig[log.aiDecision] || decisionConfig.skipped;
             const DecisionIcon = config.icon;
@@ -2612,171 +2612,143 @@ function AiReviewLogPanel() {
             return (
               <Card 
                 key={log.id} 
-                className={`transition-all hover:shadow-md ${
+                className={`transition-all hover:shadow-md overflow-hidden ${
                   log.humanOverride 
-                    ? "border-blue-300 bg-blue-50/30 ring-1 ring-blue-200" 
-                    : `${config.border} ${config.bg}/30`
+                    ? "border-blue-300 bg-blue-50/30" 
+                    : ""
                 }`}
               >
-                <CardContent className="py-3 px-4">
-                  <div className="flex gap-3">
-                    {/* Left: Thumbnail */}
-                    <div className="flex-shrink-0">
-                      {log.imageUrl ? (
-                        <img 
-                          src={log.imageUrl} 
-                          alt="レシート" 
-                          className={`w-14 h-14 object-cover rounded-lg border-2 ${config.border}`}
-                        />
-                      ) : (
-                        <div className={`w-14 h-14 rounded-lg border-2 ${config.border} ${config.bg} flex items-center justify-center`}>
-                          <FileText className={`w-6 h-6 ${config.text} opacity-50`} />
-                        </div>
+                <CardContent className="p-2.5">
+                  <div className="space-y-1.5">
+                    {/* Row 1: User/ID + Decision + Confidence + Override */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {log.userName && (
+                        <span className="font-semibold text-xs truncate max-w-[100px]">{log.userName}</span>
+                      )}
+                      <span className="text-[10px] font-mono text-muted-foreground">#{log.receiptId}</span>
+                      <Badge variant="outline" className={`${config.bg} ${config.text} ${config.border} text-[10px] px-1 py-0`}>
+                        <DecisionIcon className="w-2.5 h-2.5 mr-0.5" />
+                        {config.label}
+                      </Badge>
+                      {log.aiConfidence != null && confidenceColor && (
+                        <Badge variant="outline" className={`${confidenceColor.text} text-[10px] px-1 py-0`}>
+                          <Bot className="w-2.5 h-2.5 mr-0.5" />
+                          {log.aiConfidence}%
+                        </Badge>
+                      )}
+                      {log.humanOverride && (
+                        <Badge variant="outline" className={`text-[10px] px-1 py-0 ${
+                          log.humanOverride === "approved" 
+                            ? "bg-blue-100 text-blue-700 border-blue-300" 
+                            : "bg-pink-100 text-pink-700 border-pink-300"
+                        }`}>
+                          {log.humanOverride === "approved" ? <ThumbsUp className="w-2.5 h-2.5 mr-0.5" /> : <ThumbsDown className="w-2.5 h-2.5 mr-0.5" />}
+                          {log.humanOverride === "approved" ? t("lr.aiLog.humanApproved") : t("lr.aiLog.humanRejected")}
+                        </Badge>
                       )}
                     </div>
-                    
-                    {/* Center: Main info */}
-                    <div className="flex-1 min-w-0">
-                      {/* Top row: ID + Decision badge + Confidence + Override */}
-                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                        <span className="text-xs font-mono font-bold text-muted-foreground">#{log.receiptId}</span>
-                        
-                        {/* AI Decision Badge - prominent */}
-                        <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full ${config.bg} ${config.text} ${config.border} border`}>
-                          <DecisionIcon className="w-3 h-3" />
-                          {config.label}
-                        </span>
-                        
-                        {/* Confidence meter */}
-                        {log.aiConfidence != null && confidenceColor && (
-                          <span className="inline-flex items-center gap-1">
-                            <div className="w-12 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                              <div 
-                                className={`h-full rounded-full ${confidenceColor.bg}`}
-                                style={{ width: `${log.aiConfidence}%` }}
-                              />
-                            </div>
-                            <span className={`text-[10px] font-bold ${confidenceColor.text}`}>{log.aiConfidence}%</span>
-                          </span>
-                        )}
-                        
-                        {/* Human override badge */}
-                        {log.humanOverride && (
-                          <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${
-                            log.humanOverride === "approved" 
-                              ? "bg-blue-100 text-blue-700 border-blue-300" 
-                              : "bg-pink-100 text-pink-700 border-pink-300"
-                          }`}>
-                            {log.humanOverride === "approved" ? <ThumbsUp className="w-2.5 h-2.5" /> : <ThumbsDown className="w-2.5 h-2.5" />}
-                            {log.humanOverride === "approved" ? t("lr.aiLog.humanApproved") : t("lr.aiLog.humanRejected")}
-                          </span>
-                        )}
-                      </div>
-                      
-                      {/* Meta info row */}
-                      <div className="flex items-center gap-2 text-[11px] text-muted-foreground mb-1.5 flex-wrap">
-                        {log.orderNumber && (
-                          <span className="inline-flex items-center gap-0.5 bg-gray-100 rounded px-1.5 py-0.5">
-                            <Hash className="w-2.5 h-2.5" />
-                            <span className="font-mono">{log.orderNumber}</span>
-                          </span>
-                        )}
-                        {log.storeName && (
-                          <span className="inline-flex items-center gap-0.5">
-                            <Store className="w-2.5 h-2.5" />{log.storeName}
-                          </span>
-                        )}
-                        {log.totalAmount != null && (
-                          <span className="inline-flex items-center gap-0.5 font-medium">
-                            <DollarSign className="w-2.5 h-2.5" />¥{Number(log.totalAmount).toLocaleString()}
-                          </span>
-                        )}
-                        <span className="inline-flex items-center gap-0.5">
-                          <Calendar className="w-2.5 h-2.5" />
-                          {new Date(log.createdAt).toLocaleString("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                        </span>
-                      </div>
-                      
-                      {/* AI Comment - collapsible */}
-                      {log.aiComment && (
-                        <div 
-                          className={`text-xs leading-relaxed rounded-md px-2.5 py-1.5 ${config.bg} ${config.border} border cursor-pointer`}
-                          onClick={() => commentTruncated && toggleComment(log.id)}
-                        >
-                          <div className="flex items-start gap-1">
-                            <Bot className={`w-3 h-3 mt-0.5 flex-shrink-0 ${config.text}`} />
-                            <span className={`${config.text}`}>
-                              {commentTruncated && !isExpanded 
-                                ? log.aiComment.substring(0, 60) + "..." 
-                                : log.aiComment
-                              }
-                            </span>
-                            {commentTruncated && (
-                              <button className={`flex-shrink-0 ${config.text} opacity-60`}>
-                                {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                              </button>
-                            )}
-                          </div>
-                        </div>
+                    {/* Row 2: Amount + Points + Order Number */}
+                    <div className="flex items-center gap-2 text-xs">
+                      {log.totalAmount != null && (
+                        <span className="font-bold">¥{Number(log.totalAmount).toLocaleString()}</span>
                       )}
-                      
-                      {/* Human comment */}
-                      {log.humanComment && (
-                        <div className="mt-1.5 text-xs bg-blue-50 rounded-md px-2.5 py-1.5 border border-blue-200">
-                          <div className="flex items-start gap-1">
-                            <User className="w-3 h-3 mt-0.5 flex-shrink-0 text-blue-600" />
-                            <span className="text-blue-700">{log.humanComment}</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Right: Action buttons */}
-                    <div className="flex-shrink-0 flex flex-col gap-1 justify-center">
-                      {!log.humanOverride && (
+                      {log.pointsAwarded != null && (
                         <>
-                          {log.aiDecision !== "approved" && (
-                            <Button
-                              size="sm"
-                              className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-full shadow-sm"
-                              onClick={() => {
-                                const comment = prompt(t("lr.aiLog.approveComment"));
-                                overrideMutation.mutate({
-                                  logId: log.id,
-                                  humanOverride: "approved",
-                                  humanComment: comment || undefined,
-                                });
-                              }}
-                              disabled={overrideMutation.isPending}
-                            >
-                              <ThumbsUp className="w-3 h-3 mr-1" />
-                              {t("lr.approve")}
-                            </Button>
-                          )}
-                          {log.aiDecision === "approved" && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs border-red-300 text-red-600 hover:bg-red-50 rounded-full"
-                              onClick={() => {
-                                const comment = prompt(t("lr.aiLog.rejectReason"));
-                                if (comment) {
-                                  overrideMutation.mutate({
-                                    logId: log.id,
-                                    humanOverride: "rejected",
-                                    humanComment: comment,
-                                  });
-                                }
-                              }}
-                              disabled={overrideMutation.isPending}
-                            >
-                              <ThumbsDown className="w-3 h-3 mr-1" />
-                              {t("lr.reject")}
-                            </Button>
-                          )}
+                          <span className="text-muted-foreground">→</span>
+                          <span className="font-bold text-green-600">{log.pointsAwarded}pt</span>
                         </>
                       )}
+                      {log.orderNumber && (
+                        <span className="flex items-center gap-0.5 text-[11px]">
+                          <Hash className="w-3 h-3 text-blue-400" />
+                          <span className="text-blue-600 font-mono text-[10px] truncate max-w-[180px]">{log.orderNumber}</span>
+                        </span>
+                      )}
                     </div>
+                    {/* Row 3: Store + Date + Action buttons */}
+                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                      <span className="truncate">{log.storeName || ""}</span>
+                      {log.storeName && <span>·</span>}
+                      <span className="flex-shrink-0">
+                        {new Date(log.createdAt).toLocaleString("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                      <div className="ml-auto flex items-center gap-1">
+                        {!log.humanOverride && (
+                          <>
+                            {log.aiDecision !== "approved" && (
+                              <Button
+                                size="sm"
+                                className="h-6 px-2 text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white"
+                                onClick={() => {
+                                  const comment = prompt(t("lr.aiLog.approveComment"));
+                                  overrideMutation.mutate({
+                                    logId: log.id,
+                                    humanOverride: "approved",
+                                    humanComment: comment || undefined,
+                                  });
+                                }}
+                                disabled={overrideMutation.isPending}
+                              >
+                                <ThumbsUp className="w-3 h-3 mr-0.5" />
+                                {t("lr.approve")}
+                              </Button>
+                            )}
+                            {log.aiDecision === "approved" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 px-2 text-[10px] border-red-300 text-red-600 hover:bg-red-50"
+                                onClick={() => {
+                                  const comment = prompt(t("lr.aiLog.rejectReason"));
+                                  if (comment) {
+                                    overrideMutation.mutate({
+                                      logId: log.id,
+                                      humanOverride: "rejected",
+                                      humanComment: comment,
+                                    });
+                                  }
+                                }}
+                                disabled={overrideMutation.isPending}
+                              >
+                                <ThumbsDown className="w-3 h-3 mr-0.5" />
+                                {t("lr.reject")}
+                              </Button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {/* AI Comment - collapsible, compact */}
+                    {log.aiComment && (
+                      <div 
+                        className={`text-[10px] leading-relaxed rounded px-2 py-1 ${config.bg} ${config.border} border cursor-pointer`}
+                        onClick={() => commentTruncated && toggleComment(log.id)}
+                      >
+                        <div className="flex items-start gap-1">
+                          <Bot className={`w-3 h-3 mt-0.5 flex-shrink-0 ${config.text}`} />
+                          <span className={`${config.text}`}>
+                            {commentTruncated && !isExpanded 
+                              ? log.aiComment.substring(0, 80) + "..." 
+                              : log.aiComment
+                            }
+                          </span>
+                          {commentTruncated && (
+                            <button className={`flex-shrink-0 ${config.text} opacity-60`}>
+                              {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {/* Human comment */}
+                    {log.humanComment && (
+                      <div className="text-[10px] bg-blue-50 rounded px-2 py-1 border border-blue-200">
+                        <div className="flex items-start gap-1">
+                          <User className="w-3 h-3 mt-0.5 flex-shrink-0 text-blue-600" />
+                          <span className="text-blue-700">{log.humanComment}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
