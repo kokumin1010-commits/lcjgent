@@ -21,6 +21,19 @@ const BATCH_DELAY_MS = 3000;
 const IDLE_CHECK_INTERVAL_MS = 30000;
 // Max consecutive errors before auto-stop
 const MAX_CONSECUTIVE_ERRORS = 5;
+// Timeout for individual operations (ms)
+const OPERATION_TIMEOUT_MS = 600000; // 10 minutes (20 receipts × ~15-20s each LLM call)
+
+/** Wrap a promise with a timeout */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Timeout after ${ms}ms: ${label}`)), ms);
+    promise.then(
+      (val) => { clearTimeout(timer); resolve(val); },
+      (err) => { clearTimeout(timer); reject(err); }
+    );
+  });
+}
 
 let isProcessing = false;
 let shouldStop = false;
@@ -107,12 +120,18 @@ async function checkAndProcess() {
  */
 async function processBatchLoop(adminUserId: number) {
   let consecutiveErrors = 0;
+  const dbModule = await import("./db");
 
   while (!shouldStop) {
     try {
+      console.log(`[AI AutoApprove Scheduler] Loop iteration start (errors: ${consecutiveErrors})`);
+      
       // Re-check if still running (admin might have stopped it)
-      const { getAiAutoApproveSetting } = await import("./db");
-      const settings = await getAiAutoApproveSetting();
+      const settings = await withTimeout(
+        dbModule.getAiAutoApproveSetting(),
+        30000,
+        "getAiAutoApproveSetting"
+      );
       
       if (!settings?.isRunning) {
         console.log("[AI AutoApprove Scheduler] isRunning=false, stopping");
@@ -122,8 +141,14 @@ async function processBatchLoop(adminUserId: number) {
       const batchSize = settings.batchSize || 20;
       const confidenceThreshold = settings.confidenceThreshold || 70;
 
-      // Process one batch
-      const result = await processOneBatch(adminUserId, batchSize, confidenceThreshold);
+      console.log(`[AI AutoApprove Scheduler] Starting batch (size: ${batchSize}, threshold: ${confidenceThreshold})`);
+      
+      // Process one batch with timeout
+      const result = await withTimeout(
+        processOneBatch(adminUserId, batchSize, confidenceThreshold),
+        OPERATION_TIMEOUT_MS,
+        "processOneBatch"
+      );
       
       if (!result) {
         // No candidates left
@@ -134,18 +159,32 @@ async function processBatchLoop(adminUserId: number) {
 
       consecutiveErrors = 0; // Reset on success
 
-      // Update progress in DB
-      const { updateAiAutoApproveSetting } = await import("./db");
-      await updateAiAutoApproveSetting({
-        lastRunAt: new Date(),
-        lastRunBatchId: result.batchId,
-        totalProcessed: (settings.totalProcessed || 0) + result.processed,
-        totalApproved: (settings.totalApproved || 0) + result.summary.approved,
-        totalRejected: (settings.totalRejected || 0) + result.summary.rejectedDuplicate + result.summary.rejectedAi,
-        totalHeld: (settings.totalHeld || 0) + result.summary.held,
-        totalSkipped: (settings.totalSkipped || 0) + result.summary.skipped,
-        currentBatchNumber: (settings.currentBatchNumber || 0) + 1,
-      });
+      // Update progress in DB (batch-level summary)
+      console.log(`[AI AutoApprove Scheduler] Updating batch progress in DB...`);
+      try {
+        // Re-read latest settings to avoid overwriting incremental updates
+        const latestSettings = await withTimeout(
+          dbModule.getAiAutoApproveSetting(),
+          30000,
+          "getAiAutoApproveSetting for update"
+        );
+        await withTimeout(
+          dbModule.updateAiAutoApproveSetting({
+            lastRunAt: new Date(),
+            lastRunBatchId: result.batchId,
+            totalProcessed: (latestSettings?.totalProcessed || 0) + result.processed,
+            totalApproved: (latestSettings?.totalApproved || 0) + result.summary.approved,
+            totalRejected: (latestSettings?.totalRejected || 0) + result.summary.rejectedDuplicate + result.summary.rejectedAi,
+            totalHeld: (latestSettings?.totalHeld || 0) + result.summary.held,
+            totalSkipped: (latestSettings?.totalSkipped || 0) + result.summary.skipped,
+            currentBatchNumber: (latestSettings?.currentBatchNumber || 0) + 1,
+          }),
+          30000,
+          "updateAiAutoApproveSetting"
+        );
+      } catch (updateErr: any) {
+        console.error(`[AI AutoApprove Scheduler] Failed to update batch progress:`, updateErr.message);
+      }
 
       console.log(`[AI AutoApprove Scheduler] Batch ${result.batchId} complete: ${JSON.stringify(result.summary)}`);
 
@@ -156,11 +195,12 @@ async function processBatchLoop(adminUserId: number) {
       }
 
       // Delay before next batch
+      console.log(`[AI AutoApprove Scheduler] Waiting ${BATCH_DELAY_MS}ms before next batch...`);
       await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
 
     } catch (error: any) {
       consecutiveErrors++;
-      console.error(`[AI AutoApprove Scheduler] Batch error (${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}):`, error.message);
+      console.error(`[AI AutoApprove Scheduler] Batch error (${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}):`, error.message, error.stack?.substring(0, 300));
 
       if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
         console.error("[AI AutoApprove Scheduler] Too many consecutive errors, stopping");
@@ -172,6 +212,7 @@ async function processBatchLoop(adminUserId: number) {
       await new Promise(resolve => setTimeout(resolve, 10000));
     }
   }
+  console.log("[AI AutoApprove Scheduler] processBatchLoop exited");
 }
 
 /**

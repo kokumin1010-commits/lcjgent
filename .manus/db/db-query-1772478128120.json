@@ -1,0 +1,30 @@
+{
+  "query": "SELECT * FROM ai_auto_approve_settings LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT * FROM ai_auto_approve_settings LIMIT 1;",
+  "rows": [
+    {
+      "id": "1",
+      "isEnabled": "1",
+      "confidenceThreshold": "85",
+      "batchSize": "20",
+      "lastRunAt": "2026-03-02 17:36:23",
+      "lastRunBatchId": "batch_1772472667484_aaojjx",
+      "updatedBy": "1",
+      "createdAt": "2026-03-01 15:18:38",
+      "updatedAt": "2026-03-02 18:58:42",
+      "isRunning": "1",
+      "totalProcessed": "0",
+      "totalApproved": "0",
+      "totalRejected": "0",
+      "totalHeld": "0",
+      "totalSkipped": "0",
+      "currentBatchNumber": "0",
+      "startedAt": "2026-03-02 18:58:42",
+      "stoppedAt": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tisEnabled\tconfidenceThreshold\tbatchSize\tlastRunAt\tlastRunBatchId\tupdatedBy\tcreatedAt\tupdatedAt\tisRunning\ttotalProcessed\ttotalApproved\ttotalRejected\ttotalHeld\ttotalSkipped\tcurrentBatchNumber\tstartedAt\tstoppedAt\n1\t1\t85\t20\t2026-03-02 17:36:23\tbatch_1772472667484_aaojjx\t1\t2026-03-01 15:18:38\t2026-03-02 18:58:42\t1\t0\t0\t0\t0\t0\t0\t2026-03-02 18:58:42\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1607
+}

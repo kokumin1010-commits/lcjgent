@@ -1,0 +1,21 @@
+{
+  "query": "SELECT id, isEnabled, isRunning, totalProcessed, totalApproved, currentBatchNumber, startedAt, stoppedAt, updatedBy FROM ai_auto_approve_settings;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, isEnabled, isRunning, totalProcessed, totalApproved, currentBatchNumber, startedAt, stoppedAt, updatedBy FROM ai_auto_approve_settings;",
+  "rows": [
+    {
+      "id": "1",
+      "isEnabled": "1",
+      "isRunning": "1",
+      "totalProcessed": "0",
+      "totalApproved": "0",
+      "currentBatchNumber": "0",
+      "startedAt": "2026-03-02 18:58:42",
+      "stoppedAt": "NULL",
+      "updatedBy": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tisEnabled\tisRunning\ttotalProcessed\ttotalApproved\tcurrentBatchNumber\tstartedAt\tstoppedAt\tupdatedBy\n1\t1\t1\t0\t0\t0\t2026-03-02 18:58:42\tNULL\t1\n",
+  "stderr": "",
+  "execution_time_ms": 1719
+}
