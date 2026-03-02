@@ -2402,7 +2402,7 @@ function AiReviewLogPanel() {
   const [filter, setFilter] = useState<string>("all");
   const [selectedBatchId, setSelectedBatchId] = useState<string | undefined>(undefined);
   const [expandedComments, setExpandedComments] = useState<Set<number>>(new Set());
-  const [expandedImages, setExpandedImages] = useState<Set<number>>(new Set());
+  const [expandedImages, setExpandedImages] = useState<Map<number, number>>(new Map());
   const [reRecognizingIds, setReRecognizingIds] = useState<Set<number>>(new Set());
   const utils = trpc.useUtils();
   
@@ -2626,7 +2626,7 @@ function AiReviewLogPanel() {
             const config = decisionConfig[log.aiDecision] || decisionConfig.skipped;
             const DecisionIcon = config.icon;
             const isExpanded = expandedComments.has(log.id);
-            const isImagesExpanded = expandedImages.has(log.id);
+            // Image index tracked in expandedImages Map
             const isReRecognizing = reRecognizingIds.has(log.id);
             const confidenceColor = log.aiConfidence ? getConfidenceColor(log.aiConfidence) : null;
             const points = log.receiptPointsAwarded ?? log.receiptPointsCalculated ?? 0;
@@ -2736,27 +2736,91 @@ function AiReviewLogPanel() {
                     )}
                   </div>
                   
-                  {/* Image Gallery - Compact thumbnails, click to expand */}
-                  {allImages.length > 0 && (
-                    <div className="mt-2 flex gap-2 flex-wrap">
-                      {allImages.map((url, idx) => (
-                        <a 
-                          key={idx}
-                          href={url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="block flex-shrink-0"
-                        >
+                  {/* Image Gallery - Center panel style with arrows, pagination & thumbnails */}
+                  {allImages.length > 0 && (() => {
+                    const currentIdx = expandedImages.get(log.id) ?? 0;
+                    return (
+                      <div className="mt-2">
+                        {/* Pagination header */}
+                        {allImages.length > 1 && (
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-1">
+                              <Images className="w-3.5 h-3.5 text-blue-600" />
+                              <span className="text-xs text-muted-foreground">{t("lr.receiptImages")}</span>
+                            </div>
+                            <Badge variant="secondary" className="text-xs">{currentIdx + 1} / {allImages.length}</Badge>
+                          </div>
+                        )}
+                        {/* Main image */}
+                        <div className="relative bg-gray-50 rounded-lg overflow-hidden" style={{ minHeight: '300px' }}>
                           <img 
-                            src={url} 
-                            alt={`レシート ${idx + 1}`} 
-                            className="h-[180px] w-auto object-contain rounded-md border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all cursor-zoom-in bg-gray-50"
+                            src={allImages[currentIdx] || allImages[0]} 
+                            alt={`\u30ec\u30b7\u30fc\u30c8\u753b\u50cf ${currentIdx + 1}`}
+                            className="w-full h-auto max-h-[50vh] object-contain mx-auto cursor-pointer"
                             loading="lazy"
+                            onClick={() => {
+                              openImageViewer(allImages, currentIdx);
+                            }}
                           />
-                        </a>
-                      ))}
-                    </div>
-                  )}
+                          {allImages.length > 1 && (
+                            <>
+                              <button
+                                className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white transition-colors shadow-lg"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedImages(prev => {
+                                    const next = new Map(prev);
+                                    const cur = next.get(log.id) || 0;
+                                    next.set(log.id, cur > 0 ? cur - 1 : allImages.length - 1);
+                                    return next;
+                                  });
+                                }}
+                              >
+                                <ChevronLeft className="w-5 h-5" />
+                              </button>
+                              <button
+                                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/40 hover:bg-black/60 text-white transition-colors shadow-lg"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedImages(prev => {
+                                    const next = new Map(prev);
+                                    const cur = next.get(log.id) || 0;
+                                    next.set(log.id, cur < allImages.length - 1 ? cur + 1 : 0);
+                                    return next;
+                                  });
+                                }}
+                              >
+                                <ChevronRight className="w-5 h-5" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                        {/* Thumbnail strip */}
+                        {allImages.length > 1 && (
+                          <div className="flex gap-2 mt-2 justify-center">
+                            {allImages.map((url, idx) => (
+                              <button
+                                key={idx}
+                                className={`w-14 h-14 rounded-lg overflow-hidden border-2 transition-all ${
+                                  idx === currentIdx ? "border-blue-500 shadow-md scale-105" : "border-transparent opacity-60 hover:opacity-100"
+                                }`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedImages(prev => {
+                                    const next = new Map(prev);
+                                    next.set(log.id, idx);
+                                    return next;
+                                  });
+                                }}
+                              >
+                                <img src={url} alt="" className="w-full h-full object-cover" />
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                   
                   {/* Action buttons row */}
                   <div className="flex items-center gap-2 mt-3 pt-2 border-t">
