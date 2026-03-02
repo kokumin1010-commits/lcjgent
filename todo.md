@@ -6588,3 +6588,10 @@
 - [x] サマリーカードに学習数カード（紫色、🧠アイコン）を追加
 - [x] overrideMutation成功時にlearningStats invalidateを追加
 - [x] AI学習フィードバックのvitestテスト（16テスト全パス）
+
+## AI再認識後の注文番号表示修正
+- [x] AI再認識で検出された注文番号がAI審査ログのカード上に表示されない問題を修正
+- [x] reRecognize mutation成功後にログデータの注文番号フィールドも更新する
+- [x] updateAiAutoReviewLogFields関数をdb.tsに追加
+- [x] reRecognize mutation内でorderNumber, totalAmount, storeNameをログに反映
+- [x] vitestテスト追加（20テスト全パス）

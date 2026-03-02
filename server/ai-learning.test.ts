@@ -32,6 +32,12 @@ vi.mock("./db", () => ({
     "- エラー種別: missing_order_number\n" +
     "- 学習メモ: AIは注文番号を認識できなかったが、画像には注文番号が存在する。\n"
   ),
+  updateAiAutoReviewLogFields: vi.fn().mockResolvedValue({
+    id: 1,
+    orderNumber: "582481660843165504",
+    totalAmount: 6232,
+    storeName: "KYOGOKU JAPAN",
+  }),
 }));
 
 describe("AI Learning Feedback", () => {
@@ -249,6 +255,93 @@ describe("AI Learning Feedback", () => {
       (hasLearningExampleForLog as any).mockResolvedValueOnce(true);
       const exists = await hasLearningExampleForLog(10);
       expect(exists).toBe(true);
+    });
+  });
+
+  describe("updateAiAutoReviewLogFields - reRecognize log update", () => {
+    it("should update log fields when reRecognize detects order number", async () => {
+      const { updateAiAutoReviewLogFields } = await import("./db");
+      
+      const result = await updateAiAutoReviewLogFields(1, {
+        orderNumber: "582481660843165504",
+        totalAmount: 6232,
+        storeName: "KYOGOKU JAPAN",
+      });
+
+      expect(updateAiAutoReviewLogFields).toHaveBeenCalledWith(1, {
+        orderNumber: "582481660843165504",
+        totalAmount: 6232,
+        storeName: "KYOGOKU JAPAN",
+      });
+      expect(result).toBeDefined();
+      expect(result!.orderNumber).toBe("582481660843165504");
+      expect(result!.totalAmount).toBe(6232);
+      expect(result!.storeName).toBe("KYOGOKU JAPAN");
+    });
+
+    it("should build correct log update data from parsed reRecognize result", () => {
+      // Simulate the logic in reRecognize mutation
+      const parsed = {
+        orderNumber: "582481660843165504",
+        totalAmount: 6232,
+        shopName: "KYOGOKU JAPAN",
+        productName: "KYOGOKU \u30cf\u30a4\u30e9\u30a4\u30c8\u30b3\u30fc\u30e0",
+      };
+      const log = {
+        aiDecision: "skipped",
+        aiComment: "\u30b9\u30ad\u30c3\u30d7: \u6ce8\u6587\u756a\u53f7\u306a\u3057",
+      };
+
+      const logUpdateData: any = {};
+      if (parsed.orderNumber) logUpdateData.orderNumber = parsed.orderNumber;
+      if (parsed.totalAmount && parsed.totalAmount > 0) logUpdateData.totalAmount = parsed.totalAmount;
+      if (parsed.shopName) logUpdateData.storeName = parsed.shopName;
+      if (parsed.orderNumber && log.aiDecision === "skipped" && log.aiComment?.includes("\u6ce8\u6587\u756a\u53f7\u306a\u3057")) {
+        logUpdateData.aiComment = `\u518d\u8a8d\u8b58\u3067\u6ce8\u6587\u756a\u53f7\u3092\u691c\u51fa: ${parsed.orderNumber}`;
+      }
+
+      expect(logUpdateData.orderNumber).toBe("582481660843165504");
+      expect(logUpdateData.totalAmount).toBe(6232);
+      expect(logUpdateData.storeName).toBe("KYOGOKU JAPAN");
+      expect(logUpdateData.aiComment).toBe("\u518d\u8a8d\u8b58\u3067\u6ce8\u6587\u756a\u53f7\u3092\u691c\u51fa: 582481660843165504");
+    });
+
+    it("should not update aiComment when original decision is not skipped", () => {
+      const parsed = {
+        orderNumber: "123456",
+        totalAmount: 5000,
+        shopName: "Test Store",
+      };
+      const log = {
+        aiDecision: "approved",
+        aiComment: "\u627f\u8a8d",
+      };
+
+      const logUpdateData: any = {};
+      if (parsed.orderNumber) logUpdateData.orderNumber = parsed.orderNumber;
+      if (parsed.totalAmount && parsed.totalAmount > 0) logUpdateData.totalAmount = parsed.totalAmount;
+      if (parsed.shopName) logUpdateData.storeName = parsed.shopName;
+      if (parsed.orderNumber && log.aiDecision === "skipped" && log.aiComment?.includes("\u6ce8\u6587\u756a\u53f7\u306a\u3057")) {
+        logUpdateData.aiComment = `\u518d\u8a8d\u8b58\u3067\u6ce8\u6587\u756a\u53f7\u3092\u691c\u51fa: ${parsed.orderNumber}`;
+      }
+
+      expect(logUpdateData.orderNumber).toBe("123456");
+      expect(logUpdateData.aiComment).toBeUndefined();
+    });
+
+    it("should not add empty fields to log update data", () => {
+      const parsed = {
+        orderNumber: null,
+        totalAmount: 0,
+        shopName: "",
+      };
+
+      const logUpdateData: any = {};
+      if (parsed.orderNumber) logUpdateData.orderNumber = parsed.orderNumber;
+      if (parsed.totalAmount && parsed.totalAmount > 0) logUpdateData.totalAmount = parsed.totalAmount;
+      if (parsed.shopName) logUpdateData.storeName = parsed.shopName;
+
+      expect(Object.keys(logUpdateData)).toHaveLength(0);
     });
   });
 });

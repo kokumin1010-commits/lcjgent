@@ -17436,6 +17436,35 @@ export async function updateAiAutoApproveSetting(data: {
   return await getAiAutoApproveSetting();
 }
 
+// AI審査ログのフィールドを更新（再認識結果の反映等）
+export async function updateAiAutoReviewLogFields(logId: number, data: {
+  orderNumber?: string | null;
+  totalAmount?: number | null;
+  storeName?: string | null;
+  aiDecision?: string;
+  aiConfidence?: number;
+  aiComment?: string;
+  aiReason?: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const updateFields: any = {};
+  if (data.orderNumber !== undefined) updateFields.orderNumber = data.orderNumber;
+  if (data.totalAmount !== undefined) updateFields.totalAmount = data.totalAmount;
+  if (data.storeName !== undefined) updateFields.storeName = data.storeName;
+  if (data.aiDecision !== undefined) updateFields.aiDecision = data.aiDecision;
+  if (data.aiConfidence !== undefined) updateFields.aiConfidence = data.aiConfidence;
+  if (data.aiComment !== undefined) updateFields.aiComment = data.aiComment;
+  if (data.aiReason !== undefined) updateFields.aiReason = data.aiReason;
+  
+  if (Object.keys(updateFields).length === 0) return null;
+  
+  await db.update(aiAutoReviewLogs).set(updateFields).where(eq(aiAutoReviewLogs.id, logId));
+  const result = await db.select().from(aiAutoReviewLogs).where(eq(aiAutoReviewLogs.id, logId)).limit(1);
+  return result[0] || null;
+}
+
 // ===== AIレシート審査 学習フィードバック関数 =====
 
 // 学習例を保存（人間がAI判定をオーバーライドした時に呼ばれる）

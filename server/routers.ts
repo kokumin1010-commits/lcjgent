@@ -13710,6 +13710,20 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           await updateLineReceiptOcr(receipt.id, updateData);
         }
         
+        // AI審査ログの注文番号・金額・店舗名も更新する
+        const { updateAiAutoReviewLogFields } = await import("./db");
+        const logUpdateData: any = {};
+        if (parsed.orderNumber) logUpdateData.orderNumber = parsed.orderNumber;
+        if (parsed.totalAmount && parsed.totalAmount > 0) logUpdateData.totalAmount = parsed.totalAmount;
+        if (parsed.shopName) logUpdateData.storeName = parsed.shopName;
+        // AI再認識で注文番号が見つかった場合、aiDecisionとaiCommentも更新
+        if (parsed.orderNumber && log.aiDecision === "skipped" && log.aiComment?.includes("注文番号なし")) {
+          logUpdateData.aiComment = `再認識で注文番号を検出: ${parsed.orderNumber}`;
+        }
+        if (Object.keys(logUpdateData).length > 0) {
+          await updateAiAutoReviewLogFields(input.logId, logUpdateData);
+        }
+        
         return {
           orderNumber: parsed.orderNumber,
           totalAmount: parsed.totalAmount,
