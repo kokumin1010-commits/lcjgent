@@ -17259,6 +17259,7 @@ export async function getAiAutoReviewLogs(params?: {
   batchId?: string;
   aiDecision?: string;
   humanOverride?: string | null; // null = 未介入のみ
+  excludeAiApproved?: boolean;
   isDryRun?: boolean;
   limit?: number;
   offset?: number;
@@ -17271,6 +17272,7 @@ export async function getAiAutoReviewLogs(params?: {
   if (params?.aiDecision) conditions.push(eq(aiAutoReviewLogs.aiDecision, params.aiDecision));
   if (params?.humanOverride === null) conditions.push(isNull(aiAutoReviewLogs.humanOverride));
   else if (params?.humanOverride) conditions.push(eq(aiAutoReviewLogs.humanOverride, params.humanOverride));
+  if (params?.excludeAiApproved) conditions.push(not(eq(aiAutoReviewLogs.aiDecision, "approved")));
   if (params?.isDryRun !== undefined) conditions.push(eq(aiAutoReviewLogs.isDryRun, params.isDryRun));
   
   const where = conditions.length > 0 ? and(...conditions) : undefined;
@@ -17330,7 +17332,34 @@ export async function getAiAutoReviewLogStats() {
     .where(eq(aiAutoReviewLogs.isDryRun, false))
     .groupBy(aiAutoReviewLogs.aiDecision);
   
-  return results;
+  // 人間オーバーライド別の統計も取得
+  const humanStats = await db.select({
+    humanOverride: aiAutoReviewLogs.humanOverride,
+    count: sql<number>`COUNT(*)`,
+  })
+    .from(aiAutoReviewLogs)
+    .where(and(
+      eq(aiAutoReviewLogs.isDryRun, false),
+      isNotNull(aiAutoReviewLogs.humanOverride)
+    ))
+    .groupBy(aiAutoReviewLogs.humanOverride);
+  
+  // 手動審査待ち（humanOverrideがnullで、aiDecisionがapproved以外）の件数
+  const pendingManualReview = await db.select({
+    count: sql<number>`COUNT(*)`,
+  })
+    .from(aiAutoReviewLogs)
+    .where(and(
+      eq(aiAutoReviewLogs.isDryRun, false),
+      isNull(aiAutoReviewLogs.humanOverride),
+      not(eq(aiAutoReviewLogs.aiDecision, "approved"))
+    ));
+  
+  return {
+    byAiDecision: results,
+    byHumanOverride: humanStats,
+    pendingManualReviewCount: pendingManualReview[0]?.count ?? 0,
+  };
 }
 
 // バッチ一覧取得（ユニークなbatchIdごとの集計）

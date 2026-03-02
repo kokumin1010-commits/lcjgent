@@ -13397,6 +13397,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         batchId: z.string().optional(),
         aiDecision: z.string().optional(),
         humanOverride: z.string().nullable().optional(),
+        excludeAiApproved: z.boolean().optional(),
         isDryRun: z.boolean().optional(),
         limit: z.number().optional(),
         offset: z.number().optional(),

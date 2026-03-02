@@ -63,6 +63,8 @@ import {
   ShieldX,
   Gauge,
   Globe,
+  UserCheck,
+  UserX,
 } from "lucide-react";
 
 type ReceiptStatus = "pending" | "approved" | "rejected" | "on_hold" | "ai_log";
@@ -2435,11 +2437,24 @@ function AiReviewLogPanel() {
   // Fetch learning stats
   const { data: learningStats } = trpc.aiReview.learningStats.useQuery();
   
+  // Fetch stats for filter counts
+  const { data: statsData } = trpc.aiReview.getStats.useQuery();
+  
   // Fetch logs with filter
   const logsInput = useMemo(() => {
     const params: any = { isDryRun: false, limit: 100 };
     if (selectedBatchId) params.batchId = selectedBatchId;
-    if (filter !== "all") params.aiDecision = filter;
+    // 人間オーバーライドフィルター
+    if (filter === "human_approved") {
+      params.humanOverride = "approved";
+    } else if (filter === "human_rejected") {
+      params.humanOverride = "rejected";
+    } else if (filter === "pending_manual") {
+      params.humanOverride = null; // 未処理のみ
+      params.excludeAiApproved = true; // AI承認済みを除外
+    } else if (filter !== "all") {
+      params.aiDecision = filter;
+    }
     return params;
   }, [filter, selectedBatchId]);
   
@@ -2458,11 +2473,10 @@ function AiReviewLogPanel() {
           }
         }, 300);
       });
-      utils.aiReview.getBatches.invalidate();
       utils.aiReview.getStats.invalidate();
+      utils.aiReview.learningStats.invalidate();
       utils.point.adminGetLineReceipts.invalidate();
       utils.point.adminGetLineStatistics.invalidate();
-      utils.aiReview.learningStats.invalidate();
     },
     onError: (err) => {
       toast.error(`${t("lr.aiLog.overrideError")}: ${err.message}`);
@@ -2494,18 +2508,26 @@ function AiReviewLogPanel() {
     return { bg: "bg-red-500", text: "text-red-700" };
   };
   
-  // Summary counts
+  // Summary counts from stats API (not filtered by current view)
   const summaryCounts = useMemo(() => {
-    if (!logs) return { approved: 0, rejected: 0, rejectedAi: 0, held: 0, skipped: 0, total: 0 };
+    if (!statsData) return { approved: 0, rejected: 0, rejectedAi: 0, held: 0, skipped: 0, total: 0, humanApproved: 0, humanRejected: 0, pendingManual: 0 };
+    const byAi = statsData.byAiDecision || [];
+    const getCount = (decision: string) => (byAi.find((s: any) => s.aiDecision === decision)?.count ?? 0);
+    const total = byAi.reduce((sum: number, s: any) => sum + (s.count ?? 0), 0);
+    const humanApproved = (statsData.byHumanOverride || []).find((s: any) => s.humanOverride === "approved")?.count ?? 0;
+    const humanRejected = (statsData.byHumanOverride || []).find((s: any) => s.humanOverride === "rejected")?.count ?? 0;
     return {
-      approved: logs.filter((l: any) => l.aiDecision === "approved").length,
-      rejected: logs.filter((l: any) => l.aiDecision === "rejected_duplicate").length,
-      rejectedAi: logs.filter((l: any) => l.aiDecision === "rejected_ai").length,
-      held: logs.filter((l: any) => l.aiDecision === "held").length,
-      skipped: logs.filter((l: any) => l.aiDecision === "skipped").length,
-      total: logs.length,
+      approved: getCount("approved"),
+      rejected: getCount("rejected_duplicate"),
+      rejectedAi: getCount("rejected_ai"),
+      held: getCount("held"),
+      skipped: getCount("skipped"),
+      total,
+      humanApproved,
+      humanRejected,
+      pendingManual: statsData.pendingManualReviewCount ?? 0,
     };
-  }, [logs]);
+  }, [statsData]);
   
   return (
     <div className="space-y-4">
@@ -2611,12 +2633,15 @@ function AiReviewLogPanel() {
           { value: "rejected_ai", label: t("lr.aiLog.aiRejected"), icon: ShieldX, count: summaryCounts.rejectedAi },
           { value: "held", label: t("lr.aiLog.aiHeld"), icon: ShieldAlert, count: summaryCounts.held },
           { value: "skipped", label: t("lr.aiLog.skipped"), icon: SkipForward, count: summaryCounts.skipped },
-        ].map(({ value, label, icon: Icon, count }) => (
+          { value: "pending_manual", label: "手動審査へ", icon: SkipForward, count: summaryCounts.pendingManual, highlight: true },
+          { value: "human_approved", label: "人間承認", icon: UserCheck, count: summaryCounts.humanApproved },
+          { value: "human_rejected", label: "人間却下", icon: UserX, count: summaryCounts.humanRejected },
+        ].map(({ value, label, icon: Icon, count, highlight }: any) => (
           <Button
             key={value}
             variant={filter === value ? "default" : "outline"}
             size="sm"
-            className="text-xs h-7 rounded-full"
+            className={`text-xs h-7 rounded-full ${highlight && filter !== value ? 'border-blue-400 text-blue-600 font-semibold' : ''}`}
             onClick={() => setFilter(value)}
           >
             <Icon className="w-3 h-3 mr-1" />
