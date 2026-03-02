@@ -6595,3 +6595,7 @@
 - [x] updateAiAutoReviewLogFields関数をdb.tsに追加
 - [x] reRecognize mutation内でorderNumber, totalAmount, storeNameをログに反映
 - [x] vitestテスト追加（20テスト全パス）
+
+## AIコメント展開・自動次移動
+- [x] AIコメントをデフォルトで展開状態にする
+- [x] 承認/却下後に自動的に次の未処理レシートに移動する

@@ -2402,6 +2402,7 @@ function AiReviewLogPanel() {
   const [filter, setFilter] = useState<string>("all");
   const [selectedBatchId, setSelectedBatchId] = useState<string | undefined>(undefined);
   const [expandedComments, setExpandedComments] = useState<Set<number>>(new Set());
+  const [collapsedComments, setCollapsedComments] = useState<Set<number>>(new Set());
   const [expandedImages, setExpandedImages] = useState<Map<number, number>>(new Map());
   const [reRecognizingIds, setReRecognizingIds] = useState<Set<number>>(new Set());
   const utils = trpc.useUtils();
@@ -2448,7 +2449,15 @@ function AiReviewLogPanel() {
   const overrideMutation = trpc.aiReview.overrideDecision.useMutation({
     onSuccess: (data) => {
       toast.success(`${t("lr.aiLog.overrideSuccess")}: ${data.humanOverride === "approved" ? t("lr.approve") : t("lr.reject")}`);
-      utils.aiReview.getLogs.invalidate();
+      utils.aiReview.getLogs.invalidate().then(() => {
+        // 承認/却下後に次の未処理レシートに自動スクロール
+        setTimeout(() => {
+          const nextPending = document.querySelector('[data-pending-review="true"]');
+          if (nextPending) {
+            nextPending.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 300);
+      });
       utils.aiReview.getBatches.invalidate();
       utils.aiReview.getStats.invalidate();
       utils.point.adminGetLineReceipts.invalidate();
@@ -2461,7 +2470,7 @@ function AiReviewLogPanel() {
   });
   
   const toggleComment = (id: number) => {
-    setExpandedComments(prev => {
+    setCollapsedComments(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -2636,7 +2645,8 @@ function AiReviewLogPanel() {
           {logs.map((log: any) => {
             const config = decisionConfig[log.aiDecision] || decisionConfig.skipped;
             const DecisionIcon = config.icon;
-            const isExpanded = expandedComments.has(log.id);
+            // AIコメントはデフォルト展開（collapsedCommentsに含まれていなければ展開）
+            const isExpanded = !collapsedComments.has(log.id);
             // Image index tracked in expandedImages Map
             const isReRecognizing = reRecognizingIds.has(log.id);
             const confidenceColor = log.aiConfidence ? getConfidenceColor(log.aiConfidence) : null;
@@ -2667,6 +2677,7 @@ function AiReviewLogPanel() {
             return (
               <Card 
                 key={log.id}
+                data-pending-review={!log.humanOverride ? "true" : "false"}
                 className={`hover:shadow-md transition-all overflow-hidden ${cardBorder} ${cardBg}`}
               >
                 <CardContent className="p-3">
