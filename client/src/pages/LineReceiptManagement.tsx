@@ -2585,7 +2585,7 @@ function AiReviewLogPanel() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-1.5">
+        <div className="grid gap-2">
           {logs.map((log: any) => {
             const config = decisionConfig[log.aiDecision] || decisionConfig.skipped;
             const DecisionIcon = config.icon;
@@ -2596,20 +2596,17 @@ function AiReviewLogPanel() {
             return (
               <Card 
                 key={log.id} 
-                className={`transition-all hover:shadow-md overflow-hidden ${
+                className={`hover:shadow-md transition-all overflow-hidden ${
                   log.humanOverride 
-                    ? "border-blue-300 bg-blue-50/30" 
+                    ? "ring-2 ring-blue-400 bg-blue-50/30" 
                     : ""
                 }`}
               >
                 <CardContent className="p-2.5">
                   <div className="space-y-1.5">
-                    {/* Row 1: User/ID + Decision + Confidence + Override */}
+                    {/* Row 1: User + Decision + Confidence + Human Override */}
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      {log.userName && (
-                        <span className="font-semibold text-xs truncate max-w-[100px]">{log.userName}</span>
-                      )}
-                      <span className="text-[10px] font-mono text-muted-foreground">#{log.receiptId}</span>
+                      <span className="font-semibold text-xs truncate max-w-[100px]">{log.userName || `#${log.receiptId}`}</span>
                       <Badge variant="outline" className={`${config.bg} ${config.text} ${config.border} text-[10px] px-1 py-0`}>
                         <DecisionIcon className="w-2.5 h-2.5 mr-0.5" />
                         {config.label}
@@ -2631,78 +2628,86 @@ function AiReviewLogPanel() {
                         </Badge>
                       )}
                     </div>
-                    {/* Row 2: Amount + Points + Order Number */}
+                    {/* Row 2: Amount + Points + Image count */}
                     <div className="flex items-center gap-2 text-xs">
-                      {log.totalAmount != null && (
-                        <span className="font-bold">¥{Number(log.totalAmount).toLocaleString()}</span>
-                      )}
-                      {log.pointsAwarded != null && (
+                      {log.totalAmount != null ? (
                         <>
+                          <span className="font-bold">¥{Number(log.totalAmount).toLocaleString()}</span>
                           <span className="text-muted-foreground">→</span>
-                          <span className="font-bold text-green-600">{log.pointsAwarded}pt</span>
+                          {log.aiDecision === "approved" && log.pointsAwarded != null ? (
+                            <span className="font-bold text-green-600">{log.pointsAwarded}pt</span>
+                          ) : (
+                            <span className="text-blue-600">{log.pointsAwarded ?? 0}pt</span>
+                          )}
                         </>
+                      ) : (
+                        <span className="text-muted-foreground text-[11px]">{t("lr.noAmount")}</span>
                       )}
-                      {log.orderNumber && (
-                        <span className="flex items-center gap-0.5 text-[11px]">
-                          <Hash className="w-3 h-3 text-blue-400" />
-                          <span className="text-blue-600 font-mono text-[10px] truncate max-w-[180px]">{log.orderNumber}</span>
+                      {log.imageUrl && (
+                        <span className="text-muted-foreground ml-auto flex items-center gap-0.5">
+                          <ImageIcon className="w-3 h-3" />1
                         </span>
                       )}
                     </div>
-                    {/* Row 3: Store + Date + Action buttons */}
+                    {/* Row 2.5: Order Number */}
+                    {log.orderNumber && (
+                      <div className="flex items-center gap-1 text-[11px]">
+                        <Hash className="w-3 h-3 text-blue-400" />
+                        <span className="text-blue-600 font-mono text-[10px] truncate">{log.orderNumber}</span>
+                      </div>
+                    )}
+                    {/* Row 3: Store + Date + Action */}
                     <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                      <span className="truncate">{log.storeName || ""}</span>
-                      {log.storeName && <span>·</span>}
+                      <span className="truncate">{log.storeName || t("lr.storeUnknown")}</span>
+                      <span>·</span>
                       <span className="flex-shrink-0">
                         {new Date(log.createdAt).toLocaleString("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                       </span>
-                      <div className="ml-auto flex items-center gap-1">
-                        {!log.humanOverride && (
-                          <>
-                            {log.aiDecision !== "approved" && (
-                              <Button
-                                size="sm"
-                                className="h-6 px-2 text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white"
-                                onClick={() => {
-                                  const comment = prompt(t("lr.aiLog.approveComment"));
+                      {/* Action button inline */}
+                      {!log.humanOverride && (
+                        <div className="ml-auto flex-shrink-0">
+                          {log.aiDecision !== "approved" ? (
+                            <Button
+                              size="sm"
+                              className="h-6 px-2 text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white rounded-full"
+                              onClick={() => {
+                                const comment = prompt(t("lr.aiLog.approveComment"));
+                                overrideMutation.mutate({
+                                  logId: log.id,
+                                  humanOverride: "approved",
+                                  humanComment: comment || undefined,
+                                });
+                              }}
+                              disabled={overrideMutation.isPending}
+                            >
+                              <ThumbsUp className="w-3 h-3 mr-0.5" />
+                              {t("lr.approve")}
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 px-2 text-[10px] border-red-300 text-red-600 hover:bg-red-50 rounded-full"
+                              onClick={() => {
+                                const comment = prompt(t("lr.aiLog.rejectReason"));
+                                if (comment) {
                                   overrideMutation.mutate({
                                     logId: log.id,
-                                    humanOverride: "approved",
-                                    humanComment: comment || undefined,
+                                    humanOverride: "rejected",
+                                    humanComment: comment,
                                   });
-                                }}
-                                disabled={overrideMutation.isPending}
-                              >
-                                <ThumbsUp className="w-3 h-3 mr-0.5" />
-                                {t("lr.approve")}
-                              </Button>
-                            )}
-                            {log.aiDecision === "approved" && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-6 px-2 text-[10px] border-red-300 text-red-600 hover:bg-red-50"
-                                onClick={() => {
-                                  const comment = prompt(t("lr.aiLog.rejectReason"));
-                                  if (comment) {
-                                    overrideMutation.mutate({
-                                      logId: log.id,
-                                      humanOverride: "rejected",
-                                      humanComment: comment,
-                                    });
-                                  }
-                                }}
-                                disabled={overrideMutation.isPending}
-                              >
-                                <ThumbsDown className="w-3 h-3 mr-0.5" />
-                                {t("lr.reject")}
-                              </Button>
-                            )}
-                          </>
-                        )}
-                      </div>
+                                }
+                              }}
+                              disabled={overrideMutation.isPending}
+                            >
+                              <ThumbsDown className="w-3 h-3 mr-0.5" />
+                              {t("lr.reject")}
+                            </Button>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    {/* AI Comment - collapsible, compact */}
+                    {/* AI Comment - collapsible */}
                     {log.aiComment && (
                       <div 
                         className={`text-[10px] leading-relaxed rounded px-2 py-1 ${config.bg} ${config.border} border cursor-pointer`}

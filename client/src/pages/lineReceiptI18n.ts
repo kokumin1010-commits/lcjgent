@@ -61,6 +61,7 @@ export const lineReceiptJa: Record<string, string> = {
 
   // Store & Date
   "lr.storeUnknown": "店舗不明",
+  "lr.noAmount": "金額なし",
 
   // OCR details
   "lr.products": "商品",
@@ -343,6 +344,7 @@ export const lineReceiptZh: Record<string, string> = {
 
   // Store & Date
   "lr.storeUnknown": "店铺不明",
+  "lr.noAmount": "无金额",
 
   // OCR details
   "lr.products": "商品",

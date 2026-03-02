@@ -17273,10 +17273,34 @@ export async function getAiAutoReviewLogs(params?: {
   else if (params?.humanOverride) conditions.push(eq(aiAutoReviewLogs.humanOverride, params.humanOverride));
   if (params?.isDryRun !== undefined) conditions.push(eq(aiAutoReviewLogs.isDryRun, params.isDryRun));
   
-  const query = db.select().from(aiAutoReviewLogs);
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   
-  const results = await (where ? query.where(where) : query)
+  const results = await db.select({
+    id: aiAutoReviewLogs.id,
+    batchId: aiAutoReviewLogs.batchId,
+    receiptId: aiAutoReviewLogs.receiptId,
+    lineUserId: aiAutoReviewLogs.lineUserId,
+    aiDecision: aiAutoReviewLogs.aiDecision,
+    aiConfidence: aiAutoReviewLogs.aiConfidence,
+    aiComment: aiAutoReviewLogs.aiComment,
+    aiReason: aiAutoReviewLogs.aiReason,
+    orderNumber: aiAutoReviewLogs.orderNumber,
+    totalAmount: aiAutoReviewLogs.totalAmount,
+    storeName: aiAutoReviewLogs.storeName,
+    imageUrl: aiAutoReviewLogs.imageUrl,
+    humanOverride: aiAutoReviewLogs.humanOverride,
+    humanComment: aiAutoReviewLogs.humanComment,
+    humanReviewedBy: aiAutoReviewLogs.humanReviewedBy,
+    humanReviewedAt: aiAutoReviewLogs.humanReviewedAt,
+    isDryRun: aiAutoReviewLogs.isDryRun,
+    createdAt: aiAutoReviewLogs.createdAt,
+    updatedAt: aiAutoReviewLogs.updatedAt,
+    userName: lineUsers.displayName,
+    userPictureUrl: lineUsers.pictureUrl,
+  })
+    .from(aiAutoReviewLogs)
+    .leftJoin(lineUsers, eq(aiAutoReviewLogs.lineUserId, lineUsers.lineUserId))
+    .where(where ?? undefined)
     .orderBy(desc(aiAutoReviewLogs.createdAt))
     .limit(params?.limit ?? 100)
     .offset(params?.offset ?? 0);
