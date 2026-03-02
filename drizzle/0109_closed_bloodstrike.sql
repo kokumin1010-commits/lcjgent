@@ -1,0 +1,23 @@
+CREATE TABLE `ai_receipt_learning_examples` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`reviewLogId` int NOT NULL,
+	`receiptId` int NOT NULL,
+	`imageUrl` text,
+	`aiOriginalDecision` varchar(50) NOT NULL,
+	`aiOriginalConfidence` int,
+	`aiOriginalComment` text,
+	`aiOriginalOrderNumber` varchar(100),
+	`aiOriginalAmount` int,
+	`aiOriginalStoreName` varchar(255),
+	`humanDecision` varchar(50) NOT NULL,
+	`humanComment` text,
+	`correctOrderNumber` varchar(100),
+	`correctAmount` int,
+	`correctStoreName` varchar(255),
+	`errorType` varchar(100),
+	`learningNote` text,
+	`isActive` boolean NOT NULL DEFAULT true,
+	`createdBy` int,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	CONSTRAINT `ai_receipt_learning_examples_id` PRIMARY KEY(`id`)
+);

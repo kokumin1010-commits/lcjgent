@@ -6574,3 +6574,17 @@
 - [x] AI審査ログのカード内画像を幅いっぱい表示、左右矢印で切り替え、下にサムネイル表示に変更
 - [x] ページネーション表示（1/2等）を追加
 - [x] 画像クリックでフルスクリーンビューアーを開く機能を追加
+
+## AI学習フィードバック機能（人間修正→AIプロンプト改善）
+- [x] ai_receipt_learning_examplesテーブルをDBスキーマに追加
+- [x] 学習データ蓄積DB関数を実装（saveAiReceiptLearningExample, hasLearningExampleForLog等）
+- [x] buildLearningExamplesPrompt関数を実装（few-shot例をプロンプト文字列に変換）
+- [x] 学習統計API（learningStats）を実装
+- [x] 学習例一覧API（learningExamples）を実装
+- [x] overrideDecision mutation内で学習データを自動蓄積するロジックを追加
+- [x] バッチ処理のLLMプロンプトにfew-shot学習例を組み込み
+- [x] AI再認識のLLMプロンプトにfew-shot学習例を組み込み
+- [x] フロントエンドにlearningStatsクエリを追加
+- [x] サマリーカードに学習数カード（紫色、🧠アイコン）を追加
+- [x] overrideMutation成功時にlearningStats invalidateを追加
+- [x] AI学習フィードバックのvitestテスト（16テスト全パス）

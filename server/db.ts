@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, isNull, gte, lte, gt, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -17434,4 +17434,158 @@ export async function updateAiAutoApproveSetting(data: {
   }
   
   return await getAiAutoApproveSetting();
+}
+
+// ===== AIレシート審査 学習フィードバック関数 =====
+
+// 学習例を保存（人間がAI判定をオーバーライドした時に呼ばれる）
+export async function saveAiReceiptLearningExample(data: {
+  reviewLogId: number;
+  receiptId: number;
+  imageUrl?: string | null;
+  aiOriginalDecision: string;
+  aiOriginalConfidence?: number | null;
+  aiOriginalComment?: string | null;
+  aiOriginalOrderNumber?: string | null;
+  aiOriginalAmount?: number | null;
+  aiOriginalStoreName?: string | null;
+  humanDecision: string;
+  humanComment?: string | null;
+  correctOrderNumber?: string | null;
+  correctAmount?: number | null;
+  correctStoreName?: string | null;
+  errorType?: string | null;
+  learningNote?: string | null;
+  createdBy?: number | null;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.insert(aiReceiptLearningExamples).values({
+    reviewLogId: data.reviewLogId,
+    receiptId: data.receiptId,
+    imageUrl: data.imageUrl || null,
+    aiOriginalDecision: data.aiOriginalDecision,
+    aiOriginalConfidence: data.aiOriginalConfidence ?? null,
+    aiOriginalComment: data.aiOriginalComment || null,
+    aiOriginalOrderNumber: data.aiOriginalOrderNumber || null,
+    aiOriginalAmount: data.aiOriginalAmount ?? null,
+    aiOriginalStoreName: data.aiOriginalStoreName || null,
+    humanDecision: data.humanDecision,
+    humanComment: data.humanComment || null,
+    correctOrderNumber: data.correctOrderNumber || null,
+    correctAmount: data.correctAmount ?? null,
+    correctStoreName: data.correctStoreName || null,
+    errorType: data.errorType || null,
+    learningNote: data.learningNote || null,
+    isActive: true,
+    createdBy: data.createdBy ?? null,
+  });
+}
+
+// 直近のAI学習例を取得（few-shot用）
+export async function getRecentAiReceiptLearningExamples(limit: number = 10) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const results = await db.select()
+    .from(aiReceiptLearningExamples)
+    .where(eq(aiReceiptLearningExamples.isActive, true))
+    .orderBy(desc(aiReceiptLearningExamples.createdAt))
+    .limit(limit);
+  
+  return results;
+}
+
+// エラータイプ別の学習例統計を取得
+export async function getAiReceiptLearningStats() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const totalCount = await db.select({
+    count: sql<number>`COUNT(*)`,
+  }).from(aiReceiptLearningExamples).where(eq(aiReceiptLearningExamples.isActive, true));
+  
+  const byErrorType = await db.select({
+    errorType: aiReceiptLearningExamples.errorType,
+    count: sql<number>`COUNT(*)`,
+  })
+    .from(aiReceiptLearningExamples)
+    .where(eq(aiReceiptLearningExamples.isActive, true))
+    .groupBy(aiReceiptLearningExamples.errorType)
+    .orderBy(sql`COUNT(*) DESC`);
+  
+  const byDecision = await db.select({
+    aiOriginalDecision: aiReceiptLearningExamples.aiOriginalDecision,
+    humanDecision: aiReceiptLearningExamples.humanDecision,
+    count: sql<number>`COUNT(*)`,
+  })
+    .from(aiReceiptLearningExamples)
+    .where(eq(aiReceiptLearningExamples.isActive, true))
+    .groupBy(aiReceiptLearningExamples.aiOriginalDecision, aiReceiptLearningExamples.humanDecision)
+    .orderBy(sql`COUNT(*) DESC`);
+  
+  return {
+    totalExamples: totalCount[0]?.count ?? 0,
+    byErrorType,
+    byDecision,
+  };
+}
+
+// few-shot例をプロンプト用テキストに変換
+export async function buildLearningExamplesPrompt(limit: number = 8): Promise<string> {
+  const examples = await getRecentAiReceiptLearningExamples(limit);
+  
+  if (examples.length === 0) return "";
+  
+  const lines: string[] = [
+    "",
+    "=== 過去の人間修正フィードバック（AIの判定ミスから学習） ===",
+    `※ 以下は人間がAIの判定を修正した${examples.length}件の実例です。同様のケースでは人間の判定に従ってください。`,
+    "",
+  ];
+  
+  for (const ex of examples) {
+    const errorLabel = ex.errorType ? `[エラー種別: ${ex.errorType}]` : "";
+    lines.push(`--- 修正例 ${errorLabel} ---`);
+    lines.push(`AI元判定: ${ex.aiOriginalDecision} (信頼度: ${ex.aiOriginalConfidence ?? "不明"}%)`);
+    if (ex.aiOriginalComment) lines.push(`AIコメント: ${ex.aiOriginalComment}`);
+    lines.push(`→ 人間修正: ${ex.humanDecision}`);
+    if (ex.humanComment) lines.push(`人間コメント: ${ex.humanComment}`);
+    
+    const corrections: string[] = [];
+    if (ex.aiOriginalOrderNumber !== ex.correctOrderNumber) {
+      corrections.push(`注文番号: AI="${ex.aiOriginalOrderNumber || "なし"}" → 正解="${ex.correctOrderNumber || "なし"}"`);
+    }
+    if (ex.aiOriginalAmount !== ex.correctAmount) {
+      corrections.push(`金額: AI="${ex.aiOriginalAmount ?? "なし"}" → 正解="${ex.correctAmount ?? "なし"}"`);
+    }
+    if (ex.aiOriginalStoreName !== ex.correctStoreName) {
+      corrections.push(`店舗: AI="${ex.aiOriginalStoreName || "なし"}" → 正解="${ex.correctStoreName || "なし"}"`);
+    }
+    if (corrections.length > 0) {
+      lines.push(`修正内容: ${corrections.join(", ")}`);
+    }
+    
+    if (ex.learningNote) lines.push(`学習メモ: ${ex.learningNote}`);
+    lines.push("");
+  }
+  
+  lines.push("上記の修正例を参考に、同様のパターンでは人間の判定に合わせた判断をしてください。");
+  lines.push("特に「注文番号なし」とAIが判定したが実際には画像に注文番号が存在するケースに注意してください。");
+  
+  return lines.join("\n");
+}
+
+// 特定のreviewLogIdの学習例が既に存在するか確認
+export async function hasLearningExampleForLog(reviewLogId: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.select({ id: aiReceiptLearningExamples.id })
+    .from(aiReceiptLearningExamples)
+    .where(eq(aiReceiptLearningExamples.reviewLogId, reviewLogId))
+    .limit(1);
+  
+  return result.length > 0;
 }

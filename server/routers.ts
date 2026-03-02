@@ -12983,6 +12983,13 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
                 })}\n\n${exampleContext}`,
               });
               
+              // few-shot学習例を取得
+              let learningPrompt = "";
+              try {
+                const { buildLearningExamplesPrompt } = await import("./db");
+                learningPrompt = await buildLearningExamplesPrompt(8);
+              } catch (e) { /* ignore */ }
+              
               const llmResult = await invokeLLM({
                 messages: [
                   {
@@ -13060,7 +13067,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
   "detectedOrderNumber": "string or null",
   "detectedAmount": number or null
 }
-※ rejectionCategoryはshouldApprove=falseの場合のみ設定。承認時はnull。`,
+※ rejectionCategoryはshouldApprove=falseの場合のみ設定。承認時はnull。${learningPrompt}`,
                   },
                   {
                     role: "user",
@@ -13516,6 +13523,60 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           }
         }
         
+        // === AI学習フィードバック蓄積 ===
+        // 人間の判定がAIの判定と異なる場合、学習例として保存
+        if (input.humanOverride !== updatedLog.aiDecision) {
+          try {
+            const { saveAiReceiptLearningExample, hasLearningExampleForLog } = await import("./db");
+            const alreadyExists = await hasLearningExampleForLog(input.logId);
+            if (!alreadyExists) {
+              // エラータイプを判定
+              let errorType = "other";
+              const aiComment = updatedLog.aiComment || "";
+              if (updatedLog.aiDecision === "skipped" && aiComment.includes("注文番号なし")) {
+                errorType = "missing_order_number";
+              } else if (updatedLog.aiDecision === "skipped" && aiComment.includes("金額なし")) {
+                errorType = "missing_amount";
+              } else if (updatedLog.aiDecision === "rejected_ai" && input.humanOverride === "approved") {
+                errorType = "false_reject";
+              } else if (updatedLog.aiDecision === "approved" && input.humanOverride === "rejected") {
+                errorType = "false_approve";
+              } else if (updatedLog.aiDecision === "held") {
+                errorType = `held_but_${input.humanOverride}`;
+              }
+              
+              // 学習メモを生成
+              let learningNote = `AI判定「${updatedLog.aiDecision}」を人間が「${input.humanOverride}」に修正。`;
+              if (errorType === "missing_order_number") {
+                learningNote += " AIは注文番号を認識できなかったが、画像には注文番号が存在する。画像をより注意深く確認すべき。";
+              } else if (errorType === "false_reject") {
+                learningNote += " AIが却下したが、人間は承認と判断。審査基準が厳しすぎる可能性。";
+              } else if (errorType === "false_approve") {
+                learningNote += " AIが承認したが、人間は却下と判断。審査基準が甘すぎる可能性。";
+              }
+              
+              await saveAiReceiptLearningExample({
+                reviewLogId: input.logId,
+                receiptId: updatedLog.receiptId,
+                imageUrl: updatedLog.imageUrl || null,
+                aiOriginalDecision: updatedLog.aiDecision,
+                aiOriginalConfidence: updatedLog.aiConfidence,
+                aiOriginalComment: updatedLog.aiComment,
+                aiOriginalOrderNumber: updatedLog.orderNumber,
+                aiOriginalAmount: updatedLog.totalAmount ?? null,
+                aiOriginalStoreName: updatedLog.storeName,
+                humanDecision: input.humanOverride,
+                humanComment: input.humanComment || null,
+                errorType,
+                learningNote,
+                createdBy: ctx.user.id,
+              });
+            }
+          } catch (e) {
+            console.error("[AI Learning] Failed to save learning example:", e);
+          }
+        }
+        
         return updatedLog;
       }),
     
@@ -13565,6 +13626,13 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           text: `これらの${allImageUrls.length}枚の画像から注文情報を全て抽出してください。`,
         });
         
+        // few-shot学習例を取得
+        let reRecognizeLearningPrompt = "";
+        try {
+          const { buildLearningExamplesPrompt } = await import("./db");
+          reRecognizeLearningPrompt = await buildLearningExamplesPrompt(8);
+        } catch (e) { /* ignore */ }
+        
         const ocrResult = await invokeLLM({
           messages: [
             {
@@ -13583,7 +13651,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
 }
 
 TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数字列です。
-金額は「合計金額（税込）」「合計」「支払い金額」などのラベルの近くにある数値です。`,
+金額は「合計金額（税込）」「合計」「支払い金額」などのラベルの近くにある数値です。${reRecognizeLearningPrompt}`,
             },
             {
               role: "user",
@@ -13614,7 +13682,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         
         let parsed: any = {};
         try {
-          const content = ocrResult.choices?.[0]?.message?.content || "{}";
+          const content = String(ocrResult.choices?.[0]?.message?.content || "{}");
           parsed = JSON.parse(content);
         } catch (e) {
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "AI解析結果のパースに失敗" });
@@ -13664,6 +13732,22 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
         const { updateAiAutoApproveSetting } = await import("./db");
         return await updateAiAutoApproveSetting({ ...input, updatedBy: ctx.user.id });
+      }),
+    
+    // AI学習フィードバック統計取得
+    learningStats: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+      const { getAiReceiptLearningStats } = await import("./db");
+      return await getAiReceiptLearningStats();
+    }),
+    
+    // AI学習例一覧取得
+    learningExamples: protectedProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getRecentAiReceiptLearningExamples } = await import("./db");
+        return await getRecentAiReceiptLearningExamples(input?.limit ?? 20);
       }),
   }),
 

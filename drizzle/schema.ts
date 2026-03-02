@@ -3464,3 +3464,29 @@ export const aiAutoApproveSettings = mysqlTable("ai_auto_approve_settings", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 export type AiAutoApproveSetting = typeof aiAutoApproveSettings.$inferSelect;
+
+
+// ===== AIレシート審査 学習フィードバック =====
+export const aiReceiptLearningExamples = mysqlTable("ai_receipt_learning_examples", {
+  id: int("id").primaryKey().autoincrement(),
+  reviewLogId: int("reviewLogId").notNull(), // 元のAI審査ログID
+  receiptId: int("receiptId").notNull(), // レシートID
+  imageUrl: text("imageUrl"), // 画像URL（参照用）
+  aiOriginalDecision: varchar("aiOriginalDecision", { length: 50 }).notNull(), // AI元判定
+  aiOriginalConfidence: int("aiOriginalConfidence"), // AI元信頼度
+  aiOriginalComment: text("aiOriginalComment"), // AIコメント
+  aiOriginalOrderNumber: varchar("aiOriginalOrderNumber", { length: 100 }), // AI認識の注文番号
+  aiOriginalAmount: int("aiOriginalAmount"), // AI認識の金額
+  aiOriginalStoreName: varchar("aiOriginalStoreName", { length: 255 }), // AI認識の店舗名
+  humanDecision: varchar("humanDecision", { length: 50 }).notNull(), // 人間の判定
+  humanComment: text("humanComment"), // 人間のコメント
+  correctOrderNumber: varchar("correctOrderNumber", { length: 100 }), // 正しい注文番号
+  correctAmount: int("correctAmount"), // 正しい金額
+  correctStoreName: varchar("correctStoreName", { length: 255 }), // 正しい店舗名
+  errorType: varchar("errorType", { length: 100 }), // エラー種別
+  learningNote: text("learningNote"), // 学習メモ
+  isActive: boolean("isActive").default(true).notNull(),
+  createdBy: int("createdBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type AiReceiptLearningExample = typeof aiReceiptLearningExamples.$inferSelect;

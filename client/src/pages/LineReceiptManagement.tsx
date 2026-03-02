@@ -2431,6 +2431,9 @@ function AiReviewLogPanel() {
   // Fetch batches
   const { data: batches, isLoading: batchesLoading } = trpc.aiReview.getBatches.useQuery({ limit: 20 });
   
+  // Fetch learning stats
+  const { data: learningStats } = trpc.aiReview.learningStats.useQuery();
+  
   // Fetch logs with filter
   const logsInput = useMemo(() => {
     const params: any = { isDryRun: false, limit: 100 };
@@ -2450,6 +2453,7 @@ function AiReviewLogPanel() {
       utils.aiReview.getStats.invalidate();
       utils.point.adminGetLineReceipts.invalidate();
       utils.point.adminGetLineStatistics.invalidate();
+      utils.aiReview.learningStats.invalidate();
     },
     onError: (err) => {
       toast.error(`${t("lr.aiLog.overrideError")}: ${err.message}`);
@@ -2547,6 +2551,13 @@ function AiReviewLogPanel() {
             <p className="text-lg font-bold text-gray-600">{summaryCounts.skipped}</p>
             <p className="text-[10px] text-gray-500">{t("lr.aiLog.skipped")}</p>
           </div>
+          {/* AI学習数カード */}
+          {learningStats && (learningStats.totalExamples as number) > 0 && (
+            <div className="text-center px-3 py-1.5 bg-purple-50 rounded-lg border border-purple-200">
+              <p className="text-lg font-bold text-purple-700">{learningStats.totalExamples as number}</p>
+              <p className="text-[10px] text-purple-600">🧠 学習数</p>
+            </div>
+          )}
         </div>
       )}
       
@@ -2759,7 +2770,7 @@ function AiReviewLogPanel() {
                             className="w-full h-auto max-h-[50vh] object-contain mx-auto cursor-pointer"
                             loading="lazy"
                             onClick={() => {
-                              openImageViewer(allImages, currentIdx);
+                              window.open(allImages[currentIdx] || allImages[0], '_blank');
                             }}
                           />
                           {allImages.length > 1 && (
