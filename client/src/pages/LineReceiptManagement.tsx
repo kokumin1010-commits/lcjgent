@@ -55,6 +55,13 @@ import {
   List,
   FileText,
   RotateCcw,
+  ChevronDown,
+  ChevronUp,
+  Shield,
+  ShieldCheck,
+  ShieldAlert,
+  ShieldX,
+  Gauge,
 } from "lucide-react";
 
 type ReceiptStatus = "pending" | "approved" | "rejected" | "on_hold" | "ai_log";
@@ -118,7 +125,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
   const [aiAutoApproveResult, setAiAutoApproveResult] = useState<{
     processed: number;
     results: { id: number; action: string; reason: string; confidence?: number; orderNumber?: string; amount?: number }[];
-    summary: { approved: number; skipped: number; held: number; rejectedDuplicate: number };
+    summary: { approved: number; skipped: number; held: number; rejectedDuplicate: number; rejectedAi: number };
     dryRun: boolean;
   } | null>(null);
   
@@ -530,9 +537,9 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
     onSuccess: (data) => {
       setAiAutoApproveResult(data);
       if (data.dryRun) {
-        toast.info(`プレビュー完了: ${data.processed}件分析 (承認予定: ${data.summary.approved}, 重複却下: ${data.summary.rejectedDuplicate}, 保留: ${data.summary.held})`);
+        toast.info(`プレビュー完了: ${data.processed}件分析 (承認予定: ${data.summary.approved}, 重複却下: ${data.summary.rejectedDuplicate}, AI却下: ${data.summary.rejectedAi || 0}, 保留: ${data.summary.held})`);
       } else {
-        toast.success(`AI自動承認完了: ${data.summary.approved}件承認, ${data.summary.rejectedDuplicate}件重複却下, ${data.summary.held}件保留`);
+        toast.success(`AI自動承認完了: ${data.summary.approved}件承認, ${data.summary.rejectedDuplicate}件重複却下, ${data.summary.rejectedAi || 0}件AI却下, ${data.summary.held}件保留`);
         utils.point.adminGetLineReceipts.invalidate();
         utils.point.adminGetLineStatistics.invalidate();
         utils.point.adminDetectDuplicateReceipts.invalidate();
@@ -1053,7 +1060,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                   size="sm"
                   className="bg-purple-600 hover:bg-purple-700 text-white"
                   onClick={() => {
-                    if (confirm(`AI自動承認を${aiAutoApproveLimit}件に対して実行しますか？\n\n重複注文番号は自動却下、信頼度85%未満は保留になります。`)) {
+                    if (confirm(`AI自動承認を${aiAutoApproveLimit}件に対して実行しますか？\n\n・85%以上: 自動承認\n・50-84%: 保留（人間レビュー待ち）\n・50%未満: 自動却下（LINE通知あり）\n・重複注文番号: 自動却下`)) {
                       aiAutoApproveMutation.mutate({ limit: aiAutoApproveLimit, dryRun: false, confidenceThreshold: 85 });
                     }
                   }}
@@ -1074,7 +1081,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                   </Badge>
                   <span className="text-sm text-purple-700">処理: {aiAutoApproveResult.processed}件</span>
                 </div>
-                <div className="grid grid-cols-4 gap-2 mb-2">
+                <div className="grid grid-cols-5 gap-2 mb-2">
                   <div className="bg-green-100 rounded p-2 text-center">
                     <p className="text-lg font-bold text-green-700">{aiAutoApproveResult.summary.approved}</p>
                     <p className="text-xs text-green-600">承認</p>
@@ -1082,6 +1089,10 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                   <div className="bg-red-100 rounded p-2 text-center">
                     <p className="text-lg font-bold text-red-700">{aiAutoApproveResult.summary.rejectedDuplicate}</p>
                     <p className="text-xs text-red-600">重複却下</p>
+                  </div>
+                  <div className="bg-rose-100 rounded p-2 text-center">
+                    <p className="text-lg font-bold text-rose-700">{aiAutoApproveResult.summary.rejectedAi || 0}</p>
+                    <p className="text-xs text-rose-600">AI却下</p>
                   </div>
                   <div className="bg-orange-100 rounded p-2 text-center">
                     <p className="text-lg font-bold text-orange-700">{aiAutoApproveResult.summary.held}</p>
@@ -1093,12 +1104,18 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                   </div>
                 </div>
                 {/* Show details for duplicates and held */}
-                {aiAutoApproveResult.results.filter(r => r.action === "rejected_duplicate" || r.action === "held").length > 0 && (
+                {aiAutoApproveResult.results.filter(r => r.action === "rejected_duplicate" || r.action === "rejected_ai" || r.action === "held").length > 0 && (
                   <div className="max-h-40 overflow-y-auto text-xs space-y-1">
                     {aiAutoApproveResult.results.filter(r => r.action === "rejected_duplicate").map(r => (
                       <div key={r.id} className="flex items-center gap-2 bg-red-50 rounded px-2 py-1">
                         <XCircle className="w-3 h-3 text-red-500 flex-shrink-0" />
-                        <span className="text-red-700">#{r.id} {r.reason}</span>
+                        <span className="text-red-700">#{r.id} 重複: {r.reason}</span>
+                      </div>
+                    ))}
+                    {aiAutoApproveResult.results.filter(r => r.action === "rejected_ai").map(r => (
+                      <div key={r.id} className="flex items-center gap-2 bg-rose-50 rounded px-2 py-1">
+                        <ShieldX className="w-3 h-3 text-rose-500 flex-shrink-0" />
+                        <span className="text-rose-700">#{r.id} AI却下: {r.reason} (信頼度: {r.confidence}%)</span>
                       </div>
                     ))}
                     {aiAutoApproveResult.results.filter(r => r.action === "held").map(r => (
@@ -1525,11 +1542,30 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                             </div>
                           )}
                           {selectedCalcReceipt.receipt.status === "rejected" && (
-                            <div className="bg-red-50 border border-red-200 rounded p-2 text-center">
-                              <div className="flex items-center justify-center gap-1">
-                                <XCircle className="w-4 h-4 text-red-600" />
-                                <span className="text-xs font-medium text-red-700">却下済</span>
+                            <div className="space-y-2">
+                              <div className="bg-red-50 border border-red-200 rounded p-2 text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  <XCircle className="w-4 h-4 text-red-600" />
+                                  <span className="text-xs font-medium text-red-700">却下済</span>
+                                </div>
+                                {selectedCalcReceipt.receipt.reviewNote && (
+                                  <p className="text-[10px] text-red-500 mt-1 line-clamp-2">{selectedCalcReceipt.receipt.reviewNote}</p>
+                                )}
                               </div>
+                              <Button 
+                                className="w-full h-9 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold shadow-md"
+                                onClick={handleCalcApprove}
+                                disabled={approveMutation.isPending}
+                              >
+                                {approveMutation.isPending ? (
+                                  "復活処理中..."
+                                ) : (
+                                  <>
+                                    <RotateCcw className="w-4 h-4 mr-1.5" />
+                                    復活→承認（{calcPoints}pt付与）
+                                  </>
+                                )}
+                              </Button>
                             </div>
                           )}
                         </>
@@ -2341,6 +2377,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
 function AiReviewLogPanel() {
   const [filter, setFilter] = useState<string>("all");
   const [selectedBatchId, setSelectedBatchId] = useState<string | undefined>(undefined);
+  const [expandedComments, setExpandedComments] = useState<Set<number>>(new Set());
   const utils = trpc.useUtils();
   
   // Fetch batches
@@ -2371,39 +2408,55 @@ function AiReviewLogPanel() {
     },
   });
   
-  const getDecisionBadge = (decision: string) => {
-    switch (decision) {
-      case "approved":
-        return <Badge className="bg-green-100 text-green-700 border-green-200"><CheckCircle className="w-3 h-3 mr-1" />承認</Badge>;
-      case "rejected_duplicate":
-        return <Badge className="bg-red-100 text-red-700 border-red-200"><XCircle className="w-3 h-3 mr-1" />重複却下</Badge>;
-      case "held":
-        return <Badge className="bg-orange-100 text-orange-700 border-orange-200"><Clock className="w-3 h-3 mr-1" />保留</Badge>;
-      case "skipped":
-        return <Badge className="bg-gray-100 text-gray-700 border-gray-200"><SkipForward className="w-3 h-3 mr-1" />スキップ</Badge>;
-      default:
-        return <Badge variant="outline">{decision}</Badge>;
-    }
+  const toggleComment = (id: number) => {
+    setExpandedComments(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
   
-  const getOverrideBadge = (override: string | null) => {
-    if (!override) return null;
-    if (override === "approved") return <Badge className="bg-blue-100 text-blue-700 border-blue-200"><ThumbsUp className="w-3 h-3 mr-1" />人間承認</Badge>;
-    if (override === "rejected") return <Badge className="bg-pink-100 text-pink-700 border-pink-200"><ThumbsDown className="w-3 h-3 mr-1" />人間却下</Badge>;
-    return null;
+  // Decision config for consistent styling
+  const decisionConfig: Record<string, { label: string; icon: any; bg: string; text: string; border: string; ringColor: string }> = {
+    approved: { label: "AI承認", icon: ShieldCheck, bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", ringColor: "ring-emerald-400" },
+    rejected_duplicate: { label: "AI却下（重複）", icon: ShieldX, bg: "bg-red-50", text: "text-red-700", border: "border-red-200", ringColor: "ring-red-400" },
+    rejected_ai: { label: "AI却下（低信頼度）", icon: ShieldX, bg: "bg-rose-50", text: "text-rose-700", border: "border-rose-200", ringColor: "ring-rose-400" },
+    held: { label: "AI保留", icon: ShieldAlert, bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", ringColor: "ring-amber-400" },
+    skipped: { label: "スキップ", icon: SkipForward, bg: "bg-gray-50", text: "text-gray-600", border: "border-gray-200", ringColor: "ring-gray-400" },
   };
+  
+  const getConfidenceColor = (confidence: number) => {
+    if (confidence >= 90) return { bg: "bg-emerald-500", text: "text-emerald-700" };
+    if (confidence >= 80) return { bg: "bg-green-500", text: "text-green-700" };
+    if (confidence >= 60) return { bg: "bg-amber-500", text: "text-amber-700" };
+    return { bg: "bg-red-500", text: "text-red-700" };
+  };
+  
+  // Summary counts
+  const summaryCounts = useMemo(() => {
+    if (!logs) return { approved: 0, rejected: 0, rejectedAi: 0, held: 0, skipped: 0, total: 0 };
+    return {
+      approved: logs.filter((l: any) => l.aiDecision === "approved").length,
+      rejected: logs.filter((l: any) => l.aiDecision === "rejected_duplicate").length,
+      rejectedAi: logs.filter((l: any) => l.aiDecision === "rejected_ai").length,
+      held: logs.filter((l: any) => l.aiDecision === "held").length,
+      skipped: logs.filter((l: any) => l.aiDecision === "skipped").length,
+      total: logs.length,
+    };
+  }, [logs]);
   
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-full bg-purple-100">
-            <Bot className="w-5 h-5 text-purple-600" />
+          <div className="p-2.5 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 shadow-lg shadow-purple-200">
+            <Bot className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h3 className="font-semibold text-lg">AI審査ログ</h3>
-            <p className="text-sm text-muted-foreground">AIが自動判定した全レシートの履歴・人間による修正</p>
+            <h3 className="font-bold text-lg">AI審査ログ</h3>
+            <p className="text-xs text-muted-foreground">AIが自動判定した全レシートの履歴・人間による修正</p>
           </div>
         </div>
         <Button
@@ -2419,16 +2472,46 @@ function AiReviewLogPanel() {
         </Button>
       </div>
       
+      {/* Summary Stats */}
+      {logs && logs.length > 0 && (
+        <div className="grid grid-cols-6 gap-2">
+          <div className="rounded-lg border bg-card p-2.5 text-center">
+            <p className="text-lg font-bold">{summaryCounts.total}</p>
+            <p className="text-[10px] text-muted-foreground">合計</p>
+          </div>
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-2.5 text-center">
+            <p className="text-lg font-bold text-emerald-700">{summaryCounts.approved}</p>
+            <p className="text-[10px] text-emerald-600">AI承認</p>
+          </div>
+          <div className="rounded-lg border border-red-200 bg-red-50/50 p-2.5 text-center">
+            <p className="text-lg font-bold text-red-700">{summaryCounts.rejected}</p>
+            <p className="text-[10px] text-red-600">重複却下</p>
+          </div>
+          <div className="rounded-lg border border-rose-200 bg-rose-50/50 p-2.5 text-center">
+            <p className="text-lg font-bold text-rose-700">{summaryCounts.rejectedAi}</p>
+            <p className="text-[10px] text-rose-600">AI却下</p>
+          </div>
+          <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-2.5 text-center">
+            <p className="text-lg font-bold text-amber-700">{summaryCounts.held}</p>
+            <p className="text-[10px] text-amber-600">AI保留</p>
+          </div>
+          <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-2.5 text-center">
+            <p className="text-lg font-bold text-gray-600">{summaryCounts.skipped}</p>
+            <p className="text-[10px] text-gray-500">スキップ</p>
+          </div>
+        </div>
+      )}
+      
       {/* Batch History */}
       {batches && batches.length > 0 && (
-        <Card>
+        <Card className="border-dashed">
           <CardContent className="py-3">
-            <p className="text-sm font-medium mb-2">バッチ実行履歴</p>
-            <div className="flex flex-wrap gap-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">バッチ実行履歴</p>
+            <div className="flex flex-wrap gap-1.5">
               <Button
                 variant={!selectedBatchId ? "default" : "outline"}
                 size="sm"
-                className="text-xs h-7"
+                className="text-xs h-7 rounded-full"
                 onClick={() => setSelectedBatchId(undefined)}
               >
                 全て
@@ -2438,12 +2521,11 @@ function AiReviewLogPanel() {
                   key={batch.batchId}
                   variant={selectedBatchId === batch.batchId ? "default" : "outline"}
                   size="sm"
-                  className="text-xs h-7"
+                  className="text-xs h-7 rounded-full"
                   onClick={() => setSelectedBatchId(batch.batchId)}
                 >
                   {new Date(batch.createdAt).toLocaleString("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                  {" "}({batch.totalCount}件: ✅{batch.approvedCount} ❌{batch.rejectedCount} ⏸{batch.heldCount})
-                  {batch.humanOverrideCount > 0 && <span className="ml-1 text-blue-600">👤{batch.humanOverrideCount}</span>}
+                  <span className="ml-1 opacity-70">({batch.totalCount}件)</span>
                 </Button>
               ))}
             </div>
@@ -2452,24 +2534,26 @@ function AiReviewLogPanel() {
       )}
       
       {/* Filters */}
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-muted-foreground">フィルター:</span>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className="text-xs font-medium text-muted-foreground mr-1">フィルター:</span>
         {[
-          { value: "all", label: "全て", icon: List },
-          { value: "approved", label: "承認", icon: CheckCircle },
-          { value: "rejected_duplicate", label: "重複却下", icon: XCircle },
-          { value: "held", label: "保留", icon: Clock },
-          { value: "skipped", label: "スキップ", icon: SkipForward },
-        ].map(({ value, label, icon: Icon }) => (
+          { value: "all", label: "全て", icon: List, count: summaryCounts.total },
+          { value: "approved", label: "AI承認", icon: ShieldCheck, count: summaryCounts.approved },
+          { value: "rejected_duplicate", label: "重複却下", icon: ShieldX, count: summaryCounts.rejected },
+          { value: "rejected_ai", label: "AI却下", icon: ShieldX, count: summaryCounts.rejectedAi },
+          { value: "held", label: "AI保留", icon: ShieldAlert, count: summaryCounts.held },
+          { value: "skipped", label: "スキップ", icon: SkipForward, count: summaryCounts.skipped },
+        ].map(({ value, label, icon: Icon, count }) => (
           <Button
             key={value}
             variant={filter === value ? "default" : "outline"}
             size="sm"
-            className="text-xs h-7"
+            className="text-xs h-7 rounded-full"
             onClick={() => setFilter(value)}
           >
             <Icon className="w-3 h-3 mr-1" />
             {label}
+            <span className="ml-1 opacity-60">({count})</span>
           </Button>
         ))}
       </div>
@@ -2490,121 +2574,186 @@ function AiReviewLogPanel() {
         </Card>
       ) : (
         <div className="space-y-2">
-          {logs.map((log: any) => (
-            <Card key={log.id} className={`transition-all ${log.humanOverride ? "border-blue-200 bg-blue-50/30" : ""}`}>
-              <CardContent className="py-3">
-                <div className="flex items-start justify-between gap-4">
-                  {/* Left: Receipt info + AI comment */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="text-sm font-mono text-muted-foreground">#{log.receiptId}</span>
-                      {getDecisionBadge(log.aiDecision)}
-                      {getOverrideBadge(log.humanOverride)}
-                      {log.aiConfidence && (
-                        <span className={`text-xs px-1.5 py-0.5 rounded border ${
-                          log.aiConfidence >= 85 ? "bg-green-50 text-green-700 border-green-200" :
-                          log.aiConfidence >= 60 ? "bg-yellow-50 text-yellow-700 border-yellow-200" :
-                          "bg-red-50 text-red-700 border-red-200"
-                        }`}>
-                          {log.aiConfidence}%
-                        </span>
+          {logs.map((log: any) => {
+            const config = decisionConfig[log.aiDecision] || decisionConfig.skipped;
+            const DecisionIcon = config.icon;
+            const isExpanded = expandedComments.has(log.id);
+            const commentTruncated = log.aiComment && log.aiComment.length > 60;
+            const confidenceColor = log.aiConfidence ? getConfidenceColor(log.aiConfidence) : null;
+            
+            return (
+              <Card 
+                key={log.id} 
+                className={`transition-all hover:shadow-md ${
+                  log.humanOverride 
+                    ? "border-blue-300 bg-blue-50/30 ring-1 ring-blue-200" 
+                    : `${config.border} ${config.bg}/30`
+                }`}
+              >
+                <CardContent className="py-3 px-4">
+                  <div className="flex gap-3">
+                    {/* Left: Thumbnail */}
+                    <div className="flex-shrink-0">
+                      {log.imageUrl ? (
+                        <img 
+                          src={log.imageUrl} 
+                          alt="レシート" 
+                          className={`w-14 h-14 object-cover rounded-lg border-2 ${config.border}`}
+                        />
+                      ) : (
+                        <div className={`w-14 h-14 rounded-lg border-2 ${config.border} ${config.bg} flex items-center justify-center`}>
+                          <FileText className={`w-6 h-6 ${config.text} opacity-50`} />
+                        </div>
                       )}
                     </div>
                     
-                    {/* AI Comment */}
-                    <p className="text-sm text-foreground mb-1">{log.aiComment}</p>
-                    
-                    {/* Meta info */}
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-                      {log.orderNumber && (
-                        <span className="flex items-center gap-1">
-                          <Hash className="w-3 h-3" />{log.orderNumber}
+                    {/* Center: Main info */}
+                    <div className="flex-1 min-w-0">
+                      {/* Top row: ID + Decision badge + Confidence + Override */}
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                        <span className="text-xs font-mono font-bold text-muted-foreground">#{log.receiptId}</span>
+                        
+                        {/* AI Decision Badge - prominent */}
+                        <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full ${config.bg} ${config.text} ${config.border} border`}>
+                          <DecisionIcon className="w-3 h-3" />
+                          {config.label}
                         </span>
-                      )}
-                      {log.storeName && (
-                        <span className="flex items-center gap-1">
-                          <Store className="w-3 h-3" />{log.storeName}
-                        </span>
-                      )}
-                      {log.totalAmount && (
-                        <span className="flex items-center gap-1">
-                          <DollarSign className="w-3 h-3" />¥{Number(log.totalAmount).toLocaleString()}
-                        </span>
-                      )}
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
-                        {new Date(log.createdAt).toLocaleString("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                      </span>
-                    </div>
-                    
-                    {/* Human comment */}
-                    {log.humanComment && (
-                      <div className="mt-1 text-xs bg-blue-50 rounded px-2 py-1 border border-blue-200">
-                        <span className="font-medium text-blue-700">👤 人間コメント:</span> {log.humanComment}
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Right: Image thumbnail + Action buttons */}
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {log.imageUrl && (
-                      <img 
-                        src={log.imageUrl} 
-                        alt="レシート" 
-                        className="w-12 h-12 object-cover rounded border"
-                      />
-                    )}
-                    
-                    {/* Human override buttons (only if not already overridden) */}
-                    {!log.humanOverride && (
-                      <div className="flex flex-col gap-1">
-                        {log.aiDecision !== "approved" && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs border-green-300 text-green-700 hover:bg-green-50"
-                            onClick={() => {
-                              const comment = prompt("承認コメント（任意）:");
-                              overrideMutation.mutate({
-                                logId: log.id,
-                                humanOverride: "approved",
-                                humanComment: comment || undefined,
-                              });
-                            }}
-                            disabled={overrideMutation.isPending}
-                          >
-                            <ThumbsUp className="w-3 h-3 mr-1" />
-                            承認
-                          </Button>
+                        
+                        {/* Confidence meter */}
+                        {log.aiConfidence != null && confidenceColor && (
+                          <span className="inline-flex items-center gap-1">
+                            <div className="w-12 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                              <div 
+                                className={`h-full rounded-full ${confidenceColor.bg}`}
+                                style={{ width: `${log.aiConfidence}%` }}
+                              />
+                            </div>
+                            <span className={`text-[10px] font-bold ${confidenceColor.text}`}>{log.aiConfidence}%</span>
+                          </span>
                         )}
-                        {log.aiDecision === "approved" && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs border-red-300 text-red-700 hover:bg-red-50"
-                            onClick={() => {
-                              const comment = prompt("却下理由:");
-                              if (comment) {
+                        
+                        {/* Human override badge */}
+                        {log.humanOverride && (
+                          <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${
+                            log.humanOverride === "approved" 
+                              ? "bg-blue-100 text-blue-700 border-blue-300" 
+                              : "bg-pink-100 text-pink-700 border-pink-300"
+                          }`}>
+                            {log.humanOverride === "approved" ? <ThumbsUp className="w-2.5 h-2.5" /> : <ThumbsDown className="w-2.5 h-2.5" />}
+                            {log.humanOverride === "approved" ? "人間承認" : "人間却下"}
+                          </span>
+                        )}
+                      </div>
+                      
+                      {/* Meta info row */}
+                      <div className="flex items-center gap-2 text-[11px] text-muted-foreground mb-1.5 flex-wrap">
+                        {log.orderNumber && (
+                          <span className="inline-flex items-center gap-0.5 bg-gray-100 rounded px-1.5 py-0.5">
+                            <Hash className="w-2.5 h-2.5" />
+                            <span className="font-mono">{log.orderNumber}</span>
+                          </span>
+                        )}
+                        {log.storeName && (
+                          <span className="inline-flex items-center gap-0.5">
+                            <Store className="w-2.5 h-2.5" />{log.storeName}
+                          </span>
+                        )}
+                        {log.totalAmount != null && (
+                          <span className="inline-flex items-center gap-0.5 font-medium">
+                            <DollarSign className="w-2.5 h-2.5" />¥{Number(log.totalAmount).toLocaleString()}
+                          </span>
+                        )}
+                        <span className="inline-flex items-center gap-0.5">
+                          <Calendar className="w-2.5 h-2.5" />
+                          {new Date(log.createdAt).toLocaleString("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </div>
+                      
+                      {/* AI Comment - collapsible */}
+                      {log.aiComment && (
+                        <div 
+                          className={`text-xs leading-relaxed rounded-md px-2.5 py-1.5 ${config.bg} ${config.border} border cursor-pointer`}
+                          onClick={() => commentTruncated && toggleComment(log.id)}
+                        >
+                          <div className="flex items-start gap-1">
+                            <Bot className={`w-3 h-3 mt-0.5 flex-shrink-0 ${config.text}`} />
+                            <span className={`${config.text}`}>
+                              {commentTruncated && !isExpanded 
+                                ? log.aiComment.substring(0, 60) + "..." 
+                                : log.aiComment
+                              }
+                            </span>
+                            {commentTruncated && (
+                              <button className={`flex-shrink-0 ${config.text} opacity-60`}>
+                                {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Human comment */}
+                      {log.humanComment && (
+                        <div className="mt-1.5 text-xs bg-blue-50 rounded-md px-2.5 py-1.5 border border-blue-200">
+                          <div className="flex items-start gap-1">
+                            <User className="w-3 h-3 mt-0.5 flex-shrink-0 text-blue-600" />
+                            <span className="text-blue-700">{log.humanComment}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Right: Action buttons */}
+                    <div className="flex-shrink-0 flex flex-col gap-1 justify-center">
+                      {!log.humanOverride && (
+                        <>
+                          {log.aiDecision !== "approved" && (
+                            <Button
+                              size="sm"
+                              className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-full shadow-sm"
+                              onClick={() => {
+                                const comment = prompt("承認コメント（任意）:");
                                 overrideMutation.mutate({
                                   logId: log.id,
-                                  humanOverride: "rejected",
-                                  humanComment: comment,
+                                  humanOverride: "approved",
+                                  humanComment: comment || undefined,
                                 });
-                              }
-                            }}
-                            disabled={overrideMutation.isPending}
-                          >
-                            <ThumbsDown className="w-3 h-3 mr-1" />
-                            却下
-                          </Button>
-                        )}
-                      </div>
-                    )}
+                              }}
+                              disabled={overrideMutation.isPending}
+                            >
+                              <ThumbsUp className="w-3 h-3 mr-1" />
+                              承認
+                            </Button>
+                          )}
+                          {log.aiDecision === "approved" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs border-red-300 text-red-600 hover:bg-red-50 rounded-full"
+                              onClick={() => {
+                                const comment = prompt("却下理由:");
+                                if (comment) {
+                                  overrideMutation.mutate({
+                                    logId: log.id,
+                                    humanOverride: "rejected",
+                                    humanComment: comment,
+                                  });
+                                }
+                              }}
+                              disabled={overrideMutation.isPending}
+                            >
+                              <ThumbsDown className="w-3 h-3 mr-1" />
+                              却下
+                            </Button>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

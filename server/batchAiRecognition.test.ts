@@ -118,7 +118,7 @@ describe("Batch AI Recognition Feature", () => {
     });
 
     it("should show success toast on rejection", () => {
-      expect(lineReceiptMgmt).toContain('toast.success("却下完了（LINE送信済み）"');
+      expect(lineReceiptMgmt).toContain('toast.success(`却下完了（LINE送信済み）理由: ${rejectionCategory || "other"}');
     });
   });
 

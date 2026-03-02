@@ -1,0 +1,20 @@
+{
+  "query": "\nSELECT \n  COUNT(*) as total_logs,\n  SUM(CASE WHEN aiDecision = 'approved' THEN 1 ELSE 0 END) as approved_count,\n  SUM(CASE WHEN aiDecision = 'rejected_duplicate' THEN 1 ELSE 0 END) as rejected_dup_count,\n  SUM(CASE WHEN aiDecision = 'held' THEN 1 ELSE 0 END) as held_count,\n  SUM(CASE WHEN aiDecision = 'skipped' THEN 1 ELSE 0 END) as skipped_count,\n  AVG(aiConfidence) as avg_confidence,\n  MIN(aiConfidence) as min_confidence,\n  MAX(aiConfidence) as max_confidence\nFROM ai_auto_review_logs WHERE isDryRun = 0;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute \nSELECT \n  COUNT(*) as total_logs,\n  SUM(CASE WHEN aiDecision = 'approved' THEN 1 ELSE 0 END) as approved_count,\n  SUM(CASE WHEN aiDecision = 'rejected_duplicate' THEN 1 ELSE 0 END) as rejected_dup_count,\n  SUM(CASE WHEN aiDecision = 'held' THEN 1 ELSE 0 END) as held_count,\n  SUM(CASE WHEN aiDecision = 'skipped' THEN 1 ELSE 0 END) as skipped_count,\n  AVG(aiConfidence) as avg_confidence,\n  MIN(aiConfidence) as min_confidence,\n  MAX(aiConfidence) as max_confidence\nFROM ai_auto_review_logs WHERE isDryRun = 0;\n",
+  "rows": [
+    {
+      "total_logs": "40",
+      "approved_count": "36",
+      "rejected_dup_count": "1",
+      "held_count": "2",
+      "skipped_count": "1",
+      "avg_confidence": "92.4211",
+      "min_confidence": "90",
+      "max_confidence": "98"
+    }
+  ],
+  "messages": [],
+  "stdout": "total_logs\tapproved_count\trejected_dup_count\theld_count\tskipped_count\tavg_confidence\tmin_confidence\tmax_confidence\n40\t36\t1\t2\t1\t92.4211\t90\t98\n",
+  "stderr": "",
+  "execution_time_ms": 1672
+}

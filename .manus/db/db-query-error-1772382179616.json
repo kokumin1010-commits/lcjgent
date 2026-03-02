@@ -1,0 +1,8 @@
+{
+  "query": "\nSELECT \n  COUNT(*) as total_logs,\n  SUM(CASE WHEN decision = 'approved' THEN 1 ELSE 0 END) as approved_count,\n  SUM(CASE WHEN decision = 'rejected_duplicate' THEN 1 ELSE 0 END) as rejected_dup_count,\n  SUM(CASE WHEN decision = 'held' THEN 1 ELSE 0 END) as held_count,\n  SUM(CASE WHEN decision = 'skipped' THEN 1 ELSE 0 END) as skipped_count\nFROM ai_auto_review_logs WHERE is_dry_run = 0;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute \nSELECT \n  COUNT(*) as total_logs,\n  SUM(CASE WHEN decision = 'approved' THEN 1 ELSE 0 END) as approved_count,\n  SUM(CASE WHEN decision = 'rejected_duplicate' THEN 1 ELSE 0 END) as rejected_dup_count,\n  SUM(CASE WHEN decision = 'held' THEN 1 ELSE 0 END) as held_count,\n  SUM(CASE WHEN decision = 'skipped' THEN 1 ELSE 0 END) as skipped_count\nFROM ai_auto_review_logs WHERE is_dry_run = 0;\n",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 2: Unknown column 'is_dry_run' in 'where clause'"
+  ]
+}

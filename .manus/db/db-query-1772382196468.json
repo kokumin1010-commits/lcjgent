@@ -1,0 +1,13 @@
+{
+  "query": "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ai_auto_review_logs' AND COLUMN_NAME LIKE '%dry%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ai_auto_review_logs' AND COLUMN_NAME LIKE '%dry%';",
+  "rows": [
+    {
+      "COLUMN_NAME": "isDryRun"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\nisDryRun\n",
+  "stderr": "",
+  "execution_time_ms": 1605
+}

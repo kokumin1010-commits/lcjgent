@@ -1,0 +1,28 @@
+{
+  "query": "SHOW TABLES LIKE '%user%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SHOW TABLES LIKE '%user%';",
+  "rows": [
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (%user%)": "line_users"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (%user%)": "user_addresses"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (%user%)": "user_referral_progress"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (%user%)": "user_referrals"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (%user%)": "user_spin_history"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (%user%)": "users"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_GgA9WvTBCZMf6mjyMMwACw (%user%)\nline_users\nuser_addresses\nuser_referral_progress\nuser_referrals\nuser_spin_history\nusers\n",
+  "stderr": "",
+  "execution_time_ms": 1596
+}

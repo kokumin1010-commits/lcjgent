@@ -12734,7 +12734,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         // Results tracking
         const results: {
           id: number;
-          action: "approved" | "skipped" | "held" | "rejected_duplicate";
+          action: "approved" | "skipped" | "held" | "rejected_duplicate" | "rejected_ai";
           reason: string;
           confidence?: number;
           orderNumber?: string;
@@ -12744,6 +12744,9 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           storeName?: string;
           imageUrl?: string;
         }[] = [];
+        
+        // Rejection threshold: below this → auto-reject
+        const REJECTION_THRESHOLD = 50;
         
         // ===== STEP 0: Get candidates =====
         const candidates = await getAutoApprovalCandidates(input.limit);
@@ -12996,21 +12999,53 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
               aiConfidence = typeof parsed.confidence === "number" ? parsed.confidence : 0;
               aiReason = parsed.reason || "LLM判定";
               
-              // If LLM says don't approve → hold for human review
+              // If LLM says don't approve → check confidence to decide reject or hold
               if (parsed.shouldApprove === false) {
-                if (!input.dryRun) {
-                  await updateLineReceiptStatus(candidate.id, "on_hold", ctx.user.id,
-                    `[AI自動] LLM判定: 承認不可 - ${aiReason} (confidence: ${aiConfidence})`);
+                if (aiConfidence < REJECTION_THRESHOLD) {
+                  // Low confidence + not approved → AUTO REJECT
+                  if (!input.dryRun) {
+                    await updateLineReceiptStatus(candidate.id, "rejected", ctx.user.id,
+                      `[AI自動却下] LLM判定: 承認不可 - ${aiReason} (confidence: ${aiConfidence}%)`);
+                    // Send LINE notification for AI rejection
+                    try {
+                      const appUrl = process.env.APP_URL || "https://lcjmall.com";
+                      const rejectMsg = `❌ レシートが承認されませんでした\n\nAI審査の結果、以下の理由で承認できませんでした：\n${aiReason}\n\n以下の情報が見えるようにスクリーンショットを撮り直してください🙏\n\n① 配達ステータス（配達済み）\n② 注文番号\n③ 合計金額（税込）\n\n※ 1枚に収まらない場合は2〜3枚に分けて送信OK\n\nお問い合わせ: ${appUrl}/mypage`;
+                      await pushMsg(candidate.lineUserId, [{ type: "text", text: rejectMsg }]);
+                    } catch (notifyErr) {
+                      console.error(`[AI AutoApprove] LINE rejection notification error:`, notifyErr);
+                    }
+                  }
+                  results.push({
+                    id: candidate.id,
+                    action: "rejected_ai",
+                    reason: `AI却下(${aiConfidence}%): ${aiReason}`,
+                    confidence: aiConfidence,
+                    orderNumber,
+                    amount: candidate.totalAmount ?? undefined,
+                    lineUserId: candidate.lineUserId,
+                    storeName: candidate.storeName ?? undefined,
+                    imageUrl: candidate.imageUrl ?? undefined,
+                  });
+                  continue;
+                } else {
+                  // Medium confidence + not approved → HOLD for human review
+                  if (!input.dryRun) {
+                    await updateLineReceiptStatus(candidate.id, "on_hold", ctx.user.id,
+                      `[AI自動] LLM判定: 承認不可 - ${aiReason} (confidence: ${aiConfidence}%)`);
+                  }
+                  results.push({
+                    id: candidate.id,
+                    action: "held",
+                    reason: `LLM判定: ${aiReason}`,
+                    confidence: aiConfidence,
+                    orderNumber,
+                    amount: candidate.totalAmount ?? undefined,
+                    lineUserId: candidate.lineUserId,
+                    storeName: candidate.storeName ?? undefined,
+                    imageUrl: candidate.imageUrl ?? undefined,
+                  });
+                  continue;
                 }
-                results.push({
-                  id: candidate.id,
-                  action: "held",
-                  reason: `LLM判定: ${aiReason}`,
-                  confidence: aiConfidence,
-                  orderNumber,
-                  amount: candidate.totalAmount ?? undefined,
-                });
-                continue;
               }
             } catch (llmErr: any) {
               console.error(`[AI AutoApprove] LLM error for receipt #${candidate.id}:`, llmErr.message);
@@ -13026,7 +13061,34 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           }
           
           // ===== STEP 3: Confidence Threshold =====
-          if (aiConfidence < input.confidenceThreshold) {
+          if (aiConfidence < REJECTION_THRESHOLD) {
+            // Below 50% → AUTO REJECT
+            if (!input.dryRun) {
+              await updateLineReceiptStatus(candidate.id, "rejected", ctx.user.id,
+                `[AI自動却下] 信頼度不足: ${aiConfidence}% < ${REJECTION_THRESHOLD}% - ${aiReason}`);
+              // Send LINE notification for AI rejection
+              try {
+                const appUrl = process.env.APP_URL || "https://lcjmall.com";
+                const rejectMsg = `❌ レシートが承認されませんでした\n\nAI審査の結果、以下の理由で承認できませんでした：\n${aiReason}\n\n以下の情報が見えるようにスクリーンショットを撮り直してください🙏\n\n① 配達ステータス（配達済み）\n② 注文番号\n③ 合計金額（税込）\n\n※ 1枚に収まらない場合は2〜3枚に分けて送信OK\n\nお問い合わせ: ${appUrl}/mypage`;
+                await pushMsg(candidate.lineUserId, [{ type: "text", text: rejectMsg }]);
+              } catch (notifyErr) {
+                console.error(`[AI AutoApprove] LINE rejection notification error:`, notifyErr);
+              }
+            }
+            results.push({
+              id: candidate.id,
+              action: "rejected_ai",
+              reason: `信頼度不足: ${aiConfidence}% < ${REJECTION_THRESHOLD}%`,
+              confidence: aiConfidence,
+              orderNumber,
+              amount: candidate.totalAmount ?? undefined,
+              lineUserId: candidate.lineUserId,
+              storeName: candidate.storeName ?? undefined,
+              imageUrl: candidate.imageUrl ?? undefined,
+            });
+            continue;
+          } else if (aiConfidence < input.confidenceThreshold) {
+            // Between 50% and threshold (85%) → HOLD for human review
             if (!input.dryRun) {
               await updateLineReceiptStatus(candidate.id, "on_hold", ctx.user.id,
                 `[AI自動] 信頼度不足: ${aiConfidence}% < 閾値${input.confidenceThreshold}% - ${aiReason}`);
@@ -13038,6 +13100,9 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
               confidence: aiConfidence,
               orderNumber,
               amount: candidate.totalAmount ?? undefined,
+              lineUserId: candidate.lineUserId,
+              storeName: candidate.storeName ?? undefined,
+              imageUrl: candidate.imageUrl ?? undefined,
             });
             continue;
           }
@@ -13152,6 +13217,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           skipped: results.filter(r => r.action === "skipped").length,
           held: results.filter(r => r.action === "held").length,
           rejectedDuplicate: results.filter(r => r.action === "rejected_duplicate").length,
+          rejectedAi: results.filter(r => r.action === "rejected_ai").length,
         };
         
         console.log(`[AI AutoApprove] Batch ${batchId}: Processed ${results.length} receipts: ${JSON.stringify(summary)}`);
@@ -13166,6 +13232,8 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
               aiComment = `✅ 承認: ${r.reason || "条件を満たしています"}${r.confidence ? ` (信頼度: ${r.confidence}%)` : ""}`;
             } else if (r.action === "rejected_duplicate") {
               aiComment = `❌ 重複却下: ${r.reason || "同一注文番号で既に承認済みのレシートが存在します"}`;
+            } else if (r.action === "rejected_ai") {
+              aiComment = `🚫 AI却下: ${r.reason || "信頼度が低いため自動却下されました"}${r.confidence ? ` (信頼度: ${r.confidence}%)` : ""}`;
             } else if (r.action === "held") {
               aiComment = `⏸️ 保留: ${r.reason || "信頼度が閾値未満のため人間審査が必要です"}`;
             } else {
