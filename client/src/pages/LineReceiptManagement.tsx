@@ -2736,29 +2736,25 @@ function AiReviewLogPanel() {
                     )}
                   </div>
                   
-                  {/* Image Gallery - Always visible, scrollable */}
+                  {/* Image Gallery - Compact thumbnails, click to expand */}
                   {allImages.length > 0 && (
-                    <div className="mt-3">
-                      <div className="rounded-lg overflow-hidden bg-gray-50 border">
-                        <div className="overflow-y-auto max-h-[500px] scrollbar-thin">
-                          <div className="space-y-1">
-                            {allImages.map((url, idx) => (
-                              <img 
-                                key={idx}
-                                src={url} 
-                                alt={`レシート ${idx + 1}`} 
-                                className="w-full object-contain"
-                                loading="lazy"
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                      {allImages.length > 1 && (
-                        <div className="text-center text-xs text-muted-foreground mt-1">
-                          {allImages.length}枚の画像・スクロールで確認
-                        </div>
-                      )}
+                    <div className="mt-2 flex gap-2 flex-wrap">
+                      {allImages.map((url, idx) => (
+                        <a 
+                          key={idx}
+                          href={url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="block flex-shrink-0"
+                        >
+                          <img 
+                            src={url} 
+                            alt={`レシート ${idx + 1}`} 
+                            className="h-[180px] w-auto object-contain rounded-md border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all cursor-zoom-in bg-gray-50"
+                            loading="lazy"
+                          />
+                        </a>
+                      ))}
                     </div>
                   )}
                   
