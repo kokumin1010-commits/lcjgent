@@ -62,35 +62,43 @@ import {
   ShieldAlert,
   ShieldX,
   Gauge,
+  Globe,
 } from "lucide-react";
 
 type ReceiptStatus = "pending" | "approved" | "rejected" | "on_hold" | "ai_log";
 
-// AI rejection reason categories for learning
-const REJECTION_CATEGORIES = [
-  { value: "not_order_detail", label: "注文詳細画面ではない", desc: "メール通知・配送通知の画面等" },
-  { value: "not_tiktok_shop", label: "TikTok Shop以外", desc: "他のECサイトのレシート" },
-  { value: "not_delivered", label: "配達未完了", desc: "配送中・キャンセル等" },
-  { value: "blurry_image", label: "画像が不鮮明", desc: "情報が読み取れない" },
-  { value: "missing_order_number", label: "注文番号が見えない", desc: "16-19桁の番号が未確認" },
-  { value: "missing_amount", label: "金額が見えない", desc: "合計金額が未確認" },
-  { value: "partial_screenshot", label: "スクショが不完全", desc: "一部しか写っていない" },
-  { value: "duplicate", label: "重複申請", desc: "同じ注文番号で既に申請済" },
-  { value: "wrong_store", label: "対象外店舗", desc: "対象外のショップ" },
-  { value: "suspicious", label: "不正の疑い", desc: "加工・改ざんの可能性" },
-  { value: "incomplete_info", label: "情報不足", desc: "必要な情報が足りない" },
-  { value: "other", label: "その他", desc: "上記以外の理由" },
-];
+// AI rejection reason categories for learning (keys for i18n)
+const REJECTION_CATEGORY_VALUES = [
+  "not_order_detail", "not_tiktok_shop", "not_delivered", "blurry_image",
+  "missing_order_number", "missing_amount", "partial_screenshot", "duplicate",
+  "wrong_store", "suspicious", "incomplete_info", "other",
+] as const;
 
 // AI approval confidence labels
-const getConfidenceLabel = (score: number) => {
-  if (score >= 90) return { label: "高信頼", color: "text-green-600 bg-green-50 border-green-200" };
-  if (score >= 70) return { label: "中信頼", color: "text-yellow-600 bg-yellow-50 border-yellow-200" };
-  return { label: "低信頼", color: "text-red-600 bg-red-50 border-red-200" };
+// Confidence labels are now handled inside the component with t()
+const getConfidenceLabelStatic = (score: number) => {
+  if (score >= 90) return { key: "lr.highConfidence", color: "text-green-600 bg-green-50 border-green-200" };
+  if (score >= 70) return { key: "lr.medConfidence", color: "text-yellow-600 bg-yellow-50 border-yellow-200" };
+  return { key: "lr.lowConfidence", color: "text-red-600 bg-red-50 border-red-200" };
 };
 
 export default function LineReceiptManagement({ embedded = false }: { embedded?: boolean } = {}) {
-  const { t } = useLanguage();
+  const { t, language, setLanguage } = useLanguage();
+  
+  // Wrap confidence label with translation
+  const getConfidenceLabel = (score: number) => {
+    const { key, color } = getConfidenceLabelStatic(score);
+    return { label: t(key), color };
+  };
+
+  // Build rejection categories from i18n
+  const REJECTION_CATEGORIES = useMemo(() => 
+    REJECTION_CATEGORY_VALUES.map(value => ({
+      value,
+      label: t(`lr.reject.${value}`),
+      desc: t(`lr.reject.${value}.desc`),
+    })),
+  [language, t]);
   const [activeTab, setActiveTab] = useState<ReceiptStatus>("pending");
   const [selectedReceipt, setSelectedReceipt] = useState<number | null>(null);
   const [editMode, setEditMode] = useState(false);
@@ -130,7 +138,8 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
     processed: number;
     results: { id: number; action: string; reason: string; confidence?: number; orderNumber?: string; amount?: number }[];
     summary: { approved: number; skipped: number; held: number; rejectedDuplicate: number; rejectedAi: number };
-    dryRun: boolean;
+    dryRun?: boolean;
+    batchId?: string;
   } | null>(null);
   
   // Continuous processing state
@@ -403,7 +412,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
       utils.point.adminGetLineStatistics.invalidate();
       // Track processing count
       setSessionProcessedCount(prev => prev + 1);
-      toast.success("承認完了", { duration: 2000 });
+      toast.success(t("lr.toast.approveComplete"), { duration: 2000 });
       // Trigger auto-advance to next receipt
       if (autoAdvanceEnabled) {
         setLastProcessedId(calcReceiptId);
@@ -428,7 +437,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
       const rejectedId = lastRejectedIdRef.current;
       // Track processing count
       setSessionProcessedCount(prev => prev + 1);
-      toast.success(`却下完了（LINE送信済み）理由: ${rejectionCategory || "other"}`, { duration: 2000 });
+      toast.success(`${t("lr.toast.rejectComplete")} ${rejectionCategory || "other"}`, { duration: 2000 });
       // Trigger auto-advance to next receipt
       if (autoAdvanceEnabled && rejectedId) {
         setLastProcessedId(rejectedId);
@@ -446,7 +455,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
   // Direct reject handler (no dialog) - rejectionCategory is now REQUIRED
   const handleDirectReject = (receiptId: number) => {
     if (!rejectionCategory) {
-      toast.error("却下理由を選択してください（AI学習に必要です）");
+      toast.error(t("lr.toast.selectRejectionReason"));
       return;
     }
     lastRejectedIdRef.current = receiptId;
@@ -507,35 +516,35 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
       if (data.orderNumber) {
         setCalcOrderNumber(data.orderNumber);
         // Order number is auto-saved to DB by backend now, no need for separate mutation
-        results.push(`注文番号: ${data.orderNumber}`);
+        results.push(`${t("lr.orderNumber")}: ${data.orderNumber}`);
       }
       
       // Always auto-fill amount if detected (overwrite even if existing)
       if (data.totalAmount && typeof data.totalAmount === "number" && data.totalAmount > 0) {
         setCalcAmount(String(data.totalAmount));
-        results.push(`金額: ¥${data.totalAmount.toLocaleString()}`);
+        results.push(`${t("lr.amount")}: ¥${data.totalAmount.toLocaleString()}`);
       }
       
       if (data.shopName) {
-        results.push(`店舗: ${data.shopName}`);
+        results.push(`${t("lr.storeName")}: ${data.shopName}`);
       }
       if (data.orderDate) {
-        results.push(`日付: ${data.orderDate}`);
+        results.push(`${t("lr.purchaseDate")}: ${data.orderDate}`);
       }
       
       // Refresh receipt list to show updated DB data (amount, store, date)
       utils.point.adminGetLineReceipts.invalidate();
       
       if (results.length > 0) {
-        toast.success(`AI認識完了\n${results.join(" / ")}`, { duration: 5000 });
+        toast.success(`${t("lr.toast.aiRecognizeComplete")}\n${results.join(" / ")}`, { duration: 5000 });
       } else {
-        toast.error("情報を抽出できませんでした。手動で入力してください。");
+        toast.error(t("lr.toast.aiRecognizeFailed"));
       }
       
       setIsAiRecognizing(false);
     },
     onError: (err) => {
-      toast.error(`AI認識失敗: ${err.message}`);
+      toast.error(`${t("lr.toast.aiRecognizeError")} ${err.message}`);
       setIsAiRecognizing(false);
     },
   });
@@ -545,16 +554,16 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
     onSuccess: (data) => {
       setAiAutoApproveResult(data);
       if (data.dryRun) {
-        toast.info(`プレビュー完了: ${data.processed}件分析 (承認予定: ${data.summary.approved}, 重複却下: ${data.summary.rejectedDuplicate}, AI却下: ${data.summary.rejectedAi || 0}, 保留: ${data.summary.held})`);
+        toast.info(`${t("lr.preview")}: ${data.processed}${t("lr.items")} (${t("lr.approve")}: ${data.summary.approved}, ${t("lr.aiLog.duplicateRejected")}: ${data.summary.rejectedDuplicate}, ${t("lr.aiLog.aiRejected")}: ${data.summary.rejectedAi || 0}, ${t("lr.hold")}: ${data.summary.held})`);
       } else {
-        toast.success(`AI自動承認完了: ${data.summary.approved}件承認, ${data.summary.rejectedDuplicate}件重複却下, ${data.summary.rejectedAi || 0}件AI却下, ${data.summary.held}件保留`);
+        toast.success(`${t("lr.aiAutoRecognizeComplete")}: ${data.summary.approved} ${t("lr.approve")}, ${data.summary.rejectedDuplicate} ${t("lr.aiLog.duplicateRejected")}, ${data.summary.rejectedAi || 0} ${t("lr.aiLog.aiRejected")}, ${data.summary.held} ${t("lr.hold")}`);
         utils.point.adminGetLineReceipts.invalidate();
         utils.point.adminGetLineStatistics.invalidate();
         utils.point.adminDetectDuplicateReceipts.invalidate();
       }
     },
     onError: (err) => {
-      toast.error(`AI自動承認エラー: ${err.message}`);
+      toast.error(`${t("lr.aiAutoMode")} Error: ${err.message}`);
     },
   });
   
@@ -659,7 +668,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
         e.preventDefault();
         if (selectedCalcReceipt && (selectedCalcReceipt.receipt.status === "pending" || selectedCalcReceipt.receipt.status === "on_hold") && !rejectMutation.isPending) {
           if (!rejectionCategory) {
-            toast.error("却下理由を選択してください（AI学習に必要です）");
+            toast.error(t("lr.toast.selectRejectionReason"));
           } else {
             handleDirectReject(selectedCalcReceipt.receipt.id);
           }
@@ -762,7 +771,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
         if (ocrData.customerName) return ocrData.customerName;
       }
     } catch { /* ignore */ }
-    return "不明";
+    return t("lr.unknown");
   };
 
   // Extract order number from ocrRawText JSON
@@ -851,21 +860,33 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
               {t("lineReceiptManagement")}
             </h1>
             <p className="text-muted-foreground mt-1">
-              LINEから送信されたレシートの審査・ポイント付与管理
+              {t("lr.subtitle")}
             </p>
           </div>
           
-          {/* Keyboard Shortcut Help Button */}
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5 text-muted-foreground hover:text-foreground"
-            onClick={() => setShowShortcutHelp(true)}
-          >
-            <Keyboard className="w-4 h-4" />
-            <span className="hidden sm:inline">ショートカット</span>
-            <kbd className="ml-1 px-1.5 py-0.5 text-[10px] font-mono bg-muted rounded border">?</kbd>
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Language Toggle */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-muted-foreground hover:text-foreground"
+              onClick={() => setLanguage(language === "ja" ? "zh" : "ja")}
+            >
+              <Globe className="w-4 h-4" />
+              {language === "ja" ? "中文" : "日本語"}
+            </Button>
+            {/* Keyboard Shortcut Help Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-muted-foreground hover:text-foreground"
+              onClick={() => setShowShortcutHelp(true)}
+            >
+              <Keyboard className="w-4 h-4" />
+              <span className="hidden sm:inline">{t("lr.shortcuts")}</span>
+              <kbd className="ml-1 px-1.5 py-0.5 text-[10px] font-mono bg-muted rounded border">?</kbd>
+            </Button>
+          </div>
         </div>
       )}
 
@@ -874,8 +895,8 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
           <div className="flex items-center gap-2">
             <Brain className="w-5 h-5 text-purple-500" />
             <div>
-              <p className="text-sm font-medium">AI自動承認モード</p>
-              <p className="text-xs text-muted-foreground">高信頼度のレシートを自動承認</p>
+              <p className="text-sm font-medium">{t("lr.aiAutoMode")}</p>
+              <p className="text-xs text-muted-foreground">{t("lr.aiAutoModeDesc")}</p>
             </div>
           </div>
           <Switch 
@@ -884,7 +905,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
               setAiAutoMode(checked);
               if (checked) {
                 // トグルON → 自動でバッチ処理を実行
-                toast.info("AI自動承認モードON: 自動処理を開始します...");
+                toast.info(t("lr.aiAutoModeOn"));
                 aiAutoApproveMutation.mutate({ limit: aiAutoApproveLimit, dryRun: false, confidenceThreshold: 85 });
               }
             }}
@@ -898,8 +919,8 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
             <div className="flex items-center gap-2">
               <Brain className="w-5 h-5 text-purple-600 animate-pulse" />
               <div>
-                <p className="text-sm font-medium text-purple-800">AI自動認識中...</p>
-                <p className="text-xs text-purple-600">{batchAiProgress.completed} / {batchAiProgress.total} 件処理済み</p>
+                <p className="text-sm font-medium text-purple-800">{t("lr.aiAutoRecognizing")}</p>
+                <p className="text-xs text-purple-600">{batchAiProgress.completed} / {batchAiProgress.total} {t("lr.processed")}</p>
               </div>
             </div>
             <div className="flex-1 mx-4">
@@ -916,7 +937,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
               className="text-xs text-purple-600 hover:text-purple-800"
               onClick={() => { batchAiAbortRef.current = true; setBatchAiProgress(prev => ({ ...prev, running: false })); }}
             >
-              中止
+              {t("lr.abort")}
             </Button>
           </div>
         </div>
@@ -924,7 +945,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
       {!batchAiProgress.running && batchAiProgress.completed > 0 && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-2 flex items-center gap-2">
           <CheckCircle className="w-4 h-4 text-green-600" />
-          <span className="text-sm text-green-700">AI自動認識完了: {batchAiProgress.completed}件の画像を解析しました</span>
+          <span className="text-sm text-green-700">{t("lr.aiAutoRecognizeComplete")}: {batchAiProgress.completed}{t("lr.imagesAnalyzed")}</span>
         </div>
       )}
       
@@ -935,7 +956,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
           type="text"
           value={orderNumberSearch}
           onChange={(e) => setOrderNumberSearch(e.target.value)}
-          placeholder="注文管理番号で検索..."
+          placeholder={t("lr.searchOrderNumber")}
           className="pl-10 pr-10"
         />
         {orderNumberSearch && (
@@ -1014,7 +1035,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
               <Bot className="w-4 h-4 text-purple-500" />
-              <span className="text-sm text-muted-foreground">AI審査ログ</span>
+              <span className="text-sm text-muted-foreground">{t("lr.aiReviewLog")}</span>
             </div>
             <p className="text-2xl font-bold mt-1">
               <FileText className="w-5 h-5 inline text-purple-500" />
@@ -1033,9 +1054,9 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                   <Sparkles className="w-5 h-5 text-purple-600" />
                 </div>
                 <div>
-                  <p className="font-medium text-purple-800">AI自動承認モード有効</p>
+                  <p className="font-medium text-purple-800">{t("lr.aiAutoModeActive")}</p>
                   <p className="text-sm text-purple-600">
-                    3段階パイプライン: 重複注文番号チェック → LLM画像判定 → 信頼度閾値判定
+                    {t("lr.aiAutoModePipeline")}
                   </p>
                 </div>
               </div>
@@ -1062,20 +1083,20 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                   disabled={aiAutoApproveMutation.isPending}
                 >
                   {aiAutoApproveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Eye className="w-4 h-4 mr-1" />}
-                  プレビュー
+                  {t("lr.preview")}
                 </Button>
                 <Button
                   size="sm"
                   className="bg-purple-600 hover:bg-purple-700 text-white"
                   onClick={() => {
-                    if (confirm(`AI自動承認を${aiAutoApproveLimit}件に対して実行しますか？\n\n・85%以上: 自動承認\n・50-84%: 保留（人間レビュー待ち）\n・50%未満: 自動却下（LINE通知あり）\n・重複注文番号: 自動却下`)) {
+                    if (confirm(t("lr.aiAutoConfirm").replace("{count}", String(aiAutoApproveLimit)))) {
                       aiAutoApproveMutation.mutate({ limit: aiAutoApproveLimit, dryRun: false, confidenceThreshold: 85 });
                     }
                   }}
                   disabled={aiAutoApproveMutation.isPending}
                 >
                   {aiAutoApproveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Zap className="w-4 h-4 mr-1" />}
-                  実行
+                  {t("lr.execute")}
                 </Button>
               </div>
             </div>
@@ -1085,30 +1106,30 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
               <div className="mt-3 border-t border-purple-200 pt-3">
                 <div className="flex items-center gap-4 mb-2">
                   <Badge variant="outline" className="border-purple-300 text-purple-700">
-                    {aiAutoApproveResult.dryRun ? "プレビュー結果" : "実行結果"}
+                    {aiAutoApproveResult.dryRun ? `${t("lr.preview")}` : `${t("lr.execute")}`}
                   </Badge>
-                  <span className="text-sm text-purple-700">処理: {aiAutoApproveResult.processed}件</span>
+                  <span className="text-sm text-purple-700">{aiAutoApproveResult.processed}{t("lr.items")}</span>
                 </div>
                 <div className="grid grid-cols-5 gap-2 mb-2">
                   <div className="bg-green-100 rounded p-2 text-center">
                     <p className="text-lg font-bold text-green-700">{aiAutoApproveResult.summary.approved}</p>
-                    <p className="text-xs text-green-600">承認</p>
+                    <p className="text-xs text-green-600">{t("lr.approve")}</p>
                   </div>
                   <div className="bg-red-100 rounded p-2 text-center">
                     <p className="text-lg font-bold text-red-700">{aiAutoApproveResult.summary.rejectedDuplicate}</p>
-                    <p className="text-xs text-red-600">重複却下</p>
+                    <p className="text-xs text-red-600">{t("lr.aiLog.duplicateRejected")}</p>
                   </div>
                   <div className="bg-rose-100 rounded p-2 text-center">
                     <p className="text-lg font-bold text-rose-700">{aiAutoApproveResult.summary.rejectedAi || 0}</p>
-                    <p className="text-xs text-rose-600">AI却下</p>
+                    <p className="text-xs text-rose-600">{t("lr.aiLog.aiRejected")}</p>
                   </div>
                   <div className="bg-orange-100 rounded p-2 text-center">
                     <p className="text-lg font-bold text-orange-700">{aiAutoApproveResult.summary.held}</p>
-                    <p className="text-xs text-orange-600">保留</p>
+                    <p className="text-xs text-orange-600">{t("lr.hold")}</p>
                   </div>
                   <div className="bg-gray-100 rounded p-2 text-center">
                     <p className="text-lg font-bold text-gray-700">{aiAutoApproveResult.summary.skipped}</p>
-                    <p className="text-xs text-gray-600">スキップ</p>
+                    <p className="text-xs text-gray-600">{t("lr.aiLog.skipped")}</p>
                   </div>
                 </div>
                 {/* Show details for duplicates and held */}
@@ -1117,19 +1138,19 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                     {aiAutoApproveResult.results.filter(r => r.action === "rejected_duplicate").map(r => (
                       <div key={r.id} className="flex items-center gap-2 bg-red-50 rounded px-2 py-1">
                         <XCircle className="w-3 h-3 text-red-500 flex-shrink-0" />
-                        <span className="text-red-700">#{r.id} 重複: {r.reason}</span>
+                        <span className="text-red-700">#{r.id} {t("lr.duplicate")}: {r.reason}</span>
                       </div>
                     ))}
                     {aiAutoApproveResult.results.filter(r => r.action === "rejected_ai").map(r => (
                       <div key={r.id} className="flex items-center gap-2 bg-rose-50 rounded px-2 py-1">
                         <ShieldX className="w-3 h-3 text-rose-500 flex-shrink-0" />
-                        <span className="text-rose-700">#{r.id} AI却下: {r.reason} (信頼度: {r.confidence}%)</span>
+                        <span className="text-rose-700">#{r.id} {t("lr.aiLog.aiRejected")}: {r.reason} ({r.confidence}%)</span>
                       </div>
                     ))}
                     {aiAutoApproveResult.results.filter(r => r.action === "held").map(r => (
                       <div key={r.id} className="flex items-center gap-2 bg-orange-50 rounded px-2 py-1">
                         <AlertTriangle className="w-3 h-3 text-orange-500 flex-shrink-0" />
-                        <span className="text-orange-700">#{r.id} {r.reason} (信頼度: {r.confidence}%)</span>
+                        <span className="text-orange-700">#{r.id} {r.reason} ({t("lr.confidence")}: {r.confidence}%)</span>
                       </div>
                     ))}
                   </div>
@@ -1147,12 +1168,12 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
           {activeTab === "ai_log" ? (
             <AiReviewLogPanel />
           ) : isLoading ? (
-            <div className="text-center py-8 text-muted-foreground">読み込み中...</div>
+            <div className="text-center py-8 text-muted-foreground">{t("lr.loading")}</div>
           ) : receipts?.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground">
                 <Receipt className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p>該当するレシートはありません</p>
+                <p>{t("receipts.noReceipts")}</p>
               </CardContent>
             </Card>
           ) : (
@@ -1167,15 +1188,15 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
                           <Calculator className="w-4 h-4 text-blue-600" />
-                          <span className="text-sm font-semibold">審査パネル</span>
+                          <span className="text-sm font-semibold">{t("lr.reviewPanel")}</span>
                           {sessionProcessedCount > 0 && (
                             <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] px-1.5 py-0 font-normal">
-                              {sessionProcessedCount}件済
+                              {sessionProcessedCount}
                             </Badge>
                           )}
                         </div>
                         <div className="flex items-center gap-1">
-                          <span className="text-[10px] text-muted-foreground">自動送り</span>
+                          <span className="text-[10px] text-muted-foreground">{t("lr.autoSend")}</span>
                           <Switch
                             checked={autoAdvanceEnabled}
                             onCheckedChange={setAutoAdvanceEnabled}
@@ -1189,20 +1210,20 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                         allProcessedMessage ? (
                         <div className="text-center py-4">
                           <PartyPopper className="w-8 h-8 text-green-500 mx-auto mb-2" />
-                          <p className="text-sm font-bold text-green-700">全件処理完了！</p>
+                          <p className="text-sm font-bold text-green-700">{sessionProcessedCount} {t("lr.processed")}</p>
                           <p className="text-xs text-muted-foreground mt-1">
-                            {sessionProcessedCount}件のレシートを処理しました
+                            {sessionProcessedCount} {t("lr.items")}
                           </p>
                         </div>
                         ) : (
                         <div className="text-center py-4 text-muted-foreground">
                           <Receipt className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                          <p className="text-xs">右の一覧からレシートを選択</p>
+                          <p className="text-xs">{t("lr.selectReceipt")}</p>
                           <div className="mt-2 flex items-center justify-center gap-1 text-[10px]">
                             <kbd className="px-1 py-0.5 font-mono bg-muted rounded border text-[9px]">↑↓</kbd>
-                            <span>選択</span>
+                            <span>{t("lr.selectHint")}</span>
                             <kbd className="px-1 py-0.5 font-mono bg-muted rounded border text-[9px]">Enter</kbd>
-                            <span>承認</span>
+                            <span>{t("lr.approveHint")}</span>
                           </div>
                         </div>
                         )
@@ -1222,7 +1243,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                 <div className="bg-orange-50 border border-orange-300 rounded p-1.5 space-y-1">
                                   <div className="flex items-center gap-1">
                                     <AlertTriangle className="w-3 h-3 text-orange-600 flex-shrink-0" />
-                                    <span className="font-bold text-orange-700 text-[10px]">重複{others.length}件</span>
+                                    <span className="font-bold text-orange-700 text-[10px]">{t("lr.duplicate")} {others.length}{t("lr.items")}</span>
                                   </div>
                                   {others.length > 0 && (
                                     <div className="space-y-1">
@@ -1234,10 +1255,10 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                           <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-1 flex-wrap">
                                               <Badge variant="outline" className="text-[8px] px-0.5 py-0">
-                                                {other.source === "line_receipt" ? "LINE" : "Web"}
+                                                {other.source === "line_receipt" ? t("lr.LINE") : t("lr.Web")}
                                               </Badge>
                                               <Badge variant={other.status === "approved" ? "default" : other.status === "rejected" ? "destructive" : "secondary"} className="text-[8px] px-0.5 py-0">
-                                                {other.status === "approved" ? "承認" : other.status === "rejected" ? "却下" : other.status === "on_hold" ? "保留" : "待機"}
+                                                {other.status === "approved" ? t("lr.approvedStatus") : other.status === "rejected" ? t("lr.rejectedStatus") : other.status === "on_hold" ? t("lr.holdStatus") : t("lr.waitingStatus")}
                                               </Badge>
                                               <span className="text-[9px] text-muted-foreground truncate">{other.userName}</span>
                                             </div>
@@ -1260,9 +1281,9 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                                 const target = receipts?.find((r: any) => r.id === other.id);
                                                 if (target) {
                                                   setCalcReceiptId(other.id);
-                                                  toast.info(`#${other.id} に切替`);
+                                                  toast.info(`#${other.id} ${t("lr.toast.switchedTo")}`);
                                                 } else {
-                                                  toast.info(`#${other.id} は別タブ`);
+                                                  toast.info(`#${other.id} ${t("lr.toast.otherTab")}`);
                                                 }
                                               }}
                                             >
@@ -1282,21 +1303,21 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                               <div className="bg-amber-50 border border-amber-300 rounded p-1.5 space-y-1">
                                 <div className="flex items-center gap-1">
                                   <AlertTriangle className="w-3 h-3 text-amber-600 flex-shrink-0" />
-                                  <span className="font-bold text-amber-700 text-[10px]">AI弾き → 強制申請</span>
+                                  <span className="font-bold text-amber-700 text-[10px]">{t("lr.aiRejectedForceSubmit")}</span>
                                 </div>
                                 {selectedCalcReceipt.receipt.aiRejectionReason && (
                                   <div className="text-[9px] text-amber-800 bg-amber-100 rounded px-1.5 py-0.5">
-                                    <span className="font-medium">AI判定理由:</span> {selectedCalcReceipt.receipt.aiRejectionReason}
+                                    <span className="font-medium">{t("lr.aiRejectionReason")}</span> {selectedCalcReceipt.receipt.aiRejectionReason}
                                   </div>
                                 )}
                                 {selectedCalcReceipt.receipt.aiRejectionCategory && (
                                   <div className="flex items-center gap-1">
                                     <Badge variant="outline" className="text-[8px] px-1 py-0 border-amber-400 text-amber-700 bg-amber-100">
-                                      {selectedCalcReceipt.receipt.aiRejectionCategory === 'not_tiktok' ? 'TikTok以外' :
-                                       selectedCalcReceipt.receipt.aiRejectionCategory === 'not_delivered' ? '未配達' :
-                                       selectedCalcReceipt.receipt.aiRejectionCategory === 'incomplete' ? '金額不明' : 'その他'}
+                                      {selectedCalcReceipt.receipt.aiRejectionCategory === 'not_tiktok' ? t("lr.notTiktok") :
+                                       selectedCalcReceipt.receipt.aiRejectionCategory === 'not_delivered' ? t("lr.notDelivered") :
+                                       selectedCalcReceipt.receipt.aiRejectionCategory === 'incomplete' ? t("lr.incompleteAmount") : t("lr.otherReason")}
                                     </Badge>
-                                    <span className="text-[8px] text-amber-600">→ お客様が強制申請</span>
+                                    <span className="text-[8px] text-amber-600">{t("lr.customerForceSubmit")}</span>
                                   </div>
                                 )}
                               </div>
@@ -1306,7 +1327,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                             <div className="space-y-0.5">
                               <div className="flex items-center gap-1">
                                 <Hash className="w-3 h-3 text-blue-600" />
-                                <span className="text-[10px] text-muted-foreground">注文番号</span>
+                                <span className="text-[10px] text-muted-foreground">{t("lr.orderNumber")}</span>
                                 {!isOrderNumberEditing && calcOrderNumber && (
                                   <button
                                     onClick={() => setIsOrderNumberEditing(true)}
@@ -1321,7 +1342,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                   <Input
                                     value={calcOrderNumber}
                                     onChange={(e) => setCalcOrderNumber(e.target.value)}
-                                    placeholder="注文番号を入力"
+                                    placeholder={t("lr.enterOrderNumber")}
                                     className="h-6 text-[10px] font-mono flex-1"
                                     onKeyDown={(e) => {
                                       if (e.key === "Enter" && calcOrderNumber.trim()) {
@@ -1334,7 +1355,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                     className="h-6 w-6 flex items-center justify-center text-blue-600 hover:text-blue-800"
                                     onClick={handleAiReRecognize}
                                     disabled={isAiRecognizing}
-                                    title="AI再認識"
+                                    title={t("lr.aiReRecognize")}
                                   >
                                     {isAiRecognizing ? (
                                       <Loader2 className="w-3 h-3 animate-spin" />
@@ -1347,7 +1368,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                       className="h-6 w-6 flex items-center justify-center text-green-600 hover:text-green-800"
                                       onClick={handleCalcOrderNumberSave}
                                       disabled={updateOrderNumberMutation.isPending}
-                                      title="保存"
+                                      title={t("lr.save")}
                                     >
                                       <Save className="w-3 h-3" />
                                     </button>
@@ -1360,12 +1381,12 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                               )}
                               {!calcOrderNumber && !isAiRecognizing && (
                                 <button onClick={handleAiReRecognize} className="flex items-center gap-0.5 text-[9px] text-blue-500 hover:text-blue-700">
-                                  <Brain className="w-2.5 h-2.5" />AI再認識
+                                  <Brain className="w-2.5 h-2.5" />{t("lr.aiReRecognize")}
                                 </button>
                               )}
                               {isAiRecognizing && (
                                 <p className="text-[9px] text-blue-500 flex items-center gap-0.5">
-                                  <Loader2 className="w-2.5 h-2.5 animate-spin" />解析中...
+                                  <Loader2 className="w-2.5 h-2.5 animate-spin" />{t("lr.loading")}
                                 </p>
                               )}
                             </div>
@@ -1374,7 +1395,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                             <div className="flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
                               <span className="flex items-center gap-0.5">
                                 <Store className="w-2.5 h-2.5" />
-                                {selectedCalcReceipt.receipt.storeName || "店舗不明"}
+                                {selectedCalcReceipt.receipt.storeName || t("lr.storeUnknown")}
                               </span>
                               <span className="flex items-center gap-0.5">
                                 <Calendar className="w-2.5 h-2.5" />
@@ -1405,27 +1426,27 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                   <div className="space-y-1">
                                     {hasItems ? (
                                       <div className="bg-blue-50/50 border border-blue-100 rounded px-1.5 py-1">
-                                        <p className="text-[9px] font-medium text-blue-600 mb-0.5">商品</p>
+                                        <p className="text-[9px] font-medium text-blue-600 mb-0.5">{t("lr.products")}</p>
                                         {ocr.items.slice(0, 3).map((item: any, i: number) => (
                                           <div key={i} className="flex justify-between text-[10px] leading-tight">
-                                            <span className="truncate flex-1 mr-1">{item.productName || "不明"}</span>
+                                            <span className="truncate flex-1 mr-1">{item.productName || t("lr.unknown")}</span>
                                             <span className="text-muted-foreground whitespace-nowrap">
                                               {item.unitPrice != null ? `¥${item.unitPrice.toLocaleString()}` : ""}
                                               {item.quantity != null ? ` x${item.quantity}` : ""}
                                             </span>
                                           </div>
                                         ))}
-                                        {ocr.items.length > 3 && <p className="text-[9px] text-muted-foreground">他{ocr.items.length - 3}件</p>}
+                                        {ocr.items.length > 3 && <p className="text-[9px] text-muted-foreground">{t("lr.moreItems").replace("{count}", String(ocr.items.length - 3))}</p>}
                                       </div>
                                     ) : ocr.productName ? (
                                       <div className="text-[10px]">
-                                        <span className="text-muted-foreground">商品: </span>
+                                        <span className="text-muted-foreground">{t("lr.products")}: </span>
                                         <span className="font-medium">{ocr.productName}</span>
                                       </div>
                                     ) : null}
                                     {hasDelivery && (
                                       <div className="bg-amber-50/50 border border-amber-100 rounded px-1.5 py-1">
-                                        <p className="text-[9px] font-medium text-amber-600 mb-0.5">配送先</p>
+                                        <p className="text-[9px] font-medium text-amber-600 mb-0.5">{t("lr.deliveryAddress")}</p>
                                         <div className="text-[10px] leading-tight space-y-0">
                                           {ocr.deliveryInfo.recipientName && (
                                             <div>{ocr.deliveryInfo.recipientName}{ocr.deliveryInfo.phoneNumber ? ` / ${ocr.deliveryInfo.phoneNumber}` : ""}</div>
@@ -1447,7 +1468,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                           <div className="flex items-center gap-2">
                             <div className="flex-1">
                               <label className="text-[10px] text-muted-foreground flex items-center gap-0.5 mb-0.5">
-                                <DollarSign className="w-2.5 h-2.5" />購入金額
+                                <DollarSign className="w-2.5 h-2.5" />{t("lr.purchaseAmount")}
                               </label>
                               <div className="relative">
                                 <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">¥</span>
@@ -1455,13 +1476,13 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                   type="number"
                                   value={calcAmount}
                                   onChange={(e) => setCalcAmount(e.target.value)}
-                                  placeholder="金額"
+                                  placeholder={t("lr.amount")}
                                   className="pl-6 text-sm font-bold h-8"
                                 />
                               </div>
                             </div>
                             <div className="bg-green-50 border border-green-200 rounded px-2 py-1 text-center min-w-[80px]">
-                              <p className="text-[9px] text-green-600">1%ポイント</p>
+                              <p className="text-[9px] text-green-600">{t("lr.pointPercent")}</p>
                               <p className="text-lg font-bold text-green-700 leading-tight">{calcPoints}<span className="text-[10px] font-normal">pt</span></p>
                             </div>
                           </div>
@@ -1470,7 +1491,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                           <Input
                             value={actionNote}
                             onChange={(e) => setActionNote(e.target.value)}
-                            placeholder="メモ（任意）"
+                            placeholder={t("lr.memo")}
                             className="h-7 text-[10px]"
                           />
                           
@@ -1483,18 +1504,18 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                 disabled={approveMutation.isPending}
                               >
                                 {approveMutation.isPending ? (
-                                  "承認処理中..."
+                                  t("lr.approving")
                                 ) : (
                                   <>
                                     <CheckCircle className="w-4 h-4 mr-1.5" />
-                                    承認（{calcPoints}pt付与）
+                                    {t("lr.approveWithPoints").replace("{points}", String(calcPoints))}
                                   </>
                                 )}
                               </Button>
                               {/* Rejection category selector */}
                               <Select value={rejectionCategory} onValueChange={setRejectionCategory}>
                                 <SelectTrigger className="h-7 text-[10px]">
-                                  <SelectValue placeholder="却下理由を選択（AI学習用）" />
+                                  <SelectValue placeholder={t("lr.selectRejectionReason")} />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {REJECTION_CATEGORIES.map(cat => (
@@ -1516,9 +1537,9 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                   disabled={rejectMutation.isPending || !rejectionCategory}
                                 >
                                   {rejectMutation.isPending && lastRejectedIdRef.current === selectedCalcReceipt.receipt.id ? (
-                                    <><Loader2 className="w-3 h-3 mr-1 animate-spin" />送信中</>
+                                    <><Loader2 className="w-3 h-3 mr-1 animate-spin" />{t("lr.sending")}</>
                                   ) : (
-                                    <><XCircle className="w-3 h-3 mr-1" />却下（LINE）</>
+                                    <><XCircle className="w-3 h-3 mr-1" />{t("lr.rejectLine")}</>
                                   )}
                                 </Button>
                                 {selectedCalcReceipt.receipt.status === "pending" && (
@@ -1529,7 +1550,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                     onClick={() => setActionDialog({ type: "hold", id: selectedCalcReceipt.receipt.id, receipt: selectedCalcReceipt.receipt })}
                                   >
                                     <AlertTriangle className="w-3 h-3 mr-1" />
-                                    保留
+                                    {t("lr.hold")}
                                   </Button>
                                 )}
                               </div>
@@ -1541,7 +1562,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                             <div className="bg-green-50 border border-green-200 rounded p-2 text-center">
                               <div className="flex items-center justify-center gap-1">
                                 <CheckCircle className="w-4 h-4 text-green-600" />
-                                <span className="text-xs font-medium text-green-700">承認済</span>
+                                <span className="text-xs font-medium text-green-700">{t("lr.approved")}</span>
                                 {selectedCalcReceipt.receipt.pointsAwarded != null && (
                                   <span className="text-xs text-green-600">({selectedCalcReceipt.receipt.pointsAwarded}pt)</span>
                                 )}
@@ -1553,7 +1574,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                               <div className="bg-red-50 border border-red-200 rounded p-2 text-center">
                                 <div className="flex items-center justify-center gap-1">
                                   <XCircle className="w-4 h-4 text-red-600" />
-                                  <span className="text-xs font-medium text-red-700">却下済</span>
+                                  <span className="text-xs font-medium text-red-700">{t("lr.rejected")}</span>
                                 </div>
                                 {selectedCalcReceipt.receipt.reviewNote && (
                                   <p className="text-[10px] text-red-500 mt-1 line-clamp-2">{selectedCalcReceipt.receipt.reviewNote}</p>
@@ -1565,11 +1586,11 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                 disabled={approveMutation.isPending}
                               >
                                 {approveMutation.isPending ? (
-                                  "復活処理中..."
+                                  t("lr.reviving")
                                 ) : (
                                   <>
                                     <RotateCcw className="w-4 h-4 mr-1.5" />
-                                    復活→承認（{calcPoints}pt付与）
+                                    {t("lr.reviveApprove").replace("{points}", String(calcPoints))}
                                   </>
                                 )}
                               </Button>
@@ -1578,7 +1599,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                         </>
                       ) : (
                         <div className="text-center py-4 text-muted-foreground text-sm">
-                          読み込み中...
+                          {t("lr.loading")}
                         </div>
                       )}
                     </CardContent>
@@ -1597,7 +1618,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                           <CardTitle className="text-sm flex items-center justify-between">
                             <div className="flex items-center gap-2">
                               <Images className="w-4 h-4 text-blue-600" />
-                              レシート画像
+                              {t("lr.receiptImages")}
                               <Badge variant="secondary" className="text-xs">{currentImageIndex + 1} / {images.length}</Badge>
                             </div>
                             <Button
@@ -1607,7 +1628,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                               onClick={() => openImageViewer(images, currentImageIndex)}
                             >
                               <ZoomIn className="w-3.5 h-3.5 mr-1" />
-                              拡大
+                              {t("lr.enlarge")}
                             </Button>
                           </CardTitle>
                         </CardHeader>
@@ -1656,7 +1677,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                       <Card className="border-2 border-dashed border-muted-foreground/30">
                         <CardContent className="py-20 text-center">
                           <ImageIcon className="w-12 h-12 mx-auto mb-3 text-muted-foreground/40" />
-                          <p className="text-sm text-muted-foreground">画像がありません</p>
+                          <p className="text-sm text-muted-foreground">{t("lr.noImage")}</p>
                         </CardContent>
                       </Card>
                     );
@@ -1664,7 +1685,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                     <Card className="border-2 border-dashed border-muted-foreground/30">
                       <CardContent className="py-20 text-center">
                         <ImageIcon className="w-12 h-12 mx-auto mb-3 text-muted-foreground/40" />
-                        <p className="text-sm text-muted-foreground">レシートを選択すると<br />画像がここに表示されます</p>
+                        <p className="text-sm text-muted-foreground">{t("lr.selectToViewImage")}</p>
                       </CardContent>
                     </Card>
                   )}
@@ -1706,13 +1727,13 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                               {receipt.fraudFlags && (receipt.fraudFlags as string[]).length > 0 && (
                                 <Badge variant="destructive" className="text-[10px] px-1 py-0">
                                   <AlertTriangle className="w-2.5 h-2.5 mr-0.5" />
-                                  {(receipt.fraudFlags as string[]).includes("similar_order_number") ? "類似" : (receipt.fraudFlags as string[]).includes("duplicate_order") ? "重複" : "不正"}
+                                  {(receipt.fraudFlags as string[]).includes("similar_order_number") ? t("lr.fraud.similar") : (receipt.fraudFlags as string[]).includes("duplicate_order") ? t("lr.fraud.duplicateLabel") : t("lr.fraud.fraudLabel")}
                                 </Badge>
                               )}
                               {receipt.isForceSubmitted && (
                                 <Badge variant="outline" className="text-[10px] px-1 py-0 border-amber-400 text-amber-700 bg-amber-50">
                                   <AlertTriangle className="w-2.5 h-2.5 mr-0.5" />
-                                  AI弾き
+                                  {t("lr.aiBounce")}
                                 </Badge>
                               )}
                               {duplicateReceiptIds.ids.has(receipt.id) && (() => {
@@ -1720,17 +1741,17 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                 const others = crossLink?.others || [];
                                 const otherSummary = others.map(o => {
                                   const src = o.source === "line_receipt" ? "LINE" : "Web";
-                                  const st = o.status === "approved" ? "承認" : o.status === "rejected" ? "却下" : o.status === "on_hold" ? "保留" : "待機";
+                                  const st = o.status === "approved" ? t("lr.approvedStatus") : o.status === "rejected" ? t("lr.rejectedStatus") : o.status === "on_hold" ? t("lr.holdStatus") : t("lr.waitingStatus");
                                   return `${src}#${o.id}(${st})`;
                                 }).join(", ");
                                 return (
                                   <Badge 
                                     variant="destructive" 
                                     className="text-[10px] px-1 py-0 bg-orange-100 text-orange-700 border-orange-300 cursor-help"
-                                    title={otherSummary ? `重複: ${otherSummary}` : "重複注文"}
+                                    title={otherSummary ? `${t("lr.duplicate")}: ${otherSummary}` : t("lr.duplicate")}
                                   >
                                     <AlertTriangle className="w-2.5 h-2.5 mr-0.5" />
-                                    重複{others.length > 0 ? `(${others.length})` : ""}
+                                    {t("lr.duplicate")}{others.length > 0 ? `(${others.length})` : ""}
                                   </Badge>
                                 );
                               })()}
@@ -1784,7 +1805,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                             })()}
                             {/* Row 4: Store + Date */}
                             <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                              <span className="truncate">{receipt.storeName || "店舗不明"}</span>
+                              <span className="truncate">{receipt.storeName || t("lr.storeUnknown")}</span>
                               <span>·</span>
                               <span className="flex-shrink-0">{receipt.purchaseDate ? new Date(receipt.purchaseDate).toLocaleDateString("ja-JP", { month: "short", day: "numeric" }) : "-"}</span>
                               <Button 
@@ -1868,7 +1889,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Receipt className="w-5 h-5" />
-              レシート詳細 #{selectedReceipt}
+              {t("lr.receiptDetail")} #{selectedReceipt}
             </DialogTitle>
           </DialogHeader>
           
@@ -1911,7 +1932,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                       {images.length > 1 && (
                         <p className="text-sm text-muted-foreground flex items-center gap-1">
                           <Images className="w-4 h-4" />
-                          この申請には{images.length}枚の画像が含まれています
+                          {t("lr.imagesCount").replace("{count}", String(images.length))}
                         </p>
                       )}
                     </>
@@ -1923,23 +1944,23 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm flex items-center gap-2 text-purple-700">
                       <Brain className="w-4 h-4" />
-                      AI分析結果
+                      {t("lr.aiAnalysis")}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">信頼度スコア</span>
+                      <span className="text-muted-foreground">{t("lr.confidenceScore")}</span>
                       <Badge variant="outline" className={getConfidenceLabel(getAiConfidence(receiptDetails.receipt)).color}>
                         {getAiConfidence(receiptDetails.receipt)}%
                       </Badge>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">OCR信頼度</span>
+                      <span className="text-muted-foreground">{t("lr.ocrConfidence")}</span>
                       <span className="font-medium">{receiptDetails.receipt.ocrConfidence || "-"}%</span>
                     </div>
                     {receiptDetails.receipt.ocrRawText && (
                       <div>
-                        <span className="text-muted-foreground block mb-1">OCRテキスト</span>
+                        <span className="text-muted-foreground block mb-1">{t("lr.ocrText")}</span>
                         <div className="bg-white rounded p-2 text-xs max-h-32 overflow-y-auto border">
                           {receiptDetails.receipt.ocrRawText}
                         </div>
@@ -1956,7 +1977,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                   {!editMode && (receiptDetails.receipt.status === "pending" || receiptDetails.receipt.status === "on_hold") && (
                     <Button variant="outline" size="sm" onClick={startEdit}>
                       <Edit className="w-4 h-4 mr-1" />
-                      編集
+                      {t("lr.edit")}
                     </Button>
                   )}
                 </div>
@@ -1964,14 +1985,14 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                 {editMode ? (
                   <div className="space-y-4">
                     <div>
-                      <Label>店舗名</Label>
+                      <Label>{t("lr.storeName")}</Label>
                       <Input 
                         value={editForm.storeName}
                         onChange={(e) => setEditForm({ ...editForm, storeName: e.target.value })}
                       />
                     </div>
                     <div>
-                      <Label>購入日</Label>
+                      <Label>{t("lr.purchaseDate")}</Label>
                       <Input 
                         type="date"
                         value={editForm.purchaseDate}
@@ -1979,7 +2000,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                       />
                     </div>
                     <div>
-                      <Label>金額</Label>
+                      <Label>{t("lr.amount")}</Label>
                       <Input 
                         type="number"
                         value={editForm.totalAmount}
@@ -1987,7 +2008,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                       />
                     </div>
                     <div>
-                      <Label>通貨</Label>
+                      <Label>{t("lr.currency")}</Label>
                       <Input 
                         value={editForm.currency}
                         onChange={(e) => setEditForm({ ...editForm, currency: e.target.value })}
@@ -1995,10 +2016,10 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                     </div>
                     <div className="flex gap-2">
                       <Button onClick={handleEditSave} disabled={updateOcrMutation.isPending}>
-                        保存
+                        {t("lr.save")}
                       </Button>
                       <Button variant="outline" onClick={() => setEditMode(false)}>
-                        キャンセル
+                        {t("lr.cancel")}
                       </Button>
                     </div>
                   </div>
@@ -2009,46 +2030,46 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                         const orderNum = getOrderNumber(receiptDetails.receipt);
                         return orderNum ? (
                           <div className="flex justify-between py-2 border-b">
-                            <span className="text-muted-foreground">注文番号</span>
+                            <span className="text-muted-foreground">{t("lr.orderNumber")}</span>
                             <span className="font-mono text-sm font-medium">{orderNum}</span>
                           </div>
                         ) : null;
                       })()}
                       <div className="flex justify-between py-2 border-b">
-                        <span className="text-muted-foreground">店舗名</span>
+                        <span className="text-muted-foreground">{t("lr.storeName")}</span>
                         <span className="font-medium">{receiptDetails.receipt.storeName || "-"}</span>
                       </div>
                       <div className="flex justify-between py-2 border-b">
-                        <span className="text-muted-foreground">購入日時</span>
+                        <span className="text-muted-foreground">{t("lr.purchaseDate")}</span>
                         <span className="font-medium">{formatDate(receiptDetails.receipt.purchaseDate)}</span>
                       </div>
                       <div className="flex justify-between py-2 border-b">
-                        <span className="text-muted-foreground">金額</span>
+                        <span className="text-muted-foreground">{t("lr.amount")}</span>
                         <span className="font-medium">{formatCurrency(receiptDetails.receipt.totalAmount, receiptDetails.receipt.currency || "JPY")}</span>
                       </div>
                       <div className="flex justify-between py-2 border-b">
-                        <span className="text-muted-foreground">計算ポイント</span>
+                        <span className="text-muted-foreground">{t("lr.calculatedPoints")}</span>
                         <span className="font-medium text-blue-600">{receiptDetails.receipt.pointsCalculated || 0} pt</span>
                       </div>
                       {receiptDetails.receipt.pointsAwarded !== null && (
                         <div className="flex justify-between py-2 border-b">
-                          <span className="text-muted-foreground">付与ポイント</span>
+                          <span className="text-muted-foreground">{t("lr.awardedPoints")}</span>
                           <span className="font-medium text-green-600">{receiptDetails.receipt.pointsAwarded} pt</span>
                         </div>
                       )}
                       <div className="flex justify-between py-2 border-b">
-                        <span className="text-muted-foreground">申請日時</span>
+                        <span className="text-muted-foreground">{t("lr.submittedAt")}</span>
                         <span className="font-medium">{formatDate(receiptDetails.receipt.submittedAt)}</span>
                       </div>
                       {receiptDetails.receipt.reviewedAt && (
                         <div className="flex justify-between py-2 border-b">
-                          <span className="text-muted-foreground">審査日時</span>
+                          <span className="text-muted-foreground">{t("lr.reviewedAt")}</span>
                           <span className="font-medium">{formatDate(receiptDetails.receipt.reviewedAt)}</span>
                         </div>
                       )}
                       {receiptDetails.receipt.reviewNote && (
                         <div className="py-2 border-b">
-                          <span className="text-muted-foreground block mb-1">審査メモ</span>
+                          <span className="text-muted-foreground block mb-1">{t("lr.reviewNote")}</span>
                           <span className="font-medium">{receiptDetails.receipt.reviewNote}</span>
                         </div>
                       )}
@@ -2062,34 +2083,34 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                     <CardHeader className="pb-2">
                       <CardTitle className="text-sm flex items-center gap-2 text-amber-700">
                         <AlertTriangle className="w-4 h-4" />
-                        AI弾き → 強制申請レシート
+                        {t("lr.aiRejectedForceSubmit")}
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2">
                       <div className="text-sm space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-muted-foreground">カテゴリ:</span>
+                          <span className="text-muted-foreground">{t("lr.category")}:</span>
                           <Badge variant="outline" className="border-amber-400 text-amber-700 bg-amber-100">
-                            {receiptDetails.receipt.aiRejectionCategory === 'not_tiktok' ? 'TikTok以外の画面' :
-                             receiptDetails.receipt.aiRejectionCategory === 'not_delivered' ? '未配達' :
-                             receiptDetails.receipt.aiRejectionCategory === 'incomplete' ? '金額読み取り不可' : 'その他'}
+                            {receiptDetails.receipt.aiRejectionCategory === 'not_tiktok' ? t("lr.notTiktok") :
+                             receiptDetails.receipt.aiRejectionCategory === 'not_delivered' ? t("lr.notDelivered") :
+                             receiptDetails.receipt.aiRejectionCategory === 'incomplete' ? t("lr.incompleteAmount") : t("lr.otherReason")}
                           </Badge>
                         </div>
                         {receiptDetails.receipt.aiRejectionReason && (
                           <div className="flex items-start gap-2">
-                            <span className="text-muted-foreground flex-shrink-0">理由:</span>
+                            <span className="text-muted-foreground flex-shrink-0">{t("lr.reason")}:</span>
                             <span className="font-medium text-amber-800">{receiptDetails.receipt.aiRejectionReason}</span>
                           </div>
                         )}
                         {receiptDetails.receipt.forceSubmittedAt && (
                           <div className="flex items-center gap-2">
-                            <span className="text-muted-foreground">強制申請日時:</span>
+                            <span className="text-muted-foreground">{t("lr.forceSubmitDate")}:</span>
                             <span className="font-medium">{new Date(receiptDetails.receipt.forceSubmittedAt).toLocaleString("ja-JP")}</span>
                           </div>
                         )}
                       </div>
                       <div className="text-[10px] text-amber-600 bg-amber-100 rounded p-1.5">
-                        ※ このレシートはAIが一度弾いたものですが、お客様が「それでもアップロード」を選択しました。審査結果はAI学習データとして蓄積されます。
+                        {t("lr.forceSubmitNote")}
                       </div>
                     </CardContent>
                   </Card>
@@ -2101,19 +2122,19 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                     <CardHeader className="pb-2">
                       <CardTitle className="text-sm flex items-center gap-2 text-orange-700">
                         <AlertTriangle className="w-4 h-4" />
-                        不正検知ログ
+                        {t("lr.fraudLog")}
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2">
                       {receiptDetails.fraudLogs.map((log: any, i: number) => {
                         const checkTypeLabels: Record<string, string> = {
-                          duplicate_image: "重複画像",
-                          duplicate_receipt: "重複レシート",
-                          expired_receipt: "期限切れ",
-                          high_frequency: "高頻度申請",
-                          high_amount: "高額購入",
-                          suspicious_pattern: "不審パターン",
-                          similar_order_number: "類似注文番号",
+                          duplicate_image: t("lr.fraud.duplicateImage"),
+                          duplicate_receipt: t("lr.fraud.duplicateReceipt"),
+                          expired_receipt: t("lr.fraud.expired"),
+                          high_frequency: t("lr.fraud.highFrequency"),
+                          high_amount: t("lr.fraud.highAmount"),
+                          suspicious_pattern: t("lr.fraud.suspicious"),
+                          similar_order_number: t("lr.fraud.similar"),
                         };
                         const isSimilar = log.checkType === "similar_order_number";
                         return (
@@ -2141,12 +2162,12 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                         }}
                       >
                         <Calculator className="w-4 h-4 mr-2" />
-                        計算機で承認
+                        {t("lr.approveWithCalc")}
                       </Button>
                     </div>
                     <Select value={rejectionCategory} onValueChange={setRejectionCategory}>
                       <SelectTrigger className="h-8 text-xs">
-                        <SelectValue placeholder="却下理由を選択（AI学習用）" />
+                        <SelectValue placeholder={t("lr.selectRejectionReason")} />
                       </SelectTrigger>
                       <SelectContent>
                         {REJECTION_CATEGORIES.map(cat => (
@@ -2169,9 +2190,9 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                       disabled={rejectMutation.isPending || !rejectionCategory}
                     >
                       {rejectMutation.isPending ? (
-                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" />送信中...</>
+                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{t("lr.sending")}</>
                       ) : (
-                        <><XCircle className="w-4 h-4 mr-2" />却下（LINE送信）</>
+                        <><XCircle className="w-4 h-4 mr-2" />{t("lr.rejectLine")}</>
                       )}
                     </Button>
                   </div>
@@ -2187,20 +2208,20 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-orange-600" /> レシートを保留
+              <AlertTriangle className="w-5 h-5 text-orange-600" /> {t("lr.holdReceipt")}
             </DialogTitle>
             <DialogDescription>
-              このレシートを保留にしますか？理由を入力してください。
+              {t("lr.holdDescription")}
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4">
             <div>
-              <Label>詳細理由</Label>
+              <Label>{t("lr.detailReason")}</Label>
               <Textarea 
                 value={actionNote}
                 onChange={(e) => setActionNote(e.target.value)}
-                placeholder="詳細な理由を入力してください"
+                placeholder={t("lr.enterDetailReason")}
                 required
               />
             </div>
@@ -2208,13 +2229,13 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
           
           <DialogFooter>
             <Button variant="outline" onClick={() => setActionDialog(null)}>
-              キャンセル
+              {t("lr.cancel")}
             </Button>
             <Button 
               onClick={handleAction}
               disabled={!actionNote || holdMutation.isPending}
             >
-              {holdMutation.isPending ? "処理中..." : "保留にする"}
+              {holdMutation.isPending ? t("lr.processing") : t("lr.setHold")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2226,16 +2247,16 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Hash className="w-5 h-5 text-blue-600" />
-              注文番号を手動入力
+              {t("lr.manualOrderNumber")}
             </DialogTitle>
             <DialogDescription>
-              レシート画像を確認して、注文番号を入力してください。
+              {t("lr.manualOrderNumberDesc")}
             </DialogDescription>
           </DialogHeader>
           
           {orderNumberDialog?.images && orderNumberDialog.images.length > 0 && (
             <div className="space-y-2">
-              <Label className="text-sm font-medium">レシート画像（クリックで拡大）</Label>
+              <Label className="text-sm font-medium">{t("lr.receiptImageClickToEnlarge")}</Label>
               <div className="grid grid-cols-1 gap-2">
                 {orderNumberDialog.images.map((img, idx) => (
                   <a key={idx} href={img} target="_blank" rel="noopener noreferrer" className="block">
@@ -2251,35 +2272,35 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
           )}
           
           <div className="space-y-2">
-            <Label htmlFor="orderNumber">注文番号</Label>
+            <Label htmlFor="orderNumber">{t("lr.orderNumber")}</Label>
             <Input
               id="orderNumber"
               value={orderNumberInput}
               onChange={(e) => setOrderNumberInput(e.target.value)}
-              placeholder="例: 581900058582287971"
+              placeholder={t("lr.orderNumberExample")}
               className="font-mono text-lg"
             />
             {orderNumberDialog?.currentOrderNumber && (
-              <p className="text-xs text-muted-foreground">現在の注文番号: {orderNumberDialog.currentOrderNumber}</p>
+              <p className="text-xs text-muted-foreground">{t("lr.currentOrderNumber")}: {orderNumberDialog.currentOrderNumber}</p>
             )}
           </div>
           
           {updateOrderNumberMutation.isError && (
             <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2">
-              {updateOrderNumberMutation.error?.message || "エラーが発生しました"}
+              {updateOrderNumberMutation.error?.message || t("lr.errorOccurred")}
             </div>
           )}
           
           <DialogFooter>
             <Button variant="outline" onClick={() => { setOrderNumberDialog(null); setOrderNumberInput(""); }}>
-              キャンセル
+              {t("lr.cancel")}
             </Button>
             <Button 
               onClick={handleOrderNumberSave}
               disabled={!orderNumberInput.trim() || updateOrderNumberMutation.isPending}
               className="bg-blue-600 hover:bg-blue-700"
             >
-              {updateOrderNumberMutation.isPending ? "保存中..." : "注文番号を保存"}
+              {updateOrderNumberMutation.isPending ? t("lr.saving") : t("lr.saveOrderNumber")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2291,19 +2312,19 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Keyboard className="w-5 h-5 text-blue-600" />
-              キーボードショートカット
+              {t("lr.keyboardShortcuts")}
             </DialogTitle>
             <DialogDescription>
-              キーボードだけでレシートを高速処理できます
+              {t("lr.shortcutDesc")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-1">
             {/* Navigation */}
             <div className="px-3 py-2 bg-muted/50 rounded-md">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">ナビゲーション</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t("lr.navigation")}</p>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm">次のレシートを選択</span>
+                  <span className="text-sm">{t("lr.shortcut.nextReceipt")}</span>
                   <div className="flex gap-1">
                     <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">↓</kbd>
                     <span className="text-xs text-muted-foreground">or</span>
@@ -2311,7 +2332,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm">前のレシートを選択</span>
+                  <span className="text-sm">{t("lr.shortcut.prevReceipt")}</span>
                   <div className="flex gap-1">
                     <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">↑</kbd>
                     <span className="text-xs text-muted-foreground">or</span>
@@ -2319,7 +2340,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm">選択解除</span>
+                  <span className="text-sm">{t("lr.shortcut.deselect")}</span>
                   <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">Esc</kbd>
                 </div>
               </div>
@@ -2327,33 +2348,33 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
             
             {/* Actions */}
             <div className="px-3 py-2 bg-muted/50 rounded-md">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">アクション</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t("lr.actions")}</p>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm flex items-center gap-1.5">
                     <CheckCircle className="w-3.5 h-3.5 text-green-600" />
-                    承認する
+                    {t("lr.approve")}
                   </span>
                   <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">Enter</kbd>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm flex items-center gap-1.5">
                     <XCircle className="w-3.5 h-3.5 text-red-600" />
-                    却下する
+                    {t("lr.reject")}
                   </span>
                   <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">R</kbd>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm flex items-center gap-1.5">
                     <AlertTriangle className="w-3.5 h-3.5 text-orange-500" />
-                    保留にする
+                    {t("lr.setHold")}
                   </span>
                   <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">H</kbd>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm flex items-center gap-1.5">
                     <Eye className="w-3.5 h-3.5 text-blue-600" />
-                    詳細を開く
+                    {t("lr.openDetail")}
                   </span>
                   <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">D</kbd>
                 </div>
@@ -2362,15 +2383,15 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
             
             {/* Other */}
             <div className="px-3 py-2 bg-muted/50 rounded-md">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">その他</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t("lr.other")}</p>
               <div className="flex items-center justify-between">
-                <span className="text-sm">このヘルプを表示</span>
+                <span className="text-sm">{t("lr.showHelp")}</span>
                 <kbd className="px-2 py-1 text-xs font-mono bg-background rounded border shadow-sm">?</kbd>
               </div>
             </div>
             
             <p className="text-xs text-muted-foreground text-center pt-2">
-              ※ 入力フィールドやダイアログが開いているときは無効になります
+              {t("lr.shortcutDisabledNote")}
             </p>
           </div>
         </DialogContent>
@@ -2381,6 +2402,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
 
 // ===== AI審査ログパネル =====
 function AiReviewLogPanel() {
+  const { t } = useLanguage();
   const [filter, setFilter] = useState<string>("all");
   const [selectedBatchId, setSelectedBatchId] = useState<string | undefined>(undefined);
   const [expandedComments, setExpandedComments] = useState<Set<number>>(new Set());
@@ -2402,7 +2424,7 @@ function AiReviewLogPanel() {
   // Override mutation
   const overrideMutation = trpc.aiReview.overrideDecision.useMutation({
     onSuccess: (data) => {
-      toast.success(`AI判定を修正しました: ${data.humanOverride === "approved" ? "承認" : "却下"}`);
+      toast.success(`${t("lr.aiLog.overrideSuccess")}: ${data.humanOverride === "approved" ? t("lr.approve") : t("lr.reject")}`);
       utils.aiReview.getLogs.invalidate();
       utils.aiReview.getBatches.invalidate();
       utils.aiReview.getStats.invalidate();
@@ -2410,7 +2432,7 @@ function AiReviewLogPanel() {
       utils.point.adminGetLineStatistics.invalidate();
     },
     onError: (err) => {
-      toast.error(`修正エラー: ${err.message}`);
+      toast.error(`${t("lr.aiLog.overrideError")}: ${err.message}`);
     },
   });
   
@@ -2425,11 +2447,11 @@ function AiReviewLogPanel() {
   
   // Decision config for consistent styling
   const decisionConfig: Record<string, { label: string; icon: any; bg: string; text: string; border: string; ringColor: string }> = {
-    approved: { label: "AI承認", icon: ShieldCheck, bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", ringColor: "ring-emerald-400" },
-    rejected_duplicate: { label: "AI却下（重複）", icon: ShieldX, bg: "bg-red-50", text: "text-red-700", border: "border-red-200", ringColor: "ring-red-400" },
-    rejected_ai: { label: "AI却下（低信頼度）", icon: ShieldX, bg: "bg-rose-50", text: "text-rose-700", border: "border-rose-200", ringColor: "ring-rose-400" },
-    held: { label: "AI保留", icon: ShieldAlert, bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", ringColor: "ring-amber-400" },
-    skipped: { label: "スキップ", icon: SkipForward, bg: "bg-gray-50", text: "text-gray-600", border: "border-gray-200", ringColor: "ring-gray-400" },
+    approved: { label: t("lr.aiLog.aiApproved"), icon: ShieldCheck, bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", ringColor: "ring-emerald-400" },
+    rejected_duplicate: { label: t("lr.aiLog.duplicateRejected"), icon: ShieldX, bg: "bg-red-50", text: "text-red-700", border: "border-red-200", ringColor: "ring-red-400" },
+    rejected_ai: { label: t("lr.aiLog.aiRejected"), icon: ShieldX, bg: "bg-rose-50", text: "text-rose-700", border: "border-rose-200", ringColor: "ring-rose-400" },
+    held: { label: t("lr.aiLog.aiHeld"), icon: ShieldAlert, bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", ringColor: "ring-amber-400" },
+    skipped: { label: t("lr.aiLog.skipped"), icon: SkipForward, bg: "bg-gray-50", text: "text-gray-600", border: "border-gray-200", ringColor: "ring-gray-400" },
   };
   
   const getConfidenceColor = (confidence: number) => {
@@ -2461,8 +2483,8 @@ function AiReviewLogPanel() {
             <Bot className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h3 className="font-bold text-lg">AI審査ログ</h3>
-            <p className="text-xs text-muted-foreground">AIが自動判定した全レシートの履歴・人間による修正</p>
+            <h3 className="font-bold text-lg">{t("lr.aiReviewLog")}</h3>
+            <p className="text-xs text-muted-foreground">{t("lr.aiLog.description")}</p>
           </div>
         </div>
         <Button
@@ -2474,7 +2496,7 @@ function AiReviewLogPanel() {
           }}
         >
           <RefreshCw className="w-4 h-4 mr-1" />
-          更新
+          {t("lr.aiLog.refresh")}
         </Button>
       </div>
       
@@ -2483,27 +2505,27 @@ function AiReviewLogPanel() {
         <div className="grid grid-cols-6 gap-2">
           <div className="rounded-lg border bg-card p-2.5 text-center">
             <p className="text-lg font-bold">{summaryCounts.total}</p>
-            <p className="text-[10px] text-muted-foreground">合計</p>
+            <p className="text-[10px] text-muted-foreground">{t("lr.aiLog.total")}</p>
           </div>
           <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-2.5 text-center">
             <p className="text-lg font-bold text-emerald-700">{summaryCounts.approved}</p>
-            <p className="text-[10px] text-emerald-600">AI承認</p>
+            <p className="text-[10px] text-emerald-600">{t("lr.aiLog.aiApproved")}</p>
           </div>
           <div className="rounded-lg border border-red-200 bg-red-50/50 p-2.5 text-center">
             <p className="text-lg font-bold text-red-700">{summaryCounts.rejected}</p>
-            <p className="text-[10px] text-red-600">重複却下</p>
+            <p className="text-[10px] text-red-600">{t("lr.aiLog.duplicateRejected")}</p>
           </div>
           <div className="rounded-lg border border-rose-200 bg-rose-50/50 p-2.5 text-center">
             <p className="text-lg font-bold text-rose-700">{summaryCounts.rejectedAi}</p>
-            <p className="text-[10px] text-rose-600">AI却下</p>
+            <p className="text-[10px] text-rose-600">{t("lr.aiLog.aiRejected")}</p>
           </div>
           <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-2.5 text-center">
             <p className="text-lg font-bold text-amber-700">{summaryCounts.held}</p>
-            <p className="text-[10px] text-amber-600">AI保留</p>
+            <p className="text-[10px] text-amber-600">{t("lr.aiLog.aiHeld")}</p>
           </div>
           <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-2.5 text-center">
             <p className="text-lg font-bold text-gray-600">{summaryCounts.skipped}</p>
-            <p className="text-[10px] text-gray-500">スキップ</p>
+            <p className="text-[10px] text-gray-500">{t("lr.aiLog.skipped")}</p>
           </div>
         </div>
       )}
@@ -2512,7 +2534,7 @@ function AiReviewLogPanel() {
       {batches && batches.length > 0 && (
         <Card className="border-dashed">
           <CardContent className="py-3">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">バッチ実行履歴</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t("lr.aiLog.batchHistory")}</p>
             <div className="flex flex-wrap gap-1.5">
               <Button
                 variant={!selectedBatchId ? "default" : "outline"}
@@ -2520,7 +2542,7 @@ function AiReviewLogPanel() {
                 className="text-xs h-7 rounded-full"
                 onClick={() => setSelectedBatchId(undefined)}
               >
-                全て
+                {t("lr.aiLog.all")}
               </Button>
               {batches.map((batch: any) => (
                 <Button
@@ -2541,14 +2563,14 @@ function AiReviewLogPanel() {
       
       {/* Filters */}
       <div className="flex items-center gap-1.5 flex-wrap">
-        <span className="text-xs font-medium text-muted-foreground mr-1">フィルター:</span>
+        <span className="text-xs font-medium text-muted-foreground mr-1">{t("lr.aiLog.filter")}:</span>
         {[
-          { value: "all", label: "全て", icon: List, count: summaryCounts.total },
-          { value: "approved", label: "AI承認", icon: ShieldCheck, count: summaryCounts.approved },
-          { value: "rejected_duplicate", label: "重複却下", icon: ShieldX, count: summaryCounts.rejected },
-          { value: "rejected_ai", label: "AI却下", icon: ShieldX, count: summaryCounts.rejectedAi },
-          { value: "held", label: "AI保留", icon: ShieldAlert, count: summaryCounts.held },
-          { value: "skipped", label: "スキップ", icon: SkipForward, count: summaryCounts.skipped },
+          { value: "all", label: t("lr.aiLog.all"), icon: List, count: summaryCounts.total },
+          { value: "approved", label: t("lr.aiLog.aiApproved"), icon: ShieldCheck, count: summaryCounts.approved },
+          { value: "rejected_duplicate", label: t("lr.aiLog.duplicateRejected"), icon: ShieldX, count: summaryCounts.rejected },
+          { value: "rejected_ai", label: t("lr.aiLog.aiRejected"), icon: ShieldX, count: summaryCounts.rejectedAi },
+          { value: "held", label: t("lr.aiLog.aiHeld"), icon: ShieldAlert, count: summaryCounts.held },
+          { value: "skipped", label: t("lr.aiLog.skipped"), icon: SkipForward, count: summaryCounts.skipped },
         ].map(({ value, label, icon: Icon, count }) => (
           <Button
             key={value}
@@ -2568,14 +2590,14 @@ function AiReviewLogPanel() {
       {logsLoading ? (
         <div className="text-center py-8 text-muted-foreground">
           <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
-          読み込み中...
+          {t("lr.loading")}
         </div>
       ) : !logs || logs.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
             <Bot className="w-12 h-12 mx-auto mb-2 opacity-50" />
-            <p>AI審査ログはまだありません</p>
-            <p className="text-xs mt-1">AI自動承認モードをONにすると、ここに審査結果が記録されます</p>
+            <p>{t("lr.aiLog.noLogs")}</p>
+            <p className="text-xs mt-1">{t("lr.aiLog.noLogsHint")}</p>
           </CardContent>
         </Card>
       ) : (
@@ -2646,7 +2668,7 @@ function AiReviewLogPanel() {
                               : "bg-pink-100 text-pink-700 border-pink-300"
                           }`}>
                             {log.humanOverride === "approved" ? <ThumbsUp className="w-2.5 h-2.5" /> : <ThumbsDown className="w-2.5 h-2.5" />}
-                            {log.humanOverride === "approved" ? "人間承認" : "人間却下"}
+                            {log.humanOverride === "approved" ? t("lr.aiLog.humanApproved") : t("lr.aiLog.humanRejected")}
                           </span>
                         )}
                       </div>
@@ -2718,7 +2740,7 @@ function AiReviewLogPanel() {
                               size="sm"
                               className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-full shadow-sm"
                               onClick={() => {
-                                const comment = prompt("承認コメント（任意）:");
+                                const comment = prompt(t("lr.aiLog.approveComment"));
                                 overrideMutation.mutate({
                                   logId: log.id,
                                   humanOverride: "approved",
@@ -2728,7 +2750,7 @@ function AiReviewLogPanel() {
                               disabled={overrideMutation.isPending}
                             >
                               <ThumbsUp className="w-3 h-3 mr-1" />
-                              承認
+                              {t("lr.approve")}
                             </Button>
                           )}
                           {log.aiDecision === "approved" && (
@@ -2737,7 +2759,7 @@ function AiReviewLogPanel() {
                               variant="outline"
                               className="h-7 text-xs border-red-300 text-red-600 hover:bg-red-50 rounded-full"
                               onClick={() => {
-                                const comment = prompt("却下理由:");
+                                const comment = prompt(t("lr.aiLog.rejectReason"));
                                 if (comment) {
                                   overrideMutation.mutate({
                                     logId: log.id,
@@ -2749,7 +2771,7 @@ function AiReviewLogPanel() {
                               disabled={overrideMutation.isPending}
                             >
                               <ThumbsDown className="w-3 h-3 mr-1" />
-                              却下
+                              {t("lr.reject")}
                             </Button>
                           )}
                         </>

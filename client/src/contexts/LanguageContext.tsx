@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import { lineReceiptJa, lineReceiptZh } from "@/pages/lineReceiptI18n";
 
 export type Language = "ja" | "zh";
 
@@ -685,8 +686,8 @@ const zhTranslations: Record<string, string> = {
 };
 
 const translations: Record<Language, Record<string, string>> = {
-  ja: jaTranslations,
-  zh: zhTranslations,
+  ja: { ...jaTranslations, ...lineReceiptJa },
+  zh: { ...zhTranslations, ...lineReceiptZh },
 };
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
