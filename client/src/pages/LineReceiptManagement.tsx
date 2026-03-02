@@ -65,6 +65,10 @@ import {
   Globe,
   UserCheck,
   UserX,
+  Trophy,
+  Flame,
+  Target,
+  TrendingUp,
 } from "lucide-react";
 
 type ReceiptStatus = "pending" | "approved" | "rejected" | "on_hold" | "ai_log";
@@ -2582,15 +2586,110 @@ function AiReviewLogPanel() {
             <p className="text-lg font-bold text-gray-600">{summaryCounts.skipped}</p>
             <p className="text-[10px] text-gray-500">{t("lr.aiLog.skipped")}</p>
           </div>
-          {/* AI学習数カード */}
-          {learningStats && (learningStats.totalExamples as number) > 0 && (
-            <div className="text-center px-3 py-1.5 bg-purple-50 rounded-lg border border-purple-200">
-              <p className="text-lg font-bold text-purple-700">{learningStats.totalExamples as number}</p>
-              <p className="text-[10px] text-purple-600">🧠 学習数</p>
-            </div>
-          )}
         </div>
       )}
+      
+      {/* AI Learning Gamification Card */}
+      {learningStats && (() => {
+        const totalExamples = learningStats.totalExamples as number;
+        // Level system: each level requires more examples
+        const levels = [
+          { level: 1, name: "見習い", minExamples: 0, icon: "🌱", color: "from-gray-400 to-gray-500", bgColor: "bg-gray-50", borderColor: "border-gray-200", textColor: "text-gray-700" },
+          { level: 2, name: "初級", minExamples: 10, icon: "🧠", color: "from-blue-400 to-blue-600", bgColor: "bg-blue-50", borderColor: "border-blue-200", textColor: "text-blue-700" },
+          { level: 3, name: "中級", minExamples: 25, icon: "⚡", color: "from-purple-400 to-purple-600", bgColor: "bg-purple-50", borderColor: "border-purple-200", textColor: "text-purple-700" },
+          { level: 4, name: "上級", minExamples: 50, icon: "🔥", color: "from-orange-400 to-red-500", bgColor: "bg-orange-50", borderColor: "border-orange-200", textColor: "text-orange-700" },
+          { level: 5, name: "エキスパート", minExamples: 100, icon: "👑", color: "from-yellow-400 to-amber-500", bgColor: "bg-amber-50", borderColor: "border-amber-200", textColor: "text-amber-700" },
+          { level: 6, name: "マスター", minExamples: 200, icon: "💎", color: "from-cyan-400 to-teal-500", bgColor: "bg-teal-50", borderColor: "border-teal-200", textColor: "text-teal-700" },
+        ];
+        const currentLevel = [...levels].reverse().find(l => totalExamples >= l.minExamples) || levels[0];
+        const nextLevel = levels.find(l => l.minExamples > totalExamples);
+        const prevThreshold = currentLevel.minExamples;
+        const nextThreshold = nextLevel ? nextLevel.minExamples : currentLevel.minExamples;
+        const progressInLevel = nextLevel ? ((totalExamples - prevThreshold) / (nextThreshold - prevThreshold)) * 100 : 100;
+        const remaining = nextLevel ? nextThreshold - totalExamples : 0;
+        
+        // Today's count from byCategory breakdown
+        const todayCount = (learningStats.byCategory as any[])?.reduce((sum: number, c: any) => sum + (c.count ?? 0), 0) ?? totalExamples;
+        
+        return (
+          <div className={`rounded-xl border-2 ${currentLevel.borderColor} ${currentLevel.bgColor} p-4 transition-all duration-500`}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">{currentLevel.icon}</span>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-sm font-bold ${currentLevel.textColor}`}>AI学習 Lv.{currentLevel.level}</span>
+                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${currentLevel.borderColor} ${currentLevel.textColor}`}>
+                      {currentLevel.name}
+                    </Badge>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">学習データ {totalExamples}件 蓄積済み</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="flex items-center gap-1">
+                  <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+                  <span className="text-sm font-bold text-emerald-600">{todayCount}</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground">累計修正</p>
+              </div>
+            </div>
+            
+            {/* Progress Bar */}
+            {nextLevel ? (
+              <div className="space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    <Target className="w-3 h-3" />
+                    次のレベルまで あと <span className="font-bold text-foreground">{remaining}件</span>
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {nextLevel.icon} Lv.{nextLevel.level} {nextLevel.name}
+                  </span>
+                </div>
+                <div className="h-3 bg-white/80 rounded-full overflow-hidden border">
+                  <div
+                    className={`h-full rounded-full bg-gradient-to-r ${currentLevel.color} transition-all duration-1000 ease-out relative`}
+                    style={{ width: `${Math.max(progressInLevel, 3)}%` }}
+                  >
+                    <div className="absolute inset-0 bg-white/20 animate-pulse" />
+                  </div>
+                </div>
+                <div className="flex justify-between text-[9px] text-muted-foreground">
+                  <span>{prevThreshold}</span>
+                  <span>{Math.round(progressInLevel)}%</span>
+                  <span>{nextThreshold}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-1">
+                <span className="text-xs font-bold text-amber-600">🏆 最高レベル達成！</span>
+              </div>
+            )}
+            
+            {/* Milestone badges */}
+            <div className="flex gap-1.5 mt-3 justify-center">
+              {[10, 25, 50, 100, 200].map((milestone) => (
+                <div
+                  key={milestone}
+                  className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-medium border transition-all ${
+                    totalExamples >= milestone
+                      ? "bg-gradient-to-r from-amber-100 to-yellow-100 border-amber-300 text-amber-700 shadow-sm"
+                      : "bg-gray-100/50 border-gray-200 text-gray-400"
+                  }`}
+                >
+                  {totalExamples >= milestone ? (
+                    <Trophy className="w-3 h-3" />
+                  ) : (
+                    <Target className="w-3 h-3" />
+                  )}
+                  {milestone}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
       
       {/* Batch History */}
       {batches && batches.length > 0 && (
