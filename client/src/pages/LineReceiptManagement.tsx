@@ -139,7 +139,6 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
   const [orderNumberSearch, setOrderNumberSearch] = useState("");
   
   // AI Auto-Approve state
-  const [aiAutoApproveLimit, setAiAutoApproveLimit] = useState(20);
   const [aiAutoApproveResult, setAiAutoApproveResult] = useState<{
     processed: number;
     results: { id: number; action: string; reason: string; confidence?: number; orderNumber?: string; amount?: number }[];
@@ -148,6 +147,19 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
     batchId?: string;
     hasMore?: boolean;
   } | null>(null);
+  
+  // Live feed: shows each receipt result one by one with animation
+  const [liveFeedItems, setLiveFeedItems] = useState<{
+    id: number;
+    action: string;
+    reason: string;
+    confidence?: number;
+    orderNumber?: string;
+    amount?: number;
+    timestamp: number;
+  }[]>([]);
+  const liveFeedRef = useRef<HTMLDivElement>(null);
+  const retryCountRef = useRef(0);
   
   // Cumulative AI auto-approve stats (across all batches in this session)
   const [cumulativeStats, setCumulativeStats] = useState<{
@@ -574,6 +586,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
   const aiAutoApproveMutation = trpc.point.adminAiAutoApprove.useMutation({
     onSuccess: (data) => {
       setAiAutoApproveResult(data);
+      retryCountRef.current = 0; // Reset retry count on success
       
       // Update cumulative stats
       setCumulativeStats(prev => ({
@@ -585,6 +598,25 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
         totalSkipped: prev.totalSkipped + data.summary.skipped,
         batchCount: prev.batchCount + 1,
       }));
+      
+      // Add results to live feed one by one with staggered timestamps
+      if (data.results && data.results.length > 0) {
+        const now = Date.now();
+        const newItems = data.results.map((r, i) => ({
+          id: r.id,
+          action: r.action,
+          reason: r.reason,
+          confidence: r.confidence,
+          orderNumber: r.orderNumber,
+          amount: r.amount,
+          timestamp: now + i * 150, // stagger by 150ms for animation effect
+        }));
+        setLiveFeedItems(prev => [...newItems, ...prev].slice(0, 100)); // Keep last 100 items
+        // Auto-scroll live feed to top
+        setTimeout(() => {
+          liveFeedRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+        }, 50);
+      }
       
       if (data.dryRun) {
         toast.info(`${t("lr.preview")}: ${data.processed}${t("lr.items")} (${t("lr.approve")}: ${data.summary.approved}, ${t("lr.aiLog.duplicateRejected")}: ${data.summary.rejectedDuplicate}, ${t("lr.aiLog.aiRejected")}: ${data.summary.rejectedAi || 0}, ${t("lr.hold")}: ${data.summary.held})`);
@@ -598,7 +630,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
           // Short delay before next batch to avoid overwhelming the server
           setTimeout(() => {
             if (aiAutoModeRef.current) {
-              aiAutoApproveMutation.mutate({ limit: aiAutoApproveLimit, dryRun: false, confidenceThreshold: 70 });
+              aiAutoApproveMutation.mutate({ limit: 20, dryRun: false, confidenceThreshold: 70 });
             }
           }, 2000);
         } else if (aiAutoModeRef.current && !data.hasMore) {
@@ -610,10 +642,22 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
       }
     },
     onError: (err) => {
-      toast.error(`${t("lr.aiAutoMode")} Error: ${err.message}`);
-      // On error, stop auto mode
-      setAiAutoMode(false);
-      aiAutoModeRef.current = false;
+      // Retry up to 3 times on error
+      if (aiAutoModeRef.current && retryCountRef.current < 3) {
+        retryCountRef.current += 1;
+        toast.error(`エラーが発生しました。リトライ中... (${retryCountRef.current}/3)`);
+        setTimeout(() => {
+          if (aiAutoModeRef.current) {
+            aiAutoApproveMutation.mutate({ limit: 20, dryRun: false, confidenceThreshold: 70 });
+          }
+        }, 5000); // Wait 5 seconds before retry
+      } else {
+        toast.error(`${t("lr.aiAutoMode")} Error: ${err.message}`);
+        // On error after retries, stop auto mode
+        setAiAutoMode(false);
+        aiAutoModeRef.current = false;
+        retryCountRef.current = 0;
+      }
     },
   });
   
@@ -958,8 +1002,10 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                 // トグルON → 累計統計リセット＆自動でバッチ処理を開始
                 setCumulativeStats({ totalProcessed: 0, totalApproved: 0, totalRejectedDuplicate: 0, totalRejectedAi: 0, totalHeld: 0, totalSkipped: 0, batchCount: 0 });
                 setAiAutoApproveResult(null);
+                setLiveFeedItems([]);
+                retryCountRef.current = 0;
                 toast.info(t("lr.aiAutoModeOn"));
-                aiAutoApproveMutation.mutate({ limit: aiAutoApproveLimit, dryRun: false, confidenceThreshold: 70 });
+                aiAutoApproveMutation.mutate({ limit: 20, dryRun: false, confidenceThreshold: 70 });
               } else {
                 // トグルOFF → 停止メッセージ
                 toast.info("AI自動審査を停止しました");
@@ -1128,24 +1174,19 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-purple-600">{t("lr.batchSize")}:</span>
-                <Select
-                  value={String(aiAutoApproveLimit)}
-                  onValueChange={(v) => setAiAutoApproveLimit(Number(v))}
-                  disabled={aiAutoApproveMutation.isPending}
-                >
-                  <SelectTrigger className="w-[80px] h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="10">10件</SelectItem>
-                    <SelectItem value="20">20件</SelectItem>
-                    <SelectItem value="50">50件</SelectItem>
-                    <SelectItem value="100">100件</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Stop button */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-red-300 text-red-600 hover:bg-red-50"
+                onClick={() => {
+                  setAiAutoMode(false);
+                  aiAutoModeRef.current = false;
+                  toast.info("AI自動審査を停止しました");
+                }}
+              >
+                停止
+              </Button>
             </div>
             
             {/* Cumulative Stats (shown when at least 1 batch completed) */}
@@ -1213,6 +1254,67 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                 <div className="flex items-center gap-3">
                   <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
                   <span className="text-sm text-purple-600">最初のバッチを処理中...</span>
+                </div>
+              </div>
+            )}
+            
+            {/* Live Feed - Real-time processing results */}
+            {liveFeedItems.length > 0 && (
+              <div className="mt-3 border-t border-purple-200 pt-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-medium text-purple-600 flex items-center gap-1">
+                    {aiAutoApproveMutation.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
+                    ライブ処理フィード
+                  </p>
+                  <span className="text-[10px] text-purple-400">{liveFeedItems.length}件表示中</span>
+                </div>
+                <div ref={liveFeedRef} className="max-h-60 overflow-y-auto space-y-1 scroll-smooth">
+                  {liveFeedItems.map((item, idx) => (
+                    <div
+                      key={`${item.id}-${item.timestamp}`}
+                      className={`flex items-center gap-2 rounded px-2 py-1.5 text-xs transition-all duration-300 ${
+                        idx === 0 ? 'animate-pulse' : ''
+                      } ${
+                        item.action === 'approved' ? 'bg-green-50 border-l-2 border-green-400' :
+                        item.action === 'rejected_duplicate' ? 'bg-red-50 border-l-2 border-red-400' :
+                        item.action === 'rejected_ai' ? 'bg-rose-50 border-l-2 border-rose-400' :
+                        item.action === 'held' ? 'bg-orange-50 border-l-2 border-orange-400' :
+                        item.action === 'skipped' ? 'bg-gray-50 border-l-2 border-gray-300' :
+                        'bg-purple-50 border-l-2 border-purple-300'
+                      }`}
+                    >
+                      <span className="flex-shrink-0">
+                        {item.action === 'approved' ? '✅' :
+                         item.action === 'rejected_duplicate' ? '❌' :
+                         item.action === 'rejected_ai' ? '⛔' :
+                         item.action === 'held' ? '⚠️' :
+                         item.action === 'skipped' ? '⏭️' : '🔍'}
+                      </span>
+                      <span className="font-mono text-[10px] text-muted-foreground">#{item.id}</span>
+                      <span className={`font-medium ${
+                        item.action === 'approved' ? 'text-green-700' :
+                        item.action === 'rejected_duplicate' ? 'text-red-700' :
+                        item.action === 'rejected_ai' ? 'text-rose-700' :
+                        item.action === 'held' ? 'text-orange-700' :
+                        'text-gray-600'
+                      }`}>
+                        {item.action === 'approved' ? '承認' :
+                         item.action === 'rejected_duplicate' ? '重複却下' :
+                         item.action === 'rejected_ai' ? 'AI却下' :
+                         item.action === 'held' ? '保留' :
+                         item.action === 'skipped' ? 'スキップ' : item.action}
+                      </span>
+                      {item.amount && (
+                        <span className="text-[10px] text-muted-foreground">¥{item.amount.toLocaleString()}</span>
+                      )}
+                      {item.orderNumber && (
+                        <span className="text-[10px] text-blue-500 truncate max-w-[120px]" title={item.orderNumber}>#{item.orderNumber.slice(-6)}</span>
+                      )}
+                      {item.confidence && (
+                        <span className="text-[10px] text-purple-500 ml-auto">{item.confidence}%</span>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
