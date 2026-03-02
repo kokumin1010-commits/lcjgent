@@ -1,0 +1,1 @@
+ALTER TABLE `receipt_review_logs` MODIFY COLUMN `rejectionCategory` enum('blurry_image','missing_order_number','missing_amount','not_delivered','duplicate','wrong_store','suspicious','incomplete_info','not_order_detail','not_tiktok_shop','partial_screenshot','other');

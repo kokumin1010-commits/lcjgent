@@ -17184,9 +17184,9 @@ export async function batchCheckDuplicateOrderNumbers(orderNumbers: string[]): P
  * Get recent review examples for LLM prompt context
  * Returns a mix of approved and rejected receipts with their OCR data
  */
-export async function getRecentReviewExamples(approvedCount: number = 5, rejectedCount: number = 5) {
+export async function getRecentReviewExamples(approvedCount: number = 5, rejectedCount: number = 10) {
   const db = await getDb();
-  if (!db) return { approved: [], rejected: [] };
+  if (!db) return { approved: [], rejected: [], rejectionStats: [] };
   
   const approved = await db
     .select({
@@ -17220,7 +17220,18 @@ export async function getRecentReviewExamples(approvedCount: number = 5, rejecte
     .orderBy(desc(receiptReviewLogs.createdAt))
     .limit(rejectedCount);
   
-  return { approved, rejected };
+  // 却下理由カテゴリ別の統計情報を取得（AIの判断精度向上に活用）
+  const rejectionStats = await db
+    .select({
+      category: receiptReviewLogs.rejectionCategory,
+      count: sql<number>`COUNT(*)`,
+    })
+    .from(receiptReviewLogs)
+    .where(eq(receiptReviewLogs.decision, "rejected"))
+    .groupBy(receiptReviewLogs.rejectionCategory)
+    .orderBy(sql`COUNT(*) DESC`);
+  
+  return { approved, rejected, rejectionStats };
 }
 
 

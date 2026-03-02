@@ -68,14 +68,18 @@ type ReceiptStatus = "pending" | "approved" | "rejected" | "on_hold" | "ai_log";
 
 // AI rejection reason categories for learning
 const REJECTION_CATEGORIES = [
-  { value: "blurry_image", label: "画像が不鮮明" },
-  { value: "not_receipt", label: "レシートではない" },
-  { value: "duplicate", label: "重複申請" },
-  { value: "expired", label: "期限切れ" },
-  { value: "wrong_store", label: "対象外店舗" },
-  { value: "amount_mismatch", label: "金額不一致" },
-  { value: "tampered", label: "改ざんの疑い" },
-  { value: "other", label: "その他" },
+  { value: "not_order_detail", label: "注文詳細画面ではない", desc: "メール通知・配送通知の画面等" },
+  { value: "not_tiktok_shop", label: "TikTok Shop以外", desc: "他のECサイトのレシート" },
+  { value: "not_delivered", label: "配達未完了", desc: "配送中・キャンセル等" },
+  { value: "blurry_image", label: "画像が不鮮明", desc: "情報が読み取れない" },
+  { value: "missing_order_number", label: "注文番号が見えない", desc: "16-19桁の番号が未確認" },
+  { value: "missing_amount", label: "金額が見えない", desc: "合計金額が未確認" },
+  { value: "partial_screenshot", label: "スクショが不完全", desc: "一部しか写っていない" },
+  { value: "duplicate", label: "重複申請", desc: "同じ注文番号で既に申請済" },
+  { value: "wrong_store", label: "対象外店舗", desc: "対象外のショップ" },
+  { value: "suspicious", label: "不正の疑い", desc: "加工・改ざんの可能性" },
+  { value: "incomplete_info", label: "情報不足", desc: "必要な情報が足りない" },
+  { value: "other", label: "その他", desc: "上記以外の理由" },
 ];
 
 // AI approval confidence labels
@@ -439,10 +443,14 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
     },
   });
   
-  // Direct reject handler (no dialog)
+  // Direct reject handler (no dialog) - rejectionCategory is now REQUIRED
   const handleDirectReject = (receiptId: number) => {
+    if (!rejectionCategory) {
+      toast.error("却下理由を選択してください（AI学習に必要です）");
+      return;
+    }
     lastRejectedIdRef.current = receiptId;
-    rejectMutation.mutate({ id: receiptId, rejectionCategory: (rejectionCategory || "other") as any });
+    rejectMutation.mutate({ id: receiptId, rejectionCategory: rejectionCategory as any });
   };
   
   const holdMutation = trpc.point.adminHoldLineReceipt.useMutation({
@@ -1489,15 +1497,14 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                   <SelectValue placeholder="却下理由を選択（AI学習用）" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="blurry_image">画像が不鮮明</SelectItem>
-                                  <SelectItem value="missing_order_number">注文番号が見えない</SelectItem>
-                                  <SelectItem value="missing_amount">金額が見えない</SelectItem>
-                                  <SelectItem value="not_delivered">未配達</SelectItem>
-                                  <SelectItem value="duplicate">重複申請</SelectItem>
-                                  <SelectItem value="wrong_store">TikTok Shop以外</SelectItem>
-                                  <SelectItem value="suspicious">不正の疑い</SelectItem>
-                                  <SelectItem value="incomplete_info">情報不足</SelectItem>
-                                  <SelectItem value="other">その他</SelectItem>
+                                  {REJECTION_CATEGORIES.map(cat => (
+                                    <SelectItem key={cat.value} value={cat.value}>
+                                      <span className="flex items-center gap-1">
+                                        <span>{cat.label}</span>
+                                        <span className="text-[9px] text-muted-foreground">({cat.desc})</span>
+                                      </span>
+                                    </SelectItem>
+                                  ))}
                                 </SelectContent>
                               </Select>
                               <div className="flex gap-1.5">
@@ -2142,15 +2149,14 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                         <SelectValue placeholder="却下理由を選択（AI学習用）" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="blurry_image">画像が不鮮明</SelectItem>
-                        <SelectItem value="missing_order_number">注文番号が見えない</SelectItem>
-                        <SelectItem value="missing_amount">金額が見えない</SelectItem>
-                        <SelectItem value="not_delivered">未配達</SelectItem>
-                        <SelectItem value="duplicate">重複申請</SelectItem>
-                        <SelectItem value="wrong_store">TikTok Shop以外</SelectItem>
-                        <SelectItem value="suspicious">不正の疑い</SelectItem>
-                        <SelectItem value="incomplete_info">情報不足</SelectItem>
-                        <SelectItem value="other">その他</SelectItem>
+                        {REJECTION_CATEGORIES.map(cat => (
+                          <SelectItem key={cat.value} value={cat.value}>
+                            <span className="flex items-center gap-1">
+                              <span>{cat.label}</span>
+                              <span className="text-[9px] text-muted-foreground">({cat.desc})</span>
+                            </span>
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <Button 

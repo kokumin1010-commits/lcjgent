@@ -2822,6 +2822,9 @@ export const receiptReviewLogs = mysqlTable("receipt_review_logs", {
     "wrong_store",          // 対象外の店舗
     "suspicious",           // 不正の疑い
     "incomplete_info",      // 情報不足
+    "not_order_detail",     // 注文詳細画面ではない（メール通知、配送通知等）
+    "not_tiktok_shop",      // TikTok Shop以外のプラットフォーム
+    "partial_screenshot",   // スクリーンショットが不完全（一部しか写っていない）
     "other",                // その他
   ]),
   rejectionNote: text("rejectionNote"), // 自由記述の却下理由

@@ -757,6 +757,13 @@
       "when": 1772377275510,
       "tag": "0107_glossy_redwing",
       "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "5",
+      "when": 1772415871378,
+      "tag": "0108_natural_nick_fury",
+      "breakpoints": true
     }
   ]
 }

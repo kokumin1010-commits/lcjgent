@@ -11769,7 +11769,8 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         rejectionCategory: z.enum([
           "blurry_image", "missing_order_number", "missing_amount",
           "not_delivered", "duplicate", "wrong_store",
-          "suspicious", "incomplete_info", "other",
+          "suspicious", "incomplete_info", "not_order_detail",
+          "not_tiktok_shop", "partial_screenshot", "other",
         ]).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -12502,8 +12503,9 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         rejectionCategory: z.enum([
           "blurry_image", "missing_order_number", "missing_amount",
           "not_delivered", "duplicate", "wrong_store",
-          "suspicious", "incomplete_info", "other",
-        ]).optional(),
+          "suspicious", "incomplete_info", "not_order_detail",
+          "not_tiktok_shop", "partial_screenshot", "other",
+        ]),
       }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") {
@@ -12543,8 +12545,25 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             }
           }
           
-          // 2. Send rejection message with instructions
+          // 2. Send rejection message with instructions - include specific reason
+          const rejectionReasonMap: Record<string, string> = {
+            blurry_image: "画像が不鮮明で内容が読み取れません",
+            missing_order_number: "注文番号が確認できません",
+            missing_amount: "合計金額が確認できません",
+            not_delivered: "配達済みのステータスが確認できません",
+            duplicate: "同じ注文番号で既に申請済みです",
+            wrong_store: "対象外の店舗のレシートです",
+            suspicious: "画像に不審な点があります",
+            incomplete_info: "必要な情報が不足しています",
+            not_order_detail: "注文詳細画面ではありません（メール通知や配送通知の画面は不可）",
+            not_tiktok_shop: "TikTok Shop以外のプラットフォームのレシートです",
+            partial_screenshot: "スクリーンショットが不完全です（全体が写るように撮ってください）",
+            other: "内容を確認してください",
+          };
+          const reasonText = rejectionReasonMap[input.rejectionCategory] || "内容を確認してください";
           const message = `❌ 不承認です
+
+【理由】${reasonText}
 
 上の写真の内容をご確認の上、以下の情報が見えるようにスクリーンショットを撮り直してください🙏
 
@@ -12751,7 +12770,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         // ===== STEP 0: Get candidates =====
         const candidates = await getAutoApprovalCandidates(input.limit);
         if (candidates.length === 0) {
-          return { processed: 0, results: [], summary: { approved: 0, skipped: 0, held: 0, rejectedDuplicate: 0 } };
+          return { processed: 0, results: [], summary: { approved: 0, skipped: 0, held: 0, rejectedDuplicate: 0, rejectedAi: 0 } };
         }
         
         // ===== STEP 1: Rule Filter =====
@@ -12882,10 +12901,17 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           let aiConfidence = 0;
           let aiReason = "";
           
-          if (isTikTok && isDelivered && orderNumber && candidate.totalAmount > 0) {
-            // Best case: all OCR signals positive → high confidence without LLM call
+          // OCR confidence check - only bypass LLM if OCR is very confident
+          const ocrConf = parseFloat(candidate.ocrConfidence || "0");
+          if (isTikTok && isDelivered && orderNumber && candidate.totalAmount > 0 && ocrConf >= 95) {
+            // Best case: all OCR signals positive AND high OCR confidence → bypass LLM
             aiConfidence = 92;
-            aiReason = "OCRデータ良好: TikTok Shop確認済み + 配達済み + 注文番号あり + 金額あり";
+            aiReason = "OCRデータ良好(OCR信頼度" + ocrConf + "%): TikTok Shop確認済み + 配達済み + 注文番号あり + 金額あり";
+          } else if (isTikTok && isDelivered && orderNumber && candidate.totalAmount > 0 && ocrConf >= 80) {
+            // Medium OCR confidence: still use LLM but with positive bias
+            aiConfidence = 80;
+            aiReason = "OCRデータ良好だがOCR信頼度が中程度(" + ocrConf + "%) - LLM検証を実施";
+            // Fall through to LLM check below
           } else {
             // Need LLM to evaluate the receipt image
             try {
@@ -12907,16 +12933,39 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
                 continue;
               }
               
-              // Build LLM prompt with review examples
+              // Build LLM prompt with review examples - include rejection stats and detailed reasons
+              const rejectionCategoryLabels: Record<string, string> = {
+                not_order_detail: "注文詳細画面ではない",
+                not_tiktok_shop: "TikTok Shop以外",
+                not_delivered: "配達未完了",
+                blurry_image: "画像不鮮明",
+                missing_order_number: "注文番号が見えない",
+                missing_amount: "金額が見えない",
+                partial_screenshot: "スクショ不完全",
+                duplicate: "重複申請",
+                wrong_store: "対象外店舗",
+                suspicious: "不正の疑い",
+                incomplete_info: "情報不足",
+                other: "その他",
+              };
+              
               const exampleContext = [
-                "=== 過去の承認パターン ===",
+                "=== 過去の却下理由統計（多い順） ===",
+                ...(reviewExamples.rejectionStats || []).map(s => 
+                  `${rejectionCategoryLabels[s.category || "other"] || s.category}: ${s.count}件`
+                ),
+                "",
+                "=== 過去の承認例 ===",
                 ...reviewExamples.approved.map(e => 
-                  `承認: 金額=${e.totalAmount || "不明"}, 注文番号=${e.hasOrderNumber}, 不正フラグ=${e.fraudFlagCount}`
+                  `承認: 金額=${e.totalAmount || "不明"}, 注文番号=${e.hasOrderNumber}, OCR信頼度=${e.ocrConfidence || "不明"}`
                 ),
-                "=== 過去の却下パターン ===",
-                ...reviewExamples.rejected.map(e => 
-                  `却下(${e.rejectionCategory || "other"}): 金額=${e.totalAmount || "不明"}, 注文番号=${e.hasOrderNumber}, 不正フラグ=${e.fraudFlagCount}`
-                ),
+                "",
+                "=== 過去の却下例（理由付き） ===",
+                ...reviewExamples.rejected.map(e => {
+                  const catLabel = rejectionCategoryLabels[e.rejectionCategory || "other"] || e.rejectionCategory;
+                  const note = e.rejectionNote ? ` - ${e.rejectionNote}` : "";
+                  return `却下[理由: ${catLabel}${note}]: 金額=${e.totalAmount || "不明"}, 注文番号=${e.hasOrderNumber}, OCR信頼度=${e.ocrConfidence || "不明"}`;
+                }),
               ].join("\n");
               
               const imageContents: any[] = allImageUrls.map(url => ({
@@ -12940,28 +12989,78 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
                     role: "system",
                     content: `あなたはTikTok Shopのレシート審査AIです。レシート画像とOCRデータを見て、承認すべきか判断してください。
 
-【承認基準】
-- TikTok Shopの注文詳細画面のスクリーンショットであること
-- 「配達済み」のステータスが確認できること
-- 注文番号（16-19桁の数字）が読み取れること
-- 合計金額が読み取れること
+=== 承認基準（全て満たす必要がある） ===
+1. TikTok Shopの「注文詳細」画面のスクリーンショットであること
+   - 視覚的特徴: TikTokロゴ、オレンジ色のアクセント、商品画像、ショップ名、注文ステータスバー
+   - 「注文詳細」「訂単详情」「Order Details」などのタイトルが見える
+2. 「配達済み」のステータスが確認できること
+   - 日本語: 「配達済み」「配送完了」
+   - 中国語: 「已签收」「已完成」「已送达」
+   - 英語: "Delivered"
+3. 注文番号（16-19桁の数字）が読み取れること
+4. 合計金額が読み取れること
 
-【却下基準】
-- TikTok Shop以外のレシート
-- 配達が完了していない（配送中、キャンセル等）
-- 画像が不鮮明で情報が読み取れない
-- 明らかに加工・改ざんされた画像
+=== 却下基準（いずれか1つでも該当すれば却下） ===
+★ 注文詳細画面ではない場合 (rejectionCategory: "not_order_detail")
+  - メール通知のスクショ（Gmail、Yahooメール等）
+  - 配送通知画面（「お届け先」「追跡番号」がメインの画面）
+  - 注文一覧画面（複数の注文が並んでいる）
+  - カート画面、チェックアウト画面
+  - アプリのホーム画面やプロフィール画面
+
+★ TikTok Shop以外のプラットフォーム (rejectionCategory: "not_tiktok_shop")
+  - Amazon、楽天、Yahooショッピング、Shopee、Lazada等の画面
+  - 各プラットフォーム固有のUIデザインで判別
+
+★ 配達未完了 (rejectionCategory: "not_delivered")
+  - 「配送中」「出荷済み」「キャンセル」「返品」等のステータス
+
+★ 画像が不鮮明 (rejectionCategory: "blurry_image")
+  - ピンボケ、低解像度で文字が読めない
+
+★ 注文番号が見えない (rejectionCategory: "missing_order_number")
+  - スクショが切れていて注文番号が写っていない
+
+★ 金額が見えない (rejectionCategory: "missing_amount")
+  - スクショが切れていて金額が写っていない
+
+★ スクリーンショットが不完全 (rejectionCategory: "partial_screenshot")
+  - 画面の一部しか写っておらず、必要な情報が欠けている
+
+★ 重複申請 (rejectionCategory: "duplicate")
+  - 同じ注文番号で既に承認済み
+
+★ 対象外店舗 (rejectionCategory: "wrong_store")
+  - 対象外のショップ
+
+★ 不正の疑い (rejectionCategory: "suspicious")
+  - 画像編集の痕跡、フォントの不一致、不自然な切り貼り
+
+=== グレーゾーン判定ガイド ===
+- 複数枚のスクショがある場合: 全ての画像を総合的に判断。一枚に注文詳細、もう一枚に金額が写っていればOK
+- 中国語のTikTok Shop: 「抖音商城」「拖音商城」もTikTok Shopとして承認
+- 金額が小さい（100円未満等）: 金額の大小では却下しない。金額が読み取れればOK
+- ステータスが「受取確認待ち」: 配達済みとみなす（confidenceを少し下げる）
+- スクショの一部が暗いが情報は読める: 承認してよい（confidenceを少し下げる）
+
+=== 信頼度スコアガイドライン ===
+- 90-100: 全ての情報が明確に確認できる
+- 75-89: ほぼ確認できるが一部不明瞭な点がある
+- 50-74: 判断が難しい、人間の確認が必要
+- 0-49: 明らかに基準を満たしていない
 
 必ず以下のJSON形式で回答してください：
 {
   "shouldApprove": true/false,
   "confidence": 0-100,
   "reason": "判断理由（日本語）",
+  "rejectionCategory": "not_order_detail" | "not_tiktok_shop" | "not_delivered" | "blurry_image" | "missing_order_number" | "missing_amount" | "partial_screenshot" | "duplicate" | "wrong_store" | "suspicious" | "incomplete_info" | "other" | null,
   "isTikTokShop": true/false/null,
   "isDelivered": true/false/null,
   "detectedOrderNumber": "string or null",
   "detectedAmount": number or null
-}`,
+}
+※ rejectionCategoryはshouldApprove=falseの場合のみ設定。承認時はnull。`,
                   },
                   {
                     role: "user",
@@ -15095,7 +15194,8 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         rejectionCategory: z.enum([
           "blurry_image", "missing_order_number", "missing_amount",
           "not_delivered", "duplicate", "wrong_store",
-          "suspicious", "incomplete_info", "other",
+          "suspicious", "incomplete_info", "not_order_detail",
+          "not_tiktok_shop", "partial_screenshot", "other",
         ]).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
