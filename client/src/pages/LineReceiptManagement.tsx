@@ -2585,162 +2585,142 @@ function AiReviewLogPanel() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-2">
+        <div className="divide-y divide-border">
           {logs.map((log: any) => {
             const config = decisionConfig[log.aiDecision] || decisionConfig.skipped;
             const DecisionIcon = config.icon;
             const isExpanded = expandedComments.has(log.id);
-            const commentTruncated = log.aiComment && log.aiComment.length > 60;
             const confidenceColor = log.aiConfidence ? getConfidenceColor(log.aiConfidence) : null;
+            const points = log.receiptPointsAwarded ?? log.receiptPointsCalculated ?? 0;
+            let ocrProductName: string | null = null;
+            try {
+              const raw = log.receiptOcrRawText;
+              if (raw) {
+                const ocr = typeof raw === "string" ? JSON.parse(raw) : raw;
+                ocrProductName = ocr.items?.[0]?.productName || ocr.productName || null;
+              }
+            } catch {}
+            const imageCount = log.receiptImageUrls ? (log.receiptImageUrls as string[]).length : (log.imageUrl ? 1 : 0);
+            const borderClass = log.aiDecision === "approved" 
+              ? "border-l-[3px] border-l-green-500 bg-green-50/30" 
+              : log.humanOverride 
+                ? "border-l-[3px] border-l-blue-400 bg-blue-50/20" 
+                : "";
             
             return (
-              <Card 
-                key={log.id} 
-                className={`hover:shadow-md transition-all overflow-hidden ${
-                  log.humanOverride 
-                    ? "ring-2 ring-blue-400 bg-blue-50/30" 
-                    : ""
-                }`}
-              >
-                <CardContent className="p-2.5">
-                  <div className="space-y-1.5">
-                    {/* Row 1: User + Decision + Confidence + Human Override */}
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-semibold text-xs truncate max-w-[100px]">{log.userName || `#${log.receiptId}`}</span>
-                      <Badge variant="outline" className={`${config.bg} ${config.text} ${config.border} text-[10px] px-1 py-0`}>
-                        <DecisionIcon className="w-2.5 h-2.5 mr-0.5" />
-                        {config.label}
-                      </Badge>
-                      {log.aiConfidence != null && confidenceColor && (
-                        <Badge variant="outline" className={`${confidenceColor.text} text-[10px] px-1 py-0`}>
-                          <Bot className="w-2.5 h-2.5 mr-0.5" />
-                          {log.aiConfidence}%
-                        </Badge>
-                      )}
-                      {log.humanOverride && (
-                        <Badge variant="outline" className={`text-[10px] px-1 py-0 ${
-                          log.humanOverride === "approved" 
-                            ? "bg-blue-100 text-blue-700 border-blue-300" 
-                            : "bg-pink-100 text-pink-700 border-pink-300"
-                        }`}>
-                          {log.humanOverride === "approved" ? <ThumbsUp className="w-2.5 h-2.5 mr-0.5" /> : <ThumbsDown className="w-2.5 h-2.5 mr-0.5" />}
-                          {log.humanOverride === "approved" ? t("lr.aiLog.humanApproved") : t("lr.aiLog.humanRejected")}
-                        </Badge>
-                      )}
-                    </div>
-                    {/* Row 2: Amount + Points + Image count */}
-                    <div className="flex items-center gap-2 text-xs">
-                      {log.totalAmount != null ? (
-                        <>
-                          <span className="font-bold">¥{Number(log.totalAmount).toLocaleString()}</span>
-                          <span className="text-muted-foreground">→</span>
-                          {log.aiDecision === "approved" && log.pointsAwarded != null ? (
-                            <span className="font-bold text-green-600">{log.pointsAwarded}pt</span>
-                          ) : (
-                            <span className="text-blue-600">{log.pointsAwarded ?? 0}pt</span>
-                          )}
-                        </>
-                      ) : (
-                        <span className="text-muted-foreground text-[11px]">{t("lr.noAmount")}</span>
-                      )}
-                      {log.imageUrl && (
-                        <span className="text-muted-foreground ml-auto flex items-center gap-0.5">
-                          <ImageIcon className="w-3 h-3" />1
-                        </span>
-                      )}
-                    </div>
-                    {/* Row 2.5: Order Number */}
-                    {log.orderNumber && (
-                      <div className="flex items-center gap-1 text-[11px]">
-                        <Hash className="w-3 h-3 text-blue-400" />
-                        <span className="text-blue-600 font-mono text-[10px] truncate">{log.orderNumber}</span>
-                      </div>
-                    )}
-                    {/* Row 3: Store + Date + Action */}
-                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                      <span className="truncate">{log.storeName || t("lr.storeUnknown")}</span>
-                      <span>·</span>
-                      <span className="flex-shrink-0">
-                        {new Date(log.createdAt).toLocaleString("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+              <div key={log.id} className={`px-3 py-1.5 hover:bg-muted/30 transition-colors ${borderClass}`}>
+                {/* Row 1: User + Decision Badge + Confidence + Image count */}
+                <div className="flex items-center gap-1.5">
+                  <span className="font-semibold text-xs truncate max-w-[120px]">{log.userName || t("lr.unknown")}</span>
+                  <Badge variant="outline" className={`${config.bg} ${config.text} ${config.border} text-[10px] px-1 py-0 h-4`}>
+                    <DecisionIcon className="w-2.5 h-2.5 mr-0.5" />
+                    {config.label}
+                  </Badge>
+                  {log.aiConfidence != null && confidenceColor && (
+                    <span className={`${confidenceColor.text} text-[10px] font-semibold flex items-center gap-0.5`}>
+                      <Bot className="w-2.5 h-2.5" />
+                      {log.aiConfidence}%
+                    </span>
+                  )}
+                  {log.humanOverride && (
+                    <Badge variant="outline" className={`text-[10px] px-1 py-0 h-4 ${log.humanOverride === "approved" ? "bg-blue-100 text-blue-700 border-blue-300" : "bg-pink-100 text-pink-700 border-pink-300"}`}>
+                      {log.humanOverride === "approved" ? <ThumbsUp className="w-2.5 h-2.5 mr-0.5" /> : <ThumbsDown className="w-2.5 h-2.5 mr-0.5" />}
+                      {log.humanOverride === "approved" ? t("lr.aiLog.humanApproved") : t("lr.aiLog.humanRejected")}
+                    </Badge>
+                  )}
+                  <div className="ml-auto flex items-center gap-1.5">
+                    {imageCount > 0 && (
+                      <span className="text-muted-foreground text-[10px] flex items-center gap-0.5">
+                        <ImageIcon className="w-3 h-3" />{imageCount}
                       </span>
-                      {/* Action button inline */}
-                      {!log.humanOverride && (
-                        <div className="ml-auto flex-shrink-0">
-                          {log.aiDecision !== "approved" ? (
-                            <Button
-                              size="sm"
-                              className="h-6 px-2 text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white rounded-full"
-                              onClick={() => {
-                                const comment = prompt(t("lr.aiLog.approveComment"));
-                                overrideMutation.mutate({
-                                  logId: log.id,
-                                  humanOverride: "approved",
-                                  humanComment: comment || undefined,
-                                });
-                              }}
-                              disabled={overrideMutation.isPending}
-                            >
-                              <ThumbsUp className="w-3 h-3 mr-0.5" />
-                              {t("lr.approve")}
-                            </Button>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-6 px-2 text-[10px] border-red-300 text-red-600 hover:bg-red-50 rounded-full"
-                              onClick={() => {
-                                const comment = prompt(t("lr.aiLog.rejectReason"));
-                                if (comment) {
-                                  overrideMutation.mutate({
-                                    logId: log.id,
-                                    humanOverride: "rejected",
-                                    humanComment: comment,
-                                  });
-                                }
-                              }}
-                              disabled={overrideMutation.isPending}
-                            >
-                              <ThumbsDown className="w-3 h-3 mr-0.5" />
-                              {t("lr.reject")}
-                            </Button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    {/* AI Comment - collapsible */}
-                    {log.aiComment && (
-                      <div 
-                        className={`text-[10px] leading-relaxed rounded px-2 py-1 ${config.bg} ${config.border} border cursor-pointer`}
-                        onClick={() => commentTruncated && toggleComment(log.id)}
-                      >
-                        <div className="flex items-start gap-1">
-                          <Bot className={`w-3 h-3 mt-0.5 flex-shrink-0 ${config.text}`} />
-                          <span className={`${config.text}`}>
-                            {commentTruncated && !isExpanded 
-                              ? log.aiComment.substring(0, 80) + "..." 
-                              : log.aiComment
-                            }
-                          </span>
-                          {commentTruncated && (
-                            <button className={`flex-shrink-0 ${config.text} opacity-60`}>
-                              {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    {/* Human comment */}
-                    {log.humanComment && (
-                      <div className="text-[10px] bg-blue-50 rounded px-2 py-1 border border-blue-200">
-                        <div className="flex items-start gap-1">
-                          <User className="w-3 h-3 mt-0.5 flex-shrink-0 text-blue-600" />
-                          <span className="text-blue-700">{log.humanComment}</span>
-                        </div>
-                      </div>
                     )}
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+                {/* Row 2: Amount -> Points */}
+                <div className="flex items-center gap-1.5 text-xs mt-0.5">
+                  {log.totalAmount != null ? (
+                    <>
+                      <span className="font-bold">¥{Number(log.totalAmount).toLocaleString()}</span>
+                      <span className="text-muted-foreground">→</span>
+                      {log.aiDecision === "approved" && log.receiptPointsAwarded != null ? (
+                        <span className="font-bold text-green-600">{log.receiptPointsAwarded}pt</span>
+                      ) : (
+                        <span className="text-blue-600">{points}pt</span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-muted-foreground">-</span>
+                      <span className="text-muted-foreground">→</span>
+                      <span className="text-blue-600">{points}pt</span>
+                    </>
+                  )}
+                </div>
+                {/* Row 3: Order Number */}
+                {log.orderNumber && (
+                  <div className="flex items-center gap-1 text-[10px] mt-0.5">
+                    <Hash className="w-3 h-3 text-blue-400 flex-shrink-0" />
+                    <span className="text-blue-600 font-mono truncate">{log.orderNumber}</span>
+                  </div>
+                )}
+                {/* Row 4: Product name */}
+                {ocrProductName && (
+                  <div className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                    📦 {ocrProductName}
+                  </div>
+                )}
+                {/* Row 5: Store + Date + Actions */}
+                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground mt-0.5">
+                  <span className="truncate max-w-[150px]">{log.storeName || t("lr.storeUnknown")}</span>
+                  <span>·</span>
+                  <span className="flex-shrink-0">
+                    {log.receiptPurchaseDate 
+                      ? new Date(log.receiptPurchaseDate).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" }) + "日"
+                      : new Date(log.createdAt).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" }) + "日"
+                    }
+                  </span>
+                  <div className="ml-auto flex items-center gap-1">
+                    {!log.humanOverride && (
+                      <>
+                        {log.aiDecision !== "approved" ? (
+                          <Button size="sm" className="h-5 px-2 text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white rounded-full" onClick={() => { const c = prompt(t("lr.aiLog.approveComment")); overrideMutation.mutate({ logId: log.id, humanOverride: "approved", humanComment: c || undefined }); }} disabled={overrideMutation.isPending}>
+                            <ThumbsUp className="w-2.5 h-2.5 mr-0.5" />{t("lr.approve")}
+                          </Button>
+                        ) : (
+                          <Button size="sm" variant="outline" className="h-5 px-2 text-[10px] border-red-300 text-red-600 hover:bg-red-50 rounded-full" onClick={() => { const c = prompt(t("lr.aiLog.rejectReason")); if (c) overrideMutation.mutate({ logId: log.id, humanOverride: "rejected", humanComment: c }); }} disabled={overrideMutation.isPending}>
+                            <ThumbsDown className="w-2.5 h-2.5 mr-0.5" />{t("lr.reject")}
+                          </Button>
+                        )}
+                      </>
+                    )}
+                    <button className="p-0.5 hover:bg-muted rounded" onClick={() => { const imgUrl = log.imageUrl || (log.receiptImageUrls && (log.receiptImageUrls as string[])[0]); if (imgUrl) window.open(imgUrl, '_blank'); else toast.info(t("lr.aiLog.noImage")); }}>
+                      <Eye className="w-3.5 h-3.5 text-muted-foreground" />
+                    </button>
+                  </div>
+                </div>
+                {/* AI Comment - collapsed by default, click to expand */}
+                {log.aiComment && (
+                  <div className={`text-[10px] leading-tight rounded px-1.5 py-0.5 mt-1 ${config.bg} ${config.border} border cursor-pointer`} onClick={() => toggleComment(log.id)}>
+                    <div className="flex items-center gap-1">
+                      <Bot className={`w-2.5 h-2.5 flex-shrink-0 ${config.text}`} />
+                      <span className={`${config.text} ${!isExpanded ? 'truncate' : ''}`}>
+                        {!isExpanded ? (log.aiComment.length > 60 ? log.aiComment.substring(0, 60) + "..." : log.aiComment) : log.aiComment}
+                      </span>
+                      <button className={`flex-shrink-0 ${config.text} opacity-60 ml-auto`}>
+                        {isExpanded ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {log.humanComment && (
+                  <div className="text-[10px] bg-blue-50 rounded px-1.5 py-0.5 mt-0.5 border border-blue-200">
+                    <div className="flex items-center gap-1">
+                      <User className="w-2.5 h-2.5 flex-shrink-0 text-blue-600" />
+                      <span className="text-blue-700 truncate">{log.humanComment}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>

@@ -17297,9 +17297,17 @@ export async function getAiAutoReviewLogs(params?: {
     updatedAt: aiAutoReviewLogs.updatedAt,
     userName: lineUsers.displayName,
     userPictureUrl: lineUsers.pictureUrl,
+    // Additional fields from lineReceipts for richer display
+    receiptPointsAwarded: lineReceipts.pointsAwarded,
+    receiptPointsCalculated: lineReceipts.pointsCalculated,
+    receiptOcrRawText: lineReceipts.ocrRawText,
+    receiptPurchaseDate: lineReceipts.purchaseDate,
+    receiptImageUrls: lineReceipts.imageUrls,
+    receiptStatus: lineReceipts.status,
   })
     .from(aiAutoReviewLogs)
     .leftJoin(lineUsers, eq(aiAutoReviewLogs.lineUserId, lineUsers.lineUserId))
+    .leftJoin(lineReceipts, eq(aiAutoReviewLogs.receiptId, lineReceipts.id))
     .where(where ?? undefined)
     .orderBy(desc(aiAutoReviewLogs.createdAt))
     .limit(params?.limit ?? 100)
