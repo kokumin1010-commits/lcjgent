@@ -2861,31 +2861,28 @@ function AiReviewLogPanel() {
                       AI再認識
                     </Button>
                     
-                    {/* Override buttons */}
+                    {/* Override buttons - 承認と却下の両方を表示 */}
                     {!log.humanOverride && (
                       <>
-                        {log.aiDecision !== "approved" ? (
-                          <Button 
-                            size="sm" 
-                            className="h-7 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white" 
-                            onClick={() => { const c = prompt(t("lr.aiLog.approveComment")); overrideMutation.mutate({ logId: log.id, humanOverride: "approved", humanComment: c || undefined }); }} 
-                            disabled={overrideMutation.isPending}
-                          >
-                            <ThumbsUp className="w-3.5 h-3.5" />
-                            {t("lr.approve")}
-                          </Button>
-                        ) : (
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            className="h-7 text-xs gap-1 border-red-300 text-red-600 hover:bg-red-50" 
-                            onClick={() => { const c = prompt(t("lr.aiLog.rejectReason")); if (c) overrideMutation.mutate({ logId: log.id, humanOverride: "rejected", humanComment: c }); }} 
-                            disabled={overrideMutation.isPending}
-                          >
-                            <ThumbsDown className="w-3.5 h-3.5" />
-                            {t("lr.reject")}
-                          </Button>
-                        )}
+                        <Button 
+                          size="sm" 
+                          className="h-7 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white" 
+                          onClick={() => { const c = prompt(t("lr.aiLog.approveComment")); overrideMutation.mutate({ logId: log.id, humanOverride: "approved", humanComment: c || undefined }); }} 
+                          disabled={overrideMutation.isPending}
+                        >
+                          <ThumbsUp className="w-3.5 h-3.5" />
+                          {t("lr.approve")}
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="h-7 text-xs gap-1 border-red-300 text-red-600 hover:bg-red-50" 
+                          onClick={() => { const c = prompt(t("lr.aiLog.rejectReason")); if (c) overrideMutation.mutate({ logId: log.id, humanOverride: "rejected", humanComment: c }); }} 
+                          disabled={overrideMutation.isPending}
+                        >
+                          <ThumbsDown className="w-3.5 h-3.5" />
+                          {t("lr.reject")}
+                        </Button>
                       </>
                     )}
                     
