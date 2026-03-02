@@ -13526,6 +13526,133 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       return await getAiAutoApproveSetting();
     }),
     
+    // AI審査ログからAI再認識を実行
+    reRecognize: protectedProcedure
+      .input(z.object({
+        logId: z.number(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getAiAutoReviewLogById, getLineReceiptById, updateLineReceiptOcr } = await import("./db");
+        const { invokeLLM } = await import("./_core/llm");
+        
+        // Get the log entry to find the receipt
+        const log = await getAiAutoReviewLogById(input.logId);
+        if (!log) throw new TRPCError({ code: "NOT_FOUND", message: "ログが見つかりません" });
+        
+        const receipt = await getLineReceiptById(log.receiptId);
+        if (!receipt) throw new TRPCError({ code: "NOT_FOUND", message: "レシートが見つかりません" });
+        
+        // Collect all image URLs
+        const allImageUrls: string[] = [];
+        if (receipt.imageUrls && Array.isArray(receipt.imageUrls)) {
+          allImageUrls.push(...receipt.imageUrls);
+        } else if (receipt.imageUrl) {
+          allImageUrls.push(receipt.imageUrl);
+        }
+        
+        if (allImageUrls.length === 0) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "レシート画像が見つかりません" });
+        }
+        
+        // Build image contents for LLM
+        const imageContents: any[] = allImageUrls.map(url => ({
+          type: "image_url" as const,
+          image_url: { url, detail: "high" as const },
+        }));
+        imageContents.push({
+          type: "text" as const,
+          text: `これらの${allImageUrls.length}枚の画像から注文情報を全て抽出してください。`,
+        });
+        
+        const ocrResult = await invokeLLM({
+          messages: [
+            {
+              role: "system",
+              content: `あなたはTikTok Shopの注文詳細画面のスクリーンショットを解析する専門AIです。
+複数の画像が送信された場合、すべての画像を統合して情報を抽出してください。
+
+以下の情報を抽出してJSON形式で返してください：
+{
+  "orderNumber": "string or null",
+  "totalAmount": number or null,
+  "shopName": "string or null",
+  "productName": "string or null",
+  "orderDate": "string (YYYY-MM-DD) or null",
+  "confidence": number (0-100)
+}
+
+TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数字列です。
+金額は「合計金額（税込）」「合計」「支払い金額」などのラベルの近くにある数値です。`,
+            },
+            {
+              role: "user",
+              content: imageContents,
+            },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "receipt_ocr",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  orderNumber: { type: ["string", "null"] },
+                  totalAmount: { type: ["number", "null"] },
+                  shopName: { type: ["string", "null"] },
+                  productName: { type: ["string", "null"] },
+                  orderDate: { type: ["string", "null"] },
+                  confidence: { type: "number" },
+                },
+                required: ["orderNumber", "totalAmount", "shopName", "productName", "orderDate", "confidence"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+        
+        let parsed: any = {};
+        try {
+          const content = ocrResult.choices?.[0]?.message?.content || "{}";
+          parsed = JSON.parse(content);
+        } catch (e) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "AI解析結果のパースに失敗" });
+        }
+        
+        // Update the receipt with new OCR data
+        const updateData: any = {};
+        if (parsed.totalAmount && parsed.totalAmount > 0) updateData.totalAmount = parsed.totalAmount;
+        if (parsed.shopName) updateData.storeName = parsed.shopName;
+        if (parsed.orderDate) updateData.purchaseDate = new Date(parsed.orderDate);
+        
+        // Merge orderNumber and productName into ocrRawText JSON
+        const existingOcr = typeof receipt.ocrRawText === 'string' ? JSON.parse(receipt.ocrRawText || '{}') : (receipt.ocrRawText || {});
+        let ocrUpdated = false;
+        if (parsed.orderNumber) { existingOcr.orderNumber = parsed.orderNumber; ocrUpdated = true; }
+        if (parsed.productName) { existingOcr.productName = parsed.productName; existingOcr.items = [{ productName: parsed.productName }]; ocrUpdated = true; }
+        if (ocrUpdated) updateData.ocrRawText = JSON.stringify(existingOcr);
+        
+        // Recalculate points if amount changed
+        if (parsed.totalAmount && parsed.totalAmount > 0) {
+          updateData.pointsCalculated = Math.floor(parsed.totalAmount / 100);
+        }
+        
+        if (Object.keys(updateData).length > 0) {
+          await updateLineReceiptOcr(receipt.id, updateData);
+        }
+        
+        return {
+          orderNumber: parsed.orderNumber,
+          totalAmount: parsed.totalAmount,
+          shopName: parsed.shopName,
+          productName: parsed.productName,
+          orderDate: parsed.orderDate,
+          confidence: parsed.confidence,
+          receiptId: receipt.id,
+        };
+      }),
+    
     // AI自動承認設定更新（トグルON/OFF含む）
     updateSettings: protectedProcedure
       .input(z.object({

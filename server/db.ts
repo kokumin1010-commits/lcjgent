@@ -17378,6 +17378,14 @@ export async function overrideAiAutoReviewLog(logId: number, data: {
   return result[0] || null;
 }
 
+// AI審査ログをIDで取得
+export async function getAiAutoReviewLogById(logId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(aiAutoReviewLogs).where(eq(aiAutoReviewLogs.id, logId)).limit(1);
+  return result[0] || null;
+}
+
 // ===== AI自動承認設定関数 =====
 
 // 設定取得（なければデフォルト作成）
