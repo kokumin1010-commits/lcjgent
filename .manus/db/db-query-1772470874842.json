@@ -1,0 +1,130 @@
+{
+  "query": "SELECT batchId, aiDecision, COUNT(*) as cnt, MAX(createdAt) as lastCreated FROM ai_auto_review_logs GROUP BY batchId, aiDecision ORDER BY lastCreated DESC LIMIT 20",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT batchId, aiDecision, COUNT(*) as cnt, MAX(createdAt) as lastCreated FROM ai_auto_review_logs GROUP BY batchId, aiDecision ORDER BY lastCreated DESC LIMIT 20",
+  "rows": [
+    {
+      "batchId": "batch_1772470622639_kbu6pd",
+      "aiDecision": "held",
+      "cnt": "1",
+      "lastCreated": "2026-03-02 17:00:49"
+    },
+    {
+      "batchId": "batch_1772470622639_kbu6pd",
+      "aiDecision": "approved",
+      "cnt": "19",
+      "lastCreated": "2026-03-02 17:00:49"
+    },
+    {
+      "batchId": "batch_1772470492075_o0uhax",
+      "aiDecision": "held",
+      "cnt": "1",
+      "lastCreated": "2026-03-02 16:58:19"
+    },
+    {
+      "batchId": "batch_1772470492075_o0uhax",
+      "aiDecision": "approved",
+      "cnt": "19",
+      "lastCreated": "2026-03-02 16:58:19"
+    },
+    {
+      "batchId": "batch_1772468246431_qes9sv",
+      "aiDecision": "approved",
+      "cnt": "3",
+      "lastCreated": "2026-03-02 16:17:49"
+    },
+    {
+      "batchId": "batch_1772468238275_sc8g3l",
+      "aiDecision": "approved",
+      "cnt": "1",
+      "lastCreated": "2026-03-02 16:17:26"
+    },
+    {
+      "batchId": "batch_1772468227840_0poio7",
+      "aiDecision": "approved",
+      "cnt": "1",
+      "lastCreated": "2026-03-02 16:17:17"
+    },
+    {
+      "batchId": "batch_1772467642552_fxw0zc",
+      "aiDecision": "approved",
+      "cnt": "16",
+      "lastCreated": "2026-03-02 16:11:01"
+    },
+    {
+      "batchId": "batch_1772467642552_fxw0zc",
+      "aiDecision": "held",
+      "cnt": "4",
+      "lastCreated": "2026-03-02 16:11:01"
+    },
+    {
+      "batchId": "batch_1772467493669_x9e6ls",
+      "aiDecision": "approved",
+      "cnt": "17",
+      "lastCreated": "2026-03-02 16:08:20"
+    },
+    {
+      "batchId": "batch_1772467493669_x9e6ls",
+      "aiDecision": "held",
+      "cnt": "3",
+      "lastCreated": "2026-03-02 16:08:20"
+    },
+    {
+      "batchId": "batch_1772465457245_9tssvz",
+      "aiDecision": "approved",
+      "cnt": "3",
+      "lastCreated": "2026-03-02 15:31:19"
+    },
+    {
+      "batchId": "batch_1772465449165_z9l44i",
+      "aiDecision": "approved",
+      "cnt": "1",
+      "lastCreated": "2026-03-02 15:30:56"
+    },
+    {
+      "batchId": "batch_1772465434814_k5a0ou",
+      "aiDecision": "approved",
+      "cnt": "1",
+      "lastCreated": "2026-03-02 15:30:48"
+    },
+    {
+      "batchId": "batch_1772465366477_pg9dog",
+      "aiDecision": "approved",
+      "cnt": "1",
+      "lastCreated": "2026-03-02 15:29:52"
+    },
+    {
+      "batchId": "batch_1772465296299_kdmbzt",
+      "aiDecision": "approved",
+      "cnt": "1",
+      "lastCreated": "2026-03-02 15:28:26"
+    },
+    {
+      "batchId": "batch_1772463704265_ohi3zb",
+      "aiDecision": "skipped",
+      "cnt": "20",
+      "lastCreated": "2026-03-02 15:01:44"
+    },
+    {
+      "batchId": "batch_1772463428631_bl7vcf",
+      "aiDecision": "skipped",
+      "cnt": "5",
+      "lastCreated": "2026-03-02 14:57:09"
+    },
+    {
+      "batchId": "batch_1772463427225_ce7du1",
+      "aiDecision": "skipped",
+      "cnt": "20",
+      "lastCreated": "2026-03-02 14:57:08"
+    },
+    {
+      "batchId": "batch_1772463424592_c6gtym",
+      "aiDecision": "skipped",
+      "cnt": "1",
+      "lastCreated": "2026-03-02 14:57:06"
+    }
+  ],
+  "messages": [],
+  "stdout": "batchId\taiDecision\tcnt\tlastCreated\nbatch_1772470622639_kbu6pd\theld\t1\t2026-03-02 17:00:49\nbatch_1772470622639_kbu6pd\tapproved\t19\t2026-03-02 17:00:49\nbatch_1772470492075_o0uhax\theld\t1\t2026-03-02 16:58:19\nbatch_1772470492075_o0uhax\tapproved\t19\t2026-03-02 16:58:19\nbatch_1772468246431_qes9sv\tapproved\t3\t2026-03-02 16:17:49\nbatch_1772468238275_sc8g3l\tapproved\t1\t2026-03-02 16:17:26\nbatch_1772468227840_0poio7\tapproved\t1\t2026-03-02 16:17:17\nbatch_1772467642552_fxw0zc\tapproved\t16\t2026-03-02 16:11:01\nbatch_1772467642552_fxw0zc\theld\t4\t2026-03-02 16:11:01\nbatch_1772467493669_x9e6ls\tapproved\t17\t2026-03-02 16:08:20\nbatch_1772467493669_x9e6ls\theld\t3\t2026-03-02 16:08:20\nbatch_1772465457245_9tssvz\tapproved\t3\t2026-03-02 15:31:19\nbatch_1772465449165_z9l44i\tapproved\t1\t2026-03-02 15:30:56\nbatch_1772465434814_k5a0ou\tapproved\t1\t2026-03-02 15:30:48\nbatch_1772465366477_pg9dog\tapproved\t1\t2026-03-02 15:29:52\nbatch_1772465296299_kdmbzt\tapproved\t1\t2026-03-02 15:28:26\nbatch_1772463704265_ohi3zb\tskipped\t20\t2026-03-02 15:01:44\nbatch_1772463428631_bl7vcf\tskipped\t5\t2026-03-02 14:57:09\nbatch_1772463427225_ce7du1\tskipped\t20\t2026-03-02 14:57:08\nbatch_1772463424592_c6gtym\tskipped\t1\t2026-03-02 14:57:06\n",
+  "stderr": "",
+  "execution_time_ms": 1618
+}

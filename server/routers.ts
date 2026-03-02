@@ -13616,6 +13616,84 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       return await getAiAutoApproveSetting();
     }),
     
+    // サーバーサイドAI自動審査 開始
+    startServerAutoApprove: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getAiAutoApproveSetting, updateAiAutoApproveSetting } = await import("./db");
+        const { triggerAiAutoApprove } = await import("./aiAutoApproveScheduler");
+        
+        const settings = await getAiAutoApproveSetting();
+        if (settings?.isRunning) {
+          return { success: true, message: "既に実行中です" };
+        }
+        
+        // Reset counters and start
+        await updateAiAutoApproveSetting({
+          isRunning: true,
+          isEnabled: true,
+          totalProcessed: 0,
+          totalApproved: 0,
+          totalRejected: 0,
+          totalHeld: 0,
+          totalSkipped: 0,
+          currentBatchNumber: 0,
+          startedAt: new Date(),
+          stoppedAt: undefined,
+          updatedBy: ctx.user.id,
+        });
+        
+        // Trigger the scheduler
+        await triggerAiAutoApprove();
+        
+        return { success: true, message: "AI自動審査を開始しました" };
+      }),
+    
+    // サーバーサイドAI自動審査 停止
+    stopServerAutoApprove: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { updateAiAutoApproveSetting } = await import("./db");
+        
+        await updateAiAutoApproveSetting({
+          isRunning: false,
+          stoppedAt: new Date(),
+          updatedBy: ctx.user.id,
+        });
+        
+        return { success: true, message: "AI自動審査を停止しました" };
+      }),
+    
+    // サーバーサイドAI自動審査 進捗取得（ポーリング用）
+    getAutoApproveProgress: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getAiAutoApproveSetting, getAutoApprovalCandidates } = await import("./db");
+        
+        const settings = await getAiAutoApproveSetting();
+        
+        // Get remaining count
+        let remainingCount = 0;
+        try {
+          const remaining = await getAutoApprovalCandidates(1);
+          remainingCount = remaining.length > 0 ? -1 : 0; // -1 means "more than 0"
+        } catch { /* ignore */ }
+        
+        return {
+          isRunning: settings?.isRunning ?? false,
+          totalProcessed: settings?.totalProcessed ?? 0,
+          totalApproved: settings?.totalApproved ?? 0,
+          totalRejected: settings?.totalRejected ?? 0,
+          totalHeld: settings?.totalHeld ?? 0,
+          totalSkipped: settings?.totalSkipped ?? 0,
+          currentBatchNumber: settings?.currentBatchNumber ?? 0,
+          startedAt: settings?.startedAt,
+          stoppedAt: settings?.stoppedAt,
+          lastRunBatchId: settings?.lastRunBatchId,
+          hasMoreCandidates: remainingCount !== 0,
+        };
+      }),
+    
     // AI審査ログからAI再認識を実行
     reRecognize: protectedProcedure
       .input(z.object({

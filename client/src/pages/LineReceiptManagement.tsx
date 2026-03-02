@@ -661,6 +661,64 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
     },
   });
   
+  // Server-side AI auto-approve mutations
+  const startServerAutoApproveMutation = trpc.aiReview.startServerAutoApprove.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+    },
+    onError: (err) => {
+      toast.error(`開始エラー: ${err.message}`);
+      setAiAutoMode(false);
+      aiAutoModeRef.current = false;
+    },
+  });
+  
+  const stopServerAutoApproveMutation = trpc.aiReview.stopServerAutoApprove.useMutation({
+    onSuccess: (data) => {
+      toast.info(data.message);
+    },
+    onError: (err) => {
+      toast.error(`停止エラー: ${err.message}`);
+    },
+  });
+  
+  // Poll for server-side progress every 5 seconds when auto mode is on
+  const serverProgressQuery = trpc.aiReview.getAutoApproveProgress.useQuery(undefined, {
+    enabled: aiAutoMode,
+    refetchInterval: aiAutoMode ? 5000 : false,
+  });
+  
+  // Sync server state with local state
+  useEffect(() => {
+    if (serverProgressQuery.data) {
+      const progress = serverProgressQuery.data;
+      
+      // Update cumulative stats from server
+      setCumulativeStats({
+        totalProcessed: progress.totalProcessed,
+        totalApproved: progress.totalApproved,
+        totalRejectedDuplicate: 0, // Server tracks totalRejected (combined)
+        totalRejectedAi: progress.totalRejected,
+        totalHeld: progress.totalHeld,
+        totalSkipped: progress.totalSkipped,
+        batchCount: progress.currentBatchNumber,
+      });
+      
+      // If server stopped, sync local state
+      if (!progress.isRunning && aiAutoModeRef.current) {
+        setAiAutoMode(false);
+        aiAutoModeRef.current = false;
+        if (progress.totalProcessed > 0 && !progress.hasMoreCandidates) {
+          toast.success("✅ 全ての未処理レシートのAI審査が完了しました！");
+        }
+        // Refresh receipt lists
+        utils.point.adminGetLineReceipts.invalidate();
+        utils.point.adminGetLineStatistics.invalidate();
+        utils.point.adminDetectDuplicateReceipts.invalidate();
+      }
+    }
+  }, [serverProgressQuery.data]);
+  
   const handleAiReRecognize = () => {
     if (!calcReceiptId) return;
     setIsAiRecognizing(true);
@@ -996,19 +1054,17 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
           <Switch 
             checked={aiAutoMode} 
             onCheckedChange={(checked) => {
-              setAiAutoMode(checked);
-              aiAutoModeRef.current = checked;
               if (checked) {
-                // トグルON → 累計統計リセット＆自動でバッチ処理を開始
-                setCumulativeStats({ totalProcessed: 0, totalApproved: 0, totalRejectedDuplicate: 0, totalRejectedAi: 0, totalHeld: 0, totalSkipped: 0, batchCount: 0 });
-                setAiAutoApproveResult(null);
+                // トグルON → サーバーサイドでバッチ処理を開始
+                setAiAutoMode(true);
+                aiAutoModeRef.current = true;
                 setLiveFeedItems([]);
-                retryCountRef.current = 0;
-                toast.info(t("lr.aiAutoModeOn"));
-                aiAutoApproveMutation.mutate({ limit: 20, dryRun: false, confidenceThreshold: 70 });
+                startServerAutoApproveMutation.mutate();
               } else {
-                // トグルOFF → 停止メッセージ
-                toast.info("AI自動審査を停止しました");
+                // トグルOFF → サーバーサイドで停止
+                setAiAutoMode(false);
+                aiAutoModeRef.current = false;
+                stopServerAutoApproveMutation.mutate();
               }
             }}
           />
@@ -1146,14 +1202,14 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
         </Card>
       </div>
       
-      {/* AI Auto Mode Banner */}
+      {/* AI Auto Mode Banner - Server-side processing */}
       {aiAutoMode && (
         <Card className="border-purple-200 bg-gradient-to-r from-purple-50 to-blue-50">
           <CardContent className="py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-full bg-purple-100">
-                  {aiAutoApproveMutation.isPending ? (
+                  {(serverProgressQuery.data?.isRunning || cumulativeStats.batchCount === 0) ? (
                     <Loader2 className="w-5 h-5 text-purple-600 animate-spin" />
                   ) : (
                     <Sparkles className="w-5 h-5 text-purple-600" />
@@ -1161,16 +1217,18 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                 </div>
                 <div>
                   <p className="font-medium text-purple-800">
-                    {aiAutoApproveMutation.isPending 
-                      ? `🚀 AI自動審査中... (バッチ ${cumulativeStats.batchCount + 1})`
-                      : t("lr.aiAutoModeActive")}
+                    {serverProgressQuery.data?.isRunning
+                      ? `🚀 AI自動審査中... (バッチ ${cumulativeStats.batchCount})`
+                      : cumulativeStats.batchCount > 0
+                        ? "✅ AI自動審査完了"
+                        : "🚀 AI自動審査を開始しています..."}
                   </p>
                   <p className="text-sm text-purple-600">
-                    {aiAutoApproveMutation.isPending 
-                      ? "ONの間、自動的に次のバッチを処理します" 
-                      : cumulativeStats.batchCount > 0 
-                        ? `次のバッチを準備中...` 
-                        : t("lr.aiAutoModePipeline")}
+                    {serverProgressQuery.data?.isRunning
+                      ? "サーバー側で自動処理中。ブラウザを閉じても処理は続きます"
+                      : cumulativeStats.batchCount > 0
+                        ? `${cumulativeStats.totalProcessed}件処理完了`
+                        : "サーバーに接続中..."}
                   </p>
                 </div>
               </div>
@@ -1182,14 +1240,14 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                 onClick={() => {
                   setAiAutoMode(false);
                   aiAutoModeRef.current = false;
-                  toast.info("AI自動審査を停止しました");
+                  stopServerAutoApproveMutation.mutate();
                 }}
               >
                 停止
               </Button>
             </div>
             
-            {/* Cumulative Stats (shown when at least 1 batch completed) */}
+            {/* Cumulative Stats from server */}
             {cumulativeStats.batchCount > 0 && (
               <div className="mt-3 border-t border-purple-200 pt-3">
                 <div className="flex items-center gap-4 mb-2">
@@ -1197,19 +1255,18 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                     累計 ({cumulativeStats.batchCount}バッチ)
                   </Badge>
                   <span className="text-sm font-bold text-purple-700">{cumulativeStats.totalProcessed}{t("lr.items")}処理済み</span>
+                  {serverProgressQuery.data?.isRunning && (
+                    <Loader2 className="w-3 h-3 animate-spin text-purple-500" />
+                  )}
                 </div>
-                <div className="grid grid-cols-5 gap-2 mb-2">
+                <div className="grid grid-cols-4 gap-2 mb-2">
                   <div className="bg-green-100 rounded p-2 text-center">
                     <p className="text-lg font-bold text-green-700">{cumulativeStats.totalApproved}</p>
                     <p className="text-xs text-green-600">{t("lr.approve")}</p>
                   </div>
                   <div className="bg-red-100 rounded p-2 text-center">
-                    <p className="text-lg font-bold text-red-700">{cumulativeStats.totalRejectedDuplicate}</p>
-                    <p className="text-xs text-red-600">{t("lr.aiLog.duplicateRejected")}</p>
-                  </div>
-                  <div className="bg-rose-100 rounded p-2 text-center">
-                    <p className="text-lg font-bold text-rose-700">{cumulativeStats.totalRejectedAi}</p>
-                    <p className="text-xs text-rose-600">{t("lr.aiLog.aiRejected")}</p>
+                    <p className="text-lg font-bold text-red-700">{cumulativeStats.totalRejectedAi}</p>
+                    <p className="text-xs text-red-600">却下</p>
                   </div>
                   <div className="bg-orange-100 rounded p-2 text-center">
                     <p className="text-lg font-bold text-orange-700">{cumulativeStats.totalHeld}</p>
@@ -1220,101 +1277,15 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                     <p className="text-xs text-gray-600">{t("lr.aiLog.skipped")}</p>
                   </div>
                 </div>
-                
-                {/* Latest batch details for duplicates and held */}
-                {aiAutoApproveResult && aiAutoApproveResult.results.filter(r => r.action === "rejected_duplicate" || r.action === "rejected_ai" || r.action === "held").length > 0 && (
-                  <div className="max-h-40 overflow-y-auto text-xs space-y-1">
-                    <p className="text-xs text-purple-500 font-medium mb-1">最新バッチの詳細:</p>
-                    {aiAutoApproveResult.results.filter(r => r.action === "rejected_duplicate").map(r => (
-                      <div key={r.id} className="flex items-center gap-2 bg-red-50 rounded px-2 py-1">
-                        <XCircle className="w-3 h-3 text-red-500 flex-shrink-0" />
-                        <span className="text-red-700">#{r.id} {t("lr.duplicate")}: {r.reason}</span>
-                      </div>
-                    ))}
-                    {aiAutoApproveResult.results.filter(r => r.action === "rejected_ai").map(r => (
-                      <div key={r.id} className="flex items-center gap-2 bg-rose-50 rounded px-2 py-1">
-                        <ShieldX className="w-3 h-3 text-rose-500 flex-shrink-0" />
-                        <span className="text-rose-700">#{r.id} {t("lr.aiLog.aiRejected")}: {r.reason} ({r.confidence}%)</span>
-                      </div>
-                    ))}
-                    {aiAutoApproveResult.results.filter(r => r.action === "held").map(r => (
-                      <div key={r.id} className="flex items-center gap-2 bg-orange-50 rounded px-2 py-1">
-                        <AlertTriangle className="w-3 h-3 text-orange-500 flex-shrink-0" />
-                        <span className="text-orange-700">#{r.id} {r.reason} ({t("lr.confidence")}: {r.confidence}%)</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             )}
             
-            {/* Processing indicator when mutation is pending but no stats yet */}
-            {aiAutoApproveMutation.isPending && cumulativeStats.batchCount === 0 && (
+            {/* Processing indicator when starting */}
+            {cumulativeStats.batchCount === 0 && (
               <div className="mt-3 border-t border-purple-200 pt-3">
                 <div className="flex items-center gap-3">
                   <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
                   <span className="text-sm text-purple-600">最初のバッチを処理中...</span>
-                </div>
-              </div>
-            )}
-            
-            {/* Live Feed - Real-time processing results */}
-            {liveFeedItems.length > 0 && (
-              <div className="mt-3 border-t border-purple-200 pt-3">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-medium text-purple-600 flex items-center gap-1">
-                    {aiAutoApproveMutation.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
-                    ライブ処理フィード
-                  </p>
-                  <span className="text-[10px] text-purple-400">{liveFeedItems.length}件表示中</span>
-                </div>
-                <div ref={liveFeedRef} className="max-h-60 overflow-y-auto space-y-1 scroll-smooth">
-                  {liveFeedItems.map((item, idx) => (
-                    <div
-                      key={`${item.id}-${item.timestamp}`}
-                      className={`flex items-center gap-2 rounded px-2 py-1.5 text-xs transition-all duration-300 ${
-                        idx === 0 ? 'animate-pulse' : ''
-                      } ${
-                        item.action === 'approved' ? 'bg-green-50 border-l-2 border-green-400' :
-                        item.action === 'rejected_duplicate' ? 'bg-red-50 border-l-2 border-red-400' :
-                        item.action === 'rejected_ai' ? 'bg-rose-50 border-l-2 border-rose-400' :
-                        item.action === 'held' ? 'bg-orange-50 border-l-2 border-orange-400' :
-                        item.action === 'skipped' ? 'bg-gray-50 border-l-2 border-gray-300' :
-                        'bg-purple-50 border-l-2 border-purple-300'
-                      }`}
-                    >
-                      <span className="flex-shrink-0">
-                        {item.action === 'approved' ? '✅' :
-                         item.action === 'rejected_duplicate' ? '❌' :
-                         item.action === 'rejected_ai' ? '⛔' :
-                         item.action === 'held' ? '⚠️' :
-                         item.action === 'skipped' ? '⏭️' : '🔍'}
-                      </span>
-                      <span className="font-mono text-[10px] text-muted-foreground">#{item.id}</span>
-                      <span className={`font-medium ${
-                        item.action === 'approved' ? 'text-green-700' :
-                        item.action === 'rejected_duplicate' ? 'text-red-700' :
-                        item.action === 'rejected_ai' ? 'text-rose-700' :
-                        item.action === 'held' ? 'text-orange-700' :
-                        'text-gray-600'
-                      }`}>
-                        {item.action === 'approved' ? '承認' :
-                         item.action === 'rejected_duplicate' ? '重複却下' :
-                         item.action === 'rejected_ai' ? 'AI却下' :
-                         item.action === 'held' ? '保留' :
-                         item.action === 'skipped' ? 'スキップ' : item.action}
-                      </span>
-                      {item.amount && (
-                        <span className="text-[10px] text-muted-foreground">¥{item.amount.toLocaleString()}</span>
-                      )}
-                      {item.orderNumber && (
-                        <span className="text-[10px] text-blue-500 truncate max-w-[120px]" title={item.orderNumber}>#{item.orderNumber.slice(-6)}</span>
-                      )}
-                      {item.confidence && (
-                        <span className="text-[10px] text-purple-500 ml-auto">{item.confidence}%</span>
-                      )}
-                    </div>
-                  ))}
                 </div>
               </div>
             )}

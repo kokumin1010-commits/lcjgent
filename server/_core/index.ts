@@ -14,6 +14,7 @@ import { checkAndSendReminders } from "../reminderScheduler";
 import { startGroupFollowUpScheduler } from "../groupFollowUpScheduler";
 import { startResponseReminderScheduler } from "../responseReminderScheduler";
 import { startScheduleReminderScheduler } from "../scheduleReminderScheduler";
+import { startAiAutoApproveScheduler } from "../aiAutoApproveScheduler";
 import { startLineReminderScheduler } from "../lineReminderScheduler";
 import { startAutoPostScheduler } from "../autoPostScheduler";
 import { initPointExpiryScheduler } from "../pointExpiryScheduler";
@@ -1436,6 +1437,9 @@ async function startServer() {
     
     // Start point expiry scheduler (processes expired points daily, sends LINE notifications)
     initPointExpiryScheduler();
+    
+    // Start AI auto-approve scheduler (server-side autonomous batch processing)
+    startAiAutoApproveScheduler();
   });
 }
 

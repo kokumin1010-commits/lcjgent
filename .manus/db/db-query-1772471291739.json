@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE ai_auto_approve_settings \nADD COLUMN IF NOT EXISTS isRunning BOOLEAN NOT NULL DEFAULT FALSE,\nADD COLUMN IF NOT EXISTS totalProcessed INT NOT NULL DEFAULT 0,\nADD COLUMN IF NOT EXISTS totalApproved INT NOT NULL DEFAULT 0,\nADD COLUMN IF NOT EXISTS totalRejected INT NOT NULL DEFAULT 0,\nADD COLUMN IF NOT EXISTS totalHeld INT NOT NULL DEFAULT 0,\nADD COLUMN IF NOT EXISTS totalSkipped INT NOT NULL DEFAULT 0,\nADD COLUMN IF NOT EXISTS currentBatchNumber INT NOT NULL DEFAULT 0,\nADD COLUMN IF NOT EXISTS startedAt TIMESTAMP NULL,\nADD COLUMN IF NOT EXISTS stoppedAt TIMESTAMP NULL;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute ALTER TABLE ai_auto_approve_settings \nADD COLUMN IF NOT EXISTS isRunning BOOLEAN NOT NULL DEFAULT FALSE,\nADD COLUMN IF NOT EXISTS totalProcessed INT NOT NULL DEFAULT 0,\nADD COLUMN IF NOT EXISTS totalApproved INT NOT NULL DEFAULT 0,\nADD COLUMN IF NOT EXISTS totalRejected INT NOT NULL DEFAULT 0,\nADD COLUMN IF NOT EXISTS totalHeld INT NOT NULL DEFAULT 0,\nADD COLUMN IF NOT EXISTS totalSkipped INT NOT NULL DEFAULT 0,\nADD COLUMN IF NOT EXISTS currentBatchNumber INT NOT NULL DEFAULT 0,\nADD COLUMN IF NOT EXISTS startedAt TIMESTAMP NULL,\nADD COLUMN IF NOT EXISTS stoppedAt TIMESTAMP NULL;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 2783
+}

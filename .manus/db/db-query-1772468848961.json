@@ -1,0 +1,31 @@
+{
+  "query": "SHOW TABLES LIKE '%receipt%'",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SHOW TABLES LIKE '%receipt%'",
+  "rows": [
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (%receipt%)": "ai_receipt_learning_examples"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (%receipt%)": "line_receipts"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (%receipt%)": "receipt_kakuhen_results"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (%receipt%)": "receipt_products"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (%receipt%)": "receipt_review_logs"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (%receipt%)": "receipt_reviews"
+    },
+    {
+      "Tables_in_GgA9WvTBCZMf6mjyMMwACw (%receipt%)": "receipts"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_GgA9WvTBCZMf6mjyMMwACw (%receipt%)\nai_receipt_learning_examples\nline_receipts\nreceipt_kakuhen_results\nreceipt_products\nreceipt_review_logs\nreceipt_reviews\nreceipts\n",
+  "stderr": "",
+  "execution_time_ms": 1567
+}

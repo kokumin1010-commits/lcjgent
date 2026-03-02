@@ -17605,10 +17605,19 @@ export async function getAiAutoApproveSetting() {
 // 設定更新
 export async function updateAiAutoApproveSetting(data: {
   isEnabled?: boolean;
+  isRunning?: boolean;
   confidenceThreshold?: number;
   batchSize?: number;
   lastRunAt?: Date;
   lastRunBatchId?: string;
+  totalProcessed?: number;
+  totalApproved?: number;
+  totalRejected?: number;
+  totalHeld?: number;
+  totalSkipped?: number;
+  currentBatchNumber?: number;
+  startedAt?: Date;
+  stoppedAt?: Date;
   updatedBy?: number;
 }) {
   const db = await getDb();
@@ -17619,10 +17628,19 @@ export async function updateAiAutoApproveSetting(data: {
   if (existing.length === 0) {
     await db.insert(aiAutoApproveSettings).values({
       isEnabled: data.isEnabled ?? false,
+      isRunning: data.isRunning ?? false,
       confidenceThreshold: data.confidenceThreshold ?? 85,
       batchSize: data.batchSize ?? 20,
       lastRunAt: data.lastRunAt,
       lastRunBatchId: data.lastRunBatchId,
+      totalProcessed: data.totalProcessed ?? 0,
+      totalApproved: data.totalApproved ?? 0,
+      totalRejected: data.totalRejected ?? 0,
+      totalHeld: data.totalHeld ?? 0,
+      totalSkipped: data.totalSkipped ?? 0,
+      currentBatchNumber: data.currentBatchNumber ?? 0,
+      startedAt: data.startedAt,
+      stoppedAt: data.stoppedAt,
       updatedBy: data.updatedBy,
     });
   } else {
