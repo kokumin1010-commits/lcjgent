@@ -13379,12 +13379,20 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           }
         }
         
+        // Check if there are more pending receipts for continuous processing
+        let hasMore = false;
+        try {
+          const remaining = await getAutoApprovalCandidates(1);
+          hasMore = remaining.length > 0;
+        } catch { /* ignore */ }
+        
         return {
           processed: results.length,
           results,
           summary,
           dryRun: input.dryRun,
           batchId,
+          hasMore,
         };
       }),
   }),

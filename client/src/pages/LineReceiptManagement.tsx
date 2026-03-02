@@ -146,7 +146,22 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
     summary: { approved: number; skipped: number; held: number; rejectedDuplicate: number; rejectedAi: number };
     dryRun?: boolean;
     batchId?: string;
+    hasMore?: boolean;
   } | null>(null);
+  
+  // Cumulative AI auto-approve stats (across all batches in this session)
+  const [cumulativeStats, setCumulativeStats] = useState<{
+    totalProcessed: number;
+    totalApproved: number;
+    totalRejectedDuplicate: number;
+    totalRejectedAi: number;
+    totalHeld: number;
+    totalSkipped: number;
+    batchCount: number;
+  }>({ totalProcessed: 0, totalApproved: 0, totalRejectedDuplicate: 0, totalRejectedAi: 0, totalHeld: 0, totalSkipped: 0, batchCount: 0 });
+  
+  // Ref to track if auto mode is still on (to avoid stale closure issues)
+  const aiAutoModeRef = useRef(false);
   
   // Continuous processing state
   const [sessionProcessedCount, setSessionProcessedCount] = useState(0);
@@ -559,17 +574,46 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
   const aiAutoApproveMutation = trpc.point.adminAiAutoApprove.useMutation({
     onSuccess: (data) => {
       setAiAutoApproveResult(data);
+      
+      // Update cumulative stats
+      setCumulativeStats(prev => ({
+        totalProcessed: prev.totalProcessed + data.processed,
+        totalApproved: prev.totalApproved + data.summary.approved,
+        totalRejectedDuplicate: prev.totalRejectedDuplicate + data.summary.rejectedDuplicate,
+        totalRejectedAi: prev.totalRejectedAi + (data.summary.rejectedAi || 0),
+        totalHeld: prev.totalHeld + data.summary.held,
+        totalSkipped: prev.totalSkipped + data.summary.skipped,
+        batchCount: prev.batchCount + 1,
+      }));
+      
       if (data.dryRun) {
         toast.info(`${t("lr.preview")}: ${data.processed}${t("lr.items")} (${t("lr.approve")}: ${data.summary.approved}, ${t("lr.aiLog.duplicateRejected")}: ${data.summary.rejectedDuplicate}, ${t("lr.aiLog.aiRejected")}: ${data.summary.rejectedAi || 0}, ${t("lr.hold")}: ${data.summary.held})`);
       } else {
-        toast.success(`${t("lr.aiAutoRecognizeComplete")}: ${data.summary.approved} ${t("lr.approve")}, ${data.summary.rejectedDuplicate} ${t("lr.aiLog.duplicateRejected")}, ${data.summary.rejectedAi || 0} ${t("lr.aiLog.aiRejected")}, ${data.summary.held} ${t("lr.hold")}`);
         utils.point.adminGetLineReceipts.invalidate();
         utils.point.adminGetLineStatistics.invalidate();
         utils.point.adminDetectDuplicateReceipts.invalidate();
+        
+        // Continuous processing: if auto mode is ON and there are more pending receipts, auto-trigger next batch
+        if (aiAutoModeRef.current && data.hasMore && data.processed > 0) {
+          // Short delay before next batch to avoid overwhelming the server
+          setTimeout(() => {
+            if (aiAutoModeRef.current) {
+              aiAutoApproveMutation.mutate({ limit: aiAutoApproveLimit, dryRun: false, confidenceThreshold: 85 });
+            }
+          }, 2000);
+        } else if (aiAutoModeRef.current && !data.hasMore) {
+          // All done! Turn off auto mode
+          setAiAutoMode(false);
+          aiAutoModeRef.current = false;
+          toast.success("✅ 全ての未処理レシートのAI審査が完了しました！");
+        }
       }
     },
     onError: (err) => {
       toast.error(`${t("lr.aiAutoMode")} Error: ${err.message}`);
+      // On error, stop auto mode
+      setAiAutoMode(false);
+      aiAutoModeRef.current = false;
     },
   });
   
@@ -909,10 +953,16 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
             checked={aiAutoMode} 
             onCheckedChange={(checked) => {
               setAiAutoMode(checked);
+              aiAutoModeRef.current = checked;
               if (checked) {
-                // トグルON → 自動でバッチ処理を実行
+                // トグルON → 累計統計リセット＆自動でバッチ処理を開始
+                setCumulativeStats({ totalProcessed: 0, totalApproved: 0, totalRejectedDuplicate: 0, totalRejectedAi: 0, totalHeld: 0, totalSkipped: 0, batchCount: 0 });
+                setAiAutoApproveResult(null);
                 toast.info(t("lr.aiAutoModeOn"));
                 aiAutoApproveMutation.mutate({ limit: aiAutoApproveLimit, dryRun: false, confidenceThreshold: 85 });
+              } else {
+                // トグルOFF → 停止メッセージ
+                toast.info("AI自動審査を停止しました");
               }
             }}
           />
@@ -1057,12 +1107,24 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-full bg-purple-100">
-                  <Sparkles className="w-5 h-5 text-purple-600" />
+                  {aiAutoApproveMutation.isPending ? (
+                    <Loader2 className="w-5 h-5 text-purple-600 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-5 h-5 text-purple-600" />
+                  )}
                 </div>
                 <div>
-                  <p className="font-medium text-purple-800">{t("lr.aiAutoModeActive")}</p>
+                  <p className="font-medium text-purple-800">
+                    {aiAutoApproveMutation.isPending 
+                      ? `🚀 AI自動審査中... (バッチ ${cumulativeStats.batchCount + 1})`
+                      : t("lr.aiAutoModeActive")}
+                  </p>
                   <p className="text-sm text-purple-600">
-                    {t("lr.aiAutoModePipeline")}
+                    {aiAutoApproveMutation.isPending 
+                      ? "ONの間、自動的に次のバッチを処理します" 
+                      : cumulativeStats.batchCount > 0 
+                        ? `次のバッチを準備中...` 
+                        : t("lr.aiAutoModePipeline")}
                   </p>
                 </div>
               </div>
@@ -1071,6 +1133,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                 <Select
                   value={String(aiAutoApproveLimit)}
                   onValueChange={(v) => setAiAutoApproveLimit(Number(v))}
+                  disabled={aiAutoApproveMutation.isPending}
                 >
                   <SelectTrigger className="w-[80px] h-8 text-xs">
                     <SelectValue />
@@ -1082,49 +1145,45 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                     <SelectItem value="100">100件</SelectItem>
                   </SelectContent>
                 </Select>
-                {aiAutoApproveMutation.isPending && (
-                  <div className="flex items-center gap-1 text-purple-600">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span className="text-xs">{t("lr.processing")}</span>
-                  </div>
-                )}
               </div>
             </div>
             
-            {/* AI Auto-Approve Results */}
-            {aiAutoApproveResult && (
+            {/* Cumulative Stats (shown when at least 1 batch completed) */}
+            {cumulativeStats.batchCount > 0 && (
               <div className="mt-3 border-t border-purple-200 pt-3">
                 <div className="flex items-center gap-4 mb-2">
                   <Badge variant="outline" className="border-purple-300 text-purple-700">
-                    {t("lr.execute")}
+                    累計 ({cumulativeStats.batchCount}バッチ)
                   </Badge>
-                  <span className="text-sm text-purple-700">{aiAutoApproveResult.processed}{t("lr.items")}</span>
+                  <span className="text-sm font-bold text-purple-700">{cumulativeStats.totalProcessed}{t("lr.items")}処理済み</span>
                 </div>
                 <div className="grid grid-cols-5 gap-2 mb-2">
                   <div className="bg-green-100 rounded p-2 text-center">
-                    <p className="text-lg font-bold text-green-700">{aiAutoApproveResult.summary.approved}</p>
+                    <p className="text-lg font-bold text-green-700">{cumulativeStats.totalApproved}</p>
                     <p className="text-xs text-green-600">{t("lr.approve")}</p>
                   </div>
                   <div className="bg-red-100 rounded p-2 text-center">
-                    <p className="text-lg font-bold text-red-700">{aiAutoApproveResult.summary.rejectedDuplicate}</p>
+                    <p className="text-lg font-bold text-red-700">{cumulativeStats.totalRejectedDuplicate}</p>
                     <p className="text-xs text-red-600">{t("lr.aiLog.duplicateRejected")}</p>
                   </div>
                   <div className="bg-rose-100 rounded p-2 text-center">
-                    <p className="text-lg font-bold text-rose-700">{aiAutoApproveResult.summary.rejectedAi || 0}</p>
+                    <p className="text-lg font-bold text-rose-700">{cumulativeStats.totalRejectedAi}</p>
                     <p className="text-xs text-rose-600">{t("lr.aiLog.aiRejected")}</p>
                   </div>
                   <div className="bg-orange-100 rounded p-2 text-center">
-                    <p className="text-lg font-bold text-orange-700">{aiAutoApproveResult.summary.held}</p>
+                    <p className="text-lg font-bold text-orange-700">{cumulativeStats.totalHeld}</p>
                     <p className="text-xs text-orange-600">{t("lr.hold")}</p>
                   </div>
                   <div className="bg-gray-100 rounded p-2 text-center">
-                    <p className="text-lg font-bold text-gray-700">{aiAutoApproveResult.summary.skipped}</p>
+                    <p className="text-lg font-bold text-gray-700">{cumulativeStats.totalSkipped}</p>
                     <p className="text-xs text-gray-600">{t("lr.aiLog.skipped")}</p>
                   </div>
                 </div>
-                {/* Show details for duplicates and held */}
-                {aiAutoApproveResult.results.filter(r => r.action === "rejected_duplicate" || r.action === "rejected_ai" || r.action === "held").length > 0 && (
+                
+                {/* Latest batch details for duplicates and held */}
+                {aiAutoApproveResult && aiAutoApproveResult.results.filter(r => r.action === "rejected_duplicate" || r.action === "rejected_ai" || r.action === "held").length > 0 && (
                   <div className="max-h-40 overflow-y-auto text-xs space-y-1">
+                    <p className="text-xs text-purple-500 font-medium mb-1">最新バッチの詳細:</p>
                     {aiAutoApproveResult.results.filter(r => r.action === "rejected_duplicate").map(r => (
                       <div key={r.id} className="flex items-center gap-2 bg-red-50 rounded px-2 py-1">
                         <XCircle className="w-3 h-3 text-red-500 flex-shrink-0" />
@@ -1145,6 +1204,16 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+            
+            {/* Processing indicator when mutation is pending but no stats yet */}
+            {aiAutoApproveMutation.isPending && cumulativeStats.batchCount === 0 && (
+              <div className="mt-3 border-t border-purple-200 pt-3">
+                <div className="flex items-center gap-3">
+                  <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
+                  <span className="text-sm text-purple-600">最初のバッチを処理中...</span>
+                </div>
               </div>
             )}
           </CardContent>
@@ -2608,8 +2677,8 @@ function AiReviewLogPanel() {
         const progressInLevel = nextLevel ? ((totalExamples - prevThreshold) / (nextThreshold - prevThreshold)) * 100 : 100;
         const remaining = nextLevel ? nextThreshold - totalExamples : 0;
         
-        // Today's count from byCategory breakdown
-        const todayCount = (learningStats.byCategory as any[])?.reduce((sum: number, c: any) => sum + (c.count ?? 0), 0) ?? totalExamples;
+        // Today's count from byErrorType breakdown
+        const todayCount = (learningStats.byErrorType as any[])?.reduce((sum: number, c: any) => sum + (c.count ?? 0), 0) ?? totalExamples;
         
         return (
           <div className={`rounded-xl border-2 ${currentLevel.borderColor} ${currentLevel.bgColor} p-4 transition-all duration-500`}>
