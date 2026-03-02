@@ -1232,49 +1232,61 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                   {others.length > 0 && (
                                     <div className="space-y-1">
                                       {others.map((other, idx) => (
-                                        <div key={`${other.source}-${other.id}-${idx}`} className="bg-white border border-orange-200 rounded px-1.5 py-1 flex items-center gap-1.5">
-                                          {other.imageUrl && (
-                                            <img src={other.imageUrl} alt="" className="w-7 h-7 rounded object-cover flex-shrink-0 border" />
-                                          )}
-                                          <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-1 flex-wrap">
-                                              <Badge variant="outline" className="text-[8px] px-0.5 py-0">
-                                                {other.source === "line_receipt" ? t("lr.LINE") : t("lr.Web")}
-                                              </Badge>
-                                              <Badge variant={other.status === "approved" ? "default" : other.status === "rejected" ? "destructive" : "secondary"} className="text-[8px] px-0.5 py-0">
-                                                {other.status === "approved" ? t("lr.approvedStatus") : other.status === "rejected" ? t("lr.rejectedStatus") : other.status === "on_hold" ? t("lr.holdStatus") : t("lr.waitingStatus")}
-                                              </Badge>
-                                              <span className="text-[9px] text-muted-foreground truncate">{other.userName}</span>
-                                            </div>
-                                            <div className="flex items-center gap-1.5 mt-0.5">
-                                              {other.totalAmount != null && (
-                                                <span className="text-[10px] font-semibold">{formatCurrency(other.totalAmount)}</span>
-                                              )}
-                                              {other.submittedAt && (
-                                                <span className="text-[10px] text-muted-foreground">
-                                                  {new Date(other.submittedAt).toLocaleDateString("ja-JP", { month: "short", day: "numeric" })}
-                                                </span>
-                                              )}
-                                            </div>
-                                          </div>
-                                          {other.source === "line_receipt" && (
-                                            <button
-                                              className="text-[9px] text-blue-500 hover:text-blue-700 flex-shrink-0"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                const target = receipts?.find((r: any) => r.id === other.id);
-                                                if (target) {
-                                                  setCalcReceiptId(other.id);
-                                                  toast.info(`#${other.id} ${t("lr.toast.switchedTo")}`);
-                                                } else {
-                                                  toast.info(`#${other.id} ${t("lr.toast.otherTab")}`);
-                                                }
-                                              }}
-                                            >
-                                              <ExternalLink className="w-3 h-3" />
-                                            </button>
-                                          )}
-                                        </div>
+                        <div 
+                          key={`${other.source}-${other.id}-${idx}`} 
+                          className="bg-white border border-orange-200 rounded px-1.5 py-1.5 flex items-center gap-1.5 cursor-pointer hover:bg-orange-50 active:bg-orange-100 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (other.source === "line_receipt") {
+                              const target = receipts?.find((r: any) => r.receipt.id === other.id);
+                              if (target) {
+                                selectForCalc(other.id);
+                                toast.info(`#${other.id} ${t("lr.toast.switchedTo")}`);
+                              } else {
+                                // Switch to the tab where this receipt exists based on its status
+                                const statusTabMap: Record<string, string> = {
+                                  approved: "approved",
+                                  rejected: "rejected",
+                                  on_hold: "on_hold",
+                                  pending: "pending",
+                                };
+                                const targetTab = statusTabMap[other.status] || "pending";
+                                setActiveTab(targetTab as ReceiptStatus);
+                                // Set the receipt ID after tab switch - it will be selected when data loads
+                                setTimeout(() => setCalcReceiptId(other.id), 300);
+                                toast.info(`#${other.id} → ${other.status === "approved" ? t("lr.approvedStatus") : other.status === "rejected" ? t("lr.rejectedStatus") : other.status === "on_hold" ? t("lr.holdStatus") : t("lr.waitingStatus")} ${t("lr.toast.switchedTo")}`);
+                              }
+                            }
+                          }}
+                        >
+                          {other.imageUrl && (
+                            <img src={other.imageUrl} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0 border" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <Badge variant="outline" className="text-[8px] px-0.5 py-0">
+                                {other.source === "line_receipt" ? t("lr.LINE") : t("lr.Web")}
+                              </Badge>
+                              <Badge variant={other.status === "approved" ? "default" : other.status === "rejected" ? "destructive" : "secondary"} className="text-[8px] px-0.5 py-0">
+                                {other.status === "approved" ? t("lr.approvedStatus") : other.status === "rejected" ? t("lr.rejectedStatus") : other.status === "on_hold" ? t("lr.holdStatus") : t("lr.waitingStatus")}
+                              </Badge>
+                              <span className="text-[9px] text-muted-foreground truncate">{other.userName}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              {other.totalAmount != null && (
+                                <span className="text-[10px] font-semibold">{formatCurrency(other.totalAmount)}</span>
+                              )}
+                              {other.submittedAt && (
+                                <span className="text-[10px] text-muted-foreground">
+                                  {new Date(other.submittedAt).toLocaleDateString("ja-JP", { month: "short", day: "numeric" })}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {other.source === "line_receipt" && (
+                            <ExternalLink className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                          )}
+                        </div>
                                       ))}
                                     </div>
                                   )}
@@ -1731,7 +1743,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                 return (
                                   <Badge 
                                     variant="destructive" 
-                                    className="text-[10px] px-1 py-0 bg-orange-100 text-orange-700 border-orange-300 cursor-help"
+                                    className="text-[10px] px-1 py-0 bg-orange-100 text-orange-700 border-orange-300 cursor-pointer"
                                     title={otherSummary ? `${t("lr.duplicate")}: ${otherSummary}` : t("lr.duplicate")}
                                   >
                                     <AlertTriangle className="w-2.5 h-2.5 mr-0.5" />
@@ -2676,7 +2688,7 @@ function AiReviewLogPanel() {
                       </span>
                     </div>
                     
-                    {/* Row 2: Amount + Points + Order Number + Product + Store */}
+                    {/* Row 2: Amount + Points (awarded & calculated) */}
                     <div className="flex items-center gap-3 text-sm">
                       {log.totalAmount != null ? (
                         <>
@@ -2684,6 +2696,10 @@ function AiReviewLogPanel() {
                           <span className="text-muted-foreground">→</span>
                           {log.aiDecision === "approved" && log.receiptPointsAwarded != null ? (
                             <span className="font-bold text-green-600 text-base">{log.receiptPointsAwarded}pt</span>
+                          ) : log.receiptPointsCalculated != null && log.receiptPointsCalculated > 0 ? (
+                            <span className="text-blue-600 font-semibold">
+                              <span className="text-xs text-muted-foreground mr-0.5">予定</span>{log.receiptPointsCalculated}pt
+                            </span>
                           ) : (
                             <span className="text-blue-600 font-semibold">{points}pt</span>
                           )}
@@ -2692,7 +2708,13 @@ function AiReviewLogPanel() {
                         <>
                           <span className="text-muted-foreground">-</span>
                           <span className="text-muted-foreground">→</span>
-                          <span className="text-blue-600 font-semibold">{points}pt</span>
+                          {log.receiptPointsCalculated != null && log.receiptPointsCalculated > 0 ? (
+                            <span className="text-blue-600 font-semibold">
+                              <span className="text-xs text-muted-foreground mr-0.5">予定</span>{log.receiptPointsCalculated}pt
+                            </span>
+                          ) : (
+                            <span className="text-blue-600 font-semibold">{points}pt</span>
+                          )}
                         </>
                       )}
                       <div className="flex items-center gap-2 ml-auto text-xs text-muted-foreground">
@@ -2714,59 +2736,27 @@ function AiReviewLogPanel() {
                     )}
                   </div>
                   
-                  {/* Image Gallery - Always visible, large */}
+                  {/* Image Gallery - Always visible, scrollable */}
                   {allImages.length > 0 && (
                     <div className="mt-3">
-                      {/* Main image - large auto-fit */}
-                      <div 
-                        className="relative rounded-lg overflow-hidden bg-gray-50 border cursor-pointer group"
-                        onClick={() => {
-                          setExpandedImages(prev => {
-                            const next = new Set(prev);
-                            if (next.has(log.id)) next.delete(log.id);
-                            else next.add(log.id);
-                            return next;
-                          });
-                        }}
-                      >
-                        <img 
-                          src={allImages[0]} 
-                          alt="レシート" 
-                          className={`w-full object-contain mx-auto transition-all ${isImagesExpanded ? 'max-h-[70vh]' : 'max-h-[200px]'}`}
-                          loading="lazy"
-                        />
-                        {!isImagesExpanded && (
-                          <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-black/30 to-transparent flex items-end justify-center pb-1">
-                            <span className="text-white text-xs flex items-center gap-1">
-                              <ZoomIn className="w-3 h-3" />
-                              {t("lr.enlarge")}
-                              {imageCount > 1 && ` (${imageCount}枚)`}
-                            </span>
-                          </div>
-                        )}
-                        {isImagesExpanded && imageCount > 1 && (
-                          <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-0.5 rounded-full">
-                            1 / {imageCount}
-                          </div>
-                        )}
-                      </div>
-                      {/* Additional images when expanded */}
-                      {isImagesExpanded && allImages.length > 1 && (
-                        <div className="grid grid-cols-2 gap-2 mt-2">
-                          {allImages.slice(1).map((url, idx) => (
-                            <div 
-                              key={idx}
-                              className="rounded-lg overflow-hidden bg-gray-50 border cursor-pointer"
-                              onClick={() => window.open(url, '_blank')}
-                            >
+                      <div className="rounded-lg overflow-hidden bg-gray-50 border">
+                        <div className="overflow-y-auto max-h-[500px] scrollbar-thin">
+                          <div className="space-y-1">
+                            {allImages.map((url, idx) => (
                               <img 
+                                key={idx}
                                 src={url} 
-                                alt={`レシート ${idx + 2}`} 
-                                className="w-full max-h-[300px] object-contain"
+                                alt={`レシート ${idx + 1}`} 
+                                className="w-full object-contain"
                                 loading="lazy"
                               />
-                            </div>
-                          ))}
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      {allImages.length > 1 && (
+                        <div className="text-center text-xs text-muted-foreground mt-1">
+                          {allImages.length}枚の画像・スクロールで確認
                         </div>
                       )}
                     </div>
