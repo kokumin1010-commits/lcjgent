@@ -522,6 +522,9 @@ export default function LivestreamDetail() {
                   編集
                 </Button>
               )}
+              {!isAdmin && (
+                <span className="text-xs text-gray-500 italic">閲覧専用モード</span>
+              )}
             </div>
 
             {isEditing ? (
