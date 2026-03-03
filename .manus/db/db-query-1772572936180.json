@@ -1,0 +1,45 @@
+{
+  "query": "SELECT id, displayName, email, password IS NOT NULL as has_password, lineUserId FROM line_users WHERE email IS NOT NULL LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, displayName, email, password IS NOT NULL as has_password, lineUserId FROM line_users WHERE email IS NOT NULL LIMIT 5;",
+  "rows": [
+    {
+      "id": "930415",
+      "displayName": "田原八恵",
+      "email": "0203kuwa1213@gmail.com",
+      "has_password": "1",
+      "lineUserId": "NULL"
+    },
+    {
+      "id": "990027",
+      "displayName": "◡̈⃝︎⋆︎*ゆか ◡̈⃝︎⋆︎*",
+      "email": "0dv0973t78k475t@au.com",
+      "has_password": "1",
+      "lineUserId": "U6a6ab1b5e2068eb1014bcee46db8554c"
+    },
+    {
+      "id": "1050025",
+      "displayName": "倉林",
+      "email": "0ku2mb12066168t@ezweb.ne.jp",
+      "has_password": "1",
+      "lineUserId": "NULL"
+    },
+    {
+      "id": "1050040",
+      "displayName": "吉田 征矢",
+      "email": "0xb449003260.9g@ezweb.ne.jp",
+      "has_password": "1",
+      "lineUserId": "NULL"
+    },
+    {
+      "id": "1080004",
+      "displayName": "岩田　麻紀",
+      "email": "01041012m@gmail.com",
+      "has_password": "1",
+      "lineUserId": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tdisplayName\temail\thas_password\tlineUserId\n930415\t田原八恵\t0203kuwa1213@gmail.com\t1\tNULL\n990027\t◡̈⃝︎⋆︎*ゆか ◡̈⃝︎⋆︎*\t0dv0973t78k475t@au.com\t1\tU6a6ab1b5e2068eb1014bcee46db8554c\n1050025\t倉林\t0ku2mb12066168t@ezweb.ne.jp\t1\tNULL\n1050040\t吉田 征矢\t0xb449003260.9g@ezweb.ne.jp\t1\tNULL\n1080004\t岩田　麻紀\t01041012m@gmail.com\t1\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 1640
+}

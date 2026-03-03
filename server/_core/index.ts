@@ -1440,6 +1440,19 @@ async function startServer() {
     
     // Start AI auto-approve scheduler (server-side autonomous batch processing)
     startAiAutoApproveScheduler();
+    
+    // Seed popup variants on startup (idempotent - only inserts if table is empty)
+    import("../db").then(({ seedPopupVariants }) => {
+      seedPopupVariants().then((result: { seeded: boolean; count: number }) => {
+        if (result.seeded) {
+          console.log(`[Popup] Seeded ${result.count} popup variants`);
+        } else {
+          console.log(`[Popup] Popup variants already exist (${result.count} variants)`);
+        }
+      }).catch((err: unknown) => {
+        console.error("[Popup] Failed to seed popup variants:", err);
+      });
+    });
   });
 }
 
