@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +35,8 @@ export default function LivestreamDetail() {
   const params = useParams<{ id: string }>();
   const livestreamId = parseInt(params.id || "0", 10);
   const [, setLocation] = useLocation();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
 
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -508,7 +511,7 @@ export default function LivestreamDetail() {
             {/* Header with Edit Button */}
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-bold text-white">配信履歴詳細</h2>
-              {!isEditing && (
+              {!isEditing && isAdmin && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -954,23 +957,25 @@ export default function LivestreamDetail() {
                       <FileSpreadsheet className="w-4 h-4" />
                       商品別売上
                     </h3>
-                    <label className="cursor-pointer">
-                      <input
-                        type="file"
-                        accept=".csv,.xlsx,.xls"
-                        onChange={handleProductCsvUpload}
-                        className="hidden"
-                        disabled={isImportingProductCsv}
-                      />
-                      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded text-xs font-medium transition-colors ${
-                        isImportingProductCsv 
-                          ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                          : 'bg-orange-600 hover:bg-orange-700 text-white cursor-pointer'
-                      }`}>
-                        <Upload className="w-3 h-3" />
-                        {isImportingProductCsv ? 'インポート中...' : 'CSVインポート'}
-                      </span>
-                    </label>
+                    {isAdmin && (
+                      <label className="cursor-pointer">
+                        <input
+                          type="file"
+                          accept=".csv,.xlsx,.xls"
+                          onChange={handleProductCsvUpload}
+                          className="hidden"
+                          disabled={isImportingProductCsv}
+                        />
+                        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded text-xs font-medium transition-colors ${
+                          isImportingProductCsv 
+                            ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                            : 'bg-orange-600 hover:bg-orange-700 text-white cursor-pointer'
+                        }`}>
+                          <Upload className="w-3 h-3" />
+                          {isImportingProductCsv ? 'インポート中...' : 'CSVインポート'}
+                        </span>
+                      </label>
+                    )}
                   </div>
                   
                   {products && products.length > 0 ? (() => {
@@ -1182,30 +1187,32 @@ export default function LivestreamDetail() {
                                 {new Date(history.createdAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })} ・ {history.productCount}商品 ・ ¥{(history.totalGmv || 0).toLocaleString()}
                               </p>
                             </div>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-300 hover:bg-red-900/20 h-7 px-2">
-                                  <Trash2 className="w-3 h-3" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>インポート履歴を削除</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    このインポート履歴と関連する商品データをすべて削除します。この操作は取り消せません。
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>キャンセル</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => deleteImportHistoryMutation.mutate({ historyId: history.id })}
-                                    className="bg-red-600 hover:bg-red-700"
-                                  >
-                                    削除する
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
+                            {isAdmin && (
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-300 hover:bg-red-900/20 h-7 px-2">
+                                    <Trash2 className="w-3 h-3" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>インポート履歴を削除</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      このインポート履歴と関連する商品データをすべて削除します。この操作は取り消せません。
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => deleteImportHistoryMutation.mutate({ historyId: history.id })}
+                                      className="bg-red-600 hover:bg-red-700"
+                                    >
+                                      削除する
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -1673,7 +1680,7 @@ export default function LivestreamDetail() {
         </Card>
         
         {/* Action Buttons (View Mode Only) */}
-        {!isEditing && (
+        {!isEditing && isAdmin && (
           <div className="flex justify-center gap-4">
             <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
               <AlertDialogTrigger asChild>
