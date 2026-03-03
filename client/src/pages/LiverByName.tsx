@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useLocation as useWouterLocation } from "wouter";
 import { useParams, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -12,13 +13,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, TrendingUp, Clock, Calendar, DollarSign, Users, Eye, ShoppingCart, MousePointer } from "lucide-react";
+import { ArrowLeft, TrendingUp, Clock, Calendar, DollarSign, Users, Eye, ShoppingCart, MousePointer, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function LiverByName() {
   const { name } = useParams<{ name: string }>();
   const decodedName = decodeURIComponent(name || "");
   const { language } = useLanguage();
+  const [, navigate] = useWouterLocation();
   
   // Generate month options (last 12 months)
   const monthOptions = useMemo(() => {
@@ -201,7 +203,8 @@ export default function LiverByName() {
                 {data.livestreams.map((livestream) => (
                   <div 
                     key={livestream.id} 
-                    className="p-4 rounded-lg bg-gray-800/50 border border-gray-700/50 hover:border-gray-600/50 transition-colors"
+                    className="p-4 rounded-lg bg-gray-800/50 border border-gray-700/50 hover:border-gray-600/50 transition-colors cursor-pointer"
+                    onClick={() => navigate(`/livestreams/${livestream.id}`)}
                   >
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-2">
@@ -262,6 +265,12 @@ export default function LiverByName() {
                         {livestream.remarks}
                       </p>
                     )}
+                    
+                    <div className="flex justify-end mt-2">
+                      <span className="text-xs text-gray-400 flex items-center gap-1 hover:text-white transition-colors">
+                        詳細を見る <ChevronRight className="w-3 h-3" />
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>

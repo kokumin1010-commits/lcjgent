@@ -1,0 +1,22 @@
+{
+  "query": "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'brand_livestreams' AND COLUMN_NAME LIKE '%screen%' ORDER BY ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'brand_livestreams' AND COLUMN_NAME LIKE '%screen%' ORDER BY ORDINAL_POSITION;",
+  "rows": [
+    {
+      "COLUMN_NAME": "screenshotUrl"
+    },
+    {
+      "COLUMN_NAME": "screenshotKey"
+    },
+    {
+      "COLUMN_NAME": "beforeScreenshotUrl"
+    },
+    {
+      "COLUMN_NAME": "beforeScreenshotKey"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\nscreenshotUrl\nscreenshotKey\nbeforeScreenshotUrl\nbeforeScreenshotKey\n",
+  "stderr": "",
+  "execution_time_ms": 1640
+}
