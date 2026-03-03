@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import BeautyWalletPopup from "@/components/BeautyWalletPopup";
 import haptic from "@/lib/haptic";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,7 +25,20 @@ export default function LineMypage() {
   const [cancelReason, setCancelReason] = useState("");
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [orderStatusFilter, setOrderStatusFilter] = useState<"all" | "active" | "shipped" | "delivered" | "cancelled">("all");
+  const [showBwPopup, setShowBwPopup] = useState(false);
   
+  // Beauty Wallet popup - show once per session
+  useEffect(() => {
+    const alreadyShown = sessionStorage.getItem('bw_popup_shown');
+    if (!alreadyShown) {
+      const timer = setTimeout(() => {
+        setShowBwPopup(true);
+        sessionStorage.setItem('bw_popup_shown', '1');
+      }, 1200);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
   // Check for referral bonus banner on mount
   useEffect(() => {
     const bonus = localStorage.getItem('lcj_referral_bonus');
@@ -244,6 +258,15 @@ export default function LineMypage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-rose-50 to-white">
+      {/* Beauty Wallet Popup */}
+      {showBwPopup && (
+        <BeautyWalletPopup
+          points={pointsData?.balance ?? 0}
+          lineUserId={user?.id}
+          onClose={() => setShowBwPopup(false)}
+        />
+      )}
+
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">

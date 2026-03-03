@@ -3499,3 +3499,51 @@ export const aiReceiptLearningExamples = mysqlTable("ai_receipt_learning_example
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type AiReceiptLearningExample = typeof aiReceiptLearningExamples.$inferSelect;
+
+
+// ===== Beauty Wallet ポップアップ ABテスト（自己学習型） =====
+
+/**
+ * Popup variants: each combination of theme × menu items shown
+ * The Bandit algorithm selects which variant to show based on CTR
+ */
+export const popupVariants = mysqlTable("popup_variants", {
+  id: int("id").autoincrement().primaryKey(),
+  variantKey: varchar("variantKey", { length: 128 }).notNull().unique(), // e.g. "gold_matsek_nail_headspa_treatment"
+  theme: varchar("theme", { length: 32 }).notNull(), // "gold" | "pink"
+  menuItems: json("menuItems").$type<{ name: string; imageUrl: string; ptLabel: string }[]>().notNull(),
+  headline: varchar("headline", { length: 255 }).notNull(),
+  subtext: varchar("subtext", { length: 255 }).notNull(),
+  ctaText: varchar("ctaText", { length: 128 }).notNull(),
+  isActive: boolean("isActive").default(true).notNull(),
+  impressions: int("impressions").default(0).notNull(),
+  clicks: int("clicks").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type PopupVariant = typeof popupVariants.$inferSelect;
+export type InsertPopupVariant = typeof popupVariants.$inferInsert;
+
+/**
+ * Popup impressions: each time a popup is shown to a user
+ */
+export const popupImpressions = mysqlTable("popup_impressions", {
+  id: int("id").autoincrement().primaryKey(),
+  variantId: int("variantId").notNull(),
+  lineUserId: int("lineUserId"), // nullable for anonymous
+  sessionId: varchar("sessionId", { length: 128 }), // browser session
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type PopupImpression = typeof popupImpressions.$inferSelect;
+
+/**
+ * Popup clicks: each time a user clicks the CTA button
+ */
+export const popupClicks = mysqlTable("popup_clicks", {
+  id: int("id").autoincrement().primaryKey(),
+  variantId: int("variantId").notNull(),
+  lineUserId: int("lineUserId"),
+  sessionId: varchar("sessionId", { length: 128 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type PopupClick = typeof popupClicks.$inferSelect;

@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, isNull, gte, lte, gt, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -17831,4 +17831,225 @@ export async function hasLearningExampleForLog(reviewLogId: number): Promise<boo
     .limit(1);
   
   return result.length > 0;
+}
+
+
+// ===== Beauty Wallet ポップアップ ABテスト DB関数 =====
+
+// --- Variant CRUD ---
+export async function createPopupVariant(data: {
+  variantKey: string;
+  theme: string;
+  menuItems: { name: string; imageUrl: string; ptLabel: string }[];
+  headline: string;
+  subtext: string;
+  ctaText: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(popupVariants).values(data);
+  return result[0].insertId;
+}
+
+export async function getAllPopupVariants() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(popupVariants).orderBy(desc(popupVariants.id));
+}
+
+export async function getActivePopupVariants() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(popupVariants).where(eq(popupVariants.isActive, true));
+}
+
+export async function getPopupVariantById(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(popupVariants).where(eq(popupVariants.id, id)).limit(1);
+  return rows[0] || null;
+}
+
+export async function updatePopupVariant(id: number, data: Partial<{
+  theme: string;
+  menuItems: { name: string; imageUrl: string; ptLabel: string }[];
+  headline: string;
+  subtext: string;
+  ctaText: string;
+  isActive: boolean;
+}>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(popupVariants).set(data).where(eq(popupVariants.id, id));
+}
+
+export async function incrementPopupImpressions(variantId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(popupVariants)
+    .set({ impressions: sql`${popupVariants.impressions} + 1` })
+    .where(eq(popupVariants.id, variantId));
+}
+
+export async function incrementPopupClicks(variantId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(popupVariants)
+    .set({ clicks: sql`${popupVariants.clicks} + 1` })
+    .where(eq(popupVariants.id, variantId));
+}
+
+// --- Impression / Click logging ---
+export async function recordPopupImpression(data: {
+  variantId: number;
+  lineUserId?: number | null;
+  sessionId?: string | null;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(popupImpressions).values(data);
+  await incrementPopupImpressions(data.variantId);
+}
+
+export async function recordPopupClick(data: {
+  variantId: number;
+  lineUserId?: number | null;
+  sessionId?: string | null;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(popupClicks).values(data);
+  await incrementPopupClicks(data.variantId);
+}
+
+// --- Bandit: Epsilon-Greedy variant selection ---
+export async function selectPopupVariantBandit(epsilon: number = 0.2) {
+  const variants = await getActivePopupVariants();
+  if (variants.length === 0) return null;
+
+  // Epsilon-Greedy: with probability epsilon, explore (random); otherwise exploit (best CTR)
+  const shouldExplore = Math.random() < epsilon;
+
+  if (shouldExplore) {
+    // Random selection
+    return variants[Math.floor(Math.random() * variants.length)];
+  }
+
+  // Exploit: pick the variant with the highest CTR
+  // Use Thompson Sampling approximation: add 1 to both to avoid division by zero
+  let bestVariant = variants[0];
+  let bestCtr = -1;
+
+  for (const v of variants) {
+    const ctr = (v.clicks + 1) / (v.impressions + 2); // Laplace smoothing
+    if (ctr > bestCtr) {
+      bestCtr = ctr;
+      bestVariant = v;
+    }
+  }
+
+  return bestVariant;
+}
+
+// --- Stats for admin dashboard ---
+export async function getPopupStats() {
+  const variants = await getAllPopupVariants();
+  const totalImpressions = variants.reduce((sum, v) => sum + v.impressions, 0);
+  const totalClicks = variants.reduce((sum, v) => sum + v.clicks, 0);
+  const overallCtr = totalImpressions > 0 ? (totalClicks / totalImpressions * 100) : 0;
+
+  const variantStats = variants.map(v => ({
+    id: v.id,
+    variantKey: v.variantKey,
+    theme: v.theme,
+    headline: v.headline,
+    impressions: v.impressions,
+    clicks: v.clicks,
+    ctr: v.impressions > 0 ? (v.clicks / v.impressions * 100) : 0,
+    isActive: v.isActive,
+    menuItems: v.menuItems,
+  }));
+
+  return {
+    totalImpressions,
+    totalClicks,
+    overallCtr,
+    variantCount: variants.length,
+    variants: variantStats,
+  };
+}
+
+// --- Seed initial variants ---
+export async function seedPopupVariants() {
+  const existing = await getAllPopupVariants();
+  if (existing.length > 0) return { seeded: false, count: existing.length };
+
+  const CDN = "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw";
+
+  const menuPool = [
+    { name: "マツエク", images: [`${CDN}/matsek_e0ae7a9f.jpg`, `${CDN}/matsek2_2977432e.jpg`, `${CDN}/matsek3_030ec230.jpg`], ptLabel: "3,500pt〜" },
+    { name: "ネイル", images: [`${CDN}/nail_bf344f98.jpg`, `${CDN}/nail2_c5c7b085.jpg`, `${CDN}/nail3_7cd27ee9.jpg`], ptLabel: "3,000pt〜" },
+    { name: "ヘッドスパ", images: [`${CDN}/headspa_ac980ea0.jpg`, `${CDN}/headspa2_838d8aac.jpg`, `${CDN}/headspa3_170c7d4b.jpg`, `${CDN}/headspa4_812993c7.jpg`], ptLabel: "4,000pt〜" },
+    { name: "髪質改善", images: [`${CDN}/treatment_655cdb5f.jpg`], ptLabel: "5,000pt〜" },
+    { name: "カット+カラー", images: [`${CDN}/color_d144d829.jpg`, `${CDN}/color2_16e83672.jpg`], ptLabel: "6,000pt〜" },
+    { name: "フェイシャル", images: [`${CDN}/facial_d76e1c3a.jpg`], ptLabel: "4,500pt〜" },
+  ];
+
+  const themes = ["gold", "pink"];
+  const headlines = [
+    "あなたのポイントで\nサロン体験が待ってる！",
+    "ポイントが美に変わる",
+    "今すぐ使える\nビューティーポイント！",
+    "キレイへの一歩、\nここから始まる",
+  ];
+  const subtexts = [
+    "たくさんの美容体験に使える！",
+    "サロン体験をお得にGET ♪",
+    "ポイントで自分磨き ✨",
+    "あなたのキレイを応援！",
+  ];
+  const ctaTexts = [
+    "Beauty Walletにチャージする ✨",
+    "今すぐチャージ →",
+    "ポイントを使ってみる ✨",
+  ];
+
+  // Generate diverse variants
+  const variantsToCreate: Array<{
+    variantKey: string;
+    theme: string;
+    menuItems: { name: string; imageUrl: string; ptLabel: string }[];
+    headline: string;
+    subtext: string;
+    ctaText: string;
+  }> = [];
+
+  let variantIndex = 0;
+  for (const theme of themes) {
+    for (let h = 0; h < headlines.length; h++) {
+      // Pick 4 random menus for each variant
+      const shuffled = [...menuPool].sort(() => Math.random() - 0.5);
+      const selectedMenus = shuffled.slice(0, 4).map(m => ({
+        name: m.name,
+        imageUrl: m.images[Math.floor(Math.random() * m.images.length)],
+        ptLabel: m.ptLabel,
+      }));
+
+      variantsToCreate.push({
+        variantKey: `${theme}_v${variantIndex}`,
+        theme,
+        menuItems: selectedMenus,
+        headline: headlines[h],
+        subtext: subtexts[h % subtexts.length],
+        ctaText: ctaTexts[variantIndex % ctaTexts.length],
+      });
+      variantIndex++;
+    }
+  }
+
+  for (const v of variantsToCreate) {
+    await createPopupVariant(v);
+  }
+
+  return { seeded: true, count: variantsToCreate.length };
 }

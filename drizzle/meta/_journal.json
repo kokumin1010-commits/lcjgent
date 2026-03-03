@@ -778,6 +778,13 @@
       "when": 1772471269115,
       "tag": "0110_slimy_ultron",
       "breakpoints": true
+    },
+    {
+      "idx": 111,
+      "version": "5",
+      "when": 1772563173609,
+      "tag": "0111_slimy_tyger_tiger",
+      "breakpoints": true
     }
   ]
 }

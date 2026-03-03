@@ -572,6 +572,16 @@ import {
   getMonthlyExchangeSummary,
   getAllPointExchanges,
   getPendingExchanges,
+  createPopupVariant,
+  getAllPopupVariants,
+  getActivePopupVariants,
+  getPopupVariantById,
+  updatePopupVariant,
+  recordPopupImpression,
+  recordPopupClick,
+  selectPopupVariantBandit,
+  getPopupStats,
+  seedPopupVariants,
 } from "./db";
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
@@ -19772,6 +19782,73 @@ SEO/GEO最適化要件:
           message: `${succeeded}件成功、${failed}件失敗（全${pending.length}件中）`,
         };
       }),
+  }),
+
+  // ===== Beauty Wallet ポップアップ ABテスト =====
+  popup: router({
+    // Banditアルゴリズムでバリアントを選択（公開API）
+    getVariant: publicProcedure
+      .input(z.object({
+        epsilon: z.number().min(0).max(1).optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        const variant = await selectPopupVariantBandit(input?.epsilon ?? 0.2);
+        return variant;
+      }),
+
+    // インプレッション記録（公開API）
+    recordImpression: publicProcedure
+      .input(z.object({
+        variantId: z.number(),
+        lineUserId: z.number().optional(),
+        sessionId: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        await recordPopupImpression(input);
+        return { success: true };
+      }),
+
+    // クリック記録（公開API）
+    recordClick: publicProcedure
+      .input(z.object({
+        variantId: z.number(),
+        lineUserId: z.number().optional(),
+        sessionId: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        await recordPopupClick(input);
+        return { success: true };
+      }),
+
+    // 統計データ取得（管理者用）
+    getStats: protectedProcedure.query(async () => {
+      return getPopupStats();
+    }),
+
+    // 全バリアント一覧（管理者用）
+    listVariants: protectedProcedure.query(async () => {
+      return getAllPopupVariants();
+    }),
+
+    // バリアント更新（管理者用）
+    updateVariant: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        isActive: z.boolean().optional(),
+        headline: z.string().optional(),
+        subtext: z.string().optional(),
+        ctaText: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        await updatePopupVariant(id, data);
+        return { success: true };
+      }),
+
+    // 初期バリアントをシード（管理者用）
+    seed: protectedProcedure.mutation(async () => {
+      return seedPopupVariants();
+    }),
   }),
 });
 
