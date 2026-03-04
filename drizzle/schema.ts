@@ -3440,6 +3440,15 @@ export const aiAutoReviewLogs = mysqlTable("ai_auto_review_logs", {
   totalAmount: int("totalAmount"),
   storeName: varchar("storeName", { length: 256 }),
   imageUrl: text("imageUrl"),
+  // --- Extended audit fields ---
+  aiPass: int("aiPass"), // 1 = first pass, 2 = re-review
+  reasonCode: varchar("reasonCode", { length: 64 }), // e.g. DUPLICATE_SAME_USER_ORDER, DUPLICATE_CROSS_USER_ORDER, DUPLICATE_SAME_IMAGE, ORDER_NUMBER_MISSING
+  beforeStatus: varchar("beforeStatus", { length: 32 }), // status before this action
+  afterStatus: varchar("afterStatus", { length: 32 }), // status after this action
+  winnerReceiptId: int("winnerReceiptId"), // Level2: winner receipt ID
+  winnerLineUserId: varchar("winnerLineUserId", { length: 128 }), // Level2: winner user ID
+  phashDistance: int("phashDistance"), // Level3: perceptual hash distance
+  
   humanOverride: varchar("humanOverride", { length: 32 }),
   humanComment: text("humanComment"),
   humanReviewedBy: int("humanReviewedBy"),

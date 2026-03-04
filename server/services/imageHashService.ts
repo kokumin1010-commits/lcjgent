@@ -18,10 +18,18 @@
 
 import sharp from "sharp";
 import phash from "sharp-phash";
-import dist from "sharp-phash/distance";
 import { getDb } from "../db";
 import { imagePerceptualHashes } from "../../drizzle/schema";
 import { eq, and, ne, sql } from "drizzle-orm";
+
+// Inline hamming distance (replaces sharp-phash/distance to avoid ESM import issues)
+function dist(a: string, b: string): number {
+  let count = 0;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) count++;
+  }
+  return count;
+}
 
 // Threshold: images with hamming distance <= this are considered "same"
 export const PHASH_SIMILARITY_THRESHOLD = 8;

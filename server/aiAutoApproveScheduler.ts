@@ -268,6 +268,13 @@ async function processOneBatch(adminUserId: number, batchSize: number, confidenc
     lineUserId?: string;
     storeName?: string;
     imageUrl?: string;
+    // Extended audit fields
+    reasonCode?: string;
+    beforeStatus?: string;
+    afterStatus?: string;
+    winnerReceiptId?: number;
+    winnerLineUserId?: string;
+    phashDistance?: number;
   }[] = [];
 
   // Rejection threshold
@@ -350,6 +357,11 @@ async function processOneBatch(adminUserId: number, batchSize: number, confidenc
           reason: `Level1: 同一ユーザー重複注文番号: ${orderNumber} (承認済み #${sameUserApprovedDupe.id})`,
           orderNumber,
           amount: candidate.totalAmount ?? undefined,
+          reasonCode: "DUPLICATE_SAME_USER_ORDER",
+          beforeStatus: candidate.status,
+          afterStatus: "rejected",
+          winnerReceiptId: sameUserApprovedDupe.id,
+          winnerLineUserId: sameUserApprovedDupe.lineUserId,
         });
         continue;
       }
@@ -392,16 +404,83 @@ async function processOneBatch(adminUserId: number, batchSize: number, confidenc
             reason: `Level2: ${reason}`,
             orderNumber,
             amount: candidate.totalAmount ?? undefined,
+            reasonCode: "DUPLICATE_CROSS_USER_ORDER",
+            beforeStatus: candidate.status,
+            afterStatus: "rejected",
+            winnerReceiptId: approvedWinner.id,
+            winnerLineUserId: approvedWinner.lineUserId,
           });
           continue;
         }
         
-        // Check 2: Another user has pending/on_hold with same order (cross-user conflict)
-        // For now, hold for manual review (勝者判定は承認時に確定)
+        // Check 2: Cross-user conflict with time window (5 minutes)
+        // Winner = first to be approved. While both are pending/on_hold:
+        //   - If submitted within 5 min of each other → both on_hold (KEEP_MANUAL)
+        //   - If submitted > 5 min apart → later submitter loses (auto reject)
         const pendingCrossUser = crossUserDupes.find(d => d.status === "pending" || d.status === "on_hold");
         if (pendingCrossUser) {
-          // Don't auto-reject yet - just flag it. The first one to get approved wins.
-          console.log(`[AI AutoApprove Scheduler] Level2 cross-user conflict: receipt #${candidate.id} vs #${pendingCrossUser.id} (order: ${orderNumber})`);
+          const TIME_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+          const candidateTime = candidate.submittedAt ? new Date(candidate.submittedAt).getTime() : Date.now();
+          const otherTime = pendingCrossUser.submittedAt ? new Date(pendingCrossUser.submittedAt).getTime() : 0;
+          const timeDiff = Math.abs(candidateTime - otherTime);
+          
+          if (timeDiff <= TIME_WINDOW_MS) {
+            // Within 5-min window → hold both for manual review
+            console.log(`[AI AutoApprove Scheduler] Level2 time-window conflict (${Math.round(timeDiff/1000)}s): receipt #${candidate.id} vs #${pendingCrossUser.id} (order: ${orderNumber}) → KEEP_MANUAL`);
+            await updateLineReceiptStatus(candidate.id, "on_hold", adminUserId,
+              `[AI自動] Level2: 別ユーザーと同一注文番号 ${orderNumber} が5分以内に提出 (レシート #${pendingCrossUser.id}) → 手動審査`);
+            results.push({
+              id: candidate.id,
+              action: "held" as const,
+              reason: `Level2: 別ユーザー同一注文番号 5分以内提出 → KEEP_MANUAL (vs #${pendingCrossUser.id})`,
+              orderNumber,
+              amount: candidate.totalAmount ?? undefined,
+              reasonCode: "CROSS_USER_TIME_WINDOW",
+              beforeStatus: candidate.status,
+              afterStatus: "on_hold",
+              winnerReceiptId: pendingCrossUser.id,
+              winnerLineUserId: pendingCrossUser.lineUserId,
+            });
+            continue;
+          } else if (candidateTime > otherTime) {
+            // This receipt was submitted later (outside window) → loser
+            const reason = `別ユーザーが同一注文番号 ${orderNumber} を先に提出済み (レシート #${pendingCrossUser.id}, ${pendingCrossUser.status})`;
+            await updateLineReceiptStatus(candidate.id, "rejected", adminUserId,
+              `[AI自動] Level2: ${reason}`);
+            try {
+              await createReceiptReviewLog({
+                receiptType: "line_receipt",
+                receiptId: candidate.id,
+                decision: "rejected",
+                rejectionCategory: "duplicate",
+                rejectionNote: `AI自動却下(Level2): ${reason}`,
+                totalAmount: candidate.totalAmount ?? undefined,
+                hasOrderNumber: "yes",
+                imageCount: candidate.imageUrls?.length ?? 1,
+                fraudScore: candidate.fraudScore ?? undefined,
+                fraudFlagCount: candidate.fraudFlags?.length ?? 0,
+                pointsCalculated: candidate.pointsCalculated ?? undefined,
+                reviewedBy: adminUserId,
+              });
+            } catch (logErr) {
+              console.error("[AI AutoApprove Scheduler] Failed to log Level2 time-window rejection:", logErr);
+            }
+            results.push({
+              id: candidate.id,
+              action: "rejected_duplicate" as const,
+              reason: `Level2: ${reason}`,
+              orderNumber,
+              amount: candidate.totalAmount ?? undefined,
+              reasonCode: "DUPLICATE_CROSS_USER_ORDER",
+              beforeStatus: candidate.status,
+              afterStatus: "rejected",
+              winnerReceiptId: pendingCrossUser.id,
+              winnerLineUserId: pendingCrossUser.lineUserId,
+            });
+            continue;
+          }
+          // else: this receipt was submitted first → it's the potential winner, continue processing
+          console.log(`[AI AutoApprove Scheduler] Level2: receipt #${candidate.id} submitted first for order ${orderNumber}, continuing`);
         }
       }
     }
@@ -443,6 +522,12 @@ async function processOneBatch(adminUserId: number, batchSize: number, confidenc
             reason: `Level3: ${level3Result.reason}`,
             orderNumber,
             amount: candidate.totalAmount ?? undefined,
+            reasonCode: "DUPLICATE_SAME_IMAGE",
+            beforeStatus: candidate.status,
+            afterStatus: "rejected",
+            winnerReceiptId: level3Result.matchedReceiptId,
+            winnerLineUserId: level3Result.matchedLineUserId,
+            phashDistance: level3Result.distance,
           });
           continue;
         }
@@ -485,6 +570,9 @@ async function processOneBatch(adminUserId: number, batchSize: number, confidenc
         lineUserId: candidate.lineUserId,
         storeName: ocrData?.storeName,
         imageUrl: candidate.imageUrl,
+        reasonCode: "ORDER_NUMBER_MISSING",
+        beforeStatus: candidate.status,
+        afterStatus: "rejected",
       });
       continue;
     }
@@ -736,6 +824,9 @@ async function processOneBatch(adminUserId: number, batchSize: number, confidenc
               lineUserId: candidate.lineUserId,
               storeName: candidate.storeName ?? undefined,
               imageUrl: candidate.imageUrl ?? undefined,
+              reasonCode: "AI_LOW_CONFIDENCE",
+              beforeStatus: candidate.status,
+              afterStatus: "rejected",
             });
             continue;
           } else {
@@ -790,6 +881,9 @@ async function processOneBatch(adminUserId: number, batchSize: number, confidenc
         lineUserId: candidate.lineUserId,
         storeName: candidate.storeName ?? undefined,
         imageUrl: candidate.imageUrl ?? undefined,
+        reasonCode: "AI_LOW_CONFIDENCE",
+        beforeStatus: candidate.status,
+        afterStatus: "rejected",
       });
       continue;
     } else if (aiConfidence < confidenceThreshold) {
@@ -805,6 +899,9 @@ async function processOneBatch(adminUserId: number, batchSize: number, confidenc
         lineUserId: candidate.lineUserId,
         storeName: candidate.storeName ?? undefined,
         imageUrl: candidate.imageUrl ?? undefined,
+        reasonCode: "AI_BELOW_THRESHOLD",
+        beforeStatus: candidate.status,
+        afterStatus: "on_hold",
       });
       continue;
     }
@@ -906,6 +1003,12 @@ async function processOneBatch(adminUserId: number, batchSize: number, confidenc
       confidence: aiConfidence,
       orderNumber,
       amount: candidate.totalAmount ?? undefined,
+      lineUserId: candidate.lineUserId,
+      storeName: candidate.storeName ?? undefined,
+      imageUrl: candidate.imageUrl ?? undefined,
+      reasonCode: "AI_APPROVED",
+      beforeStatus: candidate.status,
+      afterStatus: "approved",
     });
   }
 
@@ -949,6 +1052,14 @@ async function processOneBatch(adminUserId: number, batchSize: number, confidenc
         storeName: r.storeName || candidate?.storeName || null,
         imageUrl: r.imageUrl || candidate?.imageUrl || null,
         isDryRun: false,
+        // Extended audit fields
+        aiPass: 1,
+        reasonCode: r.reasonCode || null,
+        beforeStatus: r.beforeStatus || candidate?.status || null,
+        afterStatus: r.afterStatus || null,
+        winnerReceiptId: r.winnerReceiptId || null,
+        winnerLineUserId: r.winnerLineUserId || null,
+        phashDistance: r.phashDistance ?? null,
       };
     });
     await createAiAutoReviewLogsBatch(logEntries);

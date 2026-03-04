@@ -5547,6 +5547,37 @@ export async function awardPointsForLineReceipt(receiptId: number, points: numbe
   const receipt = await getLineReceiptById(receiptId);
   if (!receipt) throw new Error("Receipt not found");
   
+  // === IDEMPOTENT CHECK: Prevent double point award ===
+  // Check 1: Receipt already has points awarded
+  if (receipt.pointsAwarded && receipt.pointsAwarded > 0) {
+    console.warn(`[PointGuard] Receipt #${receiptId} already has ${receipt.pointsAwarded} points awarded. Skipping.`);
+    return { success: true, pointsAwarded: receipt.pointsAwarded, skipped: true, reason: "already_awarded" };
+  }
+  
+  // Check 2: Transaction already exists for this receipt (belt-and-suspenders)
+  const existingTx = await db
+    .select({ id: linePointTransactions.id, amount: linePointTransactions.amount })
+    .from(linePointTransactions)
+    .where(
+      and(
+        eq(linePointTransactions.referenceType, "receipt"),
+        eq(linePointTransactions.referenceId, receiptId),
+        eq(linePointTransactions.type, "earn")
+      )
+    )
+    .limit(1);
+  
+  if (existingTx.length > 0) {
+    console.warn(`[PointGuard] Transaction already exists for receipt #${receiptId} (tx #${existingTx[0].id}, ${existingTx[0].amount}pt). Skipping.`);
+    // Sync pointsAwarded on receipt if it was somehow missed
+    await db
+      .update(lineReceipts)
+      .set({ pointsAwarded: existingTx[0].amount })
+      .where(eq(lineReceipts.id, receiptId));
+    return { success: true, pointsAwarded: existingTx[0].amount, skipped: true, reason: "transaction_exists" };
+  }
+  
+  // === Safe to award ===
   // Update receipt with awarded points
   await db
     .update(lineReceipts)
@@ -5563,7 +5594,7 @@ export async function awardPointsForLineReceipt(receiptId: number, points: numbe
     description: `レシート承認によるポイント付与 (${receipt.storeName || "不明店舗"})`,
   });
   
-  return { success: true, pointsAwarded: points };
+  return { success: true, pointsAwarded: points, skipped: false };
 }
 
 /**

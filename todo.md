@@ -6755,4 +6755,15 @@
 - [x] 注文番号なし自動却下(ORDER_NUMBER_MISSING)をスケジューラーに追加
 - [x] 注文番号ベース重複+勝者ルール(cross-user first valid wins)をスケジューラーに追加
 - [x] テスト・検証（19テスト全パス）
+- [x] チェックポイント保存 (version: 7561b0c3)
+
+## 勝者定義固定・ポイント二重付与防止・ログ整備
+- [x] 勝者定義固定: time window(5分)内のcross-user重複はon_hold強制
+- [x] 勝者定義固定: winner(approved)確定後の後発は自動却下
+- [x] ポイント二重付与防止: receipt_idベースidempotent付与（2段階チェック実装済）
+- [x] ログ整備: beforeStatus / afterStatus カラム追加
+- [x] ログ整備: winnerReceiptId / winnerLineUserId カラム追加
+- [x] ログ整備: phashDistance カラム追加
+- [x] ログ整備: aiPass (1 or 2) カラム追加
+- [x] テスト・検証（19テスト全パス、TSエラーなし）
 - [ ] チェックポイント保存
