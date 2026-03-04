@@ -318,21 +318,21 @@ async function processOneBatch(adminUserId: number, batchSize: number, confidenc
         : {};
     } catch { ocrData = {}; }
 
-    // --- Rule 1: Duplicate order number check ---
+    // --- Rule 1: Duplicate order number check (Level 1: same user + same order) ---
     if (orderNumber) {
       const dupes = dupeMap.get(orderNumber) || [];
       const otherDupes = dupes.filter(d => d.id !== candidate.id);
-      const approvedDupe = otherDupes.find(d => d.status === "approved");
-      if (approvedDupe) {
+      const sameUserApprovedDupe = otherDupes.find(d => d.status === "approved" && d.lineUserId === candidate.lineUserId);
+      if (sameUserApprovedDupe) {
         await updateLineReceiptStatus(candidate.id, "rejected", adminUserId,
-          `[AI自動] 重複注文番号: ${orderNumber} (承認済みレシート #${approvedDupe.id} と重複)`);
+          `[AI自動] Level1: 同一ユーザー重複注文番号: ${orderNumber} (承認済みレシート #${sameUserApprovedDupe.id} と重複)`);
         try {
           await createReceiptReviewLog({
             receiptType: "line_receipt",
             receiptId: candidate.id,
             decision: "rejected",
             rejectionCategory: "duplicate",
-            rejectionNote: `AI自動却下: 重複注文番号 ${orderNumber}`,
+            rejectionNote: `AI自動却下(Level1): 同一ユーザー重複注文番号 ${orderNumber}`,
             totalAmount: candidate.totalAmount ?? undefined,
             hasOrderNumber: "yes",
             imageCount: candidate.imageUrls?.length ?? 1,
@@ -342,12 +342,12 @@ async function processOneBatch(adminUserId: number, batchSize: number, confidenc
             reviewedBy: adminUserId,
           });
         } catch (logErr) {
-          console.error("[AI AutoApprove Scheduler] Failed to log duplicate rejection:", logErr);
+          console.error("[AI AutoApprove Scheduler] Failed to log Level1 rejection:", logErr);
         }
         results.push({
           id: candidate.id,
           action: "rejected_duplicate",
-          reason: `重複注文番号: ${orderNumber} (承認済み #${approvedDupe.id})`,
+          reason: `Level1: 同一ユーザー重複注文番号: ${orderNumber} (承認済み #${sameUserApprovedDupe.id})`,
           orderNumber,
           amount: candidate.totalAmount ?? undefined,
         });
@@ -355,9 +355,139 @@ async function processOneBatch(adminUserId: number, batchSize: number, confidenc
       }
     }
 
-    // --- Rule 2: Missing essential data → LLM handles ---
+    // --- Rule 1.5: Level 2 - Cross-user duplicate order number (winner rule) ---
+    // Optimized: reuse dupeMap from batchCheckDuplicateOrderNumbers (no extra DB query)
+    if (orderNumber) {
+      const dupes = dupeMap.get(orderNumber) || [];
+      const crossUserDupes = dupes.filter(d => d.id !== candidate.id && d.lineUserId !== candidate.lineUserId && d.lineUserId !== "pointRequest");
+      
+      if (crossUserDupes.length > 0) {
+        // Check 1: Is there already an approved receipt from another user?
+        const approvedWinner = crossUserDupes.find(d => d.status === "approved");
+        if (approvedWinner) {
+          const reason = `別ユーザーが同一注文番号 ${orderNumber} で既に承認済み (レシート #${approvedWinner.id})`;
+          await updateLineReceiptStatus(candidate.id, "rejected", adminUserId,
+            `[AI自動] Level2: ${reason}`);
+          try {
+            await createReceiptReviewLog({
+              receiptType: "line_receipt",
+              receiptId: candidate.id,
+              decision: "rejected",
+              rejectionCategory: "duplicate",
+              rejectionNote: `AI自動却下(Level2): ${reason}`,
+              totalAmount: candidate.totalAmount ?? undefined,
+              hasOrderNumber: "yes",
+              imageCount: candidate.imageUrls?.length ?? 1,
+              fraudScore: candidate.fraudScore ?? undefined,
+              fraudFlagCount: candidate.fraudFlags?.length ?? 0,
+              pointsCalculated: candidate.pointsCalculated ?? undefined,
+              reviewedBy: adminUserId,
+            });
+          } catch (logErr) {
+            console.error("[AI AutoApprove Scheduler] Failed to log Level2 rejection:", logErr);
+          }
+          results.push({
+            id: candidate.id,
+            action: "rejected_duplicate",
+            reason: `Level2: ${reason}`,
+            orderNumber,
+            amount: candidate.totalAmount ?? undefined,
+          });
+          continue;
+        }
+        
+        // Check 2: Another user has pending/on_hold with same order (cross-user conflict)
+        // For now, hold for manual review (勝者判定は承認時に確定)
+        const pendingCrossUser = crossUserDupes.find(d => d.status === "pending" || d.status === "on_hold");
+        if (pendingCrossUser) {
+          // Don't auto-reject yet - just flag it. The first one to get approved wins.
+          console.log(`[AI AutoApprove Scheduler] Level2 cross-user conflict: receipt #${candidate.id} vs #${pendingCrossUser.id} (order: ${orderNumber})`);
+        }
+      }
+    }
+
+    // --- Rule 1.7: Level 3 - Same image (perceptual hash) ---
+    try {
+      const { checkLevel3SameImage } = await import("./services/duplicateCheckService");
+      const primaryImageUrl = candidate.imageUrls?.[0] || candidate.imageUrl;
+      if (primaryImageUrl) {
+        const level3Result = await checkLevel3SameImage(
+          candidate.id,
+          candidate.lineUserId,
+          primaryImageUrl
+        );
+        if (level3Result.isDuplicate) {
+          await updateLineReceiptStatus(candidate.id, "rejected", adminUserId,
+            `[AI自動] Level3: ${level3Result.reason}`);
+          try {
+            await createReceiptReviewLog({
+              receiptType: "line_receipt",
+              receiptId: candidate.id,
+              decision: "rejected",
+              rejectionCategory: "duplicate",
+              rejectionNote: `AI自動却下(Level3): ${level3Result.reason}`,
+              totalAmount: candidate.totalAmount ?? undefined,
+              hasOrderNumber: orderNumber ? "yes" : "no",
+              imageCount: candidate.imageUrls?.length ?? 1,
+              fraudScore: candidate.fraudScore ?? undefined,
+              fraudFlagCount: candidate.fraudFlags?.length ?? 0,
+              pointsCalculated: candidate.pointsCalculated ?? undefined,
+              reviewedBy: adminUserId,
+            });
+          } catch (logErr) {
+            console.error("[AI AutoApprove Scheduler] Failed to log Level3 rejection:", logErr);
+          }
+          results.push({
+            id: candidate.id,
+            action: "rejected_duplicate",
+            reason: `Level3: ${level3Result.reason}`,
+            orderNumber,
+            amount: candidate.totalAmount ?? undefined,
+          });
+          continue;
+        }
+      }
+    } catch (level3Err: any) {
+      console.error(`[AI AutoApprove Scheduler] Level3 check error for receipt #${candidate.id}:`, level3Err.message);
+    }
+
+    // --- Rule 2: Missing order number → auto reject (ORDER_NUMBER_MISSING) ---
     const missingOrderNumber = !orderNumber;
     const missingAmount = !candidate.totalAmount || candidate.totalAmount <= 0;
+
+    if (missingOrderNumber) {
+      await updateLineReceiptStatus(candidate.id, "rejected", adminUserId,
+        `[AI自動] 注文番号なし: OCRで注文番号を検出できなかったため自動却下`);
+      try {
+        await createReceiptReviewLog({
+          receiptType: "line_receipt",
+          receiptId: candidate.id,
+          decision: "rejected",
+          rejectionCategory: "missing_order_number",
+          rejectionNote: `AI自動却下: 注文番号なし (ORDER_NUMBER_MISSING)`,
+          totalAmount: candidate.totalAmount ?? undefined,
+          hasOrderNumber: "no",
+          imageCount: candidate.imageUrls?.length ?? 1,
+          fraudScore: candidate.fraudScore ?? undefined,
+          fraudFlagCount: candidate.fraudFlags?.length ?? 0,
+          pointsCalculated: candidate.pointsCalculated ?? undefined,
+          reviewedBy: adminUserId,
+        });
+      } catch (logErr) {
+        console.error("[AI AutoApprove Scheduler] Failed to log ORDER_NUMBER_MISSING rejection:", logErr);
+      }
+      results.push({
+        id: candidate.id,
+        action: "rejected_ai" as const,
+        reason: `注文番号なし (ORDER_NUMBER_MISSING)`,
+        orderNumber: undefined,
+        amount: candidate.totalAmount ?? undefined,
+        lineUserId: candidate.lineUserId,
+        storeName: ocrData?.storeName,
+        imageUrl: candidate.imageUrl,
+      });
+      continue;
+    }
 
     // --- Rule 3: Force-submitted receipts → skip ---
     if (candidate.isForceSubmitted) {

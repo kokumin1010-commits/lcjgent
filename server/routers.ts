@@ -1798,6 +1798,32 @@ export const lineLoginRouter = router({
           status: "pending",
         });
         
+        // Compute perceptual hash asynchronously (non-blocking)
+        // This runs in background - doesn't delay the user response
+        (async () => {
+          try {
+            const { computePhash, storePhash } = await import("./services/imageHashService");
+            for (let idx = 0; idx < uploadedImages.length; idx++) {
+              const hashResult = await computePhash(uploadedImages[idx].url);
+              if (hashResult) {
+                await storePhash({
+                  receiptId,
+                  lineUserId,
+                  imageUrl: uploadedImages[idx].url,
+                  imageIndex: idx,
+                  phash: hashResult.phash,
+                  imageWidth: hashResult.width,
+                  imageHeight: hashResult.height,
+                  fileSize: hashResult.size,
+                });
+              }
+            }
+            console.log(`[Web Receipt] Phash computed for receipt ${receiptId} (${uploadedImages.length} images)`);
+          } catch (phashErr) {
+            console.error(`[Web Receipt] Phash computation failed for receipt ${receiptId}:`, phashErr);
+          }
+        })();
+        
         // Run AI analysis using S3 URLs (not Base64 - much better success rate)
         const imageContents: any[] = [];
         for (const img of uploadedImages) {

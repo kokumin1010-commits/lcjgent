@@ -271,6 +271,9 @@ importers:
       sharp:
         specifier: ^0.34.5
         version: 0.34.5
+      sharp-phash:
+        specifier: ^2.2.0
+        version: 2.2.0(sharp@0.34.5)
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
@@ -5089,6 +5092,12 @@ packages:
 
   setprototypeof@1.2.0:
     resolution: {integrity: sha512-E5LDX7Wrp85Kil5bhZv46j8jOeboKq5JMmYM3gVGdGH8xFpPWXUMsNrlODCrkoxMEeNi/XZIwuRvY4XNwYMJpw==}
+
+  sharp-phash@2.2.0:
+    resolution: {integrity: sha512-/gBoes9EycJkt/2aakKl9BeSGxFbPpZ5lCDtpRRlnU+vkqqcdXi8YLIlXnJsTtTBmaL82zh1bPkV7uZSSIsj8w==}
+    engines: {node: '>= 10'}
+    peerDependencies:
+      sharp: '>= 0.32.0'
 
   sharp@0.34.5:
     resolution: {integrity: sha512-Ou9I5Ft9WNcCbXrU9cMgPBcCK8LiwLqcbywW3t4oDV37n1pzpuNLsYiAV8eODnjbtQlSDwZ2cUEeQz4E54Hltg==}
@@ -11570,6 +11579,10 @@ snapshots:
       - supports-color
 
   setprototypeof@1.2.0: {}
+
+  sharp-phash@2.2.0(sharp@0.34.5):
+    dependencies:
+      sharp: 0.34.5
 
   sharp@0.34.5:
     dependencies:

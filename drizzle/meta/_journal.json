@@ -785,6 +785,13 @@
       "when": 1772563173609,
       "tag": "0111_slimy_tyger_tiger",
       "breakpoints": true
+    },
+    {
+      "idx": 112,
+      "version": "5",
+      "when": 1772659170540,
+      "tag": "0112_clammy_sasquatch",
+      "breakpoints": true
     }
   ]
 }

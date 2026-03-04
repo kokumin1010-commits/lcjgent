@@ -1,0 +1,11 @@
+{
+  "status": "suspended",
+  "reason": "User requested suspension - phash backfill not needed for current phase. Will compute on new uploads only.",
+  "suspendedAt": "2025-06-02T17:35:00Z",
+  "processedCount": 1424,
+  "failedCount": 0,
+  "totalReceipts": 16413,
+  "lastProcessedReceiptId": 151523,
+  "resumeCommand": "node server/services/backfillPhashes.mjs --offset 1424 --limit 999999 --concurrency 10",
+  "notes": "1424 phash records saved in image_perceptual_hashes table. All successful (0 failures). To resume, run the command above."
+}

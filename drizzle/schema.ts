@@ -3547,3 +3547,158 @@ export const popupClicks = mysqlTable("popup_clicks", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type PopupClick = typeof popupClicks.$inferSelect;
+
+
+// =====================================================
+// Image Perceptual Hash & Fraud Ring Detection System
+// =====================================================
+
+/**
+ * Image perceptual hashes for duplicate image detection
+ * Stores phash (perceptual hash) for each receipt image
+ * phash is robust against resizing, compression, minor edits
+ */
+export const imagePerceptualHashes = mysqlTable("image_perceptual_hashes", {
+  id: int("id").autoincrement().primaryKey(),
+  receiptId: int("receiptId").notNull(), // References line_receipts.id
+  lineUserId: varchar("lineUserId", { length: 64 }).notNull(),
+  imageUrl: text("imageUrl").notNull(), // S3 URL of the image
+  imageIndex: int("imageIndex").default(0).notNull(), // Index in imageUrls array (0 = primary)
+  
+  // Perceptual hashes
+  phash: varchar("phash", { length: 64 }).notNull(), // 64-bit perceptual hash as binary string
+  
+  // Metadata
+  imageWidth: int("imageWidth"),
+  imageHeight: int("imageHeight"),
+  fileSize: int("fileSize"), // bytes
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ImagePerceptualHash = typeof imagePerceptualHashes.$inferSelect;
+export type InsertImagePerceptualHash = typeof imagePerceptualHashes.$inferInsert;
+
+/**
+ * Fraud rings - groups of connected suspicious users/receipts
+ * A ring represents a cluster of users connected by shared images or order numbers
+ */
+export const fraudRings = mysqlTable("fraud_rings", {
+  id: int("id").autoincrement().primaryKey(),
+  ringLabel: varchar("ringLabel", { length: 64 }).notNull(), // e.g., "RING-2026-0001"
+  status: mysqlEnum("status", ["suspected", "confirmed", "dismissed"]).default("suspected").notNull(),
+  
+  // Ring statistics
+  memberCount: int("memberCount").default(0).notNull(),
+  receiptCount: int("receiptCount").default(0).notNull(),
+  totalFraudAmount: bigint("totalFraudAmount", { mode: "number" }).default(0),
+  
+  // Hub user (the central node with most connections)
+  hubLineUserId: varchar("hubLineUserId", { length: 64 }),
+  hubDisplayName: varchar("hubDisplayName", { length: 255 }),
+  
+  // Connection type that formed this ring
+  connectionType: mysqlEnum("connectionType", [
+    "same_image",        // Members share the same receipt image
+    "same_order",        // Members share the same order number (cross-user)
+    "mixed",             // Both image and order connections
+  ]).notNull(),
+  
+  // Admin notes
+  notes: text("notes"),
+  confirmedBy: int("confirmedBy"), // Admin who confirmed the ring
+  confirmedAt: timestamp("confirmedAt"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type FraudRing = typeof fraudRings.$inferSelect;
+export type InsertFraudRing = typeof fraudRings.$inferInsert;
+
+/**
+ * Fraud ring members - users belonging to a fraud ring
+ */
+export const fraudRingMembers = mysqlTable("fraud_ring_members", {
+  id: int("id").autoincrement().primaryKey(),
+  ringId: int("ringId").notNull(), // References fraud_rings.id
+  lineUserId: varchar("lineUserId", { length: 64 }).notNull(),
+  displayName: varchar("displayName", { length: 255 }),
+  
+  // Connection info
+  connectionReason: mysqlEnum("connectionReason", [
+    "same_image",        // Submitted same image as another member
+    "same_order",        // Submitted same order number as another member
+    "hub",               // Central node of the ring
+  ]).notNull(),
+  connectedToMemberId: int("connectedToMemberId"), // The member this one is connected to
+  
+  // Evidence
+  evidenceReceiptId: int("evidenceReceiptId"), // The receipt that links this member
+  evidenceDetail: text("evidenceDetail"), // Description of the connection
+  
+  // Impact
+  receiptCount: int("receiptCount").default(0), // Number of receipts from this member in the ring
+  totalAmount: bigint("totalAmount", { mode: "number" }).default(0),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type FraudRingMember = typeof fraudRingMembers.$inferSelect;
+export type InsertFraudRingMember = typeof fraudRingMembers.$inferInsert;
+
+/**
+ * Fraud ring evidence - detailed evidence records for each connection
+ */
+export const fraudRingEvidence = mysqlTable("fraud_ring_evidence", {
+  id: int("id").autoincrement().primaryKey(),
+  ringId: int("ringId").notNull(), // References fraud_rings.id
+  
+  // The two connected items
+  receiptId1: int("receiptId1").notNull(),
+  lineUserId1: varchar("lineUserId1", { length: 64 }).notNull(),
+  receiptId2: int("receiptId2").notNull(),
+  lineUserId2: varchar("lineUserId2", { length: 64 }).notNull(),
+  
+  // Connection type
+  evidenceType: mysqlEnum("evidenceType", [
+    "same_image",        // phash distance < threshold
+    "same_order",        // Same order number, different users
+  ]).notNull(),
+  
+  // Details
+  phashDistance: int("phashDistance"), // Hamming distance (for same_image)
+  orderNumber: varchar("orderNumber", { length: 64 }), // (for same_order)
+  imageUrl1: text("imageUrl1"),
+  imageUrl2: text("imageUrl2"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type FraudRingEvidence = typeof fraudRingEvidence.$inferSelect;
+export type InsertFraudRingEvidence = typeof fraudRingEvidence.$inferInsert;
+
+/**
+ * User trust level - dynamic trust scoring for review level adjustment
+ * Ring connection → stricter review; clean history → relaxed review
+ */
+export const userTrustLevels = mysqlTable("user_trust_levels", {
+  id: int("id").autoincrement().primaryKey(),
+  lineUserId: varchar("lineUserId", { length: 64 }).notNull().unique(),
+  
+  // Trust level: 1=highest trust (relaxed review), 5=lowest trust (strict review)
+  trustLevel: int("trustLevel").default(3).notNull(), // Default: normal (3)
+  
+  // Factors
+  ringMembershipCount: int("ringMembershipCount").default(0), // Number of rings this user belongs to
+  confirmedFraudCount: int("confirmedFraudCount").default(0), // Number of confirmed fraud incidents
+  totalApprovedReceipts: int("totalApprovedReceipts").default(0), // Clean approved receipts
+  totalRejectedReceipts: int("totalRejectedReceipts").default(0), // Rejected receipts
+  
+  // Override
+  manualOverride: boolean("manualOverride").default(false), // Admin manually set trust level
+  overrideBy: int("overrideBy"), // Admin who overrode
+  overrideReason: text("overrideReason"),
+  
+  lastCalculatedAt: timestamp("lastCalculatedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type UserTrustLevel = typeof userTrustLevels.$inferSelect;
+export type InsertUserTrustLevel = typeof userTrustLevels.$inferInsert;

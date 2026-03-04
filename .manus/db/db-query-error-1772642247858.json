@@ -1,0 +1,8 @@
+{
+  "query": "SELECT COUNT(*) as total, SUM(CASE WHEN human_decision = 'approved' THEN 1 ELSE 0 END) as approved_count, SUM(CASE WHEN human_decision = 'rejected' THEN 1 ELSE 0 END) as rejected_count FROM ai_receipt_learning_examples",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT COUNT(*) as total, SUM(CASE WHEN human_decision = 'approved' THEN 1 ELSE 0 END) as approved_count, SUM(CASE WHEN human_decision = 'rejected' THEN 1 ELSE 0 END) as rejected_count FROM ai_receipt_learning_examples",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'human_decision' in ''"
+  ]
+}
