@@ -1,0 +1,64 @@
+{
+  "query": "\nSELECT \n  aiPass,\n  afterStatus,\n  reasonCode,\n  COUNT(*) as cnt\nFROM ai_auto_review_logs\nWHERE batchId = 'pass2_1772665430420_shwsna'\nGROUP BY aiPass, afterStatus, reasonCode\nORDER BY cnt DESC;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute \nSELECT \n  aiPass,\n  afterStatus,\n  reasonCode,\n  COUNT(*) as cnt\nFROM ai_auto_review_logs\nWHERE batchId = 'pass2_1772665430420_shwsna'\nGROUP BY aiPass, afterStatus, reasonCode\nORDER BY cnt DESC;\n",
+  "rows": [
+    {
+      "aiPass": "2",
+      "afterStatus": "rejected",
+      "reasonCode": "DUPLICATE_SAME_IMAGE",
+      "cnt": "103"
+    },
+    {
+      "aiPass": "2",
+      "afterStatus": "on_hold",
+      "reasonCode": "FORCE_SUBMITTED",
+      "cnt": "51"
+    },
+    {
+      "aiPass": "2",
+      "afterStatus": "approved",
+      "reasonCode": "AI_PASS2_APPROVED",
+      "cnt": "37"
+    },
+    {
+      "aiPass": "2",
+      "afterStatus": "rejected",
+      "reasonCode": "DUPLICATE_SAME_USER_ORDER",
+      "cnt": "33"
+    },
+    {
+      "aiPass": "2",
+      "afterStatus": "on_hold",
+      "reasonCode": "USER_RATE_LOW",
+      "cnt": "29"
+    },
+    {
+      "aiPass": "2",
+      "afterStatus": "rejected",
+      "reasonCode": "AI_LOW_CONFIDENCE",
+      "cnt": "20"
+    },
+    {
+      "aiPass": "2",
+      "afterStatus": "on_hold",
+      "reasonCode": "AI_MEDIUM_CONFIDENCE",
+      "cnt": "13"
+    },
+    {
+      "aiPass": "2",
+      "afterStatus": "rejected",
+      "reasonCode": "ORDER_NUMBER_MISSING",
+      "cnt": "8"
+    },
+    {
+      "aiPass": "2",
+      "afterStatus": "rejected",
+      "reasonCode": "DUPLICATE_CROSS_USER_ORDER",
+      "cnt": "7"
+    }
+  ],
+  "messages": [],
+  "stdout": "aiPass\tafterStatus\treasonCode\tcnt\n2\trejected\tDUPLICATE_SAME_IMAGE\t103\n2\ton_hold\tFORCE_SUBMITTED\t51\n2\tapproved\tAI_PASS2_APPROVED\t37\n2\trejected\tDUPLICATE_SAME_USER_ORDER\t33\n2\ton_hold\tUSER_RATE_LOW\t29\n2\trejected\tAI_LOW_CONFIDENCE\t20\n2\ton_hold\tAI_MEDIUM_CONFIDENCE\t13\n2\trejected\tORDER_NUMBER_MISSING\t8\n2\trejected\tDUPLICATE_CROSS_USER_ORDER\t7\n",
+  "stderr": "",
+  "execution_time_ms": 1566
+}

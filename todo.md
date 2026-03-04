@@ -6766,4 +6766,16 @@
 - [x] ログ整備: phashDistance カラム追加
 - [x] ログ整備: aiPass (1 or 2) カラム追加
 - [x] テスト・検証（19テスト全パス、TSエラーなし）
-- [ ] チェックポイント保存
+- [x] チェックポイント保存 (version: cd3b059f)
+
+## AI再審査（2回目）手動キュー301件一括実行
+- [x] 手動キューの定義・件数・DB構造確認（on_hold=301件、Level1候補33件、Level2候補7件）
+- [x] AI再審査バッチスクリプト作成（AUTO_APPROVE/AUTO_REJECT/KEEP_MANUAL 3分岐）
+- [x] 自動却下ルール: DUPLICATE_SAME_USER_ORDER / DUPLICATE_SAME_IMAGE / DUPLICATE_CROSS_USER_ORDER_LOSER
+- [x] 自動承認ルール: confidence >= 0.95 + duplicate無し + ユーザー承認率80%+
+- [x] ログ保存: ai_pass=2, reason_code, before=manual_queue, after=結果, confidence, metadata
+- [x] ポイント二重付与防止保証
+- [x] DRY RUNテスト（5件で動作確認 → 正常完了）
+- [x] 本番実行（301件一括 → 37承認/171却下/93手動残り）
+- [x] 結果集計・レポート
+- [x] チェックポイント保存
