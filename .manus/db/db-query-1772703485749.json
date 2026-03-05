@@ -1,0 +1,26 @@
+{
+  "query": "SELECT status, COUNT(*) as cnt FROM line_receipts GROUP BY status ORDER BY cnt DESC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT status, COUNT(*) as cnt FROM line_receipts GROUP BY status ORDER BY cnt DESC;",
+  "rows": [
+    {
+      "status": "approved",
+      "cnt": "13139"
+    },
+    {
+      "status": "rejected",
+      "cnt": "3316"
+    },
+    {
+      "status": "pending",
+      "cnt": "272"
+    },
+    {
+      "status": "on_hold",
+      "cnt": "81"
+    }
+  ],
+  "messages": [],
+  "stdout": "status\tcnt\napproved\t13139\nrejected\t3316\npending\t272\non_hold\t81\n",
+  "stderr": "",
+  "execution_time_ms": 1629
+}

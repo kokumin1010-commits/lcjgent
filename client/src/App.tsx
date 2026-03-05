@@ -101,6 +101,7 @@ import BrandDetailPage from "./pages/BrandDetailPage";
 import ReviewDatabase from "./pages/ReviewDatabase";
 import ProductReviews from "./pages/ProductReviews";
 import BeautyWallet from "./pages/BeautyWallet";
+import KakuhenTest from "./pages/KakuhenTest";
 
 function Router() {
   return (
@@ -122,6 +123,7 @@ function Router() {
       <Route path="/mall/checkout/cancel" component={CheckoutCancel} />
       <Route path="/point-request" component={PointRequest} />
       <Route path="/receipt-upload" component={ReceiptUpload} />
+      <Route path="/kakuhen-test" component={KakuhenTest} />
       <Route path="/ranking" component={ProductRanking} />
       <Route path="/reviews" component={ReviewDatabase} />
       <Route path="/reviews/product/:name" component={ProductReviews} />
