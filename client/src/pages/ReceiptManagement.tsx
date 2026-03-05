@@ -23,7 +23,8 @@ import {
   Hash,
   Gift,
   ExternalLink,
-  Link2
+  Link2,
+  Zap
 } from "lucide-react";
 
 const REJECTION_CATEGORIES = [
@@ -382,6 +383,12 @@ export default function ReceiptManagement({ embedded = false }: { embedded?: boo
                         <Badge variant="destructive" className="text-xs">
                           <AlertTriangle className="w-3 h-3 mr-1" />
                           {t("receipts.fraudWarning")}
+                        </Badge>
+                      )}
+                      {(item as any).kakuhen && (item as any).kakuhen.isKakuhen && (
+                        <Badge variant="outline" className="text-xs border-pink-400 text-pink-700 bg-pink-50">
+                          <Zap className="w-3 h-3 mr-1" />
+                          確変 {(item as any).kakuhen.boostedRate}%
                         </Badge>
                       )}
                     </div>

@@ -1992,7 +1992,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                     if (!orderNumberSearch.trim()) return true;
                     const orderNum = getOrderNumber(receipt);
                     return orderNum?.includes(orderNumberSearch.trim()) || false;
-                  }).map(({ receipt, lineUser }) => {
+                  }).map(({ receipt, lineUser, kakuhen }) => {
                     const images = getReceiptImages(receipt);
                     const aiScore = getAiConfidence(receipt);
                     const confidence = getConfidenceLabel(aiScore);
@@ -2027,6 +2027,12 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                 <Badge variant="outline" className="text-[10px] px-1 py-0 border-amber-400 text-amber-700 bg-amber-50">
                                   <AlertTriangle className="w-2.5 h-2.5 mr-0.5" />
                                   {t("lr.aiBounce")}
+                                </Badge>
+                              )}
+                              {kakuhen && kakuhen.isKakuhen && (
+                                <Badge variant="outline" className="text-[10px] px-1 py-0 border-pink-400 text-pink-700 bg-pink-50">
+                                  <Zap className="w-2.5 h-2.5 mr-0.5" />
+                                  確変 {kakuhen.boostedRate}%
                                 </Badge>
                               )}
                               {duplicateReceiptIds.ids.has(receipt.id) && (() => {

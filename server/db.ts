@@ -18084,3 +18084,66 @@ export async function seedPopupVariants() {
 
   return { seeded: true, count: variantsToCreate.length };
 }
+
+
+// ===== 確変チャンス追加関数 =====
+
+/**
+ * レシートIDと種別から確変チャンス結果を取得
+ * 承認時に確変ポイント（1.5%）を適用するために使用
+ */
+export async function getKakuhenResultByReceiptId(receiptType: "point_request" | "line_receipt", receiptId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select().from(receiptKakuhenResults)
+    .where(and(
+      eq(receiptKakuhenResults.receiptType, receiptType),
+      eq(receiptKakuhenResults.receiptId, receiptId),
+    ))
+    .orderBy(desc(receiptKakuhenResults.createdAt))
+    .limit(1);
+  return rows[0] || null;
+}
+
+/**
+ * 確変チャンス全履歴を取得（管理者用）
+ * ユーザー名、レシート情報、TikTok URL、結果を含む
+ */
+export async function getAllKakuhenResultsWithDetails(options?: {
+  limit?: number;
+  offset?: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const results = await db.select({
+    kakuhen: receiptKakuhenResults,
+    userName: users.name,
+    userEmail: users.email,
+    lineUserName: lineUsers.displayName,
+  })
+    .from(receiptKakuhenResults)
+    .leftJoin(users, eq(receiptKakuhenResults.userId, users.id))
+    .leftJoin(lineUsers, eq(receiptKakuhenResults.lineUserId, lineUsers.lineUserId))
+    .orderBy(desc(receiptKakuhenResults.createdAt))
+    .limit(options?.limit || 50)
+    .offset(options?.offset || 0);
+  
+  return results;
+}
+
+/**
+ * 複数レシートIDに対する確変チャンス結果をバッチ取得
+ * 管理画面のレシート一覧で確変バッジを表示するために使用
+ */
+export async function getKakuhenResultsByReceiptIds(receiptType: "point_request" | "line_receipt", receiptIds: number[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (receiptIds.length === 0) return [];
+  
+  return await db.select().from(receiptKakuhenResults)
+    .where(and(
+      eq(receiptKakuhenResults.receiptType, receiptType),
+      inArray(receiptKakuhenResults.receiptId, receiptIds),
+    ));
+}

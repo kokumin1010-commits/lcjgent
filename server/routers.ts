@@ -11643,9 +11643,32 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         if (ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
         }
-        const { getAllReceipts } = await import("./db");
+        const { getAllReceipts, getKakuhenResultsByReceiptIds } = await import("./db");
         const receipts = await getAllReceipts(input);
-        return receipts;
+        
+        // 確変チャンス情報をバッチ取得
+        const receiptIds = receipts.map(r => r.receipt.id);
+        let kakuhenMap: Record<number, { isKakuhen: boolean; boostedRate: string; actualPoints: number; tiktokUrl: string | null }> = {};
+        if (receiptIds.length > 0) {
+          try {
+            const kakuhenResults = await getKakuhenResultsByReceiptIds("point_request", receiptIds);
+            for (const kr of kakuhenResults) {
+              kakuhenMap[kr.receiptId] = {
+                isKakuhen: kr.isKakuhen,
+                boostedRate: kr.boostedRate,
+                actualPoints: kr.actualPoints,
+                tiktokUrl: kr.tiktokUrl,
+              };
+            }
+          } catch (err: any) {
+            console.error("[Admin] Error fetching kakuhen results:", err.message);
+          }
+        }
+        
+        return receipts.map(r => ({
+          ...r,
+          kakuhen: kakuhenMap[r.receipt.id] || null,
+        }));
       }),
     
     // Get receipt details (admin only)
@@ -11711,7 +11734,7 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         if (ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
         }
-        const { getReceiptById, updateReceiptStatus, awardPointsForReceipt, confirmPendingReferral } = await import("./db");
+        const { getReceiptById, updateReceiptStatus, awardPointsForReceipt, confirmPendingReferral, getKakuhenResultByReceiptId } = await import("./db");
         const receipt = await getReceiptById(input.id);
         if (!receipt) {
           throw new TRPCError({ code: "NOT_FOUND", message: "レシートが見つかりません" });
@@ -11743,7 +11766,21 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           throw new TRPCError({ code: "CONFLICT", message: `注文番号 ${orderNumber} は既に承認済みのレシートで使用されています。重複申請のため承認できません。` });
         }
         
-        const pointsToAward = input.pointsOverride ?? receipt.pointsCalculated ?? 0;
+        // 確変チャンス結果を確認し、確変ポイント（1.5%）を適用
+        let pointsToAward = input.pointsOverride ?? receipt.pointsCalculated ?? 0;
+        let kakuhenApplied = false;
+        if (!input.pointsOverride) {
+          try {
+            const kakuhenResult = await getKakuhenResultByReceiptId("point_request", input.id);
+            if (kakuhenResult && kakuhenResult.isKakuhen && kakuhenResult.actualPoints > 0) {
+              pointsToAward = kakuhenResult.actualPoints;
+              kakuhenApplied = true;
+              console.log(`[Kakuhen] Applied kakuhen points for receipt ${input.id}: ${receipt.pointsCalculated}pt → ${kakuhenResult.actualPoints}pt (rate: ${kakuhenResult.boostedRate}%)`);
+            }
+          } catch (err: any) {
+            console.error(`[Kakuhen] Error checking kakuhen result for receipt ${input.id}:`, err.message);
+          }
+        }
         await updateReceiptStatus(input.id, "approved", ctx.user.id, input.note);
         if (pointsToAward > 0) {
           await awardPointsForReceipt(input.id, pointsToAward);
@@ -11905,9 +11942,32 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         if (ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
         }
-        const { getAllLineReceipts } = await import("./db");
+        const { getAllLineReceipts, getKakuhenResultsByReceiptIds } = await import("./db");
         const receipts = await getAllLineReceipts(input);
-        return receipts;
+        
+        // 確変チャンス情報をバッチ取得
+        const receiptIds = receipts.map(r => r.receipt.id);
+        let kakuhenMap: Record<number, { isKakuhen: boolean; boostedRate: string; actualPoints: number; tiktokUrl: string | null }> = {};
+        if (receiptIds.length > 0) {
+          try {
+            const kakuhenResults = await getKakuhenResultsByReceiptIds("line_receipt", receiptIds);
+            for (const kr of kakuhenResults) {
+              kakuhenMap[kr.receiptId] = {
+                isKakuhen: kr.isKakuhen,
+                boostedRate: kr.boostedRate,
+                actualPoints: kr.actualPoints,
+                tiktokUrl: kr.tiktokUrl,
+              };
+            }
+          } catch (err: any) {
+            console.error("[Admin] Error fetching kakuhen results:", err.message);
+          }
+        }
+        
+        return receipts.map(r => ({
+          ...r,
+          kakuhen: kakuhenMap[r.receipt.id] || null,
+        }));
       }),
     
     // Get LINE receipt details (admin only)
@@ -12363,7 +12423,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         if (ctx.user.role !== "admin") {
           throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
         }
-        const { getLineReceiptById, updateLineReceiptStatus, awardPointsForLineReceipt, getLinePointBalance, confirmPendingReferral, getLineUserByLineId, updateLineReceiptOcr } = await import("./db");
+        const { getLineReceiptById, updateLineReceiptStatus, awardPointsForLineReceipt, getLinePointBalance, confirmPendingReferral, getLineUserByLineId, updateLineReceiptOcr, getKakuhenResultByReceiptId } = await import("./db");
         const { pushMessage } = await import("./line");
         const receipt = await getLineReceiptById(input.id);
         if (!receipt) {
@@ -12416,7 +12476,21 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           throw new TRPCError({ code: "CONFLICT", message: `注文番号 ${orderNumber} は既に承認済みのレシートで使用されています。重複申請のため承認できません。` });
         }
         
-        const pointsToAward = input.pointsOverride ?? receipt.pointsCalculated ?? 0;
+        // 確変チャンス結果を確認し、確変ポイント（1.5%）を適用
+        let pointsToAward = input.pointsOverride ?? receipt.pointsCalculated ?? 0;
+        let kakuhenApplied = false;
+        if (!input.pointsOverride) {
+          try {
+            const kakuhenResult = await getKakuhenResultByReceiptId("line_receipt", input.id);
+            if (kakuhenResult && kakuhenResult.isKakuhen && kakuhenResult.actualPoints > 0) {
+              pointsToAward = kakuhenResult.actualPoints;
+              kakuhenApplied = true;
+              console.log(`[Kakuhen] Applied kakuhen points for LINE receipt ${input.id}: ${receipt.pointsCalculated}pt → ${kakuhenResult.actualPoints}pt (rate: ${kakuhenResult.boostedRate}%)`);
+            }
+          } catch (err: any) {
+            console.error(`[Kakuhen] Error checking kakuhen result for LINE receipt ${input.id}:`, err.message);
+          }
+        }
         await updateLineReceiptStatus(input.id, "approved", ctx.user.id, input.note);
         if (pointsToAward > 0) {
           await awardPointsForLineReceipt(input.id, pointsToAward);
@@ -12780,6 +12854,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           createAutoReviewOnApproval,
           createAiAutoReviewLogsBatch,
           updateAiAutoApproveSetting,
+          getKakuhenResultByReceiptId,
           buildStatisticsLearningPrompt,
         } = await import("./db");
         const { pushMessage: pushMsg } = await import("./line");
@@ -13270,7 +13345,17 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           }
           
           // ===== STEP 4: Auto-Approve! =====
-          const pointsToAward = candidate.pointsCalculated ?? 0;
+          let pointsToAward = candidate.pointsCalculated ?? 0;
+          // 確変チャンス結果を確認し、確変ポイント（1.5%）を適用
+          try {
+            const kakuhenResult = await getKakuhenResultByReceiptId("line_receipt", candidate.id);
+            if (kakuhenResult && kakuhenResult.isKakuhen && kakuhenResult.actualPoints > 0) {
+              pointsToAward = kakuhenResult.actualPoints;
+              console.log(`[AI AutoApprove][Kakuhen] Applied kakuhen points for receipt ${candidate.id}: ${candidate.pointsCalculated}pt → ${kakuhenResult.actualPoints}pt`);
+            }
+          } catch (err: any) {
+            console.error(`[AI AutoApprove][Kakuhen] Error checking kakuhen for receipt ${candidate.id}:`, err.message);
+          }
           
           if (!input.dryRun) {
             try {
@@ -13497,7 +13582,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
-        const { overrideAiAutoReviewLog, getLineReceiptById, updateLineReceiptStatus, awardPointsForLineReceipt, getLinePointBalance, confirmPendingReferral, getLineUserByLineId, createReceiptReviewLog, extractSingleReceiptProducts, createAutoReviewOnApproval } = await import("./db");
+        const { overrideAiAutoReviewLog, getLineReceiptById, updateLineReceiptStatus, awardPointsForLineReceipt, getLinePointBalance, confirmPendingReferral, getLineUserByLineId, createReceiptReviewLog, extractSingleReceiptProducts, createAutoReviewOnApproval, getKakuhenResultByReceiptId } = await import("./db");
         const { pushMessage: pushMsg } = await import("./line");
         
         // Update the log
@@ -13517,8 +13602,17 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             await updateLineReceiptStatus(receipt.id, "approved", ctx.user.id,
               `[人間介入] AI判定を修正: ${updatedLog.aiDecision} → 承認${input.humanComment ? ` - ${input.humanComment}` : ""}`);
             
-            // Award points
-            const pointsToAward = receipt.pointsCalculated ?? 0;
+            // Award points (確変チャンス結果を確認し、確変ポイントを適用)
+            let pointsToAward = receipt.pointsCalculated ?? 0;
+            try {
+              const kakuhenResult = await getKakuhenResultByReceiptId("line_receipt", receipt.id);
+              if (kakuhenResult && kakuhenResult.isKakuhen && kakuhenResult.actualPoints > 0) {
+                pointsToAward = kakuhenResult.actualPoints;
+                console.log(`[Override][Kakuhen] Applied kakuhen points for receipt ${receipt.id}: ${receipt.pointsCalculated}pt → ${kakuhenResult.actualPoints}pt`);
+              }
+            } catch (err: any) {
+              console.error(`[Override][Kakuhen] Error checking kakuhen for receipt ${receipt.id}:`, err.message);
+            }
             if (pointsToAward > 0) {
               await awardPointsForLineReceipt(receipt.id, pointsToAward);
             }
@@ -15796,6 +15890,41 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
         }
         return await getKakuhenAdminStats();
+      }),
+
+    /**
+     * 確変チャンス全履歴（管理者用）
+     * ユーザー名、TikTok URL、結果を含む詳細情報
+     */
+    allResults: protectedProcedure
+      .input(z.object({
+        limit: z.number().min(1).max(200).default(50),
+        offset: z.number().min(0).default(0),
+      }).optional())
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        const { getAllKakuhenResultsWithDetails } = await import("./db");
+        return await getAllKakuhenResultsWithDetails(input);
+      }),
+
+    /**
+     * 確変参加率計算用：総レシート数を取得
+     */
+    totalReceiptsCount: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        const { getDb } = await import("./db");
+        const { sql: sqlTag } = await import("drizzle-orm");
+        const { receipts: receiptsTable, lineReceipts: lineReceiptsTable } = await import("../drizzle/schema");
+        const dbInst = await getDb();
+        if (!dbInst) return { total: 0 };
+        const [webCount] = await dbInst.select({ count: sqlTag<number>`COUNT(*)` }).from(receiptsTable);
+        const [lineCount] = await dbInst.select({ count: sqlTag<number>`COUNT(*)` }).from(lineReceiptsTable);
+        return { total: (webCount?.count || 0) + (lineCount?.count || 0) };
       }),
   }),
 
