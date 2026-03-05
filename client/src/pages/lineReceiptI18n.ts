@@ -280,6 +280,24 @@ export const lineReceiptJa: Record<string, string> = {
   "lr.forceSubmitNote": "※ このレシートはAIが一度弾いたものですが、お客様が「それでもアップロード」を選択しました。審査結果はAI学習データとして蓄積されます。",
   "lr.reject": "却下",
 
+  // AI Pass 2
+  "lr.pass2.button": "AI再審査",
+  "lr.pass2.buttonDesc": "on_holdレシートをAIで再判定",
+  "lr.pass2.running": "AI再審査実行中...",
+  "lr.pass2.complete": "AI再審査完了",
+  "lr.pass2.autoApproved": "自動承認",
+  "lr.pass2.autoRejected": "自動却下",
+  "lr.pass2.keptManual": "手動残り",
+  "lr.pass2.skipped": "スキップ",
+  "lr.pass2.processing": "処理中",
+  "lr.pass2.confirm": "on_hold {count}件に対してAI再審査を実行しますか？",
+  "lr.pass2.confirmTitle": "AI再審査確認",
+  "lr.pass2.confirmDesc": "重複チェック→自動却下、高信頼度→自動承認、それ以外→手動残り",
+  "lr.pass2.alreadyRunning": "AI再審査は既に実行中です",
+  "lr.pass2.started": "AI再審査を開始しました",
+  "lr.pass2.error": "AI再審査エラー",
+  "lr.pass2.noOnHold": "on_holdレシートがありません",
+
   // Misc
   "lr.or": "or",
   "lr.LINE": "LINE",
@@ -560,6 +578,24 @@ export const lineReceiptZh: Record<string, string> = {
   "lr.forceSubmitDate": "强制提交时间",
   "lr.forceSubmitNote": "※ 这张小票曾被AI拒绝，但客户选择了“仍然上传”。审核结果将作为AI学习数据累积。",
   "lr.reject": "拒绝",
+
+  // AI Pass 2
+  "lr.pass2.button": "AI重新审查",
+  "lr.pass2.buttonDesc": "对on_hold小票进行AI重新判定",
+  "lr.pass2.running": "AI重新审查执行中...",
+  "lr.pass2.complete": "AI重新审查完成",
+  "lr.pass2.autoApproved": "自动通过",
+  "lr.pass2.autoRejected": "自动拒绝",
+  "lr.pass2.keptManual": "手动剩余",
+  "lr.pass2.skipped": "跳过",
+  "lr.pass2.processing": "处理中",
+  "lr.pass2.confirm": "对on_hold {count}件执行AI重新审查吗？",
+  "lr.pass2.confirmTitle": "AI重新审查确认",
+  "lr.pass2.confirmDesc": "重复检查→自动拒绝，高可信度→自动通过，其他→手动处理",
+  "lr.pass2.alreadyRunning": "AI重新审查已在执行中",
+  "lr.pass2.started": "AI重新审查已开始",
+  "lr.pass2.error": "AI重新审查错误",
+  "lr.pass2.noOnHold": "没有on_hold小票",
 
   // Misc
   "lr.or": "或",

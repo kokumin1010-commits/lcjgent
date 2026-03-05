@@ -13878,6 +13878,49 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         };
       }),
     
+    // ===== AI Pass 2: 手動キュー再審査 =====
+    startPass2: protectedProcedure
+      .input(z.object({
+        approveThreshold: z.number().min(50).max(100).optional(),
+        minUserApprovalRate: z.number().min(0).max(100).optional(),
+        sendNotifications: z.boolean().optional(),
+        limit: z.number().min(0).optional(),
+      }).optional())
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { startPass2InBackground, isPass2Running } = await import("./services/aiPass2ManualQueueReview");
+        
+        if (isPass2Running()) {
+          return { success: false, message: "AI Pass 2は既に実行中です" };
+        }
+        
+        const { batchId } = startPass2InBackground({
+          limit: input?.limit ?? 0,
+          approveThreshold: input?.approveThreshold ?? 95,
+          minUserApprovalRate: input?.minUserApprovalRate ?? 80,
+          adminUserId: ctx.user.id,
+          dryRun: false,
+          sendNotifications: input?.sendNotifications ?? true,
+        });
+        
+        return { success: true, batchId, message: "AI Pass 2を開始しました" };
+      }),
+    
+    getPass2Progress: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { getPass2Progress } = await import("./services/aiPass2ManualQueueReview");
+        return getPass2Progress();
+      }),
+    
+    stopPass2: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN" });
+        const { stopPass2 } = await import("./services/aiPass2ManualQueueReview");
+        stopPass2();
+        return { success: true };
+      }),
+
     // AI自動承認設定更新（トグルON/OFF含む）
     updateSettings: protectedProcedure
       .input(z.object({

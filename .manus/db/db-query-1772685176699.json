@@ -1,0 +1,20 @@
+{
+  "query": "SELECT * FROM users WHERE role = 'admin' LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT * FROM users WHERE role = 'admin' LIMIT 1;",
+  "rows": [
+    {
+      "id": "1",
+      "name": "Ryu Hair Artist",
+      "email": "ryuhairartist@gmail.com",
+      "role": "admin",
+      "createdAt": "2026-01-13 20:40:35",
+      "updatedAt": "2026-03-02 17:21:00",
+      "lastSignedIn": "2026-03-02 17:21:00",
+      "password": "$2b$10$BoUeBqfHi7wrEHx7Jcm4W.F1CfCJyIBA5AuoBr6.e5A1Wvze63lAS"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\trole\tcreatedAt\tupdatedAt\tlastSignedIn\tpassword\n1\tRyu Hair Artist\tryuhairartist@gmail.com\tadmin\t2026-01-13 20:40:35\t2026-03-02 17:21:00\t2026-03-02 17:21:00\t$2b$10$BoUeBqfHi7wrEHx7Jcm4W.F1CfCJyIBA5AuoBr6.e5A1Wvze63lAS\n",
+  "stderr": "",
+  "execution_time_ms": 1518
+}

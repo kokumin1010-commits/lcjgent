@@ -806,3 +806,72 @@ export async function runAiPass2ManualQueueReview(config: Pass2Config): Promise<
     batchId,
   };
 }
+
+
+// ============================================================
+// In-memory progress tracking for UI polling
+// ============================================================
+
+let _pass2Progress: Pass2Progress | null = null;
+let _pass2Running = false;
+let _pass2BatchId: string | null = null;
+
+export function getPass2Progress(): { progress: Pass2Progress | null; isRunning: boolean; batchId: string | null } {
+  return { progress: _pass2Progress, isRunning: _pass2Running, batchId: _pass2BatchId };
+}
+
+export function isPass2Running(): boolean {
+  return _pass2Running;
+}
+
+/**
+ * Start Pass2 in background (non-blocking).
+ * Returns immediately with batchId; poll getPass2Progress() for updates.
+ */
+export function startPass2InBackground(config: Pass2Config): { batchId: string } {
+  if (_pass2Running) {
+    throw new Error("AI Pass 2 is already running");
+  }
+
+  const tempBatchId = `pass2_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+  _pass2Running = true;
+  _pass2BatchId = tempBatchId;
+  _pass2Progress = {
+    total: 0,
+    processed: 0,
+    autoApproved: 0,
+    autoRejected: 0,
+    keptManual: 0,
+    skipped: 0,
+    currentReceiptId: null,
+    isComplete: false,
+  };
+
+  // Run in background
+  runAiPass2ManualQueueReview({
+    ...config,
+    onProgress: (p) => {
+      _pass2Progress = { ...p };
+    },
+  })
+    .then((result) => {
+      _pass2BatchId = result.batchId;
+      _pass2Progress = { ...result.summary, isComplete: true };
+      _pass2Running = false;
+    })
+    .catch((err) => {
+      console.error("[AI Pass2] Background run failed:", err);
+      if (_pass2Progress) {
+        _pass2Progress = { ..._pass2Progress, isComplete: true, error: err.message };
+      }
+      _pass2Running = false;
+    });
+
+  return { batchId: tempBatchId };
+}
+
+export function stopPass2(): void {
+  // Currently we can't abort mid-run, but we mark it as not running
+  // so the UI knows to stop polling
+  _pass2Running = false;
+}

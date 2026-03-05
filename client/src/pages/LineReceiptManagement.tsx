@@ -129,6 +129,18 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
   const [batchAiProgress, setBatchAiProgress] = useState<{ total: number; completed: number; running: boolean }>({ total: 0, completed: 0, running: false });
   const batchAiAbortRef = useRef(false);
   
+  // AI Pass 2 re-review state
+  const [pass2ConfirmOpen, setPass2ConfirmOpen] = useState(false);
+  const [pass2Running, setPass2Running] = useState(false);
+  const [pass2Result, setPass2Result] = useState<{
+    autoApproved: number;
+    autoRejected: number;
+    keptManual: number;
+    skipped: number;
+    total: number;
+    isComplete: boolean;
+  } | null>(null);
+  
   // Reject/Hold dialog state (separate from calculator approve flow)
   const [actionDialog, setActionDialog] = useState<{ type: "reject" | "hold"; id: number; receipt?: any } | null>(null);
   
@@ -682,6 +694,56 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
     },
   });
   
+  // ===== AI Pass 2: Manual Queue Re-review =====
+  const startPass2Mutation = trpc.aiReview.startPass2.useMutation({
+    onSuccess: (data) => {
+      if (data.success) {
+        setPass2Running(true);
+        setPass2Result(null);
+        toast.success(t("lr.pass2.started"));
+      } else {
+        toast.warning(data.message);
+      }
+    },
+    onError: (err) => {
+      toast.error(`${t("lr.pass2.error")}: ${err.message}`);
+      setPass2Running(false);
+    },
+  });
+  
+  const pass2ProgressQuery = trpc.aiReview.getPass2Progress.useQuery(undefined, {
+    enabled: pass2Running,
+    refetchInterval: pass2Running ? 3000 : false,
+  });
+  
+  // Sync Pass2 progress
+  useEffect(() => {
+    if (pass2ProgressQuery.data) {
+      const { progress, isRunning } = pass2ProgressQuery.data;
+      if (progress) {
+        setPass2Result({
+          autoApproved: progress.autoApproved,
+          autoRejected: progress.autoRejected,
+          keptManual: progress.keptManual,
+          skipped: progress.skipped,
+          total: progress.total,
+          isComplete: progress.isComplete,
+        });
+        
+        if (progress.isComplete || !isRunning) {
+          setPass2Running(false);
+          if (progress.isComplete && progress.total > 0) {
+            toast.success(`${t("lr.pass2.complete")}: ${progress.autoApproved}承認 / ${progress.autoRejected}却下 / ${progress.keptManual}手動`);
+            // Refresh data
+            utils.point.adminGetLineReceipts.invalidate();
+            utils.point.adminGetLineStatistics.invalidate();
+            utils.point.adminDetectDuplicateReceipts.invalidate();
+          }
+        }
+      }
+    }
+  }, [pass2ProgressQuery.data]);
+  
   // Poll for server-side progress every 5 seconds when auto mode is on
   const serverProgressQuery = trpc.aiReview.getAutoApproveProgress.useQuery(undefined, {
     enabled: aiAutoMode,
@@ -1042,9 +1104,9 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
         </div>
       )}
 
-        {/* AI Auto Mode Toggle */}
+        {/* AI Auto Mode Toggle + Pass2 Button */}
         <div className="flex items-center gap-3 p-3 rounded-lg border bg-card">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-1">
             <Brain className="w-5 h-5 text-purple-500" />
             <div>
               <p className="text-sm font-medium">{t("lr.aiAutoMode")}</p>
@@ -1055,19 +1117,39 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
             checked={aiAutoMode} 
             onCheckedChange={(checked) => {
               if (checked) {
-                // トグルON → サーバーサイドでバッチ処理を開始
                 setAiAutoMode(true);
                 aiAutoModeRef.current = true;
                 setLiveFeedItems([]);
                 startServerAutoApproveMutation.mutate();
               } else {
-                // トグルOFF → サーバーサイドで停止
                 setAiAutoMode(false);
                 aiAutoModeRef.current = false;
                 stopServerAutoApproveMutation.mutate();
               }
             }}
           />
+          <div className="border-l pl-3 ml-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-orange-600 border-orange-300 hover:bg-orange-50 hover:text-orange-700"
+              disabled={pass2Running || startPass2Mutation.isPending || (stats?.onHold || 0) === 0}
+              onClick={() => {
+                if ((stats?.onHold || 0) === 0) {
+                  toast.info(t("lr.pass2.noOnHold"));
+                  return;
+                }
+                setPass2ConfirmOpen(true);
+              }}
+            >
+              {pass2Running ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Shield className="w-4 h-4" />
+              )}
+              {t("lr.pass2.button")} ({stats?.onHold || 0})
+            </Button>
+          </div>
         </div>
       
       {/* Batch AI Recognition Progress */}
@@ -1104,6 +1186,73 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
         <div className="bg-green-50 border border-green-200 rounded-lg p-2 flex items-center gap-2">
           <CheckCircle className="w-4 h-4 text-green-600" />
           <span className="text-sm text-green-700">{t("lr.aiAutoRecognizeComplete")}: {batchAiProgress.completed}{t("lr.imagesAnalyzed")}</span>
+        </div>
+      )}
+
+      {/* AI Pass 2 Progress */}
+      {(pass2Running || (pass2Result && !pass2Result.isComplete)) && (
+        <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-lg p-3">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Shield className="w-5 h-5 text-orange-600 animate-pulse" />
+              <div>
+                <p className="text-sm font-medium text-orange-800">{t("lr.pass2.running")}</p>
+                <p className="text-xs text-orange-600">
+                  {pass2Result ? `${pass2Result.autoApproved + pass2Result.autoRejected + pass2Result.keptManual + pass2Result.skipped} / ${pass2Result.total} ${t("lr.processed")}` : t("lr.pass2.processing")}
+                </p>
+              </div>
+            </div>
+            <div className="flex-1 mx-4">
+              <div className="h-2 bg-orange-100 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-orange-500 to-amber-500 rounded-full transition-all duration-500"
+                  style={{ width: `${pass2Result && pass2Result.total > 0 ? ((pass2Result.autoApproved + pass2Result.autoRejected + pass2Result.keptManual + pass2Result.skipped) / pass2Result.total) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+            {pass2Result && (
+              <div className="flex gap-2 text-xs">
+                <span className="text-green-600 font-medium">✓{pass2Result.autoApproved}</span>
+                <span className="text-red-600 font-medium">✗{pass2Result.autoRejected}</span>
+                <span className="text-orange-600 font-medium">✋{pass2Result.keptManual}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* AI Pass 2 Complete */}
+      {pass2Result && pass2Result.isComplete && (
+        <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-3">
+          <div className="flex items-center gap-3">
+            <CheckCircle className="w-5 h-5 text-green-600" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-green-800">{t("lr.pass2.complete")}</p>
+              <p className="text-xs text-green-600">{pass2Result.total}{t("lr.items")}{t("lr.processed")}</p>
+            </div>
+            <div className="flex gap-3 text-sm">
+              <div className="text-center">
+                <p className="font-bold text-green-600">{pass2Result.autoApproved}</p>
+                <p className="text-xs text-muted-foreground">{t("lr.pass2.autoApproved")}</p>
+              </div>
+              <div className="text-center">
+                <p className="font-bold text-red-600">{pass2Result.autoRejected}</p>
+                <p className="text-xs text-muted-foreground">{t("lr.pass2.autoRejected")}</p>
+              </div>
+              <div className="text-center">
+                <p className="font-bold text-orange-600">{pass2Result.keptManual}</p>
+                <p className="text-xs text-muted-foreground">{t("lr.pass2.keptManual")}</p>
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs"
+              onClick={() => setPass2Result(null)}
+            >
+              <XCircle className="w-3 h-3" />
+            </Button>
+          </div>
         </div>
       )}
       
@@ -2538,6 +2687,60 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
               {t("lr.shortcutDisabledNote")}
             </p>
           </div>
+        </DialogContent>
+      </Dialog>
+      {/* AI Pass 2 Confirm Dialog */}
+      <Dialog open={pass2ConfirmOpen} onOpenChange={setPass2ConfirmOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="w-5 h-5 text-orange-500" />
+              {t("lr.pass2.confirmTitle")}
+            </DialogTitle>
+            <DialogDescription>
+              {t("lr.pass2.confirmDesc")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+              <p className="text-sm text-orange-800">
+                {t("lr.pass2.confirm").replace("{count}", String(stats?.onHold || 0))}
+              </p>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="bg-red-50 rounded-lg p-2">
+                <ShieldX className="w-4 h-4 text-red-500 mx-auto mb-1" />
+                <p className="font-medium text-red-700">{t("lr.pass2.autoRejected")}</p>
+                <p className="text-red-500">重複チェック</p>
+              </div>
+              <div className="bg-green-50 rounded-lg p-2">
+                <ShieldCheck className="w-4 h-4 text-green-500 mx-auto mb-1" />
+                <p className="font-medium text-green-700">{t("lr.pass2.autoApproved")}</p>
+                <p className="text-green-500">conf≥95%</p>
+              </div>
+              <div className="bg-orange-50 rounded-lg p-2">
+                <ShieldAlert className="w-4 h-4 text-orange-500 mx-auto mb-1" />
+                <p className="font-medium text-orange-700">{t("lr.pass2.keptManual")}</p>
+                <p className="text-orange-500">その他</p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setPass2ConfirmOpen(false)}>
+              {t("lr.abort")}
+            </Button>
+            <Button
+              className="bg-orange-600 hover:bg-orange-700 text-white gap-1.5"
+              disabled={startPass2Mutation.isPending}
+              onClick={() => {
+                setPass2ConfirmOpen(false);
+                startPass2Mutation.mutate({});
+              }}
+            >
+              {startPass2Mutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+              {t("lr.pass2.button")}{t("lr.execute")}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
