@@ -64,6 +64,7 @@ export default function ReceiptUpload() {
   const [flowPhase, setFlowPhase] = useState<FlowPhase>("upload");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [tokenRestored, setTokenRestored] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // URLパラメータからセッショントークンを復元（LINEアプリ→外部ブラウザ遷移対応）
   useEffect(() => {
@@ -95,23 +96,25 @@ export default function ReceiptUpload() {
   const submitMutation = trpc.lineLogin.submitWebReceipt.useMutation({
     onSuccess: (data) => {
       const result = data as AnalysisResult;
+      setSubmitError(null);
       setAnalysisResult(result);
       if (result.status === "success") {
         haptic.success();
         toast.success("レシートの解析が完了しました！");
-        // 解析成功 → 確変チャンス＋レビューフローへ
         setFlowPhase("analysis_result");
       } else if (result.status === "on_hold") {
         toast.info("確認中です。スタッフが確認後、結果をお知らせします。");
         setFlowPhase("analysis_result");
       } else {
-        // すべてのエラー（AI弾き含む）で柔らかい通知
         haptic.warning();
         toast.info("AIが自動判定しました。内容をご確認ください。");
         setFlowPhase("analysis_result");
       }
     },
     onError: (error) => {
+      setSubmitError(error.message);
+      setFlowPhase("upload");
+      haptic.warning();
       toast.error(error.message);
     },
   });
@@ -196,6 +199,7 @@ export default function ReceiptUpload() {
       return;
     }
     setAnalysisResult(null);
+    setSubmitError(null);
     setFlowPhase("upload");
     submitMutation.mutate({
       images: images.map(img => ({
@@ -626,6 +630,17 @@ export default function ReceiptUpload() {
                           <span className="text-xs text-gray-500 mt-1">追加</span>
                         </div>
                       )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Error Message */}
+                {submitError && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
+                    <XCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm text-red-700 font-medium">{submitError}</p>
+                      <p className="text-xs text-red-500 mt-1">別のレシート画像をアップロードしてください。</p>
                     </div>
                   </div>
                 )}
