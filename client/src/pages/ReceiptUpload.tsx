@@ -361,7 +361,7 @@ export default function ReceiptUpload() {
                 <p className="text-sm text-rose-600/80">
                   TikTok Shopの注文詳細画面のスクリーンショットをアップロードしてください。
                   AIが自動で解析し、ポイントを計算します。
-                  <span className="font-bold"> さらに確変チャンスで還元率UP！</span>
+                  <span className="font-bold"> さらに確変チャンスで還元率1.5%にUP＋レシート購入金額全額キャッシュバックのチャンスも！</span>
                 </p>
               </div>
             </div>
@@ -494,9 +494,9 @@ export default function ReceiptUpload() {
 
                   {/* Action Buttons */}
                   <div className="mt-4 flex flex-col gap-2">
-                    {analysisResult.status === "success" && analysisResult.receiptId && (
+                    {(analysisResult.status === "success" || analysisResult.status === "on_hold") && analysisResult.receiptId && (
                       <Button
-                        className="w-full bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 text-white font-bold h-12"
+                        className="w-full bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 text-white font-bold h-12 animate-pulse"
                         onClick={handleStartKakuhen}
                       >
                         🎰 確変チャンス＋レビューへ進む
@@ -684,8 +684,8 @@ export default function ReceiptUpload() {
                   <div>
                     <h3 className="font-bold text-orange-700 mb-1">確変チャンスとは？</h3>
                     <p className="text-sm text-orange-600/80">
-                      レシート申請後、TikTok動画URLを入力すると還元率が<span className="font-bold">1% → 1.5%</span>にUP！
-                      さらに全額ポイントバックの抽選チャンスも。
+                      レシート申請後、TikTok動画やライバーのURLを入力すると還元率が<span className="font-bold">1% → 1.5%</span>にUP！
+                      さらにレシート購入金額全額キャッシュバックの抽選チャンスも。
                       商品レビューを投稿して、みんなの参考になる口コミを残しましょう。
                     </p>
                   </div>

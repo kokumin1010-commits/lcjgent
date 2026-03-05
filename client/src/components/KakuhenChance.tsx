@@ -1,14 +1,14 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Star, Sparkles, Trophy, ArrowRight, Zap, PartyPopper, ThumbsUp, ExternalLink } from "lucide-react";
+import { Star, Sparkles, Trophy, ArrowRight, Zap, PartyPopper, ThumbsUp, ExternalLink, ChevronDown, ChevronUp, Search } from "lucide-react";
 
 // ===== Types =====
-type KakuhenStep = "tiktok_url" | "review" | "meter" | "lottery" | "result";
+type KakuhenStep = "intro" | "tiktok_url" | "review" | "meter" | "lottery" | "result";
 
 interface OcrData {
   shopName?: string;
@@ -29,7 +29,7 @@ interface KakuhenChanceProps {
   orderAmount: number;
   ocrData?: OcrData;
   receiptImageUrl?: string;
-  receiptImagePreview?: string; // base64 preview for local display
+  receiptImagePreview?: string;
   onComplete: (result: KakuhenResult) => void;
   onSkip: () => void;
 }
@@ -57,6 +57,217 @@ const QUICK_TAGS = [
   "コスパ最高", "リピ確定", "TikTokで見て買った", "期待以上",
   "香りが良い", "使いやすい", "肌に合った", "見た目が可愛い",
 ];
+
+// ===== CSS Keyframes (injected once) =====
+const STYLE_ID = "kakuhen-keyframes";
+function injectKeyframes() {
+  if (document.getElementById(STYLE_ID)) return;
+  const style = document.createElement("style");
+  style.id = STYLE_ID;
+  style.textContent = `
+    @keyframes kakuhen-float {
+      0%, 100% { transform: translateY(0) rotate(0deg); opacity: 1; }
+      50% { transform: translateY(-20px) rotate(180deg); opacity: 0.6; }
+    }
+    @keyframes kakuhen-sparkle {
+      0% { transform: scale(0) rotate(0deg); opacity: 0; }
+      50% { transform: scale(1) rotate(180deg); opacity: 1; }
+      100% { transform: scale(0) rotate(360deg); opacity: 0; }
+    }
+    @keyframes kakuhen-slide-up {
+      0% { transform: translateY(40px); opacity: 0; }
+      100% { transform: translateY(0); opacity: 1; }
+    }
+    @keyframes kakuhen-glow-pulse {
+      0%, 100% { box-shadow: 0 0 20px rgba(251,146,60,0.3), 0 0 40px rgba(251,146,60,0.1); }
+      50% { box-shadow: 0 0 30px rgba(251,146,60,0.6), 0 0 60px rgba(251,146,60,0.2); }
+    }
+    @keyframes kakuhen-shake {
+      0%, 100% { transform: translateX(0); }
+      10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+      20%, 40%, 60%, 80% { transform: translateX(4px); }
+    }
+    @keyframes kakuhen-coin-rain {
+      0% { transform: translateY(-20px) rotate(0deg); opacity: 0; }
+      10% { opacity: 1; }
+      100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+    }
+    @keyframes kakuhen-bounce-in {
+      0% { transform: scale(0.3); opacity: 0; }
+      50% { transform: scale(1.1); }
+      70% { transform: scale(0.9); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    @keyframes kakuhen-number-flip {
+      0% { transform: rotateX(0deg); }
+      100% { transform: rotateX(360deg); }
+    }
+    @keyframes kakuhen-gradient-shift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+// ===== Intro Animation (Temu-style exciting entrance) =====
+function IntroAnimation({ onComplete, orderAmount }: { onComplete: () => void; orderAmount: number }) {
+  const [phase, setPhase] = useState(0);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    injectKeyframes();
+    const timers = [
+      setTimeout(() => setPhase(1), 300),
+      setTimeout(() => setPhase(2), 1200),
+      setTimeout(() => setPhase(3), 2200),
+      setTimeout(() => setPhase(4), 3200),
+      setTimeout(onComplete, 4500),
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, [onComplete]);
+
+  // Particle effect
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    canvas.width = canvas.offsetWidth * 2;
+    canvas.height = canvas.offsetHeight * 2;
+    ctx.scale(2, 2);
+
+    const particles: Array<{
+      x: number; y: number; vx: number; vy: number;
+      size: number; color: string; life: number; maxLife: number;
+    }> = [];
+
+    const colors = ["#fb923c", "#fbbf24", "#f97316", "#facc15", "#ef4444", "#ec4899"];
+
+    let animId: number;
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
+
+      // Spawn particles
+      if (phase >= 2 && Math.random() > 0.3) {
+        particles.push({
+          x: Math.random() * canvas.offsetWidth,
+          y: canvas.offsetHeight + 10,
+          vx: (Math.random() - 0.5) * 3,
+          vy: -(Math.random() * 4 + 2),
+          size: Math.random() * 4 + 2,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          life: 0,
+          maxLife: 60 + Math.random() * 40,
+        });
+      }
+
+      // Update & draw
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.02;
+        p.life++;
+        const alpha = 1 - p.life / p.maxLife;
+        if (alpha <= 0) { particles.splice(i, 1); continue; }
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = p.color + Math.floor(alpha * 255).toString(16).padStart(2, "0");
+        ctx.fill();
+      }
+
+      animId = requestAnimationFrame(animate);
+    };
+    animate();
+    return () => cancelAnimationFrame(animId);
+  }, [phase]);
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-b from-gray-950 via-gray-900 to-gray-950 min-h-[400px] flex flex-col items-center justify-center">
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0 w-full h-full pointer-events-none"
+      />
+
+      {/* Floating coins background */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {phase >= 2 && Array.from({ length: 12 }).map((_, i) => (
+          <div
+            key={i}
+            className="absolute text-2xl"
+            style={{
+              left: `${Math.random() * 100}%`,
+              top: `-20px`,
+              animation: `kakuhen-coin-rain ${2 + Math.random() * 3}s linear ${Math.random() * 2}s infinite`,
+            }}
+          >
+            {["💰", "✨", "🪙", "⭐", "💎"][i % 5]}
+          </div>
+        ))}
+      </div>
+
+      <div className="relative z-10 text-center px-6 py-8 space-y-6">
+        {/* Phase 1: Slot machine icon appears */}
+        {phase >= 1 && (
+          <div style={{ animation: "kakuhen-bounce-in 0.6s ease-out" }}>
+            <div className="text-7xl mb-2">🎰</div>
+          </div>
+        )}
+
+        {/* Phase 2: Title with glow */}
+        {phase >= 2 && (
+          <div style={{ animation: "kakuhen-slide-up 0.5s ease-out" }}>
+            <h2
+              className="text-3xl font-black text-transparent bg-clip-text"
+              style={{
+                backgroundImage: "linear-gradient(90deg, #fb923c, #fbbf24, #f97316, #fbbf24, #fb923c)",
+                backgroundSize: "200% 100%",
+                animation: "kakuhen-gradient-shift 2s ease infinite",
+              }}
+            >
+              確変チャンス！
+            </h2>
+          </div>
+        )}
+
+        {/* Phase 3: Amount display */}
+        {phase >= 3 && (
+          <div style={{ animation: "kakuhen-bounce-in 0.5s ease-out" }}>
+            <div className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500/20 to-yellow-500/20 border border-orange-500/40 rounded-full px-6 py-3"
+              style={{ animation: "kakuhen-glow-pulse 2s ease-in-out infinite" }}
+            >
+              <span className="text-orange-300 text-sm font-medium">対象金額</span>
+              <span className="text-2xl font-black text-white">¥{orderAmount.toLocaleString()}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Phase 4: Benefit preview */}
+        {phase >= 4 && (
+          <div className="space-y-3" style={{ animation: "kakuhen-slide-up 0.5s ease-out" }}>
+            <div className="flex items-center justify-center gap-4">
+              <div className="text-center">
+                <div className="text-xs text-gray-400 mb-1">通常還元</div>
+                <div className="text-lg font-bold text-gray-400">1%</div>
+              </div>
+              <div className="text-orange-400 text-2xl" style={{ animation: "kakuhen-shake 0.5s ease-in-out" }}>→</div>
+              <div className="text-center">
+                <div className="text-xs text-orange-300 mb-1">確変モード</div>
+                <div className="text-2xl font-black text-orange-400">1.5%</div>
+              </div>
+            </div>
+            <p className="text-sm text-yellow-300/80 font-medium">
+              ＋レシート購入金額全額キャッシュバックの抽選も！
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ===== Star Rating Component =====
 function StarRating({ rating, onRate }: { rating: number; onRate: (r: number) => void }) {
@@ -88,6 +299,59 @@ function StarRating({ rating, onRate }: { rating: number; onRate: (r: number) =>
   );
 }
 
+// ===== How-to Guide Component =====
+function HowToGuide({ isExpanded, onToggle }: { isExpanded: boolean; onToggle: () => void }) {
+  return (
+    <div className="bg-gray-800/60 rounded-xl border border-gray-700 overflow-hidden">
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center justify-between px-4 py-3 text-left"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-lg">📖</span>
+          <span className="text-sm font-bold text-gray-200">TikTok URLの見つけ方</span>
+        </div>
+        {isExpanded ? (
+          <ChevronUp className="w-4 h-4 text-gray-400" />
+        ) : (
+          <ChevronDown className="w-4 h-4 text-gray-400" />
+        )}
+      </button>
+      {isExpanded && (
+        <div className="px-4 pb-4 space-y-4" style={{ animation: "kakuhen-slide-up 0.3s ease-out" }}>
+          {/* Step 1 */}
+          <div className="flex gap-3">
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 flex items-center justify-center text-white text-sm font-bold">1</div>
+            <div>
+              <p className="text-sm font-medium text-gray-200">TikTokアプリを開く</p>
+              <p className="text-xs text-gray-400 mt-0.5">購入のきっかけになった動画やライバーを探します</p>
+            </div>
+          </div>
+          {/* Step 2 */}
+          <div className="flex gap-3">
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 flex items-center justify-center text-white text-sm font-bold">2</div>
+            <div>
+              <p className="text-sm font-medium text-gray-200">共有ボタンをタップ</p>
+              <p className="text-xs text-gray-400 mt-0.5">動画の右下にある矢印アイコン → 「リンクをコピー」</p>
+            </div>
+          </div>
+          {/* Step 3 */}
+          <div className="flex gap-3">
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 flex items-center justify-center text-white text-sm font-bold">3</div>
+            <div>
+              <p className="text-sm font-medium text-gray-200">ここに貼り付け</p>
+              <p className="text-xs text-gray-400 mt-0.5">コピーしたURLを下の入力欄にペーストするだけ！</p>
+            </div>
+          </div>
+          <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg px-3 py-2">
+            <p className="text-xs text-cyan-300">💡 ライバーのプロフィールURLでもOK！動画URLでもプロフィールURLでも確変チャンスに参加できます。</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ===== Meter Animation Component =====
 function MeterAnimation({
   baseRate,
@@ -105,13 +369,12 @@ function MeterAnimation({
   const [glowing, setGlowing] = useState(false);
 
   useEffect(() => {
-    // Phase 1: Fill to base rate (1s)
+    injectKeyframes();
     const t1 = setTimeout(() => {
       setCurrentRate(baseRate);
       setPhase("boosting");
     }, 500);
 
-    // Phase 2: Boost animation (if kakuhen)
     const t2 = setTimeout(() => {
       if (isKakuhen) {
         setGlowing(true);
@@ -120,7 +383,6 @@ function MeterAnimation({
       setPhase("done");
     }, 2000);
 
-    // Phase 3: Complete
     const t3 = setTimeout(() => {
       onComplete();
     }, 3500);
@@ -132,17 +394,18 @@ function MeterAnimation({
     };
   }, []);
 
-  const percentage = (currentRate / 2) * 100; // 2% = 100%
+  const percentage = (currentRate / 2) * 100;
 
   return (
     <div className="flex flex-col items-center gap-6 py-8">
       <h3 className="text-lg font-bold text-white">還元率メーター</h3>
 
-      {/* Meter */}
       <div className="w-full max-w-xs">
         <div className={`relative h-8 bg-gray-800 rounded-full overflow-hidden border-2 ${
-          glowing ? "border-orange-400 shadow-[0_0_20px_rgba(251,146,60,0.5)]" : "border-gray-600"
-        }`}>
+          glowing ? "border-orange-400" : "border-gray-600"
+        }`}
+          style={glowing ? { animation: "kakuhen-glow-pulse 1.5s ease-in-out infinite" } : {}}
+        >
           <div
             className={`h-full rounded-full transition-all duration-1000 ease-out ${
               isKakuhen && phase !== "filling"
@@ -159,7 +422,6 @@ function MeterAnimation({
         </div>
       </div>
 
-      {/* Rate Display */}
       <div className={`text-center transition-all duration-500 ${glowing ? "scale-110" : ""}`}>
         <div className={`text-5xl font-black ${
           isKakuhen && phase !== "filling"
@@ -200,10 +462,10 @@ function LotteryAnimation({
   const intervalRef = useRef<ReturnType<typeof setInterval>>(null);
 
   useEffect(() => {
+    injectKeyframes();
     const userDigits = lotteryNumber.padStart(6, "0").split("");
     let revealed = 0;
 
-    // Scramble non-revealed digits
     intervalRef.current = setInterval(() => {
       setDisplayDigits((prev) => {
         return prev.map((d, i) => {
@@ -213,7 +475,6 @@ function LotteryAnimation({
       });
     }, 80);
 
-    // Reveal digits one by one
     const revealNext = () => {
       if (revealed < 6) {
         revealed++;
@@ -221,7 +482,6 @@ function LotteryAnimation({
         if (revealed < 6) {
           setTimeout(revealNext, 600);
         } else {
-          // All revealed
           setTimeout(() => {
             if (intervalRef.current) clearInterval(intervalRef.current);
             setDisplayDigits(userDigits);
@@ -241,14 +501,15 @@ function LotteryAnimation({
 
   return (
     <div className="flex flex-col items-center gap-6 py-8">
-      <h3 className="text-lg font-bold text-white">全額還元抽選中...</h3>
+      <h3 className="text-lg font-bold text-white">全額キャッシュバック抽選中...</h3>
 
-      {/* Slot Display */}
       <div className={`p-6 rounded-2xl border-2 ${
         isJackpot && showResult
-          ? "border-yellow-400 bg-gradient-to-b from-yellow-900/30 to-orange-900/30 shadow-[0_0_30px_rgba(250,204,21,0.4)]"
+          ? "border-yellow-400 bg-gradient-to-b from-yellow-900/30 to-orange-900/30"
           : "border-orange-500/50 bg-gradient-to-b from-gray-900 to-gray-800"
-      }`}>
+      }`}
+        style={isJackpot && showResult ? { animation: "kakuhen-glow-pulse 1s ease-in-out infinite" } : {}}
+      >
         <div className="text-sm text-gray-400 text-center mb-3">あなたの抽選番号</div>
         <div className="flex gap-1 justify-center">
           {displayDigits.map((digit, i) => (
@@ -258,7 +519,9 @@ function LotteryAnimation({
                 i < revealedCount
                   ? "bg-gray-800 text-orange-400 border border-orange-500/30"
                   : "bg-gray-900 text-gray-300 border border-gray-700"
-              }`}>
+              }`}
+                style={i < revealedCount ? { animation: "kakuhen-bounce-in 0.3s ease-out" } : {}}
+              >
                 {digit}
               </div>
             </div>
@@ -270,12 +533,14 @@ function LotteryAnimation({
       </div>
 
       {showResult && (
-        <div className={`text-center ${isJackpot ? "animate-bounce" : ""}`}>
+        <div className={`text-center ${isJackpot ? "animate-bounce" : ""}`}
+          style={{ animation: "kakuhen-bounce-in 0.5s ease-out" }}
+        >
           {isJackpot ? (
             <div className="space-y-2">
               <div className="text-4xl">🎉🎊🎉</div>
               <div className="text-2xl font-black text-yellow-400">大当たり！！！</div>
-              <div className="text-lg text-yellow-300">全額ポイントバック確定！</div>
+              <div className="text-lg text-yellow-300">全額キャッシュバック確定！</div>
             </div>
           ) : (
             <div className="text-gray-400 text-sm">
@@ -299,15 +564,25 @@ export default function KakuhenChance({
   onComplete,
   onSkip,
 }: KakuhenChanceProps) {
-  const [step, setStep] = useState<KakuhenStep>("tiktok_url");
+  const [step, setStep] = useState<KakuhenStep>("intro");
   const [tiktokUrl, setTiktokUrl] = useState("");
   const [rating, setRating] = useState(0);
   const [reviewText, setReviewText] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [kakuhenData, setKakuhenData] = useState<KakuhenResult | null>(null);
+  const [guideExpanded, setGuideExpanded] = useState(false);
 
   const kakuhenMutation = trpc.kakuhen.play.useMutation();
   const reviewMutation = trpc.receiptReview.submit.useMutation();
+
+  // Check participation count for guide auto-expand (first 3 times)
+  useEffect(() => {
+    const countStr = localStorage.getItem("kakuhen_play_count") || "0";
+    const count = parseInt(countStr, 10);
+    if (count < 3) {
+      setGuideExpanded(true);
+    }
+  }, []);
 
   // Product info from OCR
   const productName = ocrData?.items?.[0]?.productName || ocrData?.productName || "商品";
@@ -318,7 +593,6 @@ export default function KakuhenChance({
     setSelectedTags((prev) =>
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
     );
-    // Also append/remove from review text
     setReviewText((prev) => {
       const hashTag = `#${tag}`;
       if (prev.includes(hashTag)) {
@@ -328,8 +602,11 @@ export default function KakuhenChance({
     });
   }, []);
 
+  const handleIntroComplete = useCallback(() => {
+    setStep("tiktok_url");
+  }, []);
+
   const handleStartKakuhen = useCallback(async () => {
-    // Play kakuhen chance
     try {
       const result = await kakuhenMutation.mutateAsync({
         receiptType,
@@ -338,6 +615,10 @@ export default function KakuhenChance({
         tiktokUrl: tiktokUrl.trim() || undefined,
       });
       setKakuhenData(result as unknown as KakuhenResult);
+      // Increment play count in localStorage
+      const countStr = localStorage.getItem("kakuhen_play_count") || "0";
+      const count = parseInt(countStr, 10);
+      localStorage.setItem("kakuhen_play_count", String(count + 1));
       setStep("meter");
     } catch (err: any) {
       toast.error(err.message || "エラーが発生しました");
@@ -377,7 +658,6 @@ export default function KakuhenChance({
         kakuhenData.reviewTags = selectedTags;
       }
 
-      // Move to meter animation
       handleStartKakuhen();
     } catch (err: any) {
       toast.error(err.message || "レビューの投稿に失敗しました");
@@ -398,55 +678,91 @@ export default function KakuhenChance({
     }
   }, [kakuhenData, onComplete]);
 
+  const handleOpenTikTok = useCallback(() => {
+    // Try deep link first (mobile), fallback to web
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (isMobile) {
+      // Try to open TikTok app
+      window.location.href = "snssdk1233://";
+      setTimeout(() => {
+        window.open("https://www.tiktok.com", "_blank");
+      }, 1500);
+    } else {
+      window.open("https://www.tiktok.com", "_blank");
+    }
+    toast.info("TikTokでURLをコピーして、ここに貼り付けてください！", { duration: 5000 });
+  }, []);
+
+  // Step labels for progress (excluding intro)
+  const stepLabels = useMemo(() => ["URL", "レビュー", "メーター", "抽選", "結果"], []);
+  const stepKeys: KakuhenStep[] = useMemo(() => ["tiktok_url", "review", "meter", "lottery", "result"], []);
+
   return (
     <div className="space-y-6">
-      {/* Step Progress */}
-      <div className="flex items-center justify-center gap-2 px-4">
-        {["URL", "レビュー", "メーター", "抽選", "結果"].map((label, i) => {
-          const steps: KakuhenStep[] = ["tiktok_url", "review", "meter", "lottery", "result"];
-          const currentIndex = steps.indexOf(step);
-          const isActive = i === currentIndex;
-          const isDone = i < currentIndex;
-          return (
-            <div key={i} className="flex items-center gap-1">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                isActive
-                  ? "bg-gradient-to-r from-orange-500 to-yellow-500 text-white scale-110 shadow-[0_0_10px_rgba(251,146,60,0.5)]"
-                  : isDone
-                  ? "bg-green-500 text-white"
-                  : "bg-gray-700 text-gray-400"
-              }`}>
-                {isDone ? "✓" : i + 1}
+      {/* Intro Animation */}
+      {step === "intro" && (
+        <IntroAnimation onComplete={handleIntroComplete} orderAmount={orderAmount} />
+      )}
+
+      {/* Step Progress (shown after intro) */}
+      {step !== "intro" && (
+        <div className="flex items-center justify-center gap-2 px-4">
+          {stepLabels.map((label, i) => {
+            const currentIndex = stepKeys.indexOf(step);
+            const isActive = i === currentIndex;
+            const isDone = i < currentIndex;
+            return (
+              <div key={i} className="flex items-center gap-1">
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                  isActive
+                    ? "bg-gradient-to-r from-orange-500 to-yellow-500 text-white scale-110 shadow-[0_0_10px_rgba(251,146,60,0.5)]"
+                    : isDone
+                    ? "bg-green-500 text-white"
+                    : "bg-gray-700 text-gray-400"
+                }`}>
+                  {isDone ? "✓" : i + 1}
+                </div>
+                <span className={`text-[10px] hidden sm:inline ${isActive ? "text-orange-400 font-bold" : "text-gray-500"}`}>
+                  {label}
+                </span>
+                {i < 4 && <div className={`w-4 h-0.5 ${isDone ? "bg-green-500" : "bg-gray-700"}`} />}
               </div>
-              <span className={`text-[10px] hidden sm:inline ${isActive ? "text-orange-400 font-bold" : "text-gray-500"}`}>
-                {label}
-              </span>
-              {i < 4 && <div className={`w-4 h-0.5 ${isDone ? "bg-green-500" : "bg-gray-700"}`} />}
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Step 1: TikTok URL */}
       {step === "tiktok_url" && (
-        <Card className="bg-gradient-to-b from-gray-900 to-gray-800 border-orange-500/30">
-          <CardContent className="pt-6 space-y-6">
+        <Card className="bg-gradient-to-b from-gray-900 to-gray-800 border-orange-500/30"
+          style={{ animation: "kakuhen-slide-up 0.4s ease-out" }}
+        >
+          <CardContent className="pt-6 space-y-5">
             <div className="text-center space-y-2">
               <div className="text-4xl">🎰</div>
               <h3 className="text-xl font-black text-white">確変チャンス！</h3>
               <p className="text-sm text-gray-400">
-                TikTok動画URLを入力すると還元率UP＋全額ポイントバックのチャンスも！
+                TikTok URLを入力すると還元率1.5%にUP＋レシート購入金額全額キャッシュバックのチャンスも！
               </p>
             </div>
 
+            {/* How-to Guide */}
+            <HowToGuide
+              isExpanded={guideExpanded}
+              onToggle={() => setGuideExpanded(!guideExpanded)}
+            />
+
+            {/* URL Input */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-300">TikTok動画URL（任意）</label>
+              <label className="text-sm font-medium text-gray-300">
+                購入のきっかけになったTikTok動画 / ライバーのURL（任意）
+              </label>
               <div className="relative">
                 <input
                   type="url"
                   value={tiktokUrl}
                   onChange={(e) => setTiktokUrl(e.target.value)}
-                  placeholder="https://www.tiktok.com/@user/video/..."
+                  placeholder="動画またはライバーのURLを貼り付け"
                   className="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-xl text-white placeholder-gray-500 focus:border-orange-400 focus:ring-1 focus:ring-orange-400 outline-none"
                 />
                 {tiktokUrl && (
@@ -454,9 +770,19 @@ export default function KakuhenChance({
                 )}
               </div>
               <p className="text-xs text-gray-500">
-                購入のきっかけになったTikTok動画のURLを貼ると還元率が1% → 1.5%にUP！
+                動画URL・ライバーのプロフィールURLどちらでもOK！還元率が1% → 1.5%にUP！
               </p>
             </div>
+
+            {/* TikTokで探すボタン */}
+            <Button
+              variant="outline"
+              className="w-full border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 hover:text-cyan-300 h-11"
+              onClick={handleOpenTikTok}
+            >
+              <Search className="w-4 h-4 mr-2" />
+              TikTokで探す
+            </Button>
 
             <div className="flex gap-3">
               <Button
@@ -479,7 +805,9 @@ export default function KakuhenChance({
 
       {/* Step 2: Review */}
       {step === "review" && (
-        <Card className="bg-gradient-to-b from-gray-900 to-gray-800 border-orange-500/30">
+        <Card className="bg-gradient-to-b from-gray-900 to-gray-800 border-orange-500/30"
+          style={{ animation: "kakuhen-slide-up 0.4s ease-out" }}
+        >
           <CardContent className="pt-6 space-y-6">
             <div className="text-center space-y-2">
               <div className="text-4xl">📝</div>
@@ -492,7 +820,7 @@ export default function KakuhenChance({
             {/* Receipt Preview + Product Info */}
             <div className="flex gap-4 bg-gray-800/50 rounded-xl p-4 border border-gray-700">
               {receiptPreview && (
-                <div className="w-20 h-28 flex-shrink-0 rounded-lg overflow-hidden border border-gray-600">
+                <div className="w-20 h-28 flex-shrink-0 rounded-lg overflow-hidden border border-gray-600 relative">
                   <img
                     src={receiptPreview}
                     alt="レシート"
@@ -614,7 +942,7 @@ export default function KakuhenChance({
 
       {/* Step 5: Result */}
       {step === "result" && kakuhenData && (
-        <div className="space-y-4">
+        <div className="space-y-4" style={{ animation: "kakuhen-bounce-in 0.5s ease-out" }}>
           {/* Points Result */}
           <Card className={`border-2 ${
             kakuhenData.isJackpot
@@ -622,14 +950,16 @@ export default function KakuhenChance({
               : kakuhenData.isKakuhen
               ? "border-orange-400 bg-gradient-to-b from-orange-900/20 to-gray-900"
               : "border-gray-600 bg-gray-900"
-          }`}>
+          }`}
+            style={kakuhenData.isJackpot ? { animation: "kakuhen-glow-pulse 1.5s ease-in-out infinite" } : {}}
+          >
             <CardContent className="pt-6 text-center space-y-3">
               <div className="text-4xl">
                 {kakuhenData.isJackpot ? "🎊" : kakuhenData.isKakuhen ? "🎉" : "✨"}
               </div>
               <h3 className="text-xl font-black text-white">
                 {kakuhenData.isJackpot
-                  ? "全額ポイントバック！！！"
+                  ? "全額キャッシュバック！！！"
                   : kakuhenData.isKakuhen
                   ? "確変モード確定！"
                   : "ポイント獲得！"}
@@ -653,7 +983,7 @@ export default function KakuhenChance({
               )}
               {!kakuhenData.isJackpot && (
                 <div className="text-xs text-gray-500">
-                  全額還元は惜しくもハズレ...次回もチャレンジ！
+                  全額キャッシュバックは惜しくもハズレ...次回もチャレンジ！
                 </div>
               )}
             </CardContent>
