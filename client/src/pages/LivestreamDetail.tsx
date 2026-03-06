@@ -37,6 +37,12 @@ export default function LivestreamDetail() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  
+  // ライバー認証も確認（ライバーは独自認証のため useAuth では取得できない）
+  const { data: liverInfo } = trpc.liver.me.useQuery(undefined, {
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
 
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -89,6 +95,10 @@ export default function LivestreamDetail() {
   const { data: livestream, isLoading, refetch } = trpc.liverManagement.getLivestreamDetail.useQuery({
     id: livestreamId,
   });
+
+  // ライバーが自分の配信を編集できるかどうか判定
+  const isOwnerLiver = !!(liverInfo && livestream && livestream.liverId === liverInfo.id);
+  const canEdit = isAdmin || isOwnerLiver;
   
   const { data: brands } = trpc.brand.list.useQuery();
 
@@ -511,7 +521,7 @@ export default function LivestreamDetail() {
             {/* Header with Edit Button */}
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-bold text-white">配信履歴詳細</h2>
-              {!isEditing && isAdmin && (
+              {!isEditing && canEdit && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -522,7 +532,7 @@ export default function LivestreamDetail() {
                   編集
                 </Button>
               )}
-              {!isAdmin && (
+              {!canEdit && (
                 <span className="text-xs text-gray-500 italic">閲覧専用モード</span>
               )}
             </div>
@@ -960,7 +970,7 @@ export default function LivestreamDetail() {
                       <FileSpreadsheet className="w-4 h-4" />
                       商品別売上
                     </h3>
-                    {isAdmin && (
+                    {canEdit && (
                       <label className="cursor-pointer">
                         <input
                           type="file"
@@ -1190,7 +1200,7 @@ export default function LivestreamDetail() {
                                 {new Date(history.createdAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })} ・ {history.productCount}商品 ・ ¥{(history.totalGmv || 0).toLocaleString()}
                               </p>
                             </div>
-                            {isAdmin && (
+                            {canEdit && (
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-300 hover:bg-red-900/20 h-7 px-2">
@@ -1683,7 +1693,7 @@ export default function LivestreamDetail() {
         </Card>
         
         {/* Action Buttons (View Mode Only) */}
-        {!isEditing && isAdmin && (
+        {!isEditing && canEdit && (
           <div className="flex justify-center gap-4">
             <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
               <AlertDialogTrigger asChild>
