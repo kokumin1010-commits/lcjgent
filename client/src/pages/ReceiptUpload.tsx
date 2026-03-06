@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Upload, Receipt, CheckCircle, Clock, XCircle, AlertTriangle, ArrowLeft, Camera, X, Image as ImageIcon, Loader2, ShieldCheck, Gift } from "lucide-react";
 import { Link } from "wouter";
 import KakuhenChance from "@/components/KakuhenChance";
+import KakuhenPopup from "@/components/KakuhenPopup";
 
 type UploadedImage = {
   file: File;
@@ -65,6 +66,7 @@ export default function ReceiptUpload() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [tokenRestored, setTokenRestored] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [showKakuhenPopup, setShowKakuhenPopup] = useState(false);
 
   // URLパラメータからセッショントークンを復元（LINEアプリ→外部ブラウザ遷移対応）
   useEffect(() => {
@@ -102,9 +104,21 @@ export default function ReceiptUpload() {
         haptic.success();
         toast.success("レシートの解析が完了しました！");
         setFlowPhase("analysis_result");
+        // 2秒後に確変チャンスポップアップを自動表示
+        if (result.receiptId) {
+          setTimeout(() => {
+            setShowKakuhenPopup(true);
+          }, 2000);
+        }
       } else if (result.status === "on_hold") {
         toast.info("確認中です。スタッフが確認後、結果をお知らせします。");
         setFlowPhase("analysis_result");
+        // on_holdでも確変チャンスポップアップを表示
+        if (result.receiptId) {
+          setTimeout(() => {
+            setShowKakuhenPopup(true);
+          }, 2000);
+        }
       } else {
         haptic.warning();
         toast.info("AIが自動判定しました。内容をご確認ください。");
@@ -217,7 +231,12 @@ export default function ReceiptUpload() {
   }, []);
 
   const handleStartKakuhen = useCallback(() => {
+    setShowKakuhenPopup(false);
     setFlowPhase("kakuhen");
+  }, []);
+
+  const handlePopupSkip = useCallback(() => {
+    setShowKakuhenPopup(false);
   }, []);
 
   const handleKakuhenComplete = useCallback(() => {
@@ -505,6 +524,17 @@ export default function ReceiptUpload() {
                       >
                         🎰 確変チャンス＋レビューへ進む
                       </Button>
+                    )}
+
+                    {/* 確変チャンスポップアップ（自動表示） */}
+                    {analysisResult.receiptId && (
+                      <KakuhenPopup
+                        isOpen={showKakuhenPopup}
+                        orderAmount={analysisResult.ocrData?.totalAmount || analysisResult.ocrData?.paymentInfo?.totalAmount || 0}
+                        pointsCalculated={analysisResult.pointsCalculated || 0}
+                        onStart={handleStartKakuhen}
+                        onSkip={handlePopupSkip}
+                      />
                     )}
                     {analysisResult.status !== "success" && analysisResult.status !== "on_hold" && analysisResult.receiptId && (
                       <Button
