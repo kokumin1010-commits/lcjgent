@@ -1,0 +1,45 @@
+{
+  "query": "SELECT id, slug, status, LEFT(contentHtml, 300) as contentPreview, coverImageUrl FROM blog_articles WHERE status = 'published' ORDER BY id DESC LIMIT 5",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, slug, status, LEFT(contentHtml, 300) as contentPreview, coverImageUrl FROM blog_articles WHERE status = 'published' ORDER BY id DESC LIMIT 5",
+  "rows": [
+    {
+      "id": "150010",
+      "slug": "indexnow-test-1772455453658",
+      "status": "published",
+      "contentPreview": "NULL",
+      "coverImageUrl": "NULL"
+    },
+    {
+      "id": "150009",
+      "slug": "test-article-1772455439657",
+      "status": "published",
+      "contentPreview": "<p>テスト記事の本文です。</p>",
+      "coverImageUrl": "NULL"
+    },
+    {
+      "id": "30030",
+      "slug": "tiktok-shop-hajimekata-guide-lcj-mall",
+      "status": "published",
+      "contentPreview": "<h2>TikTok Shopとは？新しいECの形を理解する</h2><p>近年、ソーシャルコマースの波が世界中で加速しています。その中でも特に注目を集めているのが、ショート動画プラットフォーム「TikTok」が提供するEC機能、<strong>TikTok Shop</strong>です。TikTok Shopは、動画コンテンツとライブ配信を通じて商品を発見し、購入まで完結できる新しいショッピング体験をユーザーに提供します。これにより、ブランドはより直接的かつインタラクティブな方法で顧客と繋がり、商品の魅力を効果的に伝えることが可能になります。</p><p>従来のECサイトが「検索して購入す",
+      "coverImageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/blog-covers/tiktok-shop-hajimekata-guide-lcj-mall-5gzymKS2.png"
+    },
+    {
+      "id": "30001",
+      "slug": "tiktok-shop-syutten-guide-2025-2026",
+      "status": "published",
+      "contentPreview": "<h2>TikTok Shop徹底解説：出店から成功戦略まで、2025-2026年最新ガイド</h2><p>TikTok Shopは、ショート動画プラットフォームTikTokに統合されたEC機能であり、ユーザーが動画コンテンツを視聴しながら直接商品を購入できる新しい形のソーシャルコマースです。この革新的なプラットフォームは、コンテンツと購買体験をシームレスに結びつけ、特に若年層を中心とした幅広い顧客層へのリーチとエンゲージメントを可能にします。本記事では、TikTok Shopの出店方法からメリット、ライブコマース戦略、既存ECサイトとの連携、さらにはアフィリエイト活用まで、2025-2026",
+      "coverImageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/blog-covers/ai-cBDnt85zXZz1.png"
+    },
+    {
+      "id": "6",
+      "slug": "tiktok-shop-guide-purchase-sell-strategy",
+      "status": "published",
+      "contentPreview": "<h2>TikTok Shopとは？購入から出店、成功戦略まで徹底解説【2025-2026年最新版】</h2><img src=\"https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/blog-inline/ai-LZpSp3UKUD-U.png\" alt=\"TikTok Shopの概念図：スマートフォンで商品動画を見ながらショッピングする若者たち\"><p>TikTok Shopの概念図：スマートフォンで商品動画を見ながらショッピングする若者たち</p><p>TikTok Shopは、ショ",
+      "coverImageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/blog-covers/ai-cRaf-xhO52Cm.png"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tslug\tstatus\tcontentPreview\tcoverImageUrl\n150010\tindexnow-test-1772455453658\tpublished\tNULL\tNULL\n150009\ttest-article-1772455439657\tpublished\t<p>テスト記事の本文です。</p>\tNULL\n30030\ttiktok-shop-hajimekata-guide-lcj-mall\tpublished\t<h2>TikTok Shopとは？新しいECの形を理解する</h2><p>近年、ソーシャルコマースの波が世界中で加速しています。その中でも特に注目を集めているのが、ショート動画プラットフォーム「TikTok」が提供するEC機能、<strong>TikTok Shop</strong>です。TikTok Shopは、動画コンテンツとライブ配信を通じて商品を発見し、購入まで完結できる新しいショッピング体験をユーザーに提供します。これにより、ブランドはより直接的かつインタラクティブな方法で顧客と繋がり、商品の魅力を効果的に伝えることが可能になります。</p><p>従来のECサイトが「検索して購入す\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/blog-covers/tiktok-shop-hajimekata-guide-lcj-mall-5gzymKS2.png\n30001\ttiktok-shop-syutten-guide-2025-2026\tpublished\t<h2>TikTok Shop徹底解説：出店から成功戦略まで、2025-2026年最新ガイド</h2><p>TikTok Shopは、ショート動画プラットフォームTikTokに統合されたEC機能であり、ユーザーが動画コンテンツを視聴しながら直接商品を購入できる新しい形のソーシャルコマースです。この革新的なプラットフォームは、コンテンツと購買体験をシームレスに結びつけ、特に若年層を中心とした幅広い顧客層へのリーチとエンゲージメントを可能にします。本記事では、TikTok Shopの出店方法からメリット、ライブコマース戦略、既存ECサイトとの連携、さらにはアフィリエイト活用まで、2025-2026\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/blog-covers/ai-cBDnt85zXZz1.png\n6\ttiktok-shop-guide-purchase-sell-strategy\tpublished\t<h2>TikTok Shopとは？購入から出店、成功戦略まで徹底解説【2025-2026年最新版】</h2><img src=\"https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/blog-inline/ai-LZpSp3UKUD-U.png\" alt=\"TikTok Shopの概念図：スマートフォンで商品動画を見ながらショッピングする若者たち\"><p>TikTok Shopの概念図：スマートフォンで商品動画を見ながらショッピングする若者たち</p><p>TikTok Shopは、ショ\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/blog-covers/ai-cRaf-xhO52Cm.png\n",
+  "stderr": "",
+  "execution_time_ms": 1583
+}

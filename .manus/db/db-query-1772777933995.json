@@ -1,0 +1,31 @@
+{
+  "query": "SELECT * FROM auto_post_schedules LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT * FROM auto_post_schedules LIMIT 1;",
+  "rows": [
+    {
+      "id": "150007",
+      "name": "Toggle Test 1772455573448",
+      "enabled": "0",
+      "intervalDays": "1",
+      "preferredHour": "10",
+      "keywordStrategy": "preset",
+      "customKeywords": "NULL",
+      "categoryId": "NULL",
+      "articleType": "guide",
+      "tone": "professional",
+      "articleLength": "standard",
+      "language": "ja",
+      "generateImages": "0",
+      "autoPublish": "draft",
+      "lastRunAt": "NULL",
+      "nextRunAt": "2026-03-02 12:46:13",
+      "totalGenerated": "0",
+      "createdAt": "2026-03-02 12:46:13",
+      "updatedAt": "2026-03-02 12:46:13"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tenabled\tintervalDays\tpreferredHour\tkeywordStrategy\tcustomKeywords\tcategoryId\tarticleType\ttone\tarticleLength\tlanguage\tgenerateImages\tautoPublish\tlastRunAt\tnextRunAt\ttotalGenerated\tcreatedAt\tupdatedAt\n150007\tToggle Test 1772455573448\t0\t1\t10\tpreset\tNULL\tNULL\tguide\tprofessional\tstandard\tja\t0\tdraft\tNULL\t2026-03-02 12:46:13\t0\t2026-03-02 12:46:13\t2026-03-02 12:46:13\n",
+  "stderr": "",
+  "execution_time_ms": 1568
+}

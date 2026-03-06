@@ -1,0 +1,90 @@
+{
+  "query": "SELECT id, scheduleId, status, keyword, errorMessage, createdAt FROM auto_post_logs ORDER BY id DESC LIMIT 10",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, scheduleId, status, keyword, errorMessage, createdAt FROM auto_post_logs ORDER BY id DESC LIMIT 10",
+  "rows": [
+    {
+      "id": "150001",
+      "scheduleId": "0",
+      "status": "completed",
+      "keyword": "__test_nonexistent_keyword__",
+      "errorMessage": "NULL",
+      "createdAt": "2026-03-05 17:23:23"
+    },
+    {
+      "id": "120005",
+      "scheduleId": "0",
+      "status": "failed",
+      "keyword": "__test_nonexistent_keyword__",
+      "errorMessage": "No article ID, cannot recover",
+      "createdAt": "2026-03-02 14:57:12"
+    },
+    {
+      "id": "120004",
+      "scheduleId": "0",
+      "status": "failed",
+      "keyword": "__test_nonexistent_keyword__",
+      "errorMessage": "No article ID, cannot recover",
+      "createdAt": "2026-03-02 14:24:02"
+    },
+    {
+      "id": "120003",
+      "scheduleId": "0",
+      "status": "completed",
+      "keyword": "__test_nonexistent_keyword__",
+      "errorMessage": "NULL",
+      "createdAt": "2026-03-02 14:22:21"
+    },
+    {
+      "id": "120002",
+      "scheduleId": "0",
+      "status": "failed",
+      "keyword": "__test_nonexistent_keyword__",
+      "errorMessage": "No article ID, cannot recover",
+      "createdAt": "2026-03-02 13:57:22"
+    },
+    {
+      "id": "120001",
+      "scheduleId": "0",
+      "status": "failed",
+      "keyword": "__test_nonexistent_keyword__",
+      "errorMessage": "No article ID, cannot recover",
+      "createdAt": "2026-03-02 12:43:13"
+    },
+    {
+      "id": "90003",
+      "scheduleId": "0",
+      "status": "completed",
+      "keyword": "__test_nonexistent_keyword__",
+      "errorMessage": "NULL",
+      "createdAt": "2026-03-01 15:48:50"
+    },
+    {
+      "id": "90002",
+      "scheduleId": "0",
+      "status": "completed",
+      "keyword": "__test_nonexistent_keyword__",
+      "errorMessage": "NULL",
+      "createdAt": "2026-03-01 15:47:32"
+    },
+    {
+      "id": "90001",
+      "scheduleId": "0",
+      "status": "completed",
+      "keyword": "__test_nonexistent_keyword__",
+      "errorMessage": "NULL",
+      "createdAt": "2026-03-01 11:53:53"
+    },
+    {
+      "id": "60004",
+      "scheduleId": "0",
+      "status": "failed",
+      "keyword": "__test_nonexistent_keyword__",
+      "errorMessage": "No article ID, cannot recover",
+      "createdAt": "2026-02-25 08:01:59"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tscheduleId\tstatus\tkeyword\terrorMessage\tcreatedAt\n150001\t0\tcompleted\t__test_nonexistent_keyword__\tNULL\t2026-03-05 17:23:23\n120005\t0\tfailed\t__test_nonexistent_keyword__\tNo article ID, cannot recover\t2026-03-02 14:57:12\n120004\t0\tfailed\t__test_nonexistent_keyword__\tNo article ID, cannot recover\t2026-03-02 14:24:02\n120003\t0\tcompleted\t__test_nonexistent_keyword__\tNULL\t2026-03-02 14:22:21\n120002\t0\tfailed\t__test_nonexistent_keyword__\tNo article ID, cannot recover\t2026-03-02 13:57:22\n120001\t0\tfailed\t__test_nonexistent_keyword__\tNo article ID, cannot recover\t2026-03-02 12:43:13\n90003\t0\tcompleted\t__test_nonexistent_keyword__\tNULL\t2026-03-01 15:48:50\n90002\t0\tcompleted\t__test_nonexistent_keyword__\tNULL\t2026-03-01 15:47:32\n90001\t0\tcompleted\t__test_nonexistent_keyword__\tNULL\t2026-03-01 11:53:53\n60004\t0\tfailed\t__test_nonexistent_keyword__\tNo article ID, cannot recover\t2026-02-25 08:01:59\n",
+  "stderr": "",
+  "execution_time_ms": 1544
+}

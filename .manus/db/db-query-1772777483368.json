@@ -1,0 +1,100 @@
+{
+  "query": "SELECT id, title, slug, status, coverImageUrl, publishedAt, seoTitle FROM blog_articles ORDER BY id DESC LIMIT 10",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, title, slug, status, coverImageUrl, publishedAt, seoTitle FROM blog_articles ORDER BY id DESC LIMIT 10",
+  "rows": [
+    {
+      "id": "180017",
+      "title": "LCJ MALL売上ランキングから探る！美のプロが選ぶ最新美容・ヘアケアガイド",
+      "slug": "lcjmall-bestsellers-beauty-haircare-guide",
+      "status": "draft",
+      "coverImageUrl": "NULL",
+      "publishedAt": "NULL",
+      "seoTitle": "LCJ MALL売上ランキングから厳選！プロが選ぶ美容・ヘアケアガイド"
+    },
+    {
+      "id": "150033",
+      "title": "【2024年最新版】プロが選ぶ！美髪・美肌ケアの秘訣とLCJ MALLおすすめアイテム徹底解説",
+      "slug": "lcjmall-beauty-haircare-guide-2024-kyogoku",
+      "status": "draft",
+      "coverImageUrl": "NULL",
+      "publishedAt": "NULL",
+      "seoTitle": "LCJ MALL厳選！プロが教える美髪・美肌ケアの秘訣とおすすめアイテム"
+    },
+    {
+      "id": "150013",
+      "title": "IndexNow Auto Test - Draft",
+      "slug": "draft-indexnow-test-1772455495290",
+      "status": "draft",
+      "coverImageUrl": "NULL",
+      "publishedAt": "NULL",
+      "seoTitle": "NULL"
+    },
+    {
+      "id": "150010",
+      "title": "IndexNow Auto Test - Published",
+      "slug": "indexnow-test-1772455453658",
+      "status": "published",
+      "coverImageUrl": "NULL",
+      "publishedAt": "2026-03-02 12:44:14",
+      "seoTitle": "NULL"
+    },
+    {
+      "id": "150009",
+      "title": "更新されたテスト記事",
+      "slug": "test-article-1772455439657",
+      "status": "published",
+      "coverImageUrl": "NULL",
+      "publishedAt": "2026-03-02 12:44:06",
+      "seoTitle": "テスト記事 | LCJ MALL"
+    },
+    {
+      "id": "120027",
+      "title": "LCJ MALL売上ランキング徹底解説！美容のプロが選ぶ注目アイテムと賢い選び方",
+      "slug": "lcj-mall-sales-ranking-guide",
+      "status": "draft",
+      "coverImageUrl": "NULL",
+      "publishedAt": "NULL",
+      "seoTitle": "LCJ MALL売上ランキング徹底解説！美容のプロが選ぶ注目アイテム"
+    },
+    {
+      "id": "120018",
+      "title": "【2024年最新版】プロが厳選！LCJ MALLで本当に売れているKYOGOKU美容アイテム徹底解説",
+      "slug": "lcjmall-kyogoku-best-sellers-guide",
+      "status": "draft",
+      "coverImageUrl": "NULL",
+      "publishedAt": "NULL",
+      "seoTitle": "LCJ MALL売上ランキング！KYOGOKU美容アイテム徹底解説"
+    },
+    {
+      "id": "120009",
+      "title": "LCJ MALL厳選！美のプロが選ぶ最新美容アイテム徹底ガイド",
+      "slug": "lcjmall-beauty-items-guide",
+      "status": "draft",
+      "coverImageUrl": "NULL",
+      "publishedAt": "NULL",
+      "seoTitle": "LCJ MALL厳選！プロが選ぶ最新美容アイテム徹底ガイド"
+    },
+    {
+      "id": "90027",
+      "title": "【2024年最新】プロが選ぶ！自宅でできる本格ヘアケア＆スキンケアガイド｜LCJ MALL",
+      "slug": "professional-home-beauty-guide-lcjmall",
+      "status": "draft",
+      "coverImageUrl": "NULL",
+      "publishedAt": "NULL",
+      "seoTitle": "自宅でサロン級ケア！プロが選ぶ美容アイテムガイド｜LCJ MALL"
+    },
+    {
+      "id": "90018",
+      "title": "KYOGOKU JAPANとLCJ MALLが贈る！美容のプロが選ぶ最新ヘアケア・スキンケアガイド",
+      "slug": "kyogoku-lcjmall-beauty-guide-2024",
+      "status": "draft",
+      "coverImageUrl": "NULL",
+      "publishedAt": "NULL",
+      "seoTitle": "KYOGOKU JAPAN人気ガイド｜LCJ MALLが厳選するプロ仕様美容品"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tslug\tstatus\tcoverImageUrl\tpublishedAt\tseoTitle\n180017\tLCJ MALL売上ランキングから探る！美のプロが選ぶ最新美容・ヘアケアガイド\tlcjmall-bestsellers-beauty-haircare-guide\tdraft\tNULL\tNULL\tLCJ MALL売上ランキングから厳選！プロが選ぶ美容・ヘアケアガイド\n150033\t【2024年最新版】プロが選ぶ！美髪・美肌ケアの秘訣とLCJ MALLおすすめアイテム徹底解説\tlcjmall-beauty-haircare-guide-2024-kyogoku\tdraft\tNULL\tNULL\tLCJ MALL厳選！プロが教える美髪・美肌ケアの秘訣とおすすめアイテム\n150013\tIndexNow Auto Test - Draft\tdraft-indexnow-test-1772455495290\tdraft\tNULL\tNULL\tNULL\n150010\tIndexNow Auto Test - Published\tindexnow-test-1772455453658\tpublished\tNULL\t2026-03-02 12:44:14\tNULL\n150009\t更新されたテスト記事\ttest-article-1772455439657\tpublished\tNULL\t2026-03-02 12:44:06\tテスト記事 | LCJ MALL\n120027\tLCJ MALL売上ランキング徹底解説！美容のプロが選ぶ注目アイテムと賢い選び方\tlcj-mall-sales-ranking-guide\tdraft\tNULL\tNULL\tLCJ MALL売上ランキング徹底解説！美容のプロが選ぶ注目アイテム\n120018\t【2024年最新版】プロが厳選！LCJ MALLで本当に売れているKYOGOKU美容アイテム徹底解説\tlcjmall-kyogoku-best-sellers-guide\tdraft\tNULL\tNULL\tLCJ MALL売上ランキング！KYOGOKU美容アイテム徹底解説\n120009\tLCJ MALL厳選！美のプロが選ぶ最新美容アイテム徹底ガイド\tlcjmall-beauty-items-guide\tdraft\tNULL\tNULL\tLCJ MALL厳選！プロが選ぶ最新美容アイテム徹底ガイド\n90027\t【2024年最新】プロが選ぶ！自宅でできる本格ヘアケア＆スキンケアガイド｜LCJ MALL\tprofessional-home-beauty-guide-lcjmall\tdraft\tNULL\tNULL\t自宅でサロン級ケア！プロが選ぶ美容アイテムガイド｜LCJ MALL\n90018\tKYOGOKU JAPANとLCJ MALLが贈る！美容のプロが選ぶ最新ヘアケア・スキンケアガイド\tkyogoku-lcjmall-beauty-guide-2024\tdraft\tNULL\tNULL\tKYOGOKU JAPAN人気ガイド｜LCJ MALLが厳選するプロ仕様美容品\n",
+  "stderr": "",
+  "execution_time_ms": 1602
+}

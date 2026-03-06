@@ -1,0 +1,16 @@
+{
+  "query": "SELECT id, name, autoPublish, generateImages FROM auto_post_schedules;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, name, autoPublish, generateImages FROM auto_post_schedules;",
+  "rows": [
+    {
+      "id": "150007",
+      "name": "Toggle Test 1772455573448",
+      "autoPublish": "draft",
+      "generateImages": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tautoPublish\tgenerateImages\n150007\tToggle Test 1772455573448\tdraft\t0\n",
+  "stderr": "",
+  "execution_time_ms": 1567
+}

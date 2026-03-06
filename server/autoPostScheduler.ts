@@ -412,7 +412,13 @@ SEO/GEO最適化要件:
 - E-E-A-T: 美容師監修・専門家の視点を含める
 - 専門的で信頼性の高い記述を心がける
 - 日本語SEO: 自然な日本語表現、共起語を含める
-- GEO最適化: AI検索エンジンが引用しやすい明確な回答文を含める`;
+- GEO最適化: AI検索エンジンが引用しやすい明確な回答文を含める
+
+内部リンクルール（重要）:
+- LCJ MALLへのリンクは必ず https://lcjmall.com を使用（www.は付けない）
+- 商品ページへのリンク: https://lcjmall.com/products
+- ブランドページへのリンク: /brands/ブランドID（相対パス）
+- 外部リンクは最小限に抑え、内部リンクを優先する`;
 
     const response = await invokeLLM({
       messages: [
@@ -462,8 +468,11 @@ SEO/GEO最適化要件:
       categoryId = detectCategoryForKeyword(keyword, blogCategories);
     }
 
+    // Step 5.5: Sanitize links - fix www.lcjmall.com to lcjmall.com
+    let processedHtml = articleData.contentHtml
+      .replace(/https?:\/\/www\.lcjmall\.com/gi, 'https://lcjmall.com');
+
     // Step 6: Insert brand internal links
-    let processedHtml = articleData.contentHtml;
     try {
       const mallBrands = await getAllMallBrands();
       if (mallBrands.length > 0) {
