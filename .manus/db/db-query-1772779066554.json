@@ -1,0 +1,115 @@
+{
+  "query": "SELECT id, title, status, coverImageUrl, createdAt FROM blog_articles ORDER BY createdAt DESC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, title, status, coverImageUrl, createdAt FROM blog_articles ORDER BY createdAt DESC;",
+  "rows": [
+    {
+      "id": "180017",
+      "title": "LCJ MALL売上ランキングから探る！美のプロが選ぶ最新美容・ヘアケアガイド",
+      "status": "draft",
+      "coverImageUrl": "NULL",
+      "createdAt": "2026-03-05 17:23:51"
+    },
+    {
+      "id": "150033",
+      "title": "【2024年最新版】プロが選ぶ！美髪・美肌ケアの秘訣とLCJ MALLおすすめアイテム徹底解説",
+      "status": "draft",
+      "coverImageUrl": "NULL",
+      "createdAt": "2026-03-02 14:22:32"
+    },
+    {
+      "id": "150013",
+      "title": "IndexNow Auto Test - Draft",
+      "status": "draft",
+      "coverImageUrl": "NULL",
+      "createdAt": "2026-03-02 12:45:02"
+    },
+    {
+      "id": "150010",
+      "title": "IndexNow Auto Test - Published",
+      "status": "draft",
+      "coverImageUrl": "NULL",
+      "createdAt": "2026-03-02 12:44:15"
+    },
+    {
+      "id": "150009",
+      "title": "更新されたテスト記事",
+      "status": "draft",
+      "coverImageUrl": "NULL",
+      "createdAt": "2026-03-02 12:44:02"
+    },
+    {
+      "id": "120027",
+      "title": "LCJ MALL売上ランキング徹底解説！美容のプロが選ぶ注目アイテムと賢い選び方",
+      "status": "draft",
+      "coverImageUrl": "NULL",
+      "createdAt": "2026-03-01 15:49:17"
+    },
+    {
+      "id": "120018",
+      "title": "【2024年最新版】プロが厳選！LCJ MALLで本当に売れているKYOGOKU美容アイテム徹底解説",
+      "status": "draft",
+      "coverImageUrl": "NULL",
+      "createdAt": "2026-03-01 15:47:44"
+    },
+    {
+      "id": "120009",
+      "title": "LCJ MALL厳選！美のプロが選ぶ最新美容アイテム徹底ガイド",
+      "status": "draft",
+      "coverImageUrl": "NULL",
+      "createdAt": "2026-03-01 11:54:03"
+    },
+    {
+      "id": "90027",
+      "title": "【2024年最新】プロが選ぶ！自宅でできる本格ヘアケア＆スキンケアガイド｜LCJ MALL",
+      "status": "draft",
+      "coverImageUrl": "NULL",
+      "createdAt": "2026-02-25 08:00:59"
+    },
+    {
+      "id": "90018",
+      "title": "KYOGOKU JAPANとLCJ MALLが贈る！美容のプロが選ぶ最新ヘアケア・スキンケアガイド",
+      "status": "draft",
+      "coverImageUrl": "NULL",
+      "createdAt": "2026-02-25 07:15:33"
+    },
+    {
+      "id": "90009",
+      "title": "KYOGOKU JAPAN製品で叶える理想の美肌と美髪：LCJ MALL売上ランキング徹底解説",
+      "status": "draft",
+      "coverImageUrl": "NULL",
+      "createdAt": "2026-02-25 07:14:08"
+    },
+    {
+      "id": "30057",
+      "title": "LCJ MALL厳選！プロが推す最新美容・ヘアケアアイテム徹底ガイド",
+      "status": "draft",
+      "coverImageUrl": "NULL",
+      "createdAt": "2026-02-25 01:04:29"
+    },
+    {
+      "id": "30030",
+      "title": "【完全ガイド】TikTok Shopの始め方と成功戦略：LCJ MALLが徹底解説",
+      "status": "published",
+      "coverImageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/blog-covers/tiktok-shop-hajimekata-guide-lcj-mall-5gzymKS2.png",
+      "createdAt": "2026-02-24 01:17:57"
+    },
+    {
+      "id": "30001",
+      "title": "TikTok Shop徹底解説：出店から成功戦略まで2025-2026年最新ガイド",
+      "status": "published",
+      "coverImageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/blog-covers/ai-cBDnt85zXZz1.png",
+      "createdAt": "2026-02-23 23:42:04"
+    },
+    {
+      "id": "6",
+      "title": "TikTok Shop徹底解説ガイド：購入から出店、成功戦略まで【2025-2026年版】",
+      "status": "published",
+      "coverImageUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/blog-covers/ai-cRaf-xhO52Cm.png",
+      "createdAt": "2026-02-21 03:28:02"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tstatus\tcoverImageUrl\tcreatedAt\n180017\tLCJ MALL売上ランキングから探る！美のプロが選ぶ最新美容・ヘアケアガイド\tdraft\tNULL\t2026-03-05 17:23:51\n150033\t【2024年最新版】プロが選ぶ！美髪・美肌ケアの秘訣とLCJ MALLおすすめアイテム徹底解説\tdraft\tNULL\t2026-03-02 14:22:32\n150013\tIndexNow Auto Test - Draft\tdraft\tNULL\t2026-03-02 12:45:02\n150010\tIndexNow Auto Test - Published\tdraft\tNULL\t2026-03-02 12:44:15\n150009\t更新されたテスト記事\tdraft\tNULL\t2026-03-02 12:44:02\n120027\tLCJ MALL売上ランキング徹底解説！美容のプロが選ぶ注目アイテムと賢い選び方\tdraft\tNULL\t2026-03-01 15:49:17\n120018\t【2024年最新版】プロが厳選！LCJ MALLで本当に売れているKYOGOKU美容アイテム徹底解説\tdraft\tNULL\t2026-03-01 15:47:44\n120009\tLCJ MALL厳選！美のプロが選ぶ最新美容アイテム徹底ガイド\tdraft\tNULL\t2026-03-01 11:54:03\n90027\t【2024年最新】プロが選ぶ！自宅でできる本格ヘアケア＆スキンケアガイド｜LCJ MALL\tdraft\tNULL\t2026-02-25 08:00:59\n90018\tKYOGOKU JAPANとLCJ MALLが贈る！美容のプロが選ぶ最新ヘアケア・スキンケアガイド\tdraft\tNULL\t2026-02-25 07:15:33\n90009\tKYOGOKU JAPAN製品で叶える理想の美肌と美髪：LCJ MALL売上ランキング徹底解説\tdraft\tNULL\t2026-02-25 07:14:08\n30057\tLCJ MALL厳選！プロが推す最新美容・ヘアケアアイテム徹底ガイド\tdraft\tNULL\t2026-02-25 01:04:29\n30030\t【完全ガイド】TikTok Shopの始め方と成功戦略：LCJ MALLが徹底解説\tpublished\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/blog-covers/tiktok-shop-hajimekata-guide-lcj-mall-5gzymKS2.png\t2026-02-24 01:17:57\n30001\tTikTok Shop徹底解説：出店から成功戦略まで2025-2026年最新ガイド\tpublished\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/blog-covers/ai-cBDnt85zXZz1.png\t2026-02-23 23:42:04\n6\tTikTok Shop徹底解説ガイド：購入から出店、成功戦略まで【2025-2026年版】\tpublished\thttps://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/blog-covers/ai-cRaf-xhO52Cm.png\t2026-02-21 03:28:02\n",
+  "stderr": "",
+  "execution_time_ms": 1593
+}

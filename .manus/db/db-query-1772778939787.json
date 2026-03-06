@@ -1,0 +1,162 @@
+{
+  "query": "DESCRIBE auto_post_schedules;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute DESCRIBE auto_post_schedules;",
+  "rows": [
+    {
+      "Field": "id",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "PRI",
+      "Default": "NULL",
+      "Extra": "auto_increment"
+    },
+    {
+      "Field": "name",
+      "Type": "varchar(255)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "enabled",
+      "Type": "tinyint(1)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "intervalDays",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "1",
+      "Extra": ""
+    },
+    {
+      "Field": "preferredHour",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "10",
+      "Extra": ""
+    },
+    {
+      "Field": "keywordStrategy",
+      "Type": "enum('preset','custom','ai_suggest')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "preset",
+      "Extra": ""
+    },
+    {
+      "Field": "customKeywords",
+      "Type": "json",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "categoryId",
+      "Type": "int",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "articleType",
+      "Type": "enum('guide','review','comparison','news','howto','listicle')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "guide",
+      "Extra": ""
+    },
+    {
+      "Field": "tone",
+      "Type": "enum('professional','casual','friendly','authoritative')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "professional",
+      "Extra": ""
+    },
+    {
+      "Field": "articleLength",
+      "Type": "enum('short','standard','long')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "standard",
+      "Extra": ""
+    },
+    {
+      "Field": "language",
+      "Type": "enum('ja','en','zh','ko','th')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "ja",
+      "Extra": ""
+    },
+    {
+      "Field": "generateImages",
+      "Type": "tinyint(1)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "1",
+      "Extra": ""
+    },
+    {
+      "Field": "autoPublish",
+      "Type": "enum('draft','publish','scheduled')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "draft",
+      "Extra": ""
+    },
+    {
+      "Field": "lastRunAt",
+      "Type": "timestamp",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "nextRunAt",
+      "Type": "timestamp",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "totalGenerated",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "createdAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": ""
+    },
+    {
+      "Field": "updatedAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nid\tint\tNO\tPRI\tNULL\tauto_increment\nname\tvarchar(255)\tNO\t\tNULL\t\nenabled\ttinyint(1)\tNO\t\t0\t\nintervalDays\tint\tNO\t\t1\t\npreferredHour\tint\tNO\t\t10\t\nkeywordStrategy\tenum('preset','custom','ai_suggest')\tNO\t\tpreset\t\ncustomKeywords\tjson\tYES\t\tNULL\t\ncategoryId\tint\tYES\t\tNULL\t\narticleType\tenum('guide','review','comparison','news','howto','listicle')\tNO\t\tguide\t\ntone\tenum('professional','casual','friendly','authoritative')\tNO\t\tprofessional\t\narticleLength\tenum('short','standard','long')\tNO\t\tstandard\t\nlanguage\tenum('ja','en','zh','ko','th')\tNO\t\tja\t\ngenerateImages\ttinyint(1)\tNO\t\t1\t\nautoPublish\tenum('draft','publish','scheduled')\tNO\t\tdraft\t\nlastRunAt\ttimestamp\tYES\t\tNULL\t\nnextRunAt\ttimestamp\tYES\t\tNULL\t\ntotalGenerated\tint\tNO\t\t0\t\ncreatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\t\nupdatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\tDEFAULT_GENERATED on update CURRENT_TIMESTAMP\n",
+  "stderr": "",
+  "execution_time_ms": 1595
+}

@@ -269,7 +269,7 @@ JSON形式で返してください:`,
 /**
  * Check all enabled schedules and execute any that are due
  */
-async function runAutoPostCheck() {
+export async function runAutoPostCheck() {
   console.log("[AutoPost Scheduler] Running check...");
 
   try {

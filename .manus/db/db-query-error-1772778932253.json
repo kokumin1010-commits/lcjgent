@@ -1,0 +1,8 @@
+{
+  "query": "SELECT id, name, cron_expression, is_active, auto_publish, generate_images, category_id, created_at, updated_at FROM auto_post_schedules ORDER BY id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute SELECT id, name, cron_expression, is_active, auto_publish, generate_images, category_id, created_at, updated_at FROM auto_post_schedules ORDER BY id;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'cron_expression' in 'field list'"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE auto_post_schedules \nSET \n  name = 'LCJ MALL 定期投稿',\n  enabled = 1,\n  intervalDays = 2,\n  preferredHour = 10,\n  keywordStrategy = 'preset',\n  articleType = 'guide',\n  tone = 'professional',\n  articleLength = 'standard',\n  language = 'ja',\n  generateImages = 1,\n  autoPublish = 'publish',\n  nextRunAt = DATE_ADD(NOW(), INTERVAL 1 MINUTE),\n  updatedAt = NOW()\nWHERE id = 150007;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute UPDATE auto_post_schedules \nSET \n  name = 'LCJ MALL 定期投稿',\n  enabled = 1,\n  intervalDays = 2,\n  preferredHour = 10,\n  keywordStrategy = 'preset',\n  articleType = 'guide',\n  tone = 'professional',\n  articleLength = 'standard',\n  language = 'ja',\n  generateImages = 1,\n  autoPublish = 'publish',\n  nextRunAt = DATE_ADD(NOW(), INTERVAL 1 MINUTE),\n  updatedAt = NOW()\nWHERE id = 150007;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1671
+}

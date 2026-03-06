@@ -1,0 +1,9 @@
+{
+  "query": "DELETE FROM blog_article_tags WHERE articleId IN (SELECT id FROM blog_articles WHERE status = 'draft');\nDELETE FROM blog_articles WHERE status = 'draft';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute DELETE FROM blog_article_tags WHERE articleId IN (SELECT id FROM blog_articles WHERE status = 'draft');\nDELETE FROM blog_articles WHERE status = 'draft';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1812
+}
