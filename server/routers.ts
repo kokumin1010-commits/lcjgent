@@ -2153,12 +2153,14 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
               ? `この注文は既にポイント申請済みです。注文番号: ${ocrData.orderNumber}`
               : `この注文番号は既に他の方が申請済みです。注文番号: ${ocrData.orderNumber}`;
             
-            // Save AI rejection info instead of deleting
-            const { updateLineReceiptAiRejection: updateAiRejDuplicate } = await import("./db");
+            // Save AI rejection info AND set status to rejected so it doesn't appear in admin panel
+            const { updateLineReceiptAiRejection: updateAiRejDuplicate, updateLineReceiptStatus: updateDupStatus } = await import("./db");
             await updateAiRejDuplicate(receiptId, {
               aiRejectionReason: rejectionMsg,
               aiRejectionCategory: "other",
             });
+            // Mark as rejected so duplicate receipts don't clutter the admin review panel
+            await updateDupStatus(receiptId, "rejected", 0, `自動却下: ${rejectionMsg}`);
             
             return {
               receiptId,

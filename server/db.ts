@@ -8261,7 +8261,8 @@ export async function checkDuplicateOrderNumberGlobal(
   if (!db) throw new Error("Database not available");
   
   // 1. Search lineReceipts table (ocrRawText JSON field)
-  let conditions = sql`JSON_EXTRACT(${lineReceipts.ocrRawText}, '$.orderNumber') = ${orderNumber}`;
+  // Only check non-rejected receipts to avoid false positives from previously rejected duplicates
+  let conditions = sql`JSON_EXTRACT(${lineReceipts.ocrRawText}, '$.orderNumber') = ${orderNumber} AND ${lineReceipts.status} != 'rejected'`;
   
   if (excludeId) {
     conditions = sql`${conditions} AND ${lineReceipts.id} != ${excludeId}`;

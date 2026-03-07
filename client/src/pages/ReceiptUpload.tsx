@@ -536,7 +536,7 @@ export default function ReceiptUpload() {
                         onSkip={handlePopupSkip}
                       />
                     )}
-                    {analysisResult.status !== "success" && analysisResult.status !== "on_hold" && analysisResult.receiptId && (
+                    {analysisResult.status !== "success" && analysisResult.status !== "on_hold" && analysisResult.status !== "duplicate" && analysisResult.receiptId && (
                       <Button
                         className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold h-12"
                         onClick={() => {
