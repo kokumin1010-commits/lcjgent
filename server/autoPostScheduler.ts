@@ -855,8 +855,10 @@ export async function executeAutoPostWithType(
     }
 
     // テーマ重複チェック（1）深夜バッチ内で同じカテゴリ×記事タイプの組み合わせがすでに生成済みか確認
+    // slugフィールドを優先使用（nameは日本語のためslugに変換すると全て「-----」になるバグを修正）
     const categorySlugForTheme = categoryId
-      ? (blogCategories.find(c => c.id === categoryId)?.name || 'unknown').toLowerCase().replace(/[^a-z0-9]/g, '-')
+      ? (blogCategories.find(c => c.id === categoryId)?.slug
+          || (blogCategories.find(c => c.id === categoryId)?.name || 'unknown').toLowerCase().replace(/[^a-z0-9]/g, '-'))
       : 'unknown';
     const themeKey = `${categorySlugForTheme}:${articleTypeRotation}`;
     if (usedThemeKeys && usedThemeKeys.has(themeKey)) {
