@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, isNull, gte, lte, gt, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks, blogArticleSeoMetrics, InsertBlogArticleSeoMetric, blogArticleStats, InsertBlogArticleStat, blogArticleThemeLog, InsertBlogArticleThemeLogEntry } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -18261,4 +18261,203 @@ export async function getTodayScheduledCount(): Promise<number> {
       lte(blogArticles.publishedAt, utcEnd),
     ));
   return rows.length;
+}
+
+// =============================================
+// Blog SEO Monitoring & CV Tracking helpers
+// =============================================
+
+/**
+ * テーマ重複チェック（カテゴリ×悩み×記事タイプの組み合わせで直近30日）
+ */
+export async function checkThemeDuplicate(
+  categorySlug: string,
+  articleType: string,
+  keyword: string,
+  days: number = 30
+): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const rows = await db
+    .select()
+    .from(blogArticleThemeLog)
+    .where(
+      and(
+        eq(blogArticleThemeLog.categorySlug, categorySlug),
+        eq(blogArticleThemeLog.articleType, articleType),
+        like(blogArticleThemeLog.keyword, `%${keyword.substring(0, 10)}%`),
+        gte(blogArticleThemeLog.createdAt, since)
+      )
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
+/**
+ * テーマログを記録（重複防止用）
+ */
+export async function recordBlogThemeLog(data: InsertBlogArticleThemeLogEntry) {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.insert(blogArticleThemeLog).values(data);
+  } catch (e) {
+    console.warn('[DB] recordBlogThemeLog failed:', e);
+  }
+}
+
+/**
+ * 記事CV計測レコードを作成または更新
+ */
+export async function upsertBlogArticleStat(data: InsertBlogArticleStat) {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    const existing = await db
+      .select()
+      .from(blogArticleStats)
+      .where(eq(blogArticleStats.articleId, data.articleId!))
+      .limit(1);
+    if (existing.length > 0) {
+      await db
+        .update(blogArticleStats)
+        .set(data)
+        .where(eq(blogArticleStats.articleId, data.articleId!));
+    } else {
+      await db.insert(blogArticleStats).values(data);
+    }
+  } catch (e) {
+    console.warn('[DB] upsertBlogArticleStat failed:', e);
+  }
+}
+
+/**
+ * SEO指標レコードを作成または更新
+ */
+export async function upsertBlogArticleSeoMetric(data: InsertBlogArticleSeoMetric) {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    const existing = await db
+      .select()
+      .from(blogArticleSeoMetrics)
+      .where(eq(blogArticleSeoMetrics.articleId, data.articleId!))
+      .limit(1);
+    if (existing.length > 0) {
+      await db
+        .update(blogArticleSeoMetrics)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(blogArticleSeoMetrics.articleId, data.articleId!));
+    } else {
+      await db.insert(blogArticleSeoMetrics).values(data);
+    }
+  } catch (e) {
+    console.warn('[DB] upsertBlogArticleSeoMetric failed:', e);
+  }
+}
+
+/**
+ * 低品質記事を抽出（impressions低・CTR低・未インデックス、公開後30日以上）
+ */
+export async function getWeakBlogArticles(limit: number = 20): Promise<Array<{
+  articleId: number;
+  slug: string;
+  title: string;
+  impressions: number;
+  clicks: number;
+  ctr: string;
+  avgPosition: string;
+  isIndexed: boolean;
+  rewriteCount: number;
+}>> {
+  const db = await getDb();
+  if (!db) return [];
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  try {
+    const rows = await db
+      .select({
+        articleId: blogArticleSeoMetrics.articleId,
+        slug: blogArticleSeoMetrics.slug,
+        title: blogArticles.title,
+        impressions: blogArticleSeoMetrics.impressions,
+        clicks: blogArticleSeoMetrics.clicks,
+        ctr: blogArticleSeoMetrics.ctr,
+        avgPosition: blogArticleSeoMetrics.avgPosition,
+        isIndexed: blogArticleSeoMetrics.isIndexed,
+        rewriteCount: blogArticleStats.rewriteCount,
+      })
+      .from(blogArticleSeoMetrics)
+      .leftJoin(blogArticles, eq(blogArticleSeoMetrics.articleId, blogArticles.id))
+      .leftJoin(blogArticleStats, eq(blogArticleSeoMetrics.articleId, blogArticleStats.articleId))
+      .where(
+        and(
+          eq(blogArticles.status, 'published'),
+          lte(blogArticles.publishedAt, thirtyDaysAgo),
+          or(
+            eq(blogArticleSeoMetrics.isIndexed, false),
+            lte(blogArticleSeoMetrics.impressions, 10),
+            lte(blogArticleSeoMetrics.clicks, 1)
+          )
+        )
+      )
+      .orderBy(asc(blogArticleSeoMetrics.impressions))
+      .limit(limit);
+    return rows.map(r => ({
+      articleId: r.articleId,
+      slug: r.slug,
+      title: r.title || '',
+      impressions: r.impressions,
+      clicks: r.clicks,
+      ctr: r.ctr || '0.0000',
+      avgPosition: r.avgPosition || '0.00',
+      isIndexed: r.isIndexed,
+      rewriteCount: r.rewriteCount || 0,
+    }));
+  } catch (e) {
+    console.warn('[DB] getWeakBlogArticles failed:', e);
+    return [];
+  }
+}
+
+/**
+ * 記事CV計測: バナークリックを記録
+ */
+export async function incrementBlogBannerClick(articleId: number) {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db
+      .update(blogArticleStats)
+      .set({ bannerClicks: sql`bannerClicks + 1` })
+      .where(eq(blogArticleStats.articleId, articleId));
+  } catch (e) {}
+}
+
+/**
+ * 記事CV計測: 商品クリックを記録
+ */
+export async function incrementBlogProductClick(articleId: number) {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db
+      .update(blogArticleStats)
+      .set({ productClicks: sql`productClicks + 1` })
+      .where(eq(blogArticleStats.articleId, articleId));
+  } catch (e) {}
+}
+
+/**
+ * 記事CV計測: モールクリックを記録
+ */
+export async function incrementBlogMallClick(articleId: number) {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db
+      .update(blogArticleStats)
+      .set({ mallClicks: sql`mallClicks + 1` })
+      .where(eq(blogArticleStats.articleId, articleId));
+  } catch (e) {}
 }

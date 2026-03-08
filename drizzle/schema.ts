@@ -3711,3 +3711,70 @@ export const userTrustLevels = mysqlTable("user_trust_levels", {
 });
 export type UserTrustLevel = typeof userTrustLevels.$inferSelect;
 export type InsertUserTrustLevel = typeof userTrustLevels.$inferInsert;
+
+// =============================================
+// Blog SEO Monitoring & CV Tracking (Phase 1-3)
+// =============================================
+
+/**
+ * ブログ記事SEO指標テーブル
+ * Search Console APIから取得したデータを記録
+ */
+export const blogArticleSeoMetrics = mysqlTable("blog_article_seo_metrics", {
+  id: int("id").autoincrement().primaryKey(),
+  articleId: int("articleId").notNull(),
+  slug: varchar("slug", { length: 255 }).notNull(),
+  impressions: int("impressions").default(0).notNull(),
+  clicks: int("clicks").default(0).notNull(),
+  ctr: decimal("ctr", { precision: 6, scale: 4 }).default("0.0000"),
+  avgPosition: decimal("avgPosition", { precision: 6, scale: 2 }).default("0.00"),
+  isIndexed: boolean("isIndexed").default(false).notNull(),
+  indexedAt: timestamp("indexedAt"),
+  lastCheckedAt: timestamp("lastCheckedAt"),
+  periodStart: timestamp("periodStart"),
+  periodEnd: timestamp("periodEnd"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type BlogArticleSeoMetric = typeof blogArticleSeoMetrics.$inferSelect;
+export type InsertBlogArticleSeoMetric = typeof blogArticleSeoMetrics.$inferInsert;
+
+/**
+ * ブログ記事CV計測テーブル
+ */
+export const blogArticleStats = mysqlTable("blog_article_stats", {
+  id: int("id").autoincrement().primaryKey(),
+  articleId: int("articleId").notNull().unique(),
+  mallClicks: int("mallClicks").default(0).notNull(),
+  productClicks: int("productClicks").default(0).notNull(),
+  bannerClicks: int("bannerClicks").default(0).notNull(),
+  bannerImpressions: int("bannerImpressions").default(0).notNull(),
+  titlePattern: varchar("titlePattern", { length: 50 }),
+  articleType: varchar("articleType", { length: 30 }),
+  categorySlug: varchar("categorySlug", { length: 100 }),
+  internalLinkCount: int("internalLinkCount").default(0),
+  qualityScore: int("qualityScore").default(0),
+  rewriteCount: int("rewriteCount").default(0).notNull(),
+  lastRewriteAt: timestamp("lastRewriteAt"),
+  rewriteReason: varchar("rewriteReason", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type BlogArticleStat = typeof blogArticleStats.$inferSelect;
+export type InsertBlogArticleStat = typeof blogArticleStats.$inferInsert;
+
+/**
+ * ブログ記事テーマログ（slug重複・近似テーマ重複防止）
+ */
+export const blogArticleThemeLog = mysqlTable("blog_article_theme_log", {
+  id: int("id").autoincrement().primaryKey(),
+  articleId: int("articleId").notNull(),
+  categorySlug: varchar("categorySlug", { length: 100 }).notNull(),
+  problemType: varchar("problemType", { length: 100 }),
+  articleType: varchar("articleType", { length: 30 }).notNull(),
+  keyword: varchar("keyword", { length: 255 }),
+  titlePattern: varchar("titlePattern", { length: 50 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type BlogArticleThemeLogEntry = typeof blogArticleThemeLog.$inferSelect;
+export type InsertBlogArticleThemeLogEntry = typeof blogArticleThemeLog.$inferInsert;

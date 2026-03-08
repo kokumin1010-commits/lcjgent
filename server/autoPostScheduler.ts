@@ -20,7 +20,7 @@
  * - Quality check before publishing
  */
 
-import { listAutoPostSchedules, getNextUnusedKeyword, createAutoPostLog, updateAutoPostLog, markKeywordUsed, incrementScheduleGenerated, createBlogArticle, getBlogArticleBySlug, updateBlogArticle, updateAutoPostSchedule, listPresetKeywordsDb, createPresetKeywordDb, getMallProductSalesRanking, getAllMallProductBuyerCounts, getAllProductReviewStats, findRelatedProductsForArticle, getAllBlogCategories, getAllMallBrands, getAllMallCategoryRecords, getAllBlogTags, createBlogTag, setBlogArticleTags, getRelatedBlogArticles, getTodayBlogArticleCount, getTodayCategoryPostCounts, getRecentArticleTitles, publishDueScheduledArticles, getTodayScheduledCount } from "./db";
+import { listAutoPostSchedules, getNextUnusedKeyword, createAutoPostLog, updateAutoPostLog, markKeywordUsed, incrementScheduleGenerated, createBlogArticle, getBlogArticleBySlug, updateBlogArticle, updateAutoPostSchedule, listPresetKeywordsDb, createPresetKeywordDb, getMallProductSalesRanking, getAllMallProductBuyerCounts, getAllProductReviewStats, findRelatedProductsForArticle, getAllBlogCategories, getAllMallBrands, getAllMallCategoryRecords, getAllBlogTags, createBlogTag, setBlogArticleTags, getRelatedBlogArticles, getTodayBlogArticleCount, getTodayCategoryPostCounts, getRecentArticleTitles, publishDueScheduledArticles, getTodayScheduledCount, checkThemeDuplicate, recordBlogThemeLog, upsertBlogArticleStat } from "./db";
 import { invokeLLM } from "./_core/llm";
 import { generateImage } from "./_core/imageGeneration";
 import { storagePut } from "./storage";
@@ -203,12 +203,13 @@ export function insertLcjBanners(html: string): string {
 
   return result;
 }
-
 /**
- * 内部リンクセクションを自動生成して記事末尾に追加する
- * - 関連記事3本
- * - 商品一覧1本
+ * 内部リンクセクションを自動生成して記事末尾に追加する（文脈最適化版）
+ * - 同カテゴリ記事2本（最新順）
+ * - 同悩み（タグ一致）記事1本
+ * - 商品ページ1本（キーワード連動）
  * - LCJ Mall案内1本
+ * 合計5本以上の内部リンクを保証
  */
 async function buildInternalLinksSection(
   articleId: number,
@@ -216,35 +217,61 @@ async function buildInternalLinksSection(
   tagIds: number[],
   keyword: string
 ): Promise<string> {
-  let relatedArticles: Array<{ title: string; slug: string }> = [];
+  // 同カテゴリ記事（最大3本取得して上位2本使用）
+  let sameCategoryArticles: Array<{ title: string; slug: string }> = [];
   try {
-    relatedArticles = await getRelatedBlogArticles(articleId, categoryId, tagIds, 3);
+    sameCategoryArticles = await getRelatedBlogArticles(articleId, categoryId, [], 3);
   } catch (e) {
     // ignore
   }
+
+  // 同タグ（悩み）記事（最大2本取得して1本使用、カテゴリ記事と重複しないもの）
+  let sameTagArticles: Array<{ title: string; slug: string }> = [];
+  try {
+    if (tagIds.length > 0) {
+      const tagRelated = await getRelatedBlogArticles(articleId, null, tagIds, 3);
+      const catSlugs = new Set(sameCategoryArticles.map(a => a.slug));
+      sameTagArticles = tagRelated.filter(a => !catSlugs.has(a.slug)).slice(0, 1);
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  // キーワードに応じた商品ページURLを生成
+  const productPageUrl = categoryId
+    ? `/mall/products?category=${categoryId}`
+    : `/mall/products`;
+  const productPageLabel = keyword
+    ? `${keyword}の商品一覧を見る`
+    : 'LCJ Mall 商品一覧を見る';
 
   let html = `<div class="internal-links-section" style="margin-top:40px;padding:24px;background:#f9fafb;border-radius:12px;">
   <h3 style="font-size:18px;font-weight:700;margin-bottom:16px;color:#1f2937;">📚 関連記事・おすすめリンク</h3>
   <ul style="list-style:none;padding:0;margin:0 0 16px;">`;
 
-  // 関連記事（最大3本）
-  for (const art of relatedArticles.slice(0, 3)) {
+  // 同カテゴリ記事（最大2本）
+  for (const art of sameCategoryArticles.slice(0, 2)) {
     html += `\n    <li style="margin-bottom:8px;"><a href="/blog/${art.slug}" style="color:#7c3aed;text-decoration:none;font-weight:500;">▶ ${art.title}</a></li>`;
   }
 
-  // 関連記事が3本未満の場合はカテゴリリンクで補完
-  if (relatedArticles.length < 3) {
+  // 同悩み（タグ一致）記事（1本）
+  for (const art of sameTagArticles.slice(0, 1)) {
+    html += `\n    <li style="margin-bottom:8px;"><a href="/blog/${art.slug}" style="color:#7c3aed;text-decoration:none;font-weight:500;">▶ ${art.title}</a></li>`;
+  }
+
+  // 関連記事が合計3本未満の場合はブログ一覧リンクで補完
+  const totalArticleLinks = sameCategoryArticles.slice(0, 2).length + sameTagArticles.slice(0, 1).length;
+  if (totalArticleLinks < 3) {
     html += `\n    <li style="margin-bottom:8px;"><a href="/blog" style="color:#7c3aed;text-decoration:none;font-weight:500;">▶ 美容・ヘアケアブログ一覧</a></li>`;
   }
 
-  // 商品一覧リンク
-  html += `\n    <li style="margin-bottom:8px;"><a href="/mall/products" style="color:#7c3aed;text-decoration:none;font-weight:500;">▶ LCJ Mall 商品一覧を見る</a></li>`;
+  // 商品ページリンク（キーワード連動）
+  html += `\n    <li style="margin-bottom:8px;"><a href="${productPageUrl}" style="color:#7c3aed;text-decoration:none;font-weight:500;">▶ ${productPageLabel}</a></li>`;
 
   // LCJ Mall案内リンク
   html += `\n    <li style="margin-bottom:8px;"><a href="https://lcjmall.com" style="color:#7c3aed;text-decoration:none;font-weight:500;">▶ LCJ Mall トップページ（TikTok Shop連携・ポイント還元）</a></li>`;
 
-  html += `\n  </ul>
-</div>`;
+  html += `\n  </ul>\n</div>`;
 
   return html;
 }
@@ -581,6 +608,9 @@ export async function runMidnightBatch() {
     const schedule = enabledSchedules[0]; // メインスケジュールを使用
     let generatedCount = 0;
 
+    // テーマ重複チェック用のカテゴリ×タイプ使用済みセット（深夜バッチ内での重複防止）
+    const usedThemeKeys = new Set<string>();
+
     for (let i = todayScheduledCount; i < DAILY_POST_TARGET && generatedCount < needed; i++) {
       // 記事タイプをDAILY_TYPE_PLANから取得
       const articleType = DAILY_TYPE_PLAN[i % DAILY_TYPE_PLAN.length];
@@ -592,7 +622,7 @@ export async function runMidnightBatch() {
       let success = false;
       for (let retry = 0; retry < MAX_RETRY_COUNT; retry++) {
         try {
-          const articleId = await executeAutoPostWithType(schedule, articleType, 'scheduled', publishedAt, recentTitles, categoryPostCounts);
+          const articleId = await executeAutoPostWithType(schedule, articleType, 'scheduled', publishedAt, recentTitles, categoryPostCounts, usedThemeKeys);
           if (articleId) {
             recentTitles.push(''); // プレースホルダー（実際のタイトルは取得できないため）
             generatedCount++;
@@ -732,6 +762,7 @@ export async function runAutoPostCheck() {
  * @param forcedPublishedAt - 強制する公開時刻（scheduled時に使用）
  * @param recentTitles - 重複チェック用の直近記事タイトル一覧
  * @param categoryPostCounts - カテゴリ別投稿数（偏り防止用）
+ * @param usedThemeKeys - 深夜バッチ内で使用済みのテーマキーセット（カテゴリ×記事タイプの組み合わせ）
  * @returns 作成された記事ID（失敗時はnull）
  */
 export async function executeAutoPostWithType(
@@ -741,6 +772,7 @@ export async function executeAutoPostWithType(
   forcedPublishedAt?: Date | null,
   recentTitles?: string[],
   categoryPostCounts?: Record<number, number>,
+  usedThemeKeys?: Set<string>,
 ): Promise<number | null> {
   // Create log entry
   const log = await createAutoPostLog({
@@ -820,6 +852,37 @@ export async function executeAutoPostWithType(
           console.log(`[AutoPost Scheduler] Switched to category: ${otherCategories[0].name}`);
         }
       }
+    }
+
+    // テーマ重複チェック（1）深夜バッチ内で同じカテゴリ×記事タイプの組み合わせがすでに生成済みか確認
+    const categorySlugForTheme = categoryId
+      ? (blogCategories.find(c => c.id === categoryId)?.name || 'unknown').toLowerCase().replace(/[^a-z0-9]/g, '-')
+      : 'unknown';
+    const themeKey = `${categorySlugForTheme}:${articleTypeRotation}`;
+    if (usedThemeKeys && usedThemeKeys.has(themeKey)) {
+      console.warn(`[AutoPost Scheduler] Theme "${themeKey}" already used in this batch, skipping to avoid duplication`);
+      await updateAutoPostLog(log.id, { status: 'failed', errorMessage: `Duplicate theme in batch: ${themeKey}` });
+      return null;
+    }
+
+    // テーマ重複チェック（2）DBの直近30日間のテーマログと照合
+    try {
+      const isDuplicate = await checkThemeDuplicate(categorySlugForTheme, articleTypeRotation, keyword, 30);
+      if (isDuplicate) {
+        console.warn(`[AutoPost Scheduler] Theme "${themeKey}" with keyword "${keyword}" already exists in last 30 days, skipping`);
+        // 重複でも失敗としてログするが、別キーワードで再試行するためnullを返さない
+        // キーワードを使用済にマークして別のキーワードで再試行を促す
+        if (keywordId) await markKeywordUsed(keywordId);
+        await updateAutoPostLog(log.id, { status: 'failed', errorMessage: `Duplicate theme in DB: ${themeKey}` });
+        return null;
+      }
+    } catch (themeCheckErr: any) {
+      console.warn('[AutoPost Scheduler] Theme duplicate check failed (proceeding):', themeCheckErr.message);
+    }
+
+    // テーマキーをバッチ内使用済セットに登録
+    if (usedThemeKeys) {
+      usedThemeKeys.add(themeKey);
     }
 
     // Step 5: Generate article with LLM (enhanced prompt with GEO optimization)
@@ -1142,6 +1205,39 @@ SEO/GEO最適化要件:
       }
     } else {
       console.log(`[AutoPost Scheduler] Quality check passed for article ${articleId}`);
+    }
+
+    // Step 12.5: テーマログ記録（重複防止用）
+    try {
+      const categorySlugForLog = categoryName ? categoryName.toLowerCase().replace(/[^a-z0-9]/g, '-') : 'unknown';
+      await recordBlogThemeLog({
+        articleId: articleId || null,
+        categorySlug: categorySlugForLog,
+        articleType: articleTypeRotation,
+        keyword: keyword,
+        titlePattern: articleData.title.includes('2026年') || articleData.title.includes('最新') ? 'pattern_a' :
+                      articleData.title.includes('おすすめ') ? 'pattern_b' : 'pattern_c',
+        createdAt: new Date(),
+      });
+    } catch (e) {
+      console.warn('[AutoPost Scheduler] recordBlogThemeLog failed:', e);
+    }
+
+    // Step 12.6: CV計測レコード作成
+    if (articleId) {
+      try {
+        await upsertBlogArticleStat({
+          articleId,
+          bannerClicks: 0,
+          productClicks: 0,
+          mallClicks: 0,
+          rewriteCount: 0,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      } catch (e) {
+        console.warn('[AutoPost Scheduler] upsertBlogArticleStat failed:', e);
+      }
     }
 
     // Mark keyword as used

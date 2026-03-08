@@ -17,6 +17,8 @@ import { startScheduleReminderScheduler } from "../scheduleReminderScheduler";
 import { startAiAutoApproveScheduler } from "../aiAutoApproveScheduler";
 import { startLineReminderScheduler } from "../lineReminderScheduler";
 import { startAutoPostScheduler } from "../autoPostScheduler";
+import { startSeoMonitor } from "../seoMonitor";
+import { startArticleRewriter } from "../articleRewriter";
 import { initPointExpiryScheduler } from "../pointExpiryScheduler";
 import { trackingRouter } from "../tracking";
 
@@ -1434,6 +1436,12 @@ async function startServer() {
     
     // Start auto post scheduler (generates SEO articles based on configured schedules)
     startAutoPostScheduler();
+    
+    // Start SEO monitor (checks Search Console metrics daily at JST 06:00)
+    startSeoMonitor();
+    
+    // Start article rewriter (rewrites weak articles weekly on Monday JST 03:00)
+    startArticleRewriter();
     
     // Start point expiry scheduler (processes expired points daily, sends LINE notifications)
     initPointExpiryScheduler();
