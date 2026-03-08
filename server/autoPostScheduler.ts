@@ -11,9 +11,16 @@
  * - Brand internal link auto-insertion
  * - GEO optimization (Japanese SEO, hreflang)
  * - Real EC data injection (sales ranking, buyer counts, reviews)
+ * - Dynamic year generation (no hardcoded years)
+ * - Article type rotation (trend / problem-solving / ranking)
+ * - Unified article template (intro → how-to → products → banner → summary)
+ * - LCJ Mall banner insertion at 3 positions
+ * - Tag-based product recommendation
+ * - Auto internal links (5+ per article)
+ * - Quality check before publishing
  */
 
-import { listAutoPostSchedules, getNextUnusedKeyword, createAutoPostLog, updateAutoPostLog, markKeywordUsed, incrementScheduleGenerated, createBlogArticle, getBlogArticleBySlug, updateBlogArticle, updateAutoPostSchedule, listPresetKeywordsDb, createPresetKeywordDb, getMallProductSalesRanking, getAllMallProductBuyerCounts, getAllProductReviewStats, findRelatedProductsForArticle, getAllBlogCategories, getAllMallBrands, getAllMallCategoryRecords } from "./db";
+import { listAutoPostSchedules, getNextUnusedKeyword, createAutoPostLog, updateAutoPostLog, markKeywordUsed, incrementScheduleGenerated, createBlogArticle, getBlogArticleBySlug, updateBlogArticle, updateAutoPostSchedule, listPresetKeywordsDb, createPresetKeywordDb, getMallProductSalesRanking, getAllMallProductBuyerCounts, getAllProductReviewStats, findRelatedProductsForArticle, getAllBlogCategories, getAllMallBrands, getAllMallCategoryRecords, getAllBlogTags, createBlogTag, setBlogArticleTags, getRelatedBlogArticles } from "./db";
 import { invokeLLM } from "./_core/llm";
 import { generateImage } from "./_core/imageGeneration";
 import { storagePut } from "./storage";
@@ -26,6 +33,11 @@ const CHECK_INTERVAL_MS = 60 * 60 * 1000;
 
 let intervalId: NodeJS.Timeout | null = null;
 
+// ─── Article type rotation ───
+// 3種類をローテーション: trend（トレンド）/ problem（悩み解決）/ ranking（比較ランキング）
+const ARTICLE_TYPE_ROTATION = ['trend', 'problem', 'ranking'] as const;
+type ArticleTypeRotation = typeof ARTICLE_TYPE_ROTATION[number];
+
 // ─── Category keyword mapping for auto-assignment ───
 const CATEGORY_KEYWORD_MAP: Record<string, string[]> = {
   'シャンプー・トリートメント': ['シャンプー', 'トリートメント', 'コンディショナー', 'ヘアマスク', '洗髪', 'ヘアウォッシュ'],
@@ -37,7 +49,7 @@ const CATEGORY_KEYWORD_MAP: Record<string, string[]> = {
   '美容家電': ['ドライヤー', 'ヘアアイロン', 'コテ', '美顔器', '美容家電'],
   'TikTok Shop': ['TikTok', 'ティックトック', 'ライブコマース', 'ライブ配信', 'ソーシャルコマース'],
   'ランキング・比較': ['ランキング', '比較', 'おすすめ', '人気', 'ベスト', 'TOP'],
-  '美容トレンド': ['トレンド', '最新', '2026', '新作', '話題'],
+  '美容トレンド': ['トレンド', '最新', '新作', '話題'],
   'Eコマース': ['EC', 'オンラインショップ', '通販', '越境EC', 'D2C'],
 };
 
@@ -103,6 +115,181 @@ export function insertBrandLinks(html: string, brands: Array<{ id: number; name:
 }
 
 /**
+ * LCJ Mall特典バナーHTMLを生成する
+ */
+function buildLcjBannerHtml(position: 'top' | 'middle' | 'bottom'): string {
+  const messages: Record<string, string> = {
+    top: 'TikTok Shopで購入した商品は、LCJ Mallでレシートを送るとポイント還元！今すぐチェック',
+    middle: 'LCJ Mall限定特典：TikTok Shopのレシート送信でポイントがもらえる！お得に美容商品をゲット',
+    bottom: 'LCJ Mallでお気に入りの美容商品を見つけよう。TikTok Shopのレシート送信でポイント還元対象！',
+  };
+  const msg = messages[position];
+  return `<div class="lcj-banner lcj-banner-${position}" style="margin:24px 0;padding:20px 24px;background:linear-gradient(135deg,#ff6b9d 0%,#c44dff 100%);border-radius:12px;text-align:center;color:#fff;">
+  <p style="margin:0 0 12px;font-size:15px;font-weight:600;line-height:1.5;">${msg}</p>
+  <a href="https://lcjmall.com" style="display:inline-block;padding:10px 28px;background:#fff;color:#c44dff;font-weight:700;border-radius:999px;text-decoration:none;font-size:14px;">LCJ Mallを見る →</a>
+</div>`;
+}
+
+/**
+ * 記事HTMLにLCJバナーを3箇所（冒頭・商品紹介前・末尾）に挿入する
+ */
+export function insertLcjBanners(html: string): string {
+  // 既にバナーが挿入済みの場合はスキップ
+  if (html.includes('lcj-banner')) return html;
+
+  let result = html;
+
+  // 1. 冒頭（最初のh2の前）
+  const firstH2Match = result.match(/<h2[^>]*>/i);
+  if (firstH2Match && firstH2Match.index !== undefined) {
+    result = result.slice(0, firstH2Match.index) + buildLcjBannerHtml('top') + '\n' + result.slice(firstH2Match.index);
+  } else {
+    // h2がなければ先頭に追加
+    result = buildLcjBannerHtml('top') + '\n' + result;
+  }
+
+  // 2. 商品紹介前（product-cardまたは「おすすめ」「ランキング」を含むh2/h3の前）
+  const productSectionMatch = result.match(/<h[23][^>]*>[^<]*(おすすめ|ランキング|比較|商品|product)[^<]*<\/h[23]>/i);
+  if (productSectionMatch && productSectionMatch.index !== undefined) {
+    result = result.slice(0, productSectionMatch.index) + buildLcjBannerHtml('middle') + '\n' + result.slice(productSectionMatch.index);
+  }
+
+  // 3. 末尾（まとめ・まとめセクションの前、またはHTMLの末尾）
+  const summaryMatch = result.match(/<h[23][^>]*>[^<]*(まとめ|おわりに|最後に|結論)[^<]*<\/h[23]>/i);
+  if (summaryMatch && summaryMatch.index !== undefined) {
+    result = result.slice(0, summaryMatch.index) + buildLcjBannerHtml('bottom') + '\n' + result.slice(summaryMatch.index);
+  } else {
+    // まとめセクションがなければ末尾に追加
+    result = result + '\n' + buildLcjBannerHtml('bottom');
+  }
+
+  return result;
+}
+
+/**
+ * 内部リンクセクションを自動生成して記事末尾に追加する
+ * - 関連記事3本
+ * - 商品一覧1本
+ * - LCJ Mall案内1本
+ */
+async function buildInternalLinksSection(
+  articleId: number,
+  categoryId: number | null,
+  tagIds: number[],
+  keyword: string
+): Promise<string> {
+  let relatedArticles: Array<{ title: string; slug: string }> = [];
+  try {
+    relatedArticles = await getRelatedBlogArticles(articleId, categoryId, tagIds, 3);
+  } catch (e) {
+    // ignore
+  }
+
+  let html = `<div class="internal-links-section" style="margin-top:40px;padding:24px;background:#f9fafb;border-radius:12px;">
+  <h3 style="font-size:18px;font-weight:700;margin-bottom:16px;color:#1f2937;">📚 関連記事・おすすめリンク</h3>
+  <ul style="list-style:none;padding:0;margin:0 0 16px;">`;
+
+  // 関連記事（最大3本）
+  for (const art of relatedArticles.slice(0, 3)) {
+    html += `\n    <li style="margin-bottom:8px;"><a href="/blog/${art.slug}" style="color:#7c3aed;text-decoration:none;font-weight:500;">▶ ${art.title}</a></li>`;
+  }
+
+  // 関連記事が3本未満の場合はカテゴリリンクで補完
+  if (relatedArticles.length < 3) {
+    html += `\n    <li style="margin-bottom:8px;"><a href="/blog" style="color:#7c3aed;text-decoration:none;font-weight:500;">▶ 美容・ヘアケアブログ一覧</a></li>`;
+  }
+
+  // 商品一覧リンク
+  html += `\n    <li style="margin-bottom:8px;"><a href="/mall/products" style="color:#7c3aed;text-decoration:none;font-weight:500;">▶ LCJ Mall 商品一覧を見る</a></li>`;
+
+  // LCJ Mall案内リンク
+  html += `\n    <li style="margin-bottom:8px;"><a href="https://lcjmall.com" style="color:#7c3aed;text-decoration:none;font-weight:500;">▶ LCJ Mall トップページ（TikTok Shop連携・ポイント還元）</a></li>`;
+
+  html += `\n  </ul>
+</div>`;
+
+  return html;
+}
+
+/**
+ * 品質チェック：最低基準を満たすか確認する
+ * 基準:
+ * - 年号が正常（ハードコードされた過去年がない）
+ * - LCJバナーが3箇所以上
+ * - 内部リンクが5本以上
+ * - 画像が1枚以上（coverImageUrlまたはインライン画像）
+ */
+export function qualityCheck(html: string, coverImageUrl: string | null): {
+  passed: boolean;
+  issues: string[];
+} {
+  const issues: string[] = [];
+
+  // バナーチェック（3箇所）
+  const bannerCount = (html.match(/lcj-banner/g) || []).length;
+  if (bannerCount < 3) {
+    issues.push(`LCJバナーが${bannerCount}箇所（最低3箇所必要）`);
+  }
+
+  // 内部リンクチェック（5本以上）
+  const internalLinkCount = (html.match(/href="(\/|https:\/\/lcjmall\.com)/g) || []).length;
+  if (internalLinkCount < 5) {
+    issues.push(`内部リンクが${internalLinkCount}本（最低5本必要）`);
+  }
+
+  // 画像チェック
+  const hasImage = coverImageUrl || /<img[^>]+src/.test(html);
+  if (!hasImage) {
+    issues.push('画像が0枚（最低1枚必要）');
+  }
+
+  return {
+    passed: issues.length === 0,
+    issues,
+  };
+}
+
+/**
+ * 記事タイプに応じたプロンプトテンプレートを返す
+ */
+function getArticleTypePrompt(articleTypeRotation: ArticleTypeRotation, keyword: string, currentYear: number): string {
+  switch (articleTypeRotation) {
+    case 'trend':
+      return `記事タイプ: トレンド紹介記事
+構成（必ずこの順序で）:
+1. 冒頭リード文（${currentYear}年の最新トレンドとして「${keyword}」を紹介、読者の興味を引く）
+2. 「${keyword}とは」（h2: 基本説明・背景）
+3. 「${currentYear}年のトレンドポイント」（h2: なぜ今注目されているか）
+4. 「選び方のポイント」（h2: 読者が商品を選ぶ際の基準）
+5. 「おすすめ商品」（h2: 商品カードプレースホルダーを3〜5個配置）
+6. 「よくある質問」（h2: FAQ 3〜5個）
+7. 「まとめ」（h2: 記事の要点とLCJ Mallへの誘導）`;
+
+    case 'problem':
+      return `記事タイプ: 悩み解決記事
+構成（必ずこの順序で）:
+1. 冒頭リード文（「${keyword}」に悩む読者に共感し、解決策を提示）
+2. 「よくある悩みとその原因」（h2: 読者の悩みを具体的に列挙）
+3. 「解決策・ケア方法」（h2: ステップバイステップのHowTo）
+4. 「選び方のポイント」（h2: 商品選びの基準）
+5. 「おすすめ商品」（h2: 商品カードプレースホルダーを3〜5個配置）
+6. 「よくある質問」（h2: FAQ 3〜5個）
+7. 「まとめ」（h2: 記事の要点とLCJ Mallへの誘導）`;
+
+    case 'ranking':
+    default:
+      return `記事タイプ: 比較・ランキング記事
+構成（必ずこの順序で）:
+1. 冒頭リード文（「${keyword}」の比較・ランキング記事であることを明示）
+2. 「選び方のポイント」（h2: 比較基準を解説）
+3. 「${currentYear}年おすすめランキング TOP5」（h2: 商品カードプレースホルダーを5個配置、各商品にh3見出し）
+4. 「比較表」（h2: tableタグで商品を比較）
+5. 「よくある質問」（h2: FAQ 3〜5個）
+6. 「まとめ」（h2: 記事の要点とLCJ Mallへの誘導）`;
+  }
+}
+
+/**
  * Start the auto post scheduler
  */
 export function startAutoPostScheduler() {
@@ -150,6 +337,7 @@ async function autoReplenishKeywords() {
     const LOW_THRESHOLD = 10;
 
     if (unusedCount < LOW_THRESHOLD) {
+      const currentYear = new Date().getFullYear();
       console.log(`[AutoPost Scheduler] Low keywords (${unusedCount} unused). Auto-generating more...`);
       const existingList = keywords.map(k => k.keyword);
 
@@ -181,7 +369,7 @@ async function autoReplenishKeywords() {
         { cat: "professional-care", desc: "美容師おすすめ、サロン専売品、プロ用ヘアケア" },
         { cat: "tiktok-shop", desc: "TikTok Shopでの購入方法、お得な使い方、商品レビュー、TikTok Shop始め方" },
         { cat: "ranking-comparison", desc: "商品ランキング、比較記事、市販vs専売、コスパ比較" },
-        { cat: "beauty-trends", desc: "美容トレンド2026、最新ヘアケア、話題の成分、新商品" },
+        { cat: "beauty-trends", desc: `美容トレンド${currentYear}、最新ヘアケア、話題の成分、新商品` },
       ];
 
       // Pick 3 random categories to generate for variety
@@ -200,6 +388,7 @@ async function autoReplenishKeywords() {
 - 購買意図が高いキーワードを優先（「おすすめ」「比較」「ランキング」「口コミ」「選び方」）
 - 検索ボリュームが見込める実用的なもの
 - 「〜とは」「〜やり方」「〜おすすめ」「〜比較」「〜ランキング」「〜口コミ」などのパターンを活用
+- 年号を使う場合は必ず${currentYear}年を使用すること（過去の年号は使わない）
 ${productContext}`,
               },
               {
@@ -271,7 +460,6 @@ JSON形式で返してください:`,
  */
 export async function runAutoPostCheck() {
   console.log("[AutoPost Scheduler] Running check...");
-
   try {
     // Auto-replenish keywords if running low
     await autoReplenishKeywords();
@@ -285,7 +473,6 @@ export async function runAutoPostCheck() {
     }
 
     const now = new Date();
-
     for (const schedule of enabledSchedules) {
       try {
         // Check if it's time to run this schedule
@@ -331,10 +518,12 @@ async function executeAutoPost(schedule: any) {
   });
 
   try {
+    // ─── 動的年号 ───
+    const currentYear = new Date().getFullYear();
+
     // Step 1: Select keyword
     let keyword: string;
     let keywordId: number | null = null;
-
     const nextKw = await getNextUnusedKeyword();
     if (nextKw) {
       keyword = nextKw.keyword;
@@ -370,7 +559,13 @@ async function executeAutoPost(schedule: any) {
       console.warn('[AutoPost Scheduler] Failed to fetch EC data:', dataErr.message);
     }
 
-    // Step 4: Generate article with LLM (enhanced prompt with GEO optimization)
+    // Step 4: Determine article type rotation
+    // scheduleのtotalGeneratedに基づいてローテーション
+    const rotationIndex = (schedule.totalGenerated || 0) % ARTICLE_TYPE_ROTATION.length;
+    const articleTypeRotation: ArticleTypeRotation = ARTICLE_TYPE_ROTATION[rotationIndex];
+    const articleTypePrompt = getArticleTypePrompt(articleTypeRotation, keyword, currentYear);
+
+    // Step 5: Generate article with LLM (enhanced prompt with GEO optimization)
     const lengthGuide = schedule.articleLength === 'short' ? '1500-2000' : schedule.articleLength === 'long' ? '5000-6000' : '3000-4000';
     const categoryName = categoryId ? blogCategories.find(c => c.id === categoryId)?.name || '' : '';
     
@@ -380,21 +575,24 @@ async function executeAutoPost(schedule: any) {
 メインキーワード: ${keyword}
 サイト: LCJ MALL（美容・ヘアケア商品を扱うECサイト。ドメイン: lcjmall.com。TikTok Shop連携あり）
 記事カテゴリ: ${categoryName || '自動判定'}
-記事タイプ: ${schedule.articleType}
+現在の年: ${currentYear}年
 トーン: ${schedule.tone}
 言語: ${schedule.language === 'ja' ? '日本語' : schedule.language === 'en' ? 'English' : schedule.language}
 文字数: ${lengthGuide}字
+
+${articleTypePrompt}
+
 ${realDataContext}
 
 JSON形式で以下を出力してください:
 {
-  "title": "記事タイトル（購買意図を含む魅力的なタイトル）",
+  "title": "記事タイトル（購買意図を含む魅力的なタイトル。年号を使う場合は${currentYear}年のみ使用）",
   "slug": "url-friendly-slug（英語のみ、ハイフン区切り）",
   "excerpt": "120字以内の抽出",
-  "contentHtml": "HTML形式の記事本文（h2, h3, p, ul, ol, blockquote, tableタグ使用）",
+  "contentHtml": "HTML形式の記事本文（上記構成テンプレートに従って生成）",
   "seoTitle": "SEO用タイトル（60字以内）",
   "seoDescription": "SEO用ディスクリプション（155字以内）",
-  "tags": ["推奨タグ名1", "推奨タグ名2", "推奨タグ名3"],
+  "tags": ["記事テーマに合ったタグ名1", "タグ名2", "タグ名3", "タグ名4", "タグ名5"],
   "suggestedCategory": "最適なカテゴリ名（シャンプー・トリートメント/カラーケア/ダメージケア/成分解析/美容師監修ケア/スキンケア/美容家電/TikTok Shop/ランキング・比較/美容トレンド/Eコマース）"
 }
 
@@ -405,20 +603,23 @@ SEO/GEO最適化要件:
 - 商品紹介セクションでは <div data-type="product-card" data-product-id="商品ID"></div> プレースホルダーを配置（後で実商品写真・価格・評価カードに自動変換される）
 - 商品ランキングセクションでは各商品に上記プレースホルダーを配置
 - 統計データや具体的な数字を含める（AI検索が引用しやすい）
-- FAQセクションを含める（「よくある質問」形式、3-5個）
-- HowToセクションを含める（具体的な手順を番号付きで）
-- 比較表を含める（<table>タグで商品を比較）
 - 構造化された見出し階層（h2 > h3）を使用
 - E-E-A-T: 美容師監修・専門家の視点を含める
 - 専門的で信頼性の高い記述を心がける
 - 日本語SEO: 自然な日本語表現、共起語を含める
 - GEO最適化: AI検索エンジンが引用しやすい明確な回答文を含める
+- 年号は必ず${currentYear}年を使用すること（過去の年号は絶対に使わない）
 
 内部リンクルール（重要）:
 - LCJ MALLへのリンクは必ず https://lcjmall.com を使用（www.は付けない）
-- 商品ページへのリンク: https://lcjmall.com/products
+- 商品ページへのリンク: /mall/products
 - ブランドページへのリンク: /brands/ブランドID（相対パス）
-- 外部リンクは最小限に抑え、内部リンクを優先する`;
+- 外部リンクは最小限に抑え、内部リンクを優先する
+
+タグ生成ルール:
+- 記事テーマを表す具体的なタグを5個生成する
+- 例: hair-care / treatment / color-care / repair / tiktok-shop
+- タグは英語小文字ハイフン区切りまたは日本語で生成する`;
 
     const response = await invokeLLM({
       messages: [
@@ -455,7 +656,7 @@ SEO/GEO最適化要件:
       throw new Error('Invalid article data from LLM');
     }
 
-    // Step 5: Resolve category (use LLM suggestion if not already set)
+    // Step 6: Resolve category (use LLM suggestion if not already set)
     if (!categoryId && articleData.suggestedCategory) {
       const suggestedCat = blogCategories.find(c => c.name === articleData.suggestedCategory);
       if (suggestedCat) {
@@ -468,11 +669,11 @@ SEO/GEO最適化要件:
       categoryId = detectCategoryForKeyword(keyword, blogCategories);
     }
 
-    // Step 5.5: Sanitize links - fix www.lcjmall.com to lcjmall.com
+    // Step 6.5: Sanitize links - fix www.lcjmall.com to lcjmall.com
     let processedHtml = articleData.contentHtml
       .replace(/https?:\/\/www\.lcjmall\.com/gi, 'https://lcjmall.com');
 
-    // Step 6: Insert brand internal links
+    // Step 7: Insert brand internal links
     try {
       const mallBrands = await getAllMallBrands();
       if (mallBrands.length > 0) {
@@ -483,7 +684,7 @@ SEO/GEO最適化要件:
       console.warn('[AutoPost Scheduler] Brand link insertion failed:', brandErr.message);
     }
 
-    // Step 6.5: Replace product-card placeholders with rich product cards (real photos, prices, reviews)
+    // Step 7.5: Replace product-card placeholders with rich product cards (real photos, prices, reviews)
     try {
       processedHtml = await postProcessArticleHtml(processedHtml, productSalesRanking, productRelated);
       console.log(`[AutoPost Scheduler] Product cards rendered with real product images and data`);
@@ -491,12 +692,42 @@ SEO/GEO最適化要件:
       console.warn('[AutoPost Scheduler] Product card rendering failed:', cardErr.message);
     }
 
+    // Step 7.6: Insert LCJ banners at 3 positions (top / middle / bottom)
+    processedHtml = insertLcjBanners(processedHtml);
+    console.log(`[AutoPost Scheduler] LCJ banners inserted at 3 positions`);
+
     // Ensure unique slug
     const baseSlug = articleData.slug || nanoid(12);
     const existingArticle = await getBlogArticleBySlug(baseSlug);
     const finalSlug = existingArticle ? `${baseSlug}-${nanoid(6)}` : baseSlug;
 
-    // Step 7: Create blog article
+    // Step 8: Resolve/create tags and find tag-matched products
+    let tagIds: number[] = [];
+    try {
+      const allTags = await getAllBlogTags();
+      const tagNames: string[] = (articleData.tags || []).slice(0, 5);
+      
+      for (const tagName of tagNames) {
+        if (!tagName) continue;
+        const slug = tagName.toLowerCase().replace(/[^a-z0-9\u3040-\u9fff]+/g, '-').replace(/^-|-$/g, '');
+        const existing = allTags.find(t => t.name === tagName || t.slug === slug);
+        if (existing) {
+          tagIds.push(existing.id);
+        } else {
+          try {
+            const created = await createBlogTag({ name: tagName, slug: slug || nanoid(8) });
+            tagIds.push(created.id);
+          } catch (e) {
+            // Tag creation failed (e.g. duplicate slug), skip
+          }
+        }
+      }
+      console.log(`[AutoPost Scheduler] Resolved ${tagIds.length} tags: ${tagNames.join(', ')}`);
+    } catch (tagErr: any) {
+      console.warn('[AutoPost Scheduler] Tag resolution failed:', tagErr.message);
+    }
+
+    // Step 9: Create blog article
     const publishStatus = schedule.autoPublish === 'publish' ? 'published' : 'draft';
     const articleResult = await createBlogArticle({
       title: articleData.title,
@@ -513,7 +744,31 @@ SEO/GEO最適化要件:
 
     const articleId = (articleResult as any).id;
 
-    // Step 8: Generate cover image if enabled
+    // Step 9.5: Set article tags
+    if (articleId && tagIds.length > 0) {
+      try {
+        await setBlogArticleTags(articleId, tagIds);
+        console.log(`[AutoPost Scheduler] Set ${tagIds.length} tags for article ${articleId}`);
+      } catch (tagSetErr: any) {
+        console.warn('[AutoPost Scheduler] Tag assignment failed:', tagSetErr.message);
+      }
+    }
+
+    // Step 9.6: Add internal links section (related articles + product list + LCJ Mall)
+    if (articleId) {
+      try {
+        const internalLinksHtml = await buildInternalLinksSection(articleId, categoryId, tagIds, keyword);
+        const htmlWithLinks = processedHtml + '\n' + internalLinksHtml;
+        await updateBlogArticle(articleId, { contentHtml: htmlWithLinks });
+        processedHtml = htmlWithLinks;
+        console.log(`[AutoPost Scheduler] Internal links section added`);
+      } catch (linkErr: any) {
+        console.warn('[AutoPost Scheduler] Internal links section failed:', linkErr.message);
+      }
+    }
+
+    // Step 10: Generate cover image if enabled
+    let coverImageUrl: string | null = null;
     if (schedule.generateImages && articleId) {
       await updateAutoPostLog(log.id, { status: 'image_generating' });
       try {
@@ -528,13 +783,14 @@ SEO/GEO最適化要件:
           const imageKey = `blog-covers/${finalSlug}-${nanoid(8)}.png`;
           const { url: s3Url } = await storagePut(imageKey, imageBuffer, 'image/png');
           await updateBlogArticle(articleId, { coverImageUrl: s3Url, coverImageKey: imageKey });
+          coverImageUrl = s3Url;
         }
       } catch (imgError: any) {
         console.error('[AutoPost Scheduler] Image generation failed:', imgError.message);
       }
     }
 
-    // Step 9: Generate inline images if enabled
+    // Step 11: Generate inline images if enabled
     if (schedule.generateImages && articleId) {
       try {
         await updateAutoPostLog(log.id, { status: 'image_generating' });
@@ -604,11 +860,25 @@ SEO/GEO最適化要件:
           }
           if (updatedHtml !== processedHtml) {
             await updateBlogArticle(articleId, { contentHtml: updatedHtml });
+            processedHtml = updatedHtml;
           }
         }
       } catch (inlineError: any) {
         console.error('[AutoPost Scheduler] Inline image analysis failed:', inlineError.message);
       }
+    }
+
+    // Step 12: Quality check
+    const qc = qualityCheck(processedHtml, coverImageUrl);
+    if (!qc.passed) {
+      console.warn(`[AutoPost Scheduler] Quality check failed for article ${articleId}: ${qc.issues.join(', ')}`);
+      // 品質基準を満たさない場合はdraftに降格
+      if (publishStatus === 'published') {
+        await updateBlogArticle(articleId, { status: 'draft' });
+        console.warn(`[AutoPost Scheduler] Article ${articleId} downgraded to draft due to quality issues`);
+      }
+    } else {
+      console.log(`[AutoPost Scheduler] Quality check passed for article ${articleId}`);
     }
 
     // Mark keyword as used
@@ -620,7 +890,7 @@ SEO/GEO最適化要件:
     await incrementScheduleGenerated(schedule.id);
 
     // Notify search engines if published
-    if (publishStatus === 'published') {
+    if (publishStatus === 'published' && qc.passed) {
       const baseUrl = process.env.APP_URL || "";
       if (baseUrl) {
         try {
@@ -643,7 +913,7 @@ SEO/GEO最適化要件:
       completedAt: new Date(),
     });
 
-    console.log(`[AutoPost Scheduler] Successfully generated article: "${articleData.title}" (ID: ${articleId}, category: ${categoryName || 'auto'}, status: ${publishStatus})`);
+    console.log(`[AutoPost Scheduler] Successfully generated article: "${articleData.title}" (ID: ${articleId}, type: ${articleTypeRotation}, category: ${categoryName || 'auto'}, status: ${publishStatus}, QC: ${qc.passed ? 'PASS' : 'FAIL'})`);
 
   } catch (error: any) {
     await updateAutoPostLog(log.id, {
