@@ -20,7 +20,7 @@
  * - Quality check before publishing
  */
 
-import { listAutoPostSchedules, getNextUnusedKeyword, createAutoPostLog, updateAutoPostLog, markKeywordUsed, incrementScheduleGenerated, createBlogArticle, getBlogArticleBySlug, updateBlogArticle, updateAutoPostSchedule, listPresetKeywordsDb, createPresetKeywordDb, getMallProductSalesRanking, getAllMallProductBuyerCounts, getAllProductReviewStats, findRelatedProductsForArticle, getAllBlogCategories, getAllMallBrands, getAllMallCategoryRecords, getAllBlogTags, createBlogTag, setBlogArticleTags, getRelatedBlogArticles } from "./db";
+import { listAutoPostSchedules, getNextUnusedKeyword, createAutoPostLog, updateAutoPostLog, markKeywordUsed, incrementScheduleGenerated, createBlogArticle, getBlogArticleBySlug, updateBlogArticle, updateAutoPostSchedule, listPresetKeywordsDb, createPresetKeywordDb, getMallProductSalesRanking, getAllMallProductBuyerCounts, getAllProductReviewStats, findRelatedProductsForArticle, getAllBlogCategories, getAllMallBrands, getAllMallCategoryRecords, getAllBlogTags, createBlogTag, setBlogArticleTags, getRelatedBlogArticles, getTodayBlogArticleCount, getTodayCategoryPostCounts, getRecentArticleTitles, publishDueScheduledArticles, getTodayScheduledCount } from "./db";
 import { invokeLLM } from "./_core/llm";
 import { generateImage } from "./_core/imageGeneration";
 import { storagePut } from "./storage";
@@ -37,6 +37,44 @@ let intervalId: NodeJS.Timeout | null = null;
 // 3種類をローテーション: trend（トレンド）/ problem（悩み解決）/ ranking（比較ランキング）
 const ARTICLE_TYPE_ROTATION = ['trend', 'problem', 'ranking'] as const;
 type ArticleTypeRotation = typeof ARTICLE_TYPE_ROTATION[number];
+
+// ─── 配信スケジューラー設定 ───
+/** 1日の投稿本数目標 */
+const DAILY_POST_TARGET = 12;
+
+/** 投稿時間スロット（JST時） */
+const POST_SLOTS_JST = [8, 12, 18, 22];
+
+/** スロットあたりの投稿本数 */
+const POSTS_PER_SLOT = 3;
+
+/** 1日の記事タイプ配分（trend:5, problem:4, ranking:3） */
+const DAILY_TYPE_PLAN: ArticleTypeRotation[] = [
+  'trend', 'trend', 'trend',
+  'problem', 'problem', 'problem',
+  'ranking', 'ranking',
+  'trend', 'problem',
+  'ranking', 'trend',
+];
+
+/** カテゴリ優先度ウェイト（キーワードのカテゴリ名の一部マッチ） */
+const CATEGORY_WEIGHTS: Record<string, number> = {
+  'シャンプー': 0.35,
+  'スキンケア': 0.25,
+  '美容家電': 0.15,
+  'フレグランス': 0.10,
+  'オーラルケア': 0.10,
+  'default': 0.05,
+};
+
+/** 深夜バッチ実行時刻（JST時） */
+const MIDNIGHT_BATCH_HOUR_JST = 2;
+
+/** 重複チェック期間（日） */
+const DUPLICATE_CHECK_DAYS = 14;
+
+/** 品質チェック失敗時の最大再生成回数 */
+const MAX_RETRY_COUNT = 3;
 
 // ─── Category keyword mapping for auto-assignment ───
 const CATEGORY_KEYWORD_MAP: Record<string, string[]> = {
@@ -458,10 +496,173 @@ JSON形式で返してください:`,
 /**
  * Check all enabled schedules and execute any that are due
  */
+/**
+ * タイトルの類似度チェック（重複防止）
+ * 直近14日間の記事タイトルとの類似度を確認
+ */
+function isSimilarTitle(newTitle: string, existingTitles: string[]): boolean {
+  const normalize = (s: string) => s.toLowerCase().replace(/[\s\u3000・、。！？!?\-]/g, '');
+  const normalizedNew = normalize(newTitle);
+  for (const existing of existingTitles) {
+    const normalizedExisting = normalize(existing);
+    // 完全一致チェック
+    if (normalizedNew === normalizedExisting) return true;
+    // 部分一致チェック（新タイトルの70%以上が既存タイトルに含まれる）
+    const shorter = normalizedNew.length < normalizedExisting.length ? normalizedNew : normalizedExisting;
+    const longer = normalizedNew.length < normalizedExisting.length ? normalizedExisting : normalizedNew;
+    if (shorter.length > 10 && longer.includes(shorter)) return true;
+  }
+  return false;
+}
+
+/**
+ * 今日のJST時刻を取得
+ */
+function getJSTHour(): number {
+  return (new Date().getUTCHours() + 9) % 24;
+}
+
+/**
+ * 今日のスロットインデックスを取得（0-3）
+ * 08:00→0, 12:00→1, 18:00→2, 22:00→3
+ */
+function getCurrentSlotIndex(): number {
+  const jstHour = getJSTHour();
+  for (let i = POST_SLOTS_JST.length - 1; i >= 0; i--) {
+    if (jstHour >= POST_SLOTS_JST[i]) return i;
+  }
+  return -1; // まだ最初のスロット前
+}
+
+/**
+ * 指定スロットのUTC publishedAt 時刻を生成
+ */
+function getSlotPublishedAt(slotIndex: number, daysOffset: number = 0): Date {
+  const now = new Date();
+  const jstOffset = 9 * 60 * 60 * 1000;
+  const jstNow = new Date(now.getTime() + jstOffset);
+  const jstDate = new Date(Date.UTC(jstNow.getUTCFullYear(), jstNow.getUTCMonth(), jstNow.getUTCDate() + daysOffset));
+  const jstSlotHour = POST_SLOTS_JST[slotIndex];
+  // JST時刻をUTCに変換
+  return new Date(jstDate.getTime() + jstSlotHour * 60 * 60 * 1000 - jstOffset);
+}
+
+/**
+ * 深夜バッチ: 当日分12本を事前生成してscheduledにする
+ * 毎日JST 02:00頃に実行
+ */
+export async function runMidnightBatch() {
+  console.log("[AutoPost Scheduler] Running midnight batch...");
+  try {
+    await autoReplenishKeywords();
+
+    const schedules = await listAutoPostSchedules();
+    const enabledSchedules = schedules.filter(s => s.enabled);
+    if (enabledSchedules.length === 0) {
+      console.log("[AutoPost Scheduler] No enabled schedules found");
+      return;
+    }
+
+    // 今日すでにscheduledになっている記事数を確認
+    const todayScheduledCount = await getTodayScheduledCount();
+    const needed = DAILY_POST_TARGET - todayScheduledCount;
+    if (needed <= 0) {
+      console.log(`[AutoPost Scheduler] Already have ${todayScheduledCount} scheduled articles for today, skipping midnight batch`);
+      return;
+    }
+
+    console.log(`[AutoPost Scheduler] Midnight batch: generating ${needed} articles (${todayScheduledCount} already scheduled)`);
+
+    // 直近14日間の記事タイトルを取得（重複チェック用）
+    const recentTitles = await getRecentArticleTitles(DUPLICATE_CHECK_DAYS);
+    // 今日のカテゴリ別投稿数
+    const categoryPostCounts = await getTodayCategoryPostCounts();
+
+    const schedule = enabledSchedules[0]; // メインスケジュールを使用
+    let generatedCount = 0;
+
+    for (let i = todayScheduledCount; i < DAILY_POST_TARGET && generatedCount < needed; i++) {
+      // 記事タイプをDAILY_TYPE_PLANから取得
+      const articleType = DAILY_TYPE_PLAN[i % DAILY_TYPE_PLAN.length];
+      // スロットインデックスを計算（3本ずつ）
+      const slotIndex = Math.floor(i / POSTS_PER_SLOT) % POST_SLOTS_JST.length;
+      const publishedAt = getSlotPublishedAt(slotIndex);
+
+      // 最大3回リトライ
+      let success = false;
+      for (let retry = 0; retry < MAX_RETRY_COUNT; retry++) {
+        try {
+          const articleId = await executeAutoPostWithType(schedule, articleType, 'scheduled', publishedAt, recentTitles, categoryPostCounts);
+          if (articleId) {
+            recentTitles.push(''); // プレースホルダー（実際のタイトルは取得できないため）
+            generatedCount++;
+            success = true;
+            console.log(`[AutoPost Scheduler] Midnight batch: generated article ${i + 1}/${DAILY_POST_TARGET} (type: ${articleType}, slot: ${POST_SLOTS_JST[slotIndex]}:00 JST)`);
+            break;
+          }
+        } catch (retryError: any) {
+          console.warn(`[AutoPost Scheduler] Midnight batch retry ${retry + 1}/${MAX_RETRY_COUNT} failed:`, retryError.message);
+          if (retry === MAX_RETRY_COUNT - 1) {
+            console.error(`[AutoPost Scheduler] Midnight batch: giving up on article ${i + 1} after ${MAX_RETRY_COUNT} retries`);
+          }
+        }
+      }
+      if (!success) {
+        console.warn(`[AutoPost Scheduler] Midnight batch: skipping article ${i + 1} due to repeated failures`);
+      }
+    }
+
+    console.log(`[AutoPost Scheduler] Midnight batch complete: ${generatedCount} articles generated`);
+  } catch (error: any) {
+    console.error("[AutoPost Scheduler] Midnight batch error:", error.message);
+  }
+}
+
+/**
+ * 公開バッチ: publishedAt が来た scheduled 記事を published に変更
+ * 毎時間チェック（08:00, 12:00, 18:00, 22:00 JST に自動公開）
+ */
+export async function runPublishBatch() {
+  try {
+    const publishedIds = await publishDueScheduledArticles();
+    if (publishedIds.length > 0) {
+      console.log(`[AutoPost Scheduler] Publish batch: published ${publishedIds.length} articles: [${publishedIds.join(', ')}]`);
+      // IndexNow通知
+      const baseUrl = process.env.APP_URL || "";
+      if (baseUrl) {
+        for (const id of publishedIds) {
+          try {
+            await fetch(`${baseUrl}/api/indexnow/submit`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ urls: [`/blog/article-${id}`] }),
+            });
+          } catch (_) {}
+        }
+      }
+    }
+  } catch (error: any) {
+    console.error("[AutoPost Scheduler] Publish batch error:", error.message);
+  }
+}
+
 export async function runAutoPostCheck() {
   console.log("[AutoPost Scheduler] Running check...");
   try {
-    // Auto-replenish keywords if running low
+    const now = new Date();
+    const jstHour = getJSTHour();
+
+    // 公開バッチ: 毎時間チェック（scheduledの記事を自動公開）
+    await runPublishBatch();
+
+    // 深夜バッチ: JST 02:00 頃に実行
+    if (jstHour === MIDNIGHT_BATCH_HOUR_JST) {
+      await runMidnightBatch();
+      return;
+    }
+
+    // 通常バッチ: 既存スケジュール設定に基づく個別記事生成
+    // （深夜バッチが不十分な場合の補完として機能）
     await autoReplenishKeywords();
 
     const schedules = await listAutoPostSchedules();
@@ -472,33 +673,50 @@ export async function runAutoPostCheck() {
       return;
     }
 
-    const now = new Date();
-    for (const schedule of enabledSchedules) {
-      try {
-        // Check if it's time to run this schedule
-        const nextRunAt = schedule.nextRunAt ? new Date(schedule.nextRunAt) : null;
-        
-        if (!nextRunAt || now >= nextRunAt) {
-          // Check preferred hour (JST = UTC+9)
-          const jstHour = (now.getUTCHours() + 9) % 24;
-          if (Math.abs(jstHour - schedule.preferredHour) > 1) {
-            // Not within the preferred hour window, skip
-            continue;
-          }
+    // 今日の投稿本数を確認
+    const todayCount = await getTodayBlogArticleCount();
+    if (todayCount >= DAILY_POST_TARGET) {
+      console.log(`[AutoPost Scheduler] Daily target reached (${todayCount}/${DAILY_POST_TARGET}), skipping`);
+      return;
+    }
 
-          console.log(`[AutoPost Scheduler] Executing schedule: ${schedule.name} (ID: ${schedule.id})`);
-          await executeAutoPost(schedule);
-          
-          // Calculate next run time
-          const nextRun = new Date(now.getTime() + schedule.intervalDays * 24 * 60 * 60 * 1000);
-          nextRun.setUTCHours(schedule.preferredHour - 9, 0, 0, 0); // Set to preferred hour in JST
-          if (nextRun.getTime() < 0) nextRun.setUTCHours(nextRun.getUTCHours() + 24);
-          
-          await updateAutoPostSchedule(schedule.id, { nextRunAt: nextRun });
-          console.log(`[AutoPost Scheduler] Next run for "${schedule.name}": ${nextRun.toISOString()}`);
+    // 現在のスロットを確認
+    const currentSlotIndex = getCurrentSlotIndex();
+    if (currentSlotIndex < 0) {
+      console.log(`[AutoPost Scheduler] No active slot at JST ${jstHour}:00, skipping`);
+      return;
+    }
+
+    // このスロットで生成すべき記事数を確認
+    const slotStartCount = currentSlotIndex * POSTS_PER_SLOT;
+    const slotEndCount = slotStartCount + POSTS_PER_SLOT;
+    if (todayCount >= slotEndCount) {
+      console.log(`[AutoPost Scheduler] Slot ${POST_SLOTS_JST[currentSlotIndex]}:00 JST already filled (${todayCount} articles), skipping`);
+      return;
+    }
+
+    const recentTitles = await getRecentArticleTitles(DUPLICATE_CHECK_DAYS);
+    const categoryPostCounts = await getTodayCategoryPostCounts();
+    const schedule = enabledSchedules[0];
+
+    for (const s of enabledSchedules) {
+      try {
+        const nextRunAt = s.nextRunAt ? new Date(s.nextRunAt) : null;
+        if (!nextRunAt || now >= nextRunAt) {
+          if (Math.abs(jstHour - s.preferredHour) > 1) continue;
+
+          const articleIndex = todayCount;
+          const articleType = DAILY_TYPE_PLAN[articleIndex % DAILY_TYPE_PLAN.length];
+
+          console.log(`[AutoPost Scheduler] Executing schedule: ${s.name} (ID: ${s.id}, type: ${articleType})`);
+          await executeAutoPostWithType(s, articleType, s.autoPublish === 'publish' ? 'published' : 'scheduled', null, recentTitles, categoryPostCounts);
+
+          const nextRun = new Date(now.getTime() + s.intervalDays * 24 * 60 * 60 * 1000);
+          nextRun.setUTCHours(s.preferredHour - 9, 0, 0, 0);
+          await updateAutoPostSchedule(s.id, { nextRunAt: nextRun });
         }
       } catch (scheduleError: any) {
-        console.error(`[AutoPost Scheduler] Error executing schedule ${schedule.id}:`, scheduleError.message);
+        console.error(`[AutoPost Scheduler] Error executing schedule ${s.id}:`, scheduleError.message);
       }
     }
   } catch (error: any) {
@@ -508,8 +726,22 @@ export async function runAutoPostCheck() {
 
 /**
  * Execute a single auto-post cycle for a given schedule
+ * @param schedule - スケジュール設定
+ * @param forcedArticleType - 強制する記事タイプ（未指定時はローテーション）
+ * @param forcedStatus - 強制する公開ステータス（未指定時はスケジュール設定に従う）
+ * @param forcedPublishedAt - 強制する公開時刻（scheduled時に使用）
+ * @param recentTitles - 重複チェック用の直近記事タイトル一覧
+ * @param categoryPostCounts - カテゴリ別投稿数（偏り防止用）
+ * @returns 作成された記事ID（失敗時はnull）
  */
-async function executeAutoPost(schedule: any) {
+export async function executeAutoPostWithType(
+  schedule: any,
+  forcedArticleType?: ArticleTypeRotation,
+  forcedStatus?: 'published' | 'scheduled' | 'draft',
+  forcedPublishedAt?: Date | null,
+  recentTitles?: string[],
+  categoryPostCounts?: Record<number, number>,
+): Promise<number | null> {
   // Create log entry
   const log = await createAutoPostLog({
     scheduleId: schedule.id,
@@ -531,7 +763,7 @@ async function executeAutoPost(schedule: any) {
     } else {
       await updateAutoPostLog(log.id, { status: 'failed', errorMessage: 'No keywords available' });
       console.warn(`[AutoPost Scheduler] No keywords available for schedule ${schedule.id}`);
-      return;
+      return null;
     }
 
     await updateAutoPostLog(log.id, { status: 'generating', keyword });
@@ -560,10 +792,35 @@ async function executeAutoPost(schedule: any) {
     }
 
     // Step 4: Determine article type rotation
-    // scheduleのtotalGeneratedに基づいてローテーション
+    // forcedArticleTypeが指定されている場合はそれを使用、なければDAILY_TYPE_PLANからローテーション
     const rotationIndex = (schedule.totalGenerated || 0) % ARTICLE_TYPE_ROTATION.length;
-    const articleTypeRotation: ArticleTypeRotation = ARTICLE_TYPE_ROTATION[rotationIndex];
+    const articleTypeRotation: ArticleTypeRotation = forcedArticleType || ARTICLE_TYPE_ROTATION[rotationIndex];
     const articleTypePrompt = getArticleTypePrompt(articleTypeRotation, keyword, currentYear);
+
+    // 重複チェック（直近14日間のタイトルと類似していないか確認）
+    if (recentTitles && recentTitles.length > 0) {
+      // キーワードが直近のタイトルに含まれる場合はスキップ
+      const keywordInRecent = recentTitles.filter(t => t.includes(keyword)).length;
+      if (keywordInRecent >= 3) {
+        console.warn(`[AutoPost Scheduler] Keyword "${keyword}" appears in ${keywordInRecent} recent titles, skipping to avoid duplication`);
+        await updateAutoPostLog(log.id, { status: 'failed', errorMessage: `Duplicate keyword: ${keyword}` });
+        return null;
+      }
+    }
+
+    // カテゴリ偏り防止（同じカテゴリを連続3本以上禁止）
+    if (categoryPostCounts && categoryId) {
+      const catCount = categoryPostCounts[categoryId] || 0;
+      if (catCount >= 3) {
+        console.warn(`[AutoPost Scheduler] Category ${categoryId} already has ${catCount} posts today, trying different category`);
+        // 別カテゴリに変更を試みる
+        const otherCategories = blogCategories.filter(c => c.id !== categoryId && (categoryPostCounts[c.id] || 0) < 3);
+        if (otherCategories.length > 0) {
+          categoryId = otherCategories[0].id;
+          console.log(`[AutoPost Scheduler] Switched to category: ${otherCategories[0].name}`);
+        }
+      }
+    }
 
     // Step 5: Generate article with LLM (enhanced prompt with GEO optimization)
     const lengthGuide = schedule.articleLength === 'short' ? '1500-2000' : schedule.articleLength === 'long' ? '5000-6000' : '3000-4000';
@@ -728,7 +985,13 @@ SEO/GEO最適化要件:
     }
 
     // Step 9: Create blog article
-    const publishStatus = schedule.autoPublish === 'publish' ? 'published' : 'draft';
+    // forcedStatusが指定されている場合はそれを使用、なければスケジュール設定に従う
+    const publishStatus: 'published' | 'scheduled' | 'draft' = forcedStatus || (schedule.autoPublish === 'publish' ? 'published' : 'draft');
+    const publishedAt = publishStatus === 'published'
+      ? (forcedPublishedAt || new Date())
+      : publishStatus === 'scheduled'
+        ? (forcedPublishedAt || null)
+        : null;
     const articleResult = await createBlogArticle({
       title: articleData.title,
       slug: finalSlug,
@@ -737,7 +1000,7 @@ SEO/GEO最適化要件:
       seoTitle: articleData.seoTitle,
       seoDescription: articleData.seoDescription,
       status: publishStatus as any,
-      publishedAt: publishStatus === 'published' ? new Date() : null,
+      publishedAt: publishedAt,
       authorId: 1, // System author
       categoryId: categoryId,
     });
@@ -872,8 +1135,8 @@ SEO/GEO最適化要件:
     const qc = qualityCheck(processedHtml, coverImageUrl);
     if (!qc.passed) {
       console.warn(`[AutoPost Scheduler] Quality check failed for article ${articleId}: ${qc.issues.join(', ')}`);
-      // 品質基準を満たさない場合はdraftに降格
-      if (publishStatus === 'published') {
+      // 品質基準を満たさない場合はdraftに降格（publishedまscheduledどちらも）
+      if (publishStatus === 'published' || publishStatus === 'scheduled') {
         await updateBlogArticle(articleId, { status: 'draft' });
         console.warn(`[AutoPost Scheduler] Article ${articleId} downgraded to draft due to quality issues`);
       }
@@ -915,11 +1178,18 @@ SEO/GEO最適化要件:
 
     console.log(`[AutoPost Scheduler] Successfully generated article: "${articleData.title}" (ID: ${articleId}, type: ${articleTypeRotation}, category: ${categoryName || 'auto'}, status: ${publishStatus}, QC: ${qc.passed ? 'PASS' : 'FAIL'})`);
 
+    // 品質チェック通過時のみ記事IDを返す（失敗時はnull）
+    return qc.passed ? articleId : null;
+
   } catch (error: any) {
     await updateAutoPostLog(log.id, {
       status: 'failed',
       errorMessage: error.message || 'Unknown error',
     });
     console.error(`[AutoPost Scheduler] Failed to generate article:`, error.message);
+    return null;
   }
 }
+
+// 旧関数名のエイリアス（互換性維持）
+export const executeAutoPost = executeAutoPostWithType;

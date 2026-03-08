@@ -18148,3 +18148,117 @@ export async function getKakuhenResultsByReceiptIds(receiptType: "point_request"
       inArray(receiptKakuhenResults.receiptId, receiptIds),
     ));
 }
+
+// =============================================
+// 配信スケジューラー用ヘルパー関数
+// =============================================
+
+/**
+ * 今日（JST）に作成された記事の本数を取得（published + scheduled）
+ */
+export async function getTodayBlogArticleCount(): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const jstOffset = 9 * 60 * 60 * 1000;
+  const now = new Date();
+  const jstNow = new Date(now.getTime() + jstOffset);
+  const jstToday = new Date(Date.UTC(jstNow.getUTCFullYear(), jstNow.getUTCMonth(), jstNow.getUTCDate()));
+  const jstTomorrow = new Date(jstToday.getTime() + 24 * 60 * 60 * 1000);
+  const utcStart = new Date(jstToday.getTime() - jstOffset);
+  const utcEnd = new Date(jstTomorrow.getTime() - jstOffset);
+  const rows = await db.select({ id: blogArticles.id })
+    .from(blogArticles)
+    .where(and(
+      gte(blogArticles.createdAt, utcStart),
+      lte(blogArticles.createdAt, utcEnd),
+    ));
+  return rows.length;
+}
+
+/**
+ * 今日（JST）のカテゴリ別投稿数を取得
+ */
+export async function getTodayCategoryPostCounts(): Promise<Record<number, number>> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const jstOffset = 9 * 60 * 60 * 1000;
+  const now = new Date();
+  const jstNow = new Date(now.getTime() + jstOffset);
+  const jstToday = new Date(Date.UTC(jstNow.getUTCFullYear(), jstNow.getUTCMonth(), jstNow.getUTCDate()));
+  const jstTomorrow = new Date(jstToday.getTime() + 24 * 60 * 60 * 1000);
+  const utcStart = new Date(jstToday.getTime() - jstOffset);
+  const utcEnd = new Date(jstTomorrow.getTime() - jstOffset);
+  const rows = await db.select({ categoryId: blogArticles.categoryId })
+    .from(blogArticles)
+    .where(and(
+      gte(blogArticles.createdAt, utcStart),
+      lte(blogArticles.createdAt, utcEnd),
+    ));
+  const counts: Record<number, number> = {};
+  for (const row of rows) {
+    if (row.categoryId !== null && row.categoryId !== undefined) {
+      counts[row.categoryId] = (counts[row.categoryId] || 0) + 1;
+    }
+  }
+  return counts;
+}
+
+/**
+ * 直近N日間の記事タイトル一覧を取得（重複チェック用）
+ */
+export async function getRecentArticleTitles(days: number = 14): Promise<string[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const rows = await db.select({ title: blogArticles.title })
+    .from(blogArticles)
+    .where(gte(blogArticles.createdAt, since));
+  return rows.map(r => r.title);
+}
+
+/**
+ * publishedAt が現在時刻以前の scheduled 記事を published に変更する
+ */
+export async function publishDueScheduledArticles(): Promise<number[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const now = new Date();
+  const rows = await db.select({ id: blogArticles.id, slug: blogArticles.slug })
+    .from(blogArticles)
+    .where(and(
+      eq(blogArticles.status, 'scheduled'),
+      lte(blogArticles.publishedAt, now),
+    ));
+  const publishedIds: number[] = [];
+  for (const row of rows) {
+    await db.update(blogArticles)
+      .set({ status: 'published', updatedAt: now })
+      .where(eq(blogArticles.id, row.id));
+    publishedIds.push(row.id);
+    console.log(`[DB] Published scheduled article ID: ${row.id} slug: ${row.slug}`);
+  }
+  return publishedIds;
+}
+
+/**
+ * 今日の scheduled 記事数を取得
+ */
+export async function getTodayScheduledCount(): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const jstOffset = 9 * 60 * 60 * 1000;
+  const now = new Date();
+  const jstNow = new Date(now.getTime() + jstOffset);
+  const jstToday = new Date(Date.UTC(jstNow.getUTCFullYear(), jstNow.getUTCMonth(), jstNow.getUTCDate()));
+  const jstTomorrow = new Date(jstToday.getTime() + 24 * 60 * 60 * 1000);
+  const utcStart = new Date(jstToday.getTime() - jstOffset);
+  const utcEnd = new Date(jstTomorrow.getTime() - jstOffset);
+  const rows = await db.select({ id: blogArticles.id })
+    .from(blogArticles)
+    .where(and(
+      eq(blogArticles.status, 'scheduled'),
+      gte(blogArticles.publishedAt, utcStart),
+      lte(blogArticles.publishedAt, utcEnd),
+    ));
+  return rows.length;
+}
