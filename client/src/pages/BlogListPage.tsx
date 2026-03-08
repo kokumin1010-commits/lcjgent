@@ -204,7 +204,7 @@ export default function BlogListPage() {
                   <div
                     key={p.id}
                     className="flex items-center gap-2.5 cursor-pointer hover:bg-amber-50 rounded-lg p-1.5 transition-colors"
-                    onClick={() => navigate(`/mall/product/${p.id}`)}
+                    onClick={() => navigate(`/mall/products/${p.id}`)}
                   >
                     <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
                       idx === 0 ? "bg-amber-400 text-white" :
