@@ -1,24 +1,22 @@
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, ClipboardList, Clock, CheckCircle2, Users, Plus, AlertTriangle, FileText, ShoppingBag, Store } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ClipboardList, Clock, CheckCircle2, Users, Plus, AlertTriangle, FileText, ShoppingBag, Store } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
-  const { data: stats, isLoading } = trpc.dashboard.statistics.useQuery();
-  const { data: staffWithCounts } = trpc.dashboard.staffWithTaskCounts.useQuery();
+  const { data: stats, isLoading } = trpc.dashboard.statistics.useQuery(undefined, {
+    staleTime: 2 * 60 * 1000, // 2分間キャッシュ
+  });
+  const { data: staffWithCounts } = trpc.dashboard.staffWithTaskCounts.useQuery(undefined, {
+    staleTime: 2 * 60 * 1000,
+  });
   const { t } = useLanguage();
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
+  // isLoadingでブロックせず、データがない場合はスケルトンを表示
   const taskStats = stats?.stats || { total: 0, pending: 0, inProgress: 0, completed: 0 };
 
   return (
@@ -73,7 +71,7 @@ export default function Dashboard() {
             <ClipboardList className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{taskStats.total}</div>
+            {isLoading ? <Skeleton className="h-8 w-16" /> : <div className="text-2xl font-bold">{taskStats.total}</div>}
           </CardContent>
         </Card>
 
@@ -86,7 +84,7 @@ export default function Dashboard() {
             <Clock className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-500">{taskStats.inProgress}</div>
+            {isLoading ? <Skeleton className="h-8 w-16" /> : <div className="text-2xl font-bold text-blue-500">{taskStats.inProgress}</div>}
           </CardContent>
         </Card>
 
@@ -99,7 +97,7 @@ export default function Dashboard() {
             <CheckCircle2 className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-500">{taskStats.completed}</div>
+            {isLoading ? <Skeleton className="h-8 w-16" /> : <div className="text-2xl font-bold text-green-500">{taskStats.completed}</div>}
           </CardContent>
         </Card>
 
@@ -112,7 +110,7 @@ export default function Dashboard() {
             <AlertTriangle className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-500">{stats?.overdueTasks?.length || 0}</div>
+            {isLoading ? <Skeleton className="h-8 w-16" /> : <div className="text-2xl font-bold text-red-500">{stats?.overdueTasks?.length || 0}</div>}
           </CardContent>
         </Card>
 

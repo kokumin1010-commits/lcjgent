@@ -8,6 +8,17 @@ type UseAuthOptions = {
   redirectPath?: string;
 };
 
+// localStorageからキャッシュされたユーザー情報を取得する
+function getCachedUser() {
+  try {
+    const cached = localStorage.getItem("manus-runtime-user-info");
+    if (!cached || cached === "null" || cached === "undefined") return null;
+    return JSON.parse(cached);
+  } catch {
+    return null;
+  }
+}
+
 export function useAuth(options?: UseAuthOptions) {
   const { redirectOnUnauthenticated = false, redirectPath = getLoginUrl() } =
     options ?? {};
@@ -16,11 +27,18 @@ export function useAuth(options?: UseAuthOptions) {
   const meQuery = trpc.auth.me.useQuery(undefined, {
     retry: false,
     refetchOnWindowFocus: false,
+    // キャッシュを5分間有効にしてAPIリクエストを削減
+    staleTime: 5 * 60 * 1000,
+    // localStorageのキャッシュを初期データとして使用（即時表示）
+    initialData: getCachedUser() ?? undefined,
+    // 初期データがある場合でもバックグラウンドで更新
+    initialDataUpdatedAt: 0,
   });
 
   const logoutMutation = trpc.auth.logout.useMutation({
     onSuccess: () => {
       utils.auth.me.setData(undefined, null);
+      localStorage.removeItem("manus-runtime-user-info");
     },
   });
 
@@ -37,18 +55,22 @@ export function useAuth(options?: UseAuthOptions) {
       throw error;
     } finally {
       utils.auth.me.setData(undefined, null);
+      localStorage.removeItem("manus-runtime-user-info");
       await utils.auth.me.invalidate();
     }
   }, [logoutMutation, utils]);
 
   const state = useMemo(() => {
-    localStorage.setItem(
-      "manus-runtime-user-info",
-      JSON.stringify(meQuery.data)
-    );
+    if (meQuery.data) {
+      localStorage.setItem(
+        "manus-runtime-user-info",
+        JSON.stringify(meQuery.data)
+      );
+    }
     return {
       user: meQuery.data ?? null,
-      loading: meQuery.isLoading || logoutMutation.isPending,
+      // initialDataがある場合はloadingをfalseにして即時表示
+      loading: meQuery.isLoading && !meQuery.data && !getCachedUser(),
       error: meQuery.error ?? logoutMutation.error ?? null,
       isAuthenticated: Boolean(meQuery.data),
     };
