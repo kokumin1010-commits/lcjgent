@@ -100,29 +100,15 @@ export default function ReceiptUpload() {
       const result = data as AnalysisResult;
       setSubmitError(null);
       setAnalysisResult(result);
-      if (result.status === "success") {
-        haptic.success();
-        toast.success("レシートの解析が完了しました！");
-        setFlowPhase("analysis_result");
-        // 2秒後に確変チャンスポップアップを自動表示
-        if (result.receiptId) {
-          setTimeout(() => {
-            setShowKakuhenPopup(true);
-          }, 2000);
-        }
-      } else if (result.status === "on_hold") {
-        toast.info("確認中です。スタッフが確認後、結果をお知らせします。");
-        setFlowPhase("analysis_result");
-        // on_holdでも確変チャンスポップアップを表示
-        if (result.receiptId) {
-          setTimeout(() => {
-            setShowKakuhenPopup(true);
-          }, 2000);
-        }
-      } else {
-        haptic.warning();
-        toast.info("AIが自動判定しました。内容をご確認ください。");
-        setFlowPhase("analysis_result");
+      // サーバーは常にsuccessを返す（AI解析はバックグラウンドで実行）
+      haptic.success();
+      toast.success("レシートを受け付けました！");
+      setFlowPhase("analysis_result");
+      // 確変チャンスポップアップを自動表示
+      if (result.receiptId) {
+        setTimeout(() => {
+          setShowKakuhenPopup(true);
+        }, 2000);
       }
     },
     onError: (error) => {
@@ -391,133 +377,24 @@ export default function ReceiptUpload() {
           </CardContent>
         </Card>
 
-        {/* Analysis Result */}
+        {/* Analysis Result - 申請受付完了画面 */}
         {analysisResult && flowPhase === "analysis_result" && (
-          <Card className={`border-2 ${
-            analysisResult.status === "success" ? "border-green-300 bg-green-50" :
-            analysisResult.status === "on_hold" ? "border-amber-300 bg-amber-50" :
-            "border-amber-300 bg-amber-50"
-          }`}>
+          <Card className="border-2 border-green-300 bg-green-50">
             <CardContent className="pt-6">
               <div className="flex items-start gap-3">
-                {analysisResult.status === "success" ? (
-                  <CheckCircle className="h-6 w-6 text-green-600 flex-shrink-0 mt-0.5" />
-                ) : analysisResult.status === "on_hold" ? (
-                  <Clock className="h-6 w-6 text-amber-600 flex-shrink-0 mt-0.5" />
-                ) : (
-                  <AlertTriangle className="h-6 w-6 text-amber-600 flex-shrink-0 mt-0.5" />
-                )}
+                <CheckCircle className="h-6 w-6 text-green-600 flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <h3 className={`font-bold mb-1 ${
-                    analysisResult.status === "success" ? "text-green-700" :
-                    "text-amber-700"
-                  }`}>
-                    {analysisResult.status === "success" ? "解析成功" :
-                     analysisResult.status === "on_hold" ? "確認中" :
-                     "AI自動判定"}
-                  </h3>
-                  {analysisResult.status !== "success" && analysisResult.status !== "on_hold" ? (
-                    <div className="space-y-2">
-                      <p className="text-sm text-amber-700">
-                        AIが自動判定で一度弾いたレシートです。
-                      </p>
-                      <div className="bg-amber-100/60 rounded-md p-2 text-sm text-amber-800">
-                        <span className="font-medium">理由: </span>{analysisResult.aiRejectionReason || analysisResult.message}
-                      </div>
-                    </div>
-                  ) : (
-                  <p className={`text-sm ${
-                    analysisResult.status === "success" ? "text-green-600" :
-                    "text-amber-600"
-                  }`}>
+                  <h3 className="font-bold mb-1 text-green-700">申請を受け付けました！</h3>
+                  <p className="text-sm text-green-600">
                     {analysisResult.message}
                   </p>
-                  )}
-
-                  {/* OCR Data */}
-                  {analysisResult.ocrData && (
-                    <div className="mt-4 bg-white/60 rounded-lg p-3 space-y-3">
-                      <h4 className="font-medium text-sm text-gray-700">解析結果</h4>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        {analysisResult.ocrData.shopName && (
-                          <div>
-                            <span className="text-muted-foreground">店舗: </span>
-                            <span className="font-medium">{analysisResult.ocrData.shopName}</span>
-                          </div>
-                        )}
-                        {analysisResult.ocrData.orderNumber && (
-                          <div>
-                            <span className="text-muted-foreground">注文番号: </span>
-                            <span className="font-medium text-xs">{analysisResult.ocrData.orderNumber}</span>
-                          </div>
-                        )}
-                        {analysisResult.ocrData.productName && (
-                          <div className="col-span-2">
-                            <span className="text-muted-foreground">商品: </span>
-                            <span className="font-medium">{analysisResult.ocrData.productName}</span>
-                          </div>
-                        )}
-                        {analysisResult.ocrData.totalAmount != null && (
-                          <div>
-                            <span className="text-muted-foreground">金額: </span>
-                            <span className="font-bold">¥{analysisResult.ocrData.totalAmount.toLocaleString()}</span>
-                          </div>
-                        )}
-                        {analysisResult.ocrData.orderDate && (
-                          <div>
-                            <span className="text-muted-foreground">注文日: </span>
-                            <span className="font-medium">{analysisResult.ocrData.orderDate}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* 商品詳細 */}
-                      {analysisResult.ocrData.items && analysisResult.ocrData.items.length > 0 && (
-                        <div className="border-t pt-2">
-                          <h5 className="text-xs font-medium text-gray-500 mb-1">商品詳細</h5>
-                          {analysisResult.ocrData.items.map((item, i) => (
-                            <div key={i} className="text-sm flex justify-between items-center py-1">
-                              <div>
-                                <span className="font-medium">{item.productName}</span>
-                                {item.variant && <span className="text-xs text-muted-foreground ml-1">({item.variant})</span>}
-                              </div>
-                              <div className="text-right">
-                                {item.unitPrice != null && <span>¥{item.unitPrice.toLocaleString()}</span>}
-                                {item.quantity != null && <span className="text-muted-foreground ml-1">x{item.quantity}</span>}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Points */}
-                  {analysisResult.pointsCalculated != null && analysisResult.pointsCalculated > 0 && (
-                    <div className="mt-3 flex items-center gap-2 bg-gradient-to-r from-rose-100 to-pink-100 rounded-lg p-3">
-                      <Gift className="h-5 w-5 text-rose-500" />
-                      <span className="text-sm text-rose-700">獲得予定ポイント: </span>
-                      <span className="font-bold text-lg text-rose-600">{analysisResult.pointsCalculated} pt</span>
-                    </div>
-                  )}
-
-                  {/* Fraud flags */}
-                  {analysisResult.fraudFlags && analysisResult.fraudFlags.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {analysisResult.fraudFlags.map((flag, i) => (
-                        <Badge key={i} variant="outline" className="text-xs border-amber-300 text-amber-700">
-                          <AlertTriangle className="h-3 w-3 mr-1" />
-                          {flag === "expired_order" ? "注文日が30日以上前" :
-                           flag === "high_amount" ? "高額注文" :
-                           flag}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
+                  <p className="text-xs text-green-500 mt-2">
+                    AI解析・スタッフ確認後にポイントが付与されます。マイページから状況を確認できます。
+                  </p>
 
                   {/* Action Buttons */}
                   <div className="mt-4 flex flex-col gap-2">
-                    {(analysisResult.status === "success" || analysisResult.status === "on_hold") && analysisResult.receiptId && (
+                    {analysisResult.receiptId && (
                       <Button
                         className="w-full bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 text-white font-bold h-12 animate-pulse"
                         onClick={handleStartKakuhen}
@@ -530,28 +407,11 @@ export default function ReceiptUpload() {
                     {analysisResult.receiptId && (
                       <KakuhenPopup
                         isOpen={showKakuhenPopup}
-                        orderAmount={analysisResult.ocrData?.totalAmount || analysisResult.ocrData?.paymentInfo?.totalAmount || 0}
-                        pointsCalculated={analysisResult.pointsCalculated || 0}
+                        orderAmount={0}
+                        pointsCalculated={0}
                         onStart={handleStartKakuhen}
                         onSkip={handlePopupSkip}
                       />
-                    )}
-                    {analysisResult.status !== "success" && analysisResult.status !== "on_hold" && analysisResult.status !== "duplicate" && analysisResult.receiptId && (
-                      <Button
-                        className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold h-12"
-                        onClick={() => {
-                          if (analysisResult.receiptId) {
-                            forceSubmitMutation.mutate({ receiptId: analysisResult.receiptId });
-                          }
-                        }}
-                        disabled={forceSubmitMutation.isPending}
-                      >
-                        {forceSubmitMutation.isPending ? (
-                          <><Loader2 className="h-4 w-4 animate-spin mr-2" />申請中...</>
-                        ) : (
-                          "それでもアップロードしますか？"
-                        )}
-                      </Button>
                     )}
                     <Button
                       variant="outline"
@@ -664,19 +524,13 @@ export default function ReceiptUpload() {
                   </div>
                 )}
 
-                {/* Error Message */}
+                {/* Error Message - アップロード自体が失敗した場合のみ表示 */}
                 {submitError && (
                   <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
                     <XCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
                     <div>
                       <p className="text-sm text-red-700 font-medium">{submitError}</p>
-                      {submitError.includes("既に登録") ? (
-                        <p className="text-xs text-red-500 mt-1">この画像は現在審査中または承認済みです。マイページのレシート履歴から状態をご確認ください。</p>
-                      ) : submitError.includes("エラー") ? (
-                        <p className="text-xs text-red-500 mt-1">一時的なエラーの可能性があります。同じ画像で再度お試しください。</p>
-                      ) : (
-                        <p className="text-xs text-red-500 mt-1">別のレシート画像をアップロードしてください。</p>
-                      )}
+                      <p className="text-xs text-red-500 mt-1">しばらくしてから再度お試しください。</p>
                     </div>
                   </div>
                 )}
@@ -690,12 +544,12 @@ export default function ReceiptUpload() {
                   {submitMutation.isPending ? (
                     <>
                       <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                      AI解析中...
+                      アップロード中...
                     </>
                   ) : (
                     <>
                       <ShieldCheck className="h-5 w-5 mr-2" />
-                      レシートを解析して申請
+                      レシートを申請する
                     </>
                   )}
                 </Button>

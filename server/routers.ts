@@ -1757,7 +1757,7 @@ export const lineLoginRouter = router({
         for (const img of input.images) {
           const buffer = Buffer.from(img.base64, "base64");
           
-          // Check file size (max 10MB)
+          // Check file size (max 10MB) - これだけはお客様に即座にエラーを返す
           if (buffer.length > 10 * 1024 * 1024) {
             throw new TRPCError({
               code: "BAD_REQUEST",
@@ -1767,15 +1767,8 @@ export const lineLoginRouter = router({
           
           const imageHash = crypto.createHash("sha256").update(buffer).digest("hex");
           
-          // Check duplicate by hash
-          const { checkDuplicateLineReceiptByHash } = await import("./db");
-          const duplicate = await checkDuplicateLineReceiptByHash(imageHash);
-          if (duplicate) {
-            throw new TRPCError({
-              code: "CONFLICT",
-              message: "この画像は既に登録されています。別のレシートをアップロードしてください。",
-            });
-          }
+          // 重複チェックはフロント側では行わない（バックグラウンドで処理）
+          // お客様には常に「申請完了」を返す
           
           const ext = img.mimeType.includes("png") ? "png" : "jpg";
           const timestamp = Date.now();
@@ -1798,53 +1791,77 @@ export const lineLoginRouter = router({
           status: "pending",
         });
         
-        // Compute perceptual hash asynchronously (non-blocking)
-        // This runs in background - doesn't delay the user response
+        console.log(`[Web Receipt] Receipt ${receiptId} created for user ${lineUserId} (${uploadedImages.length} images). Starting background analysis...`);
+        
+        // ============================================
+        // バックグラウンド処理（お客様を待たせない）
+        // 重複チェック・AI解析・不正検知はすべてここで実行
+        // ============================================
         (async () => {
           try {
-            const { computePhash, storePhash } = await import("./services/imageHashService");
-            for (let idx = 0; idx < uploadedImages.length; idx++) {
-              const hashResult = await computePhash(uploadedImages[idx].url);
-              if (hashResult) {
-                await storePhash({
-                  receiptId,
-                  lineUserId,
-                  imageUrl: uploadedImages[idx].url,
-                  imageIndex: idx,
-                  phash: hashResult.phash,
-                  imageWidth: hashResult.width,
-                  imageHeight: hashResult.height,
-                  fileSize: hashResult.size,
+            // 1. Perceptual hash計算
+            try {
+              const { computePhash, storePhash } = await import("./services/imageHashService");
+              for (let idx = 0; idx < uploadedImages.length; idx++) {
+                const hashResult = await computePhash(uploadedImages[idx].url);
+                if (hashResult) {
+                  await storePhash({
+                    receiptId,
+                    lineUserId,
+                    imageUrl: uploadedImages[idx].url,
+                    imageIndex: idx,
+                    phash: hashResult.phash,
+                    imageWidth: hashResult.width,
+                    imageHeight: hashResult.height,
+                    fileSize: hashResult.size,
+                  });
+                }
+              }
+              console.log(`[Web Receipt BG] Phash computed for receipt ${receiptId}`);
+            } catch (phashErr) {
+              console.error(`[Web Receipt BG] Phash failed for receipt ${receiptId}:`, phashErr);
+            }
+            
+            // 2. 画像ハッシュ重複チェック（バックグラウンド）
+            const { checkDuplicateLineReceiptByHash } = await import("./db");
+            for (const img of uploadedImages) {
+              const duplicate = await checkDuplicateLineReceiptByHash(img.hash, receiptId);
+              if (duplicate) {
+                console.log(`[Web Receipt BG] Duplicate image detected for receipt ${receiptId} (matches receipt ${duplicate.id})`);
+                const { updateLineReceiptAiRejection: updateAiRejDup, updateLineReceiptStatus: updateDupStat } = await import("./db");
+                await updateAiRejDup(receiptId, {
+                  aiRejectionReason: `同一画像が既に申請済みです（申請ID: ${duplicate.id}）`,
+                  aiRejectionCategory: "duplicate_image",
                 });
+                await updateDupStat(receiptId, "rejected", 0, `自動却下: 画像ハッシュ重複 (元の申請ID: ${duplicate.id})`);
+                return; // バックグラウンド処理を終了
               }
             }
-            console.log(`[Web Receipt] Phash computed for receipt ${receiptId} (${uploadedImages.length} images)`);
-          } catch (phashErr) {
-            console.error(`[Web Receipt] Phash computation failed for receipt ${receiptId}:`, phashErr);
-          }
-        })();
-        
-        // Run AI analysis using S3 URLs (not Base64 - much better success rate)
-        const imageContents: any[] = [];
-        for (const img of uploadedImages) {
-          imageContents.push({
-            type: "image_url",
-            image_url: {
-              url: img.url,
-              detail: "high",
-            },
-          });
-        }
-        imageContents.push({
-          type: "text",
-          text: `これらの${uploadedImages.length}枚の画像はTikTok Shopの注文詳細画面のスクリーンショットです。\n\n【最重要】まず注文番号（16〜19桁の数字、「5」か「6」で始まる）を探してください。\n画面の下部に「注文番号」というラベルと共に表示されていることが多いです。\n「さらに表示」ボタンの直上や、合計金額の下にも表示されます。\n\nすべての画像を統合して情報を抽出してください。`,
-        });
-        
-        const ocrResult = await invokeLLM({
-          messages: [
-            {
-              role: "system",
-              content: `あなたはTikTok Shopの注文詳細画面のスクリーンショットを解析する専門AIです。
+            
+            // 3. AI解析
+            const imageContents: any[] = [];
+            for (const img of uploadedImages) {
+              imageContents.push({
+                type: "image_url",
+                image_url: {
+                  url: img.url,
+                  detail: "high",
+                },
+              });
+            }
+            imageContents.push({
+              type: "text",
+              text: `これらの${uploadedImages.length}枚の画像はTikTok Shopの注文詳細画面のスクリーンショットです。\n\n【最重要】まず注文番号（16〜19桁の数字、「5」か「6」で始まる）を探してください。\n画面の下部に「注文番号」というラベルと共に表示されていることが多いです。\n「さらに表示」ボタンの直上や、合計金額の下にも表示されます。\n\nすべての画像を統合して情報を抽出してください。`,
+            });
+            
+            let ocrData: any;
+            let messageContent: string | null = null;
+            try {
+              const ocrResult = await invokeLLM({
+                messages: [
+                  {
+                    role: "system",
+                    content: `あなたはTikTok Shopの注文詳細画面のスクリーンショットを解析する専門AIです。
 複数の画像が送信された場合、すべての画像を統合して情報を抽出してください。
 
 以下の情報を抽出してJSON形式で返してください：
@@ -1946,280 +1963,238 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
 - 必ずJSON形式のみで回答（説明文は不要）
 - 複数画像がある場合は統合して回答
 - できるだけ多くの情報を抽出すること`,
-            },
-            {
-              role: "user",
-              content: imageContents,
-            },
-          ],
-        });
-        
-        const messageContent = ocrResult.choices[0].message.content;
-        let ocrData: any;
-        try {
-          let jsonStr = typeof messageContent === "string" ? messageContent : "{}";
-          if (jsonStr.includes("```json")) {
-            jsonStr = jsonStr.replace(/```json\s*/g, "").replace(/```\s*/g, "");
-          } else if (jsonStr.includes("```")) {
-            jsonStr = jsonStr.replace(/```\s*/g, "");
-          }
-          jsonStr = jsonStr.trim();
-          ocrData = JSON.parse(jsonStr);
-        } catch (parseError: any) {
-          // AI analysis failed - save rejection info and return with aiRejectionReason
-          const { updateLineReceiptAiRejection: updateAiRejFailed } = await import("./db");
-          await updateAiRejFailed(receiptId, {
-            aiRejectionReason: "画像の解析に失敗しました。画像が鮮明でない可能性があります。",
-            aiRejectionCategory: "other",
-          });
-          return {
-            receiptId,
-            status: "analysis_failed" as const,
-            message: "画像の解析に失敗しました。画像が鮮明であることを確認して、再度お試しください。",
-            aiRejectionReason: "画像の解析に失敗しました。画像が鮮明でない可能性があります。",
-            imageUrls: uploadedImages.map(i => i.url),
-          };
-        }
-        
-        // === 注文番号のバリデーション・フォールバック処理 ===
-        if (ocrData.orderNumber) {
-          // 数字以外の文字を除去（スペース、ハイフン等）
-          const cleanedOrderNumber = String(ocrData.orderNumber).replace(/[^0-9]/g, "");
-          // 16〜19桁の数字列かチェック
-          if (/^[56]\d{15,18}$/.test(cleanedOrderNumber)) {
-            ocrData.orderNumber = cleanedOrderNumber;
-          } else if (/^\d{16,19}$/.test(cleanedOrderNumber)) {
-            // 5/6以外で始まるが桁数は合っている場合はそのまま採用
-            ocrData.orderNumber = cleanedOrderNumber;
-            console.log(`[Web Receipt] Order number doesn't start with 5/6 but has valid length: ${cleanedOrderNumber}`);
-          } else if (cleanedOrderNumber.length >= 15) {
-            // 15桁以上ならフォールバックとして採用
-            ocrData.orderNumber = cleanedOrderNumber;
-            console.log(`[Web Receipt] Order number has unusual length (${cleanedOrderNumber.length}): ${cleanedOrderNumber}`);
-          } else {
-            // 短すぎる場合は無効（価格や電話番号の可能性）
-            console.log(`[Web Receipt] Rejected invalid order number: ${ocrData.orderNumber} (cleaned: ${cleanedOrderNumber})`);
-            ocrData.orderNumber = null;
-          }
-        }
-        
-        // フォールバック: ocrRawText全体から長い数字列を探す
-        if (!ocrData.orderNumber && typeof messageContent === "string") {
-          const longNumbers = messageContent.match(/\d{15,19}/g);
-          if (longNumbers && longNumbers.length > 0) {
-            // 最も長い数字列を採用
-            const bestMatch = longNumbers.sort((a, b) => b.length - a.length)[0];
-            ocrData.orderNumber = bestMatch;
-            console.log(`[Web Receipt] Fallback: extracted order number from raw response: ${bestMatch}`);
-          }
-        }
-        
-        // Validate TikTok Shop
-        if (!ocrData.isTikTokShop) {
-          // レシートを削除せず、OCRデータを保存してai_rejected状態で保持
-          const { updateLineReceiptOcr: updateOcrForRejected } = await import("./db");
-          await updateOcrForRejected(receiptId, {
-            storeName: ocrData.shopName || "不明",
-            purchaseDate: ocrData.orderDate ? new Date(ocrData.orderDate) : undefined,
-            totalAmount: ocrData.totalAmount,
-            currency: "JPY",
-            ocrRawText: JSON.stringify(ocrData),
-            pointsCalculated: 0,
-            imageUrls: uploadedImages.map(i => i.url),
-            imageKeys: uploadedImages.map(i => i.key),
-          });
-          // AI弾き情報をDBに保存
-          const { updateLineReceiptAiRejection } = await import("./db");
-          await updateLineReceiptAiRejection(receiptId, {
-            aiRejectionReason: "TikTok Shopの注文画面として認識されませんでした",
-            aiRejectionCategory: "not_tiktok",
-          });
-          return {
-            receiptId,
-            status: "not_tiktok" as const,
-            message: "TikTok Shopの注文詳細画面ではないようです。",
-            aiRejectionReason: "TikTok Shopの注文画面として認識されませんでした",
-            ocrData,
-            imageUrls: uploadedImages.map(i => i.url),
-          };
-        }
-        
-        // Validate delivery status
-        if (!ocrData.isDelivered) {
-          // レシートを削除せず、OCRデータを保存して保持
-          const { updateLineReceiptOcr: updateOcrForNotDelivered } = await import("./db");
-          await updateOcrForNotDelivered(receiptId, {
-            storeName: ocrData.shopName || "TikTok Shop",
-            purchaseDate: ocrData.orderDate ? new Date(ocrData.orderDate) : undefined,
-            totalAmount: ocrData.totalAmount,
-            currency: "JPY",
-            ocrRawText: JSON.stringify(ocrData),
-            pointsCalculated: ocrData.totalAmount ? Math.floor(ocrData.totalAmount * 0.01) : 0,
-            imageUrls: uploadedImages.map(i => i.url),
-            imageKeys: uploadedImages.map(i => i.key),
-          });
-          // AI弾き情報をDBに保存
-          const { updateLineReceiptAiRejection: updateAiRejNotDelivered } = await import("./db");
-          await updateAiRejNotDelivered(receiptId, {
-            aiRejectionReason: "配達ステータスが「配達済み」と確認できませんでした",
-            aiRejectionCategory: "not_delivered",
-          });
-          return {
-            receiptId,
-            status: "not_delivered" as const,
-            message: "この注文はまだ配達済みになっていないようです。",
-            aiRejectionReason: "配達ステータスが「配達済み」と確認できませんでした",
-            ocrData,
-            pointsCalculated: ocrData.totalAmount ? Math.floor(ocrData.totalAmount * 0.01) : undefined,
-            imageUrls: uploadedImages.map(i => i.url),
-          };
-        }
-        
-        // Validate required fields - 金額は必須、注文番号は後から手動入力可能
-        if (!ocrData.totalAmount) {
-          // レシートを削除せず保持
-          const { updateLineReceiptOcr: updateOcrForIncomplete } = await import("./db");
-          await updateOcrForIncomplete(receiptId, {
-            storeName: ocrData.shopName || "TikTok Shop",
-            purchaseDate: ocrData.orderDate ? new Date(ocrData.orderDate) : undefined,
-            totalAmount: 0,
-            currency: "JPY",
-            ocrRawText: JSON.stringify(ocrData),
-            pointsCalculated: 0,
-            imageUrls: uploadedImages.map(i => i.url),
-            imageKeys: uploadedImages.map(i => i.key),
-          });
-          // AI弾き情報をDBに保存
-          const { updateLineReceiptAiRejection: updateAiRejIncomplete } = await import("./db");
-          await updateAiRejIncomplete(receiptId, {
-            aiRejectionReason: "購入金額を画像から読み取ることができませんでした",
-            aiRejectionCategory: "incomplete",
-          });
-          return {
-            receiptId,
-            status: "incomplete" as const,
-            message: "金額を読み取れませんでした。",
-            aiRejectionReason: "購入金額を画像から読み取ることができませんでした",
-            ocrData,
-            imageUrls: uploadedImages.map(i => i.url),
-          };
-        }
-        
-        // 注文番号がない場合は警告ログ（レシート自体は保存し、後から手動入力可能）
-        if (!ocrData.orderNumber) {
-          console.log(`[Web Receipt] Warning: Order number not detected for receipt ${receiptId}. Manual input will be required.`);
-        }
-        
-        // Calculate points (1% return)
-        const pointsCalculated = Math.floor(ocrData.totalAmount * 0.01);
-        
-        // Update receipt with OCR data
-        const { updateLineReceiptOcr } = await import("./db");
-        await updateLineReceiptOcr(receiptId, {
-          storeName: ocrData.shopName || "TikTok Shop",
-          purchaseDate: ocrData.orderDate ? new Date(ocrData.orderDate) : undefined,
-          totalAmount: ocrData.totalAmount,
-          currency: "JPY",
-          ocrRawText: JSON.stringify(ocrData),
-          pointsCalculated,
-          imageUrls: uploadedImages.map(i => i.url),
-          imageKeys: uploadedImages.map(i => i.key),
-        });
-        
-        // Fraud detection
-        const fraudFlags: string[] = [];
-        let fraudScore = 0;
-        
-        // Check order date expiry (30 days)
-        if (ocrData.orderDate) {
-          const orderDate = new Date(ocrData.orderDate);
-          const daysSinceOrder = (Date.now() - orderDate.getTime()) / (1000 * 60 * 60 * 24);
-          if (daysSinceOrder > 30) {
-            fraudFlags.push("expired_order");
-            fraudScore += 50;
-          }
-        }
-        
-        // Check duplicate order number globally
-        if (ocrData.orderNumber) {
-          const { checkDuplicateOrderNumberGlobal, findSimilarOrderNumbers } = await import("./db");
-          const duplicateOrder = await checkDuplicateOrderNumberGlobal(ocrData.orderNumber, receiptId);
-          if (duplicateOrder) {
-            fraudFlags.push("duplicate_order");
-            fraudScore += 100;
+                  },
+                  {
+                    role: "user",
+                    content: imageContents,
+                  },
+                ],
+              });
+              
+              messageContent = typeof ocrResult.choices[0].message.content === "string" 
+                ? ocrResult.choices[0].message.content : null;
+              let jsonStr = messageContent || "{}";
+              if (jsonStr.includes("```json")) {
+                jsonStr = jsonStr.replace(/```json\s*/g, "").replace(/```\s*/g, "");
+              } else if (jsonStr.includes("```")) {
+                jsonStr = jsonStr.replace(/```\s*/g, "");
+              }
+              jsonStr = jsonStr.trim();
+              ocrData = JSON.parse(jsonStr);
+            } catch (aiError: any) {
+              // AI解析失敗 → ステータスをanalysis_failedに更新（お客様には既に完了を返している）
+              console.error(`[Web Receipt BG] AI analysis failed for receipt ${receiptId}:`, aiError);
+              const { updateLineReceiptAiRejection: updateAiRejFailed } = await import("./db");
+              await updateAiRejFailed(receiptId, {
+                aiRejectionReason: "画像の解析に失敗しました。スタッフが手動で確認します。",
+                aiRejectionCategory: "other",
+              });
+              // analysis_failedでもpendingのままにして管理者が手動確認できるようにする
+              const { updateLineReceiptStatus: updateFailedStatus } = await import("./db");
+              await updateFailedStatus(receiptId, "on_hold", 0, "AI解析失敗。手動確認が必要です。");
+              return;
+            }
             
-            const isSameUser = duplicateOrder.lineUserId === lineUserId;
-            const rejectionMsg = isSameUser
-              ? `この注文は既にポイント申請済みです。注文番号: ${ocrData.orderNumber}`
-              : `この注文番号は既に他の方が申請済みです。注文番号: ${ocrData.orderNumber}`;
+            // 4. 注文番号のバリデーション・フォールバック処理
+            if (ocrData.orderNumber) {
+              const cleanedOrderNumber = String(ocrData.orderNumber).replace(/[^0-9]/g, "");
+              if (/^[56]\d{15,18}$/.test(cleanedOrderNumber)) {
+                ocrData.orderNumber = cleanedOrderNumber;
+              } else if (/^\d{16,19}$/.test(cleanedOrderNumber)) {
+                ocrData.orderNumber = cleanedOrderNumber;
+                console.log(`[Web Receipt BG] Order number doesn't start with 5/6 but has valid length: ${cleanedOrderNumber}`);
+              } else if (cleanedOrderNumber.length >= 15) {
+                ocrData.orderNumber = cleanedOrderNumber;
+                console.log(`[Web Receipt BG] Order number has unusual length (${cleanedOrderNumber.length}): ${cleanedOrderNumber}`);
+              } else {
+                console.log(`[Web Receipt BG] Rejected invalid order number: ${ocrData.orderNumber} (cleaned: ${cleanedOrderNumber})`);
+                ocrData.orderNumber = null;
+              }
+            }
             
-            // Save AI rejection info AND set status to rejected so it doesn't appear in admin panel
-            const { updateLineReceiptAiRejection: updateAiRejDuplicate, updateLineReceiptStatus: updateDupStatus } = await import("./db");
-            await updateAiRejDuplicate(receiptId, {
-              aiRejectionReason: rejectionMsg,
-              aiRejectionCategory: "other",
-            });
-            // Mark as rejected so duplicate receipts don't clutter the admin review panel
-            await updateDupStatus(receiptId, "rejected", 0, `自動却下: ${rejectionMsg}`);
+            // フォールバック: ocrRawText全体から長い数字列を探す
+            if (!ocrData.orderNumber && messageContent) {
+              const longNumbers = messageContent.match(/\d{15,19}/g);
+              if (longNumbers && longNumbers.length > 0) {
+                const bestMatch = longNumbers.sort((a: string, b: string) => b.length - a.length)[0];
+                ocrData.orderNumber = bestMatch;
+                console.log(`[Web Receipt BG] Fallback: extracted order number from raw response: ${bestMatch}`);
+              }
+            }
             
-            return {
-              receiptId,
-              status: "duplicate" as const,
-              message: rejectionMsg,
-              aiRejectionReason: rejectionMsg,
-              ocrData,
+            // 5. TikTok Shopバリデーション
+            if (!ocrData.isTikTokShop) {
+              const { updateLineReceiptOcr: updateOcrForRejected } = await import("./db");
+              await updateOcrForRejected(receiptId, {
+                storeName: ocrData.shopName || "不明",
+                purchaseDate: ocrData.orderDate ? new Date(ocrData.orderDate) : undefined,
+                totalAmount: ocrData.totalAmount,
+                currency: "JPY",
+                ocrRawText: JSON.stringify(ocrData),
+                pointsCalculated: 0,
+                imageUrls: uploadedImages.map(i => i.url),
+                imageKeys: uploadedImages.map(i => i.key),
+              });
+              const { updateLineReceiptAiRejection } = await import("./db");
+              await updateLineReceiptAiRejection(receiptId, {
+                aiRejectionReason: "TikTok Shopの注文画面として認識されませんでした",
+                aiRejectionCategory: "not_tiktok",
+              });
+              console.log(`[Web Receipt BG] Receipt ${receiptId}: not TikTok Shop`);
+              return;
+            }
+            
+            // 6. 配達済みバリデーション
+            if (!ocrData.isDelivered) {
+              const { updateLineReceiptOcr: updateOcrForNotDelivered } = await import("./db");
+              await updateOcrForNotDelivered(receiptId, {
+                storeName: ocrData.shopName || "TikTok Shop",
+                purchaseDate: ocrData.orderDate ? new Date(ocrData.orderDate) : undefined,
+                totalAmount: ocrData.totalAmount,
+                currency: "JPY",
+                ocrRawText: JSON.stringify(ocrData),
+                pointsCalculated: ocrData.totalAmount ? Math.floor(ocrData.totalAmount * 0.01) : 0,
+                imageUrls: uploadedImages.map(i => i.url),
+                imageKeys: uploadedImages.map(i => i.key),
+              });
+              const { updateLineReceiptAiRejection: updateAiRejNotDelivered } = await import("./db");
+              await updateAiRejNotDelivered(receiptId, {
+                aiRejectionReason: "配達ステータスが「配達済み」と確認できませんでした",
+                aiRejectionCategory: "not_delivered",
+              });
+              console.log(`[Web Receipt BG] Receipt ${receiptId}: not delivered`);
+              return;
+            }
+            
+            // 7. 金額バリデーション
+            if (!ocrData.totalAmount) {
+              const { updateLineReceiptOcr: updateOcrForIncomplete } = await import("./db");
+              await updateOcrForIncomplete(receiptId, {
+                storeName: ocrData.shopName || "TikTok Shop",
+                purchaseDate: ocrData.orderDate ? new Date(ocrData.orderDate) : undefined,
+                totalAmount: 0,
+                currency: "JPY",
+                ocrRawText: JSON.stringify(ocrData),
+                pointsCalculated: 0,
+                imageUrls: uploadedImages.map(i => i.url),
+                imageKeys: uploadedImages.map(i => i.key),
+              });
+              const { updateLineReceiptAiRejection: updateAiRejIncomplete } = await import("./db");
+              await updateAiRejIncomplete(receiptId, {
+                aiRejectionReason: "購入金額を画像から読み取ることができませんでした",
+                aiRejectionCategory: "incomplete",
+              });
+              console.log(`[Web Receipt BG] Receipt ${receiptId}: incomplete (no amount)`);
+              return;
+            }
+            
+            if (!ocrData.orderNumber) {
+              console.log(`[Web Receipt BG] Warning: Order number not detected for receipt ${receiptId}. Manual input will be required.`);
+            }
+            
+            // 8. ポイント計算 & OCRデータ保存
+            const pointsCalculated = Math.floor(ocrData.totalAmount * 0.01);
+            
+            const { updateLineReceiptOcr } = await import("./db");
+            await updateLineReceiptOcr(receiptId, {
+              storeName: ocrData.shopName || "TikTok Shop",
+              purchaseDate: ocrData.orderDate ? new Date(ocrData.orderDate) : undefined,
+              totalAmount: ocrData.totalAmount,
+              currency: "JPY",
+              ocrRawText: JSON.stringify(ocrData),
+              pointsCalculated,
               imageUrls: uploadedImages.map(i => i.url),
-            };
+              imageKeys: uploadedImages.map(i => i.key),
+            });
+            
+            // 9. 不正検知
+            const fraudFlags: string[] = [];
+            let fraudScore = 0;
+            
+            if (ocrData.orderDate) {
+              const orderDate = new Date(ocrData.orderDate);
+              const daysSinceOrder = (Date.now() - orderDate.getTime()) / (1000 * 60 * 60 * 24);
+              if (daysSinceOrder > 30) {
+                fraudFlags.push("expired_order");
+                fraudScore += 50;
+              }
+            }
+            
+            if (ocrData.orderNumber) {
+              const { checkDuplicateOrderNumberGlobal, findSimilarOrderNumbers } = await import("./db");
+              const duplicateOrder = await checkDuplicateOrderNumberGlobal(ocrData.orderNumber, receiptId);
+              if (duplicateOrder) {
+                fraudFlags.push("duplicate_order");
+                fraudScore += 100;
+                
+                const isSameUser = duplicateOrder.lineUserId === lineUserId;
+                const rejectionMsg = isSameUser
+                  ? `この注文は既にポイント申請済みです。注文番号: ${ocrData.orderNumber}`
+                  : `この注文番号は既に他の方が申請済みです。注文番号: ${ocrData.orderNumber}`;
+                
+                const { updateLineReceiptAiRejection: updateAiRejDuplicate, updateLineReceiptStatus: updateDupStatus } = await import("./db");
+                await updateAiRejDuplicate(receiptId, {
+                  aiRejectionReason: rejectionMsg,
+                  aiRejectionCategory: "other",
+                });
+                await updateDupStatus(receiptId, "rejected", 0, `自動却下: ${rejectionMsg}`);
+                console.log(`[Web Receipt BG] Receipt ${receiptId}: duplicate order number ${ocrData.orderNumber}`);
+                return;
+              }
+              
+              const similarOrders = await findSimilarOrderNumbers(ocrData.orderNumber, receiptId);
+              if (similarOrders.length > 0) {
+                fraudFlags.push("similar_order_number");
+                fraudScore += 40;
+                console.log(`[Web Receipt BG] Similar order numbers detected for ${ocrData.orderNumber}: ${similarOrders.map((s: any) => `${s.orderNumber}(diff:${s.diffCount})`).join(", ")}`);
+              }
+            }
+            
+            if (ocrData.totalAmount > 50000) {
+              fraudFlags.push("high_amount");
+              fraudScore += 20;
+            }
+            
+            if (fraudFlags.length > 0) {
+              const { updateLineReceiptFraudFlags, updateLineReceiptStatus } = await import("./db");
+              await updateLineReceiptFraudFlags(receiptId, fraudFlags, fraudScore);
+              
+              if (fraudScore >= 50) {
+                await updateLineReceiptStatus(receiptId, "on_hold", 0, "自動保留: 不正検知スコアが高いため");
+              }
+            }
+            
+            console.log(`[Web Receipt BG] Receipt ${receiptId} analysis complete. Amount: ${ocrData.totalAmount}, Points: ${pointsCalculated}, Fraud: ${fraudScore}`);
+            
+          } catch (bgError) {
+            console.error(`[Web Receipt BG] Background processing failed for receipt ${receiptId}:`, bgError);
+            // バックグラウンドエラーでもお客様には影響なし
+            // 管理者が手動で確認できるようにon_holdにする
+            try {
+              const { updateLineReceiptStatus: updateBgFailStatus } = await import("./db");
+              await updateBgFailStatus(receiptId, "on_hold", 0, "バックグラウンド処理エラー。手動確認が必要です。");
+            } catch (e) {
+              console.error(`[Web Receipt BG] Failed to update status for receipt ${receiptId}:`, e);
+            }
           }
-          
-          // Check for similar order numbers (1-2 digits different)
-          const similarOrders = await findSimilarOrderNumbers(ocrData.orderNumber, receiptId);
-          if (similarOrders.length > 0) {
-            fraudFlags.push("similar_order_number");
-            fraudScore += 40; // 類似番号は要確認
-            console.log(`[Web Receipt] Similar order numbers detected for ${ocrData.orderNumber}: ${similarOrders.map(s => `${s.orderNumber}(diff:${s.diffCount})`).join(", ")}`);
-          }
-        }
+        })();
         
-        // Check high amount
-        if (ocrData.totalAmount > 50000) {
-          fraudFlags.push("high_amount");
-          fraudScore += 20;
-        }
-        
-        // Update fraud flags
-        if (fraudFlags.length > 0) {
-          const { updateLineReceiptFraudFlags, updateLineReceiptStatus } = await import("./db");
-          await updateLineReceiptFraudFlags(receiptId, fraudFlags, fraudScore);
-          
-          if (fraudScore >= 50) {
-            await updateLineReceiptStatus(receiptId, "on_hold", 0, "自動保留: 不正検知スコアが高いため");
-          }
-        }
-        
+        // ============================================
+        // お客様には即座に「申請完了」を返す
+        // AI解析・重複チェック・不正検知はバックグラウンドで実行中
+        // ============================================
         return {
           receiptId,
-          status: fraudScore >= 50 ? "on_hold" as const : "success" as const,
-          message: fraudScore >= 50
-            ? "注文を確認中です。スタッフが確認後、結果をお知らせします。"
-            : "レシートの解析が完了しました！スタッフの確認後、ポイントが付与されます。",
-          ocrData: {
-            orderNumber: ocrData.orderNumber,
-            shopName: ocrData.shopName || "TikTok Shop",
-            productName: ocrData.productName,
-            totalAmount: ocrData.totalAmount,
-            orderDate: ocrData.orderDate,
-          },
-          pointsCalculated,
+          status: "success" as const,
+          message: "レシートを受け付けました！スタッフの確認後、ポイントが付与されます。",
           imageUrls: uploadedImages.map(i => i.url),
-          fraudFlags: fraudFlags.length > 0 ? fraudFlags : undefined,
         };
       } catch (error) {
         if (error instanceof TRPCError) throw error;
         console.error("[Web Receipt] Error:", error);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "レシートの処理中にエラーが発生しました。同じ画像で再度お試しください。繰り返しエラーになる場合は、別のスクリーンショットをお試しください。",
+          message: "レシートのアップロードに失敗しました。しばらくしてから再度お試しください。",
         });
       }
     }),
