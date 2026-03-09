@@ -327,18 +327,7 @@ export const liverTranslations: Record<string, Record<LiverLanguage, string>> = 
   "schedule.upcoming": { ja: "配信予定", "zh-TW": "直播排程", en: "Upcoming Streams", zh: "直播排程" },
   "schedule.record": { ja: "記録", "zh-TW": "記錄", en: "Record", zh: "记录" },
 
-  // === Self Record additional ===
-  "record.invalidDateTime": { ja: "開始日時の形式が正しくありません", "zh-TW": "開始時間格式不正確", en: "Invalid start date/time format", zh: "开始时间格式不正确" },
-  "record.searchBrand": { ja: "ブランド名を検索...", "zh-TW": "搜尋品牌...", en: "Search brand...", zh: "搜索品牌..." },
-  "record.brandNotFound": { ja: "ブランドが見つかりません", "zh-TW": "找不到品牌", en: "No brand found", zh: "找不到品牌" },
-  "record.setSection": { ja: "セット組み（任意）", "zh-TW": "套組（選填）", en: "Bundle Sets (Optional)", zh: "套组（选填）" },
-  "record.addSet": { ja: "セット追加", "zh-TW": "新增套組", en: "Add Set", zh: "新增套组" },
-  "record.setNote": { ja: "※ セット売上は配信全体の売上の内訳参考です。売上金額には加算されません。", "zh-TW": "※ 套組銷售額僅作為直播總銷售額的明細參考，不會加總到銷售金額。", en: "* Set revenue is for reference only and won't be added to total sales.", zh: "※ 套组销售额仅作为直播总销售额的明细参考，不会加总到销售金额。" },
-  "record.set": { ja: "セット", "zh-TW": "套組", en: "Set", zh: "套组" },
-  "record.setNamePlaceholder": { ja: "セット名（例：美容3点セット）", "zh-TW": "套組名稱（例：美容3件套組）", en: "Set name (e.g. Beauty 3-piece set)", zh: "套组名称（例：美容3件套组）" },
-  "record.setProducts": { ja: "セット内商品", "zh-TW": "套組內商品", en: "Products in Set", zh: "套组内商品" },
-  "record.discountRate": { ja: "お得率", "zh-TW": "折扣率", en: "Discount Rate", zh: "折扣率" },
-  "record.setTotal": { ja: "セット売上合計", "zh-TW": "套組銷售合計", en: "Set Revenue Total", zh: "套组销售合计" },
+
 };
 
 // Helper function to get translation
