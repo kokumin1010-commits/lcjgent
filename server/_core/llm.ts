@@ -114,29 +114,94 @@ const ensureArray = (
   value: MessageContent | MessageContent[]
 ): MessageContent[] => (Array.isArray(value) ? value : [value]);
 
-const normalizeContentPart = (
+/**
+ * Convert file_url to OpenAI-compatible "file" format.
+ * OpenAI Chat Completions API uses { type: "file", file: { filename, file_data } }
+ * with base64 data URL, not "file_url" which was a Forge/Gemini-specific format.
+ */
+const convertFileUrlToOpenAIFormat = async (
+  fileContent: FileContent
+): Promise<Record<string, unknown>> => {
+  const url = fileContent.file_url.url;
+  const mimeType = fileContent.file_url.mime_type || "application/pdf";
+
+  try {
+    console.log(`[LLM] Downloading file for base64 conversion: ${url.substring(0, 100)}...`);
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to download file: ${response.status} ${response.statusText}`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString("base64");
+    const dataUrl = `data:${mimeType};base64,${base64}`;
+
+    // Extract filename from URL
+    const urlPath = new URL(url).pathname;
+    const filename = urlPath.split("/").pop() || "file";
+
+    console.log(`[LLM] File converted to base64: ${filename} (${(arrayBuffer.byteLength / 1024).toFixed(1)}KB)`);
+
+    return {
+      type: "file",
+      file: {
+        filename,
+        file_data: dataUrl,
+      },
+    };
+  } catch (error: any) {
+    console.error(`[LLM] Failed to convert file_url to base64:`, error.message);
+    throw new Error(`Failed to convert file for LLM: ${error.message}`);
+  }
+};
+
+/**
+ * Normalize a single content part (sync, for non-file types).
+ */
+const normalizeContentPartSync = (
   part: MessageContent
 ): TextContent | ImageContent | FileContent => {
   if (typeof part === "string") {
     return { type: "text", text: part };
   }
-
-  if (part.type === "text") {
+  if (part.type === "text" || part.type === "image_url" || part.type === "file_url") {
     return part;
   }
-
-  if (part.type === "image_url") {
-    return part;
-  }
-
-  if (part.type === "file_url") {
-    return part;
-  }
-
   throw new Error("Unsupported message content part");
 };
 
-const normalizeMessage = (message: Message) => {
+/**
+ * Normalize a single content part, converting file_url to OpenAI format asynchronously.
+ */
+const normalizeContentPartAsync = async (
+  part: MessageContent
+): Promise<Record<string, unknown>> => {
+  if (typeof part === "string") {
+    return { type: "text", text: part };
+  }
+  if (part.type === "text") {
+    return part;
+  }
+  if (part.type === "image_url") {
+    return part;
+  }
+  if (part.type === "file_url") {
+    return await convertFileUrlToOpenAIFormat(part);
+  }
+  throw new Error("Unsupported message content part");
+};
+
+/**
+ * Check if any content part contains a file_url that needs async conversion.
+ */
+const hasFileUrl = (content: MessageContent | MessageContent[]): boolean => {
+  const parts = ensureArray(content);
+  return parts.some(p => typeof p !== "string" && p.type === "file_url");
+};
+
+/**
+ * Normalize a message, handling file_url conversion asynchronously when needed.
+ */
+const normalizeMessageAsync = async (message: Message) => {
   const { role, name, tool_call_id } = message;
 
   if (role === "tool" || role === "function") {
@@ -152,7 +217,20 @@ const normalizeMessage = (message: Message) => {
     };
   }
 
-  const contentParts = ensureArray(message.content).map(normalizeContentPart);
+  // Check if we need async conversion (file_url present)
+  if (hasFileUrl(message.content)) {
+    const contentParts = await Promise.all(
+      ensureArray(message.content).map(normalizeContentPartAsync)
+    );
+    return {
+      role,
+      name,
+      content: contentParts,
+    };
+  }
+
+  // Sync path (no file_url)
+  const contentParts = ensureArray(message.content).map(normalizeContentPartSync);
 
   // If there's only text content, collapse to a single string for compatibility
   if (contentParts.length === 1 && contentParts[0].type === "text") {
@@ -279,9 +357,12 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     response_format,
   } = params;
 
+  // Use async normalization to handle file_url → base64 conversion
+  const normalizedMessages = await Promise.all(messages.map(normalizeMessageAsync));
+
   const payload: Record<string, unknown> = {
     model: "gpt-4o-mini",
-    messages: messages.map(normalizeMessage),
+    messages: normalizedMessages,
   };
 
   if (tools && tools.length > 0) {
