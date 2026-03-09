@@ -2219,7 +2219,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         console.error("[Web Receipt] Error:", error);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
-          message: "レシートの処理中にエラーが発生しました。しばらくしてからもう一度お試しください。",
+          message: "レシートの処理中にエラーが発生しました。同じ画像で再度お試しください。繰り返しエラーになる場合は、別のスクリーンショットをお試しください。",
         });
       }
     }),

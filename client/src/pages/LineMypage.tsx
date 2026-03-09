@@ -1093,8 +1093,11 @@ export default function LineMypage() {
                   </div>
                 ) : receipts && receipts.length > 0 ? (
                   <div className="space-y-4">
-                    {receipts.map((receipt: any) => (
-                      <div key={receipt.id} className="border rounded-lg p-4">
+                    {receipts.map((receipt: any) => {
+                      const rejectionReason = receipt.reviewNote || receipt.aiRejectionReason;
+                      const isRejected = receipt.status === "rejected";
+                      return (
+                      <div key={receipt.id} className={`border rounded-lg p-4 ${isRejected ? "border-red-200 bg-red-50/30" : ""}`}>
                         <div className="flex items-start justify-between mb-2">
                           <div>
                             <p className="font-medium">{receipt.storeName || "店舗名未確認"}</p>
@@ -1107,20 +1110,52 @@ export default function LineMypage() {
                         <div className="grid grid-cols-2 gap-2 text-sm">
                           <div>
                             <span className="text-muted-foreground">購入金額: </span>
-                            <span className="font-medium">¥{receipt.purchaseAmount?.toLocaleString() || "-"}</span>
+                            <span className="font-medium">¥{receipt.purchaseAmount?.toLocaleString() || receipt.totalAmount?.toLocaleString() || "-"}</span>
                           </div>
                           <div>
                             <span className="text-muted-foreground">獲得ポイント: </span>
                             <span className="font-medium text-rose-500">{receipt.pointsAwarded?.toLocaleString() || "-"} pt</span>
                           </div>
                         </div>
-                        {receipt.rejectionReason && (
-                          <p className="mt-2 text-sm text-red-600 bg-red-50 p-2 rounded">
-                            却下理由: {receipt.rejectionReason}
-                          </p>
+                        {isRejected && rejectionReason && (
+                          <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3">
+                            <div className="flex items-start gap-2">
+                              <XCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+                              <div>
+                                <p className="text-sm font-medium text-red-700">却下理由</p>
+                                <p className="text-sm text-red-600 mt-0.5">{rejectionReason}</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        {isRejected && !rejectionReason && (
+                          <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3">
+                            <div className="flex items-start gap-2">
+                              <XCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+                              <p className="text-sm text-red-600">申請が却下されました。画像を確認の上、再度お試しください。</p>
+                            </div>
+                          </div>
+                        )}
+                        {isRejected && (
+                          <Button
+                            className="mt-3 w-full bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white"
+                            size="sm"
+                            onClick={() => {
+                              const token = localStorage.getItem('lcj_session_token');
+                              if (token) {
+                                setLocation(`/receipt-upload?token=${encodeURIComponent(token)}`);
+                              } else {
+                                setLocation('/receipt-upload');
+                              }
+                            }}
+                          >
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            再申請する
+                          </Button>
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">

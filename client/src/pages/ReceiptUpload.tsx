@@ -670,7 +670,13 @@ export default function ReceiptUpload() {
                     <XCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
                     <div>
                       <p className="text-sm text-red-700 font-medium">{submitError}</p>
-                      <p className="text-xs text-red-500 mt-1">別のレシート画像をアップロードしてください。</p>
+                      {submitError.includes("既に登録") ? (
+                        <p className="text-xs text-red-500 mt-1">この画像は現在審査中または承認済みです。マイページのレシート履歴から状態をご確認ください。</p>
+                      ) : submitError.includes("エラー") ? (
+                        <p className="text-xs text-red-500 mt-1">一時的なエラーの可能性があります。同じ画像で再度お試しください。</p>
+                      ) : (
+                        <p className="text-xs text-red-500 mt-1">別のレシート画像をアップロードしてください。</p>
+                      )}
                     </div>
                   </div>
                 )}

@@ -4993,13 +4993,18 @@ export async function checkDuplicateReceiptByHash(imageHash: string, excludeId?:
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  let conditions = eq(receipts.imageHash, imageHash);
+  // rejected（却下）のレシートは重複チェックから除外し、再申請を可能にする
+  const activeStatuses = ["pending", "approved", "on_hold"];
   
   if (excludeId) {
     const result = await db
       .select()
       .from(receipts)
-      .where(and(eq(receipts.imageHash, imageHash), not(eq(receipts.id, excludeId))))
+      .where(and(
+        eq(receipts.imageHash, imageHash),
+        not(eq(receipts.id, excludeId)),
+        inArray(receipts.status, activeStatuses)
+      ))
       .limit(1);
     return result[0] || null;
   }
@@ -5007,7 +5012,10 @@ export async function checkDuplicateReceiptByHash(imageHash: string, excludeId?:
   const result = await db
     .select()
     .from(receipts)
-    .where(conditions)
+    .where(and(
+      eq(receipts.imageHash, imageHash),
+      inArray(receipts.status, activeStatuses)
+    ))
     .limit(1);
   return result[0] || null;
 }
@@ -5604,11 +5612,18 @@ export async function checkDuplicateLineReceiptByHash(imageHash: string, exclude
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
+  // rejected（却下）のレシートは重複チェックから除外し、再申請を可能にする
+  const activeStatuses = ["pending", "approved", "on_hold"];
+  
   if (excludeId) {
     const result = await db
       .select()
       .from(lineReceipts)
-      .where(and(eq(lineReceipts.imageHash, imageHash), not(eq(lineReceipts.id, excludeId))))
+      .where(and(
+        eq(lineReceipts.imageHash, imageHash),
+        not(eq(lineReceipts.id, excludeId)),
+        inArray(lineReceipts.status, activeStatuses)
+      ))
       .limit(1);
     return result[0] || null;
   }
@@ -5616,7 +5631,10 @@ export async function checkDuplicateLineReceiptByHash(imageHash: string, exclude
   const result = await db
     .select()
     .from(lineReceipts)
-    .where(eq(lineReceipts.imageHash, imageHash))
+    .where(and(
+      eq(lineReceipts.imageHash, imageHash),
+      inArray(lineReceipts.status, activeStatuses)
+    ))
     .limit(1);
   return result[0] || null;
 }
