@@ -582,12 +582,18 @@ import {
   selectPopupVariantBandit,
   getPopupStats,
   seedPopupVariants,
+  createLivestreamBrand,
+  getLivestreamBrandsByLivestreamId,
+  deleteLivestreamBrandsByLivestreamId,
+  createBrandAdditionLog,
+  getAllBrandAdditionLogs,
+  createBrandByLiver,
 } from "./db";
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
-import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts } from "../drizzle/schema";
+import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs } from "../drizzle/schema";
 import { eq, and, not, isNotNull, desc, gt } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
@@ -9498,6 +9504,7 @@ ${conversationText}
     createLivestream: publicProcedure
       .input(z.object({
         brandId: z.number(),
+        brandIds: z.array(z.number()).optional(), // Additional brands (multi-brand support)
         liverId: z.number(),
         scheduleId: z.number().optional(),
         livestreamDate: z.string(),
@@ -9705,6 +9712,19 @@ ${conversationText}
                 });
               }
             }
+          }
+        }
+        
+        // Save multiple brands to livestream_brands junction table
+        const allBrandIds = new Set<number>([input.brandId]);
+        if (input.brandIds && input.brandIds.length > 0) {
+          input.brandIds.forEach(bid => allBrandIds.add(bid));
+        }
+        for (const bid of allBrandIds) {
+          try {
+            await createLivestreamBrand({ livestreamId: id, brandId: bid });
+          } catch (e) {
+            console.error('[createLivestreamBrand] Failed:', e);
           }
         }
         
@@ -10653,6 +10673,37 @@ ${liverProductSummary.map(l => `### ${l.liverName}的擅长商品\n${l.topProduc
             liverProductSummary,
           },
         };
+      }),
+
+    // Add a new brand by liver (ライバーによるブランド追加)
+    addBrand: publicProcedure
+      .input(z.object({
+        name: z.string().min(1).max(255),
+        liverId: z.number(),
+        liverName: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        // Create the brand
+        const brand = await createBrandByLiver(input.name, 0);
+        
+        // Log the addition
+        await createBrandAdditionLog({
+          liverId: input.liverId,
+          liverName: input.liverName,
+          brandId: brand.id,
+          brandName: input.name,
+        });
+        
+        return brand;
+      }),
+
+    // Get brand addition logs (管理画面用)
+    getBrandAdditionLogs: protectedProcedure
+      .input(z.object({
+        limit: z.number().optional().default(100),
+      }).optional())
+      .query(async ({ input }) => {
+        return await getAllBrandAdditionLogs(input?.limit || 100);
       }),
   }),
 

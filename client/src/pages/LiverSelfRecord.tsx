@@ -65,7 +65,8 @@ export default function LiverSelfRecord() {
   }, [liverInfo, hasLoadedLiver]);
   
   // Get brands for selection
-  const { data: brands } = trpc.brand.list.useQuery();
+  const brandsQuery = trpc.brand.list.useQuery();
+  const brands = brandsQuery.data;
 
   // Get schedule info if scheduleId is provided
   const { data: scheduleInfo } = trpc.schedule.getById.useQuery(
@@ -74,6 +75,22 @@ export default function LiverSelfRecord() {
   );
 
   const [brandSearchOpen, setBrandSearchOpen] = useState(false);
+  const [selectedBrandIds, setSelectedBrandIds] = useState<string[]>([]);
+  const [newBrandName, setNewBrandName] = useState("");
+  const [showAddBrand, setShowAddBrand] = useState(false);
+  const addBrandMutation = trpc.liverManagement.addBrand.useMutation({
+    onSuccess: (data) => {
+      toast.success(t("record.addBrandSuccess"));
+      setSelectedBrandIds(prev => [...prev, data.id.toString()]);
+      setNewBrandName("");
+      setShowAddBrand(false);
+      // Refetch brands list
+      brandsQuery.refetch();
+    },
+    onError: () => {
+      toast.error(t("record.addBrandError"));
+    },
+  });
   const [formData, setFormData] = useState({
     brandId: "",
     livestreamDate: dateParam || "",
@@ -152,6 +169,12 @@ export default function LiverSelfRecord() {
         brandId: scheduleInfo.brandId?.toString() || prev.brandId,
         scheduleId: scheduleInfo.id.toString(),
       }));
+      if (scheduleInfo.brandId) {
+        setSelectedBrandIds(prev => {
+          const id = scheduleInfo.brandId!.toString();
+          return prev.includes(id) ? prev : [...prev, id];
+        });
+      }
     }
   }, [scheduleInfo]);
 
@@ -239,6 +262,10 @@ export default function LiverSelfRecord() {
     afterScreenshotHint: t("record.afterScreenshotHint"),
     tapToUploadBefore: t("record.tapToUploadBefore"),
     optional: t("record.optional"),
+    addBrand: t("record.addBrand"),
+    addBrandPlaceholder: t("record.addBrandPlaceholder"),
+    selectedBrands: t("record.selectedBrands"),
+    selectBrandHint: t("record.selectBrandHint"),
   };
 
   const handleScreenshotChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -450,7 +477,7 @@ export default function LiverSelfRecord() {
       return;
     }
 
-    if (!formData.brandId) {
+    if (selectedBrandIds.length === 0) {
       toast.error(tr.selectBrandError);
       return;
     }
@@ -550,7 +577,8 @@ export default function LiverSelfRecord() {
       }
 
       createLivestreamMutation.mutate({
-        brandId: parseInt(formData.brandId),
+        brandId: parseInt(selectedBrandIds[0]),
+        brandIds: selectedBrandIds.map(id => parseInt(id)),
         liverId: liverInfo.id,
         livestreamDate: livestreamDateTime.toISOString(),
         livestreamEndTime: endDateTime?.toISOString(),
@@ -947,12 +975,36 @@ export default function LiverSelfRecord() {
               <CardTitle className="text-sm text-gray-300">{tr.detailsForm}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Brand Selection */}
+              {/* Brand Selection - Multi-select */}
               <div className="space-y-2">
                 <Label className="text-gray-200 text-sm flex items-center gap-2">
                   <Video className="h-4 w-4 text-red-500" />
                   {tr.selectBrand} <span className="text-red-500">*</span>
+                  <span className="text-gray-400 text-xs font-normal">({tr.selectBrandHint})</span>
                 </Label>
+                
+                {/* Selected brands display */}
+                {selectedBrandIds.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {selectedBrandIds.map(id => {
+                      const brand = brands?.find((b: { id: number; name: string }) => b.id.toString() === id);
+                      return brand ? (
+                        <span key={id} className="inline-flex items-center gap-1 bg-red-600/20 text-red-300 border border-red-600/40 rounded-full px-3 py-1 text-sm">
+                          <Tag className="h-3 w-3" />
+                          {brand.name}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedBrandIds(prev => prev.filter(bid => bid !== id))}
+                            className="ml-1 hover:text-red-100"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
+                )}
+                
                 <Popover open={brandSearchOpen} onOpenChange={setBrandSearchOpen}>
                   <PopoverTrigger asChild>
                     <Button
@@ -961,8 +1013,8 @@ export default function LiverSelfRecord() {
                       aria-expanded={brandSearchOpen}
                       className="w-full justify-between bg-gray-800 border-gray-700 text-white hover:bg-gray-700 hover:text-white"
                     >
-                      {formData.brandId
-                        ? brands?.find((b: { id: number; name: string }) => b.id.toString() === formData.brandId)?.name
+                      {selectedBrandIds.length > 0
+                        ? `${selectedBrandIds.length} ${tr.selectedBrands}`
                         : tr.selectBrand}
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-2 h-4 w-4 shrink-0 opacity-50"><path d="m6 9 6 6 6-6"/></svg>
                     </Button>
@@ -973,24 +1025,91 @@ export default function LiverSelfRecord() {
                       <CommandList className="max-h-60">
                         <CommandEmpty className="text-gray-200 py-4 text-center text-sm">{t("record.brandNotFound")}</CommandEmpty>
                         <CommandGroup>
-                          {brands?.map((brand: { id: number; name: string }) => (
-                            <CommandItem
-                              key={brand.id}
-                              value={brand.name}
-                              onSelect={() => {
-                                setFormData({ ...formData, brandId: brand.id.toString() });
-                                setBrandSearchOpen(false);
-                              }}
-                              className="text-white hover:bg-gray-700 cursor-pointer aria-selected:bg-gray-700"
-                            >
-                              <CheckCircle
-                                className={`mr-2 h-4 w-4 ${formData.brandId === brand.id.toString() ? "text-green-500 opacity-100" : "opacity-0"}`}
-                              />
-                              {brand.name}
-                            </CommandItem>
-                          ))}
+                          {brands?.map((brand: { id: number; name: string }) => {
+                            const isSelected = selectedBrandIds.includes(brand.id.toString());
+                            return (
+                              <CommandItem
+                                key={brand.id}
+                                value={brand.name}
+                                onSelect={() => {
+                                  const brandIdStr = brand.id.toString();
+                                  if (isSelected) {
+                                    setSelectedBrandIds(prev => prev.filter(id => id !== brandIdStr));
+                                  } else {
+                                    setSelectedBrandIds(prev => [...prev, brandIdStr]);
+                                  }
+                                  // Keep popover open for multi-select
+                                }}
+                                className="text-white hover:bg-gray-700 cursor-pointer aria-selected:bg-gray-700"
+                              >
+                                <CheckCircle
+                                  className={`mr-2 h-4 w-4 ${isSelected ? "text-green-500 opacity-100" : "opacity-0"}`}
+                                />
+                                {brand.name}
+                              </CommandItem>
+                            );
+                          })}
                         </CommandGroup>
                       </CommandList>
+                      {/* Add Brand Button */}
+                      <div className="border-t border-gray-700 p-2">
+                        {showAddBrand ? (
+                          <div className="flex gap-2">
+                            <Input
+                              value={newBrandName}
+                              onChange={(e) => setNewBrandName(e.target.value)}
+                              placeholder={tr.addBrandPlaceholder}
+                              className="bg-gray-800 border-gray-600 text-white text-sm"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && newBrandName.trim()) {
+                                  e.preventDefault();
+                                  addBrandMutation.mutate({
+                                    name: newBrandName.trim(),
+                                    liverId: liverInfo?.id || 0,
+                                    liverName: liverInfo?.name || '',
+                                  });
+                                }
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={!newBrandName.trim() || addBrandMutation.isPending}
+                              onClick={() => {
+                                if (newBrandName.trim()) {
+                                  addBrandMutation.mutate({
+                                    name: newBrandName.trim(),
+                                    liverId: liverInfo?.id || 0,
+                                    liverName: liverInfo?.name || '',
+                                  });
+                                }
+                              }}
+                              className="bg-red-600 hover:bg-red-700 text-white text-xs px-3"
+                            >
+                              {addBrandMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => { setShowAddBrand(false); setNewBrandName(""); }}
+                              className="text-gray-400 hover:text-white text-xs px-2"
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => setShowAddBrand(true)}
+                            className="w-full justify-start text-yellow-500 hover:text-yellow-400 hover:bg-gray-800 text-sm"
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            {tr.addBrand}
+                          </Button>
+                        )}
+                      </div>
                     </Command>
                   </PopoverContent>
                 </Popover>
@@ -1300,7 +1419,7 @@ export default function LiverSelfRecord() {
             type="button"
             onClick={(e) => {
               // Validate before saving
-              if (!formData.brandId) {
+              if (selectedBrandIds.length === 0) {
                 toast.error(tr.selectBrandError);
                 return;
               }
@@ -1309,8 +1428,8 @@ export default function LiverSelfRecord() {
                 return;
               }
               // Use native confirm for better LINE browser compatibility
-              const brandName = brands?.find(b => b.id.toString() === formData.brandId)?.name || '';
-              const confirmMessage = `${tr.confirmTitle}\n\n${tr.selectBrand}: ${brandName}\n${tr.livestreamDate}: ${formData.livestreamDate}\n${tr.startTime}: ${formData.livestreamStartTime}\n${formData.salesAmount ? `${tr.salesAmount}: ¥${Number(parseInt(formData.salesAmount)).toLocaleString()}` : ''}\n\n${tr.confirmDescription}`;
+              const brandNames = selectedBrandIds.map(id => brands?.find(b => b.id.toString() === id)?.name || '').filter(Boolean).join(', ');
+              const confirmMessage = `${tr.confirmTitle}\n\n${tr.selectBrand}: ${brandNames}\n${tr.livestreamDate}: ${formData.livestreamDate}\n${tr.startTime}: ${formData.livestreamStartTime}\n${formData.salesAmount ? `${tr.salesAmount}: \u00a5${Number(parseInt(formData.salesAmount)).toLocaleString()}` : ''}\n\n${tr.confirmDescription}`;
               if (window.confirm(confirmMessage)) {
                 handleSubmit(e as unknown as React.FormEvent);
               }
@@ -1351,7 +1470,9 @@ export default function LiverSelfRecord() {
               <div className="flex justify-between items-center py-2 border-b border-gray-700">
                 <span className="text-gray-200">{tr.selectBrand}</span>
                 <span className="text-white font-medium">
-                  {brands?.find(b => b.id.toString() === formData.brandId)?.name || tr.notSet}
+                  {selectedBrandIds.length > 0
+                    ? selectedBrandIds.map(id => brands?.find(b => b.id.toString() === id)?.name || '').filter(Boolean).join(', ')
+                    : tr.notSet}
                 </span>
               </div>
               

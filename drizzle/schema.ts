@@ -3780,3 +3780,32 @@ export const blogArticleThemeLog = mysqlTable("blog_article_theme_log", {
 });
 export type BlogArticleThemeLogEntry = typeof blogArticleThemeLog.$inferSelect;
 export type InsertBlogArticleThemeLogEntry = typeof blogArticleThemeLog.$inferInsert;
+
+
+/**
+ * Livestream-Brand junction table for many-to-many relationship
+ * Allows a single livestream to be associated with multiple brands
+ */
+export const livestreamBrands = mysqlTable("livestream_brands", {
+  id: int("id").autoincrement().primaryKey(),
+  livestreamId: int("livestreamId").notNull(), // References brandLivestreams.id
+  brandId: int("brandId").notNull(), // References brands.id
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type LivestreamBrand = typeof livestreamBrands.$inferSelect;
+export type InsertLivestreamBrand = typeof livestreamBrands.$inferInsert;
+
+/**
+ * Brand addition logs table for tracking when livers add new brands
+ * Records who added which brand and when for admin review
+ */
+export const brandAdditionLogs = mysqlTable("brand_addition_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  liverId: int("liverId").notNull(), // References livers.id - who added the brand
+  liverName: varchar("liverName", { length: 255 }).notNull(), // Liver name at time of addition
+  brandId: int("brandId").notNull(), // References brands.id - the brand that was added
+  brandName: varchar("brandName", { length: 255 }).notNull(), // Brand name at time of addition
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type BrandAdditionLog = typeof brandAdditionLogs.$inferSelect;
+export type InsertBrandAdditionLog = typeof brandAdditionLogs.$inferInsert;
