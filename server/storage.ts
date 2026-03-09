@@ -41,6 +41,11 @@ function normalizeKey(relKey: string): string {
 }
 
 function getPublicUrl(key: string): string {
+  // Use custom CDN domain if set (e.g. Cloudflare R2 custom domain)
+  const cdnDomain = process.env.AWS_S3_PUBLIC_URL;
+  if (cdnDomain) {
+    return `${cdnDomain.replace(/\/+$/, "")}/${key}`;
+  }
   const endpoint = process.env.AWS_S3_ENDPOINT;
   const bucket = getBucket();
   if (endpoint) {
