@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { ArrowLeft, Video, Calendar, DollarSign, Clock, X, Link as LinkIcon, Camera, Sparkles, Loader2, Lightbulb, Users, MousePointer, ShoppingCart, CheckCircle, Eye, Package, Plus, Trash2, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { liverI18n } from "@/lib/liverI18n";
+import { liverTranslations, type LiverLanguage } from "@/lib/liverI18n";
 
 // 時刻文字列を正規化するヘルパー（"1:22" → "01:22", "21:10" → "21:10"）
 const normalizeTime = (time: string): string => {
@@ -38,7 +38,7 @@ const safeCreateDate = (date: string, time: string): Date | null => {
 
 export default function LiverSelfRecord() {
   const { language } = useLanguage();
-  const t = (key: string) => liverI18n[key]?.[language] || liverI18n[key]?.ja || key;
+  const t = (key: string) => liverTranslations[key]?.[language as LiverLanguage] || liverTranslations[key]?.ja || key;
   const [, navigate] = useLocation();
   const searchString = useSearch();
   const searchParams = new URLSearchParams(searchString);

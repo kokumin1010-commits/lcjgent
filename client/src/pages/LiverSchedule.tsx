@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useLocation, Link } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { liverI18n } from "@/lib/liverI18n";
+import { liverTranslations, type LiverLanguage } from "@/lib/liverI18n";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -69,7 +69,7 @@ type Livestream = {
 
 export default function LiverSchedule() {
   const { language } = useLanguage();
-  const t = (key: string) => liverI18n[key]?.[language] || liverI18n[key]?.ja || key;
+  const t = (key: string) => liverTranslations[key]?.[language as LiverLanguage] || liverTranslations[key]?.ja || key;
   const [, navigate] = useLocation();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
