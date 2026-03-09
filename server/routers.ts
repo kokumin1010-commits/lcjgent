@@ -9841,8 +9841,13 @@ ${conversationText}
         const key = `livestreams/${input.liverId || 'unknown'}/${timestamp}-${nanoid()}.${ext}`;
         const contentType = `image/${ext === "jpg" ? "jpeg" : ext}`;
         
-        const { url } = await storagePut(key, buffer, contentType);
-        return { url, key };
+        try {
+          const { url } = await storagePut(key, buffer, contentType);
+          return { url, key };
+        } catch (uploadErr) {
+          console.error('[uploadScreenshot] Storage upload failed (returning empty url):', uploadErr);
+          return { url: "", key: "" };
+        }
       }),
 
     // Analyze screenshot to extract livestream data
@@ -15530,21 +15535,36 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           });
         }
 
-        // レシート画像をS3にアップロード
-        const receiptBuffer = Buffer.from(input.receiptImage.base64, "base64");
-        const receiptExt = input.receiptImage.mimeType.split("/")[1] || "png";
-        const receiptKey = `point-requests/${ctx.user.id}/${nanoid()}-receipt.${receiptExt}`;
-        const { url: receiptUrl } = await storagePut(receiptKey, receiptBuffer, input.receiptImage.mimeType);
+        // レシート画像をS3にアップロード（失敗してもデータ保存は続行）
+        let receiptUrl: string = "";
+        let receiptKey: string = "";
+        try {
+          const receiptBuffer = Buffer.from(input.receiptImage.base64, "base64");
+          const receiptExt = input.receiptImage.mimeType.split("/")[1] || "png";
+          receiptKey = `point-requests/${ctx.user.id}/${nanoid()}-receipt.${receiptExt}`;
+          const receiptResult = await storagePut(receiptKey, receiptBuffer, input.receiptImage.mimeType);
+          receiptUrl = receiptResult.url;
+        } catch (uploadErr) {
+          console.error('[Point Request] Receipt image upload failed (continuing without image):', uploadErr);
+          receiptUrl = "";
+          receiptKey = "";
+        }
 
-        // 配達済み画像をS3にアップロード（任意）
+        // 配達済み画像をS3にアップロード（任意・失敗してもデータ保存は続行）
         let deliveryUrl: string | undefined;
         let deliveryKey: string | undefined;
         if (input.deliveryImage) {
-          const deliveryBuffer = Buffer.from(input.deliveryImage.base64, "base64");
-          const deliveryExt = input.deliveryImage.mimeType.split("/")[1] || "png";
-          deliveryKey = `point-requests/${ctx.user.id}/${nanoid()}-delivery.${deliveryExt}`;
-          const result = await storagePut(deliveryKey, deliveryBuffer, input.deliveryImage.mimeType);
-          deliveryUrl = result.url;
+          try {
+            const deliveryBuffer = Buffer.from(input.deliveryImage.base64, "base64");
+            const deliveryExt = input.deliveryImage.mimeType.split("/")[1] || "png";
+            deliveryKey = `point-requests/${ctx.user.id}/${nanoid()}-delivery.${deliveryExt}`;
+            const result = await storagePut(deliveryKey, deliveryBuffer, input.deliveryImage.mimeType);
+            deliveryUrl = result.url;
+          } catch (uploadErr) {
+            console.error('[Point Request] Delivery image upload failed (continuing without image):', uploadErr);
+            deliveryUrl = undefined;
+            deliveryKey = undefined;
+          }
         }
 
         // ポイント計算（1%還元）
