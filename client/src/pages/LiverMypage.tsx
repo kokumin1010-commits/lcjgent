@@ -100,6 +100,10 @@ export default function LiverMypage() {
   useEffect(() => {
     if (liverInfo && !hasLoadedLiver) {
       setHasLoadedLiver(true);
+      // DBのlanguage設定を自動適用
+      if (liverInfo.language && liverInfo.language !== language) {
+        setLanguage(liverInfo.language as LiverLanguage);
+      }
     }
   }, [liverInfo, hasLoadedLiver]);
   

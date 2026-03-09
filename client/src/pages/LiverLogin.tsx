@@ -17,7 +17,7 @@ export default function LiverLogin() {
   const [error, setError] = useState("");
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const { language } = useLanguage();
+  const { language, setLanguage } = useLanguage();
   const lt = createLiverT(language as LiverLanguage);
 
   // Check if already logged in
@@ -85,6 +85,11 @@ export default function LiverLogin() {
       if (data.token) {
         console.log('Token received, saving to localStorage...');
         setLiverToken(data.token);
+        
+        // DBのlanguage設定を自動適用
+        if (data.liver?.language) {
+          setLanguage(data.liver.language as LiverLanguage);
+        }
         
         // Verify token was saved
         const savedToken = getLiverToken();
