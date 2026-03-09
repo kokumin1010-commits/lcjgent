@@ -2102,11 +2102,13 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                 );
                               } catch { return null; }
                             })()}
-                            {/* Row 4: Store + Date */}
+                            {/* Row 4: Store + Upload Date + Purchase Date */}
                             <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                               <span className="truncate">{receipt.storeName || t("lr.storeUnknown")}</span>
                               <span>·</span>
-                              <span className="flex-shrink-0">{receipt.purchaseDate ? new Date(receipt.purchaseDate).toLocaleDateString("ja-JP", { month: "short", day: "numeric" }) : "-"}</span>
+                              <span className="flex-shrink-0" title="アップロード日時">
+                                📤 {receipt.submittedAt ? new Date(receipt.submittedAt).toLocaleDateString("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "-"}
+                              </span>
                               <Button 
                                 variant="ghost" 
                                 size="sm"
