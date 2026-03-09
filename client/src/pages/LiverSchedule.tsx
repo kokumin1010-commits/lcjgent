@@ -1,5 +1,7 @@
 import { useState, useMemo } from "react";
 import { useLocation, Link } from "wouter";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { liverI18n } from "@/lib/liverI18n";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -66,6 +68,8 @@ type Livestream = {
 };
 
 export default function LiverSchedule() {
+  const { language } = useLanguage();
+  const t = (key: string) => liverI18n[key]?.[language] || liverI18n[key]?.ja || key;
   const [, navigate] = useLocation();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -210,7 +214,7 @@ export default function LiverSchedule() {
     return date.toDateString() === today.toDateString();
   };
 
-  const weekDays = ["日", "月", "火", "水", "木", "金", "土"];
+  const weekDays = language === 'ja' ? ["日", "月", "火", "水", "木", "金", "土"] : language === 'zh-TW' ? ["日", "一", "二", "三", "四", "五", "六"] : language === 'en' ? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] : ["日", "一", "二", "三", "四", "五", "六"];
 
   if (isLoadingLiver) {
     return (
@@ -226,12 +230,12 @@ export default function LiverSchedule() {
     if (isLiverError) {
       return (
         <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4 p-4">
-          <p className="text-white text-center">ログインが必要です</p>
+          <p className="text-white text-center">{t("login.required")}</p>
           <Button
             onClick={() => navigate("/liver/login")}
             className="bg-red-600 hover:bg-red-700"
           >
-            ログインページへ
+            {t("login.goToLogin")}
           </Button>
         </div>
       );
@@ -258,7 +262,7 @@ export default function LiverSchedule() {
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
-            <h1 className="text-xl font-bold text-yellow-500">配信スケジュール</h1>
+            <h1 className="text-xl font-bold text-yellow-500">{t("schedule.title")}</h1>
           </div>
           <Link href="/liver/mypage">
             <Button variant="ghost" size="icon" className="text-gray-200 hover:text-white">
@@ -284,7 +288,7 @@ export default function LiverSchedule() {
           </Button>
           <div className="flex items-center gap-4">
             <h2 className="text-2xl font-bold">
-              {currentDate.getFullYear()}年{currentDate.getMonth() + 1}月
+              {language === 'en' ? `${currentDate.toLocaleString('en', { month: 'long' })} ${currentDate.getFullYear()}` : `${currentDate.getFullYear()}${language === 'ja' ? '年' : '年'}${currentDate.getMonth() + 1}${language === 'ja' ? '月' : '月'}`}
             </h2>
             <Button
               variant="outline"
@@ -292,7 +296,7 @@ export default function LiverSchedule() {
               onClick={goToToday}
               className="border-gray-700 text-gray-200 hover:text-white"
             >
-              今日
+              {language === 'ja' ? '今日' : language === 'zh-TW' ? '今天' : language === 'en' ? 'Today' : '今天'}
             </Button>
           </div>
           <Button
@@ -375,19 +379,19 @@ export default function LiverSchedule() {
             <div className="flex items-center justify-center gap-4 mt-4 text-xs text-gray-200">
               <div className="flex items-center gap-1">
                 <div className="w-2 h-2 rounded-full bg-yellow-500" />
-                <span>予定あり</span>
+                <span>{t("schedule.hasSchedule")}</span>
               </div>
               <div className="flex items-center gap-1">
                 <div className="w-2 h-2 rounded-full bg-green-500" />
-                <span>配信成功</span>
+                <span>{t("schedule.streamSuccess")}</span>
               </div>
               <div className="flex items-center gap-1">
                 <div className="w-2 h-2 rounded-full bg-red-500" />
-                <span>配信失敗</span>
+                <span>{t("schedule.streamFailed")}</span>
               </div>
               <div className="flex items-center gap-1">
                 <div className="w-2 h-2 rounded-full bg-blue-500" />
-                <span>配信記録</span>
+                <span>{t("schedule.streamRecord")}</span>
               </div>
             </div>
           </CardContent>
@@ -411,7 +415,7 @@ export default function LiverSchedule() {
               {/* Schedules */}
               {selectedDateData.schedules.length > 0 && (
                 <div>
-                  <h4 className="text-sm font-medium text-gray-200 mb-2">配信予定</h4>
+                  <h4 className="text-sm font-medium text-gray-200 mb-2">{t("schedule.upcoming")}</h4>
                   <div className="space-y-2">
                     {selectedDateData.schedules.map((schedule: Schedule) => {
                       const hasLinkedLivestream = selectedDateData.livestreams.some(
@@ -440,7 +444,7 @@ export default function LiverSchedule() {
                             {hasLinkedLivestream ? (
                               <Badge className="bg-green-600">
                                 <CheckCircle className="h-3 w-3 mr-1" />
-                                記録済み
+                                {t("schedule.recorded")}
                               </Badge>
                             ) : (
                               <Button
@@ -449,7 +453,7 @@ export default function LiverSchedule() {
                                 className="bg-red-600 hover:bg-red-700"
                               >
                                 <Plus className="h-4 w-4 mr-1" />
-                                記録
+                                {t("schedule.record")}
                               </Button>
                             )}
                           </div>
@@ -463,7 +467,7 @@ export default function LiverSchedule() {
               {/* Livestreams */}
               {selectedDateData.livestreams.length > 0 && (
                 <div>
-                  <h4 className="text-sm font-medium text-gray-200 mb-2">配信記録</h4>
+                  <h4 className="text-sm font-medium text-gray-200 mb-2">{t("schedule.streamRecord")}</h4>
                   <div className="space-y-2">
                     {selectedDateData.livestreams.map((ls: Livestream) => (
                       <div
@@ -510,13 +514,13 @@ export default function LiverSchedule() {
               {selectedDateData.schedules.length === 0 && selectedDateData.livestreams.length === 0 && (
                 <div className="text-center py-8 text-gray-200">
                   <CalendarIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>この日の予定・記録はありません</p>
+                  <p>{t("schedule.noSchedule")}</p>
                   <Button
                     onClick={() => navigate(`/liver/record?date=${selectedDate.toISOString().split('T')[0]}`)}
                     className="mt-4 bg-red-600 hover:bg-red-700"
                   >
                     <Plus className="h-4 w-4 mr-2" />
-                    配信を記録
+                    {t("schedule.recordStream")}
                   </Button>
                 </div>
               )}
@@ -530,7 +534,7 @@ export default function LiverSchedule() {
           className="w-full bg-red-600 hover:bg-red-700 text-white py-6 text-lg font-bold"
         >
           <Plus className="h-5 w-5 mr-2" />
-          配信内容の記録
+          {t("record.title")}
         </Button>
       </div>
     </div>

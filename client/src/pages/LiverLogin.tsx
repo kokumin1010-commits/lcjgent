@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar, ArrowLeft, Sparkles } from "lucide-react";
 import { setLiverToken, getLiverToken, clearLiverToken } from "@/lib/liverAuth";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { createLiverT, LiverLanguage } from "@/lib/liverI18n";
 
 export default function LiverLogin() {
   const [, navigate] = useLocation();
@@ -15,6 +17,8 @@ export default function LiverLogin() {
   const [error, setError] = useState("");
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const { language } = useLanguage();
+  const lt = createLiverT(language as LiverLanguage);
 
   // Check if already logged in
   const hasToken = !!getLiverToken();
@@ -93,17 +97,17 @@ export default function LiverLogin() {
           navigate("/liver/mypage");
         } else {
           console.error('Failed to save token to localStorage');
-          setError("トークンの保存に失敗しました。もう一度お試しください。");
+          setError(lt("login.tokenError"));
           setIsLoggingIn(false);
         }
       } else {
         console.error('No token in response');
-        setError("ログインに失敗しました。もう一度お試しください。");
+        setError(lt("login.failed"));
         setIsLoggingIn(false);
       }
     } catch (err: any) {
       console.error('Login error:', err);
-      setError(err.message || "ログインに失敗しました");
+      setError(err.message || lt("login.failed"));
       setIsLoggingIn(false);
     }
   };
@@ -114,7 +118,7 @@ export default function LiverLogin() {
       <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-purple-50 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-pink-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-300">認証確認中...</p>
+          <p className="text-gray-300">{lt("common.loading")}</p>
         </div>
       </div>
     );
@@ -138,8 +142,8 @@ export default function LiverLogin() {
               <Calendar className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h1 className="font-bold text-gray-800">LCJスケジュール</h1>
-              <p className="text-xs text-gray-300">ログイン</p>
+              <h1 className="font-bold text-gray-800">{lt("login.title")}</h1>
+              <p className="text-xs text-gray-300">{lt("login.subtitle")}</p>
             </div>
           </div>
         </div>
@@ -152,15 +156,15 @@ export default function LiverLogin() {
             <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center mb-4">
               <Sparkles className="h-8 w-8 text-white" />
             </div>
-            <CardTitle className="text-2xl">おかえりなさい！</CardTitle>
+            <CardTitle className="text-2xl">{lt("login.welcome")}</CardTitle>
             <CardDescription>
-              メールアドレスとパスワードでログイン
+              {lt("login.description")}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">メールアドレス</Label>
+                <Label htmlFor="email">{lt("login.email")}</Label>
                 <Input
                   id="email"
                   type="email"
@@ -172,7 +176,7 @@ export default function LiverLogin() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">パスワード</Label>
+                <Label htmlFor="password">{lt("login.password")}</Label>
                 <Input
                   id="password"
                   type="password"
@@ -196,10 +200,10 @@ export default function LiverLogin() {
                 {(loginMutation.isPending || isLoggingIn) ? (
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ログイン中...
+                    {lt("login.submitting")}
                   </div>
                 ) : (
-                  "ログイン"
+                  lt("login.submit")
                 )}
               </Button>
             </form>
@@ -209,19 +213,19 @@ export default function LiverLogin() {
                 href="/liver/forgot-password"
                 className="text-sm text-gray-300 hover:text-pink-500"
               >
-                パスワードをお忘れの方
+                {lt("login.forgotPassword")}
               </Link>
             </div>
 
             <div className="mt-4 text-center">
               <p className="text-sm text-gray-300">
-                アカウントをお持ちでない方は
+                {lt("login.noAccount")}
               </p>
               <Link
                 href="/liver/register"
                 className="text-pink-500 hover:text-pink-600 font-medium"
               >
-                新規登録はこちら
+                {lt("login.register")}
               </Link>
             </div>
           </CardContent>

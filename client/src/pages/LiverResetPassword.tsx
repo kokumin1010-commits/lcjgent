@@ -6,9 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar, ArrowLeft, Lock, CheckCircle, XCircle, Eye, EyeOff, Sparkles } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { createLiverT, LiverLanguage } from "@/lib/liverI18n";
 
 export default function LiverResetPassword() {
   const [, navigate] = useLocation();
+  const { language } = useLanguage();
+  const lt = createLiverT(language as LiverLanguage);
   const [token, setToken] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -55,7 +59,7 @@ export default function LiverResetPassword() {
           <CardContent className="py-8">
             <div className="text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500 mx-auto mb-4"></div>
-              <p className="text-muted-foreground">リンクを確認中...</p>
+              <p className="text-muted-foreground">{lt("reset.verifying")}</p>
             </div>
           </CardContent>
         </Card>
@@ -83,8 +87,8 @@ export default function LiverResetPassword() {
                 <Calendar className="h-5 w-5 text-white" />
               </div>
               <div>
-                <h1 className="font-bold text-gray-800">LCJスケジュール</h1>
-                <p className="text-xs text-gray-300">パスワードリセット</p>
+                <h1 className="font-bold text-gray-800">{lt("login.title")}</h1>
+                <p className="text-xs text-gray-300">{lt("reset.title")}</p>
               </div>
             </div>
           </div>
@@ -96,21 +100,21 @@ export default function LiverResetPassword() {
               <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
                 <XCircle className="w-8 h-8 text-red-600" />
               </div>
-              <CardTitle className="text-xl">リンクが無効です</CardTitle>
+              <CardTitle className="text-xl">{lt("reset.invalidLink")}</CardTitle>
               <CardDescription>
-                {tokenStatus?.message || "このパスワードリセットリンクは無効または期限切れです。"}
+                {tokenStatus?.message || lt("reset.invalidLinkDescription")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <Link href="/liver/forgot-password">
                 <Button className="w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600">
-                  新しいリセットリンクを取得
+                  {lt("reset.getNewLink")}
                 </Button>
               </Link>
               <Link href="/liver/login">
                 <Button variant="outline" className="w-full border-pink-200">
                   <ArrowLeft className="w-4 h-4 mr-2" />
-                  ログインページに戻る
+                  {lt("forgot.backToLogin")}
                 </Button>
               </Link>
             </CardContent>
@@ -132,8 +136,8 @@ export default function LiverResetPassword() {
                 <Calendar className="h-5 w-5 text-white" />
               </div>
               <div>
-                <h1 className="font-bold text-gray-800">LCJスケジュール</h1>
-                <p className="text-xs text-gray-300">パスワードリセット</p>
+                <h1 className="font-bold text-gray-800">{lt("login.title")}</h1>
+                <p className="text-xs text-gray-300">{lt("reset.title")}</p>
               </div>
             </div>
           </div>
@@ -145,15 +149,15 @@ export default function LiverResetPassword() {
               <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
                 <CheckCircle className="w-8 h-8 text-green-600" />
               </div>
-              <CardTitle className="text-xl">パスワードを変更しました</CardTitle>
+              <CardTitle className="text-xl">{lt("reset.success")}</CardTitle>
               <CardDescription>
-                新しいパスワードでログインできます。
+                {lt("reset.successDescription")}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Link href="/liver/login">
                 <Button className="w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600">
-                  ログインページへ
+                  {lt("reset.goToLogin")}
                 </Button>
               </Link>
             </CardContent>
@@ -182,8 +186,8 @@ export default function LiverResetPassword() {
               <Calendar className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h1 className="font-bold text-gray-800">LCJスケジュール</h1>
-              <p className="text-xs text-gray-300">パスワードリセット</p>
+              <h1 className="font-bold text-gray-800">{lt("login.title")}</h1>
+              <p className="text-xs text-gray-300">{lt("reset.title")}</p>
             </div>
           </div>
         </div>
@@ -196,7 +200,7 @@ export default function LiverResetPassword() {
             <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center mb-4">
               <Sparkles className="h-8 w-8 text-white" />
             </div>
-            <CardTitle className="text-xl">新しいパスワードを設定</CardTitle>
+            <CardTitle className="text-xl">{lt("reset.newPassword")}</CardTitle>
             <CardDescription>
               {tokenStatus?.email && (
                 <span className="block mt-1">{tokenStatus.email}</span>
@@ -206,13 +210,13 @@ export default function LiverResetPassword() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="password">新しいパスワード</Label>
+                <Label htmlFor="password">{lt("reset.newPasswordLabel")}</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="6文字以上"
+                    placeholder={lt("reset.minChars")}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="pl-10 pr-10 border-pink-200 focus:border-pink-400 focus:ring-pink-400"
@@ -228,18 +232,18 @@ export default function LiverResetPassword() {
                   </button>
                 </div>
                 {password && password.length < 6 && (
-                  <p className="text-xs text-red-500">パスワードは6文字以上で入力してください</p>
+                  <p className="text-xs text-red-500">{lt("reset.minCharsError")}</p>
                 )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="confirmPassword">パスワード確認</Label>
+                <Label htmlFor="confirmPassword">{lt("reset.confirmPassword")}</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     id="confirmPassword"
                     type={showPassword ? "text" : "password"}
-                    placeholder="パスワードを再入力"
+                    placeholder={lt("reset.reenterPassword")}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className="pl-10 border-pink-200 focus:border-pink-400 focus:ring-pink-400"
@@ -247,7 +251,7 @@ export default function LiverResetPassword() {
                   />
                 </div>
                 {confirmPassword && password !== confirmPassword && (
-                  <p className="text-xs text-red-500">パスワードが一致しません</p>
+                  <p className="text-xs text-red-500">{lt("reset.passwordMismatch")}</p>
                 )}
               </div>
 
@@ -260,7 +264,7 @@ export default function LiverResetPassword() {
                   password !== confirmPassword
                 }
               >
-                {resetPassword.isPending ? "変更中..." : "パスワードを変更"}
+                {resetPassword.isPending ? lt("reset.changing") : lt("reset.changePassword")}
               </Button>
 
               {resetPassword.error && (
@@ -274,7 +278,7 @@ export default function LiverResetPassword() {
               <Link href="/liver/login">
                 <Button variant="link" className="text-pink-500">
                   <ArrowLeft className="w-4 h-4 mr-1" />
-                  ログインページに戻る
+                  {lt("forgot.backToLogin")}
                 </Button>
               </Link>
             </div>

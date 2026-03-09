@@ -172,6 +172,7 @@ export const liverRouter = router({
           email: liver.email,
           color: liver.color,
           avatarUrl: liver.avatarUrl,
+          language: liver.language || 'ja',
         },
       };
     }),
@@ -210,6 +211,7 @@ export const liverRouter = router({
       otherAccount: liver.otherAccount,
       lineUserId: liver.lineUserId,
       lineNotificationEnabled: liver.lineNotificationEnabled,
+      language: liver.language || 'ja',
       aitherhubLinked,
     };
   }),
@@ -237,6 +239,7 @@ export const liverRouter = router({
         youtubeAccount: z.string().optional(),
         otherAccount: z.string().optional(),
         lineNotificationEnabled: z.boolean().optional(),
+        language: z.enum(['ja', 'zh-TW', 'en']).optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {

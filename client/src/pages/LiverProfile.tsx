@@ -20,9 +20,12 @@ import {
   Bell,
   BellOff,
   Camera,
-  Loader2
+  Loader2,
+  Globe
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { createLiverT, LiverLanguage } from "@/lib/liverI18n";
 
 // TikTok icon component
 const TikTokIcon = ({ className }: { className?: string }) => (
@@ -31,19 +34,8 @@ const TikTokIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const colorOptions = [
-  { value: "#FF69B4", label: "ピンク" },
-  { value: "#4169E1", label: "ブルー" },
-  { value: "#32CD32", label: "グリーン" },
-  { value: "#FFD700", label: "ゴールド" },
-  { value: "#FF6347", label: "レッド" },
-  { value: "#9370DB", label: "パープル" },
-  { value: "#00CED1", label: "シアン" },
-  { value: "#FF8C00", label: "オレンジ" },
-];
-
 // LINE連携セクションコンポーネント
-function LineLinkSection({ lineUserId }: { lineUserId?: string | null }) {
+function LineLinkSection({ lineUserId, lt }: { lineUserId?: string | null; lt: (key: string, params?: Record<string, string | number>) => string }) {
   const [linkCode, setLinkCode] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<Date | null>(null);
   const [timeLeft, setTimeLeft] = useState<number>(0);
@@ -56,17 +48,17 @@ function LineLinkSection({ lineUserId }: { lineUserId?: string | null }) {
       setTimeLeft(data.expiresIn);
     },
     onError: (error) => {
-      toast.error(error.message || "コードの発行に失敗しました");
+      toast.error(error.message || lt("common.error"));
     },
   });
 
   const unlinkMutation = trpc.liver.unlinkLine.useMutation({
     onSuccess: () => {
-      toast.success("LINE連携を解除しました");
+      toast.success(lt("line.unlink"));
       utils.liver.me.invalidate();
     },
     onError: (error) => {
-      toast.error(error.message || "解除に失敗しました");
+      toast.error(error.message || lt("common.error"));
     },
   });
 
@@ -93,10 +85,10 @@ function LineLinkSection({ lineUserId }: { lineUserId?: string | null }) {
           <div>
             <div className="flex items-center gap-2 text-green-400">
               <MessageCircle className="h-4 w-4" />
-              <span className="font-medium">LINE連携済み</span>
+              <span className="font-medium">{lt("line.linked")}</span>
             </div>
             <p className="mt-1 text-sm text-gray-200">
-              配信後にAIコーチングがLINEに届きます
+              {lt("line.linkedDescription")}
             </p>
           </div>
           <Button
@@ -106,7 +98,7 @@ function LineLinkSection({ lineUserId }: { lineUserId?: string | null }) {
             disabled={unlinkMutation.isPending}
             className="text-red-400 border-red-400 hover:bg-red-900/30"
           >
-            解除
+            {lt("line.unlink")}
           </Button>
         </div>
       </div>
@@ -117,23 +109,21 @@ function LineLinkSection({ lineUserId }: { lineUserId?: string | null }) {
     <div className="p-4 bg-gray-800 border border-gray-700 rounded-lg space-y-4">
       <div className="flex items-center gap-2 text-yellow-500">
         <MessageCircle className="h-4 w-4" />
-        <span className="font-medium">LINE未連携</span>
+        <span className="font-medium">{lt("line.notLinked")}</span>
       </div>
       
       <div className="text-sm text-gray-200 space-y-2">
-        <p>【連携方法】</p>
         <ol className="list-decimal list-inside space-y-1">
-          <li>LCJ公式LINEを友だち追加</li>
-          <li>下の「連携コードを発行」をタップ</li>
-          <li>表示されるコード（L-XXXXXX）をLINEに送信</li>
+          <li>{lt("line.step1")}</li>
+          <li>{lt("line.step2")}</li>
+          <li>{lt("line.step3")}</li>
         </ol>
       </div>
 
       {linkCode ? (
         <div className="p-4 bg-yellow-900/30 border border-yellow-600 rounded-lg text-center">
-          <p className="text-sm text-yellow-400 mb-2">ライバー用連携コード（{Math.floor(timeLeft / 60)}分{timeLeft % 60}秒有効）</p>
+          <p className="text-sm text-yellow-400 mb-2">({Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')})</p>
           <p className="text-4xl font-bold text-white tracking-widest">{linkCode}</p>
-          <p className="mt-2 text-xs text-gray-200">このコードをLCJ公式LINEに送信してください</p>
         </div>
       ) : (
         <div className="flex flex-col gap-3">
@@ -144,14 +134,14 @@ function LineLinkSection({ lineUserId }: { lineUserId?: string | null }) {
             className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
           >
             <MessageCircle className="h-4 w-4" />
-            LCJ公式LINEを友だち追加
+            {lt("line.addFriend")}
           </a>
           <Button
             onClick={() => generateCodeMutation.mutate()}
             disabled={generateCodeMutation.isPending}
             className="bg-yellow-600 hover:bg-yellow-700"
           >
-            {generateCodeMutation.isPending ? "発行中..." : "連携コードを発行"}
+            {generateCodeMutation.isPending ? lt("common.loading") : lt("line.generateCode")}
           </Button>
         </div>
       )}
@@ -162,17 +152,18 @@ function LineLinkSection({ lineUserId }: { lineUserId?: string | null }) {
 export default function LiverProfile() {
   const [, navigate] = useLocation();
   const utils = trpc.useUtils();
+  const { language, setLanguage } = useLanguage();
+  const lt = createLiverT(language as LiverLanguage);
   
   const { data: liverInfo, isLoading, isError: isLiverError, isFetching } = trpc.liver.me.useQuery(undefined, {
-    staleTime: 30 * 60 * 1000, // 30 minutes - longer cache to prevent refetch during operations
-    gcTime: 60 * 60 * 1000, // 1 hour - keep in cache longer
+    staleTime: 30 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
     refetchOnWindowFocus: false,
-    refetchOnMount: false, // Don't refetch when component mounts if data exists
-    refetchOnReconnect: false, // Don't refetch on reconnect
+    refetchOnMount: false,
+    refetchOnReconnect: false,
     retry: 1,
   });
   
-  // Track if we've successfully loaded liver info at least once
   const [hasLoadedLiver, setHasLoadedLiver] = useState(false);
   
   useEffect(() => {
@@ -192,6 +183,7 @@ export default function LiverProfile() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [selectedLanguage, setSelectedLanguage] = useState<string>(language);
   
   // Initialize form with current data
   useEffect(() => {
@@ -205,23 +197,37 @@ export default function LiverProfile() {
       setOtherAccount(liverInfo.otherAccount || "");
       setLineNotificationEnabled(liverInfo.lineNotificationEnabled !== false);
       setAvatarUrl(liverInfo.avatarUrl || null);
+      if ((liverInfo as any).language) {
+        setSelectedLanguage((liverInfo as any).language);
+        setLanguage((liverInfo as any).language);
+      }
     }
   }, [liverInfo]);
+
+  // Color options with translation
+  const colorOptions = [
+    { value: "#FF69B4", label: lt("color.pink") },
+    { value: "#4169E1", label: lt("color.blue") },
+    { value: "#32CD32", label: lt("color.green") },
+    { value: "#FFD700", label: lt("color.gold") },
+    { value: "#FF6347", label: lt("color.red") },
+    { value: "#9370DB", label: lt("color.purple") },
+    { value: "#00CED1", label: lt("color.cyan") },
+    { value: "#FF8C00", label: lt("color.orange") },
+  ];
 
   // Handle avatar upload
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !liverInfo) return;
 
-    // Validate file type
     if (!file.type.startsWith("image/")) {
-      toast.error("画像ファイルのみアップロードできます");
+      toast.error(lt("common.error"));
       return;
     }
 
-    // Validate file size (5MB)
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("ファイルサイズは5MB以下にしてください");
+      toast.error(lt("common.error"));
       return;
     }
 
@@ -238,18 +244,17 @@ export default function LiverProfile() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "アップロードに失敗しました");
+        throw new Error(errorData.error || lt("profile.saveError"));
       }
 
       const result = await response.json();
       setAvatarUrl(result.url);
-      toast.success("プロフィール写真を更新しました");
+      toast.success(lt("profile.saved"));
       utils.liver.me.invalidate();
     } catch (error: any) {
-      toast.error(error.message || "アップロードに失敗しました");
+      toast.error(error.message || lt("profile.saveError"));
     } finally {
       setIsUploadingAvatar(false);
-      // Reset input so same file can be selected again
       if (avatarInputRef.current) {
         avatarInputRef.current.value = "";
       }
@@ -258,16 +263,18 @@ export default function LiverProfile() {
   
   const updateProfileMutation = trpc.liver.updateProfile.useMutation({
     onSuccess: () => {
-      toast.success("プロフィールを更新しました");
+      toast.success(lt("profile.saved"));
       utils.liver.me.invalidate();
     },
     onError: (error) => {
-      toast.error(error.message || "更新に失敗しました");
+      toast.error(error.message || lt("profile.saveError"));
     },
   });
   
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Update language in context
+    setLanguage(selectedLanguage);
     updateProfileMutation.mutate({
       name,
       color,
@@ -277,10 +284,10 @@ export default function LiverProfile() {
       youtubeAccount: youtubeAccount || undefined,
       otherAccount: otherAccount || undefined,
       lineNotificationEnabled,
+      language: selectedLanguage,
     });
   };
   
-  // Only show loading on initial load, not during refetches
   if (isLoading && !hasLoadedLiver) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -289,25 +296,20 @@ export default function LiverProfile() {
     );
   }
   
-  // Only show login prompt if we've never loaded liver info and current data is null
-  // This prevents redirecting during background refetches
   if (!liverInfo && !hasLoadedLiver && !isLoading && !isFetching) {
-    // If there was an error OR liverInfo is null (not authenticated), show login prompt
     return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4 p-4">
-        <p className="text-white text-center">ログインが必要です</p>
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4">
+        <p className="text-white text-center">{lt("mypage.loginRequired")}</p>
         <Button
           onClick={() => navigate("/liver/login")}
           className="bg-red-600 hover:bg-red-700"
         >
-          ログインページへ
+          {lt("mypage.goToLogin")}
         </Button>
       </div>
     );
   }
   
-  // If liverInfo is null at this point, show a loading spinner
-  // This handles the edge case where hasLoadedLiver is true but liverInfo became null
   if (!liverInfo) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -330,12 +332,11 @@ export default function LiverProfile() {
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
-            <h1 className="text-xl font-bold text-yellow-500">プロフィール編集</h1>
+            <h1 className="text-xl font-bold text-yellow-500">{lt("profile.title")}</h1>
           </div>
         </div>
       </header>
       
-      {/* Red line separator */}
       <div className="h-1 bg-gradient-to-r from-red-600 via-red-500 to-red-600" />
       
       <div className="container max-w-2xl mx-auto px-4 py-6">
@@ -352,7 +353,6 @@ export default function LiverProfile() {
                   {name?.charAt(0) || "?"}
                 </AvatarFallback>
               </Avatar>
-              {/* Upload overlay */}
               <button
                 type="button"
                 onClick={() => avatarInputRef.current?.click()}
@@ -379,38 +379,74 @@ export default function LiverProfile() {
               disabled={isUploadingAvatar}
               className="mt-2 text-sm text-yellow-500 hover:text-yellow-400 transition-colors cursor-pointer"
             >
-              {isUploadingAvatar ? "アップロード中..." : "写真を変更"}
+              {isUploadingAvatar ? lt("common.loading") : lt("common.edit")}
             </button>
-            <p className="mt-1 text-xs text-gray-300">ライバーID: {liverInfo.id}</p>
+            <p className="mt-1 text-xs text-gray-300">ID: {liverInfo.id}</p>
           </div>
+
+          {/* Language Selection */}
+          <Card className="bg-gray-900 border-gray-800">
+            <CardHeader>
+              <CardTitle className="text-lg text-white flex items-center gap-2">
+                <Globe className="h-5 w-5 text-yellow-500" />
+                {lt("profile.language")}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { value: "ja", label: lt("profile.languageJa"), flag: "🇯🇵" },
+                  { value: "zh-TW", label: lt("profile.languageZhTW"), flag: "🇹🇼" },
+                  { value: "en", label: lt("profile.languageEn"), flag: "🇺🇸" },
+                ].map((lang) => (
+                  <button
+                    key={lang.value}
+                    type="button"
+                    onClick={() => {
+                      setSelectedLanguage(lang.value);
+                      setLanguage(lang.value);
+                    }}
+                    className={`
+                      flex flex-col items-center gap-2 p-3 rounded-lg transition-all
+                      ${selectedLanguage === lang.value
+                        ? "ring-2 ring-yellow-500 bg-gray-800"
+                        : "hover:bg-gray-800"
+                      }
+                    `}
+                  >
+                    <span className="text-2xl">{lang.flag}</span>
+                    <span className="text-xs text-gray-200">{lang.label}</span>
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
           
           {/* Basic Info */}
           <Card className="bg-gray-900 border-gray-800">
             <CardHeader>
               <CardTitle className="text-lg text-white flex items-center gap-2">
                 <User className="h-5 w-5 text-yellow-500" />
-                基本情報
+                {lt("profile.name")}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="name" className="text-white">名前</Label>
+                <Label htmlFor="name" className="text-white">{lt("profile.name")}</Label>
                 <Input
                   id="name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="ライバー名"
                   className="mt-1 bg-gray-800 border-gray-700 text-white"
                 />
               </div>
               
               <div>
-                <Label htmlFor="bio" className="text-white">自己紹介</Label>
+                <Label htmlFor="bio" className="text-white">{lt("profile.bio")}</Label>
                 <Textarea
                   id="bio"
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
-                  placeholder="自己紹介を入力..."
                   className="mt-1 bg-gray-800 border-gray-700 text-white min-h-[100px]"
                 />
               </div>
@@ -422,7 +458,7 @@ export default function LiverProfile() {
             <CardHeader>
               <CardTitle className="text-lg text-white flex items-center gap-2">
                 <Palette className="h-5 w-5 text-yellow-500" />
-                テーマカラー
+                {lt("profile.color")}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -456,7 +492,7 @@ export default function LiverProfile() {
             <CardHeader>
               <CardTitle className="text-lg text-white flex items-center gap-2">
                 <MessageCircle className="h-5 w-5 text-green-500" />
-                LINE通知設定
+                {lt("line.notification")}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -468,9 +504,9 @@ export default function LiverProfile() {
                     <BellOff className="h-5 w-5 text-gray-300" />
                   )}
                   <div>
-                    <p className="text-white font-medium">AIコーチング通知</p>
+                    <p className="text-white font-medium">AI Coaching</p>
                     <p className="text-sm text-gray-200">
-                      配信記録保存時にAIアドバイスをLINEで受け取る
+                      {lt("line.linkedDescription")}
                     </p>
                   </div>
                 </div>
@@ -481,7 +517,7 @@ export default function LiverProfile() {
                 />
               </div>
               
-              <LineLinkSection lineUserId={liverInfo.lineUserId} />
+              <LineLinkSection lineUserId={liverInfo.lineUserId} lt={lt} />
             </CardContent>
           </Card>
           
@@ -490,7 +526,7 @@ export default function LiverProfile() {
             <CardHeader>
               <CardTitle className="text-lg text-white flex items-center gap-2">
                 <LinkIcon className="h-5 w-5 text-yellow-500" />
-                SNSアカウント
+                SNS
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -531,7 +567,7 @@ export default function LiverProfile() {
                   id="youtube"
                   value={youtubeAccount}
                   onChange={(e) => setYoutubeAccount(e.target.value)}
-                  placeholder="チャンネルURL"
+                  placeholder="URL"
                   className="mt-1 bg-gray-800 border-gray-700 text-white"
                 />
               </div>
@@ -539,13 +575,13 @@ export default function LiverProfile() {
               <div>
                 <Label htmlFor="other" className="text-white flex items-center gap-2">
                   <LinkIcon className="h-4 w-4" />
-                  その他
+                  {lt("profile.other")}
                 </Label>
                 <Input
                   id="other"
                   value={otherAccount}
                   onChange={(e) => setOtherAccount(e.target.value)}
-                  placeholder="その他のSNS・URL"
+                  placeholder="URL"
                   className="mt-1 bg-gray-800 border-gray-700 text-white"
                 />
               </div>
@@ -563,7 +599,7 @@ export default function LiverProfile() {
             ) : (
               <>
                 <Save className="h-5 w-5 mr-2" />
-                保存する
+                {lt("common.save")}
               </>
             )}
           </Button>

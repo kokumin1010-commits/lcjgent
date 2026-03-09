@@ -12,6 +12,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { ArrowLeft, Video, Calendar, DollarSign, Clock, X, Link as LinkIcon, Camera, Sparkles, Loader2, Lightbulb, Users, MousePointer, ShoppingCart, CheckCircle, Eye, Package, Plus, Trash2, Tag } from "lucide-react";
 import { toast } from "sonner";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { liverI18n } from "@/lib/liverI18n";
 
 // 時刻文字列を正規化するヘルパー（"1:22" → "01:22", "21:10" → "21:10"）
 const normalizeTime = (time: string): string => {
@@ -35,6 +37,8 @@ const safeCreateDate = (date: string, time: string): Date | null => {
 };
 
 export default function LiverSelfRecord() {
+  const { language } = useLanguage();
+  const t = (key: string) => liverI18n[key]?.[language] || liverI18n[key]?.ja || key;
   const [, navigate] = useLocation();
   const searchString = useSearch();
   const searchParams = new URLSearchParams(searchString);
@@ -153,7 +157,7 @@ export default function LiverSelfRecord() {
 
   const createLivestreamMutation = trpc.liverManagement.createLivestream.useMutation({
     onSuccess: () => {
-      toast.success("配信記録を保存しました");
+      toast.success(tr.save);
       navigate("/liver/mypage");
     },
     onError: (error) => {
@@ -166,75 +170,75 @@ export default function LiverSelfRecord() {
   const analyzeScreenshotMutation = trpc.liverManagement.analyzeScreenshot.useMutation();
   const generateAdviceMutation = trpc.liverManagement.generateAdvice.useMutation();
 
-  // 日本語固定
+  // 多言語対応
   const tr = {
-    title: "配信内容の記録",
-    subtitle: "TikTokダッシュボードのスクリーンショットをアップロードすると、AIが自動で解析します",
-    tapToUpload: "タップしてスクリーンショットをアップロード",
-    aiAnalysis: "AIが自動でデータを解析します",
-    analyzing: "解析中...",
-    analysisComplete: "解析完了！データを自動入力しました",
-    analysisError: "解析に失敗しました",
-    analysisResult: "AI解析結果",
-    confidence: "解析信頼度",
-    high: "高",
-    medium: "中",
-    low: "低",
-    salesAmount: "売上金額",
-    viewerCount: "視聴者数",
-    peakViewerCount: "ピーク視聴者数",
-    productClicks: "商品クリック数",
-    orderCount: "注文数",
-    durationMinutes: "配信時間",
-    minutes: "分",
-    reanalyze: "再解析",
-    adviceTitle: "ワンポイントアドバイス",
-    regenerateAdvice: "アドバイスを再生成",
-    generatingAdvice: "生成中...",
-    detailsForm: "詳細情報",
-    selectBrand: "ブランドを選択",
-    livestreamDate: "配信日",
-    startTime: "開始時刻",
-    endTime: "終了時刻",
-    endDate: "終了日",
-    endDateHint: "(日付をまたぐ場合のみ)",
-    endDateWarning: "※ 終了日が配信日と異なります（日付をまたぐ配信）",
-    result: "結果",
-    selectResult: "結果を選択",
-    success: "成功",
-    failure: "失敗",
-    impactFactor: "影響要因",
-    selectFactor: "影響要因を選択",
-    composition: "構成",
-    product: "商品",
-    liver: "ライバー",
-    ad: "広告",
-    other: "その他",
-    reasonMemo: "理由・メモ",
-    reasonPlaceholder: "結果の理由や気づきを記入...",
-    otherMemo: "その他のメモ",
-    memoPlaceholder: "その他のメモ...",
-    save: "配信記録を保存",
-    saving: "保存中...",
-    loginRequired: "ログインが必要です",
-    goToLogin: "ログインページへ",
-    selectBrandError: "ブランドを選択してください",
-    enterDateTimeError: "配信日時を入力してください",
-    saveError: "保存に失敗しました",
-    scheduleLink: "スケジュールから記録",
-    editableHint: "解析データは編集可能です",
-    confirmTitle: "保存内容の確認",
-    confirmDescription: "以下の内容で配信記録を保存します。よろしいですか？",
-    confirmSave: "保存する",
-    confirmCancel: "キャンセル",
-    previewButton: "内容を確認して保存",
-    notSet: "未設定",
-    beforeScreenshot: "配信前スクショ",
-    afterScreenshot: "配信後スクショ",
-    beforeScreenshotHint: "配信前の状態を記録（任意）",
-    afterScreenshotHint: "配信後の結果を記録（AI解析対象）",
-    tapToUploadBefore: "配信前スクショをアップロード",
-    optional: "任意",
+    title: t("record.title"),
+    subtitle: t("record.subtitle"),
+    tapToUpload: t("record.tapToUpload"),
+    aiAnalysis: t("record.aiAnalysis"),
+    analyzing: t("record.analyzing"),
+    analysisComplete: t("record.analysisComplete"),
+    analysisError: t("record.analysisError"),
+    analysisResult: t("record.analysisResult"),
+    confidence: t("record.confidence"),
+    high: t("record.high"),
+    medium: t("record.medium"),
+    low: t("record.low"),
+    salesAmount: t("record.salesAmount"),
+    viewerCount: t("record.viewerCount"),
+    peakViewerCount: t("record.peakViewerCount"),
+    productClicks: t("record.productClicks"),
+    orderCount: t("record.orderCount"),
+    durationMinutes: t("record.durationMinutes"),
+    minutes: t("record.minutes"),
+    reanalyze: t("record.reanalyze"),
+    adviceTitle: t("record.adviceTitle"),
+    regenerateAdvice: t("record.regenerateAdvice"),
+    generatingAdvice: t("record.generatingAdvice"),
+    detailsForm: t("record.detailsForm"),
+    selectBrand: t("record.selectBrand"),
+    livestreamDate: t("record.livestreamDate"),
+    startTime: t("record.startTime"),
+    endTime: t("record.endTime"),
+    endDate: t("record.endDate"),
+    endDateHint: t("record.endDateHint"),
+    endDateWarning: t("record.endDateWarning"),
+    result: t("record.result"),
+    selectResult: t("record.selectResult"),
+    success: t("record.success"),
+    failure: t("record.failure"),
+    impactFactor: t("record.impactFactor"),
+    selectFactor: t("record.selectFactor"),
+    composition: t("record.composition"),
+    product: t("record.product"),
+    liver: t("record.liver"),
+    ad: t("record.ad"),
+    other: t("record.other"),
+    reasonMemo: t("record.reasonMemo"),
+    reasonPlaceholder: t("record.reasonPlaceholder"),
+    otherMemo: t("record.otherMemo"),
+    memoPlaceholder: t("record.memoPlaceholder"),
+    save: t("record.save"),
+    saving: t("record.saving"),
+    loginRequired: t("login.required"),
+    goToLogin: t("login.goToLogin"),
+    selectBrandError: t("record.selectBrandError"),
+    enterDateTimeError: t("record.enterDateTimeError"),
+    saveError: t("record.saveError"),
+    scheduleLink: t("record.scheduleLink"),
+    editableHint: t("record.editableHint"),
+    confirmTitle: t("record.confirmTitle"),
+    confirmDescription: t("record.confirmDescription"),
+    confirmSave: t("record.confirmSave"),
+    confirmCancel: t("record.confirmCancel"),
+    previewButton: t("record.previewButton"),
+    notSet: t("record.notSet"),
+    beforeScreenshot: t("record.beforeScreenshot"),
+    afterScreenshot: t("record.afterScreenshot"),
+    beforeScreenshotHint: t("record.beforeScreenshotHint"),
+    afterScreenshotHint: t("record.afterScreenshotHint"),
+    tapToUploadBefore: t("record.tapToUploadBefore"),
+    optional: t("record.optional"),
   };
 
   const handleScreenshotChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -505,7 +509,7 @@ export default function LiverSelfRecord() {
 
       const livestreamDateTime = safeCreateDate(formData.livestreamDate, formData.livestreamStartTime);
       if (!livestreamDateTime) {
-        toast.error("開始日時の形式が正しくありません");
+        toast.error(t("record.invalidDateTime"));
         return;
       }
       // 終了日が設定されている場合はそれを使用、そうでなければ配信日を使用
@@ -717,7 +721,7 @@ export default function LiverSelfRecord() {
                 <CardTitle className="text-xs text-purple-400 flex items-center gap-1">
                   <Sparkles className="w-3 h-3" />
                   {tr.afterScreenshot}
-                  <span className="text-purple-300 text-[10px] ml-1">(AI解析)</span>
+                  <span className="text-purple-300 text-[10px] ml-1">(AI)</span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
@@ -965,9 +969,9 @@ export default function LiverSelfRecord() {
                   </PopoverTrigger>
                   <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 bg-gray-900 border-gray-700" align="start">
                     <Command className="bg-gray-900">
-                      <CommandInput placeholder="ブランド名を検索..." className="text-white" />
+                      <CommandInput placeholder={t("record.searchBrand")} className="text-white" />
                       <CommandList className="max-h-60">
-                        <CommandEmpty className="text-gray-200 py-4 text-center text-sm">ブランドが見つかりません</CommandEmpty>
+                        <CommandEmpty className="text-gray-200 py-4 text-center text-sm">{t("record.brandNotFound")}</CommandEmpty>
                         <CommandGroup>
                           {brands?.map((brand: { id: number; name: string }) => (
                             <CommandItem
@@ -1052,7 +1056,7 @@ export default function LiverSelfRecord() {
                 <div className="flex items-center justify-between">
                   <Label className="text-gray-200 text-sm flex items-center gap-2">
                     <Package className="h-4 w-4 text-purple-500" />
-                    セット組み（任意）
+                    {t("record.setSection")}
                   </Label>
                   <Button
                     type="button"
@@ -1062,11 +1066,11 @@ export default function LiverSelfRecord() {
                     className="text-purple-400 border-purple-500/30 hover:bg-purple-500/10 text-xs h-7"
                   >
                     <Plus className="h-3 w-3 mr-1" />
-                    セット追加
+                    {t("record.addSet")}
                   </Button>
                 </div>
 
-                <p className="text-xs text-gray-300 -mt-1">※ セット売上は配信全体の売上の内訳参考です。売上金額には加算されません。</p>
+                <p className="text-xs text-gray-300 -mt-1">{t("record.setNote")}</p>
 
                 {sets.map((set, setIndex) => {
                   const totalOriginalPrice = set.items.reduce((sum, item) => sum + (parseInt(item.originalPrice) || 0), 0);
@@ -1079,7 +1083,7 @@ export default function LiverSelfRecord() {
                     <Card key={setIndex} className="bg-purple-500/5 border-purple-500/20">
                       <CardContent className="p-3 space-y-3">
                         <div className="flex items-center justify-between">
-                          <span className="text-purple-400 text-xs font-medium">セット {setIndex + 1}</span>
+                          <span className="text-purple-400 text-xs font-medium">{t("record.set")} {setIndex + 1}</span>
                           <Button
                             type="button"
                             variant="ghost"
@@ -1093,7 +1097,7 @@ export default function LiverSelfRecord() {
 
                         {/* セット名 */}
                         <Input
-                          placeholder="セット名（例：美容3点セット）"
+                          placeholder={t("record.setNamePlaceholder")}
                           value={set.setName}
                           onChange={(e) => {
                             const newSets = [...sets];
@@ -1106,7 +1110,7 @@ export default function LiverSelfRecord() {
                         {/* 売値と販売数量 */}
                         <div className="grid grid-cols-2 gap-2">
                           <div>
-                            <Label className="text-gray-300 text-xs">売値（円）</Label>
+                            <Label className="text-gray-300 text-xs">{language === 'ja' ? '売値（円）' : language === 'zh-TW' ? '售價' : language === 'en' ? 'Price' : '售价'}</Label>
                             <Input
                               type="number"
                               placeholder="5000"
@@ -1120,7 +1124,7 @@ export default function LiverSelfRecord() {
                             />
                           </div>
                           <div>
-                            <Label className="text-gray-300 text-xs">販売数量</Label>
+                            <Label className="text-gray-300 text-xs">{language === 'ja' ? '販売数量' : language === 'zh-TW' ? '銷售數量' : language === 'en' ? 'Qty Sold' : '销售数量'}</Label>
                             <Input
                               type="number"
                               placeholder="1"
@@ -1140,7 +1144,7 @@ export default function LiverSelfRecord() {
                           <div className="flex items-center justify-between">
                             <Label className="text-gray-300 text-xs flex items-center gap-1">
                               <Tag className="h-3 w-3" />
-                              セット内商品
+                              {t("record.setProducts")}
                             </Label>
                             <Button
                               type="button"
@@ -1154,14 +1158,14 @@ export default function LiverSelfRecord() {
                               className="text-gray-200 hover:text-white text-xs h-6 px-2"
                             >
                               <Plus className="h-3 w-3 mr-1" />
-                              商品追加
+                              {language === 'ja' ? '商品追加' : language === 'zh-TW' ? '新增商品' : language === 'en' ? 'Add Product' : '新增商品'}
                             </Button>
                           </div>
 
                           {set.items.map((item, itemIndex) => (
                             <div key={itemIndex} className="flex gap-2 items-center">
                               <Input
-                                placeholder="商品名"
+                                placeholder={language === 'ja' ? '商品名' : language === 'zh-TW' ? '商品名稱' : language === 'en' ? 'Product name' : '商品名称'}
                                 value={item.productName}
                                 onChange={(e) => {
                                   const newSets = [...sets];
@@ -1172,7 +1176,7 @@ export default function LiverSelfRecord() {
                               />
                               <Input
                                 type="number"
-                                placeholder="元値"
+                                placeholder={language === 'ja' ? '元値' : language === 'zh-TW' ? '原價' : language === 'en' ? 'Original price' : '原价'}
                                 value={item.originalPrice}
                                 onChange={(e) => {
                                   const newSets = [...sets];
@@ -1204,17 +1208,17 @@ export default function LiverSelfRecord() {
                         {setPrice > 0 && totalOriginalPrice > 0 && (
                           <div className="bg-gray-800/50 rounded-lg p-2 space-y-1">
                             <div className="flex justify-between text-xs">
-                              <span className="text-gray-200">元値合計</span>
+                              <span className="text-gray-200">{language === 'ja' ? '元値合計' : language === 'zh-TW' ? '原價合計' : language === 'en' ? 'Original Total' : '原价合计'}</span>
                               <span className="text-white">¥{Number(totalOriginalPrice).toLocaleString()}</span>
                             </div>
                             <div className="flex justify-between text-xs">
-                              <span className="text-gray-200">お得率</span>
+                              <span className="text-gray-200">{t("record.discountRate")}</span>
                               <span className={discountRate > 0 ? "text-green-400 font-medium" : "text-white"}>
                                 {discountRate > 0 ? `${discountRate}% OFF` : '-'}
                               </span>
                             </div>
                             <div className="flex justify-between text-xs">
-                              <span className="text-gray-200">セット売上合計</span>
+                              <span className="text-gray-200">{t("record.setTotal")}</span>
                               <span className="text-yellow-400 font-medium">¥{Number(totalRevenue).toLocaleString()}</span>
                             </div>
                           </div>

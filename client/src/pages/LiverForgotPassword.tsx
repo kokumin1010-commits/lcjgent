@@ -6,11 +6,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar, ArrowLeft, Mail, CheckCircle, Sparkles } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { createLiverT, LiverLanguage } from "@/lib/liverI18n";
 
 export default function LiverForgotPassword() {
   const [, navigate] = useLocation();
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const { language } = useLanguage();
+  const lt = createLiverT(language as LiverLanguage);
 
   const requestReset = trpc.liver.requestPasswordReset.useMutation({
     onSuccess: () => {
@@ -43,8 +47,8 @@ export default function LiverForgotPassword() {
                 <Calendar className="h-5 w-5 text-white" />
               </div>
               <div>
-                <h1 className="font-bold text-gray-800">LCJスケジュール</h1>
-                <p className="text-xs text-gray-300">パスワードリセット</p>
+                <h1 className="font-bold text-gray-800">{lt("login.title")}</h1>
+                <p className="text-xs text-gray-300">{lt("forgot.title")}</p>
               </div>
             </div>
           </div>
@@ -56,20 +60,19 @@ export default function LiverForgotPassword() {
               <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
                 <CheckCircle className="w-8 h-8 text-green-600" />
               </div>
-              <CardTitle className="text-xl">メールを送信しました</CardTitle>
+              <CardTitle className="text-xl">{lt("forgot.emailSent")}</CardTitle>
               <CardDescription>
-                メールアドレスが登録されている場合、パスワードリセットのリンクを送信しました。
-                メールをご確認ください。
+                {lt("forgot.emailSentDescription")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground text-center">
-                メールが届かない場合は、迷惑メールフォルダをご確認ください。
+                {lt("forgot.checkSpam")}
               </p>
               <Link href="/liver/login">
                 <Button variant="outline" className="w-full border-pink-200">
                   <ArrowLeft className="w-4 h-4 mr-2" />
-                  ログインページに戻る
+                  {lt("forgot.backToLogin")}
                 </Button>
               </Link>
             </CardContent>
@@ -97,8 +100,8 @@ export default function LiverForgotPassword() {
               <Calendar className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h1 className="font-bold text-gray-800">LCJスケジュール</h1>
-              <p className="text-xs text-gray-300">パスワードリセット</p>
+              <h1 className="font-bold text-gray-800">{lt("login.title")}</h1>
+              <p className="text-xs text-gray-300">{lt("forgot.title")}</p>
             </div>
           </div>
         </div>
@@ -111,16 +114,15 @@ export default function LiverForgotPassword() {
             <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center mb-4">
               <Sparkles className="h-8 w-8 text-white" />
             </div>
-            <CardTitle className="text-xl">パスワードをお忘れの方</CardTitle>
+            <CardTitle className="text-xl">{lt("forgot.title")}</CardTitle>
             <CardDescription>
-              登録したメールアドレスを入力してください。
-              パスワードリセットのリンクをお送りします。
+              {lt("forgot.description")}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">メールアドレス</Label>
+                <Label htmlFor="email">{lt("login.email")}</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
@@ -140,7 +142,7 @@ export default function LiverForgotPassword() {
                 className="w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600"
                 disabled={requestReset.isPending || !email.trim()}
               >
-                {requestReset.isPending ? "送信中..." : "リセットリンクを送信"}
+                {requestReset.isPending ? lt("forgot.submitting") : lt("forgot.submit")}
               </Button>
 
               {requestReset.error && (
@@ -154,7 +156,7 @@ export default function LiverForgotPassword() {
               <Link href="/liver/login">
                 <Button variant="link" className="text-pink-500">
                   <ArrowLeft className="w-4 h-4 mr-1" />
-                  ログインページに戻る
+                  {lt("forgot.backToLogin")}
                 </Button>
               </Link>
             </div>

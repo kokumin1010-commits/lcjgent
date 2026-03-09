@@ -53,9 +53,13 @@ import { SiTiktok, SiInstagram, SiYoutube } from "react-icons/si";
 import { toast } from "sonner";
 import { GoalAchievedConfetti } from "@/components/Confetti";
 import LiverReferralCard from "@/components/LiverReferralCard";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { createLiverT, type LiverLanguage } from "@/lib/liverI18n";
 
 export default function LiverMypage() {
   const [, navigate] = useLocation();
+  const { language, setLanguage } = useLanguage();
+  const lt = createLiverT(language as LiverLanguage);
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -109,12 +113,12 @@ export default function LiverMypage() {
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const deleteLivestreamMutation = trpc.liverManagement.deleteLivestream.useMutation({
     onSuccess: () => {
-      toast.success('配信履歴を削除しました');
+      toast.success(lt('stream.deleted'));
       refetchLivestreams();
       setDeleteTargetId(null);
     },
     onError: (error: any) => {
-      toast.error(`削除エラー: ${error.message}`);
+      toast.error(`${lt('stream.deleteError')}: ${error.message}`);
     },
   });
 
@@ -275,7 +279,7 @@ export default function LiverMypage() {
       const csvData = await parseExcelFile(file);
       
       if (csvData.length === 0) {
-        setCsvImportResult({ created: 0, updated: 0, errors: ['データが見つかりませんでした'] });
+        setCsvImportResult({ created: 0, updated: 0, errors: [lt('csv.noDataFound')] });
         setIsImporting(false);
         return;
       }
@@ -289,7 +293,7 @@ export default function LiverMypage() {
         csvData,
       });
     } catch (error) {
-      setCsvImportResult({ created: 0, updated: 0, errors: [error instanceof Error ? error.message : 'ファイルの読み込みに失敗しました'] });
+      setCsvImportResult({ created: 0, updated: 0, errors: [error instanceof Error ? error.message : lt('csv.readFailed')] });
       setIsImporting(false);
     }
   };
@@ -428,14 +432,14 @@ export default function LiverMypage() {
     for (let i = 0; i < 12; i++) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-      const label = `${date.getFullYear()}年${date.getMonth() + 1}月`;
+      const label = language === "en" ? `${date.getFullYear()}/${date.getMonth() + 1}` : `${date.getFullYear()}年${date.getMonth() + 1}月`;
       options.push({ value, label });
     }
     
     monthsWithData.forEach(monthValue => {
       if (!options.find(o => o.value === monthValue)) {
         const [year, month] = monthValue.split("-").map(Number);
-        options.push({ value: monthValue, label: `${year}年${month}月` });
+        options.push({ value: monthValue, label: language === "en" ? `${year}/${month}` : `${year}年${month}月` });
       }
     });
     
@@ -498,9 +502,9 @@ export default function LiverMypage() {
     // Note: liverInfo being null means the server returned null, which indicates no valid session
     return (
       <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4 p-4">
-        <p className="text-white text-center">ログインが必要です</p>
+        <p className="text-white text-center">{lt("mypage.loginRequired")}</p>
         <Button onClick={() => navigate("/liver/login")} className="bg-red-600 hover:bg-red-700">
-          ログインページへ
+          {lt("mypage.goToLogin")}
         </Button>
       </div>
     );
@@ -531,12 +535,12 @@ export default function LiverMypage() {
       {/* Header */}
       <header className="sticky top-0 z-10 bg-gray-900/95 backdrop-blur border-b border-gray-800 px-4 py-3">
         <div className="flex items-center justify-between max-w-lg mx-auto">
-          <h1 className="text-lg font-bold text-white">マイページ</h1>
+          <h1 className="text-lg font-bold text-white">{lt("mypage.title")}</h1>
           <div className="flex items-center gap-1">
             <Link href="/livers">
               <Button variant="ghost" size="sm" className="text-gray-200 hover:text-white text-xs px-2">
                 <Users className="h-4 w-4 mr-1" />
-                一覧
+                {lt("common.list")}
               </Button>
             </Link>
             <Button
@@ -645,7 +649,7 @@ export default function LiverMypage() {
                 try { localStorage.setItem('aitherhub_banner_dismissed', 'true'); } catch {}
               }}
               className="absolute top-2 right-2 text-gray-200 hover:text-white transition-colors z-10"
-              aria-label="閉じる"
+              aria-label={lt("common.close")}
             >
               <X className="w-4 h-4" />
             </button>
@@ -657,9 +661,9 @@ export default function LiverMypage() {
                   </div>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-bold text-white mb-1">Aitherhubと連携しよう</h3>
+                  <h3 className="text-sm font-bold text-white mb-1">{lt("aitherhub.connectTitle")}</h3>
                   <p className="text-xs text-gray-300 leading-relaxed">
-                    Aitherhubと連携すると、動画解析結果が自動で反映され、AIコーチングも受けられます。配信データの入力が不要になり、より効率的に活動できます。
+                    {lt("aitherhub.connectDescription")}
                   </p>
                   <a
                     href="https://aitherhub.com"
@@ -667,7 +671,7 @@ export default function LiverMypage() {
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 mt-2.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 rounded-full text-xs font-medium text-white transition-colors"
                   >
-                    Aitherhubを見る
+                    {lt("aitherhub.viewLink")}
                     <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>
@@ -685,7 +689,7 @@ export default function LiverMypage() {
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <Target className="h-5 w-5 text-purple-400" />
-                <span className="text-sm font-bold text-white">今月の目標</span>
+                <span className="text-sm font-bold text-white">{lt("goal.title")}</span>
               </div>
               <Button
                 variant="ghost"
@@ -698,7 +702,7 @@ export default function LiverMypage() {
                 className="text-purple-400 hover:text-purple-300 h-7 px-2"
               >
                 <Edit className="h-3 w-3 mr-1" />
-                {currentGoal?.salesGoal ? '編集' : '設定'}
+                {currentGoal?.salesGoal ? lt('common.edit') : lt('common.settings')}
               </Button>
             </div>
             
@@ -707,7 +711,7 @@ export default function LiverMypage() {
                 {/* 売上目標 */}
                 <div className="mb-3">
                   <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="text-gray-200">売上目標</span>
+                    <span className="text-gray-200">{lt("goal.salesGoal")}</span>
                     <span className="text-white">
                       ¥{Number(monthlyStats.sales).toLocaleString()} / ¥{Number(currentGoal.salesGoal).toLocaleString()}
                     </span>
@@ -718,13 +722,13 @@ export default function LiverMypage() {
                   />
                   <div className="flex justify-between text-[10px] mt-1">
                     <span className={monthlyStats.sales >= currentGoal.salesGoal ? 'text-green-400' : 'text-purple-400'}>
-                      {Math.round((monthlyStats.sales / currentGoal.salesGoal) * 100)}% 達成
+                      {Math.round((monthlyStats.sales / currentGoal.salesGoal) * 100)}% {lt("goal.percentAchieved")}
                     </span>
                     {monthlyStats.sales >= currentGoal.salesGoal ? (
-                      <span className="text-green-400">🎉 目標達成！</span>
+                      <span className="text-green-400">🎉 {lt("goal.achieved")}</span>
                     ) : (
                       <span className="text-gray-300">
-                        残り ¥{Number(currentGoal.salesGoal - monthlyStats.sales).toLocaleString()}
+                        {lt("goal.remaining")} ¥{Number(currentGoal.salesGoal - monthlyStats.sales).toLocaleString()}
                       </span>
                     )}
                   </div>
@@ -734,9 +738,9 @@ export default function LiverMypage() {
                 {currentGoal.streamCountGoal && currentGoal.streamCountGoal > 0 && (
                   <div>
                     <div className="flex items-center justify-between text-xs mb-1">
-                      <span className="text-gray-200">配信回数</span>
+                      <span className="text-gray-200">{lt("goal.streamCountGoal")}</span>
                       <span className="text-white">
-                        {monthlyStats.count} / {currentGoal.streamCountGoal}回
+                        {monthlyStats.count} / {currentGoal.streamCountGoal}{lt("goal.times")}
                       </span>
                     </div>
                     <Progress 
@@ -745,13 +749,13 @@ export default function LiverMypage() {
                     />
                     <div className="flex justify-between text-[10px] mt-1">
                       <span className={monthlyStats.count >= currentGoal.streamCountGoal ? 'text-green-400' : 'text-blue-400'}>
-                        {Math.round((monthlyStats.count / currentGoal.streamCountGoal) * 100)}% 達成
+                        {Math.round((monthlyStats.count / currentGoal.streamCountGoal) * 100)}% {lt("goal.percentAchieved")}
                       </span>
                       {monthlyStats.count >= currentGoal.streamCountGoal ? (
-                        <span className="text-green-400">🎉 目標達成！</span>
+                        <span className="text-green-400">🎉 {lt("goal.achieved")}</span>
                       ) : (
                         <span className="text-gray-300">
-                          残り {currentGoal.streamCountGoal - monthlyStats.count}回
+                          {lt("goal.remaining")} {currentGoal.streamCountGoal - monthlyStats.count}{lt("goal.times")}
                         </span>
                       )}
                     </div>
@@ -760,8 +764,8 @@ export default function LiverMypage() {
               </>
             ) : (
               <div className="text-center py-2">
-                <p className="text-gray-200 text-sm">目標を設定してモチベーションアップ！</p>
-                <p className="text-gray-300 text-xs mt-1">右上の「設定」ボタンから目標を設定できます</p>
+                <p className="text-gray-200 text-sm">{lt("goal.setMotivation")}</p>
+                <p className="text-gray-300 text-xs mt-1">{lt("goal.setHint")}</p>
               </div>
             )}
           </CardContent>
@@ -802,8 +806,8 @@ export default function LiverMypage() {
           <Card className="bg-gray-800/30 border-gray-700 border-dashed">
             <CardContent className="p-6 text-center">
               <Video className="h-8 w-8 mx-auto text-gray-400 mb-2" />
-              <p className="text-gray-200 text-sm">この月の配信記録はありません</p>
-              <p className="text-gray-300 text-xs mt-1">右上の「+」ボタンから配信記録を追加できます</p>
+              <p className="text-gray-200 text-sm">{lt("mypage.noStreamRecords")}</p>
+              <p className="text-gray-300 text-xs mt-1">{lt("mypage.addStreamHint")}</p>
             </CardContent>
           </Card>
         ) : (
@@ -813,7 +817,7 @@ export default function LiverMypage() {
                 <CardContent className="p-3">
                   <div className="flex items-center gap-2 text-red-400 mb-1">
                     <DollarSign className="h-4 w-4" />
-                    <span className="text-xs">月間売上</span>
+                    <span className="text-xs">{lt("mypage.monthlySales")}</span>
                   </div>
                   <p className="text-2xl font-bold text-white">¥{Number(monthlyStats.sales).toLocaleString()}</p>
                 </CardContent>
@@ -822,7 +826,7 @@ export default function LiverMypage() {
                 <CardContent className="p-3">
                   <div className="flex items-center gap-2 text-blue-400 mb-1">
                     <Clock className="h-4 w-4" />
-                    <span className="text-xs">配信時間</span>
+                    <span className="text-xs">{lt("mypage.streamTime")}</span>
                   </div>
                   <p className="text-2xl font-bold text-white">{monthlyStats.hours}h</p>
                 </CardContent>
@@ -835,28 +839,28 @@ export default function LiverMypage() {
                 <CardContent className="p-2 text-center">
                   <Video className="h-3 w-3 mx-auto text-gray-200 mb-1" />
                   <p className="text-lg font-bold text-white">{monthlyStats.count}</p>
-                  <p className="text-[10px] text-gray-300">配信数</p>
+                  <p className="text-[10px] text-gray-300">{lt("mypage.streamCount")}</p>
                 </CardContent>
               </Card>
               <Card className="bg-gray-800/50 border-gray-700">
                 <CardContent className="p-2 text-center">
                   <DollarSign className="h-3 w-3 mx-auto text-gray-200 mb-1" />
                   <p className="text-lg font-bold text-white">¥{Math.round(monthlyStats.avgSales / 1000)}k</p>
-                  <p className="text-[10px] text-gray-300">平均</p>
+                  <p className="text-[10px] text-gray-300">{lt("mypage.average")}</p>
                 </CardContent>
               </Card>
               <Card className="bg-gray-800/50 border-gray-700">
                 <CardContent className="p-2 text-center">
                   <Eye className="h-3 w-3 mx-auto text-gray-200 mb-1" />
                   <p className="text-lg font-bold text-white">{Number(monthlyStats.viewerCount).toLocaleString()}</p>
-                  <p className="text-[10px] text-gray-300">視聴者</p>
+                  <p className="text-[10px] text-gray-300">{lt("mypage.viewers")}</p>
                 </CardContent>
               </Card>
               <Card className="bg-gray-800/50 border-gray-700">
                 <CardContent className="p-2 text-center">
                   <ShoppingCart className="h-3 w-3 mx-auto text-gray-200 mb-1" />
                   <p className="text-lg font-bold text-white">{Number(monthlyStats.orderCount).toLocaleString()}</p>
-                  <p className="text-[10px] text-gray-300">注文</p>
+                  <p className="text-[10px] text-gray-300">{lt("mypage.orders")}</p>
                 </CardContent>
               </Card>
             </div>
@@ -872,8 +876,8 @@ export default function LiverMypage() {
                   <Zap className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-white">パワーダッシュボード</p>
-                  <p className="text-xs text-gray-200">目標設定・成長分析・勝ちパターン発見</p>
+                  <p className="text-sm font-bold text-white">{lt("dashboard.powerTitle")}</p>
+                  <p className="text-xs text-gray-200">{lt("dashboard.powerDescription")}</p>
                 </div>
               </div>
               <ChevronRight className="h-5 w-5 text-gray-200" />
@@ -884,19 +888,19 @@ export default function LiverMypage() {
         {/* All-time Stats */}
         <Card className="bg-gray-800/30 border-gray-700">
           <CardContent className="p-3">
-            <p className="text-xs text-gray-300 mb-2">累計実績</p>
+            <p className="text-xs text-gray-300 mb-2">{lt("mypage.totalStats")}</p>
             <div className="grid grid-cols-3 gap-2 text-center">
               <div>
                 <p className="text-sm font-bold text-red-400">¥{Number(allTimeStats.totalSales).toLocaleString()}</p>
-                <p className="text-[10px] text-gray-300">総売上</p>
+                <p className="text-[10px] text-gray-300">{lt("mypage.totalSales")}</p>
               </div>
               <div>
                 <p className="text-sm font-bold text-blue-400">{allTimeStats.totalHours}h</p>
-                <p className="text-[10px] text-gray-300">総時間</p>
+                <p className="text-[10px] text-gray-300">{lt("mypage.totalHours")}</p>
               </div>
               <div>
                 <p className="text-sm font-bold text-green-400">{allTimeStats.totalCount}</p>
-                <p className="text-[10px] text-gray-300">総配信</p>
+                <p className="text-[10px] text-gray-300">{lt("mypage.totalStreams")}</p>
               </div>
             </div>
           </CardContent>
@@ -907,7 +911,7 @@ export default function LiverMypage() {
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-bold text-gray-200 flex items-center gap-2">
               <Video className="h-4 w-4" />
-              配信履歴
+              {lt("mypage.streamHistory")}
             </h3>
             <div className="flex items-center gap-2">
               {importHistory && importHistory.length > 0 && (
@@ -918,7 +922,7 @@ export default function LiverMypage() {
                   className="text-xs border-gray-600 text-gray-200 hover:text-white hover:border-gray-500"
                 >
                   <History className="h-3 w-3 mr-1" />
-                  履歴
+                  {lt("csv.history")}
                 </Button>
               )}
               <Button
@@ -928,7 +932,7 @@ export default function LiverMypage() {
                 className="text-xs border-gray-600 text-gray-200 hover:text-white hover:border-gray-500"
               >
                 <FileSpreadsheet className="h-3 w-3 mr-1" />
-              CSVインポート
+              {lt("csv.import")}
               </Button>
             </div>
           </div>
@@ -941,7 +945,7 @@ export default function LiverMypage() {
             <Card className="bg-gray-800/50 border-gray-700">
               <CardContent className="p-6 text-center text-gray-200">
                 <Video className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">配信履歴がありません</p>
+                <p className="text-sm">{lt("mypage.noStreamHistory")}</p>
               </CardContent>
             </Card>
           ) : (
@@ -1038,11 +1042,11 @@ export default function LiverMypage() {
                               )}
                               {ls.productCsvImported !== 'yes' && (
                                 <span 
-                                  title="商品別CSV未インポート" 
+                                  title={lt("csv.productCsvNotImported")} 
                                   className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-orange-500/20 border border-orange-500/50 rounded text-[10px] text-orange-400 font-medium"
                                 >
                                   <AlertTriangle className="h-2.5 w-2.5" />
-                                  商品未登録
+                                  {lt("csv.productCsvNotImported")}
                                 </span>
                               )}
                             </div>
@@ -1109,7 +1113,7 @@ export default function LiverMypage() {
               onClick={() => setShowAllLivestreams(true)}
               className="w-full mt-2 text-gray-200 hover:text-white text-xs"
             >
-              もっと見る ({filteredLivestreams.length - 10}件)
+              {lt("mypage.showMore")} ({filteredLivestreams.length - 10})
             </Button>
           )}
         </div>
@@ -1121,10 +1125,10 @@ export default function LiverMypage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileSpreadsheet className="h-5 w-5 text-blue-400" />
-              TikTok配信データのインポート
+              {lt("csv.importTitle")}
             </DialogTitle>
             <DialogDescription className="text-gray-200">
-              TikTokダッシュボードからダウンロードしたExcel/CSVファイルをアップロードしてください。
+              {lt("csv.importDescription")}
             </DialogDescription>
           </DialogHeader>
 
@@ -1135,16 +1139,16 @@ export default function LiverMypage() {
                 {isImporting ? (
                   <div className="flex flex-col items-center gap-2">
                     <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                    <p className="text-sm text-gray-200">インポート中...</p>
+                    <p className="text-sm text-gray-200">{lt("csv.importing")}</p>
                   </div>
                 ) : (
                   <>
                     <Upload className="h-8 w-8 mx-auto text-gray-300 mb-2" />
                     <p className="text-sm text-gray-200">
-                      クリックまたはドラッグ&ドロップ
+                      {lt("csv.dragDrop")}
                     </p>
                     <p className="text-xs text-gray-300 mt-1">
-                      .xlsx, .csv 対応
+                      .xlsx, .csv
                     </p>
                   </>
                 )}
@@ -1172,20 +1176,20 @@ export default function LiverMypage() {
                     <CheckCircle className="h-5 w-5 text-green-400" />
                   )}
                   <span className="font-medium">
-                    {csvImportResult.errors.length > 0 ? 'エラーが発生しました' : 'インポート完了'}
+                    {csvImportResult.errors.length > 0 ? lt('csv.importError') : lt('csv.importComplete')}
                   </span>
                 </div>
                 <div className="text-sm space-y-1">
-                  <p className="text-green-400">新規登録: {csvImportResult.created}件</p>
-                  <p className="text-blue-400">更新: {csvImportResult.updated}件</p>
+                  <p className="text-green-400">{lt("csv.newRecords")}: {csvImportResult.created}</p>
+                  <p className="text-blue-400">{lt("csv.updated")}: {csvImportResult.updated}</p>
                   {csvImportResult.errors.length > 0 && (
                     <div className="mt-2">
-                      <p className="text-red-400 text-xs">エラー:</p>
+                      <p className="text-red-400 text-xs">{lt("csv.errorLabel")}</p>
                       {csvImportResult.errors.slice(0, 3).map((err, i) => (
                         <p key={i} className="text-xs text-red-300 truncate">{err}</p>
                       ))}
                       {csvImportResult.errors.length > 3 && (
-                        <p className="text-xs text-red-400">他 {csvImportResult.errors.length - 3}件のエラー</p>
+                        <p className="text-xs text-red-400">{lt("csv.moreErrors", { count: String(csvImportResult.errors.length - 3) })}</p>
                       )}
                     </div>
                   )}
@@ -1195,12 +1199,12 @@ export default function LiverMypage() {
 
             {/* Instructions */}
             <div className="bg-gray-800/50 rounded-lg p-3">
-              <p className="text-xs text-gray-200 mb-2">インポート手順:</p>
+              <p className="text-xs text-gray-200 mb-2">{lt("csv.instructions")}</p>
               <ol className="text-xs text-gray-300 space-y-1 list-decimal list-inside">
-                <li>TikTokダッシュボードを開く</li>
-                <li>「ライブパフォーマンス」セクションへ移動</li>
-                <li>「エクスポート」ボタンをクリック</li>
-                <li>ダウンロードしたファイルをここにアップロード</li>
+                <li>{lt("csv.step1")}</li>
+                <li>{lt("csv.step2")}</li>
+                <li>{lt("csv.step3")}</li>
+                <li>{lt("csv.step4")}</li>
               </ol>
             </div>
 
@@ -1209,7 +1213,7 @@ export default function LiverMypage() {
               <div className="border-t border-gray-700 pt-4">
                 <div className="flex items-center gap-2 mb-3">
                   <History className="h-4 w-4 text-gray-200" />
-                  <p className="text-sm font-medium text-gray-300">インポート履歴</p>
+                  <p className="text-sm font-medium text-gray-300">{lt("csv.history")}</p>
                 </div>
                 <div className="space-y-2 max-h-48 overflow-y-auto">
                   {importHistory.map((history) => {
@@ -1234,7 +1238,7 @@ export default function LiverMypage() {
                                 )}
                               </span>
                               <span className="text-[10px] text-gray-300">
-                                {history.livestreamCount}件
+                                {history.livestreamCount}
                               </span>
                             </div>
                             <div className="text-[10px] text-gray-300">
@@ -1258,26 +1262,26 @@ export default function LiverMypage() {
                             </AlertDialogTrigger>
                             <AlertDialogContent className="bg-gray-900 border-gray-700">
                               <AlertDialogHeader>
-                                <AlertDialogTitle className="text-white">インポート履歴を削除</AlertDialogTitle>
+                                <AlertDialogTitle className="text-white">{lt("csv.deleteHistory")}</AlertDialogTitle>
                                 <AlertDialogDescription className="text-gray-200">
-                                  このインポート履歴と関連する配信データをすべて削除します。
+                                  {lt("csv.deleteHistoryConfirm")}
                                   <br />
                                   <span className="text-red-400 font-medium">
-                                    {startDate && endDate && `${formatDate(startDate)} 〜 ${formatDate(endDate)} の配信データが削除されます。`}
+                                    {startDate && endDate && `${formatDate(startDate)} 〜 ${formatDate(endDate)} {lt("csv.deleteStreamData")}`}
                                   </span>
                                   <br />
-                                  この操作は取り消せません。
+                                  {lt("csv.irreversible")}
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel className="bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700">
-                                  キャンセル
+                                  {lt("common.cancel")}
                                 </AlertDialogCancel>
                                 <AlertDialogAction
                                   onClick={() => deleteImportHistoryMutation.mutate({ historyId: history.id })}
                                   className="bg-red-600 hover:bg-red-700 text-white"
                                 >
-                                  削除する
+                                  {lt("common.delete")}
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
@@ -1300,7 +1304,7 @@ export default function LiverMypage() {
               }}
               className="text-gray-200"
             >
-              閉じる
+              {lt("common.close")}
             </Button>
           </div>
         </DialogContent>
@@ -1312,41 +1316,41 @@ export default function LiverMypage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Target className="h-5 w-5 text-purple-400" />
-              目標設定
+              {lt("goal.title")}
             </DialogTitle>
             <DialogDescription className="text-gray-200">
-              今月の目標を設定して、モチベーションをアップしましょう！
+              {lt("goal.dialogTitle")}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 mt-4">
             <div>
-              <Label htmlFor="salesGoal" className="text-gray-300">売上目標（円）</Label>
+              <Label htmlFor="salesGoal" className="text-gray-300">{lt("goal.salesGoalLabel")}</Label>
               <Input
                 id="salesGoal"
                 type="number"
-                placeholder="例: 1000000"
+                placeholder="1000000"
                 value={goalSalesInput}
                 onChange={(e) => setGoalSalesInput(e.target.value)}
                 className="bg-gray-800 border-gray-600 text-white mt-1"
               />
               <p className="text-xs text-gray-300 mt-1">
-                現在の売上: ¥{Number(monthlyStats.sales).toLocaleString()}
+                {lt("goal.currentSales")}: ¥{Number(monthlyStats.sales).toLocaleString()}
               </p>
             </div>
 
             <div>
-              <Label htmlFor="streamCountGoal" className="text-gray-300">配信回数目標（任意）</Label>
+              <Label htmlFor="streamCountGoal" className="text-gray-300">{lt("goal.streamCountGoalLabel")}</Label>
               <Input
                 id="streamCountGoal"
                 type="number"
-                placeholder="例: 20"
+                placeholder="20"
                 value={goalStreamCountInput}
                 onChange={(e) => setGoalStreamCountInput(e.target.value)}
                 className="bg-gray-800 border-gray-600 text-white mt-1"
               />
               <p className="text-xs text-gray-300 mt-1">
-                現在の配信数: {monthlyStats.count}回
+                {lt("goal.currentStreamCount")}: {monthlyStats.count}{lt("goal.times")}
               </p>
             </div>
           </div>
@@ -1357,7 +1361,7 @@ export default function LiverMypage() {
               onClick={() => setShowGoalDialog(false)}
               className="text-gray-200"
             >
-              キャンセル
+              {lt("common.cancel")}
             </Button>
             <Button
               onClick={() => {
@@ -1374,7 +1378,7 @@ export default function LiverMypage() {
               disabled={!goalSalesInput || parseInt(goalSalesInput) <= 0 || setGoalMutation.isPending}
               className="bg-purple-600 hover:bg-purple-700 text-white"
             >
-              {setGoalMutation.isPending ? '保存中...' : '目標を設定'}
+              {setGoalMutation.isPending ? lt('goal.saving') : lt('goal.setGoal')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1384,14 +1388,14 @@ export default function LiverMypage() {
       <AlertDialog open={deleteTargetId !== null} onOpenChange={(open) => { if (!open) setDeleteTargetId(null); }}>
         <AlertDialogContent className="bg-gray-900 border-gray-700">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">配信履歴を削除</AlertDialogTitle>
+            <AlertDialogTitle className="text-white">{lt("stream.deleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription className="text-gray-400">
-              この配信履歴を削除してもよろしいですか？この操作は取り消せません。
+              {lt("stream.deleteConfirm")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="bg-gray-800 text-white border-gray-700 hover:bg-gray-700">
-              キャンセル
+              {lt("common.cancel")}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
@@ -1401,7 +1405,7 @@ export default function LiverMypage() {
               }}
               className="bg-red-600 hover:bg-red-700"
             >
-              {deleteLivestreamMutation.isPending ? '削除中...' : '削除'}
+              {deleteLivestreamMutation.isPending ? lt('common.loading') : lt('common.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Sparkles, Heart, ArrowLeft } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { createLiverT, LiverLanguage } from "@/lib/liverI18n";
 
 type Step = "welcome" | "name" | "email" | "password" | "color" | "complete";
 
@@ -17,19 +19,21 @@ interface Message {
   inputType?: "text" | "email" | "password" | "color";
 }
 
-const COLORS = [
-  { name: "ピンク", value: "#FF69B4" },
-  { name: "パープル", value: "#9B59B6" },
-  { name: "ブルー", value: "#3498DB" },
-  { name: "グリーン", value: "#2ECC71" },
-  { name: "オレンジ", value: "#E67E22" },
-  { name: "レッド", value: "#E74C3C" },
-  { name: "イエロー", value: "#F1C40F" },
-  { name: "ティール", value: "#1ABC9C" },
+const COLOR_KEYS = [
+  { key: "color.pink", value: "#FF69B4" },
+  { key: "color.purple", value: "#9B59B6" },
+  { key: "color.blue", value: "#3498DB" },
+  { key: "color.green", value: "#2ECC71" },
+  { key: "color.orange", value: "#E67E22" },
+  { key: "color.red", value: "#E74C3C" },
+  { key: "color.yellow", value: "#F1C40F" },
+  { key: "color.teal", value: "#1ABC9C" },
 ];
 
 export default function LiverRegister() {
   const [, navigate] = useLocation();
+  const { language } = useLanguage();
+  const lt = createLiverT(language as LiverLanguage);
   const [step, setStep] = useState<Step>("welcome");
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -53,11 +57,11 @@ export default function LiverRegister() {
       // キャッシュを無効化して新しいセッションを反映
       await utils.liver.me.invalidate();
       
-      addBotMessage("登録完了！🎉");
+      addBotMessage(lt("register.complete"));
       setTimeout(() => {
-        addBotMessage(`${name}さん、これからよろしくね！✨`);
+        addBotMessage(lt("register.welcome", { name }));
         setTimeout(() => {
-          addBotMessage("マイページに移動するね！");
+          addBotMessage(lt("register.redirecting"));
           setTimeout(() => {
             // Navigate to mypage
             window.location.href = "/liver/mypage";
@@ -67,8 +71,8 @@ export default function LiverRegister() {
     },
     onError: (err) => {
       setError(err.message);
-      addBotMessage(`あれ、エラーが出ちゃった...😢 ${err.message}`);
-      addBotMessage("もう一度試してみてね！");
+      addBotMessage(`${lt("register.error")} ${err.message}`);
+      addBotMessage(lt("register.tryAgain"));
       setStep("email");
     },
   });
@@ -84,14 +88,14 @@ export default function LiverRegister() {
   useEffect(() => {
     // Start the conversation
     setTimeout(() => {
-      addBotMessage("はじめまして！✨");
+      addBotMessage(lt("register.greeting1"));
       setTimeout(() => {
-        addBotMessage("LCJスケジュールへようこそ！💖");
+        addBotMessage(lt("register.greeting2"));
         setTimeout(() => {
-          addBotMessage("一緒にアカウントを作ろう！");
+          addBotMessage(lt("register.greeting3"));
           setTimeout(() => {
             setStep("name");
-            addBotMessage("まずは、あなたのお名前を教えてね！🎤", true, "text");
+            addBotMessage(lt("register.askName"), true, "text");
           }, 800);
         }, 800);
       }, 800);
@@ -142,42 +146,42 @@ export default function LiverRegister() {
         addUserMessage(value);
         setName(value);
         setTimeout(() => {
-          addBotMessage(`${value}さん、素敵なお名前だね！💕`);
+          addBotMessage(lt("register.niceName", { name: value }));
           setTimeout(() => {
             setStep("email");
-            addBotMessage("次は、メールアドレスを教えてね！📧", true, "email");
+            addBotMessage(lt("register.askEmail"), true, "email");
           }, 800);
         }, 300);
         break;
 
       case "email":
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-          setError("正しいメールアドレスを入力してね");
+          setError(lt("register.invalidEmail"));
           return;
         }
         addUserMessage(value);
         setEmail(value);
         setTimeout(() => {
-          addBotMessage("ありがとう！📬");
+          addBotMessage(lt("register.thankYou"));
           setTimeout(() => {
             setStep("password");
-            addBotMessage("パスワードを設定しよう！🔐（6文字以上）", true, "password");
+            addBotMessage(lt("register.askPassword"), true, "password");
           }, 800);
         }, 300);
         break;
 
       case "password":
         if (value.length < 6) {
-          setError("パスワードは6文字以上にしてね");
+          setError(lt("register.shortPassword"));
           return;
         }
         addUserMessage("••••••");
         setPassword(value);
         setTimeout(() => {
-          addBotMessage("バッチリ！🎯");
+          addBotMessage(lt("register.perfect"));
           setTimeout(() => {
             setStep("color");
-            addBotMessage("最後に、あなたのテーマカラーを選んでね！🎨");
+            addBotMessage(lt("register.askColor"));
           }, 800);
         }, 300);
         break;
@@ -186,12 +190,13 @@ export default function LiverRegister() {
 
   const handleColorSelect = (color: string) => {
     setSelectedColor(color);
-    const colorName = COLORS.find((c) => c.value === color)?.name || "素敵な色";
-    addUserMessage(`${colorName}を選んだよ！`);
+    const colorName = COLOR_KEYS.find((c) => c.value === color)?.key;
+    const colorLabel = colorName ? lt(colorName) : color;
+    addUserMessage(lt("register.colorSelected", { color: colorLabel }));
     setTimeout(() => {
-      addBotMessage(`${colorName}、いいね！✨`);
+      addBotMessage(lt("register.colorNice", { color: colorLabel }));
       setTimeout(() => {
-        addBotMessage("これで準備完了！登録するね...🚀");
+        addBotMessage(lt("register.registering"));
         setStep("complete");
         registerMutation.mutate({
           name,
@@ -221,8 +226,8 @@ export default function LiverRegister() {
               <Sparkles className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h1 className="font-bold text-gray-800">LCJスケジュール</h1>
-              <p className="text-xs text-gray-300">新規登録</p>
+              <h1 className="font-bold text-gray-800">{lt("login.title")}</h1>
+              <p className="text-xs text-gray-300">{lt("register.title")}</p>
             </div>
           </div>
         </div>
@@ -284,7 +289,7 @@ export default function LiverRegister() {
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-wrap gap-3 justify-center py-4"
           >
-            {COLORS.map((color) => (
+            {COLOR_KEYS.map((color) => (
               <button
                 key={color.value}
                 onClick={() => handleColorSelect(color.value)}
@@ -292,7 +297,7 @@ export default function LiverRegister() {
                   selectedColor === color.value ? "ring-4 ring-offset-2 ring-pink-300" : ""
                 }`}
                 style={{ backgroundColor: color.value }}
-                title={color.name}
+                title={lt(color.key)}
               />
             ))}
           </motion.div>
@@ -312,10 +317,10 @@ export default function LiverRegister() {
               onChange={(e) => setInput(e.target.value)}
               placeholder={
                 step === "name"
-                  ? "お名前を入力..."
+                  ? lt("register.namePlaceholder")
                   : step === "email"
-                  ? "メールアドレスを入力..."
-                  : "パスワードを入力..."
+                  ? lt("register.emailPlaceholder")
+                  : lt("register.passwordPlaceholder")
               }
               className="flex-1 rounded-full border-pink-200 focus:border-pink-400 focus:ring-pink-400"
               autoComplete={step === "password" ? "new-password" : step === "email" ? "email" : "name"}
@@ -340,7 +345,7 @@ export default function LiverRegister() {
         <div className="sticky bottom-0 bg-white/80 backdrop-blur-sm border-t border-pink-100 px-4 py-4">
           <div className="flex items-center justify-center gap-2 text-pink-500">
             <div className="w-4 h-4 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />
-            <span className="text-sm">登録中...</span>
+            <span className="text-sm">{lt("register.submitting")}</span>
           </div>
         </div>
       )}
