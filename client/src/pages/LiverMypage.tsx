@@ -31,7 +31,10 @@ import {
   Zap,
   Target,
   Edit,
-  ExternalLink
+  ExternalLink,
+  HelpCircle,
+  ArrowLeft,
+  Info
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -68,6 +71,7 @@ export default function LiverMypage() {
   const [showCsvImportDialog, setShowCsvImportDialog] = useState(false);
   const [csvImportResult, setCsvImportResult] = useState<{ created: number; updated: number; errors: string[] } | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [showHowTo, setShowHowTo] = useState(false);
   const [showImportHistoryDialog, setShowImportHistoryDialog] = useState(false);
   const [showGoalDialog, setShowGoalDialog] = useState(false);
   const [goalSalesInput, setGoalSalesInput] = useState('');
@@ -1201,15 +1205,30 @@ export default function LiverMypage() {
               </div>
             )}
 
-            {/* Instructions */}
+            {/* Instructions with How To button */}
             <div className="bg-gray-800/50 rounded-lg p-3">
-              <p className="text-xs text-gray-200 mb-2">{lt("csv.instructions")}</p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs text-gray-200">{lt("csv.instructions")}</p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowHowTo(true)}
+                  className="text-blue-400 hover:text-blue-300 h-6 px-2 text-xs gap-1"
+                >
+                  <HelpCircle className="h-3 w-3" />
+                  {lt("csv.howTo")}
+                </Button>
+              </div>
               <ol className="text-xs text-gray-300 space-y-1 list-decimal list-inside">
                 <li>{lt("csv.step1")}</li>
                 <li>{lt("csv.step2")}</li>
                 <li>{lt("csv.step3")}</li>
                 <li>{lt("csv.step4")}</li>
               </ol>
+              <div className="mt-2 flex items-center gap-1 text-[10px] text-yellow-400/80">
+                <Info className="h-3 w-3 flex-shrink-0" />
+                <span>{lt("csv.howToMonthTip")}</span>
+              </div>
             </div>
 
             {/* Import History */}
@@ -1306,6 +1325,97 @@ export default function LiverMypage() {
                 setShowCsvImportDialog(false);
                 setCsvImportResult(null);
               }}
+              className="text-gray-200"
+            >
+              {lt("common.close")}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* How To Popup */}
+      <Dialog open={showHowTo} onOpenChange={setShowHowTo}>
+        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <HelpCircle className="h-5 w-5 text-blue-400" />
+              {lt("csv.howToTitle")}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-5 mt-2">
+            {/* Step 1 */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-xs font-bold flex-shrink-0">1</div>
+                <h3 className="text-sm font-medium text-white">{lt("csv.howToStep1Title")}</h3>
+              </div>
+              <p className="text-xs text-gray-300 ml-8">{lt("csv.howToStep1Desc")}</p>
+              <a
+                href="https://shop.tiktok.com/streamer/compass/livestream-analytics/view"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-8 inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 underline"
+              >
+                shop.tiktok.com/streamer/compass/livestream-analytics/view
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
+
+            {/* Step 2 */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-xs font-bold flex-shrink-0">2</div>
+                <h3 className="text-sm font-medium text-white">{lt("csv.howToStep2Title")}</h3>
+              </div>
+              <p className="text-xs text-gray-300 ml-8 whitespace-pre-line">{lt("csv.howToStep2Desc")}</p>
+            </div>
+
+            {/* Step 3 */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-xs font-bold flex-shrink-0">3</div>
+                <h3 className="text-sm font-medium text-white">{lt("csv.howToStep3Title")}</h3>
+              </div>
+              <p className="text-xs text-gray-300 ml-8">{lt("csv.howToStep3Desc")}</p>
+            </div>
+
+            {/* Step 4 */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-xs font-bold flex-shrink-0">4</div>
+                <h3 className="text-sm font-medium text-white">{lt("csv.howToStep4Title")}</h3>
+              </div>
+              <p className="text-xs text-gray-300 ml-8">{lt("csv.howToStep4Desc")}</p>
+            </div>
+
+            {/* TikTok Dashboard Screenshot */}
+            <div className="border-t border-gray-700 pt-4">
+              <p className="text-xs text-gray-400 mb-2">{lt("csv.howToPreview")}</p>
+              <div className="rounded-lg overflow-hidden border border-gray-700">
+                <img
+                  src="/images/tiktok-howto.png"
+                  alt="TikTok Dashboard"
+                  className="w-full h-auto"
+                />
+              </div>
+            </div>
+
+            {/* Tips */}
+            <div className="bg-blue-900/20 border border-blue-700/30 rounded-lg p-3 space-y-1">
+              <div className="flex items-center gap-1 text-xs text-blue-300">
+                <Info className="h-3 w-3 flex-shrink-0" />
+                <span className="font-medium">Tips</span>
+              </div>
+              <p className="text-[11px] text-gray-300">{lt("csv.howToMonthTip")}</p>
+              <p className="text-[11px] text-gray-400">{lt("csv.howToTip")}</p>
+            </div>
+          </div>
+
+          <div className="flex justify-end mt-2">
+            <Button
+              variant="ghost"
+              onClick={() => setShowHowTo(false)}
               className="text-gray-200"
             >
               {lt("common.close")}
