@@ -6407,7 +6407,7 @@ export async function createMallOrder(data: {
 export async function cancelMallOrder(
   orderId: number,
   cancelReason?: string
-): Promise<{ success: boolean; pointsRefunded: number }> {
+): Promise<{ success: boolean; pointsRefunded: number; stripeRefunded: boolean }> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
@@ -6463,16 +6463,37 @@ export async function cancelMallOrder(
     }
   }
 
-  // 3. 注文ステータスをキャンセルに更新
+  // 3. Stripe自動返金（カード決済済みの場合）
+  let stripeRefunded = false;
+  if (order.paymentMethod === "stripe" && order.stripePaymentIntentId && 
+      (order.status === "paid" || order.status === "confirmed")) {
+    try {
+      const Stripe = (await import("stripe")).default;
+      const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
+        apiVersion: "2025-01-27.acacia" as any,
+      });
+      await stripeClient.refunds.create({
+        payment_intent: order.stripePaymentIntentId,
+        reason: "requested_by_customer",
+      });
+      stripeRefunded = true;
+      console.log(`[CancelOrder] Stripe返金成功: 注文${order.orderNumber}, PaymentIntent: ${order.stripePaymentIntentId}`);
+    } catch (stripeErr) {
+      console.error(`[CancelOrder] Stripe返金エラー: 注文${order.orderNumber}:`, stripeErr);
+      // Stripe返金失敗でもキャンセル自体は続行する
+    }
+  }
+
+  // 4. 注文ステータスをキャンセルに更新
   await db.update(mallOrders)
     .set({
-      status: "cancelled",
+      status: stripeRefunded ? "refunded" : "cancelled",
       cancelledAt: new Date(),
       cancelReason: cancelReason || "ユーザーによるキャンセル",
     })
     .where(eq(mallOrders.id, orderId));
 
-  return { success: true, pointsRefunded };
+  return { success: true, pointsRefunded, stripeRefunded };
 }
 
 // 注文一覧取得（管理者用）
@@ -6548,14 +6569,15 @@ export async function updateMallOrderStatus(
   status: "pending" | "paid" | "confirmed" | "shipped" | "delivered" | "cancelled" | "refunded",
   adminNotes?: string,
   shippingInfo?: { shippingCarrier?: string; trackingNumber?: string }
-): Promise<{ pointsRefunded: number; stockRestored: boolean }> {
+): Promise<{ pointsRefunded: number; stockRestored: boolean; stripeRefunded: boolean }> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
   let pointsRefunded = 0;
   let stockRestored = false;
 
-  // キャンセル・返金時のポイント返還・在庫戻し処理
+  // キャンセル・返金時のポイント返還・在庫戻し・Stripe返金処理
+  let stripeRefunded = false;
   if (status === "cancelled" || status === "refunded") {
     // 注文情報を取得
     const [order] = await db.select().from(mallOrders).where(eq(mallOrders.id, id)).limit(1);
@@ -6598,6 +6620,26 @@ export async function updateMallOrderStatus(
           pointsRefunded = order.pointsUsed;
         }
       }
+
+      // 3. Stripe自動返金（カード決済済みの場合）
+      if (order.paymentMethod === "stripe" && order.stripePaymentIntentId &&
+          (order.status === "paid" || order.status === "confirmed")) {
+        try {
+          const Stripe = (await import("stripe")).default;
+          const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
+            apiVersion: "2025-01-27.acacia" as any,
+          });
+          await stripeClient.refunds.create({
+            payment_intent: order.stripePaymentIntentId,
+            reason: "requested_by_customer",
+          });
+          stripeRefunded = true;
+          console.log(`[AdminOrderStatus] Stripe返金成功: 注文${order.orderNumber}, PaymentIntent: ${order.stripePaymentIntentId}`);
+        } catch (stripeErr) {
+          console.error(`[AdminOrderStatus] Stripe返金エラー: 注文${order.orderNumber}:`, stripeErr);
+          // Stripe返金失敗でもステータス更新は続行する
+        }
+      }
     }
   }
 
@@ -6627,7 +6669,7 @@ export async function updateMallOrderStatus(
 
   await db.update(mallOrders).set(updateData).where(eq(mallOrders.id, id));
 
-  return { pointsRefunded, stockRestored };
+  return { pointsRefunded, stockRestored, stripeRefunded };
 }
 
 // Stripe情報で注文を更新

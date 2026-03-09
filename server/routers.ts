@@ -14272,18 +14272,22 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           }
         }
 
-        // ポイント返還情報をログ出力
+        // ポイント返還・Stripe返金情報をログ出力
         if (result.pointsRefunded > 0) {
           console.log(`[OrderStatus] 注文ID:${input.id} ポイント返還: ${result.pointsRefunded}pt`);
         }
         if (result.stockRestored) {
           console.log(`[OrderStatus] 注文ID:${input.id} 在庫戻し完了`);
         }
+        if (result.stripeRefunded) {
+          console.log(`[OrderStatus] 注文ID:${input.id} Stripe返金完了`);
+        }
 
         return { 
           success: true, 
           pointsRefunded: result.pointsRefunded,
           stockRestored: result.stockRestored,
+          stripeRefunded: result.stripeRefunded,
         };
       }),
 
@@ -14525,14 +14529,15 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           });
         }
 
-        // キャンセル実行（ポイント返還・在庫戻し含む）
+        // キャンセル実行（ポイント返還・在庫戻し・Stripe返金含む）
         const cancelResult = await cancelMallOrder(input.orderId, input.reason);
 
         // キャンセル通知を送信
         try {
           const lineUser = result.lineUser;
           const cancelDate = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
-          const notificationText = `\u274c 注文キャンセル\n\n注文番号: ${order.order.orderNumber}\nキャンセル日時: ${cancelDate}${cancelResult.pointsRefunded > 0 ? `\n返還ポイント: ${cancelResult.pointsRefunded.toLocaleString()} pt` : ''}\n\nご注文のキャンセルが完了しました。`;
+          const refundInfo = cancelResult.stripeRefunded ? '\nカードへの返金が処理されました。反映まで数日かかる場合があります。' : '';
+          const notificationText = `\u274c 注文キャンセル\n\n注文番号: ${order.order.orderNumber}\nキャンセル日時: ${cancelDate}${cancelResult.pointsRefunded > 0 ? `\n返還ポイント: ${cancelResult.pointsRefunded.toLocaleString()} pt` : ''}${refundInfo}\n\nご注文のキャンセルが完了しました。`;
 
           if (lineUser.lineUserId && !lineUser.lineUserId.startsWith('email_')) {
             const { pushMessage } = await import("./line");
@@ -14551,12 +14556,18 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           console.error("[CancelOrder] 通知送信エラー:", notifyError);
         }
 
+        const messages: string[] = ["注文をキャンセルしました。"];
+        if (cancelResult.pointsRefunded > 0) {
+          messages.push(`${cancelResult.pointsRefunded.toLocaleString()}ポイントを返還しました。`);
+        }
+        if (cancelResult.stripeRefunded) {
+          messages.push("カードへの返金を処理しました。反映まで数日かかる場合があります。");
+        }
         return { 
           success: true, 
           pointsRefunded: cancelResult.pointsRefunded,
-          message: cancelResult.pointsRefunded > 0 
-            ? `注文をキャンセルしました。${cancelResult.pointsRefunded.toLocaleString()}ポイントを返還しました。`
-            : "注文をキャンセルしました。"
+          stripeRefunded: cancelResult.stripeRefunded,
+          message: messages.join(""),
         };
       }),
 
