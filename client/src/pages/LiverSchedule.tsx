@@ -258,14 +258,14 @@ export default function LiverSchedule() {
               variant="ghost"
               size="icon"
               onClick={() => navigate("/liver/mypage")}
-              className="text-gray-200 hover:text-white"
+              className="text-white hover:text-white"
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <h1 className="text-xl font-bold text-yellow-500">{t("schedule.title")}</h1>
           </div>
           <Link href="/liver/mypage">
-            <Button variant="ghost" size="icon" className="text-gray-200 hover:text-white">
+            <Button variant="ghost" size="icon" className="text-white hover:text-white">
               <Home className="h-5 w-5" />
             </Button>
           </Link>
@@ -282,7 +282,7 @@ export default function LiverSchedule() {
             variant="ghost"
             size="icon"
             onClick={goToPreviousMonth}
-            className="text-gray-200 hover:text-white"
+            className="text-white hover:text-white"
           >
             <ChevronLeft className="h-6 w-6" />
           </Button>
@@ -294,7 +294,7 @@ export default function LiverSchedule() {
               variant="outline"
               size="sm"
               onClick={goToToday}
-              className="border-gray-700 text-gray-200 hover:text-white"
+              className="border-gray-700 text-white hover:text-white"
             >
               {language === 'ja' ? '今日' : language === 'zh-TW' ? '今天' : language === 'en' ? 'Today' : '今天'}
             </Button>
@@ -303,7 +303,7 @@ export default function LiverSchedule() {
             variant="ghost"
             size="icon"
             onClick={goToNextMonth}
-            className="text-gray-200 hover:text-white"
+            className="text-white hover:text-white"
           >
             <ChevronRight className="h-6 w-6" />
           </Button>
@@ -318,7 +318,7 @@ export default function LiverSchedule() {
                 <div
                   key={day}
                   className={`text-center text-sm font-medium py-2 ${
-                    index === 0 ? "text-red-500" : index === 6 ? "text-blue-500" : "text-gray-200"
+                    index === 0 ? "text-red-500" : index === 6 ? "text-blue-500" : "text-white"
                   }`}
                 >
                   {day}
@@ -376,7 +376,7 @@ export default function LiverSchedule() {
             </div>
 
             {/* Legend */}
-            <div className="flex items-center justify-center gap-4 mt-4 text-xs text-gray-200">
+            <div className="flex items-center justify-center gap-4 mt-4 text-xs text-white">
               <div className="flex items-center gap-1">
                 <div className="w-2 h-2 rounded-full bg-yellow-500" />
                 <span>{t("schedule.hasSchedule")}</span>
@@ -415,7 +415,7 @@ export default function LiverSchedule() {
               {/* Schedules */}
               {selectedDateData.schedules.length > 0 && (
                 <div>
-                  <h4 className="text-sm font-medium text-gray-200 mb-2">{t("schedule.upcoming")}</h4>
+                  <h4 className="text-sm font-medium text-white mb-2">{t("schedule.upcoming")}</h4>
                   <div className="space-y-2">
                     {selectedDateData.schedules.map((schedule: Schedule) => {
                       const hasLinkedLivestream = selectedDateData.livestreams.some(
@@ -433,7 +433,7 @@ export default function LiverSchedule() {
                             </div>
                             <div>
                               <p className="font-medium text-white">{schedule.title}</p>
-                              <p className="text-sm text-gray-200">
+                              <p className="text-sm text-white">
                                 <Clock className="h-3 w-3 inline mr-1" />
                                 {formatTimeJST(schedule.startTime)}
                                 {schedule.endTime && ` - ${formatTimeJST(schedule.endTime)}`}
@@ -467,7 +467,7 @@ export default function LiverSchedule() {
               {/* Livestreams */}
               {selectedDateData.livestreams.length > 0 && (
                 <div>
-                  <h4 className="text-sm font-medium text-gray-200 mb-2">{t("schedule.streamRecord")}</h4>
+                  <h4 className="text-sm font-medium text-white mb-2">{t("schedule.streamRecord")}</h4>
                   <div className="space-y-2">
                     {selectedDateData.livestreams.map((ls: Livestream) => (
                       <div
@@ -494,7 +494,7 @@ export default function LiverSchedule() {
                               {formatTimeJST(ls.livestreamDate)}
                               {ls.livestreamEndTime && ` - ${formatTimeJST(ls.livestreamEndTime)}`}
                             </p>
-                            <p className="text-sm text-gray-200">
+                            <p className="text-sm text-white">
                               売上: ¥{Number(ls.salesAmount || ls.gmv || 0).toLocaleString()}
                             </p>
                           </div>
@@ -512,7 +512,7 @@ export default function LiverSchedule() {
 
               {/* No data message */}
               {selectedDateData.schedules.length === 0 && selectedDateData.livestreams.length === 0 && (
-                <div className="text-center py-8 text-gray-200">
+                <div className="text-center py-8 text-white">
                   <CalendarIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p>{t("schedule.noSchedule")}</p>
                   <Button

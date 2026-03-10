@@ -250,7 +250,7 @@ export default function LiverDashboard() {
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
           <button
             onClick={() => navigate("/liver/mypage")}
-            className="flex items-center gap-2 text-gray-200 hover:text-white transition-colors"
+            className="flex items-center gap-2 text-white hover:text-white transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
             <span>マイページ</span>
@@ -270,7 +270,7 @@ export default function LiverDashboard() {
             variant="ghost"
             size="icon"
             onClick={handlePrevMonth}
-            className="text-gray-200 hover:text-white hover:bg-gray-800 rounded-full"
+            className="text-white hover:text-white hover:bg-gray-800 rounded-full"
           >
             <ChevronLeft className="w-6 h-6" />
           </Button>
@@ -300,7 +300,7 @@ export default function LiverDashboard() {
             size="icon"
             onClick={handleNextMonth}
             disabled={isCurrentMonth || isFutureMonth}
-            className="text-gray-200 hover:text-white hover:bg-gray-800 rounded-full disabled:opacity-30"
+            className="text-white hover:text-white hover:bg-gray-800 rounded-full disabled:opacity-30"
           >
             <ChevronRight className="w-6 h-6" />
           </Button>
@@ -323,7 +323,7 @@ export default function LiverDashboard() {
                     setStreamCountGoalInput((stats?.goal?.streamCountGoal || 0).toString());
                     setIsEditingGoal(true);
                   }}
-                  className="text-gray-200 hover:text-white"
+                  className="text-white hover:text-white"
                 >
                   <Edit2 className="w-4 h-4" />
                 </Button>
@@ -342,7 +342,7 @@ export default function LiverDashboard() {
                     variant="ghost"
                     size="sm"
                     onClick={() => setIsEditingGoal(false)}
-                    className="text-gray-200 hover:text-white"
+                    className="text-white hover:text-white"
                   >
                     <X className="w-4 h-4" />
                   </Button>
@@ -354,7 +354,7 @@ export default function LiverDashboard() {
             {isEditingGoal ? (
               <div className="space-y-4">
                 <div>
-                  <label className="text-sm text-gray-200 mb-1 block">売上目標（円）</label>
+                  <label className="text-sm text-white mb-1 block">売上目標（円）</label>
                   <Input
                     type="text"
                     value={goalInput}
@@ -364,7 +364,7 @@ export default function LiverDashboard() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-gray-200 mb-1 block">配信回数目標</label>
+                  <label className="text-sm text-white mb-1 block">配信回数目標</label>
                   <Input
                     type="number"
                     value={streamCountGoalInput}
@@ -377,7 +377,7 @@ export default function LiverDashboard() {
             ) : (
               <>
                 <div className="text-center">
-                  <div className="text-sm text-gray-200 mb-1">目標</div>
+                  <div className="text-sm text-white mb-1">目標</div>
                   <div className="text-2xl font-bold text-white">
                     {salesGoal > 0 ? formatCurrency(salesGoal) : "未設定"}
                   </div>
@@ -398,7 +398,7 @@ export default function LiverDashboard() {
                     </div>
                     
                     <div className="text-center">
-                      <div className="text-sm text-gray-200">現在</div>
+                      <div className="text-sm text-white">現在</div>
                       <div className="text-3xl font-bold text-red-400">
                         {formatCurrency(currentSales)}
                       </div>
@@ -407,7 +407,7 @@ export default function LiverDashboard() {
                     {isCurrentMonth && (
                       <div className="grid grid-cols-2 gap-4">
                         <div className="text-center">
-                          <div className="text-sm text-gray-200 flex items-center justify-center gap-1">
+                          <div className="text-sm text-white flex items-center justify-center gap-1">
                             <Flame className="w-4 h-4 text-orange-400" />
                             あと
                           </div>
@@ -416,7 +416,7 @@ export default function LiverDashboard() {
                           </div>
                         </div>
                         <div className="text-center">
-                          <div className="text-sm text-gray-200 flex items-center justify-center gap-1">
+                          <div className="text-sm text-white flex items-center justify-center gap-1">
                             <Calendar className="w-4 h-4 text-blue-400" />
                             残り{remainingDays}日
                           </div>
@@ -429,7 +429,7 @@ export default function LiverDashboard() {
                     
                     {!isCurrentMonth && salesGoal > 0 && (
                       <div className="text-center">
-                        <div className="text-sm text-gray-200">達成率</div>
+                        <div className="text-sm text-white">達成率</div>
                         <div className={`text-2xl font-bold ${salesProgress >= 100 ? "text-green-400" : "text-orange-400"}`}>
                           {salesProgress >= 100 ? "🎉 目標達成！" : `${salesProgress}% (残り ${formatCurrency(remainingSales)})`}
                         </div>
@@ -523,7 +523,7 @@ export default function LiverDashboard() {
                       index === 0 ? "bg-yellow-500 text-black" :
                       index === 1 ? "bg-gray-400 text-black" :
                       index === 2 ? "bg-amber-600 text-white" :
-                      "bg-gray-700 text-gray-300"
+                      "bg-gray-700 text-white"
                     }`}>
                       {index + 1}
                     </div>
@@ -537,7 +537,7 @@ export default function LiverDashboard() {
                 ))}
               </div>
             ) : (
-              <div className="text-center text-gray-300 py-4">
+              <div className="text-center text-white py-4">
                 {formatYearMonthLabel(selectedYearMonth)}のデータがありません
               </div>
             )}
@@ -558,7 +558,7 @@ export default function LiverDashboard() {
                 <div className="text-4xl font-bold text-green-400 mb-2">
                   {stats.bestHour.hour}:00 〜 {stats.bestHour.hour + 1}:00
                 </div>
-                <div className="text-sm text-gray-200">
+                <div className="text-sm text-white">
                   この時間帯の配信が最も売上が高い！
                 </div>
                 <div className="text-lg font-bold text-white mt-2">

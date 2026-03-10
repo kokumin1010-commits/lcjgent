@@ -654,7 +654,7 @@ export default function LiverDetailNew() {
                             {product.rank <= 3 ? (
                               <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold ${
                                 product.rank === 1 ? 'bg-yellow-500/20 text-yellow-400 ring-1 ring-yellow-500/40' :
-                                product.rank === 2 ? 'bg-gray-400/20 text-gray-300 ring-1 ring-gray-400/40' :
+                                product.rank === 2 ? 'bg-gray-400/20 text-white ring-1 ring-gray-400/40' :
                                 'bg-orange-500/20 text-orange-400 ring-1 ring-orange-500/40'
                               }`}>
                                 {product.rank}

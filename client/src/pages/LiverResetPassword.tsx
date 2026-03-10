@@ -78,7 +78,7 @@ export default function LiverResetPassword() {
               variant="ghost"
               size="icon"
               onClick={() => navigate("/liver/login")}
-              className="text-gray-300"
+              className="text-white"
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
@@ -88,7 +88,7 @@ export default function LiverResetPassword() {
               </div>
               <div>
                 <h1 className="font-bold text-gray-800">{lt("login.title")}</h1>
-                <p className="text-xs text-gray-300">{lt("reset.title")}</p>
+                <p className="text-xs text-white">{lt("reset.title")}</p>
               </div>
             </div>
           </div>
@@ -137,7 +137,7 @@ export default function LiverResetPassword() {
               </div>
               <div>
                 <h1 className="font-bold text-gray-800">{lt("login.title")}</h1>
-                <p className="text-xs text-gray-300">{lt("reset.title")}</p>
+                <p className="text-xs text-white">{lt("reset.title")}</p>
               </div>
             </div>
           </div>
@@ -177,7 +177,7 @@ export default function LiverResetPassword() {
             variant="ghost"
             size="icon"
             onClick={() => navigate("/liver/login")}
-            className="text-gray-300"
+            className="text-white"
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -187,7 +187,7 @@ export default function LiverResetPassword() {
             </div>
             <div>
               <h1 className="font-bold text-gray-800">{lt("login.title")}</h1>
-              <p className="text-xs text-gray-300">{lt("reset.title")}</p>
+              <p className="text-xs text-white">{lt("reset.title")}</p>
             </div>
           </div>
         </div>

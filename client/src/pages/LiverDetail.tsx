@@ -201,7 +201,7 @@ export default function LiverDetail() {
     return (
       <div className="min-h-screen bg-black text-white p-6">
         <div className="max-w-4xl mx-auto text-center">
-          <p className="text-gray-300">ライバーが見つかりません</p>
+          <p className="text-white">ライバーが見つかりません</p>
           <Link href="/livers">
             <Button className="mt-4 bg-red-600 hover:bg-red-700">
               {tr.backToList}
@@ -276,7 +276,7 @@ export default function LiverDetail() {
           <div className="flex items-center gap-2">
             <h2 className="text-xl font-bold">{liver.name}</h2>
             <Link href="/liver/profile">
-              <Edit className="w-4 h-4 text-gray-200 hover:text-white cursor-pointer" />
+              <Edit className="w-4 h-4 text-white hover:text-white cursor-pointer" />
             </Link>
           </div>
           
@@ -288,7 +288,7 @@ export default function LiverDetail() {
                   href={liver.tiktokAccount.startsWith('http') ? liver.tiktokAccount : `https://www.tiktok.com/${liver.tiktokAccount.replace('@', '')}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-gray-200 hover:text-white transition-colors"
+                  className="flex items-center gap-1 text-white hover:text-white transition-colors"
                   title="TikTok"
                 >
                   <SiTiktok className="w-5 h-5" />
@@ -299,7 +299,7 @@ export default function LiverDetail() {
                   href={liver.instagramAccount.startsWith('http') ? liver.instagramAccount : `https://www.instagram.com/${liver.instagramAccount.replace('@', '')}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-gray-200 hover:text-pink-400 transition-colors"
+                  className="flex items-center gap-1 text-white hover:text-pink-400 transition-colors"
                   title="Instagram"
                 >
                   <SiInstagram className="w-5 h-5" />
@@ -310,7 +310,7 @@ export default function LiverDetail() {
                   href={liver.youtubeAccount.startsWith('http') ? liver.youtubeAccount : `https://www.youtube.com/${liver.youtubeAccount}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-gray-200 hover:text-red-500 transition-colors"
+                  className="flex items-center gap-1 text-white hover:text-red-500 transition-colors"
                   title="YouTube"
                 >
                   <SiYoutube className="w-5 h-5" />
@@ -321,7 +321,7 @@ export default function LiverDetail() {
                   href={liver.otherAccount.startsWith('http') ? liver.otherAccount : `https://${liver.otherAccount}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-gray-200 hover:text-blue-400 transition-colors"
+                  className="flex items-center gap-1 text-white hover:text-blue-400 transition-colors"
                   title="Other"
                 >
                   <Link2 className="w-5 h-5" />
@@ -341,19 +341,19 @@ export default function LiverDetail() {
                 {formatCurrency(previousStats?.stats?.totalSales || 0)}
               </p>
               <div className="h-1 bg-yellow-500 rounded mt-1" />
-              <p className="text-xs text-gray-200 mt-1">{tr.sales}</p>
+              <p className="text-xs text-white mt-1">{tr.sales}</p>
             </div>
             <div className="text-center">
               <p className="text-2xl font-bold">
                 {formatDuration(previousStats?.stats?.totalDuration || 0)}
               </p>
               <div className="h-1 bg-yellow-500 rounded mt-1" />
-              <p className="text-xs text-gray-200 mt-1">{tr.totalDuration}</p>
+              <p className="text-xs text-white mt-1">{tr.totalDuration}</p>
             </div>
           </div>
           
           {/* Current Month Stats */}
-          <p className="text-sm text-gray-200">
+          <p className="text-sm text-white">
             {tr.selectedMonthPerformance}（{monthOptions.find(m => m.value === selectedMonth)?.label}）
           </p>
           
@@ -363,14 +363,14 @@ export default function LiverDetail() {
                 {formatCurrency(liver.stats?.totalSales || 0)}
               </p>
               <div className="h-1 bg-yellow-500 rounded mt-1" />
-              <p className="text-xs text-gray-200 mt-1">{tr.sales}</p>
+              <p className="text-xs text-white mt-1">{tr.sales}</p>
             </div>
             <div className="text-center">
               <p className="text-2xl font-bold">
                 {formatDuration(liver.stats?.totalDuration || 0)}
               </p>
               <div className="h-1 bg-yellow-500 rounded mt-1" />
-              <p className="text-xs text-gray-200 mt-1">{tr.totalDuration}</p>
+              <p className="text-xs text-white mt-1">{tr.totalDuration}</p>
             </div>
           </div>
         </div>
@@ -471,7 +471,7 @@ export default function LiverDetail() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="text-center py-8 text-gray-300">
+                    <td colSpan={6} className="text-center py-8 text-white">
                       {tr.noHistory}
                     </td>
                   </tr>
@@ -486,7 +486,7 @@ export default function LiverDetail() {
                 variant="outline"
                 size="sm"
                 onClick={() => setShowAllHistory(!showAllHistory)}
-                className="border-gray-700 text-gray-300 hover:bg-gray-800"
+                className="border-gray-700 text-white hover:bg-gray-800"
               >
                 {showAllHistory ? (
                   <>

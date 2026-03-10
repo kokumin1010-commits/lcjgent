@@ -138,7 +138,7 @@ export default function LiverByName() {
             </Avatar>
             <div>
               <h1 className="text-2xl font-bold">{decodedName}</h1>
-              <p className="text-sm text-gray-200">{tr.livestreamHistory}</p>
+              <p className="text-sm text-white">{tr.livestreamHistory}</p>
             </div>
           </div>
           <Select value={selectedMonth} onValueChange={setSelectedMonth}>
@@ -192,7 +192,7 @@ export default function LiverByName() {
             <CardTitle className="flex items-center gap-2 text-lg">
               <Calendar className="w-5 h-5 text-green-500" />
               {tr.livestreamHistory}
-              <span className="text-sm text-gray-200 ml-2">
+              <span className="text-sm text-white ml-2">
                 ({data?.livestreams?.length || 0} {tr.livestreams})
               </span>
             </CardTitle>
@@ -230,8 +230,8 @@ export default function LiverByName() {
                         ) : (
                           <div className="w-full h-full min-h-[120px] max-h-[160px] bg-gray-700/50 flex items-center justify-center">
                             <div className="text-center p-2">
-                              <ImageOff className="w-6 h-6 mx-auto mb-1 text-gray-500" />
-                              <span className="text-xs text-gray-500 block">No Image</span>
+                              <ImageOff className="w-6 h-6 mx-auto mb-1 text-white/50" />
+                              <span className="text-xs text-white/50 block">No Image</span>
                             </div>
                           </div>
                         )}
@@ -241,7 +241,7 @@ export default function LiverByName() {
                       <div className="flex-1 p-4">
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4 text-gray-200" />
+                            <Calendar className="w-4 h-4 text-white" />
                             <span className="font-medium">{formatDate(livestream.livestreamDate)}</span>
                           </div>
                           {livestream.result && (
@@ -259,7 +259,7 @@ export default function LiverByName() {
                           <div className="flex items-center gap-2">
                             <DollarSign className="w-4 h-4 text-yellow-500" />
                             <div>
-                              <p className="text-xs text-gray-300">{tr.sales}</p>
+                              <p className="text-xs text-white">{tr.sales}</p>
                               <p className="font-medium text-yellow-400">{formatCurrency(livestream.gmv || livestream.salesAmount)}</p>
                             </div>
                           </div>
@@ -267,7 +267,7 @@ export default function LiverByName() {
                           <div className="flex items-center gap-2">
                             <Clock className="w-4 h-4 text-blue-500" />
                             <div>
-                              <p className="text-xs text-gray-300">{tr.duration}</p>
+                              <p className="text-xs text-white">{tr.duration}</p>
                               <p className="font-medium text-blue-400">{formatDuration(livestream.duration)}</p>
                             </div>
                           </div>
@@ -275,7 +275,7 @@ export default function LiverByName() {
                           <div className="flex items-center gap-2">
                             <Eye className="w-4 h-4 text-purple-500" />
                             <div>
-                              <p className="text-xs text-gray-300">{tr.viewers}</p>
+                              <p className="text-xs text-white">{tr.viewers}</p>
                               <p className="font-medium text-purple-400">
                                 {livestream.viewerCount?.toLocaleString() || "-"}
                               </p>
@@ -285,7 +285,7 @@ export default function LiverByName() {
                           <div className="flex items-center gap-2">
                             <ShoppingCart className="w-4 h-4 text-green-500" />
                             <div>
-                              <p className="text-xs text-gray-300">{tr.orders}</p>
+                              <p className="text-xs text-white">{tr.orders}</p>
                               <p className="font-medium text-green-400">
                                 {livestream.orderCount?.toLocaleString() || "-"}
                               </p>
@@ -294,13 +294,13 @@ export default function LiverByName() {
                         </div>
                         
                         {livestream.remarks && (
-                          <p className="mt-3 text-sm text-gray-200 border-t border-gray-700 pt-3 line-clamp-2">
+                          <p className="mt-3 text-sm text-white border-t border-gray-700 pt-3 line-clamp-2">
                             {livestream.remarks}
                           </p>
                         )}
                         
                         <div className="flex justify-end mt-2">
-                          <span className="text-xs text-gray-400 flex items-center gap-1 hover:text-white transition-colors">
+                          <span className="text-xs text-white flex items-center gap-1 hover:text-white transition-colors">
                             詳細を見る <ChevronRight className="w-3 h-3" />
                           </span>
                         </div>
@@ -310,7 +310,7 @@ export default function LiverByName() {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-12 text-gray-300">
+              <div className="text-center py-12 text-white">
                 <Calendar className="w-12 h-12 mx-auto mb-4 opacity-50" />
                 <p>{tr.noData}</p>
               </div>

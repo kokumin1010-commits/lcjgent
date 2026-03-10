@@ -114,9 +114,9 @@ export default function LiverList() {
   
   const getRankIcon = (rank: number) => {
     if (rank === 1) return <Crown className="w-5 h-5 text-yellow-500" />;
-    if (rank === 2) return <Crown className="w-5 h-5 text-gray-200" />;
+    if (rank === 2) return <Crown className="w-5 h-5 text-white" />;
     if (rank === 3) return <Crown className="w-5 h-5 text-amber-700" />;
-    return <span className="w-5 h-5 flex items-center justify-center text-sm font-bold text-gray-300">{rank}</span>;
+    return <span className="w-5 h-5 flex items-center justify-center text-sm font-bold text-white">{rank}</span>;
   };
   
   const salesRankingToShow = showAllSales 
@@ -167,7 +167,7 @@ export default function LiverList() {
         </div>
         
         {/* Month display */}
-        <div className="flex items-center justify-between text-sm text-gray-200">
+        <div className="flex items-center justify-between text-sm text-white">
           <span>{monthOptions.find(m => m.value === selectedMonth)?.label}</span>
           <span>{selectedMonth.replace("-", "年")}月▼</span>
         </div>
@@ -320,7 +320,7 @@ export default function LiverList() {
                                 }}
                               />
                             </div>
-                            <span className="text-xs text-gray-300">{tr.sales}</span>
+                            <span className="text-xs text-white">{tr.sales}</span>
                           </div>
                           <div>
                             <span className="text-blue-400">
@@ -334,7 +334,7 @@ export default function LiverList() {
                                 }}
                               />
                             </div>
-                            <span className="text-xs text-gray-300">{tr.duration}</span>
+                            <span className="text-xs text-white">{tr.duration}</span>
                           </div>
                         </div>
                       </div>
@@ -343,8 +343,7 @@ export default function LiverList() {
                 ))}
               </div>
             ) : (
-              <p className="text-gray-300 text-center py-4">{tr.noData}</p>
-            )}
+             <p className="text-white text-center py-4">{tr.noData}</p>           )}
             
             {rankings?.salesRanking && rankings.salesRanking.length > 5 && (
               <div className="flex justify-center mt-4">
@@ -352,7 +351,7 @@ export default function LiverList() {
                   variant="outline"
                   size="sm"
                   onClick={() => setShowAllSales(!showAllSales)}
-                  className="border-gray-700 text-gray-300 hover:bg-gray-800"
+                  className="border-gray-700 text-white hover:bg-gray-800"
                 >
                   {showAllSales ? (
                     <>
@@ -397,12 +396,12 @@ export default function LiverList() {
                         <div className="flex items-center gap-1">
                           <Users className="w-3.5 h-3.5 text-purple-400" />
                           <span className="text-purple-400 font-bold">{item.totalReferrals}人</span>
-                          <span className="text-xs text-gray-300">紹介</span>
+                          <span className="text-xs text-white">紹介</span>
                         </div>
                         <div className="flex items-center gap-1">
                           <Gift className="w-3.5 h-3.5 text-pink-400" />
                           <span className="text-pink-400">{item.totalPointsEarned.toLocaleString()}pt</span>
-                          <span className="text-xs text-gray-300">獲得</span>
+                          <span className="text-xs text-white">獲得</span>
                         </div>
                       </div>
                       {/* Progress bar */}
@@ -425,7 +424,7 @@ export default function LiverList() {
                     variant="outline"
                     size="sm"
                     onClick={() => setShowAllReferral(!showAllReferral)}
-                    className="border-gray-700 text-gray-300 hover:bg-gray-800"
+                    className="border-gray-700 text-white hover:bg-gray-800"
                   >
                     {showAllReferral ? (
                       <>閉じる <ChevronUp className="w-4 h-4 ml-1" /></>
@@ -460,7 +459,7 @@ export default function LiverList() {
                       </Avatar>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium truncate text-white">{liver.name}</p>
-                        <p className="text-xs text-gray-200">
+                        <p className="text-xs text-white">
                           {liver.livestreamCount > 0 ? `${liver.livestreamCount}回配信` : "配信なし"}
                         </p>
                       </div>
@@ -469,7 +468,7 @@ export default function LiverList() {
                 ))}
               </div>
             ) : (
-              <p className="text-gray-300 text-center py-4">{tr.noData}</p>
+              <p className="text-white text-center py-4">{tr.noData}</p>
             )}
           </CardContent>
         </Card>
@@ -512,7 +511,7 @@ export default function LiverList() {
                                 }}
                               />
                             </div>
-                            <span className="text-xs text-gray-300">{tr.sales}</span>
+                            <span className="text-xs text-white">{tr.sales}</span>
                           </div>
                           <div>
                             <span className="text-blue-400 font-bold">
@@ -526,7 +525,7 @@ export default function LiverList() {
                                 }}
                               />
                             </div>
-                            <span className="text-xs text-gray-300">{tr.duration}</span>
+                            <span className="text-xs text-white">{tr.duration}</span>
                           </div>
                         </div>
                       </div>
@@ -535,7 +534,7 @@ export default function LiverList() {
                 ))}
               </div>
             ) : (
-              <p className="text-gray-300 text-center py-4">{tr.noData}</p>
+              <p className="text-white text-center py-4">{tr.noData}</p>
             )}
             
             {rankings?.durationRanking && rankings.durationRanking.length > 5 && (
@@ -544,7 +543,7 @@ export default function LiverList() {
                   variant="outline"
                   size="sm"
                   onClick={() => setShowAllDuration(!showAllDuration)}
-                  className="border-gray-700 text-gray-300 hover:bg-gray-800"
+                  className="border-gray-700 text-white hover:bg-gray-800"
                 >
                   {showAllDuration ? (
                     <>

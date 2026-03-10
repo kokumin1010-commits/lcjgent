@@ -546,7 +546,7 @@ export default function LiverMypage() {
           <h1 className="text-lg font-bold text-white">{lt("mypage.title")}</h1>
           <div className="flex items-center gap-1">
             <Link href="/livers">
-              <Button variant="ghost" size="sm" className="text-gray-200 hover:text-white text-xs px-2">
+              <Button variant="ghost" size="sm" className="text-white hover:text-white text-xs px-2">
                 <Users className="h-4 w-4 mr-1" />
                 {lt("common.list")}
               </Button>
@@ -555,7 +555,7 @@ export default function LiverMypage() {
               variant="ghost"
               size="icon"
               onClick={() => logoutMutation.mutate()}
-              className="text-gray-200 hover:text-red-400 h-8 w-8"
+              className="text-white hover:text-red-400 h-8 w-8"
             >
               <LogOut className="h-4 w-4" />
             </Button>
@@ -594,7 +594,7 @@ export default function LiverMypage() {
                     </a>
                   )}
                 </div>
-                <p className="text-xs text-gray-200 mt-0.5">ID: {liverInfo.id}</p>
+                <p className="text-xs text-white mt-0.5">ID: {liverInfo.id}</p>
                 {/* SNS Links */}
                 <div className="flex items-center gap-3 mt-2">
                   {liverInfo.tiktokAccount && (
@@ -602,7 +602,7 @@ export default function LiverMypage() {
                       href={liverInfo.tiktokAccount.startsWith('http') ? liverInfo.tiktokAccount : `https://www.tiktok.com/${liverInfo.tiktokAccount.replace('@', '')}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-gray-200 hover:text-white transition-colors"
+                      className="text-white hover:text-white transition-colors"
                     >
                       <SiTiktok className="w-4 h-4" />
                     </a>
@@ -612,7 +612,7 @@ export default function LiverMypage() {
                       href={liverInfo.instagramAccount.startsWith('http') ? liverInfo.instagramAccount : `https://www.instagram.com/${liverInfo.instagramAccount.replace('@', '')}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-gray-200 hover:text-pink-400 transition-colors"
+                      className="text-white hover:text-pink-400 transition-colors"
                     >
                       <SiInstagram className="w-4 h-4" />
                     </a>
@@ -622,7 +622,7 @@ export default function LiverMypage() {
                       href={liverInfo.youtubeAccount.startsWith('http') ? liverInfo.youtubeAccount : `https://www.youtube.com/${liverInfo.youtubeAccount}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-gray-200 hover:text-red-500 transition-colors"
+                      className="text-white hover:text-red-500 transition-colors"
                     >
                       <SiYoutube className="w-4 h-4" />
                     </a>
@@ -632,7 +632,7 @@ export default function LiverMypage() {
                       href={liverInfo.otherAccount.startsWith('http') ? liverInfo.otherAccount : `https://${liverInfo.otherAccount}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-gray-200 hover:text-blue-400 transition-colors"
+                      className="text-white hover:text-blue-400 transition-colors"
                     >
                       <Link2 className="w-4 h-4" />
                     </a>
@@ -640,7 +640,7 @@ export default function LiverMypage() {
                 </div>
               </div>
               <Link href="/liver/profile">
-                <Button variant="ghost" size="icon" className="text-gray-200 hover:text-white h-8 w-8">
+                <Button variant="ghost" size="icon" className="text-white hover:text-white h-8 w-8">
                   <Settings className="h-4 w-4" />
                 </Button>
               </Link>
@@ -656,7 +656,7 @@ export default function LiverMypage() {
                 setDismissedAitherhubBanner(true);
                 try { localStorage.setItem('aitherhub_banner_dismissed', 'true'); } catch {}
               }}
-              className="absolute top-2 right-2 text-gray-200 hover:text-white transition-colors z-10"
+              className="absolute top-2 right-2 text-white hover:text-white transition-colors z-10"
               aria-label={lt("common.close")}
             >
               <X className="w-4 h-4" />
@@ -670,7 +670,7 @@ export default function LiverMypage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-sm font-bold text-white mb-1">{lt("aitherhub.connectTitle")}</h3>
-                  <p className="text-xs text-gray-300 leading-relaxed">
+                  <p className="text-xs text-white leading-relaxed">
                     {lt("aitherhub.connectDescription")}
                   </p>
                   <a
@@ -719,7 +719,7 @@ export default function LiverMypage() {
                 {/* 売上目標 */}
                 <div className="mb-3">
                   <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="text-gray-200">{lt("goal.salesGoal")}</span>
+                    <span className="text-white">{lt("goal.salesGoal")}</span>
                     <span className="text-white">
                       ¥{Number(monthlyStats.sales).toLocaleString()} / ¥{Number(currentGoal.salesGoal).toLocaleString()}
                     </span>
@@ -735,7 +735,7 @@ export default function LiverMypage() {
                     {monthlyStats.sales >= currentGoal.salesGoal ? (
                       <span className="text-green-400">🎉 {lt("goal.achieved")}</span>
                     ) : (
-                      <span className="text-gray-300">
+                      <span className="text-white">
                         {lt("goal.remaining")} ¥{Number(currentGoal.salesGoal - monthlyStats.sales).toLocaleString()}
                       </span>
                     )}
@@ -746,7 +746,7 @@ export default function LiverMypage() {
                 {currentGoal.streamCountGoal && currentGoal.streamCountGoal > 0 && (
                   <div>
                     <div className="flex items-center justify-between text-xs mb-1">
-                      <span className="text-gray-200">{lt("goal.streamCountGoal")}</span>
+                      <span className="text-white">{lt("goal.streamCountGoal")}</span>
                       <span className="text-white">
                         {monthlyStats.count} / {currentGoal.streamCountGoal}{lt("goal.times")}
                       </span>
@@ -762,7 +762,7 @@ export default function LiverMypage() {
                       {monthlyStats.count >= currentGoal.streamCountGoal ? (
                         <span className="text-green-400">🎉 {lt("goal.achieved")}</span>
                       ) : (
-                        <span className="text-gray-300">
+                        <span className="text-white">
                           {lt("goal.remaining")} {currentGoal.streamCountGoal - monthlyStats.count}{lt("goal.times")}
                         </span>
                       )}
@@ -772,8 +772,8 @@ export default function LiverMypage() {
               </>
             ) : (
               <div className="text-center py-2">
-                <p className="text-gray-200 text-sm">{lt("goal.setMotivation")}</p>
-                <p className="text-gray-300 text-xs mt-1">{lt("goal.setHint")}</p>
+                <p className="text-white text-sm">{lt("goal.setMotivation")}</p>
+                <p className="text-white text-xs mt-1">{lt("goal.setHint")}</p>
               </div>
             )}
           </CardContent>
@@ -813,9 +813,9 @@ export default function LiverMypage() {
         {monthlyStats.count === 0 ? (
           <Card className="bg-gray-800/30 border-gray-700 border-dashed">
             <CardContent className="p-6 text-center">
-              <Video className="h-8 w-8 mx-auto text-gray-400 mb-2" />
-              <p className="text-gray-200 text-sm">{lt("mypage.noStreamRecords")}</p>
-              <p className="text-gray-300 text-xs mt-1">{lt("mypage.addStreamHint")}</p>
+              <Video className="h-8 w-8 mx-auto text-white/70 mb-2" />
+              <p className="text-white text-sm">{lt("mypage.noStreamRecords")}</p>
+              <p className="text-white text-xs mt-1">{lt("mypage.addStreamHint")}</p>
             </CardContent>
           </Card>
         ) : (
@@ -845,30 +845,30 @@ export default function LiverMypage() {
             <div className="grid grid-cols-4 gap-2">
               <Card className="bg-gray-800/50 border-gray-700">
                 <CardContent className="p-2 text-center">
-                  <Video className="h-3 w-3 mx-auto text-gray-200 mb-1" />
+                  <Video className="h-3 w-3 mx-auto text-white mb-1" />
                   <p className="text-lg font-bold text-white">{monthlyStats.count}</p>
-                  <p className="text-[10px] text-gray-300">{lt("mypage.streamCount")}</p>
+                  <p className="text-[10px] text-white">{lt("mypage.streamCount")}</p>
                 </CardContent>
               </Card>
               <Card className="bg-gray-800/50 border-gray-700">
                 <CardContent className="p-2 text-center">
-                  <DollarSign className="h-3 w-3 mx-auto text-gray-200 mb-1" />
+                  <DollarSign className="h-3 w-3 mx-auto text-white mb-1" />
                   <p className="text-lg font-bold text-white">¥{Math.round(monthlyStats.avgSales / 1000)}k</p>
-                  <p className="text-[10px] text-gray-300">{lt("mypage.average")}</p>
+                  <p className="text-[10px] text-white">{lt("mypage.average")}</p>
                 </CardContent>
               </Card>
               <Card className="bg-gray-800/50 border-gray-700">
                 <CardContent className="p-2 text-center">
-                  <Eye className="h-3 w-3 mx-auto text-gray-200 mb-1" />
+                  <Eye className="h-3 w-3 mx-auto text-white mb-1" />
                   <p className="text-lg font-bold text-white">{Number(monthlyStats.viewerCount).toLocaleString()}</p>
-                  <p className="text-[10px] text-gray-300">{lt("mypage.viewers")}</p>
+                  <p className="text-[10px] text-white">{lt("mypage.viewers")}</p>
                 </CardContent>
               </Card>
               <Card className="bg-gray-800/50 border-gray-700">
                 <CardContent className="p-2 text-center">
-                  <ShoppingCart className="h-3 w-3 mx-auto text-gray-200 mb-1" />
+                  <ShoppingCart className="h-3 w-3 mx-auto text-white mb-1" />
                   <p className="text-lg font-bold text-white">{Number(monthlyStats.orderCount).toLocaleString()}</p>
-                  <p className="text-[10px] text-gray-300">{lt("mypage.orders")}</p>
+                  <p className="text-[10px] text-white">{lt("mypage.orders")}</p>
                 </CardContent>
               </Card>
             </div>
@@ -885,10 +885,10 @@ export default function LiverMypage() {
                 </div>
                 <div>
                   <p className="text-sm font-bold text-white">{lt("dashboard.powerTitle")}</p>
-                  <p className="text-xs text-gray-200">{lt("dashboard.powerDescription")}</p>
+                  <p className="text-xs text-white">{lt("dashboard.powerDescription")}</p>
                 </div>
               </div>
-              <ChevronRight className="h-5 w-5 text-gray-200" />
+              <ChevronRight className="h-5 w-5 text-white" />
             </CardContent>
           </Card>
         </Link>
@@ -896,19 +896,19 @@ export default function LiverMypage() {
         {/* All-time Stats */}
         <Card className="bg-gray-800/30 border-gray-700">
           <CardContent className="p-3">
-            <p className="text-xs text-gray-300 mb-2">{lt("mypage.totalStats")}</p>
+            <p className="text-xs text-white mb-2">{lt("mypage.totalStats")}</p>
             <div className="grid grid-cols-3 gap-2 text-center">
               <div>
                 <p className="text-sm font-bold text-red-400">¥{Number(allTimeStats.totalSales).toLocaleString()}</p>
-                <p className="text-[10px] text-gray-300">{lt("mypage.totalSales")}</p>
+                <p className="text-[10px] text-white">{lt("mypage.totalSales")}</p>
               </div>
               <div>
                 <p className="text-sm font-bold text-blue-400">{allTimeStats.totalHours}h</p>
-                <p className="text-[10px] text-gray-300">{lt("mypage.totalHours")}</p>
+                <p className="text-[10px] text-white">{lt("mypage.totalHours")}</p>
               </div>
               <div>
                 <p className="text-sm font-bold text-green-400">{allTimeStats.totalCount}</p>
-                <p className="text-[10px] text-gray-300">{lt("mypage.totalStreams")}</p>
+                <p className="text-[10px] text-white">{lt("mypage.totalStreams")}</p>
               </div>
             </div>
           </CardContent>
@@ -917,7 +917,7 @@ export default function LiverMypage() {
         {/* Livestream History */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-bold text-gray-200 flex items-center gap-2">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
               <Video className="h-4 w-4" />
               {lt("mypage.streamHistory")}
             </h3>
@@ -927,7 +927,7 @@ export default function LiverMypage() {
                   variant="outline"
                   size="sm"
                   onClick={() => setShowImportHistoryDialog(true)}
-                  className="text-xs border-gray-600 text-gray-200 hover:text-white hover:border-gray-500"
+                  className="text-xs border-gray-600 text-white hover:text-white hover:border-gray-500"
                 >
                   <History className="h-3 w-3 mr-1" />
                   {lt("csv.history")}
@@ -937,7 +937,7 @@ export default function LiverMypage() {
                 variant="outline"
                 size="sm"
                 onClick={() => setShowCsvImportDialog(true)}
-                className="text-xs border-gray-600 text-gray-200 hover:text-white hover:border-gray-500"
+                className="text-xs border-gray-600 text-white hover:text-white hover:border-gray-500"
               >
                 <FileSpreadsheet className="h-3 w-3 mr-1" />
               {lt("csv.import")}
@@ -951,7 +951,7 @@ export default function LiverMypage() {
             </div>
           ) : filteredLivestreams.length === 0 ? (
             <Card className="bg-gray-800/50 border-gray-700">
-              <CardContent className="p-6 text-center text-gray-200">
+              <CardContent className="p-6 text-center text-white">
                 <Video className="h-8 w-8 mx-auto mb-2 opacity-50" />
                 <p className="text-sm">{lt("mypage.noStreamHistory")}</p>
               </CardContent>
@@ -1035,13 +1035,13 @@ export default function LiverMypage() {
                             <p className="text-xs font-bold text-white">
                               {startDate ? `${parseInt(startDate.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric' }))}/${parseInt(startDate.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', day: 'numeric' }))}` : "-/-"}
                             </p>
-                            <p className="text-[10px] text-gray-200">
+                            <p className="text-[10px] text-white">
                               {startDate ? startDate.toLocaleDateString("ja-JP", { weekday: "short", timeZone: "Asia/Tokyo" }) : "-"}
                             </p>
                           </div>
                           <div>
                             <div className="flex items-center gap-1">
-                              <p className="text-xs text-gray-300">
+                              <p className="text-xs text-white">
                                 {startDate ? startDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tokyo" }) : "--:--"}
                                 {endDate && ` - ${endDate.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tokyo" })}`}
                               </p>
@@ -1059,11 +1059,11 @@ export default function LiverMypage() {
                               )}
                             </div>
                             <div className="flex items-center gap-2 mt-0.5">
-                              <p className="text-xs text-gray-200">
+                              <p className="text-xs text-white">
                                 {duration > 0 ? `${duration}h` : "-"}
                               </p>
                               {ls.viewerCount && (
-                                <span className="text-xs text-gray-200 flex items-center gap-0.5">
+                                <span className="text-xs text-white flex items-center gap-0.5">
                                   <Eye className="h-3 w-3" />
                                   {Number(ls.viewerCount).toLocaleString()}
                                 </span>
@@ -1081,7 +1081,7 @@ export default function LiverMypage() {
                             <p className={`text-sm font-bold ${getSalesColor(currentSales)}`}>
                               ¥{Number(currentSales).toLocaleString()}
                             </p>
-                            <ChevronRight className="h-4 w-4 text-gray-300" />
+                            <ChevronRight className="h-4 w-4 text-white" />
                           </div>
                           {salesDiffPercent !== null && (
                             <p className={`text-[10px] ${salesDiff! >= 0 ? "text-green-400" : "text-red-400"}`}>
@@ -1091,7 +1091,7 @@ export default function LiverMypage() {
                         </div>
                       </div>
                       {ls.brandName && (
-                        <p className="text-[10px] text-gray-300 mt-1 pl-12">
+                        <p className="text-[10px] text-white mt-1 pl-12">
                           {ls.brandName}
                         </p>
                       )}
@@ -1100,7 +1100,7 @@ export default function LiverMypage() {
                     </Link>
                     {/* 削除ボタン */}
                     <button
-                      className="absolute top-1.5 right-1.5 h-6 w-6 flex items-center justify-center rounded-full bg-gray-700/80 text-gray-400 hover:text-red-400 hover:bg-red-900/50 transition-colors z-10"
+                      className="absolute top-1.5 right-1.5 h-6 w-6 flex items-center justify-center rounded-full bg-gray-700/80 text-white/70 hover:text-red-400 hover:bg-red-900/50 transition-colors z-10"
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -1119,7 +1119,7 @@ export default function LiverMypage() {
             <Button 
               variant="ghost"
               onClick={() => setShowAllLivestreams(true)}
-              className="w-full mt-2 text-gray-200 hover:text-white text-xs"
+              className="w-full mt-2 text-white hover:text-white text-xs"
             >
               {lt("mypage.showMore")} ({filteredLivestreams.length - 10})
             </Button>
@@ -1135,7 +1135,7 @@ export default function LiverMypage() {
               <FileSpreadsheet className="h-5 w-5 text-blue-400" />
               {lt("csv.importTitle")}
             </DialogTitle>
-            <DialogDescription className="text-gray-200">
+            <DialogDescription className="text-white">
               {lt("csv.importDescription")}
             </DialogDescription>
           </DialogHeader>
@@ -1147,15 +1147,15 @@ export default function LiverMypage() {
                 {isImporting ? (
                   <div className="flex flex-col items-center gap-2">
                     <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                    <p className="text-sm text-gray-200">{lt("csv.importing")}</p>
+                    <p className="text-sm text-white">{lt("csv.importing")}</p>
                   </div>
                 ) : (
                   <>
-                    <Upload className="h-8 w-8 mx-auto text-gray-300 mb-2" />
-                    <p className="text-sm text-gray-200">
+                    <Upload className="h-8 w-8 mx-auto text-white mb-2" />
+                    <p className="text-sm text-white">
                       {lt("csv.dragDrop")}
                     </p>
-                    <p className="text-xs text-gray-300 mt-1">
+                    <p className="text-xs text-white mt-1">
                       .xlsx, .csv
                     </p>
                   </>
@@ -1208,7 +1208,7 @@ export default function LiverMypage() {
             {/* Instructions with How To button */}
             <div className="bg-gray-800/50 rounded-lg p-3">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-xs text-gray-200">{lt("csv.instructions")}</p>
+                <p className="text-xs text-white">{lt("csv.instructions")}</p>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -1219,7 +1219,7 @@ export default function LiverMypage() {
                   {lt("csv.howTo")}
                 </Button>
               </div>
-              <ol className="text-xs text-gray-300 space-y-1 list-decimal list-inside">
+              <ol className="text-xs text-white space-y-1 list-decimal list-inside">
                 <li>{lt("csv.step1")}</li>
                 <li>{lt("csv.step2")}</li>
                 <li>{lt("csv.step3")}</li>
@@ -1235,8 +1235,8 @@ export default function LiverMypage() {
             {importHistory && importHistory.length > 0 && (
               <div className="border-t border-gray-700 pt-4">
                 <div className="flex items-center gap-2 mb-3">
-                  <History className="h-4 w-4 text-gray-200" />
-                  <p className="text-sm font-medium text-gray-300">{lt("csv.history")}</p>
+                  <History className="h-4 w-4 text-white" />
+                  <p className="text-sm font-medium text-white">{lt("csv.history")}</p>
                 </div>
                 <div className="space-y-2 max-h-48 overflow-y-auto">
                   {importHistory.map((history) => {
@@ -1260,11 +1260,11 @@ export default function LiverMypage() {
                                   history.fileName
                                 )}
                               </span>
-                              <span className="text-[10px] text-gray-300">
+                              <span className="text-[10px] text-white">
                                 {history.livestreamCount}
                               </span>
                             </div>
-                            <div className="text-[10px] text-gray-300">
+                            <div className="text-[10px] text-white">
                               {new Date(history.createdAt).toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' })}
                               {history.totalGmv && (
                                 <span className="text-yellow-400 ml-2">
@@ -1286,7 +1286,7 @@ export default function LiverMypage() {
                             <AlertDialogContent className="bg-gray-900 border-gray-700">
                               <AlertDialogHeader>
                                 <AlertDialogTitle className="text-white">{lt("csv.deleteHistory")}</AlertDialogTitle>
-                                <AlertDialogDescription className="text-gray-200">
+                                <AlertDialogDescription className="text-white">
                                   {lt("csv.deleteHistoryConfirm")}
                                   <br />
                                   <span className="text-red-400 font-medium">
@@ -1297,7 +1297,7 @@ export default function LiverMypage() {
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
-                                <AlertDialogCancel className="bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700">
+                                <AlertDialogCancel className="bg-gray-800 border-gray-600 text-white hover:bg-gray-700">
                                   {lt("common.cancel")}
                                 </AlertDialogCancel>
                                 <AlertDialogAction
@@ -1325,7 +1325,7 @@ export default function LiverMypage() {
                 setShowCsvImportDialog(false);
                 setCsvImportResult(null);
               }}
-              className="text-gray-200"
+              className="text-white"
             >
               {lt("common.close")}
             </Button>
@@ -1350,7 +1350,7 @@ export default function LiverMypage() {
                 <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-xs font-bold flex-shrink-0">1</div>
                 <h3 className="text-sm font-medium text-white">{lt("csv.howToStep1Title")}</h3>
               </div>
-              <p className="text-xs text-gray-300 ml-8">{lt("csv.howToStep1Desc")}</p>
+              <p className="text-xs text-white ml-8">{lt("csv.howToStep1Desc")}</p>
               <a
                 href="https://shop.tiktok.com/streamer/compass/livestream-analytics/view"
                 target="_blank"
@@ -1368,7 +1368,7 @@ export default function LiverMypage() {
                 <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-xs font-bold flex-shrink-0">2</div>
                 <h3 className="text-sm font-medium text-white">{lt("csv.howToStep2Title")}</h3>
               </div>
-              <p className="text-xs text-gray-300 ml-8 whitespace-pre-line">{lt("csv.howToStep2Desc")}</p>
+              <p className="text-xs text-white ml-8 whitespace-pre-line">{lt("csv.howToStep2Desc")}</p>
             </div>
 
             {/* Step 3 */}
@@ -1377,7 +1377,7 @@ export default function LiverMypage() {
                 <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-xs font-bold flex-shrink-0">3</div>
                 <h3 className="text-sm font-medium text-white">{lt("csv.howToStep3Title")}</h3>
               </div>
-              <p className="text-xs text-gray-300 ml-8">{lt("csv.howToStep3Desc")}</p>
+              <p className="text-xs text-white ml-8">{lt("csv.howToStep3Desc")}</p>
             </div>
 
             {/* Step 4 */}
@@ -1386,12 +1386,12 @@ export default function LiverMypage() {
                 <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-xs font-bold flex-shrink-0">4</div>
                 <h3 className="text-sm font-medium text-white">{lt("csv.howToStep4Title")}</h3>
               </div>
-              <p className="text-xs text-gray-300 ml-8">{lt("csv.howToStep4Desc")}</p>
+              <p className="text-xs text-white ml-8">{lt("csv.howToStep4Desc")}</p>
             </div>
 
             {/* TikTok Dashboard Screenshot */}
             <div className="border-t border-gray-700 pt-4">
-              <p className="text-xs text-gray-400 mb-2">{lt("csv.howToPreview")}</p>
+              <p className="text-xs text-white/70 mb-2">{lt("csv.howToPreview")}</p>
               <div className="rounded-lg overflow-hidden border border-gray-700">
                 <img
                   src="/images/tiktok-howto.png"
@@ -1407,8 +1407,8 @@ export default function LiverMypage() {
                 <Info className="h-3 w-3 flex-shrink-0" />
                 <span className="font-medium">Tips</span>
               </div>
-              <p className="text-[11px] text-gray-300">{lt("csv.howToMonthTip")}</p>
-              <p className="text-[11px] text-gray-400">{lt("csv.howToTip")}</p>
+              <p className="text-[11px] text-white">{lt("csv.howToMonthTip")}</p>
+              <p className="text-[11px] text-white/70">{lt("csv.howToTip")}</p>
             </div>
           </div>
 
@@ -1416,7 +1416,7 @@ export default function LiverMypage() {
             <Button
               variant="ghost"
               onClick={() => setShowHowTo(false)}
-              className="text-gray-200"
+              className="text-white"
             >
               {lt("common.close")}
             </Button>
@@ -1432,14 +1432,14 @@ export default function LiverMypage() {
               <Target className="h-5 w-5 text-purple-400" />
               {lt("goal.title")}
             </DialogTitle>
-            <DialogDescription className="text-gray-200">
+            <DialogDescription className="text-white">
               {lt("goal.dialogTitle")}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 mt-4">
             <div>
-              <Label htmlFor="salesGoal" className="text-gray-300">{lt("goal.salesGoalLabel")}</Label>
+              <Label htmlFor="salesGoal" className="text-white">{lt("goal.salesGoalLabel")}</Label>
               <Input
                 id="salesGoal"
                 type="number"
@@ -1448,13 +1448,13 @@ export default function LiverMypage() {
                 onChange={(e) => setGoalSalesInput(e.target.value)}
                 className="bg-gray-800 border-gray-600 text-white mt-1"
               />
-              <p className="text-xs text-gray-300 mt-1">
+              <p className="text-xs text-white mt-1">
                 {lt("goal.currentSales")}: ¥{Number(monthlyStats.sales).toLocaleString()}
               </p>
             </div>
 
             <div>
-              <Label htmlFor="streamCountGoal" className="text-gray-300">{lt("goal.streamCountGoalLabel")}</Label>
+              <Label htmlFor="streamCountGoal" className="text-white">{lt("goal.streamCountGoalLabel")}</Label>
               <Input
                 id="streamCountGoal"
                 type="number"
@@ -1463,7 +1463,7 @@ export default function LiverMypage() {
                 onChange={(e) => setGoalStreamCountInput(e.target.value)}
                 className="bg-gray-800 border-gray-600 text-white mt-1"
               />
-              <p className="text-xs text-gray-300 mt-1">
+              <p className="text-xs text-white mt-1">
                 {lt("goal.currentStreamCount")}: {monthlyStats.count}{lt("goal.times")}
               </p>
             </div>
@@ -1473,7 +1473,7 @@ export default function LiverMypage() {
             <Button
               variant="ghost"
               onClick={() => setShowGoalDialog(false)}
-              className="text-gray-200"
+              className="text-white"
             >
               {lt("common.cancel")}
             </Button>
@@ -1503,7 +1503,7 @@ export default function LiverMypage() {
         <AlertDialogContent className="bg-gray-900 border-gray-700">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-white">{lt("stream.deleteTitle")}</AlertDialogTitle>
-            <AlertDialogDescription className="text-gray-400">
+            <AlertDialogDescription className="text-white/70">
               {lt("stream.deleteConfirm")}
             </AlertDialogDescription>
           </AlertDialogHeader>

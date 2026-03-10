@@ -123,7 +123,7 @@ export default function LiverLogin() {
       <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-purple-50 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-pink-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-300">{lt("common.loading")}</p>
+          <p className="text-white">{lt("common.loading")}</p>
         </div>
       </div>
     );
@@ -138,7 +138,7 @@ export default function LiverLogin() {
             variant="ghost"
             size="icon"
             onClick={() => navigate("/s")}
-            className="text-gray-300"
+            className="text-white"
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -148,7 +148,7 @@ export default function LiverLogin() {
             </div>
             <div>
               <h1 className="font-bold text-gray-800">{lt("login.title")}</h1>
-              <p className="text-xs text-gray-300">{lt("login.subtitle")}</p>
+              <p className="text-xs text-white">{lt("login.subtitle")}</p>
             </div>
           </div>
         </div>
@@ -216,14 +216,14 @@ export default function LiverLogin() {
             <div className="mt-4 text-center">
               <Link
                 href="/liver/forgot-password"
-                className="text-sm text-gray-300 hover:text-pink-500"
+                className="text-sm text-white hover:text-pink-500"
               >
                 {lt("login.forgotPassword")}
               </Link>
             </div>
 
             <div className="mt-4 text-center">
-              <p className="text-sm text-gray-300">
+              <p className="text-sm text-white">
                 {lt("login.noAccount")}
               </p>
               <Link

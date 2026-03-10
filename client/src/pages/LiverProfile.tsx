@@ -87,7 +87,7 @@ function LineLinkSection({ lineUserId, lt }: { lineUserId?: string | null; lt: (
               <MessageCircle className="h-4 w-4" />
               <span className="font-medium">{lt("line.linked")}</span>
             </div>
-            <p className="mt-1 text-sm text-gray-200">
+            <p className="mt-1 text-sm text-white">
               {lt("line.linkedDescription")}
             </p>
           </div>
@@ -112,7 +112,7 @@ function LineLinkSection({ lineUserId, lt }: { lineUserId?: string | null; lt: (
         <span className="font-medium">{lt("line.notLinked")}</span>
       </div>
       
-      <div className="text-sm text-gray-200 space-y-2">
+      <div className="text-sm text-white space-y-2">
         <ol className="list-decimal list-inside space-y-1">
           <li>{lt("line.step1")}</li>
           <li>{lt("line.step2")}</li>
@@ -328,7 +328,7 @@ export default function LiverProfile() {
               variant="ghost"
               size="icon"
               onClick={() => navigate("/liver/mypage")}
-              className="text-gray-200 hover:text-white"
+              className="text-white hover:text-white"
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
@@ -381,7 +381,7 @@ export default function LiverProfile() {
             >
               {isUploadingAvatar ? lt("common.loading") : lt("common.edit")}
             </button>
-            <p className="mt-1 text-xs text-gray-300">ID: {liverInfo.id}</p>
+            <p className="mt-1 text-xs text-white">ID: {liverInfo.id}</p>
           </div>
 
           {/* Language Selection */}
@@ -415,7 +415,7 @@ export default function LiverProfile() {
                     `}
                   >
                     <span className="text-2xl">{lang.flag}</span>
-                    <span className="text-xs text-gray-200">{lang.label}</span>
+                    <span className="text-xs text-white">{lang.label}</span>
                   </button>
                 ))}
               </div>
@@ -480,7 +480,7 @@ export default function LiverProfile() {
                       className="w-10 h-10 rounded-full border-2 border-white/20"
                       style={{ backgroundColor: option.value }}
                     />
-                    <span className="text-xs text-gray-200">{option.label}</span>
+                    <span className="text-xs text-white">{option.label}</span>
                   </button>
                 ))}
               </div>
@@ -501,11 +501,11 @@ export default function LiverProfile() {
                   {lineNotificationEnabled ? (
                     <Bell className="h-5 w-5 text-green-500" />
                   ) : (
-                    <BellOff className="h-5 w-5 text-gray-300" />
+                    <BellOff className="h-5 w-5 text-white" />
                   )}
                   <div>
                     <p className="text-white font-medium">AI Coaching</p>
-                    <p className="text-sm text-gray-200">
+                    <p className="text-sm text-white">
                       {lt("line.linkedDescription")}
                     </p>
                   </div>

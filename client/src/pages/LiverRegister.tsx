@@ -217,7 +217,7 @@ export default function LiverRegister() {
             variant="ghost"
             size="icon"
             onClick={() => navigate("/s")}
-            className="text-gray-300"
+            className="text-white"
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -227,7 +227,7 @@ export default function LiverRegister() {
             </div>
             <div>
               <h1 className="font-bold text-gray-800">{lt("login.title")}</h1>
-              <p className="text-xs text-gray-300">{lt("register.title")}</p>
+              <p className="text-xs text-white">{lt("register.title")}</p>
             </div>
           </div>
         </div>

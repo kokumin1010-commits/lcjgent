@@ -424,7 +424,7 @@ export default function LiverDashboardNew() {
   
   const getRankIcon = (rank: number) => {
     if (rank === 1) return <Crown className="w-6 h-6 text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.8)]" />;
-    if (rank === 2) return <Crown className="w-6 h-6 text-gray-300 drop-shadow-[0_0_6px_rgba(209,213,219,0.6)]" />;
+    if (rank === 2) return <Crown className="w-6 h-6 text-white drop-shadow-[0_0_6px_rgba(209,213,219,0.6)]" />;
     if (rank === 3) return <Crown className="w-6 h-6 text-amber-600 drop-shadow-[0_0_6px_rgba(217,119,6,0.6)]" />;
     return <span className="w-6 h-6 flex items-center justify-center text-lg font-bold text-cyan-400">{rank}</span>;
   };
@@ -761,7 +761,7 @@ export default function LiverDashboardNew() {
                           <td className="py-3 px-2">
                             <span className={`font-bold ${
                               index === 0 ? 'text-yellow-400' : 
-                              index === 1 ? 'text-gray-300' : 
+                              index === 1 ? 'text-white' : 
                               index === 2 ? 'text-amber-600' : 'text-cyan-400'
                             }`}>
                               {index + 1}
@@ -1125,7 +1125,7 @@ export default function LiverDashboardNew() {
                         <div className="flex items-center gap-3">
                           <span className={`font-bold text-lg ${
                             index === 0 ? 'text-yellow-400' :
-                            index === 1 ? 'text-gray-300' :
+                            index === 1 ? 'text-white' :
                             index === 2 ? 'text-amber-600' : 'text-cyan-400'
                           }`}>
                             #{index + 1}
@@ -1279,7 +1279,7 @@ export default function LiverDashboardNew() {
                       <div className="flex items-center gap-3">
                         <span className={`font-bold text-lg ${
                           index === 0 ? 'text-yellow-400' : 
-                          index === 1 ? 'text-gray-300' : 
+                          index === 1 ? 'text-white' : 
                           index === 2 ? 'text-amber-600' : 'text-cyan-400'
                         }`}>
                           #{index + 1}
