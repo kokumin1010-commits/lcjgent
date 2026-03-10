@@ -621,7 +621,13 @@ export default function KakuhenChance({
       localStorage.setItem("kakuhen_play_count", String(count + 1));
       setStep("meter");
     } catch (err: any) {
-      toast.error(err.message || "エラーが発生しました");
+      const msg = err.message || "";
+      if (msg.includes("too_small") || msg.includes("orderAmount")) {
+        toast.error("注文金額の取得に失敗しました。レシートを再送信してください。");
+      } else {
+        toast.error("確変チャンスの処理中にエラーが発生しました。もう一度お試しください。");
+      }
+      console.error("[KakuhenChance] play error:", err);
     }
   }, [tiktokUrl, receiptType, receiptId, orderAmount]);
 

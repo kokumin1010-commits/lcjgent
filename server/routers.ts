@@ -15882,7 +15882,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .input(z.object({
         receiptType: z.enum(["point_request", "line_receipt"]),
         receiptId: z.number(),
-        orderAmount: z.number().min(1),
+        orderAmount: z.number().min(0),
         tiktokUrl: z.string().url().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
