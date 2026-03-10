@@ -68,20 +68,31 @@ export default function ReceiptUpload() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showKakuhenPopup, setShowKakuhenPopup] = useState(false);
   const [autoTransitionCountdown, setAutoTransitionCountdown] = useState<number | null>(null);
+  const [directKakuhenReceiptId, setDirectKakuhenReceiptId] = useState<number | null>(null);
 
   // URLパラメータからセッショントークンを復元（LINEアプリ→外部ブラウザ遷移対応）
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
+    const kakuhenReceiptId = params.get('kakuhenReceiptId');
     if (token) {
       localStorage.setItem('lcj_session_token', token);
-      const url = new URL(window.location.href);
-      url.searchParams.delete('token');
-      window.history.replaceState({}, '', url.pathname + url.search);
-      setTokenRestored(true);
-    } else {
-      setTokenRestored(true);
     }
+    if (kakuhenReceiptId) {
+      const id = parseInt(kakuhenReceiptId, 10);
+      if (!isNaN(id)) {
+        setDirectKakuhenReceiptId(id);
+        // マイページからの確変チャンス直接遷移：即座に確変チャンス画面へ
+        setAnalysisResult({ receiptId: id, status: "success", message: "確変チャンスに参加" });
+        setFlowPhase("kakuhen");
+      }
+    }
+    // URLパラメータをクリーンアップ
+    const url = new URL(window.location.href);
+    url.searchParams.delete('token');
+    url.searchParams.delete('kakuhenReceiptId');
+    window.history.replaceState({}, '', url.pathname + url.search);
+    setTokenRestored(true);
   }, []);
 
   const { data: user, isLoading: userLoading } = trpc.lineLogin.me.useQuery(
@@ -285,8 +296,8 @@ export default function ReceiptUpload() {
   }
 
   // ===== 確変チャンス＋レビューフロー =====
-  if (flowPhase === "kakuhen" && analysisResult?.receiptId && analysisResult.ocrData) {
-    const orderAmount = analysisResult.ocrData.totalAmount || analysisResult.ocrData.paymentInfo?.totalAmount || 0;
+  if (flowPhase === "kakuhen" && analysisResult?.receiptId) {
+    const orderAmount = analysisResult.ocrData?.totalAmount || analysisResult.ocrData?.paymentInfo?.totalAmount || 0;
     return (
       <div className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900">
         {/* Header */}
@@ -301,7 +312,7 @@ export default function ReceiptUpload() {
             receiptId={analysisResult.receiptId}
             receiptType="line_receipt"
             orderAmount={orderAmount}
-            ocrData={analysisResult.ocrData}
+            ocrData={analysisResult.ocrData || {}}
             receiptImageUrl={analysisResult.imageUrls?.[0]}
             receiptImagePreview={images[0]?.preview}
             onComplete={handleKakuhenComplete}
@@ -408,34 +419,36 @@ export default function ReceiptUpload() {
                   {/* 確変チャンス自動遷移 */}
                   <div className="mt-4 flex flex-col gap-2">
                     {analysisResult.receiptId && autoTransitionCountdown !== null && (
-                      <div className="bg-gradient-to-r from-orange-500/20 to-yellow-500/20 border border-orange-500/40 rounded-xl p-4 text-center">
-                        <p className="text-orange-400 font-bold text-lg mb-1">🎰 確変チャンス開始！</p>
+                      <div className="bg-gradient-to-r from-orange-500/20 to-yellow-500/20 border-2 border-orange-500/60 rounded-xl p-5 text-center shadow-lg shadow-orange-500/10">
+                        <div className="text-4xl mb-2">🎰</div>
+                        <p className="text-orange-400 font-bold text-xl mb-2">確変チャンス開始！</p>
+                        <p className="text-sm text-green-400 mb-1">還元率1% → <span className="font-black text-lg">1.5%</span> にUP！</p>
+                        <p className="text-sm text-yellow-300 mb-3">＋全額キャッシュバック抽選に参加！</p>
                         <p className="text-orange-300 text-sm">
-                          <span className="text-2xl font-black text-yellow-400">{autoTransitionCountdown}</span> 秒後に自動的に確変チャンスに進みます
+                          <span className="text-3xl font-black text-yellow-400 animate-bounce inline-block">{autoTransitionCountdown}</span> 秒後に自動的に進みます
                         </p>
                         <Button
-                          className="w-full mt-3 bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 text-white font-bold h-12 animate-pulse"
+                          className="w-full mt-4 bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 text-white font-bold h-14 text-lg animate-pulse shadow-lg shadow-orange-500/30"
                           onClick={() => { setAutoTransitionCountdown(null); setFlowPhase("kakuhen"); }}
                         >
-                          ✨ 今すぐ確変チャンスへ！
+                          🎰 今すぐ確変チャンスへ！
                         </Button>
                       </div>
                     )}
                     {analysisResult.receiptId && autoTransitionCountdown === null && flowPhase === "analysis_result" && (
                       <Button
-                        className="w-full bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 text-white font-bold h-12 animate-pulse"
+                        className="w-full bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 text-white font-bold h-14 text-lg animate-pulse shadow-lg shadow-orange-500/30"
                         onClick={handleStartKakuhen}
                       >
-                        🎰 確変チャンス＋レビューへ進む
+                        🎰 確変チャンスへ進む！
                       </Button>
                     )}
-                    <Button
-                      variant="outline"
-                      size="sm"
+                    <button
+                      className="text-xs text-gray-400 hover:text-gray-600 mt-2 underline"
                       onClick={() => { setAutoTransitionCountdown(null); resetForm(); }}
                     >
                       別のレシートを申請する
-                    </Button>
+                    </button>
                   </div>
                 </div>
               </div>

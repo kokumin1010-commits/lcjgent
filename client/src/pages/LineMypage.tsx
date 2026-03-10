@@ -335,7 +335,7 @@ export default function LineMypage() {
 
         {/* 確変チャンス未参加バナー */}
         {unplayedKakuhen && Array.isArray(unplayedKakuhen) && unplayedKakuhen.length > 0 && (
-          <Card className="mb-6 border-orange-300 bg-gradient-to-r from-orange-500 to-yellow-500 shadow-lg overflow-hidden cursor-pointer hover:shadow-xl transition-all animate-pulse"
+          <Card className="mb-6 border-orange-300 bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500 shadow-lg overflow-hidden cursor-pointer hover:shadow-xl hover:scale-[1.02] transition-all"
             onClick={() => {
               const token = localStorage.getItem('lcj_session_token');
               const receiptId = (unplayedKakuhen[0] as any).id;
@@ -347,15 +347,19 @@ export default function LineMypage() {
             }}>
             <CardContent className="py-4">
               <div className="flex items-center gap-3">
-                <div className="h-12 w-12 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
-                  <span className="text-2xl">🎰</span>
+                <div className="h-14 w-14 bg-white/25 rounded-full flex items-center justify-center flex-shrink-0 shadow-inner">
+                  <span className="text-3xl animate-bounce">🎰</span>
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-base font-bold text-white">確変チャンスが{unplayedKakuhen.length}件待っています！</h3>
-                  <p className="text-orange-100 text-xs mt-0.5">TikTok URLを入力して還元率UP＆全額還元抽選に参加しよう！</p>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <h3 className="text-base font-bold text-white">確変チャンスが{unplayedKakuhen.length}件待っています！</h3>
+                    <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">無料</span>
+                  </div>
+                  <p className="text-white/90 text-xs">還元率1.5%UP ＋ 全額キャッシュバック抽選に参加！</p>
+                  <p className="text-yellow-100/80 text-[10px] mt-0.5">タップして今すぐ参加 ※30秒で完了</p>
                 </div>
-                <div className="text-white/80">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <div className="text-white/90">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
                   </svg>
                 </div>
