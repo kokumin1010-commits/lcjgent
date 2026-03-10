@@ -132,7 +132,8 @@ function generatePeriodOptions() {
 
 export default function BrandList() {
   const { language } = useLanguage();
-  const t = translations[language];
+  // BrandListは管理画面なので日本語固定（zh-TW, enの翻訳がないためエラー防止）
+  const t = translations['ja'];
   const [, setLocation] = useLocation();
   
   const [statusFilter, setStatusFilter] = useState<string>("");
@@ -273,7 +274,7 @@ export default function BrandList() {
       "保留": { ja: "保留", zh: "保留" },
       "終了": { ja: "終了", zh: "结束" },
     };
-    return statusMap[status]?.[language] || status;
+    return statusMap[status]?.['ja'] || status;
   };
 
   const getPeriodLabel = () => {
@@ -529,7 +530,7 @@ export default function BrandList() {
                   
                   <div className="grid grid-cols-2 gap-4 mb-4">
                     <div className="bg-gray-700/30 rounded-lg p-3">
-                      <div className="text-xs text-gray-400 mb-1">{language === 'ja' ? '広告費' : '广告费'}</div>
+                      <div className="text-xs text-gray-400 mb-1">{'広告費'}</div>
                       <div className="text-lg font-semibold text-yellow-400">
                         {(brand as any).totalAdBudget ? `¥${((brand as any).totalAdBudget).toLocaleString()}` : "-"}
                       </div>

@@ -54,6 +54,7 @@ export default function KakuhenPopup({
   const [showContent, setShowContent] = useState(false);
   const [showBoostedPoints, setShowBoostedPoints] = useState(false);
   const [animPhase, setAnimPhase] = useState(0);
+  const [showSkipButton, setShowSkipButton] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const boostedPoints = Math.floor(orderAmount * 0.015);
@@ -84,9 +85,16 @@ export default function KakuhenPopup({
       haptic.success();
     }, 1200);
 
+    // Phase 4: Show skip button after 5 seconds
+    setShowSkipButton(false);
+    const t3 = setTimeout(() => {
+      setShowSkipButton(true);
+    }, 5000);
+
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
+      clearTimeout(t3);
     };
   }, [isOpen]);
 
@@ -115,7 +123,6 @@ export default function KakuhenPopup({
           background: "radial-gradient(ellipse at center, rgba(255,100,0,0.3) 0%, rgba(0,0,0,0.85) 100%)",
           opacity: animPhase >= 1 ? 1 : 0,
         }}
-        onClick={handleSkip}
       />
 
       {/* Particles */}
@@ -176,13 +183,15 @@ export default function KakuhenPopup({
           opacity: showContent ? 1 : 0,
         }}
       >
-        {/* Close button */}
-        <button
-          onClick={handleSkip}
-          className="absolute -top-2 -right-2 z-20 bg-white/20 backdrop-blur-sm rounded-full p-1.5 text-white/70 hover:text-white hover:bg-white/30 transition-all"
-        >
-          <X className="h-4 w-4" />
-        </button>
+        {/* Close button - only show after delay */}
+        {showSkipButton && (
+          <button
+            onClick={handleSkip}
+            className="absolute -top-2 -right-2 z-20 bg-white/20 backdrop-blur-sm rounded-full p-1.5 text-white/70 hover:text-white hover:bg-white/30 transition-all"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
 
         {/* Glowing border effect */}
         <div
@@ -335,12 +344,14 @@ export default function KakuhenPopup({
                 </span>
               </Button>
 
-              <button
-                onClick={handleSkip}
-                className="w-full text-xs text-gray-500 hover:text-gray-400 transition-colors py-1"
-              >
-                あとでやる（マイページからいつでも参加できます）
-              </button>
+              {showSkipButton && (
+                <button
+                  onClick={handleSkip}
+                  className="w-full text-xs text-gray-500 hover:text-gray-400 transition-colors py-1"
+                >
+                  あとでやる（マイページからいつでも参加できます）
+                </button>
+              )}
             </div>
           </div>
         </div>

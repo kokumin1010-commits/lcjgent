@@ -1656,6 +1656,45 @@ export const lineLoginRouter = router({
   }),
 
   // ==========================================
+  // 確変チャンス未参加レシート取得
+  // ==========================================
+  getUnplayedKakuhenReceipts: publicProcedure.query(async ({ ctx }) => {
+    const result = await getLineUserFromSession(ctx);
+    if (!result || !result.lineUser) {
+      return [];
+    }
+    const { lineUser } = result;
+    if (!lineUser.lineUserId) return [];
+    
+    try {
+      const { getDb } = await import("./db");
+      const { sql: sqlTag } = await import("drizzle-orm");
+      const { lineReceipts: lineReceiptsTable, receiptKakuhenResults } = await import("../drizzle/schema");
+      const dbInst = await getDb();
+      if (!dbInst) return [];
+      
+      // 確変チャンス未参加のレシートを取得（最新5件）
+      const receipts = await dbInst.execute(
+        sqlTag`SELECT lr.id, lr.createdAt, lr.status 
+               FROM line_receipts lr 
+               WHERE lr.lineUserId = ${lineUser.lineUserId}
+               AND lr.status IN ('approved', 'pending', 'on_hold')
+               AND lr.id NOT IN (
+                 SELECT rkr.receiptId FROM receipt_kakuhen_results rkr 
+                 WHERE rkr.receiptType = 'line_receipt'
+               )
+               ORDER BY lr.createdAt DESC
+               LIMIT 5`
+      );
+      
+      return (receipts as any)[0] || [];
+    } catch (error) {
+      console.error("[getUnplayedKakuhenReceipts] Error:", error);
+      return [];
+    }
+  }),
+
+  // ==========================================
   // LINE Account Linking (LINE連携)
   // ==========================================
 

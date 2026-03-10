@@ -67,6 +67,7 @@ export default function ReceiptUpload() {
   const [tokenRestored, setTokenRestored] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showKakuhenPopup, setShowKakuhenPopup] = useState(false);
+  const [autoTransitionCountdown, setAutoTransitionCountdown] = useState<number | null>(null);
 
   // URLパラメータからセッショントークンを復元（LINEアプリ→外部ブラウザ遷移対応）
   useEffect(() => {
@@ -95,6 +96,20 @@ export default function ReceiptUpload() {
     }
   }, [user?.sessionToken]);
 
+  // 確変チャンス自動遷移カウントダウン
+  useEffect(() => {
+    if (autoTransitionCountdown === null) return;
+    if (autoTransitionCountdown <= 0) {
+      setAutoTransitionCountdown(null);
+      setFlowPhase("kakuhen");
+      return;
+    }
+    const timer = setTimeout(() => {
+      setAutoTransitionCountdown(prev => prev !== null ? prev - 1 : null);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [autoTransitionCountdown]);
+
   const submitMutation = trpc.lineLogin.submitWebReceipt.useMutation({
     onSuccess: (data) => {
       const result = data as AnalysisResult;
@@ -104,11 +119,9 @@ export default function ReceiptUpload() {
       haptic.success();
       toast.success("レシートを受け付けました！");
       setFlowPhase("analysis_result");
-      // 確変チャンスポップアップを自動表示
+      // 確変チャンスに自動遷移（3秒後）
       if (result.receiptId) {
-        setTimeout(() => {
-          setShowKakuhenPopup(true);
-        }, 2000);
+        setAutoTransitionCountdown(3);
       }
     },
     onError: (error) => {
@@ -392,9 +405,23 @@ export default function ReceiptUpload() {
                     AI解析・スタッフ確認後にポイントが付与されます。マイページから状況を確認できます。
                   </p>
 
-                  {/* Action Buttons */}
+                  {/* 確変チャンス自動遷移 */}
                   <div className="mt-4 flex flex-col gap-2">
-                    {analysisResult.receiptId && (
+                    {analysisResult.receiptId && autoTransitionCountdown !== null && (
+                      <div className="bg-gradient-to-r from-orange-500/20 to-yellow-500/20 border border-orange-500/40 rounded-xl p-4 text-center">
+                        <p className="text-orange-400 font-bold text-lg mb-1">🎰 確変チャンス開始！</p>
+                        <p className="text-orange-300 text-sm">
+                          <span className="text-2xl font-black text-yellow-400">{autoTransitionCountdown}</span> 秒後に自動的に確変チャンスに進みます
+                        </p>
+                        <Button
+                          className="w-full mt-3 bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 text-white font-bold h-12 animate-pulse"
+                          onClick={() => { setAutoTransitionCountdown(null); setFlowPhase("kakuhen"); }}
+                        >
+                          ✨ 今すぐ確変チャンスへ！
+                        </Button>
+                      </div>
+                    )}
+                    {analysisResult.receiptId && autoTransitionCountdown === null && flowPhase === "analysis_result" && (
                       <Button
                         className="w-full bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 text-white font-bold h-12 animate-pulse"
                         onClick={handleStartKakuhen}
@@ -402,21 +429,10 @@ export default function ReceiptUpload() {
                         🎰 確変チャンス＋レビューへ進む
                       </Button>
                     )}
-
-                    {/* 確変チャンスポップアップ（自動表示） */}
-                    {analysisResult.receiptId && (
-                      <KakuhenPopup
-                        isOpen={showKakuhenPopup}
-                        orderAmount={0}
-                        pointsCalculated={0}
-                        onStart={handleStartKakuhen}
-                        onSkip={handlePopupSkip}
-                      />
-                    )}
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={resetForm}
+                      onClick={() => { setAutoTransitionCountdown(null); resetForm(); }}
                     >
                       別のレシートを申請する
                     </Button>
