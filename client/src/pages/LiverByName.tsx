@@ -242,7 +242,7 @@ export default function LiverByName() {
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex items-center gap-2">
                             <Calendar className="w-4 h-4 text-white" />
-                            <span className="font-medium">{formatDate(livestream.livestreamDate)}</span>
+                            <span className="font-medium text-white">{formatDate(livestream.livestreamDate)}</span>
                           </div>
                           {livestream.result && (
                             <span className={`px-2 py-0.5 rounded text-xs ${

@@ -3891,11 +3891,30 @@ export async function getLiversWithStats(month: string) {
           )
         );
       
+      // Get set count for this liver
+      const setStats = await db
+        .select({
+          totalSets: sql<number>`COUNT(DISTINCT ${livestreamSets.id})`,
+          totalSetRevenue: sql<number>`COALESCE(SUM(${livestreamSets.totalRevenue}), 0)`,
+        })
+        .from(livestreamSets)
+        .innerJoin(brandLivestreams, eq(livestreamSets.livestreamId, brandLivestreams.id))
+        .where(
+          and(
+            isNull(brandLivestreams.deletedAt),
+            eq(brandLivestreams.liverId, liver.id),
+            sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
+            sql`${brandLivestreams.livestreamDate} <= ${endDate}`
+          )
+        );
+
       return {
         ...liver,
         totalSales: stats[0]?.totalSales || 0,
         totalDuration: stats[0]?.totalDuration || 0,
         livestreamCount: stats[0]?.livestreamCount || 0,
+        totalSets: setStats[0]?.totalSets || 0,
+        totalSetRevenue: setStats[0]?.totalSetRevenue || 0,
       };
     })
   );

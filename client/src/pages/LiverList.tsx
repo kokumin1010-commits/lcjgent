@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Crown, Clock, TrendingUp, ChevronDown, ChevronUp, Users, DollarSign, Activity, Zap, ArrowUpRight, ArrowDownRight, Megaphone, Gift } from "lucide-react";
+import { Crown, Clock, TrendingUp, ChevronDown, ChevronUp, Users, DollarSign, Activity, Zap, ArrowUpRight, ArrowDownRight, Megaphone, Gift, Package } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function LiverList() {
@@ -368,6 +368,93 @@ export default function LiverList() {
           </CardContent>
         </Card>
         
+        {/* Duration Ranking - moved here after Sales Ranking */}
+        <Card className="bg-gray-900/50 border-gray-800">
+          <CardContent className="p-4">
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <Clock className="w-5 h-5 text-blue-500" />
+              {tr.durationRanking}（{monthOptions.find(m => m.value === selectedMonth)?.label}）
+            </h2>
+            
+            {durationRankingToShow && durationRankingToShow.length > 0 ? (
+              <div className="space-y-3">
+                {durationRankingToShow.map((item, index) => (
+                  <Link 
+                    key={item.liverId || item.streamerName || index} 
+                    href={`/livers/by-name/${encodeURIComponent(item.streamerName || '')}`}
+                  >
+                    <div className="flex items-center gap-4 p-3 rounded-lg hover:bg-gray-800/50 transition-colors cursor-pointer">
+                      {getRankIcon(index + 1)}
+                      <Avatar className="w-12 h-12">
+                        <AvatarImage src={(item as any).avatarUrl || livers?.find(l => l.id === item.liverId)?.avatarUrl || undefined} />
+                        <AvatarFallback className="bg-gray-700 text-white">
+                          {((item as any).liverName || item.streamerName)?.charAt(0) || "?"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <p className="font-medium text-white">{(item as any).liverName || item.streamerName || "不明"}</p>
+                        <div className="flex items-center gap-4 text-sm">
+                          <div>
+                            <span className="text-yellow-500">
+                              {formatCurrency(item.totalSales)}
+                            </span>
+                            <div className="h-1 bg-yellow-500/30 rounded mt-1">
+                              <div 
+                                className="h-full bg-yellow-500 rounded" 
+                                style={{ 
+                                  width: `${Math.min(100, (item.totalSales / (rankings?.salesRanking?.[0]?.totalSales || 1)) * 100)}%` 
+                                }}
+                              />
+                            </div>
+                            <span className="text-xs text-white">{tr.sales}</span>
+                          </div>
+                          <div>
+                            <span className="text-blue-400 font-bold">
+                              {formatDuration(item.totalDuration)}
+                            </span>
+                            <div className="h-1 bg-blue-500/30 rounded mt-1">
+                              <div 
+                                className="h-full bg-blue-500 rounded" 
+                                style={{ 
+                                  width: `${Math.min(100, (item.totalDuration / (rankings?.durationRanking?.[0]?.totalDuration || 1)) * 100)}%` 
+                                }}
+                              />
+                            </div>
+                            <span className="text-xs text-white">{tr.duration}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="text-white text-center py-4">{tr.noData}</p>
+            )}
+            
+            {rankings?.durationRanking && rankings.durationRanking.length > 5 && (
+              <div className="flex justify-center mt-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAllDuration(!showAllDuration)}
+                  className="border-gray-700 text-white hover:bg-gray-800"
+                >
+                  {showAllDuration ? (
+                    <>
+                      {tr.viewLess} <ChevronUp className="w-4 h-4 ml-1" />
+                    </>
+                  ) : (
+                    <>
+                      {tr.viewMore} <ChevronDown className="w-4 h-4 ml-1" />
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        
         {/* Referral Ranking */}
         {referralRanking && referralRanking.length > 0 && (
           <Card className="bg-gray-900/50 border-gray-800">
@@ -458,7 +545,15 @@ export default function LiverList() {
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate text-white">{liver.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium truncate text-white">{liver.name}</p>
+                          {(liver as any).totalSets > 0 && (
+                            <span className="flex items-center gap-1 px-1.5 py-0.5 bg-purple-500/20 border border-purple-500/40 rounded text-[10px] text-purple-300 whitespace-nowrap">
+                              <Package className="w-3 h-3" />
+                              {(liver as any).totalSets}セット
+                            </span>
+                          )}
+                        </div>
                         <p className="text-xs text-white">
                           {liver.livestreamCount > 0 ? `${liver.livestreamCount}回配信` : "配信なし"}
                         </p>
@@ -473,92 +568,7 @@ export default function LiverList() {
           </CardContent>
         </Card>
         
-        {/* Duration Ranking */}
-        <Card className="bg-gray-900/50 border-gray-800">
-          <CardContent className="p-4">
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <Clock className="w-5 h-5 text-blue-500" />
-              {tr.durationRanking}（{monthOptions.find(m => m.value === selectedMonth)?.label}）
-            </h2>
-            
-            {durationRankingToShow && durationRankingToShow.length > 0 ? (
-              <div className="space-y-3">
-                {durationRankingToShow.map((item, index) => (
-                  <Link 
-                    key={item.liverId || item.streamerName || index} 
-                    href={`/livers/by-name/${encodeURIComponent(item.streamerName || '')}`}
-                  >
-                    <div className="flex items-center gap-4 p-3 rounded-lg hover:bg-gray-800/50 transition-colors cursor-pointer">
-                      {getRankIcon(index + 1)}
-                      <Avatar className="w-12 h-12">
-                        <AvatarImage src={(item as any).avatarUrl || livers?.find(l => l.id === item.liverId)?.avatarUrl || undefined} />
-                        <AvatarFallback className="bg-gray-700 text-white">
-                          {((item as any).liverName || item.streamerName)?.charAt(0) || "?"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <p className="font-medium text-white">{(item as any).liverName || item.streamerName || "不明"}</p>
-                        <div className="flex items-center gap-4 text-sm">
-                          <div>
-                            <span className="text-yellow-500">
-                              {formatCurrency(item.totalSales)}
-                            </span>
-                            <div className="h-1 bg-yellow-500/30 rounded mt-1">
-                              <div 
-                                className="h-full bg-yellow-500 rounded" 
-                                style={{ 
-                                  width: `${Math.min(100, (item.totalSales / (rankings?.salesRanking?.[0]?.totalSales || 1)) * 100)}%` 
-                                }}
-                              />
-                            </div>
-                            <span className="text-xs text-white">{tr.sales}</span>
-                          </div>
-                          <div>
-                            <span className="text-blue-400 font-bold">
-                              {formatDuration(item.totalDuration)}
-                            </span>
-                            <div className="h-1 bg-blue-500/30 rounded mt-1">
-                              <div 
-                                className="h-full bg-blue-500 rounded" 
-                                style={{ 
-                                  width: `${Math.min(100, (item.totalDuration / (rankings?.durationRanking?.[0]?.totalDuration || 1)) * 100)}%` 
-                                }}
-                              />
-                            </div>
-                            <span className="text-xs text-white">{tr.duration}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <p className="text-white text-center py-4">{tr.noData}</p>
-            )}
-            
-            {rankings?.durationRanking && rankings.durationRanking.length > 5 && (
-              <div className="flex justify-center mt-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowAllDuration(!showAllDuration)}
-                  className="border-gray-700 text-white hover:bg-gray-800"
-                >
-                  {showAllDuration ? (
-                    <>
-                      {tr.viewLess} <ChevronUp className="w-4 h-4 ml-1" />
-                    </>
-                  ) : (
-                    <>
-                      {tr.viewMore} <ChevronDown className="w-4 h-4 ml-1" />
-                    </>
-                  )}
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Duration Ranking removed from here - moved above after Sales Ranking */}
       </div>
     </div>
   );
