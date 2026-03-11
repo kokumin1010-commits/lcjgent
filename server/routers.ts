@@ -13111,12 +13111,27 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
               }
               
               if (allImageUrls.length === 0) {
+                // 画像なしは却下
+                if (!input.dryRun) {
+                  await updateLineReceiptStatus(candidate.id, "rejected", ctx.user.id,
+                    "[AI自動却下] レシート画像がありません");
+                  try {
+                    const appUrl = process.env.APP_URL || "https://lcjmall.com";
+                    const rejectMsg = `❌ レシートが承認されませんでした\n\n画像が見つかりませんでした。スクリーンショットを再度送信してください🙏\n\nお問い合わせ: ${appUrl}/mypage`;
+                    await pushMsg(candidate.lineUserId, [{ type: "text", text: rejectMsg }]);
+                  } catch (notifyErr) {
+                    console.error(`[AI AutoApprove] LINE rejection notification error:`, notifyErr);
+                  }
+                }
                 results.push({
                   id: candidate.id,
-                  action: "skipped",
+                  action: "rejected_ai",
                   reason: "画像なし",
                   orderNumber,
                   amount: candidate.totalAmount ?? undefined,
+                  lineUserId: candidate.lineUserId,
+                  storeName: candidate.storeName ?? undefined,
+                  imageUrl: candidate.imageUrl ?? undefined,
                 });
                 continue;
               }
@@ -13291,13 +13306,27 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
                   parsed = JSON.parse(jsonMatch[0]);
                 }
               } catch {
-                // Parse error → skip
+                // Parse error → reject (LLMがまともな応答を返せなかった)
+                if (!input.dryRun) {
+                  await updateLineReceiptStatus(candidate.id, "rejected", ctx.user.id,
+                    "[AI自動却下] AI応答の解析に失敗しました");
+                  try {
+                    const appUrl = process.env.APP_URL || "https://lcjmall.com";
+                    const rejectMsg = `❌ レシートが承認されませんでした\n\n画像を正しく読み取れませんでした。以下を確認して再度送信してください🙏\n\n• スクリーンショットが鮮明に撮れているか\n• 画像が切れていないか\n\nお問い合わせ: ${appUrl}/mypage`;
+                    await pushMsg(candidate.lineUserId, [{ type: "text", text: rejectMsg }]);
+                  } catch (notifyErr) {
+                    console.error(`[AI AutoApprove] LINE rejection notification error:`, notifyErr);
+                  }
+                }
                 results.push({
                   id: candidate.id,
-                  action: "skipped",
-                  reason: "LLM応答解析失敗",
+                  action: "rejected_ai",
+                  reason: "AI応答解析失敗",
                   orderNumber,
                   amount: candidate.totalAmount ?? undefined,
+                  lineUserId: candidate.lineUserId,
+                  storeName: candidate.storeName ?? undefined,
+                  imageUrl: candidate.imageUrl ?? undefined,
                 });
                 continue;
               }
@@ -13368,12 +13397,28 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
               }
             } catch (llmErr: any) {
               console.error(`[AI AutoApprove] LLM error for receipt #${candidate.id}:`, llmErr.message);
+              // LLMエラー（画像非対応等）は自動却下する
+              if (!input.dryRun) {
+                await updateLineReceiptStatus(candidate.id, "rejected", ctx.user.id,
+                  `[AI自動却下] 画像読み取り失敗: ${llmErr.message?.substring(0, 100)}`);
+                // LINE通知で再提出を促す
+                try {
+                  const appUrl = process.env.APP_URL || "https://lcjmall.com";
+                  const rejectMsg = `❌ レシートが承認されませんでした\n\n画像を読み取れませんでした。以下を確認して再度送信してください🙏\n\n• スクリーンショットが鮮明に撮れているか\n• 画像が切れていないか\n• 対応している画像形式（JPEG/PNG）か\n\nお問い合わせ: ${appUrl}/mypage`;
+                  await pushMsg(candidate.lineUserId, [{ type: "text", text: rejectMsg }]);
+                } catch (notifyErr) {
+                  console.error(`[AI AutoApprove] LINE rejection notification error:`, notifyErr);
+                }
+              }
               results.push({
                 id: candidate.id,
-                action: "skipped",
-                reason: `LLMエラー: ${llmErr.message?.substring(0, 100)}`,
+                action: "rejected_ai",
+                reason: `画像読み取り失敗: ${llmErr.message?.substring(0, 100)}`,
                 orderNumber,
                 amount: candidate.totalAmount ?? undefined,
+                lineUserId: candidate.lineUserId,
+                storeName: candidate.storeName ?? undefined,
+                imageUrl: candidate.imageUrl ?? undefined,
               });
               continue;
             }
