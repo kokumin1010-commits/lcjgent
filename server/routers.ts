@@ -15899,29 +15899,91 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         const BASE_RATE = 1.0; // 基本還元率 1%
         const BOOSTED_RATE = 1.5; // 確変後 1.5%
         const JACKPOT_ODDS = 1000000; // 全額還元の確率 1/1,000,000
+        const DAILY_LIMIT = 3; // 1日の確変チャンス回数制限
+
+        // ===== 制限チェック =====
+        const { getDb } = await import("./db");
+        const { sql: sqlTag, and, eq, gte } = await import("drizzle-orm");
+        const { receiptKakuhenResults } = await import("../drizzle/schema");
+        const dbInst = await getDb();
+        if (!dbInst) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+        // 1. 1日3回制限チェック
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const todayPlays = await dbInst
+          .select({ count: sqlTag<number>`COUNT(*)` })
+          .from(receiptKakuhenResults)
+          .where(and(
+            eq(receiptKakuhenResults.userId, ctx.user.id),
+            gte(receiptKakuhenResults.createdAt, todayStart)
+          ));
+        const todayCount = todayPlays[0]?.count || 0;
+        if (todayCount >= DAILY_LIMIT) {
+          throw new TRPCError({
+            code: "TOO_MANY_REQUESTS",
+            message: `本日の確変チャンスは${DAILY_LIMIT}回までです。明日またチャレンジしてください！（本日: ${todayCount}/${DAILY_LIMIT}回）`,
+          });
+        }
+
+        // 2. 同一ユーザーのTikTokリンク重複チェック
+        if (input.tiktokUrl && input.tiktokUrl.trim().length > 0) {
+          const duplicateUrl = await dbInst
+            .select({ id: receiptKakuhenResults.id })
+            .from(receiptKakuhenResults)
+            .where(and(
+              eq(receiptKakuhenResults.userId, ctx.user.id),
+              eq(receiptKakuhenResults.tiktokUrl, input.tiktokUrl.trim())
+            ))
+            .limit(1);
+          if (duplicateUrl.length > 0) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "このTikTok URLは既に使用済みです。別のURLを入力してください。",
+            });
+          }
+        }
+
+        // 3. DBから正確な金額を取得（OCRバックグラウンド処理対応）
+        let orderAmount = input.orderAmount;
+        if (input.receiptType === "line_receipt") {
+          const { getLineReceiptById } = await import("./db");
+          const receipt = await getLineReceiptById(input.receiptId);
+          if (receipt && receipt.totalAmount && Number(receipt.totalAmount) > 0) {
+            orderAmount = Number(receipt.totalAmount);
+          }
+        } else {
+          // point_request の場合
+          const { getPointRequestById } = await import("./db");
+          const request = await getPointRequestById(input.receiptId);
+          if (request && request.orderAmount && Number(request.orderAmount) > 0) {
+            orderAmount = Number(request.orderAmount);
+          }
+        }
 
         // TikTok URLがある場合のみ確変チャンス発動
         const hasUrl = !!input.tiktokUrl && input.tiktokUrl.trim().length > 0;
-        const isKakuhen = hasUrl; // URL入力 = 確変モード確定
+        // 金額が0円の場合は確変モードを無効化（還元率UPなし）
+        const isKakuhen = hasUrl && orderAmount > 0;
         const rate = isKakuhen ? BOOSTED_RATE : BASE_RATE;
 
-        // 全額還元抽選（6桁のランダム番号）
-        const lotteryNumber = String(Math.floor(Math.random() * 1000000)).padStart(6, "0");
-        const winningNumber = String(Math.floor(Math.random() * 1000000)).padStart(6, "0");
-        const isJackpot = lotteryNumber === winningNumber;
+        // 全額還元抽選（6桁のランダム番号）- 金額0円の場合は抽選しない
+        const lotteryNumber = orderAmount > 0 ? String(Math.floor(Math.random() * 1000000)).padStart(6, "0") : "000000";
+        const winningNumber = orderAmount > 0 ? String(Math.floor(Math.random() * 1000000)).padStart(6, "0") : "999999";
+        const isJackpot = orderAmount > 0 && lotteryNumber === winningNumber;
 
         // ポイント計算
-        const basePoints = Math.floor(input.orderAmount * (BASE_RATE / 100));
+        const basePoints = Math.floor(orderAmount * (BASE_RATE / 100));
         let actualPoints: number;
         let bonusPoints: number;
 
         if (isJackpot) {
           // 全額還元！
-          actualPoints = input.orderAmount;
-          bonusPoints = input.orderAmount - basePoints;
+          actualPoints = orderAmount;
+          bonusPoints = orderAmount - basePoints;
         } else if (isKakuhen) {
           // 確変モード 1.5%
-          actualPoints = Math.floor(input.orderAmount * (BOOSTED_RATE / 100));
+          actualPoints = Math.floor(orderAmount * (BOOSTED_RATE / 100));
           bonusPoints = actualPoints - basePoints;
         } else {
           // 通常 1%
@@ -15941,7 +16003,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           lotteryNumber,
           winningNumber,
           isJackpot,
-          orderAmount: input.orderAmount,
+          orderAmount: orderAmount,
           basePoints,
           actualPoints,
           bonusPoints,
@@ -15958,7 +16020,8 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           basePoints,
           actualPoints,
           bonusPoints,
-          orderAmount: input.orderAmount,
+          orderAmount: orderAmount,
+          dailyPlaysRemaining: DAILY_LIMIT - todayCount - 1,
         };
       }),
 

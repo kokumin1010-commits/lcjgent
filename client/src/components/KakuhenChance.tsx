@@ -622,7 +622,13 @@ export default function KakuhenChance({
       setStep("meter");
     } catch (err: any) {
       const msg = err.message || "";
-      if (msg.includes("too_small") || msg.includes("orderAmount")) {
+      if (msg.includes("回まで") || msg.includes("TOO_MANY_REQUESTS") || msg.includes("本日の確変")) {
+        toast.error(msg.includes("本日の確変") ? msg : "本日の確変チャンスは上限に達しました（1日3回まで）");
+        // 制限到達時はスキップに遷移
+        setTimeout(() => onSkip(), 2000);
+      } else if (msg.includes("使用済み") || msg.includes("TikTok URL")) {
+        toast.error("このTikTok URLは既に使用済みです。別のURLを入力してください。");
+      } else if (msg.includes("too_small") || msg.includes("orderAmount")) {
         toast.error("注文金額の取得に失敗しました。レシートを再送信してください。");
       } else {
         toast.error("確変チャンスの処理中にエラーが発生しました。もう一度お試しください。");
