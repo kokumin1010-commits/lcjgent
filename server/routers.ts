@@ -334,6 +334,7 @@ import {
   getAllScheduleGroupsWithMembers,
   setScheduleGroupMembers,
   getLivestreamsByStreamerName,
+  getLiverMonthlyGrowth,
   addProductLiver,
   removeProductLiver,
   getProductLivers,
@@ -10546,6 +10547,15 @@ ${metricsDescription}${historicalContext}`,
       }))
       .query(async ({ input }) => {
         return await getLivestreamsByStreamerName(input.streamerName, input.month);
+      }),
+
+    // Get monthly growth data for a specific liver (成長グラフ用)
+    getLiverMonthlyGrowth: publicProcedure
+      .input(z.object({
+        streamerName: z.string(),
+      }))
+      .query(async ({ input }) => {
+        return await getLiverMonthlyGrowth(input.streamerName);
       }),
 
     // Get top selling products ranking (売れ筋商品ランキング)

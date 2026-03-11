@@ -13,8 +13,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, TrendingUp, Clock, Calendar, DollarSign, Users, Eye, ShoppingCart, MousePointer, ChevronRight, ImageOff } from "lucide-react";
+import { ArrowLeft, TrendingUp, Clock, Calendar, DollarSign, Users, Eye, ShoppingCart, MousePointer, ChevronRight, ImageOff, BarChart3 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+  LineChart,
+  Line,
+  ComposedChart,
+  Area,
+} from "recharts";
 
 export default function LiverByName() {
   const { name } = useParams<{ name: string }>();
@@ -41,6 +55,11 @@ export default function LiverByName() {
     streamerName: decodedName,
     month: selectedMonth,
   });
+
+  // Growth data (past 6 months)
+  const { data: growthData, isLoading: isGrowthLoading } = trpc.liverManagement.getLiverMonthlyGrowth.useQuery({
+    streamerName: decodedName,
+  });
   
   const translations = {
     ja: {
@@ -59,6 +78,12 @@ export default function LiverByName() {
       hours: "時間",
       minutes: "分",
       livestreams: "配信",
+      growthChart: "成長推移",
+      monthlySales: "月間売上",
+      monthlyDuration: "配信時間（時間）",
+      monthlyViewers: "視聴者数",
+      monthlyStreams: "配信回数",
+      vsLastMonth: "前月比",
     },
     zh: {
       back: "返回",
@@ -76,6 +101,12 @@ export default function LiverByName() {
       hours: "小时",
       minutes: "分钟",
       livestreams: "直播",
+      growthChart: "成长趋势",
+      monthlySales: "月销售额",
+      monthlyDuration: "直播时长（小时）",
+      monthlyViewers: "观众数",
+      monthlyStreams: "直播次数",
+      vsLastMonth: "环比",
     },
   };
   
@@ -105,6 +136,52 @@ export default function LiverByName() {
     return `${month}/${day}`;
   };
 
+  // Calculate growth percentages
+  const getGrowthInfo = (data: any[], index: number) => {
+    if (!data || index <= 0) return null;
+    const current = data[index];
+    const prev = data[index - 1];
+    if (!current || !prev || prev.sales === 0) return null;
+    const pct = ((current.sales - prev.sales) / prev.sales) * 100;
+    return pct;
+  };
+
+  // Custom tooltip for the chart
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      const salesData = payload.find((p: any) => p.dataKey === "sales");
+      const durationData = payload.find((p: any) => p.dataKey === "durationHours");
+      const viewersData = payload.find((p: any) => p.dataKey === "viewers");
+      const streamsData = payload.find((p: any) => p.dataKey === "streamCount");
+      return (
+        <div className="bg-gray-900 border border-gray-700 rounded-lg p-3 shadow-lg">
+          <p className="text-white font-medium mb-2">{label}</p>
+          {salesData && (
+            <p className="text-yellow-400 text-sm">
+              {tr.monthlySales}: ¥{Number(salesData.value * 10000).toLocaleString()}
+            </p>
+          )}
+          {durationData && (
+            <p className="text-blue-400 text-sm">
+              {tr.monthlyDuration}: {Number(durationData.value).toFixed(1)}h
+            </p>
+          )}
+          {viewersData && (
+            <p className="text-purple-400 text-sm">
+              {tr.monthlyViewers}: {Number(viewersData.value).toLocaleString()}
+            </p>
+          )}
+          {streamsData && (
+            <p className="text-green-400 text-sm">
+              {tr.monthlyStreams}: {streamsData.value}回
+            </p>
+          )}
+        </div>
+      );
+    }
+    return null;
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-black text-white p-6">
@@ -116,6 +193,41 @@ export default function LiverByName() {
       </div>
     );
   }
+
+  // Prepare chart data
+  const chartData = growthData?.map((m: any) => ({
+    ...m,
+    sales: m.sales / 10000, // 万円単位
+    durationHours: +(m.duration / 60).toFixed(1), // 時間単位
+  })) || [];
+
+  // Current month vs last month comparison
+  const currentMonthData = chartData.length > 0 ? chartData[chartData.length - 1] : null;
+  const lastMonthData = chartData.length > 1 ? chartData[chartData.length - 2] : null;
+
+  const calcGrowth = (current: number, prev: number) => {
+    if (prev === 0) return current > 0 ? 100 : 0;
+    return ((current - prev) / prev) * 100;
+  };
+
+  const salesGrowth = currentMonthData && lastMonthData 
+    ? calcGrowth(currentMonthData.sales, lastMonthData.sales) : null;
+  const durationGrowth = currentMonthData && lastMonthData 
+    ? calcGrowth(currentMonthData.durationHours, lastMonthData.durationHours) : null;
+  const viewersGrowth = currentMonthData && lastMonthData 
+    ? calcGrowth(currentMonthData.viewers, lastMonthData.viewers) : null;
+
+  const GrowthBadge = ({ value }: { value: number | null }) => {
+    if (value === null) return null;
+    const isPositive = value >= 0;
+    return (
+      <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+        isPositive ? "bg-green-900/50 text-green-400" : "bg-red-900/50 text-red-400"
+      }`}>
+        {isPositive ? "+" : ""}{value.toFixed(0)}%
+      </span>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -167,9 +279,12 @@ export default function LiverByName() {
                 <DollarSign className="w-5 h-5" />
                 <span className="text-sm">{tr.totalSales}</span>
               </div>
-              <p className="text-2xl font-bold text-yellow-400">
-                {formatCurrency(data?.totalSales)}
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-2xl font-bold text-yellow-400">
+                  {formatCurrency(data?.totalSales)}
+                </p>
+                <GrowthBadge value={salesGrowth} />
+              </div>
             </CardContent>
           </Card>
           
@@ -179,12 +294,176 @@ export default function LiverByName() {
                 <Clock className="w-5 h-5" />
                 <span className="text-sm">{tr.totalDuration}</span>
               </div>
-              <p className="text-2xl font-bold text-blue-400">
-                {formatDuration(data?.totalDuration)}
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-2xl font-bold text-blue-400">
+                  {formatDuration(data?.totalDuration)}
+                </p>
+                <GrowthBadge value={durationGrowth} />
+              </div>
             </CardContent>
           </Card>
         </div>
+
+        {/* Growth Chart */}
+        {!isGrowthLoading && chartData.length > 0 && (
+          <Card className="bg-gray-900/50 border-gray-800">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <TrendingUp className="w-5 h-5 text-emerald-500" />
+                {tr.growthChart}
+                <span className="text-xs text-white/60 ml-2">（過去6ヶ月）</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {/* Sales Bar Chart */}
+              <div className="mb-6">
+                <p className="text-sm text-yellow-400 mb-3 flex items-center gap-1">
+                  <DollarSign className="w-4 h-4" />
+                  {tr.monthlySales}（万円）
+                </p>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={chartData} barCategoryGap="20%">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
+                    <XAxis 
+                      dataKey="label" 
+                      tick={{ fill: '#fff', fontSize: 12 }} 
+                      axisLine={{ stroke: '#374151' }}
+                      tickLine={false}
+                    />
+                    <YAxis 
+                      tick={{ fill: '#9CA3AF', fontSize: 11 }} 
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={(v) => `${v.toLocaleString()}`}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar dataKey="sales" radius={[6, 6, 0, 0]}>
+                      {chartData.map((entry: any, index: number) => {
+                        const isLatest = index === chartData.length - 1;
+                        const prevSales = index > 0 ? chartData[index - 1].sales : 0;
+                        const isGrowth = entry.sales >= prevSales;
+                        return (
+                          <Cell 
+                            key={`cell-${index}`} 
+                            fill={isLatest ? "#EAB308" : isGrowth ? "#4ADE80" : "#F87171"}
+                            fillOpacity={isLatest ? 1 : 0.6}
+                          />
+                        );
+                      })}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Duration & Viewers Line Chart */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-blue-400 mb-3 flex items-center gap-1">
+                    <Clock className="w-4 h-4" />
+                    {tr.monthlyDuration}
+                  </p>
+                  <ResponsiveContainer width="100%" height={140}>
+                    <ComposedChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
+                      <XAxis 
+                        dataKey="label" 
+                        tick={{ fill: '#fff', fontSize: 10 }} 
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis 
+                        tick={{ fill: '#9CA3AF', fontSize: 10 }} 
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Area 
+                        type="monotone" 
+                        dataKey="durationHours" 
+                        fill="#3B82F6" 
+                        fillOpacity={0.15} 
+                        stroke="none"
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey="durationHours" 
+                        stroke="#3B82F6" 
+                        strokeWidth={2}
+                        dot={{ fill: '#3B82F6', r: 4 }}
+                        activeDot={{ r: 6 }}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div>
+                  <p className="text-sm text-purple-400 mb-3 flex items-center gap-1">
+                    <Eye className="w-4 h-4" />
+                    {tr.monthlyViewers}
+                  </p>
+                  <ResponsiveContainer width="100%" height={140}>
+                    <ComposedChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
+                      <XAxis 
+                        dataKey="label" 
+                        tick={{ fill: '#fff', fontSize: 10 }} 
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis 
+                        tick={{ fill: '#9CA3AF', fontSize: 10 }} 
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}
+                      />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Area 
+                        type="monotone" 
+                        dataKey="viewers" 
+                        fill="#A855F7" 
+                        fillOpacity={0.15} 
+                        stroke="none"
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey="viewers" 
+                        stroke="#A855F7" 
+                        strokeWidth={2}
+                        dot={{ fill: '#A855F7', r: 4 }}
+                        activeDot={{ r: 6 }}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Stream Count Mini Bar */}
+              <div className="mt-4 pt-4 border-t border-gray-800">
+                <p className="text-sm text-green-400 mb-3 flex items-center gap-1">
+                  <BarChart3 className="w-4 h-4" />
+                  {tr.monthlyStreams}
+                </p>
+                <div className="flex items-end gap-2 h-16">
+                  {chartData.map((entry: any, index: number) => {
+                    const maxCount = Math.max(...chartData.map((d: any) => d.streamCount), 1);
+                    const height = (entry.streamCount / maxCount) * 100;
+                    const isLatest = index === chartData.length - 1;
+                    return (
+                      <div key={index} className="flex-1 flex flex-col items-center gap-1">
+                        <span className="text-xs text-white font-medium">{entry.streamCount}</span>
+                        <div 
+                          className={`w-full rounded-t-md transition-all ${isLatest ? "bg-green-500" : "bg-green-500/40"}`}
+                          style={{ height: `${Math.max(height, 4)}%` }}
+                        />
+                        <span className="text-[10px] text-white/60">{entry.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
         
         {/* Livestream History */}
         <Card className="bg-gray-900/50 border-gray-800">

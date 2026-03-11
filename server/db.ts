@@ -18596,3 +18596,58 @@ export async function createBrandByLiver(name: string, createdBy: number) {
   const insertId = (result as any)[0]?.insertId;
   return { id: insertId, name };
 }
+
+
+// ============================================
+// Liver Monthly Growth Data (成長グラフ用)
+// ============================================
+
+/**
+ * Get monthly growth data for a specific liver (past 6 months)
+ * ライバー個人の月次推移データを取得（売上・配信時間・視聴者数・配信回数）
+ */
+export async function getLiverMonthlyGrowth(streamerName: string) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const now = new Date();
+  const months: { yearMonth: string; label: string; sales: number; duration: number; viewers: number; streamCount: number }[] = [];
+  
+  for (let i = 5; i >= 0; i--) {
+    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const mYear = date.getFullYear();
+    const mMonth = date.getMonth() + 1;
+    const mMonthKey = `${mYear}-${String(mMonth).padStart(2, "0")}`;
+    const label = `${mMonth}月`;
+    
+    const { startDate, endDate } = getJSTMonthRange(mMonthKey);
+    
+    const result = await db
+      .select({
+        totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.gmv}), 0)`,
+        totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
+        totalViewers: sql<number>`COALESCE(SUM(${brandLivestreams.viewerCount}), 0)`,
+        streamCount: sql<number>`COUNT(*)`,
+      })
+      .from(brandLivestreams)
+      .where(
+        and(
+          isNull(brandLivestreams.deletedAt),
+          eq(brandLivestreams.streamerName, streamerName),
+          sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
+          sql`${brandLivestreams.livestreamDate} <= ${endDate}`
+        )
+      );
+    
+    months.push({
+      yearMonth: mMonthKey,
+      label,
+      sales: result[0]?.totalSales || 0,
+      duration: result[0]?.totalDuration || 0,
+      viewers: result[0]?.totalViewers || 0,
+      streamCount: result[0]?.streamCount || 0,
+    });
+  }
+  
+  return months;
+}
