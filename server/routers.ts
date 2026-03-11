@@ -15945,12 +15945,79 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         }
 
         // 3. DBから正確な金額を取得（OCRバックグラウンド処理対応）
+        //    案A: DBポーリング（最大10秒待機）+ 案B: フォールバックOCR解析
         let orderAmount = input.orderAmount;
         if (input.receiptType === "line_receipt") {
-          const { getLineReceiptById } = await import("./db");
-          const receipt = await getLineReceiptById(input.receiptId);
+          const { getLineReceiptById, updateLineReceiptOcr } = await import("./db");
+          
+          // === 案A: DBポーリング（OCRバックグラウンド処理完了を待つ）===
+          let receipt = await getLineReceiptById(input.receiptId);
+          if (receipt && (!receipt.totalAmount || Number(receipt.totalAmount) <= 0)) {
+            // OCR未完了の場合、最大10秒間ポーリング（2秒間隔×5回）
+            for (let retry = 0; retry < 5; retry++) {
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              receipt = await getLineReceiptById(input.receiptId);
+              if (receipt && receipt.totalAmount && Number(receipt.totalAmount) > 0) {
+                console.log(`[KakuhenPlay] DB polling success after ${(retry + 1) * 2}s, amount: ${receipt.totalAmount}`);
+                break;
+              }
+            }
+          }
+          
           if (receipt && receipt.totalAmount && Number(receipt.totalAmount) > 0) {
             orderAmount = Number(receipt.totalAmount);
+          } else if (receipt && orderAmount <= 0) {
+            // === 案B: フォールバックOCR解析（DBにまだ金額がない場合）===
+            console.log(`[KakuhenPlay] DB polling failed, falling back to OCR for receipt ${input.receiptId}`);
+            try {
+              const allImageUrls: string[] = [];
+              if (receipt.imageUrls && Array.isArray(receipt.imageUrls)) {
+                allImageUrls.push(...receipt.imageUrls);
+              } else if (receipt.imageUrl) {
+                allImageUrls.push(receipt.imageUrl);
+              }
+              
+              if (allImageUrls.length > 0) {
+                const imageContents: any[] = allImageUrls.map(url => ({
+                  type: "image_url" as const,
+                  image_url: { url, detail: "low" as const },
+                }));
+                imageContents.push({
+                  type: "text" as const,
+                  text: "この画像から合計金額（totalAmount）のみを数値で抽出してください。通貨記号やカンマは除去してください。JSON形式で {\"totalAmount\": 数値} のみ返してください。",
+                });
+                
+                const ocrResult = await invokeLLM({
+                  messages: [
+                    { role: "system", content: "レシート画像から合計金額を抽出するAIです。JSONのみ返してください。" },
+                    { role: "user", content: imageContents },
+                  ],
+                });
+                
+                const msgContent = ocrResult.choices[0].message.content as string;
+                let jsonStr = msgContent.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+                const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                  const parsed = JSON.parse(jsonMatch[0]);
+                  if (parsed.totalAmount && typeof parsed.totalAmount === "number" && parsed.totalAmount > 0) {
+                    orderAmount = parsed.totalAmount;
+                    console.log(`[KakuhenPlay] Fallback OCR success, amount: ${orderAmount}`);
+                    // OCR結果をDBにも保存（次回以降のために）
+                    try {
+                      await updateLineReceiptOcr(input.receiptId, {
+                        totalAmount: orderAmount,
+                        pointsCalculated: Math.floor(orderAmount * 0.01),
+                      });
+                    } catch (saveErr) {
+                      console.error("[KakuhenPlay] Failed to save fallback OCR result:", saveErr);
+                    }
+                  }
+                }
+              }
+            } catch (ocrErr) {
+              console.error("[KakuhenPlay] Fallback OCR failed:", ocrErr);
+              // OCR失敗してもエラーにはせず、orderAmount=0のまま続行
+            }
           }
         } else {
           // point_request の場合

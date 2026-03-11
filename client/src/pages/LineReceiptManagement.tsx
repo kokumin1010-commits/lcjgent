@@ -2935,9 +2935,9 @@ function AiReviewLogPanel() {
             <p className="text-lg font-bold text-amber-700">{summaryCounts.held}</p>
             <p className="text-[10px] text-amber-600">{t("lr.aiLog.aiHeld")}</p>
           </div>
-          <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-2.5 text-center">
-            <p className="text-lg font-bold text-gray-600">{summaryCounts.skipped}</p>
-            <p className="text-[10px] text-gray-500">{t("lr.aiLog.skipped")}</p>
+          <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-2.5 text-center">
+            <p className="text-lg font-bold text-blue-600">{summaryCounts.pendingManual}</p>
+            <p className="text-[10px] text-blue-500">{t("lr.aiLog.skipped")}</p>
           </div>
         </div>
       )}
@@ -3084,8 +3084,7 @@ function AiReviewLogPanel() {
           { value: "rejected_duplicate", label: t("lr.aiLog.duplicateRejected"), icon: ShieldX, count: summaryCounts.rejected },
           { value: "rejected_ai", label: t("lr.aiLog.aiRejected"), icon: ShieldX, count: summaryCounts.rejectedAi },
           { value: "held", label: t("lr.aiLog.aiHeld"), icon: ShieldAlert, count: summaryCounts.held },
-          { value: "skipped", label: t("lr.aiLog.skipped"), icon: SkipForward, count: summaryCounts.skipped },
-          { value: "pending_manual", label: "手動審査へ", icon: SkipForward, count: summaryCounts.pendingManual, highlight: true },
+          { value: "pending_manual", label: t("lr.aiLog.skipped"), icon: SkipForward, count: summaryCounts.pendingManual, highlight: true },
           { value: "human_approved", label: "人間承認", icon: UserCheck, count: summaryCounts.humanApproved },
           { value: "human_rejected", label: "人間却下", icon: UserX, count: summaryCounts.humanRejected },
         ].map(({ value, label, icon: Icon, count, highlight }: any) => (
