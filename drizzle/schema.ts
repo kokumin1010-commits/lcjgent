@@ -3809,3 +3809,39 @@ export const brandAdditionLogs = mysqlTable("brand_addition_logs", {
 });
 export type BrandAdditionLog = typeof brandAdditionLogs.$inferSelect;
 export type InsertBrandAdditionLog = typeof brandAdditionLogs.$inferInsert;
+
+/**
+ * Lessons Learned table for AI self-evolution system.
+ * Stores all bugs, fixes, patterns, and knowledge discovered during development.
+ * Each new Manus session reads all active lessons to avoid repeating past mistakes.
+ *
+ * Categories:
+ *   danger     - Things that must NEVER be done
+ *   lesson     - Patterns learned from past failures
+ *   dependency - File/module dependencies
+ *   rule       - System invariants / correct state definitions
+ *   status     - Current state of features
+ *   checklist  - Verification items for specific operations
+ *   preference - User preferences and policies
+ *   bugfix     - Specific bug fixes with root cause analysis
+ *   workflow   - Development workflow best practices
+ */
+export const lessonsLearned = mysqlTable("lessons_learned", {
+  id: int("id").autoincrement().primaryKey(),
+  category: mysqlEnum("category", [
+    "danger", "lesson", "dependency", "rule", "status",
+    "checklist", "preference", "bugfix", "workflow"
+  ]).notNull(),
+  severity: mysqlEnum("severity", ["critical", "warning", "info"]).default("info").notNull(),
+  title: varchar("title", { length: 500 }).notNull(),
+  content: text("content").notNull(),
+  compactRule: text("compactRule"),
+  checkPattern: varchar("checkPattern", { length: 500 }),
+  relatedFeature: varchar("relatedFeature", { length: 100 }),
+  relatedFiles: json("relatedFiles").$type<string[]>(),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type LessonLearned = typeof lessonsLearned.$inferSelect;
+export type InsertLessonLearned = typeof lessonsLearned.$inferInsert;
