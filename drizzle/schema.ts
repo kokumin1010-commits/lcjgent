@@ -189,6 +189,7 @@ export const brands = mysqlTable("brands", {
   createdBy: int("createdBy").notNull(), // User ID who created the brand
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  deletedAt: timestamp("deletedAt"), // ソフトデリート用タイムスタンプ（NULLなら有効、値があれば削除済み）
 });
 
 export type Brand = typeof brands.$inferSelect;
@@ -225,6 +226,7 @@ export const brandProducts = mysqlTable("brand_products", {
   usageMethod: text("usageMethod"), // 使用方法
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  deletedAt: timestamp("deletedAt"), // ソフトデリート用タイムスタンプ
 });
 
 export type BrandProduct = typeof brandProducts.$inferSelect;
@@ -244,6 +246,7 @@ export const brandActivities = mysqlTable("brand_activities", {
   createdBy: int("createdBy").notNull(), // User ID who created the activity
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  deletedAt: timestamp("deletedAt"), // ソフトデリート用タイムスタンプ
 });
 
 export type BrandActivity = typeof brandActivities.$inferSelect;
@@ -442,8 +445,8 @@ export const brandContracts = mysqlTable("brand_contracts", {
   createdBy: int("createdBy").notNull(), // 作成者（user ID）
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  deletedAt: timestamp("deletedAt"), // ソフトデリート用タイムスタンプ
 });
-
 export type BrandContract = typeof brandContracts.$inferSelect;
 export type InsertBrandContract = typeof brandContracts.$inferInsert;
 
@@ -898,6 +901,7 @@ export const brandMemos = mysqlTable("brand_memos", {
   createdBy: int("createdBy").notNull(), // User ID who created the memo
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  deletedAt: timestamp("deletedAt"), // ソフトデリート用タイムスタンプ
 });
 
 export type BrandMemo = typeof brandMemos.$inferSelect;
@@ -980,6 +984,7 @@ export const brandFiles = mysqlTable("brand_files", {
   uploadedBy: int("uploadedBy").notNull(), // User ID who uploaded the file
   uploadedByName: varchar("uploadedByName", { length: 255 }).notNull(), // アップロードしたユーザー名
   createdAt: timestamp("createdAt").defaultNow().notNull(),
+  deletedAt: timestamp("deletedAt"), // ソフトデリート用タイムスタンプ
 });
 
 export type BrandFile = typeof brandFiles.$inferSelect;

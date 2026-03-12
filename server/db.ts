@@ -830,7 +830,7 @@ export async function getAllBrands(filters?: { status?: string; search?: string 
   
   let query = db.select().from(brands);
   
-  const conditions = [];
+  const conditions: any[] = [isNull(brands.deletedAt)]; // ソフトデリート済みを除外
   if (filters?.status) {
     conditions.push(eq(brands.status, filters.status as any));
   }
@@ -838,9 +838,7 @@ export async function getAllBrands(filters?: { status?: string; search?: string 
     conditions.push(like(brands.name, `%${filters.search}%`));
   }
   
-  if (conditions.length > 0) {
-    query = query.where(and(...conditions)) as any;
-  }
+  query = query.where(and(...conditions)) as any;
   
   const brandsResult = await query.orderBy(desc(brands.updatedAt));
   
@@ -855,11 +853,11 @@ export async function getAllBrands(filters?: { status?: string; search?: string 
       
       const totalGmv = livestreams.reduce((sum, ls) => sum + (ls.gmv || 0), 0);
       
-      // Get total contract amount (fixedFee) from contracts
+      // Get total contract amount (fixedFee) from contracts (exclude soft-deleted)
       const contracts = await db
         .select({ fixedFee: brandContracts.fixedFee })
         .from(brandContracts)
-        .where(eq(brandContracts.brandId, brand.id));
+        .where(and(eq(brandContracts.brandId, brand.id), isNull(brandContracts.deletedAt)));
       
       const totalAdBudget = contracts.reduce((sum, c) => sum + (c.fixedFee || 0), 0);
       
@@ -879,7 +877,7 @@ export async function getBrandById(id: number) {
   const db = await getDb();
   if (!db) return undefined;
   
-  const result = await db.select().from(brands).where(eq(brands.id, id)).limit(1);
+  const result = await db.select().from(brands).where(and(eq(brands.id, id), isNull(brands.deletedAt))).limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
 
@@ -897,10 +895,15 @@ export async function deleteBrand(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  // Delete related products and activities first
-  await db.delete(brandProducts).where(eq(brandProducts.brandId, id));
-  await db.delete(brandActivities).where(eq(brandActivities.brandId, id));
-  await db.delete(brands).where(eq(brands.id, id));
+  const now = new Date();
+  // ソフトデリート: 関連データも全て論理削除
+  await db.update(brandProducts).set({ deletedAt: now }).where(and(eq(brandProducts.brandId, id), isNull(brandProducts.deletedAt)));
+  await db.update(brandActivities).set({ deletedAt: now }).where(and(eq(brandActivities.brandId, id), isNull(brandActivities.deletedAt)));
+  await db.update(brandContracts).set({ deletedAt: now }).where(and(eq(brandContracts.brandId, id), isNull(brandContracts.deletedAt)));
+  await db.update(brandMemos).set({ deletedAt: now }).where(and(eq(brandMemos.brandId, id), isNull(brandMemos.deletedAt)));
+  await db.update(brandFiles).set({ deletedAt: now }).where(and(eq(brandFiles.brandId, id), isNull(brandFiles.deletedAt)));
+  await db.update(brandLivestreams).set({ deletedAt: now }).where(and(eq(brandLivestreams.brandId, id), isNull(brandLivestreams.deletedAt)));
+  await db.update(brands).set({ deletedAt: now }).where(eq(brands.id, id));
 }
 
 // ========== Brand Products Functions ==========
@@ -919,7 +922,7 @@ export async function getAllProducts() {
   const db = await getDb();
   if (!db) return [];
   
-  return await db.select().from(brandProducts).orderBy(desc(brandProducts.createdAt));
+  return await db.select().from(brandProducts).where(isNull(brandProducts.deletedAt)).orderBy(desc(brandProducts.createdAt));
 }
 
 // Get products by brand ID
@@ -927,7 +930,7 @@ export async function getProductsByBrandId(brandId: number) {
   const db = await getDb();
   if (!db) return [];
   
-  return await db.select().from(brandProducts).where(eq(brandProducts.brandId, brandId)).orderBy(desc(brandProducts.createdAt));
+  return await db.select().from(brandProducts).where(and(eq(brandProducts.brandId, brandId), isNull(brandProducts.deletedAt))).orderBy(desc(brandProducts.createdAt));
 }
 
 // Get products by brand ID with GMV from linked livestreams
@@ -935,8 +938,8 @@ export async function getProductsByBrandIdWithGmv(brandId: number) {
   const db = await getDb();
   if (!db) return [];
   
-  // Get all products for the brand
-  const products = await db.select().from(brandProducts).where(eq(brandProducts.brandId, brandId)).orderBy(desc(brandProducts.createdAt));
+  // Get all products for the brand (exclude soft-deleted)
+  const products = await db.select().from(brandProducts).where(and(eq(brandProducts.brandId, brandId), isNull(brandProducts.deletedAt))).orderBy(desc(brandProducts.createdAt));
   
   // Get all livestreams for the brand that have a productId
   const livestreams = await db.select().from(brandLivestreams).where(
@@ -968,7 +971,7 @@ export async function getBrandProductById(id: number) {
   const db = await getDb();
   if (!db) return null;
   
-  const result = await db.select().from(brandProducts).where(eq(brandProducts.id, id)).limit(1);
+  const result = await db.select().from(brandProducts).where(and(eq(brandProducts.id, id), isNull(brandProducts.deletedAt))).limit(1);
   return result.length > 0 ? result[0] : null;
 }
 
@@ -985,7 +988,8 @@ export async function deleteBrandProduct(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  await db.delete(brandProducts).where(eq(brandProducts.id, id));
+  // ソフトデリート: deletedAtを設定して論理削除
+  await db.update(brandProducts).set({ deletedAt: new Date() }).where(eq(brandProducts.id, id));
 }
 
 // ========== Brand Activities Functions ==========
@@ -1004,7 +1008,7 @@ export async function getActivitiesByBrandId(brandId: number) {
   const db = await getDb();
   if (!db) return [];
   
-  return await db.select().from(brandActivities).where(eq(brandActivities.brandId, brandId)).orderBy(desc(brandActivities.activityDate));
+  return await db.select().from(brandActivities).where(and(eq(brandActivities.brandId, brandId), isNull(brandActivities.deletedAt))).orderBy(desc(brandActivities.activityDate));
 }
 
 // Update activity
@@ -1020,7 +1024,8 @@ export async function deleteBrandActivity(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  await db.delete(brandActivities).where(eq(brandActivities.id, id));
+  // ソフトデリート: deletedAtを設定して論理削除
+  await db.update(brandActivities).set({ deletedAt: new Date() }).where(eq(brandActivities.id, id));
 }
 
 // Get brand statistics
@@ -1028,7 +1033,7 @@ export async function getBrandStatistics() {
   const db = await getDb();
   if (!db) return { total: 0, byStatus: {} };
   
-  const allBrands = await db.select().from(brands);
+  const allBrands = await db.select().from(brands).where(isNull(brands.deletedAt));
   
   const byStatus: Record<string, number> = {};
   allBrands.forEach(brand => {
@@ -1509,7 +1514,7 @@ export async function getBrandsByLcjStaff(reportStaffId: number) {
   return await db
     .select()
     .from(brands)
-    .where(inArray(brands.id, brandIds.map(b => b.brandId)))
+    .where(and(inArray(brands.id, brandIds.map(b => b.brandId)), isNull(brands.deletedAt)))
     .orderBy(desc(brands.updatedAt));
 }
 
@@ -1621,7 +1626,7 @@ export async function getContractsByBrandId(brandId: number) {
   return await db
     .select()
     .from(brandContracts)
-    .where(eq(brandContracts.brandId, brandId))
+    .where(and(eq(brandContracts.brandId, brandId), isNull(brandContracts.deletedAt)))
     .orderBy(desc(brandContracts.createdAt));
 }
 
@@ -1633,7 +1638,7 @@ export async function getContractById(id: number) {
   const result = await db
     .select()
     .from(brandContracts)
-    .where(eq(brandContracts.id, id))
+    .where(and(eq(brandContracts.id, id), isNull(brandContracts.deletedAt)))
     .limit(1);
   
   return result.length > 0 ? result[0] : undefined;
@@ -1647,16 +1652,14 @@ export async function updateBrandContract(id: number, data: Partial<InsertBrandC
   await db.update(brandContracts).set(data).where(eq(brandContracts.id, id));
 }
 
-// Delete a brand contract (and all related livestream links)
+// Delete a brand contract (soft delete)
 export async function deleteBrandContract(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  // First, delete all related livestream links
-  await deleteAllContractLivestreamLinks(id);
-  
-  // Then delete the contract itself
-  await db.delete(brandContracts).where(eq(brandContracts.id, id));
+  // ソフトデリート: deletedAtを設定して論理削除
+  // 関連のlivestreamLinksはそのまま残す（契約が論理削除されても配信履歴は保持）
+  await db.update(brandContracts).set({ deletedAt: new Date() }).where(eq(brandContracts.id, id));
 }
 
 // Get all contracts (for statistics)
@@ -1664,9 +1667,8 @@ export async function getAllContracts() {
   const db = await getDb();
   if (!db) return [];
   
-  return await db.select().from(brandContracts).orderBy(desc(brandContracts.createdAt));
+   return await db.select().from(brandContracts).where(isNull(brandContracts.deletedAt)).orderBy(desc(brandContracts.createdAt));
 }
-
 // Get active contracts count by brand ID
 export async function getActiveContractsCount(brandId: number) {
   const db = await getDb();
@@ -1677,7 +1679,8 @@ export async function getActiveContractsCount(brandId: number) {
     .from(brandContracts)
     .where(and(
       eq(brandContracts.brandId, brandId),
-      eq(brandContracts.status, "契約中")
+      eq(brandContracts.status, "契約中"),
+      isNull(brandContracts.deletedAt)
     ));
   
   return result[0]?.count || 0;
@@ -3554,19 +3557,18 @@ export async function createBrandMemo(memoData: InsertBrandMemo) {
 export async function getMemosByBrandId(brandId: number) {
   const db = await getDb();
   if (!db) return [];
-
   return await db
     .select()
     .from(brandMemos)
-    .where(eq(brandMemos.brandId, brandId))
+    .where(and(eq(brandMemos.brandId, brandId), isNull(brandMemos.deletedAt)))
     .orderBy(desc(brandMemos.createdAt));
 }
 
 export async function deleteBrandMemo(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
-  return await db.delete(brandMemos).where(eq(brandMemos.id, id));
+  // ソフトデリート: deletedAtを設定して論理削除
+  return await db.update(brandMemos).set({ deletedAt: new Date() }).where(eq(brandMemos.id, id));
 }
 
 export async function updateBrandMemo(id: number, updateData: Partial<InsertBrandMemo>) {
@@ -4072,7 +4074,7 @@ export async function getBrandFiles(brandId: number) {
   const result = await db
     .select()
     .from(brandFiles)
-    .where(eq(brandFiles.brandId, brandId))
+    .where(and(eq(brandFiles.brandId, brandId), isNull(brandFiles.deletedAt)))
     .orderBy(desc(brandFiles.createdAt));
   
   return result;
@@ -4107,8 +4109,10 @@ export async function deleteBrandFile(fileId: number, brandId: number) {
     throw new Error("File not found");
   }
   
+  // ソフトデリート: deletedAtを設定して論理削除
   await db
-    .delete(brandFiles)
+    .update(brandFiles)
+    .set({ deletedAt: new Date() })
     .where(and(eq(brandFiles.id, fileId), eq(brandFiles.brandId, brandId)));
   
   return { fileKey: file[0].fileKey, fileName: file[0].fileName };
@@ -4121,17 +4125,15 @@ export async function getBrandFileById(fileId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  const result = await db
+   const result = await db
     .select()
     .from(brandFiles)
-    .where(eq(brandFiles.id, fileId))
+    .where(and(eq(brandFiles.id, fileId), isNull(brandFiles.deletedAt)))
     .limit(1);
   
   return result.length > 0 ? result[0] : null;
 }
-
-
-// ==================== Product Links Functions ====================
+// ==================== Product Links Functions =====================
 
 /**
  * Get all links for a product
@@ -8276,8 +8278,7 @@ export async function getLiverSalesStatsByBrand(brandId: number) {
   // Get all products for this brand
   const products = await db.select({ id: brandProducts.id })
     .from(brandProducts)
-    .where(eq(brandProducts.brandId, brandId));
-
+    .where(and(eq(brandProducts.brandId, brandId), isNull(brandProducts.deletedAt)));
   if (products.length === 0) return [];
 
   const productIds = products.map(p => p.id);
@@ -11069,7 +11070,7 @@ export async function findSimilarCases(params: {
   const productMap = new Map<number, string>();
 
   if (brandIds.length > 0) {
-    const brandRows = await db.select({ id: brands.id, name: brands.name, nameJa: brands.nameJa }).from(brands).where(inArray(brands.id, brandIds));
+    const brandRows = await db.select({ id: brands.id, name: brands.name, nameJa: brands.nameJa }).from(brands).where(and(inArray(brands.id, brandIds), isNull(brands.deletedAt)));
     for (const b of brandRows) {
       brandMap.set(b.id, b.nameJa || b.name);
     }

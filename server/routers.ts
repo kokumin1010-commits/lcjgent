@@ -596,7 +596,7 @@ import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
 import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs } from "../drizzle/schema";
-import { eq, and, not, isNotNull, desc, gt } from "drizzle-orm";
+import { eq, and, not, isNotNull, isNull, desc, gt } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
 import { ENV } from "./_core/env";
@@ -8642,7 +8642,7 @@ ${conversationText}
           const brandResult = await db
             .select()
             .from(brands)
-            .where(eq(brands.id, user.brandId))
+            .where(and(eq(brands.id, user.brandId), isNull(brands.deletedAt)))
             .limit(1);
           linkedBrand = brandResult[0] || null;
         }
