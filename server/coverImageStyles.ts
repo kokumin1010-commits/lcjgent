@@ -1,181 +1,194 @@
 /**
- * Cover Image Styles
+ * Cover Image Styles v2
  * 
  * Generates article-type-specific cover image prompts for blog posts.
- * Each article type (ranking, comparison, guide, review, news, howto, listicle)
- * gets a distinct visual style to make the blog visually diverse and recognizable.
+ * Each article type gets multiple visual variants to ensure diversity.
  * 
- * Also provides keyword-based article type detection for cases where
- * the article type is not explicitly set.
+ * Key improvements:
+ * - Multiple style variants per article type (randomly selected)
+ * - Photo-realistic styles including model/lifestyle photography
+ * - Product flat-lay and editorial magazine styles
+ * - No more uniform "digital illustration" — each generation is unique
  */
 
 export type ArticleType = 'guide' | 'review' | 'comparison' | 'news' | 'howto' | 'listicle' | 'ranking' | 'ingredient_analysis';
 
 /**
  * Detect article type from keyword and title
- * Used when articleType is not explicitly set or is generic
  */
 export function detectArticleType(keyword: string, title: string): ArticleType {
   const text = `${keyword} ${title}`.toLowerCase();
-
-  // Ranking detection
-  if (/ランキング|おすすめ\d+選|人気\d+選|ベスト\d+|top\s?\d+|売れ筋|best|ranking/i.test(text)) {
-    return 'ranking';
-  }
-
-  // Comparison detection
-  if (/比較|vs|対決|違い|どっち|どちら|comparison|versus/i.test(text)) {
-    return 'comparison';
-  }
-
-  // Ingredient analysis detection
-  if (/成分|解析|配合|ingredient|analysis|処方|全成分/i.test(text)) {
-    return 'ingredient_analysis';
-  }
-
-  // Review detection
-  if (/レビュー|口コミ|使ってみた|体験|感想|review|実際に|本音/i.test(text)) {
-    return 'review';
-  }
-
-  // HowTo detection
-  if (/方法|やり方|使い方|手順|ステップ|how\s?to|コツ|テクニック|正しい/i.test(text)) {
-    return 'howto';
-  }
-
-  // News detection
-  if (/新発売|新商品|ニュース|トレンド|最新|2025|2026|news|new|限定|コラボ/i.test(text)) {
-    return 'news';
-  }
-
-  // Listicle detection
-  if (/選|まとめ|一覧|リスト|コレクション|list|collection/i.test(text)) {
-    return 'listicle';
-  }
-
-  // Default to guide
+  if (/ランキング|おすすめ\d+選|人気\d+選|ベスト\d+|top\s?\d+|売れ筋|best|ranking/i.test(text)) return 'ranking';
+  if (/比較|vs|対決|違い|どっち|どちら|comparison|versus/i.test(text)) return 'comparison';
+  if (/成分|解析|配合|ingredient|analysis|処方|全成分/i.test(text)) return 'ingredient_analysis';
+  if (/レビュー|口コミ|使ってみた|体験|感想|review|実際に|本音/i.test(text)) return 'review';
+  if (/方法|やり方|使い方|手順|ステップ|how\s?to|コツ|テクニック|正しい/i.test(text)) return 'howto';
+  if (/新発売|新商品|ニュース|トレンド|最新|2025|2026|news|new|限定|コラボ/i.test(text)) return 'news';
+  if (/選|まとめ|一覧|リスト|コレクション|list|collection/i.test(text)) return 'listicle';
   return 'guide';
 }
 
-/**
- * Style configurations for each article type
- */
-interface CoverImageStyle {
-  /** Visual style description */
-  visualStyle: string;
-  /** Color palette description */
-  colorPalette: string;
-  /** Layout/composition description */
-  composition: string;
-  /** Mood/atmosphere */
-  mood: string;
-  /** Additional elements to include */
-  elements: string;
+/** Style variant for cover image generation */
+interface StyleVariant {
+  description: string;
+  prompt: string;
 }
 
-const COVER_IMAGE_STYLES: Record<ArticleType, CoverImageStyle> = {
-  ranking: {
-    visualStyle: 'Bold, dynamic editorial layout with numbered ranking elements and gold/trophy accents',
-    colorPalette: 'Rich gold, deep navy blue, and white. Metallic gold gradients for premium feel',
-    composition: 'Top-down flat lay arrangement of beauty products with numbered badges (1st, 2nd, 3rd). Trophy or crown icon at the top',
-    mood: 'Prestigious, authoritative, exciting discovery',
-    elements: 'Gold medal badges, star ratings, podium-style arrangement, sparkle effects',
-  },
-
-  comparison: {
-    visualStyle: 'Clean split-screen layout with VS divider, analytical and structured',
-    colorPalette: 'Coral pink vs mint green split, with white divider. Clean contrasting colors',
-    composition: 'Side-by-side split layout with products on each side. Clear VS or comparison arrows in the center',
-    mood: 'Objective, analytical, helpful decision-making',
-    elements: 'VS badge, comparison arrows, checkmark/cross icons, split background',
-  },
-
-  guide: {
-    visualStyle: 'Warm, inviting editorial style with soft gradients and professional beauty photography feel',
-    colorPalette: 'Soft lavender, cream, and rose gold. Gentle pastel gradients',
-    composition: 'Central product or concept with radiating guide elements. Open book or compass motif',
-    mood: 'Trustworthy, educational, approachable',
-    elements: 'Lightbulb icon, guide arrows, step indicators, soft bokeh background',
-  },
-
-  review: {
-    visualStyle: 'Authentic, lifestyle-oriented with real-feel texture and personal touch',
-    colorPalette: 'Warm beige, soft pink, and natural earth tones. Instagram-aesthetic warmth',
-    composition: 'Close-up product shot with hand or lifestyle context. Star rating overlay. Authentic, unboxing feel',
-    mood: 'Honest, personal, relatable',
-    elements: 'Star rating display, speech bubble quotes, heart icons, natural lighting feel',
-  },
-
-  howto: {
-    visualStyle: 'Step-by-step instructional layout with numbered circles and clean process flow',
-    colorPalette: 'Fresh teal, white, and light gray. Clean, clinical precision with warmth',
-    composition: 'Sequential step layout (1→2→3) with product at center. Hands demonstrating technique',
-    mood: 'Clear, instructional, empowering',
-    elements: 'Numbered step circles, arrow flow, hands/tools, progress bar',
-  },
-
-  news: {
-    visualStyle: 'Bold, attention-grabbing editorial with breaking-news energy and modern typography feel',
-    colorPalette: 'Vibrant red, black, and white. High contrast, urgent feel',
-    composition: 'Dynamic diagonal layout with product hero shot. Flash/burst effect. Magazine cover style',
-    mood: 'Exciting, urgent, trendsetting',
-    elements: 'NEW badge, flash burst, trend arrows, calendar/date element',
-  },
-
-  listicle: {
-    visualStyle: 'Colorful grid mosaic layout with multiple product thumbnails arranged attractively',
-    colorPalette: 'Multi-color pastel palette — each item gets a different accent color. Rainbow gradient undertone',
-    composition: 'Grid or collage arrangement of multiple products. Numbered items in a visually pleasing pattern',
-    mood: 'Fun, diverse, comprehensive',
-    elements: 'Numbered grid cells, colorful product thumbnails, collection/gallery feel',
-  },
-
-  ingredient_analysis: {
-    visualStyle: 'Scientific, laboratory-inspired with molecular structures and clean data visualization',
-    colorPalette: 'Clinical white, emerald green, and deep blue. Scientific precision colors',
-    composition: 'Microscope or lab flask with product. Molecular structure diagrams. Data chart overlay',
-    mood: 'Scientific, authoritative, detailed',
-    elements: 'Molecular diagrams, magnifying glass, lab equipment, ingredient list overlay, chemical formulas',
-  },
+/**
+ * Multiple style variants per article type.
+ * A random variant is selected each time to ensure visual diversity.
+ */
+const STYLE_VARIANTS: Record<ArticleType, StyleVariant[]> = {
+  ranking: [
+    {
+      description: 'Product flat-lay photography',
+      prompt: `Overhead flat-lay product photography on a clean marble surface. Multiple premium beauty and hair care products arranged in a numbered layout (1st, 2nd, 3rd). Soft natural window lighting from the left. Gold accents and small decorative elements (dried flowers, silk ribbon). Shot with a 50mm lens, shallow depth of field on edges. Luxurious, editorial product photography style. Warm neutral tones with gold highlights.`,
+    },
+    {
+      description: 'Model with top-pick products',
+      prompt: `A beautiful Asian woman with glossy, healthy hair holding a premium hair care product, smiling confidently. She is in a bright, modern bathroom with clean white tiles. Other beauty products are neatly arranged on the counter behind her. Professional beauty magazine photography, soft ring light, warm skin tones. The image conveys trust and recommendation.`,
+    },
+    {
+      description: 'Podium-style product showcase',
+      prompt: `Three elegant cylindrical podiums (gold, silver, bronze) displaying premium beauty products in a minimalist studio setting. Dramatic spotlight lighting from above. Soft gradient background transitioning from deep navy to warm rose gold. Floating sparkle particles. High-end cosmetics advertising photography style.`,
+    },
+  ],
+  comparison: [
+    {
+      description: 'Side-by-side product comparison',
+      prompt: `Professional product comparison photography. Two premium beauty products placed side by side on a clean white surface with a subtle dividing line between them. One side has cool blue-tinted lighting, the other warm golden lighting. Minimalist, analytical feel. Shot from a 45-degree angle with a macro lens. Clean, modern, editorial style.`,
+    },
+    {
+      description: 'Woman choosing between products',
+      prompt: `A stylish Asian woman in a bright beauty store, thoughtfully comparing two hair care products, one in each hand. She has beautiful, well-maintained hair. The store has modern shelving with warm lighting. Lifestyle photography style, natural expressions, candid feel. Soft bokeh background.`,
+    },
+    {
+      description: 'Split-screen editorial',
+      prompt: `Split-screen editorial beauty photography. Left side shows a sleek, modern hair care product with cool mint and white tones. Right side shows a competing product with warm coral and cream tones. Both sides have elegant, minimalist styling with small decorative botanicals. Professional advertising photography with perfect lighting.`,
+    },
+  ],
+  guide: [
+    {
+      description: 'Model demonstrating hair care routine',
+      prompt: `A beautiful Asian woman with long, flowing healthy hair in a luxurious bathroom, gently applying hair treatment. Soft morning light streaming through a frosted window. The scene is warm and inviting with premium beauty products on a marble countertop. Lifestyle editorial photography, shallow depth of field, warm golden hour tones. Aspirational, magazine-quality.`,
+    },
+    {
+      description: 'Step-by-step beauty routine flat-lay',
+      prompt: `Elegant flat-lay photography showing a complete beauty care routine. Products arranged in a circular flow pattern on a soft linen background. Numbered steps indicated by small gold circular tags. Fresh flowers, a soft towel, and natural elements as accents. Overhead shot, soft diffused lighting, warm pastel color palette. Clean, organized, and inviting.`,
+    },
+    {
+      description: 'Cozy self-care scene',
+      prompt: `A serene self-care scene: a woman's hands applying luxurious cream, surrounded by premium beauty products, a cup of herbal tea, soft candles, and fresh eucalyptus. Shot on a wooden tray on a bed with white linen. Warm, cozy atmosphere with soft natural light. Lifestyle photography, hygge aesthetic, inviting and aspirational.`,
+    },
+  ],
+  review: [
+    {
+      description: 'Unboxing lifestyle shot',
+      prompt: `Authentic unboxing scene of premium beauty products on a cozy desk. A woman's manicured hands opening an elegant package. Products partially revealed with tissue paper and branded packaging. Natural window light, warm tones. A cup of coffee and a small plant in the background. Lifestyle blog photography style, personal and relatable.`,
+    },
+    {
+      description: 'Before/after hair transformation',
+      prompt: `Professional beauty photography showing a stunning hair transformation. A beautiful Asian woman with gorgeous, shiny, healthy-looking hair, photographed in a salon setting with professional lighting. The image radiates confidence and satisfaction. Soft bokeh lights in the background. High-end beauty magazine style, warm skin tones.`,
+    },
+    {
+      description: 'Product close-up with texture',
+      prompt: `Extreme close-up macro photography of a premium beauty product with its luxurious texture visible — creamy, pearlescent, or gel-like. The product is swirled artistically on a clean surface. Soft, diffused studio lighting highlights the texture. Minimalist background with a subtle color gradient. High-end cosmetics advertising style.`,
+    },
+  ],
+  howto: [
+    {
+      description: 'Tutorial-style with model',
+      prompt: `A professional hair stylist working on a beautiful Asian client's hair in a modern, well-lit salon. The stylist is demonstrating a technique with professional tools. Clean, bright environment with mirrors and salon equipment. The client looks relaxed and happy. Professional beauty photography, warm lighting, editorial quality.`,
+    },
+    {
+      description: 'Step-by-step hands demonstration',
+      prompt: `Close-up photography of elegant hands demonstrating a beauty technique step by step. Premium products and tools arranged neatly nearby. Clean white marble surface. Soft, directional lighting creating gentle shadows. Each element is clearly visible and well-organized. Instructional yet beautiful, like a high-end beauty tutorial.`,
+    },
+    {
+      description: 'DIY home beauty setup',
+      prompt: `A beautifully arranged home beauty station with all the tools and products needed for a DIY treatment. Items laid out on a clean wooden surface with a soft towel, mirror, and natural elements. Warm, inviting atmosphere with soft natural light. The scene looks approachable and inspiring, like a Pinterest-worthy beauty setup.`,
+    },
+  ],
+  news: [
+    {
+      description: 'Editorial magazine cover style',
+      prompt: `Bold, eye-catching editorial beauty photography. A confident Asian model with striking makeup and perfect hair, posed dynamically against a vibrant gradient background (deep purple to hot pink). Professional studio lighting with dramatic rim light. Fashion magazine cover energy. Modern, trendy, attention-grabbing.`,
+    },
+    {
+      description: 'New product launch scene',
+      prompt: `Dramatic product launch photography. A sleek new beauty product spotlighted on a reflective black surface. Colorful light beams (neon pink, electric blue) creating dynamic streaks around the product. Futuristic, high-tech atmosphere. Premium cosmetics advertising style with cinematic lighting.`,
+    },
+    {
+      description: 'Trend collage editorial',
+      prompt: `Modern beauty trend editorial photography. A stylish Asian woman in a contemporary setting, surrounded by trending beauty products and lifestyle elements. Bold, vibrant colors — electric coral, deep teal, bright yellow accents. Dynamic composition with interesting angles. Fashion-forward, Instagram-worthy aesthetic.`,
+    },
+  ],
+  listicle: [
+    {
+      description: 'Curated collection flat-lay',
+      prompt: `A beautifully curated collection of diverse beauty products arranged in an aesthetic grid pattern on a soft pink background. Each product has a small numbered tag. Variety of textures, sizes, and colors creating visual interest. Overhead photography with even, soft lighting. Clean, organized, and visually satisfying. Magazine editorial style.`,
+    },
+    {
+      description: 'Shopping bag spill',
+      prompt: `Premium beauty products artfully spilling out of an elegant shopping bag onto a clean white surface. A mix of hair care, skincare, and beauty tools creating a colorful, exciting display. Soft natural lighting, warm tones. The scene conveys the excitement of a beauty haul. Lifestyle photography, aspirational and fun.`,
+    },
+    {
+      description: 'Model with multiple products',
+      prompt: `A cheerful Asian woman surrounded by floating beauty products in a bright, airy studio. She is reaching for one of the products with a delighted expression. Soft pastel background with gentle gradient. Professional beauty advertising photography with perfect lighting. Fun, energetic, and engaging.`,
+    },
+  ],
+  ingredient_analysis: [
+    {
+      description: 'Scientific beauty lab',
+      prompt: `A modern cosmetics laboratory scene. A scientist in a clean white coat examining a beauty product formulation under professional lighting. Glass beakers, test tubes with colorful serums, and molecular models on the desk. Clean, clinical environment with warm accent lighting. Scientific yet beautiful, conveying expertise and trust.`,
+    },
+    {
+      description: 'Natural ingredients close-up',
+      prompt: `Stunning close-up photography of natural beauty ingredients — fresh botanicals, essential oils in glass droppers, honey, aloe vera, and flower extracts — arranged artistically around a premium beauty product. Clean white background with soft shadows. The ingredients look fresh and vibrant. High-end cosmetics ingredient photography.`,
+    },
+    {
+      description: 'Molecular beauty art',
+      prompt: `Abstract beauty science visualization. Translucent molecular structures and DNA helixes floating around premium skincare products. Soft blue and green bioluminescent glow. Clean, futuristic aesthetic with depth of field effects. The image bridges science and beauty elegantly. High-end pharmaceutical cosmetics advertising style.`,
+    },
+  ],
 };
 
 /**
- * Generate a cover image prompt for the given article type and title
+ * Generate a cover image prompt with random variant selection for diversity
  */
 export function generateCoverImagePrompt(
   title: string,
   articleType: ArticleType | string,
   keyword?: string,
 ): string {
-  // Resolve article type — detect from title/keyword if generic
+  // Resolve article type
   let resolvedType: ArticleType;
   const validTypes: ArticleType[] = ['guide', 'review', 'comparison', 'news', 'howto', 'listicle', 'ranking', 'ingredient_analysis'];
-
   if (validTypes.includes(articleType as ArticleType)) {
     resolvedType = articleType as ArticleType;
   } else {
     resolvedType = detectArticleType(keyword || '', title);
   }
 
-  const style = COVER_IMAGE_STYLES[resolvedType];
+  const variants = STYLE_VARIANTS[resolvedType];
+  // Random variant selection for diversity
+  const variantIndex = Math.floor(Math.random() * variants.length);
+  const variant = variants[variantIndex];
 
   const prompt = [
-    `Professional blog cover image for: "${title}".`,
-    `Visual Style: ${style.visualStyle}.`,
-    `Color Palette: ${style.colorPalette}.`,
-    `Composition: ${style.composition}.`,
-    `Mood: ${style.mood}.`,
-    `Include elements: ${style.elements}.`,
-    `Context: Japanese beauty and hair care e-commerce (LCJ MALL / TikTok Shop).`,
-    `High quality, 16:9 aspect ratio, modern digital illustration.`,
-    `IMPORTANT: No text overlay, no Japanese characters, no English text on the image.`,
+    `Create a professional blog cover image for an article titled: "${title}".`,
+    variant.prompt,
+    `Context: Japanese beauty, hair care, and skincare e-commerce.`,
+    `The image should look like a real photograph, NOT a cartoon or digital illustration.`,
+    `Photo-realistic, high resolution, 16:9 aspect ratio.`,
+    `IMPORTANT: Absolutely no text, no words, no letters, no numbers, no watermarks on the image.`,
   ].join(' ');
 
   return prompt;
 }
 
 /**
- * Get the article type label in Japanese (for logging/display)
+ * Get the article type label in Japanese
  */
 export function getArticleTypeLabel(articleType: ArticleType): string {
   const labels: Record<ArticleType, string> = {
