@@ -628,9 +628,20 @@ async function processOneBatch(adminUserId: number, batchSize: number, confidenc
         }
 
         if (allImageUrls.length === 0) {
+          // 画像なしは却下
+          await updateLineReceiptStatus(candidate.id, "rejected", adminUserId,
+            "[AI自動却下] レシート画像がありません");
+          try {
+            const appUrl = process.env.APP_URL || "https://lcjmall.com";
+            const rejectMsg = `❌ レシートが承認されませんでした\n\n画像が見つかりませんでした。スクリーンショットを再度送信してください🙏\n\nお問い合わせ: ${appUrl}/mypage`;
+            const { pushMessage: pushMsgSched } = await import("./line");
+            await pushMsgSched(candidate.lineUserId, [{ type: "text", text: rejectMsg }]);
+          } catch (notifyErr) {
+            console.error(`[AI AutoApprove Scheduler] LINE rejection notification error:`, notifyErr);
+          }
           results.push({
             id: candidate.id,
-            action: "skipped",
+            action: "rejected_ai",
             reason: "画像なし",
             orderNumber,
             amount: candidate.totalAmount ?? undefined,
@@ -776,10 +787,21 @@ async function processOneBatch(adminUserId: number, batchSize: number, confidenc
             parsed = JSON.parse(jsonMatch[0]);
           }
         } catch {
+          // LLM応答解析失敗 → 自動却下
+          await updateLineReceiptStatus(candidate.id, "rejected", adminUserId,
+            "[AI自動却下] AI応答の解析に失敗しました");
+          try {
+            const appUrl = process.env.APP_URL || "https://lcjmall.com";
+            const rejectMsg = `❌ レシートが承認されませんでした\n\n画像を正しく読み取れませんでした。以下を確認して再度送信してください🙏\n\n• スクリーンショットが鮮明に撮れているか\n• 画像が切れていないか\n\nお問い合わせ: ${appUrl}/mypage`;
+            const { pushMessage: pushMsgSched } = await import("./line");
+            await pushMsgSched(candidate.lineUserId, [{ type: "text", text: rejectMsg }]);
+          } catch (notifyErr) {
+            console.error(`[AI AutoApprove Scheduler] LINE rejection notification error:`, notifyErr);
+          }
           results.push({
             id: candidate.id,
-            action: "skipped",
-            reason: "LLM応答解析失敗",
+            action: "rejected_ai",
+            reason: "AI応答解析失敗",
             orderNumber,
             amount: candidate.totalAmount ?? undefined,
           });
@@ -849,10 +871,36 @@ async function processOneBatch(adminUserId: number, batchSize: number, confidenc
         }
       } catch (llmErr: any) {
         console.error(`[AI AutoApprove Scheduler] LLM error for receipt #${candidate.id}:`, llmErr.message);
+        
+        // 429 Too Many Requests / insufficient_quota → APIクォータ超過のためスキップ（次回リトライ）
+        const errMsg = llmErr.message || "";
+        if (errMsg.includes("429") || errMsg.includes("Too Many Requests") || errMsg.includes("insufficient_quota") || errMsg.includes("rate_limit")) {
+          console.log(`[AI AutoApprove Scheduler] APIクォータ超過のためスキップ: receipt #${candidate.id}`);
+          results.push({
+            id: candidate.id,
+            action: "skipped",
+            reason: `APIクォータ超過（次回リトライ）`,
+            orderNumber,
+            amount: candidate.totalAmount ?? undefined,
+          });
+          continue;
+        }
+        
+        // その他のLLMエラー（画像非対応等）は自動却下
+        await updateLineReceiptStatus(candidate.id, "rejected", adminUserId,
+          `[AI自動却下] 画像読み取り失敗: ${llmErr.message?.substring(0, 100)}`);
+        try {
+          const appUrl = process.env.APP_URL || "https://lcjmall.com";
+          const rejectMsg = `❌ レシートが承認されませんでした\n\n画像を読み取れませんでした。以下を確認して再度送信してください🙏\n\n• スクリーンショットが鮮明に撮れているか\n• 画像が切れていないか\n• 対応している画像形式（JPEG/PNG）か\n\nお問い合わせ: ${appUrl}/mypage`;
+          const { pushMessage: pushMsgSched } = await import("./line");
+          await pushMsgSched(candidate.lineUserId, [{ type: "text", text: rejectMsg }]);
+        } catch (notifyErr) {
+          console.error(`[AI AutoApprove Scheduler] LINE rejection notification error:`, notifyErr);
+        }
         results.push({
           id: candidate.id,
-          action: "skipped",
-          reason: `LLMエラー: ${llmErr.message?.substring(0, 100)}`,
+          action: "rejected_ai",
+          reason: `画像読み取り失敗: ${llmErr.message?.substring(0, 100)}`,
           orderNumber,
           amount: candidate.totalAmount ?? undefined,
         });

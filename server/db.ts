@@ -18651,3 +18651,30 @@ export async function getLiverMonthlyGrowth(streamerName: string) {
   
   return months;
 }
+
+
+/**
+ * Count duplicate image rejections for a specific LINE user
+ * 同一画像重複で却下された回数をカウント（不正ユーザー判定用）
+ */
+export async function countDuplicateImageRejections(lineUserId: string): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  
+  const result = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(lineReceipts)
+    .where(
+      and(
+        eq(lineReceipts.lineUserId, lineUserId),
+        eq(lineReceipts.status, "rejected"),
+        or(
+          sql`${lineReceipts.reviewNote} LIKE '%Level3%'`,
+          sql`${lineReceipts.reviewNote} LIKE '%同一画像%'`,
+          sql`${lineReceipts.reviewNote} LIKE '%画像ハッシュ重複%'`
+        )
+      )
+    );
+  
+  return result[0]?.count ?? 0;
+}

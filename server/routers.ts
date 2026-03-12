@@ -13049,6 +13049,70 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             }
           }
           
+          // --- Rule 1.5: Level 3 - Same image (perceptual hash) ---
+          try {
+            const { checkLevel3SameImage } = await import("./services/duplicateCheckService");
+            const primaryImageUrl = candidate.imageUrls?.[0] || candidate.imageUrl;
+            if (primaryImageUrl) {
+              const level3Result = await checkLevel3SameImage(
+                candidate.id,
+                candidate.lineUserId,
+                primaryImageUrl
+              );
+              if (level3Result.isDuplicate) {
+                if (!input.dryRun) {
+                  await updateLineReceiptStatus(candidate.id, "rejected", ctx.user.id,
+                    `[AI自動] Level3: ${level3Result.reason}`);
+                  try {
+                    await createReceiptReviewLog({
+                      receiptType: "line_receipt",
+                      receiptId: candidate.id,
+                      decision: "rejected",
+                      rejectionCategory: "duplicate",
+                      rejectionNote: `AI自動却下(Level3): ${level3Result.reason}`,
+                      totalAmount: candidate.totalAmount ?? undefined,
+                      hasOrderNumber: orderNumber ? "yes" : "no",
+                      imageCount: candidate.imageUrls?.length ?? 1,
+                      fraudScore: candidate.fraudScore ?? undefined,
+                      fraudFlagCount: candidate.fraudFlags?.length ?? 0,
+                      pointsCalculated: candidate.pointsCalculated ?? undefined,
+                      reviewedBy: ctx.user.id,
+                    });
+                  } catch (logErr) {
+                    console.error("[AI AutoApprove] Failed to log Level3 rejection:", logErr);
+                  }
+                  // 同一画像繰り返しアップロード検出 → 不正ユーザー判定
+                  try {
+                    const { countDuplicateImageRejections } = await import("./db");
+                    const dupCount = await countDuplicateImageRejections(candidate.lineUserId);
+                    if (dupCount >= 3) {
+                      // 3回以上同一画像で却下されている → 不正ユーザーとしてブロック
+                      const { updateLineUserBlocked } = await import("./db");
+                      await updateLineUserBlocked(candidate.lineUserId, true);
+                      console.log(`[AI AutoApprove] 不正ユーザー判定: ${candidate.lineUserId} (同一画像重複${dupCount}回)`);
+                      // LINE通知
+                      try {
+                        await pushMsg(candidate.lineUserId, [{ type: "text", text: `⚠️ 同一の画像を繰り返し送信しているため、アカウントが制限されました。\n\n心当たりがない場合はお問い合わせください。` }]);
+                      } catch { /* ignore */ }
+                    }
+                  } catch (fraudErr) {
+                    console.error("[AI AutoApprove] Fraud check error:", fraudErr);
+                  }
+                }
+                results.push({
+                  id: candidate.id,
+                  action: "rejected_duplicate",
+                  reason: `Level3: ${level3Result.reason}`,
+                  orderNumber,
+                  amount: candidate.totalAmount ?? undefined,
+                });
+                continue;
+              }
+            }
+          } catch (level3Err: any) {
+            console.error(`[AI AutoApprove] Level3 check error for receipt #${candidate.id}:`, level3Err.message);
+          }
+          
           // --- Rule 2: Missing essential data → now handled by LLM instead of skipping ---
           // Previously skipped receipts without order number or amount.
           // Now we let LLM judge from the image - it can often read order numbers
@@ -13397,7 +13461,22 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
               }
             } catch (llmErr: any) {
               console.error(`[AI AutoApprove] LLM error for receipt #${candidate.id}:`, llmErr.message);
-              // LLMエラー（画像非対応等）は自動却下する
+              
+              // 429 Too Many Requests / insufficient_quota → APIクォータ超過のためスキップ（次回リトライ）
+              const errMsg = llmErr.message || "";
+              if (errMsg.includes("429") || errMsg.includes("Too Many Requests") || errMsg.includes("insufficient_quota") || errMsg.includes("rate_limit")) {
+                console.log(`[AI AutoApprove] APIクォータ超過のためスキップ: receipt #${candidate.id}`);
+                results.push({
+                  id: candidate.id,
+                  action: "skipped",
+                  reason: `APIクォータ超過（次回リトライ）`,
+                  orderNumber,
+                  amount: candidate.totalAmount ?? undefined,
+                });
+                continue;
+              }
+              
+              // その他のLLMエラー（画像非対応等）は自動却下する
               if (!input.dryRun) {
                 await updateLineReceiptStatus(candidate.id, "rejected", ctx.user.id,
                   `[AI自動却下] 画像読み取り失敗: ${llmErr.message?.substring(0, 100)}`);
