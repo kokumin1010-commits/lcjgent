@@ -343,6 +343,34 @@ const normalizeResponseFormat = ({
   };
 };
 
+/**
+ * Sleep helper for retry delays
+ */
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Retry configuration
+ */
+const RETRY_CONFIG = {
+  maxRetries: 3,           // 最大リトライ回数
+  initialDelayMs: 2000,    // 初回待機: 2秒
+  maxDelayMs: 30000,       // 最大待機: 30秒
+  backoffMultiplier: 2,    // エクスポネンシャルバックオフ倍率
+};
+
+/**
+ * Check if an error is retryable (rate limit / server error)
+ */
+const isRetryableError = (status: number, errorText: string): boolean => {
+  // 429 Too Many Requests - レート制限
+  if (status === 429) return true;
+  // 500, 502, 503 - サーバーエラー（一時的な問題）
+  if (status >= 500 && status <= 503) return true;
+  // insufficient_quota - クォータ超過（リトライで回復する可能性あり）
+  if (errorText.includes("insufficient_quota")) return true;
+  return false;
+};
+
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   assertApiKey();
 
@@ -390,21 +418,60 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.response_format = normalizedResponseFormat;
   }
 
-  const response = await fetch(resolveApiUrl(), {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
-    },
-    body: JSON.stringify(payload),
-  });
+  const apiUrl = resolveApiUrl();
+  const requestBody = JSON.stringify(payload);
+  
+  // Retry loop with exponential backoff
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
+    try {
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${ENV.forgeApiKey}`,
+        },
+        body: requestBody,
+      });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
-    );
+      if (!response.ok) {
+        const errorText = await response.text();
+        
+        // Check if retryable
+        if (isRetryableError(response.status, errorText) && attempt < RETRY_CONFIG.maxRetries) {
+          const delayMs = Math.min(
+            RETRY_CONFIG.initialDelayMs * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt),
+            RETRY_CONFIG.maxDelayMs
+          );
+          console.log(`[LLM] Retryable error (${response.status}), attempt ${attempt + 1}/${RETRY_CONFIG.maxRetries}, waiting ${delayMs}ms...`);
+          await sleep(delayMs);
+          continue;
+        }
+        
+        throw new Error(
+          `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
+        );
+      }
+
+      return (await response.json()) as InvokeResult;
+    } catch (error: any) {
+      lastError = error;
+      
+      // Network errors are retryable
+      if (error.message && !error.message.startsWith("LLM invoke failed") && attempt < RETRY_CONFIG.maxRetries) {
+        const delayMs = Math.min(
+          RETRY_CONFIG.initialDelayMs * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt),
+          RETRY_CONFIG.maxDelayMs
+        );
+        console.log(`[LLM] Network error, attempt ${attempt + 1}/${RETRY_CONFIG.maxRetries}, waiting ${delayMs}ms: ${error.message}`);
+        await sleep(delayMs);
+        continue;
+      }
+      
+      throw error;
+    }
   }
-
-  return (await response.json()) as InvokeResult;
+  
+  // Should not reach here, but just in case
+  throw lastError || new Error("LLM invoke failed after retries");
 }

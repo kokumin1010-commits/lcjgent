@@ -17622,15 +17622,18 @@ export async function getAiAutoReviewLogStats() {
     ))
     .groupBy(aiAutoReviewLogs.humanOverride);
   
-  // 手動審査待ち（humanOverrideがnullで、aiDecisionがapproved以外）の件数
+  // 手動審査待ち: 実際にレシートがpendingステータスで、かつAIがスキップ/保留したもののみカウント
+  // rejected_aiやrejected_duplicateは既に自動却下済みなので手動審査不要
   const pendingManualReview = await db.select({
     count: sql<number>`COUNT(*)`,
   })
     .from(aiAutoReviewLogs)
+    .innerJoin(lineReceipts, eq(aiAutoReviewLogs.receiptId, lineReceipts.id))
     .where(and(
       eq(aiAutoReviewLogs.isDryRun, false),
       isNull(aiAutoReviewLogs.humanOverride),
-      not(eq(aiAutoReviewLogs.aiDecision, "approved"))
+      sql`${aiAutoReviewLogs.aiDecision} IN ('skipped', 'held')`,
+      eq(lineReceipts.status, "pending")
     ));
   
   return {

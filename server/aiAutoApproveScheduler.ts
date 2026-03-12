@@ -15,8 +15,8 @@
 
 import { invokeLLM } from "./_core/llm";
 
-// Delay between batches (ms)
-const BATCH_DELAY_MS = 3000;
+// Delay between batches (ms) - 429エラー防止のため十分な間隔を確保
+const BATCH_DELAY_MS = 10000;
 // Check interval when idle (ms) 
 const IDLE_CHECK_INTERVAL_MS = 30000;
 // Max consecutive errors before auto-stop
@@ -872,18 +872,16 @@ async function processOneBatch(adminUserId: number, batchSize: number, confidenc
       } catch (llmErr: any) {
         console.error(`[AI AutoApprove Scheduler] LLM error for receipt #${candidate.id}:`, llmErr.message);
         
-        // 429 Too Many Requests / insufficient_quota → APIクォータ超過のためスキップ（次回リトライ）
+        // 429 Too Many Requests / insufficient_quota → APIクォータ超過
+        // バッチ全体を中断して次のバッチまで待機（レシートはpendingのまま残るので次回自動リトライ）
         const errMsg = llmErr.message || "";
         if (errMsg.includes("429") || errMsg.includes("Too Many Requests") || errMsg.includes("insufficient_quota") || errMsg.includes("rate_limit")) {
-          console.log(`[AI AutoApprove Scheduler] APIクォータ超過のためスキップ: receipt #${candidate.id}`);
-          results.push({
-            id: candidate.id,
-            action: "skipped",
-            reason: `APIクォータ超過（次回リトライ）`,
-            orderNumber,
-            amount: candidate.totalAmount ?? undefined,
-          });
-          continue;
+          console.log(`[AI AutoApprove Scheduler] APIクォータ超過を検出、バッチを中断して待機します: receipt #${candidate.id}`);
+          // スキップログを記録せず、バッチを中断（レシートはpendingのまま）
+          // 60秒待機してから次のバッチへ
+          console.log(`[AI AutoApprove Scheduler] APIクォータ回復待ち: 60秒待機中...`);
+          await new Promise(resolve => setTimeout(resolve, 60000));
+          break; // バッチループを中断、次のバッチで再処理
         }
         
         // その他のLLMエラー（画像非対応等）は自動却下
