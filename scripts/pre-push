@@ -1,0 +1,71 @@
+#!/bin/sh
+# Layer 3 of 4-Layer Defense System: Pre-push Safety Check
+# Blocks pushes that delete more than 100 lines from any single file.
+# This prevents accidental overwrites from multiple Manus sessions.
+# To bypass (intentional large deletions): git push --no-verify
+
+# 1. Fetch latest remote info
+git fetch origin master 2>/dev/null || git fetch origin main 2>/dev/null
+
+# 2. Determine the default branch
+if git rev-parse --verify origin/master >/dev/null 2>&1; then
+  REMOTE_BRANCH="origin/master"
+elif git rev-parse --verify origin/main >/dev/null 2>&1; then
+  REMOTE_BRANCH="origin/main"
+else
+  echo "[SAFETY] Could not determine remote branch. Skipping check."
+  exit 0
+fi
+
+# 3. Get changed files
+changed_files=$(git diff --name-only "$REMOTE_BRANCH" HEAD)
+
+if [ -z "$changed_files" ]; then
+  exit 0
+fi
+
+# 4. Check each file for large deletions
+BLOCKED=0
+for file in $changed_files; do
+  # Skip if file doesn't exist (deleted file)
+  if [ ! -f "$file" ]; then
+    continue
+  fi
+  
+  stats=$(git diff --numstat "$REMOTE_BRANCH" HEAD -- "$file")
+  if [ -z "$stats" ]; then
+    continue
+  fi
+  
+  deletions=$(echo "$stats" | awk '{print $2}')
+  additions=$(echo "$stats" | awk '{print $1}')
+  
+  # Skip binary files (shown as '-')
+  if [ "$deletions" = "-" ]; then
+    continue
+  fi
+  
+  if [ "$deletions" -gt 100 ]; then
+    net_change=$((additions - deletions))
+    if [ "$net_change" -lt -50 ]; then
+      echo ""
+      echo "\033[0;31m[SAFETY CHECK FAILED]\033[0m"
+      echo "File: $file"
+      echo "  Deletions: $deletions lines, Additions: $additions lines (net: $net_change)"
+      echo "  This might be an accidental overwrite from another session."
+      echo ""
+      BLOCKED=1
+    fi
+  fi
+done
+
+if [ "$BLOCKED" -eq 1 ]; then
+  echo "\033[0;33m[ACTION REQUIRED]\033[0m"
+  echo "  1. Review your changes with: git diff $REMOTE_BRANCH HEAD"
+  echo "  2. If this is intentional, use: git push --no-verify"
+  echo "  3. If not, run: git pull --rebase $REMOTE_BRANCH && resolve conflicts"
+  echo ""
+  exit 1
+fi
+
+exit 0

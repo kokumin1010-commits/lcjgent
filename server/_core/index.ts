@@ -22,6 +22,7 @@ import { startSeoMonitor } from "../seoMonitor";
 import { startArticleRewriter } from "../articleRewriter";
 import { initPointExpiryScheduler } from "../pointExpiryScheduler";
 import { trackingRouter } from "../tracking";
+import { devSafetyRouter } from "../devSafety";
 
 function escapeHtml(str: string): string {
   return str
@@ -112,6 +113,9 @@ async function startServer() {
 
   // Email tracking endpoint
   app.use("/api/track", trackingRouter);
+
+  // Dev Safety - File Lock API (Layer 2 of 4-Layer Defense)
+  app.use("/api/v1/dev-safety", devSafetyRouter);
   
   // Task completion endpoint
   app.get("/complete/:token", async (req, res) => {
