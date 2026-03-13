@@ -4715,22 +4715,30 @@ export async function updatePointBalance(
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  const balance = await getOrCreatePointBalance(userId);
+  // Ensure balance record exists before atomic update
+  await getOrCreatePointBalance(userId);
   
-  const newBalance = balance.balance + balanceChange;
-  const newTotalEarned = type === "earn" ? balance.totalEarned + balanceChange : balance.totalEarned;
-  const newTotalUsed = type === "use" ? balance.totalUsed + Math.abs(balanceChange) : balance.totalUsed;
+  // === ATOMIC UPDATE: Use SQL-level increment to prevent race conditions ===
+  if (type === "earn") {
+    await db
+      .update(pointBalances)
+      .set({
+        balance: sql`${pointBalances.balance} + ${balanceChange}`,
+        totalEarned: sql`${pointBalances.totalEarned} + ${balanceChange}`,
+      })
+      .where(eq(pointBalances.userId, userId));
+  } else {
+    await db
+      .update(pointBalances)
+      .set({
+        balance: sql`${pointBalances.balance} + ${balanceChange}`,
+        totalUsed: sql`${pointBalances.totalUsed} + ${Math.abs(balanceChange)}`,
+      })
+      .where(eq(pointBalances.userId, userId));
+  }
   
-  await db
-    .update(pointBalances)
-    .set({
-      balance: newBalance,
-      totalEarned: newTotalEarned,
-      totalUsed: newTotalUsed,
-    })
-    .where(eq(pointBalances.userId, userId));
-  
-  return { balance: newBalance, totalEarned: newTotalEarned, totalUsed: newTotalUsed };
+  const updated = await getOrCreatePointBalance(userId);
+  return { balance: updated.balance, totalEarned: updated.totalEarned, totalUsed: updated.totalUsed };
 }
 
 // --- Point Transaction Functions ---
@@ -4780,10 +4788,10 @@ export async function createPointTransaction(data: {
   } else if (data.type === "use") {
     await updatePointBalance(data.userId, data.amount, "use");
   } else {
-    // For expire and adjustment, just update the balance directly
+    // For expire and adjustment, use atomic SQL increment
     await db
       .update(pointBalances)
-      .set({ balance: balanceAfter })
+      .set({ balance: sql`${pointBalances.balance} + ${data.amount}` })
       .where(eq(pointBalances.userId, data.userId));
   }
   
@@ -5310,22 +5318,34 @@ export async function updateLinePointBalance(
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  const balance = await getOrCreateLinePointBalance(lineUserId);
+  // Ensure balance record exists before atomic update
+  await getOrCreateLinePointBalance(lineUserId);
   
-  const newBalance = balance.balance + balanceChange;
-  const newTotalEarned = type === "earn" ? balance.totalEarned + balanceChange : balance.totalEarned;
-  const newTotalUsed = type === "use" ? balance.totalUsed + Math.abs(balanceChange) : balance.totalUsed;
+  // === ATOMIC UPDATE: Use SQL-level increment to prevent race conditions ===
+  // Previously used read-then-write pattern which caused balance loss during
+  // concurrent batch approvals (e.g., 81 receipts for same user in 10 seconds).
+  // Now uses `balance = balance + ?` which is atomic at the database level.
+  if (type === "earn") {
+    await db
+      .update(linePointBalances)
+      .set({
+        balance: sql`${linePointBalances.balance} + ${balanceChange}`,
+        totalEarned: sql`${linePointBalances.totalEarned} + ${balanceChange}`,
+      })
+      .where(eq(linePointBalances.lineUserId, lineUserId));
+  } else {
+    await db
+      .update(linePointBalances)
+      .set({
+        balance: sql`${linePointBalances.balance} + ${balanceChange}`,
+        totalUsed: sql`${linePointBalances.totalUsed} + ${Math.abs(balanceChange)}`,
+      })
+      .where(eq(linePointBalances.lineUserId, lineUserId));
+  }
   
-  await db
-    .update(linePointBalances)
-    .set({
-      balance: newBalance,
-      totalEarned: newTotalEarned,
-      totalUsed: newTotalUsed,
-    })
-    .where(eq(linePointBalances.lineUserId, lineUserId));
-  
-  return { balance: newBalance, totalEarned: newTotalEarned, totalUsed: newTotalUsed };
+  // Read back the updated balance for return value
+  const updated = await getOrCreateLinePointBalance(lineUserId);
+  return { balance: updated.balance, totalEarned: updated.totalEarned, totalUsed: updated.totalUsed };
 }
 
 /**
@@ -5373,10 +5393,10 @@ export async function createLinePointTransaction(data: {
   } else if (data.type === "use") {
     await updateLinePointBalance(data.lineUserId, data.amount, "use");
   } else {
-    // For expire and adjustment, just update the balance directly
+    // For expire and adjustment, use atomic SQL increment
     await db
       .update(linePointBalances)
-      .set({ balance: balanceAfter })
+      .set({ balance: sql`${linePointBalances.balance} + ${data.amount}` })
       .where(eq(linePointBalances.lineUserId, data.lineUserId));
   }
   
@@ -15332,9 +15352,9 @@ export async function processExpiredPoints(): Promise<{ usersAffected: number; t
       description: `ポイント失効（有効期限${POINT_EXPIRY_MONTHS}ヶ月）`,
     });
     
-    // Update balance
+    // Update balance (atomic SQL decrement to prevent race conditions)
     await db.update(pointBalances)
-      .set({ balance: newBalance })
+      .set({ balance: sql`GREATEST(${pointBalances.balance} - ${expiredAmount}, 0)` })
       .where(eq(pointBalances.userId, userId));
   }
   
@@ -15393,8 +15413,9 @@ export async function processExpiredLinePoints(): Promise<{ usersAffected: numbe
       description: `ポイント失効（有効期限${POINT_EXPIRY_MONTHS}ヶ月）`,
     });
     
+    // Atomic SQL decrement to prevent race conditions
     await db.update(linePointBalances)
-      .set({ balance: newBalance })
+      .set({ balance: sql`GREATEST(${linePointBalances.balance} - ${expiredAmount}, 0)` })
       .where(eq(linePointBalances.lineUserId, lineUserId));
   }
   
@@ -15441,13 +15462,10 @@ export async function usePointsFIFO(userId: number, amount: number, description:
     remaining -= deduct;
   }
   
-  // Update balance
-  const balance = await getOrCreatePointBalance(userId);
-  const newBalance = balance.balance - amount;
-  
+  // Update balance (atomic SQL increment to prevent race conditions)
   await db.update(pointBalances)
     .set({ 
-      balance: newBalance,
+      balance: sql`${pointBalances.balance} - ${amount}`,
       totalUsed: sql`${pointBalances.totalUsed} + ${amount}`,
     })
     .where(eq(pointBalances.userId, userId));
@@ -15503,12 +15521,10 @@ export async function useLinePointsFIFO(lineUserId: string, amount: number, desc
     remaining -= deduct;
   }
   
-  const balance = await getOrCreateLinePointBalance(lineUserId);
-  const newBalance = balance.balance - amount;
-  
+  // Update balance (atomic SQL increment to prevent race conditions)
   await db.update(linePointBalances)
     .set({ 
-      balance: newBalance,
+      balance: sql`${linePointBalances.balance} - ${amount}`,
       totalUsed: sql`${linePointBalances.totalUsed} + ${amount}`,
     })
     .where(eq(linePointBalances.lineUserId, lineUserId));
