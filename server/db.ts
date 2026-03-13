@@ -835,7 +835,15 @@ export async function getAllBrands(filters?: { status?: string; search?: string 
     conditions.push(eq(brands.status, filters.status as any));
   }
   if (filters?.search) {
-    conditions.push(like(brands.name, `%${filters.search}%`));
+    // Case-insensitive fuzzy search across name, nameJa, and companyName
+    const searchLower = filters.search.toLowerCase();
+    conditions.push(
+      or(
+        sql`LOWER(${brands.name}) LIKE ${`%${searchLower}%`}`,
+        sql`LOWER(${brands.nameJa}) LIKE ${`%${searchLower}%`}`,
+        sql`LOWER(${brands.companyName}) LIKE ${`%${searchLower}%`}`,
+      )!
+    );
   }
   
   query = query.where(and(...conditions)) as any;
