@@ -954,6 +954,10 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
     } else {
       setCalcOrderNumber("");
     }
+    // Auto-select "duplicate" rejection category for duplicate receipts
+    if (duplicateReceiptIds.ids.has(receiptId)) {
+      setRejectionCategory("duplicate");
+    }
   };
   
   // Get user display name with OCR fallback
@@ -1586,6 +1590,26 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                         </div>
                                       ))}
                                     </div>
+                                  )}
+                                  {/* Quick reject button for duplicate receipts */}
+                                  {(selectedCalcReceipt.receipt.status === "pending" || selectedCalcReceipt.receipt.status === "on_hold") && (
+                                    <Button
+                                      variant="destructive"
+                                      size="sm"
+                                      className="w-full h-7 text-[10px] mt-1"
+                                      onClick={() => {
+                                        setRejectionCategory("duplicate");
+                                        lastRejectedIdRef.current = selectedCalcReceipt.receipt.id;
+                                        rejectMutation.mutate({ id: selectedCalcReceipt.receipt.id, rejectionCategory: "duplicate" as any });
+                                      }}
+                                      disabled={rejectMutation.isPending}
+                                    >
+                                      {rejectMutation.isPending && lastRejectedIdRef.current === selectedCalcReceipt.receipt.id ? (
+                                        <><Loader2 className="w-3 h-3 mr-1 animate-spin" />{t("lr.sending")}</>
+                                      ) : (
+                                        <><XCircle className="w-3 h-3 mr-1" />{t("lr.rejectDuplicate")}</>
+                                      )}
+                                    </Button>
                                   )}
                                 </div>
                               );

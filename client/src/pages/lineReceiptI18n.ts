@@ -303,6 +303,8 @@ export const lineReceiptJa: Record<string, string> = {
   "lr.LINE": "LINE",
   "lr.Web": "Web",
   "lr.aiBounce": "AI弾き",
+  "lr.rejectDuplicate": "重複却下",
+  "lr.rejectDuplicateConfirm": "重複レシートとして却下しますか？",
 };
 
 // Additional Chinese translations for LINE Receipt Management
@@ -602,4 +604,6 @@ export const lineReceiptZh: Record<string, string> = {
   "lr.LINE": "LINE",
   "lr.Web": "Web",
   "lr.aiBounce": "AI拒绝",
+  "lr.rejectDuplicate": "重复拒绝",
+  "lr.rejectDuplicateConfirm": "确认作为重复小票拒绝？",
 };
