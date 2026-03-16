@@ -3990,6 +3990,147 @@ ${JSON.stringify(teamSummary, null, 2)}`;
           totalCreated,
         };
       }),
+    // AI Department Weekly Summary - 部門週報サマリー
+    generateWeeklySummary: protectedProcedure
+      .input(
+        z.object({
+          country: z.string(), // "日本" or "中国" (department)
+          startDate: z.string(), // ISO date string
+          endDate: z.string(),   // ISO date string
+          language: z.enum(["ja", "zh"]).default("ja"),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const reports = await getReportsForAnalysis({
+          startDate: new Date(input.startDate),
+          endDate: new Date(input.endDate),
+          country: input.country,
+        });
+
+        if (reports.length === 0) {
+          return {
+            success: false,
+            error: input.language === "ja" ? "該当期間の日報がありません" : "该时间段没有日报数据",
+          };
+        }
+
+        // Group reports by staff with full details
+        const staffReports: Record<string, { name: string; reports: { date: Date | null; workContent: string; issues: string | null; remarks: string | null }[] }> = {};
+        for (const r of reports) {
+          const staffId = r.staff?.id?.toString() || "unknown";
+          const staffName = r.staff?.name || "不明";
+          if (!staffReports[staffId]) {
+            staffReports[staffId] = { name: staffName, reports: [] };
+          }
+          staffReports[staffId].reports.push({
+            date: r.report.reportDate,
+            workContent: r.report.workContent,
+            issues: r.report.issues,
+            remarks: r.report.remarks,
+          });
+        }
+
+        // Build detailed staff data for AI
+        const staffDetails = Object.entries(staffReports).map(([id, data]) => ({
+          staffName: data.name,
+          reportCount: data.reports.length,
+          allWork: data.reports.map(r => {
+            const dateStr = r.date ? new Date(r.date).toLocaleDateString("ja-JP") : "不明";
+            return `[${dateStr}] ${r.workContent}${r.issues ? ` | 問題: ${r.issues}` : ""}${r.remarks ? ` | 備考: ${r.remarks}` : ""}`;
+          }).join("\n"),
+        }));
+
+        const isJa = input.language === "ja";
+        const dateRange = `${new Date(input.startDate).toLocaleDateString("ja-JP")} ~ ${new Date(input.endDate).toLocaleDateString("ja-JP")}`;
+
+        const systemPrompt = isJa
+          ? `あなたはLCJ（ライブコマースジャパン）の部門マネージャーAIです。
+部門の全スタッフの日報データを分析し、部門レベルの週報を作成してください。
+
+以下のフォーマットで出力してください（Markdown形式）:
+
+# ${input.country}部門 週報
+## 期間: ${dateRange}
+
+### 1. 成果サマリー
+各スタッフの主要な成果を簡潔にまとめてください。
+
+### 2. 進行中のプロジェクト・案件
+現在進行中の重要な案件やプロジェクトをリストアップしてください。
+
+### 3. 問題点・課題
+報告された問題点や課題を整理してください。
+
+### 4. 来週のアクションプラン
+来週に向けた具体的なアクション提案をしてください。
+
+### 5. 総合評価・コメント
+部門全体のパフォーマンスについてコメントしてください。
+
+日本語で回答してください。`
+          : `你是LCJ（Live Commerce Japan）的部门经理AI。
+请分析部门所有员工的日报数据，创建部门级周报。
+
+请按以下格式输出（Markdown格式）:
+
+# ${input.country}部门 周报
+## 期间: ${dateRange}
+
+### 1. 成果汇总
+简要总结各员工的主要成果。
+
+### 2. 进行中的项目/案件
+列出当前进行中的重要案件或项目。
+
+### 3. 问题梳理
+整理报告中提到的问题和课题。
+
+### 4. 下周行动计划
+提出下周的具体行动建议。
+
+### 5. 综合评价与建议
+对部门整体表现进行评价。
+
+请用中文回答。`;
+
+        const userPrompt = `部門: ${input.country}
+期間: ${dateRange}
+スタッフ数: ${Object.keys(staffReports).length}人
+総日報数: ${reports.length}件
+
+各スタッフの日報データ:
+${staffDetails.map(s => `\n【${s.staffName}】(${s.reportCount}件)\n${s.allWork}`).join("\n")}`;
+
+        try {
+          const response = await invokeLLM({
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+          });
+
+          const summary = response.choices[0]?.message?.content || "";
+
+          return {
+            success: true,
+            department: input.country,
+            dateRange,
+            memberCount: Object.keys(staffReports).length,
+            reportCount: reports.length,
+            staffBreakdown: staffDetails.map(s => ({
+              staffName: s.staffName,
+              reportCount: s.reportCount,
+            })),
+            summary: typeof summary === "string" ? summary : JSON.stringify(summary),
+          };
+        } catch (error) {
+          console.error("AI weekly summary error:", error);
+          return {
+            success: false,
+            error: isJa ? "AI週報生成中にエラーが発生しました" : "AI周报生成过程中发生错误",
+          };
+        }
+      }),
   }),
 
   // Brand Management Router

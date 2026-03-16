@@ -84,7 +84,25 @@ export default function Reports() {
   
   // AI Advice state
   const [generatingAdviceForReport, setGeneratingAdviceForReport] = useState<number | null>(null);
-  const [adviceCache, setAdviceCache] = useState<Record<number, { id: number; adviceText: string; userFeedback?: "good" | "bad" }>>({});
+  const [adviceCache, setAdviceCache] = useState<Record<number, { id: number; adviceText: string; userFeedback?: "good" | "bad" }>>({})
+  
+  // Weekly Summary state
+  const [weeklySummaryOpen, setWeeklySummaryOpen] = useState(false);
+  const [weeklySummaryCountry, setWeeklySummaryCountry] = useState<string>("中国");
+  const [weeklySummaryStartDate, setWeeklySummaryStartDate] = useState<string>(() => {
+    const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().split("T")[0];
+  });
+  const [weeklySummaryEndDate, setWeeklySummaryEndDate] = useState<string>(() => new Date().toISOString().split("T")[0]);
+  const [weeklySummaryResult, setWeeklySummaryResult] = useState<{
+    success: boolean;
+    department?: string;
+    dateRange?: string;
+    memberCount?: number;
+    reportCount?: number;
+    staffBreakdown?: { staffName: string; reportCount: number }[];
+    summary?: string;
+    error?: string;
+  } | null>(null);;
   
   const { t, language } = useLanguage();
 
@@ -204,6 +222,21 @@ export default function Reports() {
     },
     onError: (error) => {
       toast.error(`${t("common.error")}: ${error.message}`);
+    },
+  });
+
+  // Weekly summary mutation
+  const generateWeeklySummary = trpc.report.generateWeeklySummary.useMutation({
+    onSuccess: (data) => {
+      setWeeklySummaryResult(data as any);
+      if (data.success) {
+        toast.success(language === "ja" ? "週報が生成されました" : "周报已生成");
+      } else {
+        toast.error(data.error || "エラー");
+      }
+    },
+    onError: (error) => {
+      toast.error(`エラー: ${error.message}`);
     },
   });
 
@@ -739,6 +772,191 @@ export default function Reports() {
                 </p>
               )}
             </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* AI Weekly Summary Section */}
+      <Card className="border-purple-200 bg-purple-50/50">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold flex items-center gap-2 text-purple-700">
+              <Bot className="h-5 w-5" />
+              {language === "ja" ? "AI部門週報サマリー" : "AI部门周报总结"}
+            </h2>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { setWeeklySummaryOpen(!weeklySummaryOpen); setWeeklySummaryResult(null); }}
+              className="text-purple-600 border-purple-300 hover:bg-purple-100"
+            >
+              {weeklySummaryOpen ? (language === "ja" ? "閉じる" : "关闭") : (language === "ja" ? "週報を生成" : "生成周报")}
+            </Button>
+          </div>
+          
+          {weeklySummaryOpen && (
+            <div className="space-y-4">
+              {/* Filters */}
+              <div className="flex flex-wrap items-end gap-4 p-4 bg-white rounded-lg border">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">{language === "ja" ? "部門" : "部门"}</Label>
+                  <Select value={weeklySummaryCountry} onValueChange={setWeeklySummaryCountry}>
+                    <SelectTrigger className="w-[120px] h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="中国">中国</SelectItem>
+                      <SelectItem value="日本">日本</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">{language === "ja" ? "開始日" : "开始日期"}</Label>
+                  <Input
+                    type="date"
+                    value={weeklySummaryStartDate}
+                    onChange={(e) => setWeeklySummaryStartDate(e.target.value)}
+                    className="w-[150px] h-8"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">{language === "ja" ? "終了日" : "结束日期"}</Label>
+                  <Input
+                    type="date"
+                    value={weeklySummaryEndDate}
+                    onChange={(e) => setWeeklySummaryEndDate(e.target.value)}
+                    className="w-[150px] h-8"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs"
+                    onClick={() => {
+                      const d = new Date(); d.setDate(d.getDate() - 7);
+                      setWeeklySummaryStartDate(d.toISOString().split("T")[0]);
+                      setWeeklySummaryEndDate(new Date().toISOString().split("T")[0]);
+                    }}
+                  >
+                    {language === "ja" ? "過去1週間" : "过去1周"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs"
+                    onClick={() => {
+                      const d = new Date(); d.setDate(d.getDate() - 14);
+                      setWeeklySummaryStartDate(d.toISOString().split("T")[0]);
+                      const d2 = new Date(); d2.setDate(d2.getDate() - 7);
+                      setWeeklySummaryEndDate(d2.toISOString().split("T")[0]);
+                    }}
+                  >
+                    {language === "ja" ? "前週" : "上周"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs"
+                    onClick={() => {
+                      const now = new Date();
+                      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+                      setWeeklySummaryStartDate(firstDay.toISOString().split("T")[0]);
+                      setWeeklySummaryEndDate(now.toISOString().split("T")[0]);
+                    }}
+                  >
+                    {language === "ja" ? "今月" : "本月"}
+                  </Button>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setWeeklySummaryResult(null);
+                    generateWeeklySummary.mutate({
+                      country: weeklySummaryCountry,
+                      startDate: weeklySummaryStartDate,
+                      endDate: weeklySummaryEndDate,
+                      language: language === "zh" ? "zh" : "ja",
+                    });
+                  }}
+                  disabled={generateWeeklySummary.isPending}
+                  className="h-8 bg-purple-600 hover:bg-purple-700"
+                >
+                  {generateWeeklySummary.isPending ? (
+                    <><Loader2 className="h-4 w-4 mr-1 animate-spin" />{language === "ja" ? "AI生成中..." : "AI生成中..."}</>
+                  ) : (
+                    <><Sparkles className="h-4 w-4 mr-1" />{language === "ja" ? "週報を生成" : "生成周报"}</>
+                  )}
+                </Button>
+              </div>
+              
+              {/* Result */}
+              {weeklySummaryResult && weeklySummaryResult.success && (
+                <div className="space-y-3">
+                  {/* Stats bar */}
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    <span>{language === "ja" ? "部門" : "部门"}: <strong>{weeklySummaryResult.department}</strong></span>
+                    <span>{language === "ja" ? "期間" : "期间"}: <strong>{weeklySummaryResult.dateRange}</strong></span>
+                    <span>{language === "ja" ? "スタッフ" : "员工"}: <strong>{weeklySummaryResult.memberCount}{language === "ja" ? "人" : "人"}</strong></span>
+                    <span>{language === "ja" ? "日報" : "日报"}: <strong>{weeklySummaryResult.reportCount}{language === "ja" ? "件" : "件"}</strong></span>
+                  </div>
+                  
+                  {/* Staff breakdown */}
+                  {weeklySummaryResult.staffBreakdown && weeklySummaryResult.staffBreakdown.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {weeklySummaryResult.staffBreakdown.map((s, i) => (
+                        <Badge key={i} variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+                          {s.staffName}: {s.reportCount}{language === "ja" ? "件" : "件"}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* AI Summary content */}
+                  <div className="p-4 bg-white rounded-lg border prose prose-sm max-w-none dark:prose-invert">
+                    <div dangerouslySetInnerHTML={{ __html: (weeklySummaryResult.summary || "").replace(/\n/g, "<br>").replace(/^### (.+)/gm, "<h3>$1</h3>").replace(/^## (.+)/gm, "<h2>$1</h2>").replace(/^# (.+)/gm, "<h1>$1</h1>").replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/^- (.+)/gm, "<li>$1</li>").replace(/(<li>.*<\/li>)/gs, "<ul>$1</ul>") }} />
+                  </div>
+                  
+                  {/* Export button */}
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const content = weeklySummaryResult.summary || "";
+                        const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `weekly_summary_${weeklySummaryResult.department}_${weeklySummaryStartDate}_${weeklySummaryEndDate}.md`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        toast.success(language === "ja" ? "エクスポートしました" : "已导出");
+                      }}
+                    >
+                      <FileText className="h-4 w-4 mr-1" />
+                      {language === "ja" ? "Markdownエクスポート" : "导出Markdown"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(weeklySummaryResult.summary || "");
+                        toast.success(language === "ja" ? "コピーしました" : "已复制");
+                      }}
+                    >
+                      {language === "ja" ? "コピー" : "复制"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
+              {weeklySummaryResult && !weeklySummaryResult.success && (
+                <div className="p-4 bg-red-50 rounded-lg border border-red-200 text-red-700 text-sm">
+                  {weeklySummaryResult.error}
+                </div>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>
