@@ -554,7 +554,7 @@ import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
-import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs } from "../drizzle/schema";
+import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups } from "../drizzle/schema";
 import { eq, and, not, isNotNull, isNull, desc, gt } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
@@ -3277,6 +3277,32 @@ export const appRouter = router({
         await deleteReportStaff(input.id);
         return { success: true };
       }),
+
+    // Get current user's reportStaffId by matching email -> staff -> reportStaff
+    myId: protectedProcedure.query(async ({ ctx }) => {
+      if (!ctx.user) return { reportStaffId: null };
+      const db = await getDb();
+      if (!db) return { reportStaffId: null };
+      // Try to find via email -> staff -> reportStaff (linkedStaffId)
+      const staffResult = await db.select({ id: staff.id }).from(staff)
+        .where(eq(staff.email, ctx.user.email)).limit(1);
+      if (staffResult.length > 0) {
+        const rsResult = await db.select({ id: reportStaff.id }).from(reportStaff)
+          .where(eq(reportStaff.linkedStaffId, staffResult[0].id)).limit(1);
+        if (rsResult.length > 0) {
+          return { reportStaffId: rsResult[0].id };
+        }
+      }
+      // Fallback: try name matching
+      if (ctx.user.name) {
+        const rsResult = await db.select({ id: reportStaff.id }).from(reportStaff)
+          .where(eq(reportStaff.name, ctx.user.name)).limit(1);
+        if (rsResult.length > 0) {
+          return { reportStaffId: rsResult[0].id };
+        }
+      }
+      return { reportStaffId: null };
+    }),
   }),
 
   report: router({
