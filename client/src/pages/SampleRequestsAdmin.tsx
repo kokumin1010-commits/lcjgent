@@ -306,6 +306,18 @@ export default function SampleRequestsAdmin() {
                             )}
                           </div>
 
+                          {/* Shipping Address */}
+                          {req.address && (
+                            <div className="text-xs bg-gray-800 rounded p-2">
+                              <div className="text-gray-500 mb-1">配送先</div>
+                              <div className="text-white">
+                                {req.postalCode && <span>〒{req.postalCode} </span>}
+                                {req.address}
+                              </div>
+                              {req.phone && <div className="text-gray-400 mt-1">TEL: {req.phone}</div>}
+                            </div>
+                          )}
+
                           {/* Action Buttons */}
                           <div className="flex gap-2">
                             {req.status === "pending" && (

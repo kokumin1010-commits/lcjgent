@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Edit, Home, ChevronDown, ChevronUp, ExternalLink, AlertTriangle, TrendingUp, Clock, DollarSign, Activity, Calendar, ArrowUpRight, ArrowDownRight, Sparkles, BarChart3, Package, ShoppingBag, Tag, Crown, Medal, Award, MoveRight, Plus, Check, X, Loader2 } from "lucide-react";
+import { ArrowLeft, Edit, Home, ChevronDown, ChevronUp, ExternalLink, AlertTriangle, TrendingUp, Clock, DollarSign, Activity, Calendar, ArrowUpRight, ArrowDownRight, Sparkles, BarChart3, Package, ShoppingBag, Tag, Crown, Medal, Award, MoveRight, Plus, Check, X, Loader2, CreditCard } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { SiTiktok, SiInstagram, SiYoutube } from "react-icons/si";
 import { Link2 } from "lucide-react";
@@ -163,6 +163,10 @@ export default function LiverDetailNew() {
   const { data: setAnalysis, isLoading: setAnalysisLoading } = trpc.livestreamSets.liverSetAnalysis.useQuery({
     liverId,
   });
+
+  // クレジット履歴・サンプル請求履歴
+  const { data: creditHistory } = trpc.sampleRequest.getLiverCreditHistory.useQuery({ liverId });
+  const { data: sampleRequests } = trpc.sampleRequest.getLiverRequests.useQuery({ liverId });
   const [expandedSetId, setExpandedSetId] = useState<number | null>(null);
 
   // Category mapping queries and mutations
@@ -1156,6 +1160,154 @@ export default function LiverDetailNew() {
             ) : (
               <p className="text-cyan-300/60 text-center py-8">{tr.noSetData}</p>
             )}
+          </CardContent>
+        </Card>
+
+        {/* ===== Credit & Sample Request Section ===== */}
+        <Card className="bg-[#0a1a2a]/80 border-cyan-500/20 backdrop-blur-sm">
+          <CardContent className="p-6">
+            <h3 className="text-lg font-bold text-cyan-100 flex items-center gap-2 mb-6">
+              <CreditCard className="w-5 h-5 text-cyan-400" />
+              クレジット残高・サンプル請求履歴
+            </h3>
+
+            {/* Current Credit Summary */}
+            {creditHistory && creditHistory.length > 0 ? (
+              <div className="space-y-4">
+                {/* Latest month credit card */}
+                {(() => {
+                  const latest = creditHistory[0];
+                  const rankColors: Record<string, string> = {
+                    none: 'border-gray-500/30',
+                    silver: 'border-gray-300/50',
+                    gold: 'border-yellow-500/50',
+                    black: 'border-purple-500/50',
+                  };
+                  const rankLabels: Record<string, string> = {
+                    none: 'ランクなし',
+                    silver: 'SILVER',
+                    gold: 'GOLD',
+                    black: 'BLACK',
+                  };
+                  return (
+                    <div className={`rounded-lg border ${rankColors[latest.rank] || 'border-cyan-500/30'} bg-cyan-900/20 p-4`}>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-cyan-300 text-sm font-bold">{latest.month}</span>
+                        <Badge className={`text-xs ${
+                          latest.rank === 'black' ? 'bg-purple-600' :
+                          latest.rank === 'gold' ? 'bg-yellow-600' :
+                          latest.rank === 'silver' ? 'bg-gray-400 text-gray-900' :
+                          'bg-gray-600'
+                        }`}>
+                          {rankLabels[latest.rank] || latest.rank}
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3 text-center">
+                        <div>
+                          <div className="text-xs text-cyan-400">合計クレジット</div>
+                          <div className="text-lg font-bold text-white">¥{Number(latest.totalCredit).toLocaleString()}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-cyan-400">使用済み</div>
+                          <div className="text-lg font-bold text-orange-400">¥{Number(latest.usedCredit).toLocaleString()}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-cyan-400">残高</div>
+                          <div className="text-lg font-bold text-green-400">¥{Number(latest.remainingCredit).toLocaleString()}</div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-4 gap-2 mt-3 text-xs text-cyan-300/70">
+                        <div>配信: {latest.streamingHours}h → ¥{Number(latest.streamingCredit).toLocaleString()}</div>
+                        <div>売上: ¥{Number(latest.monthlySales).toLocaleString()} → ¥{Number(latest.salesCredit).toLocaleString()}</div>
+                        <div>ボーナス: ¥{Number(latest.rankBonus).toLocaleString()}</div>
+                        <div>繰越: ¥{Number(latest.carryoverCredit).toLocaleString()}</div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Credit History Table */}
+                {creditHistory.length > 1 && (
+                  <div className="overflow-x-auto mt-4">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-cyan-500/30">
+                          <th className="text-left py-2 px-2 text-cyan-400">月</th>
+                          <th className="text-center py-2 px-2 text-cyan-400">ランク</th>
+                          <th className="text-right py-2 px-2 text-cyan-400">合計</th>
+                          <th className="text-right py-2 px-2 text-cyan-400">使用</th>
+                          <th className="text-right py-2 px-2 text-cyan-400">残高</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {creditHistory.slice(0, 6).map((c: any) => (
+                          <tr key={c.month} className="border-b border-cyan-500/10">
+                            <td className="py-2 px-2 text-cyan-100">{c.month}</td>
+                            <td className="text-center py-2 px-2">
+                              <Badge className={`text-[10px] ${
+                                c.rank === 'black' ? 'bg-purple-600' :
+                                c.rank === 'gold' ? 'bg-yellow-600' :
+                                c.rank === 'silver' ? 'bg-gray-400 text-gray-900' :
+                                'bg-gray-600'
+                              }`}>{c.rank?.toUpperCase()}</Badge>
+                            </td>
+                            <td className="text-right py-2 px-2 text-white">¥{Number(c.totalCredit).toLocaleString()}</td>
+                            <td className="text-right py-2 px-2 text-orange-400">¥{Number(c.usedCredit).toLocaleString()}</td>
+                            <td className="text-right py-2 px-2 text-green-400">¥{Number(c.remainingCredit).toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-cyan-300/60 text-center py-4">クレジットデータなし</p>
+            )}
+
+            {/* Sample Requests */}
+            <div className="mt-6">
+              <h4 className="text-sm font-bold text-cyan-200 mb-3 flex items-center gap-2">
+                <Package className="w-4 h-4" />
+                サンプル請求履歴
+              </h4>
+              {sampleRequests && sampleRequests.length > 0 ? (
+                <div className="space-y-2">
+                  {sampleRequests.slice(0, 10).map((req: any) => {
+                    const statusConfig: Record<string, { label: string; color: string }> = {
+                      pending: { label: '審査待ち', color: 'bg-yellow-600' },
+                      approved: { label: '承認済み', color: 'bg-green-600' },
+                      rejected: { label: '却下', color: 'bg-red-600' },
+                      shipped: { label: '発送済み', color: 'bg-blue-600' },
+                      cancelled: { label: 'キャンセル', color: 'bg-gray-600' },
+                    };
+                    const sc = statusConfig[req.status] || { label: req.status, color: 'bg-gray-600' };
+                    return (
+                      <div key={req.id} className="flex items-center justify-between bg-cyan-900/20 rounded-lg p-3 border border-cyan-500/10">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-cyan-100 text-sm font-medium">#{req.id}</span>
+                            <Badge className={`text-[10px] ${sc.color}`}>{sc.label}</Badge>
+                            <span className="text-cyan-400 text-xs">{req.month}</span>
+                          </div>
+                          <div className="text-xs text-cyan-300/60 mt-1">
+                            {req.items?.map((i: any) => `${i.productName} x${i.quantity}`).join(', ')}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-bold text-white">¥{Number(req.totalAmount).toLocaleString()}</div>
+                          {Number(req.creditUsed) > 0 && (
+                            <div className="text-[10px] text-cyan-400">クレジット: ¥{Number(req.creditUsed).toLocaleString()}</div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-cyan-300/60 text-center py-4">サンプル請求なし</p>
+              )}
+            </div>
           </CardContent>
         </Card>
 

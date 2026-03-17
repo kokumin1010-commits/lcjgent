@@ -55,14 +55,23 @@ export const sampleRequestRouter = router({
         .where(and(eq(liverCredits.liverId, liverData.liverId), eq(liverCredits.month, currentMonth)));
 
       if (credits.length === 0) {
+        // 前月以前の繰り越しクレジットを確認
+        const allCredits = await db.select().from(liverCredits)
+          .where(eq(liverCredits.liverId, liverData.liverId))
+          .orderBy(desc(liverCredits.month))
+          .limit(1);
+        
+        const carryover = allCredits.length > 0 ? Math.max(0, Number(allCredits[0].remainingCredit)) : 0;
+
         return {
           month: currentMonth,
           rank: "none" as const,
           streamingHours: 0,
           monthlySales: 0,
-          totalCredit: 0,
+          totalCredit: carryover,
           usedCredit: 0,
-          remainingCredit: 0,
+          remainingCredit: carryover,
+          carryoverCredit: carryover,
           isFirstMonth: false,
           rankBonus: 0,
           streamingCredit: 0,
@@ -70,7 +79,21 @@ export const sampleRequestRouter = router({
         };
       }
 
-      return credits[0];
+      const c = credits[0];
+      return {
+        month: c.month,
+        rank: c.rank as "none" | "silver" | "gold" | "black",
+        streamingHours: Number(c.streamingHours),
+        monthlySales: Number(c.monthlySales),
+        totalCredit: Number(c.totalCredit),
+        usedCredit: Number(c.usedCredit),
+        remainingCredit: Number(c.remainingCredit),
+        carryoverCredit: Number(c.carryoverCredit),
+        isFirstMonth: c.isFirstMonth || false,
+        rankBonus: Number(c.rankBonus),
+        streamingCredit: Number(c.streamingCredit),
+        salesCredit: Number(c.salesCredit),
+      };
     }),
 
   // 商品検索（mall_productsから）
@@ -95,9 +118,9 @@ export const sampleRequestRouter = router({
         .where(and(
           eq(mallProducts.status, "active"),
           or(
-            like(mallProducts.name, `%${input.query}%`),
-            like(mallProducts.brand, `%${input.query}%`),
-            like(mallProducts.category, `%${input.query}%`)
+            sql`LOWER(${mallProducts.name}) LIKE LOWER(${`%${input.query}%`})`,
+            sql`LOWER(${mallProducts.brand}) LIKE LOWER(${`%${input.query}%`})`,
+            sql`LOWER(${mallProducts.category}) LIKE LOWER(${`%${input.query}%`})`
           )
         ))
         .limit(30);
@@ -117,6 +140,9 @@ export const sampleRequestRouter = router({
     .input(z.object({
       token: z.string(),
       scheduledDate: z.string(),
+      postalCode: z.string().optional(),
+      address: z.string().optional(),
+      phone: z.string().optional(),
       memo: z.string().optional(),
       items: z.array(z.object({
         mallProductId: z.number().nullable(),
@@ -195,16 +221,26 @@ export const sampleRequestRouter = router({
         outOfPocketAmount = Math.round(excessAmount * 0.4);
       }
 
+      // 住所をライバープロフィールに保存（次回自動入力用）
+      if (input.address) {
+        await db.execute(
+          sql`UPDATE livers SET shipping_postal_code = ${input.postalCode || null}, shipping_address = ${input.address || null}, shipping_phone = ${input.phone || null} WHERE id = ${liverData.liverId}`
+        );
+      }
+
       // サンプル請求を作成
       const result = await db.insert(sampleRequests).values({
         liverId: liverData.liverId,
         liverName: liver.name,
         month: currentMonth,
         scheduledDate: new Date(input.scheduledDate),
-        totalAmount,
-        creditUsed,
-        outOfPocketAmount,
+        totalAmount: String(totalAmount),
+        creditUsed: String(creditUsed),
+        outOfPocketAmount: String(outOfPocketAmount),
         status: "pending",
+        postalCode: input.postalCode || null,
+        address: input.address || null,
+        phone: input.phone || null,
         memo: input.memo || null,
       });
 
@@ -212,12 +248,14 @@ export const sampleRequestRouter = router({
 
       // 商品アイテムを登録
       for (const item of input.items) {
+        const subtotal = item.price * item.quantity;
         await db.insert(sampleRequestItems).values({
           requestId,
           mallProductId: item.mallProductId,
           productName: item.productName,
-          price: item.price,
+          price: String(item.price),
           quantity: item.quantity,
+          subtotal: String(subtotal),
         });
       }
 
@@ -241,10 +279,45 @@ export const sampleRequestRouter = router({
       for (const req of requests) {
         const items = await db.select().from(sampleRequestItems)
           .where(eq(sampleRequestItems.requestId, req.id));
-        result.push({ ...req, items });
+        result.push({
+          ...req,
+          totalAmount: Number(req.totalAmount),
+          creditUsed: Number(req.creditUsed),
+          outOfPocketAmount: Number(req.outOfPocketAmount),
+          cashAmount: Number(req.cashAmount),
+          items: items.map(i => ({
+            ...i,
+            price: Number(i.price),
+            subtotal: Number(i.subtotal),
+          })),
+        });
       }
 
       return result;
+    }),
+
+  // 保存済み配送先住所を取得
+  getSavedAddress: publicProcedure
+    .input(z.object({ token: z.string() }))
+    .query(async ({ input }) => {
+      const liverData = await verifyLiverToken(input.token);
+      if (!liverData) throw new TRPCError({ code: "UNAUTHORIZED", message: "認証エラー" });
+
+      const db = await getDb();
+      
+      // livers テーブルから配送先住所を取得
+      const rows = await db.execute(
+        sql`SELECT shipping_postal_code, shipping_address, shipping_phone FROM livers WHERE id = ${liverData.liverId}`
+      );
+      
+      const liverRow = (rows as any)[0]?.[0];
+      if (!liverRow) return null;
+
+      return {
+        postalCode: liverRow.shipping_postal_code || "",
+        address: liverRow.shipping_address || "",
+        phone: liverRow.shipping_phone || "",
+      };
     }),
 
   // ========== 運営向けAPI ==========
@@ -269,7 +342,18 @@ export const sampleRequestRouter = router({
       for (const req of requests) {
         const items = await db.select().from(sampleRequestItems)
           .where(eq(sampleRequestItems.requestId, req.id));
-        result.push({ ...req, items });
+        result.push({
+          ...req,
+          totalAmount: Number(req.totalAmount),
+          creditUsed: Number(req.creditUsed),
+          outOfPocketAmount: Number(req.outOfPocketAmount),
+          cashAmount: Number(req.cashAmount),
+          items: items.map(i => ({
+            ...i,
+            price: Number(i.price),
+            subtotal: Number(i.subtotal),
+          })),
+        });
       }
 
       return result;
@@ -292,25 +376,27 @@ export const sampleRequestRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "この請求は審査待ちではありません" });
       }
 
-      // クレジット消費を反映
-      const creditRows = await db.select().from(liverCredits)
-        .where(and(eq(liverCredits.liverId, request.liverId), eq(liverCredits.month, request.month)));
+      // クレジット消費を反映（アトミック更新）
+      const creditUsed = Number(request.creditUsed);
+      if (creditUsed > 0) {
+        const creditRows = await db.select().from(liverCredits)
+          .where(and(eq(liverCredits.liverId, request.liverId), eq(liverCredits.month, request.month)));
 
-      if (creditRows.length > 0 && request.creditUsed > 0) {
-        const credit = creditRows[0];
-        await db.update(liverCredits)
-          .set({
-            usedCredit: Number(credit.usedCredit) + Number(request.creditUsed),
-            remainingCredit: Number(credit.remainingCredit) - Number(request.creditUsed),
-          })
-          .where(eq(liverCredits.id, credit.id));
+        if (creditRows.length > 0) {
+          await db.update(liverCredits)
+            .set({
+              usedCredit: sql`${liverCredits.usedCredit} + ${creditUsed}`,
+              remainingCredit: sql`${liverCredits.remainingCredit} - ${creditUsed}`,
+            } as any)
+            .where(eq(liverCredits.id, creditRows[0].id));
+        }
       }
 
       await db.update(sampleRequests)
         .set({
           status: "approved",
           adminComment: input.comment || null,
-          reviewedBy: (ctx as any).user?.id || null,
+          reviewedBy: String((ctx as any).user?.id || ""),
           reviewedAt: new Date(),
         })
         .where(eq(sampleRequests.id, input.id));
@@ -331,7 +417,7 @@ export const sampleRequestRouter = router({
         .set({
           status: "rejected",
           adminComment: input.comment,
-          reviewedBy: (ctx as any).user?.id || null,
+          reviewedBy: String((ctx as any).user?.id || ""),
           reviewedAt: new Date(),
         })
         .where(eq(sampleRequests.id, input.id));
@@ -369,11 +455,25 @@ export const sampleRequestRouter = router({
 
       const creditMap = new Map(credits.map(c => [c.liverId, c]));
 
-      return allLivers.map(liver => ({
-        liverId: liver.id,
-        liverName: liver.name,
-        credit: creditMap.get(liver.id) || null,
-      }));
+      return allLivers.map(liver => {
+        const c = creditMap.get(liver.id);
+        return {
+          liverId: liver.id,
+          liverName: liver.name,
+          credit: c ? {
+            ...c,
+            streamingHours: Number(c.streamingHours),
+            monthlySales: Number(c.monthlySales),
+            streamingCredit: Number(c.streamingCredit),
+            salesCredit: Number(c.salesCredit),
+            rankBonus: Number(c.rankBonus),
+            carryoverCredit: Number(c.carryoverCredit),
+            totalCredit: Number(c.totalCredit),
+            usedCredit: Number(c.usedCredit),
+            remainingCredit: Number(c.remainingCredit),
+          } : null,
+        };
+      });
     }),
 
   // クレジット設定（運営が配信時間・売上を入力 → 自動計算）
@@ -392,7 +492,7 @@ export const sampleRequestRouter = router({
       const rankBonus = getRankBonus(rank);
       const streamingCredit = Math.round(input.streamingHours * 500);
       const salesCredit = Math.round(input.monthlySales * 0.03);
-      const totalCredit = streamingCredit + salesCredit + rankBonus;
+      const baseCredit = streamingCredit + salesCredit + rankBonus;
 
       // 既存のクレジットレコードを確認
       const existing = await db.select().from(liverCredits)
@@ -400,16 +500,18 @@ export const sampleRequestRouter = router({
 
       if (existing.length > 0) {
         const usedCredit = Number(existing[0].usedCredit);
+        const carryover = Number(existing[0].carryoverCredit);
+        const totalCredit = baseCredit + carryover;
         await db.update(liverCredits)
           .set({
             rank,
             streamingHours: String(input.streamingHours),
-            monthlySales: input.monthlySales,
-            streamingCredit,
-            salesCredit,
-            rankBonus,
-            totalCredit,
-            remainingCredit: totalCredit - usedCredit,
+            monthlySales: String(input.monthlySales),
+            streamingCredit: String(streamingCredit),
+            salesCredit: String(salesCredit),
+            rankBonus: String(rankBonus),
+            totalCredit: String(totalCredit),
+            remainingCredit: String(totalCredit - usedCredit),
             isFirstMonth: input.isFirstMonth ?? existing[0].isFirstMonth,
           })
           .where(eq(liverCredits.id, existing[0].id));
@@ -421,23 +523,77 @@ export const sampleRequestRouter = router({
         const prevCredits = await db.select().from(liverCredits)
           .where(and(eq(liverCredits.liverId, input.liverId), eq(liverCredits.month, prevMonth)));
         const carryOver = prevCredits.length > 0 ? Math.max(0, Number(prevCredits[0].remainingCredit)) : 0;
+        const totalCredit = baseCredit + carryOver;
 
         await db.insert(liverCredits).values({
           liverId: input.liverId,
           month: input.month,
           rank,
           streamingHours: String(input.streamingHours),
-          monthlySales: input.monthlySales,
-          streamingCredit,
-          salesCredit,
-          rankBonus,
-          totalCredit: totalCredit + carryOver,
-          usedCredit: 0,
-          remainingCredit: totalCredit + carryOver,
+          monthlySales: String(input.monthlySales),
+          streamingCredit: String(streamingCredit),
+          salesCredit: String(salesCredit),
+          rankBonus: String(rankBonus),
+          carryoverCredit: String(carryOver),
+          totalCredit: String(totalCredit),
+          usedCredit: "0",
+          remainingCredit: String(totalCredit),
           isFirstMonth: input.isFirstMonth ?? false,
         });
       }
 
-      return { success: true, rank, totalCredit };
+      return { success: true, rank, totalCredit: baseCredit };
+    }),
+
+  // ライバーのクレジット履歴取得（運営用 - ライバー詳細ページ向け）
+  getLiverCreditHistory: protectedProcedure
+    .input(z.object({ liverId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      const credits = await db.select().from(liverCredits)
+        .where(eq(liverCredits.liverId, input.liverId))
+        .orderBy(desc(liverCredits.month));
+
+      return credits.map(c => ({
+        ...c,
+        streamingHours: Number(c.streamingHours),
+        monthlySales: Number(c.monthlySales),
+        streamingCredit: Number(c.streamingCredit),
+        salesCredit: Number(c.salesCredit),
+        rankBonus: Number(c.rankBonus),
+        carryoverCredit: Number(c.carryoverCredit),
+        totalCredit: Number(c.totalCredit),
+        usedCredit: Number(c.usedCredit),
+        remainingCredit: Number(c.remainingCredit),
+      }));
+    }),
+
+  // ライバーのサンプル請求履歴取得（運営用 - ライバー詳細ページ向け）
+  getLiverRequests: protectedProcedure
+    .input(z.object({ liverId: z.number() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      const requests = await db.select().from(sampleRequests)
+        .where(eq(sampleRequests.liverId, input.liverId))
+        .orderBy(desc(sampleRequests.createdAt));
+
+      const result = [];
+      for (const req of requests) {
+        const items = await db.select().from(sampleRequestItems)
+          .where(eq(sampleRequestItems.requestId, req.id));
+        result.push({
+          ...req,
+          totalAmount: Number(req.totalAmount),
+          creditUsed: Number(req.creditUsed),
+          outOfPocketAmount: Number(req.outOfPocketAmount),
+          items: items.map(i => ({
+            ...i,
+            price: Number(i.price),
+            subtotal: Number(i.subtotal),
+          })),
+        });
+      }
+
+      return result;
     }),
 });

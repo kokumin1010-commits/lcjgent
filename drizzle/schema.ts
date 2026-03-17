@@ -3923,32 +3923,33 @@ export type InsertSetApplicationItem = typeof setApplicationItems.$inferInsert;
  */
 export const liverCredits = mysqlTable("liver_credits", {
   id: int("id").autoincrement().primaryKey(),
-  liverId: int("liverId").notNull(), // References livers.id
+  liverId: int("liver_id").notNull(), // References livers.id
   
   // 対象月（YYYY-MM形式で管理）
   month: varchar("month", { length: 7 }).notNull(), // 例: "2026-03"
   
   // ランク（その月の判定結果）
-  rank: mysqlEnum("rank", ["none", "silver", "gold", "black"]).default("none").notNull(),
+  rank: varchar("rank", { length: 20 }).default("none").notNull(),
   
   // 実績データ（運営が入力 → 将来的にAPI自動取得）
-  streamingHours: decimal("streamingHours", { precision: 6, scale: 1 }).default("0"), // 配信時間（時間）
-  monthlySales: bigint("monthlySales", { mode: "number" }).default(0), // 月間売上（円）
+  streamingHours: decimal("streaming_hours", { precision: 10, scale: 2 }).default("0"), // 配信時間（時間）
+  monthlySales: decimal("monthly_sales", { precision: 12, scale: 2 }).default("0"), // 月間売上（円）
   
   // クレジット計算結果
-  streamingCredit: bigint("streamingCredit", { mode: "number" }).default(0), // 配信時間クレジット（時間×1,000）
-  salesCredit: bigint("salesCredit", { mode: "number" }).default(0), // 売上クレジット（売上×10%）
-  rankBonus: bigint("rankBonus", { mode: "number" }).default(0), // ランクボーナス（SILVER:5000, GOLD:15000, BLACK:50000）
-  totalCredit: bigint("totalCredit", { mode: "number" }).default(0), // 合計クレジット
-  usedCredit: bigint("usedCredit", { mode: "number" }).default(0), // 使用済みクレジット
-  remainingCredit: bigint("remainingCredit", { mode: "number" }).default(0), // 残りクレジット
+  streamingCredit: decimal("streaming_credit", { precision: 10, scale: 2 }).default("0"), // 配信時間クレジット（時間×500）
+  salesCredit: decimal("sales_credit", { precision: 10, scale: 2 }).default("0"), // 売上クレジット（売上×3%）
+  rankBonus: decimal("rank_bonus", { precision: 10, scale: 2 }).default("0"), // ランクボーナス（SILVER:5000, GOLD:15000, BLACK:50000）
+  carryoverCredit: decimal("carryover_credit", { precision: 10, scale: 2 }).default("0"), // 繰り越しクレジット
+  totalCredit: decimal("total_credit", { precision: 10, scale: 2 }).default("0"), // 合計クレジット
+  usedCredit: decimal("used_credit", { precision: 10, scale: 2 }).default("0"), // 使用済みクレジット
+  remainingCredit: decimal("remaining_credit", { precision: 10, scale: 2 }).default("0"), // 残りクレジット
   
   // 初月フラグ（初月は10万円枠）
-  isFirstMonth: boolean("isFirstMonth").default(false),
+  isFirstMonth: boolean("is_first_month").default(false),
   
   // タイムスタンプ
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 export type LiverCredit = typeof liverCredits.$inferSelect;
 export type InsertLiverCredit = typeof liverCredits.$inferInsert;
@@ -3961,35 +3962,41 @@ export const sampleRequests = mysqlTable("sample_requests", {
   id: int("id").autoincrement().primaryKey(),
   
   // 請求者（ライバー）
-  liverId: int("liverId").notNull(), // References livers.id
-  liverName: varchar("liverName", { length: 255 }).notNull(),
+  liverId: int("liver_id").notNull(), // References livers.id
+  liverName: varchar("liver_name", { length: 255 }).notNull(),
   
   // 対象月
   month: varchar("month", { length: 7 }).notNull(), // 例: "2026-03"
   
   // 配信予定日（必須）
-  scheduledDate: timestamp("scheduledDate").notNull(),
+  scheduledDate: timestamp("scheduled_date").notNull(),
   
   // 金額情報
-  totalAmount: bigint("totalAmount", { mode: "number" }).default(0), // 請求合計金額（定価）
-  creditUsed: bigint("creditUsed", { mode: "number" }).default(0), // クレジット使用額
-  outOfPocketAmount: bigint("outOfPocketAmount", { mode: "number" }).default(0), // 実費（クレジット超過分、60%OFF価格）
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).default("0"), // 請求合計金額（定価）
+  creditUsed: decimal("credit_used", { precision: 10, scale: 2 }).default("0"), // クレジット使用額
+  outOfPocketAmount: decimal("out_of_pocket_amount", { precision: 10, scale: 2 }).default("0"), // 実費（クレジット超過分、60%OFF価格）
+  cashAmount: decimal("cash_amount", { precision: 10, scale: 2 }).default("0"), // 現金支払い額
   
   // ステータス
-  status: mysqlEnum("status", ["pending", "approved", "rejected", "shipped", "cancelled"]).default("pending").notNull(),
+  status: varchar("status", { length: 30 }).default("pending").notNull(),
   
   // 運営コメント
-  adminComment: text("adminComment"),
-  reviewedBy: int("reviewedBy"), // 審査した管理者のuser ID
-  reviewedAt: timestamp("reviewedAt"),
-  shippedAt: timestamp("shippedAt"), // 発送日時
+  adminComment: text("admin_comment"),
+  reviewedBy: varchar("reviewed_by", { length: 255 }), // 審査した管理者
+  reviewedAt: timestamp("reviewed_at"),
+  shippedAt: timestamp("shipped_at"), // 発送日時
+  
+  // 配送先住所
+  postalCode: varchar("postal_code", { length: 10 }),
+  address: text("address"),
+  phone: varchar("phone", { length: 20 }),
   
   // ライバーのメモ
   memo: text("memo"),
   
   // タイムスタンプ
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 export type SampleRequest = typeof sampleRequests.$inferSelect;
 export type InsertSampleRequest = typeof sampleRequests.$inferInsert;
@@ -3999,16 +4006,17 @@ export type InsertSampleRequest = typeof sampleRequests.$inferInsert;
  */
 export const sampleRequestItems = mysqlTable("sample_request_items", {
   id: int("id").autoincrement().primaryKey(),
-  requestId: int("requestId").notNull(), // References sampleRequests.id
+  requestId: int("request_id").notNull(), // References sampleRequests.id
   
   // 商品情報
-  mallProductId: int("mallProductId"), // References mall_products.id
-  productName: varchar("productName", { length: 255 }).notNull(),
-  price: bigint("price", { mode: "number" }).notNull(), // 定価
+  mallProductId: int("product_id"), // References mall_products.id
+  productName: varchar("product_name", { length: 500 }).notNull(),
+  price: decimal("unit_price", { precision: 10, scale: 2 }).notNull(), // 定価
   quantity: int("quantity").default(1).notNull(),
+  subtotal: decimal("subtotal", { precision: 10, scale: 2 }), // 小計
   
   // タイムスタンプ
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 export type SampleRequestItem = typeof sampleRequestItems.$inferSelect;
 export type InsertSampleRequestItem = typeof sampleRequestItems.$inferInsert;

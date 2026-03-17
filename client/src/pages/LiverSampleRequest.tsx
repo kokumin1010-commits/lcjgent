@@ -56,6 +56,9 @@ export default function LiverSampleRequest() {
 
   // Create form state
   const [scheduledDate, setScheduledDate] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+  const [address, setAddress] = useState("");
+  const [phone, setPhone] = useState("");
   const [memo, setMemo] = useState("");
   const [items, setItems] = useState<SampleItem[]>([]);
 
@@ -87,6 +90,11 @@ export default function LiverSampleRequest() {
   const searchProductsQuery = trpc.sampleRequest.searchProducts.useQuery(
     { token: token || "", query: searchQuery },
     { enabled: !!token && searchQuery.length >= 1 }
+  );
+
+  const savedAddressQuery = trpc.sampleRequest.getSavedAddress.useQuery(
+    { token: token || "" },
+    { enabled: !!token }
   );
 
   const createMutation = trpc.sampleRequest.create.useMutation({
@@ -125,6 +133,9 @@ export default function LiverSampleRequest() {
 
   function resetForm() {
     setScheduledDate("");
+    setPostalCode("");
+    setAddress("");
+    setPhone("");
     setMemo("");
     setItems([]);
     setError("");
@@ -132,6 +143,12 @@ export default function LiverSampleRequest() {
 
   function startCreate() {
     resetForm();
+    // 保存済み住所を自動入力
+    if (savedAddressQuery.data) {
+      setPostalCode(savedAddressQuery.data.postalCode || "");
+      setAddress(savedAddressQuery.data.address || "");
+      setPhone(savedAddressQuery.data.phone || "");
+    }
     setActiveView("create");
     setHowToOpen(true);
   }
@@ -167,12 +184,16 @@ export default function LiverSampleRequest() {
   function handleSubmit() {
     setError("");
     if (!scheduledDate) { setError("配信予定日を入力してください"); return; }
+    if (!address) { setError("配送先住所を入力してください"); return; }
     if (items.length === 0) { setError("商品を1つ以上追加してください"); return; }
     if (items.some(i => !i.productName)) { setError("商品名を入力してください"); return; }
 
     createMutation.mutate({
       token: token || "",
       scheduledDate,
+      postalCode: postalCode || undefined,
+      address: address || undefined,
+      phone: phone || undefined,
       memo: memo || undefined,
       items: items.map(i => ({
         mallProductId: i.mallProductId,
@@ -458,6 +479,38 @@ export default function LiverSampleRequest() {
                   />
                 </div>
 
+                {/* Shipping Address */}
+                <div className="space-y-3">
+                  <Label className="text-gray-400 text-sm">配送先住所 *</Label>
+                  <div className="flex gap-2">
+                    <div className="w-1/3">
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        value={postalCode}
+                        onChange={e => setPostalCode(e.target.value.replace(/[^0-9-]/g, ""))}
+                        placeholder="〒 000-0000"
+                        className="bg-gray-800 border-gray-700 text-white text-sm"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <Input
+                        type="tel"
+                        value={phone}
+                        onChange={e => setPhone(e.target.value)}
+                        placeholder="電話番号"
+                        className="bg-gray-800 border-gray-700 text-white text-sm"
+                      />
+                    </div>
+                  </div>
+                  <Input
+                    value={address}
+                    onChange={e => setAddress(e.target.value)}
+                    placeholder="都道府県市区町村 番地 建物名・部屋番号"
+                    className="bg-gray-800 border-gray-700 text-white text-sm"
+                  />
+                </div>
+
                 {/* Products */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -629,6 +682,18 @@ export default function LiverSampleRequest() {
                   <div className="text-white">{new Date(selectedRequest.createdAt).toLocaleDateString("ja-JP")}</div>
                 </div>
               </div>
+
+              {/* Shipping Address */}
+              {selectedRequest.address && (
+                <div>
+                  <span className="text-gray-500 text-sm">配送先</span>
+                  <div className="text-white text-sm mt-1 bg-gray-800 rounded p-2">
+                    {selectedRequest.postalCode && <span>〒{selectedRequest.postalCode} </span>}
+                    {selectedRequest.address}
+                    {selectedRequest.phone && <div className="text-gray-400 text-xs mt-1">TEL: {selectedRequest.phone}</div>}
+                  </div>
+                </div>
+              )}
 
               {/* Items */}
               <div>
