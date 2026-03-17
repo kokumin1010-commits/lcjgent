@@ -2,7 +2,7 @@ import { router, publicProcedure, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "./db";
-import { setApplications, setApplicationItems, productMaster, livers } from "../drizzle/schema";
+import { setApplications, setApplicationItems, productMaster, mallProducts, livers } from "../drizzle/schema";
 import { eq, desc, and, inArray, sql, like } from "drizzle-orm";
 import { jwtVerify } from "jose";
 import { ENV } from "./_core/env";
@@ -40,7 +40,7 @@ export const setApplicationRouter = router({
   // ライバー向けAPI
   // ============================================================
 
-  // 商品マスタ検索（ライバーがセットに含める商品を選択するため）
+  // 商品検索（mall_productsテーブルから検索。ライバーがセットに含める商品を選択するため）
   searchProducts: publicProcedure
     .input(z.object({
       keyword: z.string().optional(),
@@ -49,29 +49,31 @@ export const setApplicationRouter = router({
     }))
     .query(async ({ input }) => {
       const db = getDb();
-      const conditions: any[] = [eq(productMaster.isActive, true)];
+      const conditions: any[] = [
+        inArray(mallProducts.status, ["active", "sold_out"]),
+      ];
       
       if (input.keyword && input.keyword.trim()) {
         conditions.push(
-          like(sql`LOWER(${productMaster.canonicalName})`, `%${input.keyword.toLowerCase()}%`)
+          like(sql`LOWER(${mallProducts.name})`, `%${input.keyword.toLowerCase()}%`)
         );
       }
       if (input.brandId) {
-        conditions.push(eq(productMaster.brandId, input.brandId));
+        conditions.push(eq(mallProducts.brandId, input.brandId));
       }
       
       const products = await db
         .select({
-          id: productMaster.id,
-          name: productMaster.canonicalName,
-          brandId: productMaster.brandId,
-          category: productMaster.category,
-          regularPrice: productMaster.regularPrice,
-          imageUrl: productMaster.imageUrl,
+          id: mallProducts.id,
+          name: mallProducts.name,
+          brandId: mallProducts.brandId,
+          category: mallProducts.category,
+          regularPrice: mallProducts.price,
+          imageUrl: mallProducts.imageUrl,
         })
-        .from(productMaster)
+        .from(mallProducts)
         .where(and(...conditions))
-        .orderBy(productMaster.canonicalName)
+        .orderBy(mallProducts.name)
         .limit(input.limit);
       
       return products;
