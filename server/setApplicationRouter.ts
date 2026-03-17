@@ -48,7 +48,7 @@ export const setApplicationRouter = router({
       limit: z.number().default(50),
     }))
     .query(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       const conditions: any[] = [
         inArray(mallProducts.status, ["active", "sold_out"]),
       ];
@@ -95,7 +95,7 @@ export const setApplicationRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       const { liverId } = await authenticateLiver(ctx);
-      const db = getDb();
+      const db = await getDb();
       
       // Get liver info
       const [liver] = await db.select({ name: livers.name }).from(livers).where(eq(livers.id, liverId));
@@ -145,7 +145,7 @@ export const setApplicationRouter = router({
     }))
     .query(async ({ input, ctx }) => {
       const { liverId } = await authenticateLiver(ctx);
-      const db = getDb();
+      const db = await getDb();
       
       const conditions: any[] = [eq(setApplications.liverId, liverId)];
       if (input.status !== "all") {
@@ -189,7 +189,7 @@ export const setApplicationRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       const { liverId } = await authenticateLiver(ctx);
-      const db = getDb();
+      const db = await getDb();
       
       // Check ownership and status
       const [app] = await db.select().from(setApplications).where(
@@ -238,7 +238,7 @@ export const setApplicationRouter = router({
     .input(z.object({ applicationId: z.number() }))
     .mutation(async ({ input, ctx }) => {
       const { liverId } = await authenticateLiver(ctx);
-      const db = getDb();
+      const db = await getDb();
       
       const [app] = await db.select().from(setApplications).where(
         and(eq(setApplications.id, input.applicationId), eq(setApplications.liverId, liverId))
@@ -265,7 +265,7 @@ export const setApplicationRouter = router({
       liverId: z.number().optional(),
     }))
     .query(async ({ input }) => {
-      const db = getDb();
+      const db = await getDb();
       
       const conditions: any[] = [];
       if (input.status !== "all") {
@@ -302,7 +302,7 @@ export const setApplicationRouter = router({
       adminComment: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = await getDb();
       
       const [app] = await db.select().from(setApplications).where(eq(setApplications.id, input.applicationId));
       if (!app) throw new TRPCError({ code: "NOT_FOUND", message: "申請が見つかりません" });
@@ -325,7 +325,7 @@ export const setApplicationRouter = router({
       adminComment: z.string().min(1, "却下理由を入力してください"),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = await getDb();
       
       const [app] = await db.select().from(setApplications).where(eq(setApplications.id, input.applicationId));
       if (!app) throw new TRPCError({ code: "NOT_FOUND", message: "申請が見つかりません" });
@@ -347,7 +347,7 @@ export const setApplicationRouter = router({
       adminComment: z.string().min(1, "修正内容を入力してください"),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = await getDb();
       
       const [app] = await db.select().from(setApplications).where(eq(setApplications.id, input.applicationId));
       if (!app) throw new TRPCError({ code: "NOT_FOUND", message: "申請が見つかりません" });
@@ -368,7 +368,7 @@ export const setApplicationRouter = router({
       applicationIds: z.array(z.number()).min(1),
     }))
     .mutation(async ({ input, ctx }) => {
-      const db = getDb();
+      const db = await getDb();
       
       await db.update(setApplications).set({
         status: "approved",
@@ -387,7 +387,7 @@ export const setApplicationRouter = router({
   // 統計情報
   stats: protectedProcedure
     .query(async () => {
-      const db = getDb();
+      const db = await getDb();
       
       const [stats] = await db.select({
         total: sql<number>`COUNT(*)`,
