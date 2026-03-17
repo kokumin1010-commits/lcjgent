@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { getLiverToken } from "@/lib/liverAuth";
@@ -130,6 +130,14 @@ export default function LiverSetApplication() {
     [totalOriginalPrice, setPrice]
   );
 
+  // セット価格がまだ手動設定されていない場合、元値合計を自動セット
+  const [priceManuallySet, setPriceManuallySet] = useState(false);
+  useEffect(() => {
+    if (!priceManuallySet && totalOriginalPrice > 0) {
+      setSetPrice(totalOriginalPrice);
+    }
+  }, [totalOriginalPrice, priceManuallySet]);
+
   // Helpers
   function resetForm() {
     setSetName("");
@@ -138,6 +146,7 @@ export default function LiverSetApplication() {
     setMemo("");
     setItems([]);
     setEditingId(null);
+    setPriceManuallySet(false);
   }
 
   function startCreate() {
@@ -148,6 +157,7 @@ export default function LiverSetApplication() {
   function startEdit(app: ApplicationData) {
     setSetName(app.setName);
     setSetPrice(app.setPrice);
+    setPriceManuallySet(true); // 編集時は既存価格を維持
     setScheduledDate(app.scheduledDate ? new Date(app.scheduledDate).toISOString().slice(0, 16) : "");
     setMemo(app.memo || "");
     setItems(app.items.map(item => ({
@@ -533,19 +543,22 @@ export default function LiverSetApplication() {
                                 <div className="flex-1">
                                   <Label className="text-gray-500 text-xs">単価</Label>
                                   <Input
-                                    type="number"
-                                    value={item.originalPrice}
-                                    onChange={e => updateItem(index, "originalPrice", Number(e.target.value))}
+                                    type="text"
+                                    inputMode="numeric"
+                                    value={item.originalPrice || ""}
+                                    onChange={e => updateItem(index, "originalPrice", parseInt(e.target.value.replace(/[^0-9]/g, "")) || 0)}
+                                    placeholder="0"
                                     className="bg-gray-800 border-gray-700 text-white text-sm h-8"
                                   />
                                 </div>
                                 <div className="w-20">
                                   <Label className="text-gray-500 text-xs">数量</Label>
                                   <Input
-                                    type="number"
-                                    min={1}
-                                    value={item.quantity}
-                                    onChange={e => updateItem(index, "quantity", Number(e.target.value))}
+                                    type="text"
+                                    inputMode="numeric"
+                                    value={item.quantity || ""}
+                                    onChange={e => updateItem(index, "quantity", Math.max(1, parseInt(e.target.value.replace(/[^0-9]/g, "")) || 1))}
+                                    placeholder="1"
                                     className="bg-gray-800 border-gray-700 text-white text-sm h-8"
                                   />
                                 </div>
@@ -582,9 +595,10 @@ export default function LiverSetApplication() {
                       <div>
                         <Label className="text-gray-400 text-sm">セット価格 *</Label>
                         <Input
-                          type="number"
-                          value={setPrice}
-                          onChange={e => setSetPrice(Number(e.target.value))}
+                          type="text"
+                          inputMode="numeric"
+                          value={setPrice || ""}
+                          onChange={e => { setSetPrice(parseInt(e.target.value.replace(/[^0-9]/g, "")) || 0); setPriceManuallySet(true); }}
                           className="bg-gray-800 border-gray-700 text-white mt-1"
                           placeholder="希望販売価格"
                         />
