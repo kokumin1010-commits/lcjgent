@@ -3850,3 +3850,67 @@ export const lessonsLearned = mysqlTable("lessons_learned", {
 });
 export type LessonLearned = typeof lessonsLearned.$inferSelect;
 export type InsertLessonLearned = typeof lessonsLearned.$inferInsert;
+
+
+/**
+ * Set Applications table - ライバーがライブ前にセットを事前申請するテーブル
+ * ライバーが申請 → 運営が承認/却下/修正依頼 → 承認後にセットとして登録
+ */
+export const setApplications = mysqlTable("set_applications", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // 申請者（ライバー）
+  liverId: int("liverId").notNull(), // References livers.id
+  liverName: varchar("liverName", { length: 255 }).notNull(),
+  
+  // 配信情報
+  scheduledDate: timestamp("scheduledDate"), // 配信予定日時
+  livestreamId: int("livestreamId"), // 承認後に紐付けるlivestreamのID（オプション）
+  
+  // セット情報
+  setName: varchar("setName", { length: 255 }).notNull(), // セット名
+  setPrice: bigint("setPrice", { mode: "number" }).notNull(), // 希望セット価格
+  totalOriginalPrice: bigint("totalOriginalPrice", { mode: "number" }).default(0), // 元値合計（自動計算）
+  discountRate: int("discountRate").default(0), // 割引率（自動計算）
+  
+  // 申請ステータス
+  status: mysqlEnum("status", ["pending", "approved", "rejected", "revision_requested"]).default("pending").notNull(),
+  
+  // 運営コメント（却下理由・修正依頼内容）
+  adminComment: text("adminComment"),
+  reviewedBy: int("reviewedBy"), // 審査した管理者のuser ID
+  reviewedAt: timestamp("reviewedAt"),
+  
+  // ライバーのメモ
+  memo: text("memo"),
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SetApplication = typeof setApplications.$inferSelect;
+export type InsertSetApplication = typeof setApplications.$inferInsert;
+
+/**
+ * Set Application Items table - セット申請内の個別商品
+ */
+export const setApplicationItems = mysqlTable("set_application_items", {
+  id: int("id").autoincrement().primaryKey(),
+  applicationId: int("applicationId").notNull(), // References setApplications.id
+  
+  // 商品情報
+  productMasterId: int("productMasterId"), // References productMaster.id（商品マスタから選択した場合）
+  productName: varchar("productName", { length: 255 }).notNull(), // 商品名
+  originalPrice: bigint("originalPrice", { mode: "number" }).notNull(), // 元値（定価）
+  quantity: int("quantity").default(1).notNull(), // 個数
+  
+  // 並び順
+  sortOrder: int("sortOrder").default(0),
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type SetApplicationItem = typeof setApplicationItems.$inferSelect;
+export type InsertSetApplicationItem = typeof setApplicationItems.$inferInsert;

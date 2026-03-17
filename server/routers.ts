@@ -561,6 +561,7 @@ import { jwtVerify } from "jose";
 import { ENV } from "./_core/env";
 import { authRouter } from "./auth";
 import { liverRouter } from "./liverRouter";
+import { setApplicationRouter } from "./setApplicationRouter";
 import { checkAndSendReminders } from "./reminderScheduler";
 // Blog/AutoPost関連のimportはserver/blogRouter.tsに移動済み
 import { completionRouter } from "./completion";
@@ -9441,6 +9442,9 @@ ${conversationText}
 
   // Liver (Streamer) Authentication Router
   liver: liverRouter,
+
+  // Set Application Router (セット事前申請)
+  setApplication: setApplicationRouter,
 
   // Liver Management Router (ライバー管理画面用)
   liverManagement: router({

@@ -106,6 +106,7 @@ function DashboardLayoutContent({
     { icon: Video, label: t("nav.livers"), path: "/master/livers" },
     { icon: Zap, label: t("nav.liverCommand") || "ライバー司令塔", path: "/master/livers-dashboard" },
     { icon: Calculator, label: "配信シミュレーター", path: "/master/simulator" },
+    { icon: Package, label: "セット申請管理", path: "/master/set-applications" },
     { icon: Store, label: "LCJ MALL", path: "/master/mall" },
     { icon: Newspaper, label: "ブログ管理", path: "/master/blog" },
     { icon: Megaphone, label: "紹介コード管理", path: "/master/referral", adminOnly: true },

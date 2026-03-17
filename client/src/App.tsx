@@ -49,6 +49,7 @@ const LiverMypage = lazy(() => import("./pages/LiverMypage"));
 const LiverSelfRecord = lazy(() => import("./pages/LiverSelfRecord"));
 const LivestreamEdit = lazy(() => import("./pages/LivestreamEdit"));
 const LiverSchedule = lazy(() => import("./pages/LiverSchedule"));
+const LiverSetApplication = lazy(() => import("./pages/LiverSetApplication"));
 const LiverProfile = lazy(() => import("./pages/LiverProfile"));
 const LineReceiptManagement = lazy(() => import("./pages/LineReceiptManagement"));
 const LineLogin = lazy(() => import("./pages/LineLogin"));
@@ -108,6 +109,7 @@ const ReviewDatabase = lazy(() => import("./pages/ReviewDatabase"));
 const ProductReviews = lazy(() => import("./pages/ProductReviews"));
 const BeautyWallet = lazy(() => import("./pages/BeautyWallet"));
 const KakuhenTest = lazy(() => import("./pages/KakuhenTest"));
+const SetApplicationsAdmin = lazy(() => import("./pages/SetApplicationsAdmin"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -306,6 +308,11 @@ function Router() {
         </Route>
         <Route path={"/master/livers-dashboard"} component={LiverDashboardNew} />
         <Route path={"/master/simulator"} component={Simulator} />
+        <Route path={"/master/set-applications"}>
+          <DashboardLayout>
+            <SetApplicationsAdmin />
+          </DashboardLayout>
+        </Route>
         <Route path={"/master/livers-dashboard/:id"} component={LiverDetailNew} />
         <Route path={"/master/livers"} component={LiverList} />
         <Route path={"/master/livers/:id"} component={LiverDetail} />
@@ -375,6 +382,7 @@ function Router() {
         <Route path={"/liver/edit"} component={LiverProfile} />
         <Route path={"/liver/record"} component={LiverSelfRecord} />
         <Route path={"/liver/schedule"} component={LiverSchedule} />
+        <Route path={"/liver/set-application"} component={LiverSetApplication} />
         <Route path={"/liver/forgot-password"} component={LiverForgotPassword} />
         <Route path={"/liver/reset-password"} component={LiverResetPassword} />
         
