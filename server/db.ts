@@ -5485,11 +5485,44 @@ export async function getLineReceiptsByUser(lineUserId: string) {
  */
 export async function getAllLineReceipts(options?: {
   status?: "pending" | "approved" | "rejected" | "on_hold";
+  statuses?: ("pending" | "approved" | "rejected" | "on_hold")[];
+  dateFrom?: Date;
+  dateTo?: Date;
+  searchText?: string;
   limit?: number;
   offset?: number;
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  
+  const conditions = [];
+  
+  // Status filter: support single status (backward compat) or multiple statuses
+  if (options?.statuses && options.statuses.length > 0) {
+    conditions.push(inArray(lineReceipts.status, options.statuses));
+  } else if (options?.status) {
+    conditions.push(eq(lineReceipts.status, options.status));
+  }
+  
+  // Date range filter
+  if (options?.dateFrom) {
+    conditions.push(gte(lineReceipts.submittedAt, options.dateFrom));
+  }
+  if (options?.dateTo) {
+    conditions.push(lte(lineReceipts.submittedAt, options.dateTo));
+  }
+  
+  // Text search: search across orderNumber (in ocrRawText JSON), storeName, user displayName, ocrRawText content
+  if (options?.searchText) {
+    const searchPattern = `%${options.searchText}%`;
+    conditions.push(
+      or(
+        like(lineReceipts.storeName, searchPattern),
+        sql`LOWER(${lineReceipts.ocrRawText}) LIKE LOWER(${searchPattern})`,
+        like(lineUsers.displayName, searchPattern),
+      )!
+    );
+  }
   
   let query = db
     .select({
@@ -5500,8 +5533,8 @@ export async function getAllLineReceipts(options?: {
     .leftJoin(lineUsers, eq(lineReceipts.lineUserId, lineUsers.lineUserId))
     .orderBy(desc(lineReceipts.submittedAt));
   
-  if (options?.status) {
-    query = query.where(eq(lineReceipts.status, options.status)) as typeof query;
+  if (conditions.length > 0) {
+    query = query.where(and(...conditions)) as typeof query;
   }
   
   if (options?.limit) {

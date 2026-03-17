@@ -305,6 +305,26 @@ export const lineReceiptJa: Record<string, string> = {
   "lr.aiBounce": "AI弾き",
   "lr.rejectDuplicate": "重複却下",
   "lr.rejectDuplicateConfirm": "重複レシートとして却下しますか？",
+
+  // Search & Filter enhancements
+  "lr.searchPlaceholder": "注文番号・ユーザー名・店舗名・商品名で検索...",
+  "lr.filterAll": "全て",
+  "lr.filterStatus": "ステータス",
+  "lr.filterDateRange": "期間",
+  "lr.filterDateFrom": "開始日",
+  "lr.filterDateTo": "終了日",
+  "lr.filterClear": "フィルタークリア",
+  "lr.filterApply": "適用",
+  "lr.filterToday": "今日",
+  "lr.filterThisWeek": "今週",
+  "lr.filterThisMonth": "今月",
+  "lr.filterCustom": "カスタム",
+  "lr.statusPending": "審査中",
+  "lr.statusApproved": "承認済み",
+  "lr.statusRejected": "却下",
+  "lr.statusOnHold": "保留",
+  "lr.searchResults": "検索結果",
+  "lr.noResults": "該当するレシートが見つかりません",
 };
 
 // Additional Chinese translations for LINE Receipt Management
@@ -606,4 +626,24 @@ export const lineReceiptZh: Record<string, string> = {
   "lr.aiBounce": "AI拒绝",
   "lr.rejectDuplicate": "重复拒绝",
   "lr.rejectDuplicateConfirm": "确认作为重复小票拒绝？",
+
+  // Search & Filter enhancements
+  "lr.searchPlaceholder": "按订单号、用户名、店铺名、商品名搜索...",
+  "lr.filterAll": "全部",
+  "lr.filterStatus": "状态",
+  "lr.filterDateRange": "时间范围",
+  "lr.filterDateFrom": "开始日期",
+  "lr.filterDateTo": "结束日期",
+  "lr.filterClear": "清除筛选",
+  "lr.filterApply": "应用",
+  "lr.filterToday": "今天",
+  "lr.filterThisWeek": "本周",
+  "lr.filterThisMonth": "本月",
+  "lr.filterCustom": "自定义",
+  "lr.statusPending": "待审核",
+  "lr.statusApproved": "已通过",
+  "lr.statusRejected": "已拒绝",
+  "lr.statusOnHold": "暂保留",
+  "lr.searchResults": "搜索结果",
+  "lr.noResults": "未找到符合条件的小票",
 };

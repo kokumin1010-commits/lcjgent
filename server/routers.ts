@@ -12142,7 +12142,11 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
     adminGetLineReceipts: protectedProcedure
       .input(z.object({
         status: z.enum(["pending", "approved", "rejected", "on_hold"]).optional(),
-        limit: z.number().min(1).max(100).default(50),
+        statuses: z.array(z.enum(["pending", "approved", "rejected", "on_hold"])).optional(),
+        dateFrom: z.string().optional(),
+        dateTo: z.string().optional(),
+        searchText: z.string().optional(),
+        limit: z.number().min(1).max(200).default(50),
         offset: z.number().min(0).default(0),
       }).optional())
       .query(async ({ ctx, input }) => {
@@ -12150,7 +12154,11 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
           throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
         }
         const { getAllLineReceipts, getKakuhenResultsByReceiptIds } = await import("./db");
-        const receipts = await getAllLineReceipts(input);
+        const receipts = await getAllLineReceipts({
+          ...input,
+          dateFrom: input?.dateFrom ? new Date(input.dateFrom) : undefined,
+          dateTo: input?.dateTo ? new Date(input.dateTo) : undefined,
+        });
         
         // 確変チャンス情報をバッチ取得
         const receiptIds = receipts.map(r => r.receipt.id);

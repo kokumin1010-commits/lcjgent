@@ -147,8 +147,12 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
   // Keyboard shortcut help
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
   
-  // Order number search
-  const [orderNumberSearch, setOrderNumberSearch] = useState("");
+  // Advanced search & filter
+  const [searchText, setSearchText] = useState("");
+  const [selectedStatuses, setSelectedStatuses] = useState<("pending" | "approved" | "rejected" | "on_hold")[]>([]);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
   
   // AI Auto-Approve state
   const [aiAutoApproveResult, setAiAutoApproveResult] = useState<{
@@ -208,10 +212,17 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
   
   // Fetch receipts
   // ai_logタブの場合はレシート一覧を取得しない（statusバリデーションエラー回避）
+  const isSearchMode = searchText.trim() !== "" || selectedStatuses.length > 0 || dateFrom !== "" || dateTo !== "";
   const receiptStatus = activeTab === "ai_log" ? undefined : activeTab;
   const { data: receipts, isLoading } = trpc.point.adminGetLineReceipts.useQuery({
-    status: receiptStatus as "pending" | "approved" | "rejected" | "on_hold" | undefined,
-    limit: 100,
+    // In search mode: use selectedStatuses or no status filter (all)
+    // In tab mode: use activeTab as single status filter
+    status: isSearchMode ? undefined : (receiptStatus as "pending" | "approved" | "rejected" | "on_hold" | undefined),
+    statuses: isSearchMode && selectedStatuses.length > 0 ? selectedStatuses : undefined,
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo ? dateTo + "T23:59:59" : undefined,
+    searchText: searchText.trim() || undefined,
+    limit: isSearchMode ? 200 : 100,
   }, {
     enabled: activeTab !== "ai_log",
   });
@@ -1260,23 +1271,154 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
         </div>
       )}
       
-      {/* Order Number Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          type="text"
-          value={orderNumberSearch}
-          onChange={(e) => setOrderNumberSearch(e.target.value)}
-          placeholder={t("lr.searchOrderNumber")}
-          className="pl-10 pr-10"
-        />
-        {orderNumberSearch && (
-          <button
-            onClick={() => setOrderNumberSearch("")}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+      {/* Advanced Search & Filter Bar */}
+      <div className="space-y-2">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              type="text"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              placeholder={t("lr.searchPlaceholder")}
+              className="pl-10 pr-10"
+            />
+            {searchText && (
+              <button
+                onClick={() => setSearchText("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <XCircle className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          <Button
+            variant={showAdvancedFilter ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowAdvancedFilter(!showAdvancedFilter)}
+            className="gap-1 whitespace-nowrap"
           >
-            <XCircle className="w-4 h-4" />
-          </button>
+            <Target className="w-4 h-4" />
+            {t("lr.filterStatus")}
+            {(selectedStatuses.length > 0 || dateFrom || dateTo) && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                {selectedStatuses.length + (dateFrom ? 1 : 0) + (dateTo ? 1 : 0)}
+              </Badge>
+            )}
+          </Button>
+          {isSearchMode && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setSearchText(""); setSelectedStatuses([]); setDateFrom(""); setDateTo(""); }}
+              className="gap-1 text-muted-foreground"
+            >
+              <RotateCcw className="w-3 h-3" />
+              {t("lr.filterClear")}
+            </Button>
+          )}
+        </div>
+        
+        {/* Advanced Filter Panel */}
+        {showAdvancedFilter && (
+          <div className="border rounded-lg p-3 bg-muted/30 space-y-3">
+            {/* Status Multi-Select */}
+            <div>
+              <Label className="text-xs font-medium mb-1.5 block">{t("lr.filterStatus")}</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {(["pending", "approved", "rejected", "on_hold"] as const).map((status) => {
+                  const isSelected = selectedStatuses.includes(status);
+                  const statusConfig = {
+                    pending: { icon: Clock, color: "yellow", label: t("lr.statusPending") },
+                    approved: { icon: CheckCircle, color: "green", label: t("lr.statusApproved") },
+                    rejected: { icon: XCircle, color: "red", label: t("lr.statusRejected") },
+                    on_hold: { icon: AlertTriangle, color: "orange", label: t("lr.statusOnHold") },
+                  };
+                  const config = statusConfig[status];
+                  const Icon = config.icon;
+                  return (
+                    <Button
+                      key={status}
+                      variant={isSelected ? "default" : "outline"}
+                      size="sm"
+                      className={`gap-1 h-7 text-xs ${isSelected ? '' : ''}`}
+                      onClick={() => {
+                        setSelectedStatuses(prev =>
+                          isSelected ? prev.filter(s => s !== status) : [...prev, status]
+                        );
+                      }}
+                    >
+                      <Icon className="w-3 h-3" />
+                      {config.label}
+                    </Button>
+                  );
+                })}
+                {selectedStatuses.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-muted-foreground"
+                    onClick={() => setSelectedStatuses([])}
+                  >
+                    {t("lr.filterAll")}
+                  </Button>
+                )}
+              </div>
+            </div>
+            
+            {/* Date Range */}
+            <div>
+              <Label className="text-xs font-medium mb-1.5 block">{t("lr.filterDateRange")}</Label>
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1">
+                  {[
+                    { label: t("lr.filterToday"), fn: () => { const d = new Date().toISOString().split('T')[0]; setDateFrom(d); setDateTo(d); } },
+                    { label: t("lr.filterThisWeek"), fn: () => { const now = new Date(); const start = new Date(now); start.setDate(now.getDate() - now.getDay()); setDateFrom(start.toISOString().split('T')[0]); setDateTo(now.toISOString().split('T')[0]); } },
+                    { label: t("lr.filterThisMonth"), fn: () => { const now = new Date(); const start = new Date(now.getFullYear(), now.getMonth(), 1); setDateFrom(start.toISOString().split('T')[0]); setDateTo(now.toISOString().split('T')[0]); } },
+                  ].map((preset) => (
+                    <Button key={preset.label} variant="outline" size="sm" className="h-7 text-xs" onClick={preset.fn}>
+                      {preset.label}
+                    </Button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-1 flex-1">
+                  <Input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="h-7 text-xs"
+                  />
+                  <span className="text-muted-foreground text-xs">~</span>
+                  <Input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="h-7 text-xs"
+                  />
+                  {(dateFrom || dateTo) && (
+                    <button onClick={() => { setDateFrom(""); setDateTo(""); }} className="text-muted-foreground hover:text-foreground">
+                      <XCircle className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Search mode indicator */}
+        {isSearchMode && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Search className="w-3 h-3" />
+            <span>{t("lr.searchResults")}: {receipts?.length || 0} {t("lr.items")}</span>
+            {selectedStatuses.length > 0 && (
+              <span className="text-blue-500">
+                [{selectedStatuses.map(s => t(`lr.status${s.charAt(0).toUpperCase() + s.slice(1).replace('_h', 'H').replace('old', 'Old')}`)).join(", ")}]
+              </span>
+            )}
+            {dateFrom && <span className="text-green-500">{dateFrom}</span>}
+            {dateTo && <span className="text-green-500">~ {dateTo}</span>}
+          </div>
         )}
       </div>
 
@@ -1284,7 +1426,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
       <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <Card 
           className={`cursor-pointer transition-all hover:shadow-md ${activeTab === "pending" ? "ring-2 ring-yellow-400 bg-yellow-50" : ""}`}
-          onClick={() => { setActiveTab("pending"); setCalcReceiptId(null); setCalcAmount(""); }}
+          onClick={() => { setActiveTab("pending"); setCalcReceiptId(null); setCalcAmount(""); setSearchText(""); setSelectedStatuses([]); setDateFrom(""); setDateTo(""); }}
         >
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
@@ -1296,7 +1438,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
         </Card>
         <Card 
           className={`cursor-pointer transition-all hover:shadow-md ${activeTab === "approved" ? "ring-2 ring-green-400 bg-green-50" : ""}`}
-          onClick={() => { setActiveTab("approved"); setCalcReceiptId(null); setCalcAmount(""); }}
+          onClick={() => { setActiveTab("approved"); setCalcReceiptId(null); setCalcAmount(""); setSearchText(""); setSelectedStatuses([]); setDateFrom(""); setDateTo(""); }}
         >
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
@@ -1308,7 +1450,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
         </Card>
         <Card 
           className={`cursor-pointer transition-all hover:shadow-md ${activeTab === "rejected" ? "ring-2 ring-red-400 bg-red-50" : ""}`}
-          onClick={() => { setActiveTab("rejected"); setCalcReceiptId(null); setCalcAmount(""); }}
+          onClick={() => { setActiveTab("rejected"); setCalcReceiptId(null); setCalcAmount(""); setSearchText(""); setSelectedStatuses([]); setDateFrom(""); setDateTo(""); }}
         >
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
@@ -1320,7 +1462,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
         </Card>
         <Card 
           className={`cursor-pointer transition-all hover:shadow-md ${activeTab === "on_hold" ? "ring-2 ring-orange-400 bg-orange-50" : ""}`}
-          onClick={() => { setActiveTab("on_hold"); setCalcReceiptId(null); setCalcAmount(""); }}
+          onClick={() => { setActiveTab("on_hold"); setCalcReceiptId(null); setCalcAmount(""); setSearchText(""); setSelectedStatuses([]); setDateFrom(""); setDateTo(""); }}
         >
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
@@ -1341,7 +1483,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
         </Card>
         <Card 
           className={`cursor-pointer transition-all hover:shadow-md ${activeTab === "ai_log" ? "ring-2 ring-purple-400 bg-purple-50" : ""}`}
-          onClick={() => { setActiveTab("ai_log" as ReceiptStatus); setCalcReceiptId(null); setCalcAmount(""); }}
+          onClick={() => { setActiveTab("ai_log" as ReceiptStatus); setCalcReceiptId(null); setCalcAmount(""); setSearchText(""); setSelectedStatuses([]); setDateFrom(""); setDateTo(""); }}
         >
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
@@ -1447,7 +1589,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
       )}
       
       {/* Content - Tab switching handled by clickable stat cards above */}
-      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as ReceiptStatus); setCalcReceiptId(null); setCalcAmount(""); }}>
+      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as ReceiptStatus); setCalcReceiptId(null); setCalcAmount(""); setSearchText(""); setSelectedStatuses([]); setDateFrom(""); setDateTo(""); }}>
         
         <TabsContent value={activeTab} className="mt-4">
           {activeTab === "ai_log" ? (
@@ -2012,11 +2154,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
               {/* RIGHT COLUMN: Receipt Card List (Compact) */}
               <div className="w-[360px] flex-shrink-0">
                 <div className="grid gap-2 max-h-[calc(100vh-200px)] overflow-y-auto pr-1">
-                  {receipts?.filter(({ receipt }) => {
-                    if (!orderNumberSearch.trim()) return true;
-                    const orderNum = getOrderNumber(receipt);
-                    return orderNum?.includes(orderNumberSearch.trim()) || false;
-                  }).map(({ receipt, lineUser, kakuhen }) => {
+                  {receipts?.map(({ receipt, lineUser, kakuhen }) => {
                     const images = getReceiptImages(receipt);
                     const aiScore = getAiConfidence(receipt);
                     const confidence = getConfidenceLabel(aiScore);
