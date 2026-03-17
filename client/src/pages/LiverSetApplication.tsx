@@ -26,6 +26,8 @@ import {
   Eye,
   ChevronDown,
   ChevronUp,
+  HelpCircle,
+  Info,
 } from "lucide-react";
 
 // Types
@@ -82,6 +84,9 @@ export default function LiverSetApplication() {
   // Product search
   const [productSearchOpen, setProductSearchOpen] = useState(false);
   const [productKeyword, setProductKeyword] = useState("");
+
+  // How to popup
+  const [howToOpen, setHowToOpen] = useState(false);
 
   // Filter
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -152,6 +157,7 @@ export default function LiverSetApplication() {
   function startCreate() {
     resetForm();
     setActiveView("create");
+    setHowToOpen(true);
   }
 
   function startEdit(app: ApplicationData) {
@@ -468,9 +474,20 @@ export default function LiverSetApplication() {
           <div className="space-y-4">
             <Card className="bg-gray-900 border-gray-800">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">
-                  {activeView === "edit" ? "セット申請を編集" : "新しいセット申請"}
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">
+                    {activeView === "edit" ? "セット申請を編集" : "新しいセット申請"}
+                  </CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setHowToOpen(true)}
+                    className="text-purple-400 hover:text-purple-300 h-8 px-2"
+                  >
+                    <HelpCircle className="h-4 w-4 mr-1" />
+                    <span className="text-xs">入力ガイド</span>
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Set Name */}
@@ -656,6 +673,60 @@ export default function LiverSetApplication() {
           </div>
         )}
       </div>
+
+      {/* How To Dialog */}
+      <Dialog open={howToOpen} onOpenChange={setHowToOpen}>
+        <DialogContent className="bg-gray-900 border-gray-800 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Info className="h-5 w-5 text-purple-400" />
+              セット申請の作り方
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 text-sm">
+            <div className="flex gap-3">
+              <div className="flex-shrink-0 w-7 h-7 rounded-full bg-purple-600 flex items-center justify-center text-white font-bold text-xs">1</div>
+              <div>
+                <p className="font-semibold text-white">セット名を入力</p>
+                <p className="text-gray-400 mt-0.5">例: 「KYOGOKUヘアケアセット」など、配信で使うセット名を入力</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <div className="flex-shrink-0 w-7 h-7 rounded-full bg-purple-600 flex items-center justify-center text-white font-bold text-xs">2</div>
+              <div>
+                <p className="font-semibold text-white">配信予定日時を設定</p>
+                <p className="text-gray-400 mt-0.5">ライブ配信の予定日時を選択してください</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <div className="flex-shrink-0 w-7 h-7 rounded-full bg-purple-600 flex items-center justify-center text-white font-bold text-xs">3</div>
+              <div>
+                <p className="font-semibold text-white">商品を追加</p>
+                <p className="text-gray-400 mt-0.5"><span className="text-purple-400 font-medium">「商品検索」</span>ボタンでMALLの商品から選択。見つからない場合は<span className="text-gray-300 font-medium">「手動追加」</span>で商品名と単価を直接入力</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <div className="flex-shrink-0 w-7 h-7 rounded-full bg-purple-600 flex items-center justify-center text-white font-bold text-xs">4</div>
+              <div>
+                <p className="font-semibold text-white">セット価格を調整</p>
+                <p className="text-gray-400 mt-0.5">元値合計が自動計算されます。希望のセット価格を入力すると割引率が表示されます</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <div className="flex-shrink-0 w-7 h-7 rounded-full bg-green-600 flex items-center justify-center text-white font-bold text-xs">5</div>
+              <div>
+                <p className="font-semibold text-white">申請する</p>
+                <p className="text-gray-400 mt-0.5">運営が审査し、承認・却下・修正依頼を行います。結果は一覧から確認できます</p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setHowToOpen(false)} className="w-full bg-purple-600 hover:bg-purple-700">
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Product Search Dialog */}
       <Dialog open={productSearchOpen} onOpenChange={setProductSearchOpen}>
