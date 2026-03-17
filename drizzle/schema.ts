@@ -3914,3 +3914,101 @@ export const setApplicationItems = mysqlTable("set_application_items", {
 
 export type SetApplicationItem = typeof setApplicationItems.$inferSelect;
 export type InsertSetApplicationItem = typeof setApplicationItems.$inferInsert;
+
+
+/**
+ * Liver Credits table - ライバーの月間クレジット管理
+ * 毎月リセット。配信時間×1,000円 + 前月売上×10% + ランクボーナスで自動計算
+ * ※クレジットは繰り越し無し
+ */
+export const liverCredits = mysqlTable("liver_credits", {
+  id: int("id").autoincrement().primaryKey(),
+  liverId: int("liverId").notNull(), // References livers.id
+  
+  // 対象月（YYYY-MM形式で管理）
+  month: varchar("month", { length: 7 }).notNull(), // 例: "2026-03"
+  
+  // ランク（その月の判定結果）
+  rank: mysqlEnum("rank", ["none", "silver", "gold", "black"]).default("none").notNull(),
+  
+  // 実績データ（運営が入力 → 将来的にAPI自動取得）
+  streamingHours: decimal("streamingHours", { precision: 6, scale: 1 }).default("0"), // 配信時間（時間）
+  monthlySales: bigint("monthlySales", { mode: "number" }).default(0), // 月間売上（円）
+  
+  // クレジット計算結果
+  streamingCredit: bigint("streamingCredit", { mode: "number" }).default(0), // 配信時間クレジット（時間×1,000）
+  salesCredit: bigint("salesCredit", { mode: "number" }).default(0), // 売上クレジット（売上×10%）
+  rankBonus: bigint("rankBonus", { mode: "number" }).default(0), // ランクボーナス（SILVER:5000, GOLD:15000, BLACK:50000）
+  totalCredit: bigint("totalCredit", { mode: "number" }).default(0), // 合計クレジット
+  usedCredit: bigint("usedCredit", { mode: "number" }).default(0), // 使用済みクレジット
+  remainingCredit: bigint("remainingCredit", { mode: "number" }).default(0), // 残りクレジット
+  
+  // 初月フラグ（初月は10万円枠）
+  isFirstMonth: boolean("isFirstMonth").default(false),
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type LiverCredit = typeof liverCredits.$inferSelect;
+export type InsertLiverCredit = typeof liverCredits.$inferInsert;
+
+/**
+ * Sample Requests table - ライバーのサンプル請求
+ * ライバーが請求 → 運営が承認/却下 → 発送
+ */
+export const sampleRequests = mysqlTable("sample_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  
+  // 請求者（ライバー）
+  liverId: int("liverId").notNull(), // References livers.id
+  liverName: varchar("liverName", { length: 255 }).notNull(),
+  
+  // 対象月
+  month: varchar("month", { length: 7 }).notNull(), // 例: "2026-03"
+  
+  // 配信予定日（必須）
+  scheduledDate: timestamp("scheduledDate").notNull(),
+  
+  // 金額情報
+  totalAmount: bigint("totalAmount", { mode: "number" }).default(0), // 請求合計金額（定価）
+  creditUsed: bigint("creditUsed", { mode: "number" }).default(0), // クレジット使用額
+  outOfPocketAmount: bigint("outOfPocketAmount", { mode: "number" }).default(0), // 実費（クレジット超過分、60%OFF価格）
+  
+  // ステータス
+  status: mysqlEnum("status", ["pending", "approved", "rejected", "shipped", "cancelled"]).default("pending").notNull(),
+  
+  // 運営コメント
+  adminComment: text("adminComment"),
+  reviewedBy: int("reviewedBy"), // 審査した管理者のuser ID
+  reviewedAt: timestamp("reviewedAt"),
+  shippedAt: timestamp("shippedAt"), // 発送日時
+  
+  // ライバーのメモ
+  memo: text("memo"),
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type SampleRequest = typeof sampleRequests.$inferSelect;
+export type InsertSampleRequest = typeof sampleRequests.$inferInsert;
+
+/**
+ * Sample Request Items table - サンプル請求内の個別商品
+ */
+export const sampleRequestItems = mysqlTable("sample_request_items", {
+  id: int("id").autoincrement().primaryKey(),
+  requestId: int("requestId").notNull(), // References sampleRequests.id
+  
+  // 商品情報
+  mallProductId: int("mallProductId"), // References mall_products.id
+  productName: varchar("productName", { length: 255 }).notNull(),
+  price: bigint("price", { mode: "number" }).notNull(), // 定価
+  quantity: int("quantity").default(1).notNull(),
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type SampleRequestItem = typeof sampleRequestItems.$inferSelect;
+export type InsertSampleRequestItem = typeof sampleRequestItems.$inferInsert;

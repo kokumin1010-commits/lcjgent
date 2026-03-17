@@ -22,7 +22,7 @@ import {
 import { useLanguage, Language } from "@/contexts/LanguageContext";
 
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, MessageCircle, Package, ShoppingCart, UserCheck, Zap, Wallet, Calculator, UserRoundCog, Megaphone, Store, GraduationCap, Receipt, BarChart3, Heart, Newspaper, Bot, Tag } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, MessageCircle, Package, ShoppingCart, UserCheck, Zap, Wallet, Calculator, UserRoundCog, Megaphone, Store, GraduationCap, Receipt, BarChart3, Heart, Newspaper, Bot, Tag, Gift } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -107,6 +107,7 @@ function DashboardLayoutContent({
     { icon: Zap, label: t("nav.liverCommand") || "ライバー司令塔", path: "/master/livers-dashboard" },
     { icon: Calculator, label: "配信シミュレーター", path: "/master/simulator" },
     { icon: Package, label: "セット申請管理", path: "/master/set-applications" },
+    { icon: Gift, label: "サンプル管理", path: "/master/sample-requests" },
     { icon: Store, label: "LCJ MALL", path: "/master/mall" },
     { icon: Newspaper, label: "ブログ管理", path: "/master/blog" },
     { icon: Megaphone, label: "紹介コード管理", path: "/master/referral", adminOnly: true },

@@ -562,6 +562,7 @@ import { ENV } from "./_core/env";
 import { authRouter } from "./auth";
 import { liverRouter } from "./liverRouter";
 import { setApplicationRouter } from "./setApplicationRouter";
+import { sampleRequestRouter } from "./sampleRequestRouter";
 import { checkAndSendReminders } from "./reminderScheduler";
 // Blog/AutoPost関連のimportはserver/blogRouter.tsに移動済み
 import { completionRouter } from "./completion";
@@ -9445,6 +9446,9 @@ ${conversationText}
 
   // Set Application Router (セット事前申請)
   setApplication: setApplicationRouter,
+
+  // Sample Request Router (サンプル請求)
+  sampleRequest: sampleRequestRouter,
 
   // Liver Management Router (ライバー管理画面用)
   liverManagement: router({
