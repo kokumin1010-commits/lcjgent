@@ -48,6 +48,10 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 // ===== ステータス定義 =====
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
@@ -528,20 +532,41 @@ export default function RecruitmentManagement() {
             </div>
             <div>
               <label className="text-xs text-gray-500 mb-1 block">招商负责人</label>
-              <Select
-                value={personFilter[0]?.toString() || "all"}
-                onValueChange={v => { setPersonFilter(v === "all" ? [] : [parseInt(v)]); setPage(1); }}
-              >
-                <SelectTrigger className="bg-gray-700/50 border-gray-600 text-white text-sm">
-                  <SelectValue placeholder="全部负责人" />
-                </SelectTrigger>
-                <SelectContent className="bg-gray-800 border-gray-700">
-                  <SelectItem value="all" className="text-gray-300">全部负责人</SelectItem>
-                  {(staffList || []).map((s: any) => (
-                    <SelectItem key={s.id} value={s.id.toString()} className="text-gray-300">{s.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" role="combobox" className="w-full justify-between bg-gray-700/50 border-gray-600 text-white text-sm hover:bg-gray-700 hover:text-white">
+                    {personFilter.length > 0 ? (staffList || []).find((s: any) => s.id === personFilter[0])?.name || "全部负责人" : "全部负责人"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[220px] p-0 bg-gray-800 border-gray-700" align="start">
+                  <Command className="bg-gray-800">
+                    <CommandInput placeholder="搜索负责人..." className="text-white" />
+                    <CommandList>
+                      <CommandEmpty className="text-gray-500 text-sm py-3 text-center">未找到</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          onSelect={() => { setPersonFilter([]); setPage(1); }}
+                          className="text-gray-300 cursor-pointer"
+                        >
+                          <Check className={cn("mr-2 h-4 w-4", personFilter.length === 0 ? "opacity-100" : "opacity-0")} />
+                          全部负责人
+                        </CommandItem>
+                        {(staffList || []).map((s: any) => (
+                          <CommandItem
+                            key={s.id}
+                            onSelect={() => { setPersonFilter([s.id]); setPage(1); }}
+                            className="text-gray-300 cursor-pointer"
+                          >
+                            <Check className={cn("mr-2 h-4 w-4", personFilter[0] === s.id ? "opacity-100" : "opacity-0")} />
+                            {s.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div>
               <label className="text-xs text-gray-500 mb-1 block">开始日期</label>
@@ -798,20 +823,41 @@ export default function RecruitmentManagement() {
             </div>
             <div>
               <label className="text-sm text-gray-400 mb-1 block">招商负责人</label>
-              <Select
-                value={formData.personInCharge?.toString() || "none"}
-                onValueChange={v => setFormData(p => ({ ...p, personInCharge: v === "none" ? null : parseInt(v) }))}
-              >
-                <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
-                  <SelectValue placeholder="选择负责人" />
-                </SelectTrigger>
-                <SelectContent className="bg-gray-800 border-gray-700">
-                  <SelectItem value="none" className="text-gray-400">未指定</SelectItem>
-                  {(staffList || []).map((s: any) => (
-                    <SelectItem key={s.id} value={s.id.toString()} className="text-gray-300">{s.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" role="combobox" className="w-full justify-between bg-gray-800 border-gray-700 text-white hover:bg-gray-700 hover:text-white">
+                    {formData.personInCharge ? (staffList || []).find((s: any) => s.id === formData.personInCharge)?.name || "选择负责人" : "未指定"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[280px] p-0 bg-gray-800 border-gray-700" align="start">
+                  <Command className="bg-gray-800">
+                    <CommandInput placeholder="搜索负责人..." className="text-white" />
+                    <CommandList>
+                      <CommandEmpty className="text-gray-500 text-sm py-3 text-center">未找到</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          onSelect={() => setFormData(p => ({ ...p, personInCharge: null }))}
+                          className="text-gray-400 cursor-pointer"
+                        >
+                          <Check className={cn("mr-2 h-4 w-4", !formData.personInCharge ? "opacity-100" : "opacity-0")} />
+                          未指定
+                        </CommandItem>
+                        {(staffList || []).map((s: any) => (
+                          <CommandItem
+                            key={s.id}
+                            onSelect={() => setFormData(p => ({ ...p, personInCharge: s.id }))}
+                            className="text-gray-300 cursor-pointer"
+                          >
+                            <Check className={cn("mr-2 h-4 w-4", formData.personInCharge === s.id ? "opacity-100" : "opacity-0")} />
+                            {s.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div>
               <label className="text-sm text-gray-400 mb-1 block">联系方式</label>
@@ -883,20 +929,41 @@ export default function RecruitmentManagement() {
             </div>
             <div>
               <label className="text-sm text-gray-400 mb-1 block">招商负责人</label>
-              <Select
-                value={formData.personInCharge?.toString() || "none"}
-                onValueChange={v => setFormData(p => ({ ...p, personInCharge: v === "none" ? null : parseInt(v) }))}
-              >
-                <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-gray-800 border-gray-700">
-                  <SelectItem value="none" className="text-gray-400">未指定</SelectItem>
-                  {(staffList || []).map((s: any) => (
-                    <SelectItem key={s.id} value={s.id.toString()} className="text-gray-300">{s.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" role="combobox" className="w-full justify-between bg-gray-800 border-gray-700 text-white hover:bg-gray-700 hover:text-white">
+                    {formData.personInCharge ? (staffList || []).find((s: any) => s.id === formData.personInCharge)?.name || "选择负责人" : "未指定"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[280px] p-0 bg-gray-800 border-gray-700" align="start">
+                  <Command className="bg-gray-800">
+                    <CommandInput placeholder="搜索负责人..." className="text-white" />
+                    <CommandList>
+                      <CommandEmpty className="text-gray-500 text-sm py-3 text-center">未找到</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          onSelect={() => setFormData(p => ({ ...p, personInCharge: null }))}
+                          className="text-gray-400 cursor-pointer"
+                        >
+                          <Check className={cn("mr-2 h-4 w-4", !formData.personInCharge ? "opacity-100" : "opacity-0")} />
+                          未指定
+                        </CommandItem>
+                        {(staffList || []).map((s: any) => (
+                          <CommandItem
+                            key={s.id}
+                            onSelect={() => setFormData(p => ({ ...p, personInCharge: s.id }))}
+                            className="text-gray-300 cursor-pointer"
+                          >
+                            <Check className={cn("mr-2 h-4 w-4", formData.personInCharge === s.id ? "opacity-100" : "opacity-0")} />
+                            {s.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div>
               <label className="text-sm text-gray-400 mb-1 block">联系方式</label>

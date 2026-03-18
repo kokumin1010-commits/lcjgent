@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Building2, X, ArrowLeft, DollarSign, TrendingUp, Gem, Calendar, ChevronDown } from "lucide-react";
+import { Plus, Search, Building2, X, ArrowLeft, DollarSign, TrendingUp, Gem, Calendar, ChevronDown, Handshake } from "lucide-react";
 
 const translations = {
   ja: {
@@ -320,12 +320,20 @@ export default function BrandList() {
               </div>
             </div>
           </div>
-          <Link href="/master/brands/new">
-            <Button className="bg-red-600 hover:bg-red-700 text-white">
-              <Plus className="h-4 w-4 mr-2" />
-              {t.newBrand}
-            </Button>
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link href="/master/recruitment">
+              <Button className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white">
+                <Handshake className="h-4 w-4 mr-2" />
+                招商管理
+              </Button>
+            </Link>
+            <Link href="/master/brands/new">
+              <Button className="bg-red-600 hover:bg-red-700 text-white">
+                <Plus className="h-4 w-4 mr-2" />
+                {t.newBrand}
+              </Button>
+            </Link>
+          </div>
         </div>
 
         {/* Period Filter */}
