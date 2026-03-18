@@ -106,6 +106,7 @@ const BlogTagPage = lazy(() => import("./pages/BlogTagPage"));
 const BrandListPage = lazy(() => import("./pages/BrandListPage"));
 const BrandDetailPage = lazy(() => import("./pages/BrandDetailPage"));
 const BrandAdditionLogs = lazy(() => import("./pages/BrandAdditionLogs"));
+const RecruitmentManagement = lazy(() => import("./pages/RecruitmentManagement"));
 const ReviewDatabase = lazy(() => import("./pages/ReviewDatabase"));
 const ProductReviews = lazy(() => import("./pages/ProductReviews"));
 const BeautyWallet = lazy(() => import("./pages/BeautyWallet"));
@@ -260,6 +261,9 @@ function Router() {
         </Route>
         <Route path={"/master/brands"}>
           <BrandList />
+        </Route>
+        <Route path={"/master/recruitment"}>
+          <RecruitmentManagement />
         </Route>
         <Route path={"/master/brands/new"}>
           <DashboardLayout>

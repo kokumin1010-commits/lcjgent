@@ -4020,3 +4020,33 @@ export const sampleRequestItems = mysqlTable("sample_request_items", {
 });
 export type SampleRequestItem = typeof sampleRequestItems.$inferSelect;
 export type InsertSampleRequestItem = typeof sampleRequestItems.$inferInsert;
+
+// ===== 招商管理 (Recruitment Management) =====
+export const recruitmentBrands = mysqlTable("recruitment_brands", {
+  id: int("id").autoincrement().primaryKey(),
+  brandName: varchar("brand_name", { length: 255 }).notNull(),
+  brandType: varchar("brand_type", { length: 100 }).notNull().default(""),
+  personInCharge: int("person_in_charge"),
+  contactInfo: text("contact_info"),
+  memo: text("memo"),
+  status: mysqlEnum("status", ["registered", "email_sent", "replied", "agreed", "cooperating", "rejected"]).notNull().default("registered"),
+  rejectReason: text("reject_reason"),
+  lastFollowedAt: timestamp("last_followed_at"),
+  createdBy: int("created_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
+});
+export type RecruitmentBrand = typeof recruitmentBrands.$inferSelect;
+export type InsertRecruitmentBrand = typeof recruitmentBrands.$inferInsert;
+
+export const recruitmentStatusHistory = mysqlTable("recruitment_status_history", {
+  id: int("id").autoincrement().primaryKey(),
+  recruitmentBrandId: int("recruitment_brand_id").notNull(),
+  oldStatus: varchar("old_status", { length: 50 }),
+  newStatus: varchar("new_status", { length: 50 }).notNull(),
+  changedBy: int("changed_by"),
+  note: text("note"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type RecruitmentStatusHistory = typeof recruitmentStatusHistory.$inferSelect;

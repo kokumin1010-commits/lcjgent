@@ -22,7 +22,7 @@ import {
 import { useLanguage, Language } from "@/contexts/LanguageContext";
 
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, MessageCircle, Package, ShoppingCart, UserCheck, Zap, Wallet, Calculator, UserRoundCog, Megaphone, Store, GraduationCap, Receipt, BarChart3, Heart, Newspaper, Bot, Tag, Gift } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, MessageCircle, Package, ShoppingCart, UserCheck, Zap, Wallet, Calculator, UserRoundCog, Megaphone, Store, GraduationCap, Receipt, BarChart3, Heart, Newspaper, Bot, Tag, Gift, Handshake } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -98,6 +98,7 @@ function DashboardLayoutContent({
     { icon: UserRoundCog, label: "人事管理（HR）", path: "/master/hr" },
     { icon: Building2, label: t("nav.brands"), path: "/master/brands" },
     { icon: Tag, label: "ブランド追加ログ", path: "/master/brand-addition-logs" },
+    { icon: Handshake, label: "招商管理", path: "/master/recruitment" },
     { icon: CreditCard, label: t("nav.businessCards"), path: "/master/business-cards" },
     { icon: MessageSquare, label: t("nav.line"), path: "/master/line" },
     { icon: Bell, label: t("nav.lineFollowUps"), path: "/master/line/follow-ups" },
