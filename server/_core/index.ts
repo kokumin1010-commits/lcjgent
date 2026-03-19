@@ -609,6 +609,37 @@ async function startServer() {
     }
   });
 
+  // Recruitment image upload endpoint (for AI OCR recognition)
+  app.post("/api/recruitment-image-upload", upload.array("files", 20), async (req: any, res) => {
+    try {
+      let user;
+      try {
+        user = await sdk.authenticateRequest(req);
+      } catch (e) {
+        return res.status(401).json({ error: "認証が必要です" });
+      }
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) {
+        return res.status(400).json({ error: "No files uploaded" });
+      }
+      const results: { url: string; fileName: string }[] = [];
+      for (const file of files) {
+        if (!file.mimetype.startsWith("image/")) {
+          continue; // skip non-image files
+        }
+        const ext = file.originalname.split(".").pop() || "jpg";
+        const fileKey = `recruitment-images/${nanoid()}.${ext}`;
+        const result = await storagePut(fileKey, file.buffer, file.mimetype);
+        const decodedFileName = Buffer.from(file.originalname, 'latin1').toString('utf-8');
+        results.push({ url: result.url, fileName: decodedFileName });
+      }
+      res.json({ success: true, files: results });
+    } catch (error) {
+      console.error("[Recruitment Image Upload] Error:", error);
+      res.status(500).json({ error: "Failed to upload images" });
+    }
+  });
+
   // CSV Upload REST API endpoint (avoids tRPC Base64 size issues)
   // Wrap multer in error handler to prevent raw error responses
   app.post("/api/csv-upload", (req: any, res: any, next: any) => {

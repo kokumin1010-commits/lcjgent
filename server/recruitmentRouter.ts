@@ -9,6 +9,7 @@
  * - Excel/CSVエクスポート
  * - ステータス変更履歴
  * - 合作状態時にbrandsテーブルへ自動同期
+ * - AI智能識別（テキスト + 画像Vision）
  */
 import { router, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
@@ -16,7 +17,7 @@ import { TRPCError } from "@trpc/server";
 import { getDb } from "./db";
 import { recruitmentBrands, recruitmentStatusHistory, staff, brands } from "../drizzle/schema";
 import { eq, desc, and, sql, isNull, inArray, between, like, or, asc, count } from "drizzle-orm";
-import { ENV } from "./_core/env";
+import { invokeLLM } from "./_core/llm";
 
 // ステータス定義
 const STATUS_LABELS: Record<string, string> = {
@@ -305,7 +306,7 @@ export const recruitmentRouter = router({
 
       // ブランドタイプフィルタ
       if (input.brandTypes && input.brandTypes.length > 0) {
-        conditions.push(inArray(recruitmentBrands.brandType, input.brandTypes));
+        conditions.push(inArray(recruitmentBrands.brandType, input.brandTypes as any));
       }
 
       // 担当者フィルタ
@@ -321,72 +322,70 @@ export const recruitmentRouter = router({
         conditions.push(sql`${recruitmentBrands.createdAt} <= ${input.dateTo + " 23:59:59"}`);
       }
 
-      const whereClause = and(...conditions);
-
       // カウント
-      const [countResult] = await db.select({ total: count() })
+      const [{ cnt }] = await db.select({ cnt: count() })
         .from(recruitmentBrands)
-        .where(whereClause);
-      const total = countResult?.total ?? 0;
+        .where(and(...conditions));
 
       // ソート
-      const sortCol = (() => {
-        switch (input.sortBy) {
-          case "brand_name": return recruitmentBrands.brandName;
-          case "brand_type": return recruitmentBrands.brandType;
-          case "status": return recruitmentBrands.status;
-          case "last_followed_at": return recruitmentBrands.lastFollowedAt;
-          default: return recruitmentBrands.createdAt;
-        }
-      })();
+      const sortCol = input.sortBy === "brand_name" ? recruitmentBrands.brandName
+        : input.sortBy === "status" ? recruitmentBrands.status
+        : input.sortBy === "last_followed_at" ? recruitmentBrands.lastFollowedAt
+        : recruitmentBrands.createdAt;
       const orderFn = input.sortOrder === "asc" ? asc : desc;
 
       // データ取得
-      const offset = (input.page - 1) * input.pageSize;
       const rows = await db.select()
         .from(recruitmentBrands)
-        .where(whereClause)
+        .where(and(...conditions))
         .orderBy(orderFn(sortCol))
         .limit(input.pageSize)
-        .offset(offset);
+        .offset((input.page - 1) * input.pageSize);
 
-      // 担当者名を結合
-      const personIds = [...new Set(rows.map(r => r.personInCharge).filter(Boolean))] as number[];
-      let staffMap: Record<number, string> = {};
-      if (personIds.length > 0) {
+      // 担当者名を取得
+      const staffIds = [...new Set(rows.map(r => r.personInCharge).filter(Boolean))] as number[];
+      const staffMap: Record<number, string> = {};
+      if (staffIds.length > 0) {
         const staffRows = await db.select({ id: staff.id, name: staff.name })
           .from(staff)
-          .where(inArray(staff.id, personIds));
-        staffMap = Object.fromEntries(staffRows.map(s => [s.id, s.name]));
+          .where(inArray(staff.id, staffIds));
+        for (const s of staffRows) {
+          staffMap[s.id] = s.name;
+        }
       }
 
-      const items = rows.map(r => ({
-        ...r,
-        personInChargeName: r.personInCharge ? staffMap[r.personInCharge] || "" : "",
-        statusLabel: STATUS_LABELS[r.status] || r.status,
-      }));
-
-      return { items, total, page: input.page, pageSize: input.pageSize };
+      return {
+        items: rows.map(r => ({
+          id: r.id,
+          brandName: r.brandName,
+          brandType: r.brandType,
+          personInCharge: r.personInCharge,
+          personInChargeName: r.personInCharge ? staffMap[r.personInCharge] || "" : "",
+          status: r.status,
+          statusLabel: STATUS_LABELS[r.status] || r.status,
+          contactInfo: r.contactInfo || "",
+          memo: r.memo || "",
+          rejectReason: r.rejectReason || "",
+          createdAt: r.createdAt,
+          lastFollowedAt: r.lastFollowedAt,
+        })),
+        total: Number(cnt),
+        page: input.page,
+        pageSize: input.pageSize,
+      };
     }),
 
-  // ===== 6. 詳細取得 =====
+  // ===== 6. 詳細取得（ステータス履歴付き） =====
   getById: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      const [brand] = await db.select()
+      const [row] = await db.select()
         .from(recruitmentBrands)
         .where(and(eq(recruitmentBrands.id, input.id), isNull(recruitmentBrands.deletedAt)));
 
-      if (!brand) {
+      if (!row) {
         throw new TRPCError({ code: "NOT_FOUND", message: "品牌不存在" });
-      }
-
-      // 担当者名
-      let personName = "";
-      if (brand.personInCharge) {
-        const [s] = await db.select({ name: staff.name }).from(staff).where(eq(staff.id, brand.personInCharge));
-        personName = s?.name || "";
       }
 
       // ステータス履歴
@@ -395,32 +394,41 @@ export const recruitmentRouter = router({
         .where(eq(recruitmentStatusHistory.recruitmentBrandId, input.id))
         .orderBy(desc(recruitmentStatusHistory.createdAt));
 
-      // 履歴に操作者名を結合
-      const changerIds = [...new Set(history.map(h => h.changedBy).filter(Boolean))] as number[];
-      let changerMap: Record<number, string> = {};
-      if (changerIds.length > 0) {
-        const changerRows = await db.select({ id: staff.id, name: staff.name })
+      // 担当者名
+      let personName = "";
+      if (row.personInCharge) {
+        const [s] = await db.select({ name: staff.name })
           .from(staff)
-          .where(inArray(staff.id, changerIds));
-        changerMap = Object.fromEntries(changerRows.map(s => [s.id, s.name]));
+          .where(eq(staff.id, row.personInCharge));
+        personName = s?.name || "";
       }
 
-      const historyWithNames = history.map(h => ({
-        ...h,
-        changedByName: h.changedBy ? changerMap[h.changedBy] || "" : "",
-        oldStatusLabel: h.oldStatus ? STATUS_LABELS[h.oldStatus] || h.oldStatus : "",
-        newStatusLabel: STATUS_LABELS[h.newStatus] || h.newStatus,
-      }));
+      // 履歴の担当者名
+      const changedByIds = [...new Set(history.map(h => h.changedBy).filter(Boolean))] as number[];
+      const changedByMap: Record<number, string> = {};
+      if (changedByIds.length > 0) {
+        const staffRows = await db.select({ id: staff.id, name: staff.name })
+          .from(staff)
+          .where(inArray(staff.id, changedByIds));
+        for (const s of staffRows) {
+          changedByMap[s.id] = s.name;
+        }
+      }
 
       return {
-        ...brand,
+        ...row,
         personInChargeName: personName,
-        statusLabel: STATUS_LABELS[brand.status] || brand.status,
-        history: historyWithNames,
+        statusLabel: STATUS_LABELS[row.status] || row.status,
+        history: history.map(h => ({
+          ...h,
+          oldStatusLabel: h.oldStatus ? STATUS_LABELS[h.oldStatus] || h.oldStatus : null,
+          newStatusLabel: STATUS_LABELS[h.newStatus] || h.newStatus,
+          changedByName: h.changedBy ? changedByMap[h.changedBy] || "" : "",
+        })),
       };
     }),
 
-  // ===== 7. ステータスサマリー（ダッシュボード用） =====
+  // ===== 7. ステータスサマリー =====
   statusSummary: protectedProcedure.query(async () => {
     const db = await getDb();
     const rows = await db.select({
@@ -431,21 +439,20 @@ export const recruitmentRouter = router({
       .where(isNull(recruitmentBrands.deletedAt))
       .groupBy(recruitmentBrands.status);
 
-    const summary: Record<string, number> = {
-      registered: 0, email_sent: 0, replied: 0, agreed: 0, cooperating: 0, rejected: 0,
-    };
+    const summary: Record<string, number> = {};
+    let total = 0;
     for (const r of rows) {
-      summary[r.status] = r.cnt;
+      summary[r.status] = Number(r.cnt);
+      total += Number(r.cnt);
     }
-    const total = Object.values(summary).reduce((a, b) => a + b, 0);
     return { ...summary, total };
   }),
 
-  // ===== 8. エクスポート用データ取得（全データ or フィルタ済み） =====
+  // ===== 8. エクスポート用データ =====
   exportData: protectedProcedure
     .input(z.object({
-      search: z.string().optional(),
       statuses: z.array(z.string()).optional(),
+      search: z.string().optional(),
       brandTypes: z.array(z.string()).optional(),
       personInChargeIds: z.array(z.number()).optional(),
       dateFrom: z.string().optional(),
@@ -454,16 +461,20 @@ export const recruitmentRouter = router({
     .query(async ({ input }) => {
       const db = await getDb();
       const conditions: any[] = [isNull(recruitmentBrands.deletedAt)];
-
-      if (input.search && input.search.trim()) {
-        const term = `%${input.search.trim().toLowerCase()}%`;
-        conditions.push(sql`LOWER(${recruitmentBrands.brandName}) LIKE ${term}`);
-      }
       if (input.statuses && input.statuses.length > 0) {
         conditions.push(inArray(recruitmentBrands.status, input.statuses as any));
       }
+      if (input.search && input.search.trim()) {
+        const term = `%${input.search.trim().toLowerCase()}%`;
+        conditions.push(
+          or(
+            sql`LOWER(${recruitmentBrands.brandName}) LIKE ${term}`,
+            sql`LOWER(${recruitmentBrands.contactInfo}) LIKE ${term}`,
+          )
+        );
+      }
       if (input.brandTypes && input.brandTypes.length > 0) {
-        conditions.push(inArray(recruitmentBrands.brandType, input.brandTypes));
+        conditions.push(inArray(recruitmentBrands.brandType, input.brandTypes as any));
       }
       if (input.personInChargeIds && input.personInChargeIds.length > 0) {
         conditions.push(inArray(recruitmentBrands.personInCharge, input.personInChargeIds));
@@ -480,19 +491,21 @@ export const recruitmentRouter = router({
         .where(and(...conditions))
         .orderBy(desc(recruitmentBrands.createdAt));
 
-      // 担当者名を結合
-      const personIds = [...new Set(rows.map(r => r.personInCharge).filter(Boolean))] as number[];
-      let staffMap: Record<number, string> = {};
-      if (personIds.length > 0) {
+      // 担当者名マップ
+      const staffIds = [...new Set(rows.map(r => r.personInCharge).filter(Boolean))] as number[];
+      const staffMap: Record<number, string> = {};
+      if (staffIds.length > 0) {
         const staffRows = await db.select({ id: staff.id, name: staff.name })
           .from(staff)
-          .where(inArray(staff.id, personIds));
-        staffMap = Object.fromEntries(staffRows.map(s => [s.id, s.name]));
+          .where(inArray(staff.id, staffIds));
+        for (const s of staffRows) {
+          staffMap[s.id] = s.name;
+        }
       }
 
       // ステータス履歴も取得
       const allIds = rows.map(r => r.id);
-      let historyMap: Record<number, any[]> = {};
+      const historyMap: Record<number, any[]> = {};
       if (allIds.length > 0) {
         const allHistory = await db.select()
           .from(recruitmentStatusHistory)
@@ -520,15 +533,24 @@ export const recruitmentRouter = router({
       }));
     }),
 
-  // ===== 9. AI識別（画像/テキストから品牌情報を抽出） =====
+  // ===== 9. AI識別（テキスト + 画像Vision対応） =====
   aiRecognize: protectedProcedure
     .input(z.object({
-      imageUrl: z.string().optional(),
+      imageUrls: z.array(z.string()).optional(),  // 複数画像対応
+      imageUrl: z.string().optional(),             // 後方互換
       text: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
-      if (!input.imageUrl && !input.text) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "请提供图片URL或文本" });
+      // 画像URLリストを構築
+      const allImageUrls: string[] = [];
+      if (input.imageUrls && input.imageUrls.length > 0) {
+        allImageUrls.push(...input.imageUrls);
+      } else if (input.imageUrl) {
+        allImageUrls.push(input.imageUrl);
+      }
+
+      if (allImageUrls.length === 0 && !input.text) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "请提供图片或文本" });
       }
 
       const systemPrompt = `你是一个品牌信息提取助手。从提供的内容中提取品牌信息，返回JSON数组格式。
@@ -538,18 +560,23 @@ export const recruitmentRouter = router({
 - contactInfo: 联系方式（联系人+电话/邮箱）
 - memo: 备注信息
 
-只返回JSON数组，不要其他文字。如果无法识别任何品牌信息，返回空数组[]。`;
+只返回JSON数组，不要其他文字。如果无法识别任何品牌信息，返回空数组[]。
+请仔细分析图片中的所有文字、logo、名片信息等，尽可能多地提取品牌信息。`;
 
       const messages: any[] = [{ role: "system", content: systemPrompt }];
 
-      if (input.imageUrl) {
-        messages.push({
-          role: "user",
-          content: [
-            { type: "text", text: "请从这张图片中提取品牌信息：" },
-            { type: "image_url", image_url: { url: input.imageUrl } },
-          ],
-        });
+      if (allImageUrls.length > 0) {
+        // 画像Vision対応
+        const content: any[] = [
+          { type: "text", text: `请从以下${allImageUrls.length}张图片中提取品牌信息：` },
+        ];
+        for (const url of allImageUrls) {
+          content.push({ type: "image_url", image_url: { url } });
+        }
+        if (input.text) {
+          content.push({ type: "text", text: `\n补充文本信息：\n${input.text}` });
+        }
+        messages.push({ role: "user", content });
       } else if (input.text) {
         messages.push({
           role: "user",
@@ -558,28 +585,8 @@ export const recruitmentRouter = router({
       }
 
       try {
-        const response = await fetch(ENV.BUILT_IN_FORGE_API_URL + "/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${ENV.BUILT_IN_FORGE_API_KEY}`,
-          },
-          body: JSON.stringify({
-            model: "gpt-4o-mini",
-            messages,
-            temperature: 0.1,
-            max_tokens: 2000,
-          }),
-        });
-
-        if (!response.ok) {
-          const errText = await response.text();
-          console.error("[AI Recognize] API error:", response.status, errText);
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "AI识别失败" });
-        }
-
-        const data = await response.json();
-        const content = data.choices?.[0]?.message?.content || "[]";
+        const result = await invokeLLM({ messages });
+        const content = result.choices?.[0]?.message?.content || "[]";
 
         // JSONを抽出
         const jsonMatch = content.match(/\[[\s\S]*\]/);
@@ -590,9 +597,11 @@ export const recruitmentRouter = router({
         const parsed = JSON.parse(jsonMatch[0]);
         return { brands: Array.isArray(parsed) ? parsed : [], raw: content };
       } catch (err: any) {
-        if (err instanceof TRPCError) throw err;
         console.error("[AI Recognize] Error:", err);
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "AI识别失败: " + err.message });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "AI识别失败: " + (err.message || "未知错误").substring(0, 200),
+        });
       }
     }),
 

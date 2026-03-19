@@ -46,6 +46,9 @@ import {
   MoreHorizontal,
   History,
   ArrowLeft,
+  ImagePlus,
+  FileText,
+  AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -83,6 +86,50 @@ function formatDate(d: any) {
 function formatDateTime(d: any) {
   if (!d) return "-";
   return new Date(d).toLocaleString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+// ===== SearchableStaffSelect コンポーネント =====
+function SearchableStaffSelect({ value, onChange, staffList }: { value: number | null; onChange: (v: number | null) => void; staffList: any[] }) {
+  const [open, setOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const filtered = useMemo(() => {
+    if (!staffList) return [];
+    if (!searchTerm) return staffList;
+    return staffList.filter((s: any) => s.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  }, [staffList, searchTerm]);
+
+  const selectedName = staffList?.find((s: any) => s.id === value)?.name || "";
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" role="combobox" className="w-full justify-between bg-gray-800 border-gray-700 text-white hover:bg-gray-700">
+          {value ? selectedName : "未指定"}
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-full p-0 bg-gray-800 border-gray-700" align="start">
+        <Command className="bg-gray-800">
+          <CommandInput placeholder="搜索负责人..." value={searchTerm} onValueChange={setSearchTerm} className="text-white" />
+          <CommandList className="max-h-48">
+            <CommandEmpty className="text-gray-400 text-sm py-2 text-center">无匹配结果</CommandEmpty>
+            <CommandGroup>
+              <CommandItem onSelect={() => { onChange(null); setOpen(false); setSearchTerm(""); }} className="text-gray-300 hover:bg-gray-700">
+                <Check className={cn("mr-2 h-4 w-4", !value ? "opacity-100" : "opacity-0")} />
+                未指定
+              </CommandItem>
+              {filtered.map((s: any) => (
+                <CommandItem key={s.id} onSelect={() => { onChange(s.id); setOpen(false); setSearchTerm(""); }} className="text-gray-300 hover:bg-gray-700">
+                  <Check className={cn("mr-2 h-4 w-4", value === s.id ? "opacity-100" : "opacity-0")} />
+                  {s.name}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 // ===== メインコンポーネント =====
@@ -126,12 +173,20 @@ export default function RecruitmentManagement() {
 
   // AI識別状態
   const [aiText, setAiText] = useState("");
-  const [aiImageUrl, setAiImageUrl] = useState("");
+  const [aiImageUrls, setAiImageUrls] = useState<string[]>([]);
   const [aiResults, setAiResults] = useState<any[]>([]);
+  const [aiUploading, setAiUploading] = useState(false);
+  const [aiSelectedResults, setAiSelectedResults] = useState<Set<number>>(new Set());
+  const aiFileInputRef = useRef<HTMLInputElement>(null);
+  const [aiDragOver, setAiDragOver] = useState(false);
 
   // インポート状態
   const [importData, setImportData] = useState<any[]>([]);
+  const [importStep, setImportStep] = useState<"upload" | "preview" | "mapping">("upload");
+  const [importFileName, setImportFileName] = useState("");
+  const [importErrors, setImportErrors] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importDragOver, setImportDragOver] = useState(false);
 
   // tRPCクエリ
   const utils = trpc.useUtils();
@@ -223,6 +278,7 @@ export default function RecruitmentManagement() {
       toast.success(`成功导入${data.created}个品牌`);
       setImportOpen(false);
       setImportData([]);
+      setImportStep("upload");
       utils.recruitment.list.invalidate();
       utils.recruitment.statusSummary.invalidate();
     },
@@ -232,9 +288,11 @@ export default function RecruitmentManagement() {
   const aiRecognizeMutation = trpc.recruitment.aiRecognize.useMutation({
     onSuccess: (data) => {
       setAiResults(data.brands);
+      setAiSelectedResults(new Set(data.brands.map((_: any, i: number) => i)));
       if (data.brands.length === 0) toast.info("未识别到品牌信息");
+      else toast.success(`识别到 ${data.brands.length} 个品牌`);
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error("AI识别失败: " + err.message),
   });
 
   const { data: exportData, refetch: refetchExport } = trpc.recruitment.exportData.useQuery(
@@ -320,26 +378,17 @@ export default function RecruitmentManagement() {
     setDetailOpen(true);
   };
 
-  // Excel エクスポート
+  // ===== Excel エクスポート =====
   const handleExport = async () => {
     const { data } = await refetchExport();
     if (!data || data.length === 0) {
       toast.info("没有数据可导出");
       return;
     }
-    // CSV生成
     const headers = ["ID", "品牌名称", "品牌类型", "招商负责人", "状态", "联系方式", "备注", "拒绝原因", "添加时间", "最后跟进时间"];
     const rows = data.map((r: any) => [
-      r.id,
-      r.brandName,
-      r.brandType,
-      r.personInChargeName,
-      r.statusLabel,
-      r.contactInfo,
-      r.memo,
-      r.rejectReason,
-      formatDate(r.createdAt),
-      formatDate(r.lastFollowedAt),
+      r.id, r.brandName, r.brandType, r.personInChargeName, r.statusLabel,
+      r.contactInfo, r.memo, r.rejectReason, formatDate(r.createdAt), formatDate(r.lastFollowedAt),
     ]);
     const bom = "\uFEFF";
     const csv = bom + [headers.join(","), ...rows.map((r: any) => r.map((c: any) => `"${String(c || "").replace(/"/g, '""')}"`).join(","))].join("\n");
@@ -353,35 +402,178 @@ export default function RecruitmentManagement() {
     toast.success("导出成功");
   };
 
-  // Excel/CSV インポート
+  // ===== ファイルインポート（Excel/CSV対応） =====
+  const processImportFile = async (file: File) => {
+    setImportFileName(file.name);
+    setImportErrors([]);
+    const ext = file.name.split(".").pop()?.toLowerCase();
+
+    try {
+      if (ext === "xlsx" || ext === "xls") {
+        // Excel: xlsxライブラリで読む
+        const XLSX = await import("xlsx");
+        const buffer = await file.arrayBuffer();
+        const wb = XLSX.read(buffer, { type: "array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(ws, { defval: "" }) as Record<string, any>[];
+
+        if (jsonData.length === 0) {
+          toast.error("Excel文件无数据");
+          return;
+        }
+
+        // 自動フィールドマッピング
+        const items = jsonData.map((row) => {
+          const keys = Object.keys(row);
+          return {
+            brandName: findFieldValue(row, keys, ["品牌名称", "品牌名", "品牌", "brand", "name", "brandname"]),
+            brandType: findFieldValue(row, keys, ["品牌类型", "类型", "分类", "type", "category", "brandtype"]),
+            contactInfo: findFieldValue(row, keys, ["联系方式", "联系人", "电话", "邮箱", "contact", "email", "phone"]),
+            memo: findFieldValue(row, keys, ["备注", "说明", "描述", "memo", "note", "remark"]),
+          };
+        }).filter(i => i.brandName);
+
+        if (items.length === 0) {
+          setImportErrors(["未找到品牌名称列。请确保Excel中有\"品牌名称\"或\"品牌\"列。"]);
+          toast.error("未找到品牌名称列");
+          return;
+        }
+
+        setImportData(items);
+        setImportStep("preview");
+        setImportOpen(true);
+      } else if (ext === "csv") {
+        // CSV: テキスト読み込み
+        const text = await file.text();
+        const lines = text.split("\n").filter(l => l.trim());
+        if (lines.length < 2) {
+          toast.error("CSV文件无数据");
+          return;
+        }
+        const headers = lines[0].split(",").map(h => h.replace(/^"|"$/g, "").trim());
+        const items = lines.slice(1).map(line => {
+          const cols = parseCSVLine(line);
+          const row: Record<string, string> = {};
+          headers.forEach((h, i) => { row[h] = cols[i] || ""; });
+          return {
+            brandName: findFieldValue(row, headers, ["品牌名称", "品牌名", "品牌", "brand", "name"]),
+            brandType: findFieldValue(row, headers, ["品牌类型", "类型", "分类", "type", "category"]),
+            contactInfo: findFieldValue(row, headers, ["联系方式", "联系人", "电话", "邮箱", "contact"]),
+            memo: findFieldValue(row, headers, ["备注", "说明", "描述", "memo", "note"]),
+          };
+        }).filter(i => i.brandName);
+
+        setImportData(items);
+        setImportStep("preview");
+        setImportOpen(true);
+      } else {
+        toast.error("不支持的文件格式。请使用 Excel (.xlsx/.xls) 或 CSV (.csv) 文件");
+      }
+    } catch (err: any) {
+      console.error("Import error:", err);
+      toast.error("文件读取失败: " + (err.message || "未知错误"));
+    }
+  };
+
+  // CSVの行をパース（引用符内のカンマに対応）
+  const parseCSVLine = (line: string): string[] => {
+    const result: string[] = [];
+    let current = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (ch === "," && !inQuotes) {
+        result.push(current.trim());
+        current = "";
+      } else {
+        current += ch;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  };
+
+  // フィールド名の自動マッピング
+  const findFieldValue = (row: Record<string, any>, keys: string[], candidates: string[]): string => {
+    for (const candidate of candidates) {
+      for (const key of keys) {
+        if (key.toLowerCase().includes(candidate.toLowerCase()) || candidate.toLowerCase().includes(key.toLowerCase())) {
+          const val = row[key];
+          return val !== undefined && val !== null ? String(val).trim() : "";
+        }
+      }
+    }
+    return "";
+  };
+
   const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const text = ev.target?.result as string;
-      const lines = text.split("\n").filter(l => l.trim());
-      if (lines.length < 2) {
-        toast.error("文件格式错误或无数据");
-        return;
-      }
-      // ヘッダーをスキップ
-      const items = lines.slice(1).map(line => {
-        const cols = line.split(",").map(c => c.replace(/^"|"$/g, "").trim());
-        return {
-          brandName: cols[0] || "",
-          brandType: cols[1] || "",
-          contactInfo: cols[2] || "",
-          memo: cols[3] || "",
-        };
-      }).filter(i => i.brandName);
-
-      setImportData(items);
-      setImportOpen(true);
-    };
-    reader.readAsText(file);
+    processImportFile(file);
     e.target.value = "";
+  };
+
+  const handleImportDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setImportDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) processImportFile(file);
+  };
+
+  // ===== AI画像アップロード =====
+  const handleAiImageUpload = async (files: FileList | File[]) => {
+    if (!files || files.length === 0) return;
+    setAiUploading(true);
+    try {
+      const formData = new FormData();
+      for (let i = 0; i < files.length; i++) {
+        formData.append("files", files[i]);
+      }
+      const resp = await fetch("/api/recruitment-image-upload", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: "上传失败" }));
+        throw new Error(err.error || "上传失败");
+      }
+      const data = await resp.json();
+      const newUrls = data.files.map((f: any) => f.url);
+      setAiImageUrls(prev => [...prev, ...newUrls]);
+      toast.success(`成功上传 ${newUrls.length} 张图片`);
+    } catch (err: any) {
+      toast.error("图片上传失败: " + (err.message || "未知错误"));
+    } finally {
+      setAiUploading(false);
+    }
+  };
+
+  const handleAiDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setAiDragOver(false);
+    const files = e.dataTransfer.files;
+    if (files.length > 0) handleAiImageUpload(files);
+  };
+
+  const removeAiImage = (idx: number) => {
+    setAiImageUrls(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  // インポートデータの編集
+  const updateImportItem = (idx: number, field: string, value: string) => {
+    setImportData(prev => prev.map((item, i) => i === idx ? { ...item, [field]: value } : item));
+  };
+
+  const removeImportItem = (idx: number) => {
+    setImportData(prev => prev.filter((_, i) => i !== idx));
   };
 
   // ステータスフィルタトグル
@@ -411,27 +603,30 @@ export default function RecruitmentManagement() {
             variant="outline"
             size="sm"
             className="border-gray-600 text-gray-300 hover:bg-gray-800"
-            onClick={() => setAiOpen(true)}
+            onClick={() => {
+              setAiText("");
+              setAiImageUrls([]);
+              setAiResults([]);
+              setAiSelectedResults(new Set());
+              setAiOpen(true);
+            }}
           >
             <Sparkles className="w-4 h-4 mr-1 text-yellow-400" /> AI识别
           </Button>
-          <label>
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-gray-600 text-gray-300 hover:bg-gray-800"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Upload className="w-4 h-4 mr-1" /> 导入
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv,.xlsx,.xls"
-              className="hidden"
-              onChange={handleFileImport}
-            />
-          </label>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-gray-600 text-gray-300 hover:bg-gray-800"
+            onClick={() => {
+              setImportData([]);
+              setImportStep("upload");
+              setImportFileName("");
+              setImportErrors([]);
+              setImportOpen(true);
+            }}
+          >
+            <Upload className="w-4 h-4 mr-1" /> 导入
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -471,319 +666,169 @@ export default function RecruitmentManagement() {
               else toggleStatusFilter(key);
             }}
           >
-            <div className="text-2xl font-bold text-white">{(summary as any)?.[key] ?? 0}</div>
-            <div className="text-xs text-gray-400">{label}</div>
+            <div className="text-2xl font-bold text-red-400">{(summary as any)?.[key] ?? 0}</div>
+            <div className="text-xs text-gray-400 mt-1">{label}</div>
           </div>
         ))}
       </div>
 
-      {/* Search & Filter Bar */}
-      <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4 mb-6">
-        <div className="flex items-center gap-3">
-          <div className="flex-1 relative">
+      {/* Filters */}
+      <div className="bg-gray-900/50 rounded-xl p-4 mb-6 space-y-3">
+        <div className="flex gap-3 items-center">
+          <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
             <Input
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
-              placeholder="搜索品牌名称..."
-              className="pl-10 bg-gray-700/50 border-gray-600 text-white placeholder:text-gray-500"
+              placeholder="搜索品牌名称、联系方式..."
+              className="pl-10 bg-gray-800 border-gray-700 text-white"
             />
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="border-gray-600 text-gray-300"
-            onClick={() => setShowFilters(!showFilters)}
-          >
-            <Filter className="w-4 h-4 mr-1" />
-            筛选
-            {(statusFilter.length + typeFilter.length + personFilter.length + (dateFrom ? 1 : 0) + (dateTo ? 1 : 0)) > 0 && (
-              <Badge className="ml-1 bg-red-500 text-white text-xs px-1">
-                {statusFilter.length + typeFilter.length + personFilter.length + (dateFrom ? 1 : 0) + (dateTo ? 1 : 0)}
-              </Badge>
-            )}
-          </Button>
-          {(search || statusFilter.length > 0 || typeFilter.length > 0 || personFilter.length > 0 || dateFrom || dateTo) && (
-            <Button variant="ghost" size="sm" className="text-gray-400" onClick={clearFilters}>
+          <div className="w-48">
+            <SearchableStaffSelect
+              value={personFilter[0] ?? null}
+              onChange={(v) => { setPersonFilter(v ? [v] : []); setPage(1); }}
+              staffList={staffList || []}
+            />
+          </div>
+          <Input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }}
+            className="w-40 bg-gray-800 border-gray-700 text-white" placeholder="开始日期" />
+          <Input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }}
+            className="w-40 bg-gray-800 border-gray-700 text-white" placeholder="结束日期" />
+          {(search || statusFilter.length > 0 || personFilter.length > 0 || dateFrom || dateTo) && (
+            <Button variant="ghost" size="sm" onClick={clearFilters} className="text-gray-400 hover:text-white">
               <X className="w-4 h-4 mr-1" /> 清除
             </Button>
           )}
         </div>
 
-        {/* Expanded Filters */}
-        {showFilters && (
-          <div className="mt-4 grid grid-cols-4 gap-3 border-t border-gray-700/50 pt-4">
-            <div>
-              <label className="text-xs text-gray-500 mb-1 block">品牌类型</label>
-              <Select
-                value={typeFilter[0] || "all"}
-                onValueChange={v => { setTypeFilter(v === "all" ? [] : [v]); setPage(1); }}
-              >
-                <SelectTrigger className="bg-gray-700/50 border-gray-600 text-white text-sm">
-                  <SelectValue placeholder="全部类型" />
-                </SelectTrigger>
-                <SelectContent className="bg-gray-800 border-gray-700">
-                  <SelectItem value="all" className="text-gray-300">全部类型</SelectItem>
-                  {(brandTypes || []).map((t: string) => (
-                    <SelectItem key={t} value={t} className="text-gray-300">{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        {/* Batch Actions */}
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-2 bg-gray-800/50 rounded-lg p-2">
+            <span className="text-sm text-gray-300">已选 {selectedIds.size} 项</span>
+            <div className="flex gap-1 ml-2">
+              {ALL_STATUSES.map(s => (
+                <Button key={s} size="sm" variant="outline"
+                  className={`text-xs border-gray-600 ${STATUS_CONFIG[s]?.color} text-white`}
+                  onClick={() => batchChangeStatusMutation.mutate({ ids: [...selectedIds], newStatus: s as any })}
+                >
+                  {STATUS_CONFIG[s]?.label}
+                </Button>
+              ))}
             </div>
-            <div>
-              <label className="text-xs text-gray-500 mb-1 block">招商负责人</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" role="combobox" className="w-full justify-between bg-gray-700/50 border-gray-600 text-white text-sm hover:bg-gray-700 hover:text-white">
-                    {personFilter.length > 0 ? (staffList || []).find((s: any) => s.id === personFilter[0])?.name || "全部负责人" : "全部负责人"}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[220px] p-0 bg-gray-800 border-gray-700" align="start">
-                  <Command className="bg-gray-800">
-                    <CommandInput placeholder="搜索负责人..." className="text-white" />
-                    <CommandList>
-                      <CommandEmpty className="text-gray-500 text-sm py-3 text-center">未找到</CommandEmpty>
-                      <CommandGroup>
-                        <CommandItem
-                          onSelect={() => { setPersonFilter([]); setPage(1); }}
-                          className="text-gray-300 cursor-pointer"
-                        >
-                          <Check className={cn("mr-2 h-4 w-4", personFilter.length === 0 ? "opacity-100" : "opacity-0")} />
-                          全部负责人
-                        </CommandItem>
-                        {(staffList || []).map((s: any) => (
-                          <CommandItem
-                            key={s.id}
-                            onSelect={() => { setPersonFilter([s.id]); setPage(1); }}
-                            className="text-gray-300 cursor-pointer"
-                          >
-                            <Check className={cn("mr-2 h-4 w-4", personFilter[0] === s.id ? "opacity-100" : "opacity-0")} />
-                            {s.name}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div>
-              <label className="text-xs text-gray-500 mb-1 block">开始日期</label>
-              <Input
-                type="date"
-                value={dateFrom}
-                onChange={e => { setDateFrom(e.target.value); setPage(1); }}
-                className="bg-gray-700/50 border-gray-600 text-white text-sm"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-gray-500 mb-1 block">结束日期</label>
-              <Input
-                type="date"
-                value={dateTo}
-                onChange={e => { setDateTo(e.target.value); setPage(1); }}
-                className="bg-gray-700/50 border-gray-600 text-white text-sm"
-              />
-            </div>
+            <Button size="sm" variant="outline" className="text-xs border-red-600 text-red-400 ml-auto"
+              onClick={() => { if (confirm("确定删除选中项？")) batchDeleteMutation.mutate({ ids: [...selectedIds] }); }}
+            >
+              <Trash2 className="w-3 h-3 mr-1" /> 删除
+            </Button>
           </div>
         )}
       </div>
 
-      {/* Batch Actions */}
-      {selectedIds.size > 0 && (
-        <div className="bg-gray-800/80 border border-gray-700/50 rounded-xl p-3 mb-4 flex items-center justify-between">
-          <span className="text-sm text-gray-300">已选择 <strong className="text-white">{selectedIds.size}</strong> 个品牌</span>
-          <div className="flex gap-2">
-            {ALL_STATUSES.map(s => (
-              <Button
-                key={s}
-                size="sm"
-                variant="outline"
-                className="border-gray-600 text-xs"
-                onClick={() => {
-                  batchChangeStatusMutation.mutate({ ids: Array.from(selectedIds), newStatus: s as any });
-                }}
-              >
-                <Badge className={`${STATUS_CONFIG[s].color} text-white text-[10px] mr-1`}>
-                  {STATUS_CONFIG[s].label}
-                </Badge>
-              </Button>
-            ))}
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-red-600 text-red-400 hover:bg-red-900/30"
-              onClick={() => {
-                if (confirm(`确定要删除${selectedIds.size}个品牌吗？`)) {
-                  batchDeleteMutation.mutate({ ids: Array.from(selectedIds) });
-                }
-              }}
-            >
-              <Trash2 className="w-3 h-3 mr-1" /> 批量删除
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Data Table */}
-      <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-700/50 bg-gray-900/50">
-                <th className="py-3 px-3 text-left w-10">
-                  <button onClick={toggleSelectAll} className="text-gray-400 hover:text-white">
-                    {items.length > 0 && selectedIds.size === items.length
-                      ? <CheckSquare className="w-4 h-4" />
-                      : <Square className="w-4 h-4" />}
+      {/* Table */}
+      <div className="bg-gray-900/50 rounded-xl overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-800/50 text-gray-400 text-xs">
+              <th className="p-3 w-10">
+                <button onClick={toggleSelectAll}>
+                  {selectedIds.size === items.length && items.length > 0
+                    ? <CheckSquare className="w-4 h-4 text-red-400" />
+                    : <Square className="w-4 h-4" />}
+                </button>
+              </th>
+              <th className="p-3 text-left cursor-pointer hover:text-white" onClick={() => handleSort("brand_name")}>
+                品牌名称 <ArrowUpDown className="w-3 h-3 inline ml-1" />
+              </th>
+              <th className="p-3 text-left">品牌类型</th>
+              <th className="p-3 text-left">招商负责人</th>
+              <th className="p-3 text-left cursor-pointer hover:text-white" onClick={() => handleSort("status")}>
+                状态 <ArrowUpDown className="w-3 h-3 inline ml-1" />
+              </th>
+              <th className="p-3 text-left">联系方式</th>
+              <th className="p-3 text-left cursor-pointer hover:text-white" onClick={() => handleSort("created_at")}>
+                添加时间 <ArrowUpDown className="w-3 h-3 inline ml-1" />
+              </th>
+              <th className="p-3 text-left cursor-pointer hover:text-white" onClick={() => handleSort("last_followed_at")}>
+                最后跟进 <ArrowUpDown className="w-3 h-3 inline ml-1" />
+              </th>
+              <th className="p-3 text-center">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              <tr><td colSpan={9} className="text-center py-12 text-gray-500">
+                <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" /> 加载中...
+              </td></tr>
+            ) : items.length === 0 ? (
+              <tr><td colSpan={9} className="text-center py-12 text-gray-500">暂无数据</td></tr>
+            ) : items.map((item: any) => (
+              <tr key={item.id} className="border-t border-gray-800/50 hover:bg-gray-800/30 transition-colors">
+                <td className="p-3">
+                  <button onClick={() => toggleSelect(item.id)}>
+                    {selectedIds.has(item.id)
+                      ? <CheckSquare className="w-4 h-4 text-red-400" />
+                      : <Square className="w-4 h-4 text-gray-600" />}
                   </button>
-                </th>
-                <th className="py-3 px-3 text-left cursor-pointer hover:text-red-400" onClick={() => handleSort("brand_name")}>
-                  <span className="flex items-center gap-1">品牌名称 <ArrowUpDown className="w-3 h-3" /></span>
-                </th>
-                <th className="py-3 px-3 text-left cursor-pointer hover:text-red-400" onClick={() => handleSort("brand_type")}>
-                  <span className="flex items-center gap-1">品牌类型 <ArrowUpDown className="w-3 h-3" /></span>
-                </th>
-                <th className="py-3 px-3 text-left">招商负责人</th>
-                <th className="py-3 px-3 text-center cursor-pointer hover:text-red-400" onClick={() => handleSort("status")}>
-                  <span className="flex items-center justify-center gap-1">状态 <ArrowUpDown className="w-3 h-3" /></span>
-                </th>
-                <th className="py-3 px-3 text-left cursor-pointer hover:text-red-400" onClick={() => handleSort("created_at")}>
-                  <span className="flex items-center gap-1">添加时间 <ArrowUpDown className="w-3 h-3" /></span>
-                </th>
-                <th className="py-3 px-3 text-left cursor-pointer hover:text-red-400" onClick={() => handleSort("last_followed_at")}>
-                  <span className="flex items-center gap-1">最后跟进 <ArrowUpDown className="w-3 h-3" /></span>
-                </th>
-                <th className="py-3 px-3 text-center">操作</th>
+                </td>
+                <td className="p-3">
+                  <button className="text-white hover:text-red-400 font-medium text-left" onClick={() => openDetail(item)}>
+                    {item.brandName}
+                  </button>
+                </td>
+                <td className="p-3 text-gray-400">{item.brandType || "-"}</td>
+                <td className="p-3 text-gray-400">{item.personInChargeName || "-"}</td>
+                <td className="p-3">
+                  <Badge className={`${STATUS_CONFIG[item.status]?.color || "bg-gray-500"} text-white text-xs`}>
+                    {item.statusLabel}
+                  </Badge>
+                </td>
+                <td className="p-3 text-gray-400 text-xs max-w-[150px] truncate">{item.contactInfo || "-"}</td>
+                <td className="p-3 text-gray-500 text-xs">{formatDate(item.createdAt)}</td>
+                <td className="p-3 text-gray-500 text-xs">{formatDate(item.lastFollowedAt)}</td>
+                <td className="p-3">
+                  <div className="flex items-center justify-center gap-1">
+                    {/* Next status buttons */}
+                    {(STATUS_FLOW[item.status] || []).map((ns: string) => (
+                      <Button key={ns} size="sm" variant="ghost"
+                        className={`text-xs px-2 py-1 h-7 ${STATUS_CONFIG[ns]?.color} text-white`}
+                        onClick={() => openStatusChange(item, ns)}
+                      >
+                        {STATUS_CONFIG[ns]?.label}
+                      </Button>
+                    ))}
+                    <Button size="sm" variant="ghost" className="text-gray-400 hover:text-white h-7 w-7 p-0"
+                      onClick={() => openEdit(item)}>
+                      <Edit className="w-3 h-3" />
+                    </Button>
+                    <Button size="sm" variant="ghost" className="text-gray-400 hover:text-red-400 h-7 w-7 p-0"
+                      onClick={() => { if (confirm("确定删除？")) deleteMutation.mutate({ id: item.id }); }}>
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr>
-                  <td colSpan={8} className="text-center py-12">
-                    <Loader2 className="w-6 h-6 animate-spin mx-auto text-gray-500" />
-                  </td>
-                </tr>
-              ) : items.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="text-center py-12 text-gray-500">
-                    暂无招商品牌数据
-                  </td>
-                </tr>
-              ) : (
-                items.map((brand: any) => {
-                  const sc = STATUS_CONFIG[brand.status] || STATUS_CONFIG.registered;
-                  const nextStatuses = STATUS_FLOW[brand.status] || [];
-                  return (
-                    <tr
-                      key={brand.id}
-                      className="border-b border-gray-700/30 hover:bg-gray-800/50 transition-colors"
-                    >
-                      <td className="py-3 px-3">
-                        <button onClick={() => toggleSelect(brand.id)} className="text-gray-400 hover:text-white">
-                          {selectedIds.has(brand.id)
-                            ? <CheckSquare className="w-4 h-4 text-red-400" />
-                            : <Square className="w-4 h-4" />}
-                        </button>
-                      </td>
-                      <td className="py-3 px-3">
-                        <button
-                          className="text-white font-medium hover:text-red-400 transition-colors text-left"
-                          onClick={() => openDetail(brand)}
-                        >
-                          {brand.brandName}
-                        </button>
-                      </td>
-                      <td className="py-3 px-3 text-gray-400">{brand.brandType || "-"}</td>
-                      <td className="py-3 px-3 text-gray-300">{brand.personInChargeName || "-"}</td>
-                      <td className="py-3 px-3 text-center">
-                        <Badge className={`${sc.color} text-white text-xs`}>
-                          {sc.label}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-3 text-gray-400 text-xs">{formatDate(brand.createdAt)}</td>
-                      <td className="py-3 px-3 text-gray-400 text-xs">{formatDate(brand.lastFollowedAt)}</td>
-                      <td className="py-3 px-3">
-                        <div className="flex items-center justify-center gap-1">
-                          {nextStatuses.map((ns: string) => {
-                            const nsc = STATUS_CONFIG[ns];
-                            return (
-                              <Button
-                                key={ns}
-                                size="sm"
-                                className={`${nsc.color} hover:opacity-80 text-white text-xs px-2 py-1 h-7`}
-                                onClick={() => openStatusChange(brand, ns)}
-                              >
-                                {nsc.label}
-                              </Button>
-                            );
-                          })}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-gray-400 hover:text-white h-7 w-7 p-0"
-                            onClick={() => openEdit(brand)}
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-gray-400 hover:text-red-400 h-7 w-7 p-0"
-                            onClick={() => {
-                              if (confirm("确定要删除吗？")) deleteMutation.mutate({ id: brand.id });
-                            }}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </table>
 
         {/* Pagination */}
-        <div className="flex items-center justify-between p-4 border-t border-gray-700/50">
-          <div className="flex items-center gap-2 text-sm text-gray-400">
-            共 {listData?.total || 0} 条
-            <Select value={pageSize.toString()} onValueChange={v => { setPageSize(parseInt(v)); setPage(1); }}>
-              <SelectTrigger className="w-20 bg-gray-700/50 border-gray-600 text-white text-xs h-8">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-gray-800 border-gray-700">
-                <SelectItem value="20" className="text-gray-300">20条</SelectItem>
-                <SelectItem value="50" className="text-gray-300">50条</SelectItem>
-                <SelectItem value="100" className="text-gray-300">100条</SelectItem>
-              </SelectContent>
-            </Select>
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between p-4 border-t border-gray-800/50">
+            <span className="text-sm text-gray-500">共 {listData?.total || 0} 条</span>
+            <div className="flex gap-1">
+              <Button size="sm" variant="outline" disabled={page <= 1}
+                className="border-gray-700 text-gray-300" onClick={() => setPage(p => p - 1)}>
+                上一页
+              </Button>
+              <span className="text-sm text-gray-400 px-3 py-1">{page} / {totalPages}</span>
+              <Button size="sm" variant="outline" disabled={page >= totalPages}
+                className="border-gray-700 text-gray-300" onClick={() => setPage(p => p + 1)}>
+                下一页
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-gray-600 text-gray-300 h-8"
-              disabled={page <= 1}
-              onClick={() => setPage(p => p - 1)}
-            >
-              上一页
-            </Button>
-            <span className="text-sm text-gray-400">{page} / {totalPages || 1}</span>
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-gray-600 text-gray-300 h-8"
-              disabled={page >= totalPages}
-              onClick={() => setPage(p => p + 1)}
-            >
-              下一页
-            </Button>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* ===== CREATE DIALOG ===== */}
@@ -791,101 +836,51 @@ export default function RecruitmentManagement() {
         <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Plus className="w-5 h-5 text-red-400" /> 新增招商品牌
+              <Plus className="w-5 h-5 text-red-400" /> 新增品牌
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
               <label className="text-sm text-gray-400 mb-1 block">品牌名称 *</label>
-              <Input
-                value={formData.brandName}
-                onChange={e => setFormData(p => ({ ...p, brandName: e.target.value }))}
-                placeholder="请输入品牌名称"
-                className="bg-gray-800 border-gray-700 text-white"
-              />
+              <Input value={formData.brandName} onChange={e => setFormData(p => ({ ...p, brandName: e.target.value }))}
+                className="bg-gray-800 border-gray-700 text-white" placeholder="输入品牌名称" />
             </div>
             <div>
-              <label className="text-sm text-gray-400 mb-1 block">品牌类型 *</label>
-              <Select
-                value={formData.brandType || "none"}
-                onValueChange={v => setFormData(p => ({ ...p, brandType: v === "none" ? "" : v }))}
-              >
+              <label className="text-sm text-gray-400 mb-1 block">品牌类型</label>
+              <Select value={formData.brandType} onValueChange={v => setFormData(p => ({ ...p, brandType: v }))}>
                 <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
                   <SelectValue placeholder="选择类型" />
                 </SelectTrigger>
                 <SelectContent className="bg-gray-800 border-gray-700">
-                  <SelectItem value="none" className="text-gray-400">请选择</SelectItem>
                   {(brandTypes || []).map((t: string) => (
-                    <SelectItem key={t} value={t} className="text-gray-300">{t}</SelectItem>
+                    <SelectItem key={t} value={t} className="text-white">{t}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div>
               <label className="text-sm text-gray-400 mb-1 block">招商负责人</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" role="combobox" className="w-full justify-between bg-gray-800 border-gray-700 text-white hover:bg-gray-700 hover:text-white">
-                    {formData.personInCharge ? (staffList || []).find((s: any) => s.id === formData.personInCharge)?.name || "选择负责人" : "未指定"}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[280px] p-0 bg-gray-800 border-gray-700" align="start">
-                  <Command className="bg-gray-800">
-                    <CommandInput placeholder="搜索负责人..." className="text-white" />
-                    <CommandList>
-                      <CommandEmpty className="text-gray-500 text-sm py-3 text-center">未找到</CommandEmpty>
-                      <CommandGroup>
-                        <CommandItem
-                          onSelect={() => setFormData(p => ({ ...p, personInCharge: null }))}
-                          className="text-gray-400 cursor-pointer"
-                        >
-                          <Check className={cn("mr-2 h-4 w-4", !formData.personInCharge ? "opacity-100" : "opacity-0")} />
-                          未指定
-                        </CommandItem>
-                        {(staffList || []).map((s: any) => (
-                          <CommandItem
-                            key={s.id}
-                            onSelect={() => setFormData(p => ({ ...p, personInCharge: s.id }))}
-                            className="text-gray-300 cursor-pointer"
-                          >
-                            <Check className={cn("mr-2 h-4 w-4", formData.personInCharge === s.id ? "opacity-100" : "opacity-0")} />
-                            {s.name}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+              <SearchableStaffSelect
+                value={formData.personInCharge}
+                onChange={(v) => setFormData(p => ({ ...p, personInCharge: v }))}
+                staffList={staffList || []}
+              />
             </div>
             <div>
               <label className="text-sm text-gray-400 mb-1 block">联系方式</label>
-              <Input
-                value={formData.contactInfo}
-                onChange={e => setFormData(p => ({ ...p, contactInfo: e.target.value }))}
-                placeholder="联系人 / 电话 / 邮箱"
-                className="bg-gray-800 border-gray-700 text-white"
-              />
+              <Input value={formData.contactInfo} onChange={e => setFormData(p => ({ ...p, contactInfo: e.target.value }))}
+                className="bg-gray-800 border-gray-700 text-white" placeholder="联系人/电话/邮箱" />
             </div>
             <div>
               <label className="text-sm text-gray-400 mb-1 block">备注</label>
-              <Textarea
-                value={formData.memo}
-                onChange={e => setFormData(p => ({ ...p, memo: e.target.value }))}
-                placeholder="其他补充信息"
-                className="bg-gray-800 border-gray-700 text-white"
-                rows={3}
-              />
+              <Textarea value={formData.memo} onChange={e => setFormData(p => ({ ...p, memo: e.target.value }))}
+                className="bg-gray-800 border-gray-700 text-white" rows={3} />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" className="border-gray-600" onClick={() => setCreateOpen(false)}>取消</Button>
-            <Button
-              className="bg-red-600 hover:bg-red-700"
-              disabled={!formData.brandName || createMutation.isPending}
-              onClick={() => createMutation.mutate(formData)}
-            >
+            <Button className="bg-red-600 hover:bg-red-700" disabled={!formData.brandName || createMutation.isPending}
+              onClick={() => createMutation.mutate(formData)}>
               {createMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
               登记
             </Button>
@@ -898,98 +893,52 @@ export default function RecruitmentManagement() {
         <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Edit className="w-5 h-5 text-blue-400" /> 编辑品牌信息
+              <Edit className="w-5 h-5 text-blue-400" /> 编辑品牌
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
               <label className="text-sm text-gray-400 mb-1 block">品牌名称 *</label>
-              <Input
-                value={formData.brandName}
-                onChange={e => setFormData(p => ({ ...p, brandName: e.target.value }))}
-                className="bg-gray-800 border-gray-700 text-white"
-              />
+              <Input value={formData.brandName} onChange={e => setFormData(p => ({ ...p, brandName: e.target.value }))}
+                className="bg-gray-800 border-gray-700 text-white" />
             </div>
             <div>
               <label className="text-sm text-gray-400 mb-1 block">品牌类型</label>
-              <Select
-                value={formData.brandType || "none"}
-                onValueChange={v => setFormData(p => ({ ...p, brandType: v === "none" ? "" : v }))}
-              >
+              <Select value={formData.brandType} onValueChange={v => setFormData(p => ({ ...p, brandType: v }))}>
                 <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
-                  <SelectValue />
+                  <SelectValue placeholder="选择类型" />
                 </SelectTrigger>
                 <SelectContent className="bg-gray-800 border-gray-700">
-                  <SelectItem value="none" className="text-gray-400">请选择</SelectItem>
                   {(brandTypes || []).map((t: string) => (
-                    <SelectItem key={t} value={t} className="text-gray-300">{t}</SelectItem>
+                    <SelectItem key={t} value={t} className="text-white">{t}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div>
               <label className="text-sm text-gray-400 mb-1 block">招商负责人</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" role="combobox" className="w-full justify-between bg-gray-800 border-gray-700 text-white hover:bg-gray-700 hover:text-white">
-                    {formData.personInCharge ? (staffList || []).find((s: any) => s.id === formData.personInCharge)?.name || "选择负责人" : "未指定"}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[280px] p-0 bg-gray-800 border-gray-700" align="start">
-                  <Command className="bg-gray-800">
-                    <CommandInput placeholder="搜索负责人..." className="text-white" />
-                    <CommandList>
-                      <CommandEmpty className="text-gray-500 text-sm py-3 text-center">未找到</CommandEmpty>
-                      <CommandGroup>
-                        <CommandItem
-                          onSelect={() => setFormData(p => ({ ...p, personInCharge: null }))}
-                          className="text-gray-400 cursor-pointer"
-                        >
-                          <Check className={cn("mr-2 h-4 w-4", !formData.personInCharge ? "opacity-100" : "opacity-0")} />
-                          未指定
-                        </CommandItem>
-                        {(staffList || []).map((s: any) => (
-                          <CommandItem
-                            key={s.id}
-                            onSelect={() => setFormData(p => ({ ...p, personInCharge: s.id }))}
-                            className="text-gray-300 cursor-pointer"
-                          >
-                            <Check className={cn("mr-2 h-4 w-4", formData.personInCharge === s.id ? "opacity-100" : "opacity-0")} />
-                            {s.name}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+              <SearchableStaffSelect
+                value={formData.personInCharge}
+                onChange={(v) => setFormData(p => ({ ...p, personInCharge: v }))}
+                staffList={staffList || []}
+              />
             </div>
             <div>
               <label className="text-sm text-gray-400 mb-1 block">联系方式</label>
-              <Input
-                value={formData.contactInfo}
-                onChange={e => setFormData(p => ({ ...p, contactInfo: e.target.value }))}
-                className="bg-gray-800 border-gray-700 text-white"
-              />
+              <Input value={formData.contactInfo} onChange={e => setFormData(p => ({ ...p, contactInfo: e.target.value }))}
+                className="bg-gray-800 border-gray-700 text-white" />
             </div>
             <div>
               <label className="text-sm text-gray-400 mb-1 block">备注</label>
-              <Textarea
-                value={formData.memo}
-                onChange={e => setFormData(p => ({ ...p, memo: e.target.value }))}
-                className="bg-gray-800 border-gray-700 text-white"
-                rows={3}
-              />
+              <Textarea value={formData.memo} onChange={e => setFormData(p => ({ ...p, memo: e.target.value }))}
+                className="bg-gray-800 border-gray-700 text-white" rows={3} />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" className="border-gray-600" onClick={() => setEditOpen(false)}>取消</Button>
-            <Button
-              className="bg-blue-600 hover:bg-blue-700"
-              disabled={!formData.brandName || updateMutation.isPending}
-              onClick={() => updateMutation.mutate({ id: currentBrand?.id, ...formData })}
-            >
+            <Button className="bg-blue-600 hover:bg-blue-700" disabled={!formData.brandName || updateMutation.isPending}
+              onClick={() => updateMutation.mutate({ id: currentBrand?.id, ...formData })}>
+              {updateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
               保存
             </Button>
           </DialogFooter>
@@ -1004,49 +953,39 @@ export default function RecruitmentManagement() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <Badge className={`${STATUS_CONFIG[currentBrand?.status]?.color || "bg-gray-500"} text-white`}>
-                {STATUS_CONFIG[currentBrand?.status]?.label || ""}
+              <Badge className={`${STATUS_CONFIG[currentBrand?.status]?.color} text-white`}>
+                {STATUS_CONFIG[currentBrand?.status]?.label}
               </Badge>
-              <span className="text-gray-400">→</span>
-              <Badge className={`${STATUS_CONFIG[newStatus]?.color || "bg-gray-500"} text-white`}>
-                {STATUS_CONFIG[newStatus]?.label || ""}
+              <span className="text-gray-500">→</span>
+              <Badge className={`${STATUS_CONFIG[newStatus]?.color} text-white`}>
+                {STATUS_CONFIG[newStatus]?.label}
               </Badge>
             </div>
-            <p className="text-sm text-gray-400">品牌: <strong className="text-white">{currentBrand?.brandName}</strong></p>
+            <p className="text-sm text-gray-400">品牌: {currentBrand?.brandName}</p>
             {newStatus === "rejected" && (
               <div>
                 <label className="text-sm text-gray-400 mb-1 block">拒绝原因</label>
-                <Textarea
-                  value={rejectReason}
-                  onChange={e => setRejectReason(e.target.value)}
-                  placeholder="请输入拒绝原因..."
-                  className="bg-gray-800 border-gray-700 text-white"
-                  rows={2}
-                />
+                <Textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)}
+                  className="bg-gray-800 border-gray-700 text-white" rows={2} />
               </div>
             )}
             <div>
-              <label className="text-sm text-gray-400 mb-1 block">备注（可选）</label>
-              <Textarea
-                value={statusNote}
-                onChange={e => setStatusNote(e.target.value)}
-                placeholder="变更备注..."
-                className="bg-gray-800 border-gray-700 text-white"
-                rows={2}
-              />
+              <label className="text-sm text-gray-400 mb-1 block">备注</label>
+              <Input value={statusNote} onChange={e => setStatusNote(e.target.value)}
+                className="bg-gray-800 border-gray-700 text-white" placeholder="可选备注" />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" className="border-gray-600" onClick={() => setStatusChangeOpen(false)}>取消</Button>
             <Button
-              className={`${STATUS_CONFIG[newStatus]?.color || "bg-gray-500"} hover:opacity-80`}
+              className={`${STATUS_CONFIG[newStatus]?.color} text-white`}
               disabled={changeStatusMutation.isPending}
               onClick={() => {
                 changeStatusMutation.mutate({
                   id: currentBrand?.id,
                   newStatus: newStatus as any,
                   note: statusNote || undefined,
-                  rejectReason: newStatus === "rejected" ? rejectReason : undefined,
+                  rejectReason: rejectReason || undefined,
                 });
               }}
             >
@@ -1068,7 +1007,6 @@ export default function RecruitmentManagement() {
           </DialogHeader>
           {detailData && (
             <div className="space-y-6">
-              {/* Basic Info */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-gray-800/50 rounded-lg p-3">
                   <div className="text-xs text-gray-500">品牌类型</div>
@@ -1109,8 +1047,6 @@ export default function RecruitmentManagement() {
                   <div className="text-red-300 text-sm">{detailData.rejectReason}</div>
                 </div>
               )}
-
-              {/* Status History */}
               <div>
                 <h4 className="text-sm font-bold text-gray-300 flex items-center gap-2 mb-3">
                   <History className="w-4 h-4" /> 状态变更历史
@@ -1139,81 +1075,159 @@ export default function RecruitmentManagement() {
         </DialogContent>
       </Dialog>
 
-      {/* ===== AI RECOGNIZE DIALOG ===== */}
+      {/* ===== AI RECOGNIZE DIALOG (IMPROVED) ===== */}
       <Dialog open={aiOpen} onOpenChange={setAiOpen}>
-        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-2xl">
+        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-yellow-400" /> AI智能识别
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-gray-400">上传图片URL或粘贴文本，AI自动提取品牌信息</p>
+            <p className="text-sm text-gray-400">上传图片或粘贴文本，AI自动提取品牌信息。支持名片、宣传册、表格截图等。</p>
+
+            {/* Image Upload Area */}
             <div>
-              <label className="text-sm text-gray-400 mb-1 block">图片URL（名片/宣传册/表格截图）</label>
-              <Input
-                value={aiImageUrl}
-                onChange={e => setAiImageUrl(e.target.value)}
-                placeholder="https://..."
-                className="bg-gray-800 border-gray-700 text-white"
+              <label className="text-sm text-gray-400 mb-2 block flex items-center gap-1">
+                <ImagePlus className="w-4 h-4" /> 图片上传（支持拖拽，多张）
+              </label>
+              <div
+                className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors cursor-pointer ${
+                  aiDragOver ? "border-yellow-400 bg-yellow-400/10" : "border-gray-700 hover:border-gray-500"
+                }`}
+                onDragOver={(e) => { e.preventDefault(); setAiDragOver(true); }}
+                onDragLeave={() => setAiDragOver(false)}
+                onDrop={handleAiDrop}
+                onClick={() => aiFileInputRef.current?.click()}
+              >
+                {aiUploading ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <Loader2 className="w-8 h-8 animate-spin text-yellow-400" />
+                    <span className="text-sm text-gray-400">上传中...</span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <ImagePlus className="w-8 h-8 text-gray-500" />
+                    <span className="text-sm text-gray-400">点击或拖拽图片到此处</span>
+                    <span className="text-xs text-gray-600">支持 JPG、PNG、WebP 格式，最多20张</span>
+                  </div>
+                )}
+              </div>
+              <input
+                ref={aiFileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files) handleAiImageUpload(e.target.files);
+                  e.target.value = "";
+                }}
               />
             </div>
+
+            {/* Uploaded Images Preview */}
+            {aiImageUrls.length > 0 && (
+              <div className="space-y-2">
+                <label className="text-sm text-gray-400">已上传 {aiImageUrls.length} 张图片</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {aiImageUrls.map((url, idx) => (
+                    <div key={idx} className="relative group">
+                      <img src={url} alt={`img-${idx}`} className="w-full h-24 object-cover rounded-lg border border-gray-700" />
+                      <button
+                        className="absolute top-1 right-1 bg-red-600 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => removeAiImage(idx)}
+                      >
+                        <X className="w-3 h-3 text-white" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Text Input */}
             <div>
-              <label className="text-sm text-gray-400 mb-1 block">或粘贴文本内容</label>
+              <label className="text-sm text-gray-400 mb-1 block flex items-center gap-1">
+                <FileText className="w-4 h-4" /> 或粘贴文本内容
+              </label>
               <Textarea
                 value={aiText}
                 onChange={e => setAiText(e.target.value)}
-                placeholder="粘贴品牌信息文本..."
+                placeholder="粘贴品牌信息文本（名片内容、邮件、表格数据等）..."
                 className="bg-gray-800 border-gray-700 text-white"
                 rows={4}
               />
             </div>
+
+            {/* Recognize Button */}
             <Button
-              className="bg-yellow-600 hover:bg-yellow-700 w-full"
-              disabled={(!aiImageUrl && !aiText) || aiRecognizeMutation.isPending}
+              className="bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 w-full"
+              disabled={(aiImageUrls.length === 0 && !aiText) || aiRecognizeMutation.isPending}
               onClick={() => aiRecognizeMutation.mutate({
-                imageUrl: aiImageUrl || undefined,
+                imageUrls: aiImageUrls.length > 0 ? aiImageUrls : undefined,
                 text: aiText || undefined,
               })}
             >
-              {aiRecognizeMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Sparkles className="w-4 h-4 mr-1" />}
-              开始识别
+              {aiRecognizeMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  AI识别中...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  开始AI识别
+                </>
+              )}
             </Button>
 
             {/* AI Results */}
             {aiResults.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="text-sm font-bold text-gray-300">识别结果 ({aiResults.length}个品牌)</h4>
-                {aiResults.map((brand: any, idx: number) => (
-                  <div key={idx} className="bg-gray-800/50 rounded-lg p-3 flex items-center justify-between">
-                    <div>
-                      <div className="text-white font-medium">{brand.brandName}</div>
-                      <div className="text-xs text-gray-400">
-                        {brand.brandType && <span className="mr-2">类型: {brand.brandType}</span>}
-                        {brand.contactInfo && <span>联系: {brand.contactInfo}</span>}
+              <div className="space-y-3 border-t border-gray-700 pt-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-gray-300">识别结果 ({aiResults.length}个品牌)</h4>
+                  <Button size="sm" variant="ghost" className="text-xs text-gray-400"
+                    onClick={() => {
+                      if (aiSelectedResults.size === aiResults.length) setAiSelectedResults(new Set());
+                      else setAiSelectedResults(new Set(aiResults.map((_: any, i: number) => i)));
+                    }}
+                  >
+                    {aiSelectedResults.size === aiResults.length ? "取消全选" : "全选"}
+                  </Button>
+                </div>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {aiResults.map((brand: any, idx: number) => (
+                    <div key={idx} className={`rounded-lg p-3 flex items-start gap-3 transition-colors ${
+                      aiSelectedResults.has(idx) ? "bg-gray-800/80 border border-yellow-500/30" : "bg-gray-800/30 border border-gray-700"
+                    }`}>
+                      <button onClick={() => {
+                        const next = new Set(aiSelectedResults);
+                        if (next.has(idx)) next.delete(idx); else next.add(idx);
+                        setAiSelectedResults(next);
+                      }}>
+                        {aiSelectedResults.has(idx)
+                          ? <CheckSquare className="w-4 h-4 text-yellow-400 mt-1" />
+                          : <Square className="w-4 h-4 text-gray-600 mt-1" />}
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-white font-medium">{brand.brandName}</div>
+                        <div className="text-xs text-gray-400 mt-1 space-x-3">
+                          {brand.brandType && <span>类型: {brand.brandType}</span>}
+                          {brand.contactInfo && <span>联系: {brand.contactInfo}</span>}
+                          {brand.memo && <span>备注: {brand.memo}</span>}
+                        </div>
                       </div>
                     </div>
-                    <Button
-                      size="sm"
-                      className="bg-red-600 hover:bg-red-700"
-                      onClick={() => {
-                        createMutation.mutate({
-                          brandName: brand.brandName,
-                          brandType: brand.brandType || "",
-                          contactInfo: brand.contactInfo || "",
-                          memo: brand.memo || "",
-                        });
-                      }}
-                    >
-                      <Plus className="w-3 h-3 mr-1" /> 登记
-                    </Button>
-                  </div>
-                ))}
+                  ))}
+                </div>
                 <Button
                   className="bg-red-600 hover:bg-red-700 w-full"
+                  disabled={aiSelectedResults.size === 0 || batchCreateMutation.isPending}
                   onClick={() => {
+                    const selected = aiResults.filter((_: any, i: number) => aiSelectedResults.has(i));
                     batchCreateMutation.mutate({
-                      items: aiResults.map((b: any) => ({
+                      items: selected.map((b: any) => ({
                         brandName: b.brandName,
                         brandType: b.brandType || "",
                         contactInfo: b.contactInfo || "",
@@ -1221,10 +1235,12 @@ export default function RecruitmentManagement() {
                       })),
                     });
                     setAiResults([]);
+                    setAiSelectedResults(new Set());
                     setAiOpen(false);
                   }}
                 >
-                  全部登记 ({aiResults.length}个)
+                  {batchCreateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
+                  登记选中 ({aiSelectedResults.size}个)
                 </Button>
               </div>
             )}
@@ -1232,41 +1248,178 @@ export default function RecruitmentManagement() {
         </DialogContent>
       </Dialog>
 
-      {/* ===== IMPORT DIALOG ===== */}
-      <Dialog open={importOpen} onOpenChange={setImportOpen}>
-        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-2xl">
+      {/* ===== IMPORT DIALOG (IMPROVED) ===== */}
+      <Dialog open={importOpen} onOpenChange={(open) => { setImportOpen(open); if (!open) { setImportStep("upload"); setImportData([]); } }}>
+        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <FileSpreadsheet className="w-5 h-5 text-green-400" /> 批量导入确认
+              <FileSpreadsheet className="w-5 h-5 text-green-400" />
+              {importStep === "upload" ? "文档导入" : "数据预览与确认"}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-gray-400">
-              CSV格式: 品牌名称,品牌类型,联系方式,备注（第一行为表头）
-            </p>
-            <div className="max-h-60 overflow-y-auto space-y-1">
-              {importData.map((item, idx) => (
-                <div key={idx} className="bg-gray-800/50 rounded p-2 text-sm flex justify-between">
-                  <span className="text-white">{item.brandName}</span>
-                  <span className="text-gray-400">{item.brandType}</span>
+
+          {importStep === "upload" && (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-400">支持 Excel (.xlsx/.xls) 和 CSV (.csv) 格式。系统会自动识别列名并映射字段。</p>
+
+              {/* Drag & Drop Upload Area */}
+              <div
+                className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${
+                  importDragOver ? "border-green-400 bg-green-400/10" : "border-gray-700 hover:border-gray-500"
+                }`}
+                onDragOver={(e) => { e.preventDefault(); setImportDragOver(true); }}
+                onDragLeave={() => setImportDragOver(false)}
+                onDrop={handleImportDrop}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <div className="flex flex-col items-center gap-3">
+                  <Upload className="w-10 h-10 text-gray-500" />
+                  <div>
+                    <span className="text-sm text-gray-300">点击或拖拽文件到此处</span>
+                    <div className="text-xs text-gray-600 mt-1">支持 .xlsx, .xls, .csv 格式</div>
+                  </div>
                 </div>
-              ))}
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                className="hidden"
+                onChange={handleFileImport}
+              />
+
+              {/* Format Guide */}
+              <div className="bg-gray-800/50 rounded-lg p-4">
+                <h4 className="text-sm font-bold text-gray-300 mb-2">字段映射说明</h4>
+                <div className="text-xs text-gray-400 space-y-1">
+                  <div className="flex gap-2">
+                    <span className="text-green-400 w-20 shrink-0">品牌名称*</span>
+                    <span>自动匹配: 品牌名称、品牌名、品牌、brand、name</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="text-blue-400 w-20 shrink-0">品牌类型</span>
+                    <span>自动匹配: 品牌类型、类型、分类、type、category</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="text-yellow-400 w-20 shrink-0">联系方式</span>
+                    <span>自动匹配: 联系方式、联系人、电话、邮箱、contact</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="text-purple-400 w-20 shrink-0">备注</span>
+                    <span>自动匹配: 备注、说明、描述、memo、note</span>
+                  </div>
+                </div>
+              </div>
+
+              {importErrors.length > 0 && (
+                <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3">
+                  <div className="flex items-center gap-2 text-red-400 text-sm mb-1">
+                    <AlertCircle className="w-4 h-4" /> 导入错误
+                  </div>
+                  {importErrors.map((err, i) => (
+                    <div key={i} className="text-xs text-red-300">{err}</div>
+                  ))}
+                </div>
+              )}
             </div>
-            <p className="text-sm text-gray-300">共 {importData.length} 条数据</p>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" className="border-gray-600" onClick={() => setImportOpen(false)}>取消</Button>
-            <Button
-              className="bg-green-600 hover:bg-green-700"
-              disabled={batchCreateMutation.isPending}
-              onClick={() => batchCreateMutation.mutate({ items: importData })}
-            >
-              {batchCreateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
-              确认导入
-            </Button>
-          </DialogFooter>
+          )}
+
+          {importStep === "preview" && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="ghost" className="text-gray-400" onClick={() => setImportStep("upload")}>
+                    <ArrowLeft className="w-4 h-4 mr-1" /> 返回
+                  </Button>
+                  <span className="text-sm text-gray-400">文件: {importFileName}</span>
+                </div>
+                <Badge className="bg-green-600 text-white">共 {importData.length} 条数据</Badge>
+              </div>
+
+              {/* Data Preview Table */}
+              <div className="rounded-lg border border-gray-700 overflow-hidden">
+                <div className="max-h-96 overflow-y-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-800 sticky top-0">
+                      <tr>
+                        <th className="p-2 text-left text-gray-400 w-8">#</th>
+                        <th className="p-2 text-left text-gray-400">品牌名称</th>
+                        <th className="p-2 text-left text-gray-400">品牌类型</th>
+                        <th className="p-2 text-left text-gray-400">联系方式</th>
+                        <th className="p-2 text-left text-gray-400">备注</th>
+                        <th className="p-2 text-center text-gray-400 w-10"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {importData.map((item, idx) => (
+                        <tr key={idx} className="border-t border-gray-800 hover:bg-gray-800/30">
+                          <td className="p-2 text-gray-500">{idx + 1}</td>
+                          <td className="p-2">
+                            <Input
+                              value={item.brandName}
+                              onChange={e => updateImportItem(idx, "brandName", e.target.value)}
+                              className="bg-transparent border-gray-700 text-white text-xs h-7 px-1"
+                            />
+                          </td>
+                          <td className="p-2">
+                            <Input
+                              value={item.brandType}
+                              onChange={e => updateImportItem(idx, "brandType", e.target.value)}
+                              className="bg-transparent border-gray-700 text-white text-xs h-7 px-1"
+                            />
+                          </td>
+                          <td className="p-2">
+                            <Input
+                              value={item.contactInfo}
+                              onChange={e => updateImportItem(idx, "contactInfo", e.target.value)}
+                              className="bg-transparent border-gray-700 text-white text-xs h-7 px-1"
+                            />
+                          </td>
+                          <td className="p-2">
+                            <Input
+                              value={item.memo}
+                              onChange={e => updateImportItem(idx, "memo", e.target.value)}
+                              className="bg-transparent border-gray-700 text-white text-xs h-7 px-1"
+                            />
+                          </td>
+                          <td className="p-2 text-center">
+                            <button onClick={() => removeImportItem(idx)} className="text-gray-500 hover:text-red-400">
+                              <X className="w-3 h-3" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {importStep === "preview" && (
+            <DialogFooter>
+              <Button variant="outline" className="border-gray-600" onClick={() => setImportOpen(false)}>取消</Button>
+              <Button
+                className="bg-green-600 hover:bg-green-700"
+                disabled={importData.length === 0 || batchCreateMutation.isPending}
+                onClick={() => batchCreateMutation.mutate({ items: importData })}
+              >
+                {batchCreateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
+                确认导入 ({importData.length}条)
+              </Button>
+            </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
+
+      {/* Hidden file input for legacy import button */}
+      <input
+        type="file"
+        accept=".csv,.xlsx,.xls"
+        className="hidden"
+        ref={fileInputRef}
+        onChange={handleFileImport}
+      />
     </div>
   );
 }
