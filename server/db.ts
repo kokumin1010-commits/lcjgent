@@ -10634,8 +10634,8 @@ export async function getTiktokDailySummary(brandId: number, month?: string) {
   })
   .from(tiktokCommissionOrders)
   .where(conditions.length > 0 ? and(...conditions) : undefined)
-  .groupBy(sql`DATE(${tiktokCommissionOrders.orderCreatedAt})`)
-  .orderBy(asc(sql`DATE(${tiktokCommissionOrders.orderCreatedAt})`));
+  .groupBy(sql`date`)
+  .orderBy(asc(sql`date`));
 }
 
 export async function getTiktokContentTypeSummary(brandId: number, month?: string) {
@@ -10681,8 +10681,8 @@ export async function getTiktokMonthlySummary(brandId?: number) {
   })
   .from(tiktokCommissionOrders)
   .where(conditions.length > 0 ? and(...conditions) : undefined)
-  .groupBy(sql`DATE_FORMAT(${tiktokCommissionOrders.orderCreatedAt}, '%Y-%m')`)
-  .orderBy(asc(sql`DATE_FORMAT(${tiktokCommissionOrders.orderCreatedAt}, '%Y-%m')`));
+  .groupBy(sql`month`)
+  .orderBy(asc(sql`month`));
 }
 
 export async function deleteTiktokOrdersByImportId(importHistoryId: number) {
@@ -13161,14 +13161,14 @@ export async function getReceiptMonthlyTrend() {
 
   // TikTok orders monthly
   const tiktokMonthly = await db.select({
-    month: sql<string>`DATE_FORMAT(${tiktokCommissionOrders.orderCreatedAt}, '%Y-%m')`,
+    month: sql<string>`DATE_FORMAT(${tiktokCommissionOrders.orderCreatedAt}, '%Y-%m')`.as('month'),
     count: sql<number>`COUNT(*)`,
     totalAmount: sql<number>`COALESCE(SUM(${tiktokCommissionOrders.price}), 0)`,
   })
     .from(tiktokCommissionOrders)
     .where(sql`${tiktokCommissionOrders.orderCreatedAt} IS NOT NULL`)
-    .groupBy(sql`DATE_FORMAT(${tiktokCommissionOrders.orderCreatedAt}, '%Y-%m')`)
-    .orderBy(sql`DATE_FORMAT(${tiktokCommissionOrders.orderCreatedAt}, '%Y-%m') ASC`);
+    .groupBy(sql`month`)
+    .orderBy(sql`month ASC`);
 
   // Merge into unified monthly data
   const monthMap = new Map<string, { month: string; lineCount: number; lineAmount: number; lineApproved: number; tiktokCount: number; tiktokAmount: number }>();
