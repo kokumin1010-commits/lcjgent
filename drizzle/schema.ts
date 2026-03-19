@@ -2518,6 +2518,39 @@ export const tiktokCsvImportHistory = mysqlTable("tiktok_csv_import_history", {
 export type TiktokCsvImportHistory = typeof tiktokCsvImportHistory.$inferSelect;
 export type InsertTiktokCsvImportHistory = typeof tiktokCsvImportHistory.$inferInsert;
 
+// ============================================
+// TikTok入金データ
+// ============================================
+
+/**
+ * TikTok Payments table - 実際の入金データ（Payment CSVからインポート）
+ * CAPデータ（コミッション詳細）とは別に、TikTokからの実際の入金を記録
+ */
+export const tiktokPayments = mysqlTable("tiktok_payments", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(),
+  
+  // 入金データ
+  referenceId: varchar("referenceId", { length: 64 }).notNull(), // TikTok Payment Reference ID
+  paymentTime: timestamp("paymentTime"), // 支払い日時(UTC)
+  settlementAmount: int("settlementAmount").notNull(), // 決済金額
+  settlementCurrency: varchar("settlementCurrency", { length: 10 }).default("JPY"), // 決済通貨
+  exchangeRate: decimal("exchangeRate", { precision: 10, scale: 4 }).default("1"), // 為替レート
+  paymentAmount: int("paymentAmount").notNull(), // 支払い金額
+  paymentCurrency: varchar("paymentCurrency", { length: 10 }).default("JPY"), // 支払い通貨
+  
+  // メタ情報
+  importMonth: varchar("importMonth", { length: 7 }), // YYYY-MM形式（どの月のデータか）
+  uploadedBy: int("uploadedBy"),
+  uploadedByName: varchar("uploadedByName", { length: 255 }),
+  
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type TiktokPayment = typeof tiktokPayments.$inferSelect;
+export type InsertTiktokPayment = typeof tiktokPayments.$inferInsert;
+
 
 // ============================================
 // ライブ配信セット組み管理

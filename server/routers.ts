@@ -397,6 +397,12 @@ import {
   getTiktokMonthlySummary,
   deleteTiktokOrdersByImportId,
   deleteTiktokImportHistory,
+  insertTiktokPayments,
+  getTiktokPaymentsSummary,
+  getTiktokPaymentsByMonth,
+  getTiktokPaymentsList,
+  getExistingPaymentReferenceIds,
+  deleteTiktokPayment,
   getExistingSubOrderIds,
   createLivestreamSet,
   createLivestreamSetItem,
@@ -17063,6 +17069,123 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           dateFrom: input.dateFrom ? new Date(input.dateFrom) : undefined,
           dateTo: input.dateTo ? new Date(input.dateTo) : undefined,
         });
+      }),
+    // 入金CSVアップロード
+    uploadPaymentCsv: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+        csvContent: z.string(), // Base64 encoded CSV content
+        importMonth: z.string().optional(), // YYYY-MM
+      }))
+      .mutation(async ({ ctx, input }) => {
+        try {
+          // 1. Decode CSV
+          const csvBuffer = Buffer.from(input.csvContent, "base64");
+          let csvText = csvBuffer.toString("utf-8");
+          if (csvText.charCodeAt(0) === 0xFEFF) {
+            csvText = csvText.slice(1);
+          }
+          csvText = csvText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+          const lines = csvText.split("\n").filter(l => l.trim());
+          
+          if (lines.length < 2) {
+            throw new Error("入金CSVにデータがありません");
+          }
+
+          // 2. Parse header
+          const headers = parseCSVLine(lines[0]).map(h => h.replace(/^\uFEFF/, '').trim());
+          
+          // 3. Parse rows
+          const payments: any[] = [];
+          const referenceIds: string[] = [];
+          
+          for (let i = 1; i < lines.length; i++) {
+            const values = parseCSVLine(lines[i]);
+            if (values.length < 2) continue;
+            const row = mapHeadersToValues(headers, values);
+            
+            const refId = String(row["Reference ID"] || "").trim();
+            if (!refId) continue;
+            referenceIds.push(refId);
+            
+            // Parse payment time (format: "2026-01-16 11:24:07 AM")
+            let paymentTime: Date | null = null;
+            const timeStr = String(row["Payment Time(Timezone=UTC)"] || "").trim();
+            if (timeStr) {
+              try {
+                // Handle AM/PM format
+                const cleaned = timeStr.replace(/ AM$/i, " AM").replace(/ PM$/i, " PM");
+                paymentTime = new Date(cleaned);
+                if (isNaN(paymentTime.getTime())) paymentTime = null;
+              } catch { paymentTime = null; }
+            }
+            
+            payments.push({
+              brandId: input.brandId,
+              referenceId: refId,
+              paymentTime,
+              settlementAmount: parseIntSafe(row["Settlement Amount"]) || 0,
+              settlementCurrency: row["Settlement Currency"] || "JPY",
+              exchangeRate: String(parseFloatSafe(row["Exchange Rate"]) || 1),
+              paymentAmount: parseIntSafe(row["Payment Amount"]) || 0,
+              paymentCurrency: row["Payment Currency"] || "JPY",
+              importMonth: input.importMonth || (paymentTime ? `${paymentTime.getFullYear()}-${String(paymentTime.getMonth() + 1).padStart(2, '0')}` : null),
+              uploadedBy: ctx.user.id,
+              uploadedByName: ctx.user.name || ctx.user.email,
+            });
+          }
+
+          // 4. Check duplicates
+          const existingIds = await getExistingPaymentReferenceIds(referenceIds);
+          const existingSet = new Set(existingIds);
+          const newPayments = payments.filter(p => !existingSet.has(p.referenceId));
+          
+          // 5. Insert
+          let insertedCount = 0;
+          if (newPayments.length > 0) {
+            insertedCount = await insertTiktokPayments(newPayments);
+          }
+          
+          return {
+            totalRows: payments.length,
+            importedRows: insertedCount,
+            skippedRows: payments.length - insertedCount,
+          };
+        } catch (error: any) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `入金CSVインポートに失敗しました: ${error.message}`,
+          });
+        }
+      }),
+
+    // 入金データサマリー
+    getPaymentSummary: protectedProcedure
+      .input(z.object({ brandId: z.number().optional().default(0) }))
+      .query(async ({ input }) => {
+        return getTiktokPaymentsSummary(input.brandId);
+      }),
+
+    // 入金データ月別
+    getPaymentsByMonth: protectedProcedure
+      .input(z.object({ brandId: z.number().optional().default(0) }))
+      .query(async ({ input }) => {
+        return getTiktokPaymentsByMonth(input.brandId);
+      }),
+
+    // 入金データ一覧
+    getPaymentsList: protectedProcedure
+      .input(z.object({ brandId: z.number().optional().default(0) }))
+      .query(async ({ input }) => {
+        return getTiktokPaymentsList(input.brandId);
+      }),
+
+    // 入金データ削除
+    deletePayment: protectedProcedure
+      .input(z.object({ paymentId: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteTiktokPayment(input.paymentId);
+        return { success: true };
       }),
   }),
 

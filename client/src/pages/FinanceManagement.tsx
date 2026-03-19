@@ -69,6 +69,11 @@ export default function FinanceManagement() {
   const [orderStatus, setOrderStatus] = useState("");
   const [orderContentType, setOrderContentType] = useState("");
   const [selectedProductName, setSelectedProductName] = useState<string | null>(null);
+  const [paymentCsvUploading, setPaymentCsvUploading] = useState(false);
+  const [paymentUploadDialogOpen, setPaymentUploadDialogOpen] = useState(false);
+  const paymentFileInputRef = useRef<HTMLInputElement>(null);
+  const [deletePaymentId, setDeletePaymentId] = useState<number | null>(null);
+  const [deletePaymentDialogOpen, setDeletePaymentDialogOpen] = useState(false);
   const pageSize = 50;
 
   const monthOptions = useMemo(() => getMonthOptions(), []);
@@ -124,6 +129,18 @@ export default function FinanceManagement() {
     { brandId: 0 },
     { enabled: activeTab === 'imports' }
   );
+  const paymentSummaryQuery = trpc.tiktokFinance.getPaymentSummary.useQuery(
+    { brandId: 0 },
+    { enabled: true }
+  );
+  const paymentsByMonthQuery = trpc.tiktokFinance.getPaymentsByMonth.useQuery(
+    { brandId: 0 },
+    { enabled: activeTab === 'monthly' || activeTab === 'dashboard' }
+  );
+  const paymentsListQuery = trpc.tiktokFinance.getPaymentsList.useQuery(
+    { brandId: 0 },
+    { enabled: activeTab === 'imports' }
+  );
 
   const deleteMutation = trpc.tiktokFinance.deleteImport.useMutation({
     onSuccess: () => {
@@ -137,6 +154,51 @@ export default function FinanceManagement() {
       toast.error(`削除に失敗: ${error.message}`);
     },
   });
+
+  const uploadPaymentCsvMutation = trpc.tiktokFinance.uploadPaymentCsv.useMutation({
+    onSuccess: (result) => {
+      toast.success(`入金データ${result.importedRows}件インポート（${result.skippedRows}件スキップ）`);
+      setPaymentUploadDialogOpen(false);
+      setPaymentCsvUploading(false);
+      paymentSummaryQuery.refetch();
+      paymentsByMonthQuery.refetch();
+      paymentsListQuery.refetch();
+    },
+    onError: (error) => {
+      toast.error(`入金CSVアップロード失敗: ${error.message}`);
+      setPaymentCsvUploading(false);
+    },
+  });
+
+  const deletePaymentMutation = trpc.tiktokFinance.deletePayment.useMutation({
+    onSuccess: () => {
+      toast.success("入金データを削除しました");
+      setDeletePaymentDialogOpen(false);
+      setDeletePaymentId(null);
+      paymentSummaryQuery.refetch();
+      paymentsByMonthQuery.refetch();
+      paymentsListQuery.refetch();
+    },
+    onError: (error) => {
+      toast.error(`削除に失敗: ${error.message}`);
+    },
+  });
+
+  const handlePaymentCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPaymentCsvUploading(true);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+      uploadPaymentCsvMutation.mutate({ brandId: 0, csvContent: base64 });
+    } catch (err: any) {
+      toast.error(`アップロード失敗: ${err.message}`);
+      setPaymentCsvUploading(false);
+    } finally {
+      if (paymentFileInputRef.current) paymentFileInputRef.current.value = "";
+    }
+  };
 
   const summary = summaryQuery.data;
   const prevSummary = prevSummaryQuery.data;
@@ -351,15 +413,20 @@ export default function FinanceManagement() {
                 </Card>
               </div>
 
-              {/* Actual Commission Base Card */}
+              {/* Payment & Commission Rate Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card className="border-l-4 border-l-indigo-500">
                   <CardContent className="pt-4 pb-3">
                     <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
                       <Wallet className="h-3.5 w-3.5" />
-                      コミッション算定基準額
+                      入金額（実績）
                     </div>
-                    <p className="text-xl font-bold text-indigo-600">{formatCurrency(summary.totalActCommissionBase)}</p>
+                    <p className="text-xl font-bold text-indigo-600">
+                      {paymentSummaryQuery.data ? formatCurrency(paymentSummaryQuery.data.totalPaymentAmount) : '未登録'}
+                    </p>
+                    {paymentSummaryQuery.data && (
+                      <p className="text-xs text-muted-foreground mt-1">{paymentSummaryQuery.data.totalPayments}件の入金</p>
+                    )}
                   </CardContent>
                 </Card>
                 <Card className="border-l-4 border-l-cyan-500">
@@ -586,7 +653,6 @@ export default function FinanceManagement() {
                       <th className="text-right py-2 px-3">売上</th>
                       <th className="text-right py-2 px-3">LCJ手数料</th>
                       <th className="text-right py-2 px-3">C手数料</th>
-                      <th className="text-right py-2 px-3">算定基準額</th>
                       <th className="text-right py-2 px-3">LCJ率</th>
                       <th className="text-right py-2 px-3">C率</th>
                     </tr>
@@ -600,7 +666,6 @@ export default function FinanceManagement() {
                         <td className="py-2 px-3 text-right font-semibold">{formatCurrency(c.totalSales)}</td>
                         <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(c.totalActPartnerCommission)}</td>
                         <td className="py-2 px-3 text-right text-green-600">{formatCurrency(c.totalActCreatorCommission)}</td>
-                        <td className="py-2 px-3 text-right text-indigo-600">{formatCurrency(c.totalActCommissionBase)}</td>
                         <td className="py-2 px-3 text-right text-cyan-600">{formatPercent(c.avgPartnerCommissionRate)}</td>
                         <td className="py-2 px-3 text-right text-teal-600">{formatPercent(c.avgCreatorCommissionRate)}</td>
                         <td className="py-2 px-3 text-right">{formatNumber(c.orderCount)}</td>
@@ -614,7 +679,6 @@ export default function FinanceManagement() {
                       <td className="py-2 px-3 text-right">{formatCurrency(creators.reduce((s: number, c: any) => s + Number(c.totalSales), 0))}</td>
                       <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(creators.reduce((s: number, c: any) => s + Number(c.totalActPartnerCommission), 0))}</td>
                       <td className="py-2 px-3 text-right text-green-600">{formatCurrency(creators.reduce((s: number, c: any) => s + Number(c.totalActCreatorCommission), 0))}</td>
-                      <td className="py-2 px-3 text-right text-indigo-600">{formatCurrency(creators.reduce((s: number, c: any) => s + Number(c.totalActCommissionBase), 0))}</td>
                       <td className="py-2 px-3 text-right" colSpan={2}></td>
                       <td className="py-2 px-3 text-right">{formatNumber(creators.reduce((s: number, c: any) => s + Number(c.orderCount), 0))}</td>
                       <td className="py-2 px-3 text-right">{formatNumber(creators.reduce((s: number, c: any) => s + Number(c.totalQuantity), 0))}</td>
@@ -647,14 +711,12 @@ export default function FinanceManagement() {
                   <thead>
                     <tr className="border-b text-muted-foreground">
                       <th className="text-left py-2 px-3">#</th>
-                      <th className="text-left py-2 px-3">ショップ</th>
+                      <th className="text-right py-2 px-3">ショップ</th>
                       <th className="text-right py-2 px-3">売上</th>
                       <th className="text-right py-2 px-3">LCJ手数料</th>
                       <th className="text-right py-2 px-3">C手数料</th>
-                      <th className="text-right py-2 px-3">算定基準額</th>
                       <th className="text-right py-2 px-3">LCJ率</th>
-                      <th className="text-right py-2 px-3">C率</th>
-                    </tr>
+                      <th className="text-right py-2 px-3">C率</th>                    </tr>
                   </thead>
                   <tbody>
                     {shops.map((s: any, i: number) => (                     <tr key={s.shopName} className="border-b hover:bg-muted/50">
@@ -665,7 +727,6 @@ export default function FinanceManagement() {
                         <td className="py-2 px-3 text-right font-semibold">{formatCurrency(s.totalSales)}</td>
                         <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(s.totalActPartnerCommission)}</td>
                         <td className="py-2 px-3 text-right text-green-600">{formatCurrency(s.totalActCreatorCommission)}</td>
-                        <td className="py-2 px-3 text-right text-indigo-600">{formatCurrency(s.totalActCommissionBase)}</td>
                         <td className="py-2 px-3 text-right text-cyan-600">{formatPercent(s.avgPartnerCommissionRate)}</td>
                         <td className="py-2 px-3 text-right text-teal-600">{formatPercent(s.avgCreatorCommissionRate)}</td>
                         <td className="py-2 px-3 text-right">{formatNumber(s.orderCount)}</td>
@@ -679,7 +740,6 @@ export default function FinanceManagement() {
                       <td className="py-2 px-3 text-right">{formatCurrency(shops.reduce((s: number, c: any) => s + Number(c.totalSales), 0))}</td>
                       <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(shops.reduce((s: number, c: any) => s + Number(c.totalActPartnerCommission), 0))}</td>
                       <td className="py-2 px-3 text-right text-green-600">{formatCurrency(shops.reduce((s: number, c: any) => s + Number(c.totalActCreatorCommission), 0))}</td>
-                      <td className="py-2 px-3 text-right text-indigo-600">{formatCurrency(shops.reduce((s: number, c: any) => s + Number(c.totalActCommissionBase), 0))}</td>
                       <td className="py-2 px-3 text-right" colSpan={2}></td>
                       <td className="py-2 px-3 text-right">{formatNumber(shops.reduce((s: number, c: any) => s + Number(c.orderCount), 0))}</td>
                       <td className="py-2 px-3 text-right">{formatNumber(shops.reduce((s: number, c: any) => s + Number(c.totalQuantity), 0))}</td>
@@ -819,7 +879,6 @@ export default function FinanceManagement() {
                       <th className="text-right py-2 px-3">売上</th>
                       <th className="text-right py-2 px-3">LCJ手数料</th>
                       <th className="text-right py-2 px-3">C手数料</th>
-                      <th className="text-right py-2 px-3">算定基準額</th>
                       <th className="text-right py-2 px-3">注文数</th>
                       <th className="text-right py-2 px-3">数量</th>
                     </tr>
@@ -831,7 +890,6 @@ export default function FinanceManagement() {
                         <td className="py-2 px-3 text-right">{formatCurrency(d.totalSales)}</td>
                         <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(d.totalActPartnerCommission)}</td>
                         <td className="py-2 px-3 text-right text-green-600">{formatCurrency(d.totalActCreatorCommission)}</td>
-                        <td className="py-2 px-3 text-right text-indigo-600">{formatCurrency(d.totalActCommissionBase)}</td>
                         <td className="py-2 px-3 text-right">{formatNumber(d.orderCount)}</td>
                         <td className="py-2 px-3 text-right">{formatNumber(d.totalQuantity)}</td>
                       </tr>
@@ -843,7 +901,6 @@ export default function FinanceManagement() {
                       <td className="py-2 px-3 text-right">{formatCurrency((dailyQuery.data || []).reduce((s: number, d: any) => s + Number(d.totalSales), 0))}</td>
                       <td className="py-2 px-3 text-right text-blue-600">{formatCurrency((dailyQuery.data || []).reduce((s: number, d: any) => s + Number(d.totalActPartnerCommission), 0))}</td>
                       <td className="py-2 px-3 text-right text-green-600">{formatCurrency((dailyQuery.data || []).reduce((s: number, d: any) => s + Number(d.totalActCreatorCommission), 0))}</td>
-                      <td className="py-2 px-3 text-right text-indigo-600">{formatCurrency((dailyQuery.data || []).reduce((s: number, d: any) => s + Number(d.totalActCommissionBase), 0))}</td>
                       <td className="py-2 px-3 text-right">{formatNumber((dailyQuery.data || []).reduce((s: number, d: any) => s + Number(d.orderCount), 0))}</td>
                       <td className="py-2 px-3 text-right">{formatNumber((dailyQuery.data || []).reduce((s: number, d: any) => s + Number(d.totalQuantity), 0))}</td>
                     </tr>
@@ -878,7 +935,7 @@ export default function FinanceManagement() {
                       <th className="text-right py-2 px-3">売上</th>
                       <th className="text-right py-2 px-3">LCJ手数料</th>
                       <th className="text-right py-2 px-3">C手数料</th>
-                      <th className="text-right py-2 px-3">算定基準額</th>
+                      <th className="text-right py-2 px-3">入金額</th>
                       <th className="text-right py-2 px-3">LCJ率</th>
                       <th className="text-right py-2 px-3">C率</th>
                       <th className="text-right py-2 px-3">注文数</th>
@@ -898,7 +955,12 @@ export default function FinanceManagement() {
                           <td className="py-2 px-3 text-right font-semibold">{formatCurrency(m.totalSales)}</td>
                           <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(m.totalActPartnerCommission)}</td>
                           <td className="py-2 px-3 text-right text-green-600">{formatCurrency(m.totalActCreatorCommission)}</td>
-                          <td className="py-2 px-3 text-right text-indigo-600">{formatCurrency(m.totalActCommissionBase)}</td>
+                          <td className="py-2 px-3 text-right text-indigo-600">
+                            {(() => {
+                              const pmData = (paymentsByMonthQuery.data || []).find((p: any) => p.month === m.month);
+                              return pmData ? formatCurrency(pmData.totalPaymentAmount) : '-';
+                            })()}
+                          </td>
                           <td className="py-2 px-3 text-right text-cyan-600">{formatPercent(m.avgPartnerCommissionRate)}</td>
                           <td className="py-2 px-3 text-right text-teal-600">{formatPercent(m.avgCreatorCommissionRate)}</td>
                           <td className="py-2 px-3 text-right">{formatNumber(m.orderCount)}</td>
@@ -923,7 +985,7 @@ export default function FinanceManagement() {
                       <td className="py-2 px-3 text-right">{formatCurrency(monthly.reduce((s: number, m: any) => s + Number(m.totalSales), 0))}</td>
                       <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(monthly.reduce((s: number, m: any) => s + Number(m.totalActPartnerCommission), 0))}</td>
                       <td className="py-2 px-3 text-right text-green-600">{formatCurrency(monthly.reduce((s: number, m: any) => s + Number(m.totalActCreatorCommission), 0))}</td>
-                      <td className="py-2 px-3 text-right text-indigo-600">{formatCurrency(monthly.reduce((s: number, m: any) => s + Number(m.totalActCommissionBase), 0))}</td>
+                      <td className="py-2 px-3 text-right text-indigo-600">{formatCurrency((paymentsByMonthQuery.data || []).reduce((s: number, p: any) => s + Number(p.totalPaymentAmount), 0))}</td>
                       <td className="py-2 px-3 text-right" colSpan={2}></td>
                       <td className="py-2 px-3 text-right">{formatNumber(monthly.reduce((s: number, m: any) => s + Number(m.orderCount), 0))}</td>
                       <td className="py-2 px-3 text-right">{formatNumber(monthly.reduce((s: number, m: any) => s + Number(m.totalQuantity), 0))}</td>
@@ -983,7 +1045,6 @@ export default function FinanceManagement() {
                         <th className="text-right py-2 px-2">数量</th>
                         <th className="text-right py-2 px-2">LCJ手数料</th>
                         <th className="text-right py-2 px-2">C手数料</th>
-                        <th className="text-right py-2 px-2">算定基準額</th>
                         <th className="text-right py-2 px-2">LCJ率</th>
                         <th className="text-right py-2 px-2">C率</th>
                         <th className="text-center py-2 px-2">ステータス</th>
@@ -1000,7 +1061,6 @@ export default function FinanceManagement() {
                           <td className="py-1.5 px-2 text-right">{o.quantity}</td>
                           <td className="py-1.5 px-2 text-right text-blue-600">{formatCurrency(o.actualPartnerCommission)}</td>
                           <td className="py-1.5 px-2 text-right text-green-600">{formatCurrency(o.actualCreatorCommission)}</td>
-                          <td className="py-1.5 px-2 text-right text-indigo-600">{formatCurrency(o.actualCommissionBase)}</td>
                           <td className="py-1.5 px-2 text-right text-cyan-600">{o.partnerCommissionRate ? formatPercent(o.partnerCommissionRate) : '-'}</td>
                           <td className="py-1.5 px-2 text-right text-teal-600">{o.creatorCommissionRate ? formatPercent(o.creatorCommissionRate) : '-'}</td>
                           <td className="py-1.5 px-2 text-center">
@@ -1036,49 +1096,112 @@ export default function FinanceManagement() {
 
       {/* Imports Tab */}
       {activeTab === 'imports' && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <FileText className="h-4 w-4" />
-                インポート履歴
-              </CardTitle>
-              <Button onClick={() => setUploadDialogOpen(true)} size="sm">
-                <Upload className="h-4 w-4 mr-2" />
-                CSVアップロード
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {importsQuery.isLoading ? (
-              <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
-            ) : (importsQuery.data || []).length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">インポート履歴なし</p>
-            ) : (
-              <div className="space-y-3">
-                {(importsQuery.data || []).map((imp: any) => (
-                  <div key={imp.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <p className="font-medium text-sm">{imp.fileName}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {imp.importedRows}件インポート / {imp.skippedRows}件スキップ
-                        {imp.dateRangeStart && ` | ${new Date(imp.dateRangeStart).toLocaleDateString('ja-JP')} ~ ${new Date(imp.dateRangeEnd).toLocaleDateString('ja-JP')}`}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={imp.status === 'completed' ? 'default' : 'destructive'}>
-                        {imp.status === 'completed' ? '完了' : imp.status}
-                      </Badge>
-                      <Button variant="ghost" size="sm" onClick={() => { setDeleteImportId(imp.id); setDeleteDialogOpen(true); }}>
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+        <div className="space-y-6">
+          {/* CAP Data Imports */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  CAPデータ（コミッション明細）
+                </CardTitle>
+                <Button onClick={() => setUploadDialogOpen(true)} size="sm">
+                  <Upload className="h-4 w-4 mr-2" />
+                  CAP CSVアップロード
+                </Button>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardHeader>
+            <CardContent>
+              {importsQuery.isLoading ? (
+                <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+              ) : (importsQuery.data || []).length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">インポート履歴なし</p>
+              ) : (
+                <div className="space-y-3">
+                  {(importsQuery.data || []).map((imp: any) => (
+                    <div key={imp.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div>
+                        <p className="font-medium text-sm">{imp.fileName}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {imp.importedRows}件インポート / {imp.skippedRows}件スキップ
+                          {imp.dateRangeStart && ` | ${new Date(imp.dateRangeStart).toLocaleDateString('ja-JP')} ~ ${new Date(imp.dateRangeEnd).toLocaleDateString('ja-JP')}`}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={imp.status === 'completed' ? 'default' : 'destructive'}>
+                          {imp.status === 'completed' ? '完了' : imp.status}
+                        </Badge>
+                        <Button variant="ghost" size="sm" onClick={() => { setDeleteImportId(imp.id); setDeleteDialogOpen(true); }}>
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Payment Data */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Wallet className="h-4 w-4" />
+                  入金データ
+                </CardTitle>
+                <Button onClick={() => setPaymentUploadDialogOpen(true)} size="sm">
+                  <Upload className="h-4 w-4 mr-2" />
+                  入金CSVアップロード
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {paymentsListQuery.isLoading ? (
+                <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+              ) : (paymentsListQuery.data || []).length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">入金データなし。入金CSVをアップロードしてください。</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-muted-foreground">
+                        <th className="text-left py-2 px-3">支払日時</th>
+                        <th className="text-left py-2 px-3">参照ID</th>
+                        <th className="text-right py-2 px-3">決済金額</th>
+                        <th className="text-right py-2 px-3">支払金額</th>
+                        <th className="text-center py-2 px-3">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(paymentsListQuery.data || []).map((p: any) => (
+                        <tr key={p.id} className="border-b hover:bg-muted/50">
+                          <td className="py-2 px-3">{p.paymentTime ? new Date(p.paymentTime).toLocaleString('ja-JP') : '-'}</td>
+                          <td className="py-2 px-3 text-xs font-mono">{p.referenceId || '-'}</td>
+                          <td className="py-2 px-3 text-right font-semibold">{formatCurrency(p.settlementAmount)}</td>
+                          <td className="py-2 px-3 text-right text-indigo-600 font-semibold">{formatCurrency(p.paymentAmount)}</td>
+                          <td className="py-2 px-3 text-center">
+                            <Button variant="ghost" size="sm" onClick={() => { setDeletePaymentId(p.id); setDeletePaymentDialogOpen(true); }}>
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 font-bold">
+                        <td className="py-2 px-3" colSpan={2}>合計</td>
+                        <td className="py-2 px-3 text-right">{formatCurrency((paymentsListQuery.data || []).reduce((s: number, p: any) => s + Number(p.settlementAmount || 0), 0))}</td>
+                        <td className="py-2 px-3 text-right text-indigo-600">{formatCurrency((paymentsListQuery.data || []).reduce((s: number, p: any) => s + Number(p.paymentAmount || 0), 0))}</td>
+                        <td></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Upload Dialog */}
@@ -1118,6 +1241,49 @@ export default function FinanceManagement() {
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>キャンセル</Button>
             <Button variant="destructive" onClick={() => deleteImportId && deleteMutation.mutate({ importId: deleteImportId })} disabled={deleteMutation.isPending}>
               {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              削除する
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment CSV Upload Dialog */}
+      <Dialog open={paymentUploadDialogOpen} onOpenChange={setPaymentUploadDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>入金CSVアップロード</DialogTitle>
+            <DialogDescription>TikTok入金データ（Payment）のCSVファイルをアップロードします</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <input
+              ref={paymentFileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={handlePaymentCsvUpload}
+              disabled={paymentCsvUploading}
+              className="w-full"
+            />
+            {paymentCsvUploading && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                アップロード中...
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Payment Confirmation Dialog */}
+      <Dialog open={deletePaymentDialogOpen} onOpenChange={setDeletePaymentDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>入金データの削除</DialogTitle>
+            <DialogDescription>この入金データを削除します。この操作は元に戻せません。</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeletePaymentDialogOpen(false)}>キャンセル</Button>
+            <Button variant="destructive" onClick={() => deletePaymentId && deletePaymentMutation.mutate({ paymentId: deletePaymentId })} disabled={deletePaymentMutation.isPending}>
+              {deletePaymentMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
               削除する
             </Button>
           </DialogFooter>

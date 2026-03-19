@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, isNull, gte, lte, gt, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks, blogArticleSeoMetrics, InsertBlogArticleSeoMetric, blogArticleStats, InsertBlogArticleStat, blogArticleThemeLog, InsertBlogArticleThemeLogEntry, livestreamBrands, InsertLivestreamBrand, brandAdditionLogs, InsertBrandAdditionLog } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks, blogArticleSeoMetrics, InsertBlogArticleSeoMetric, blogArticleStats, InsertBlogArticleStat, blogArticleThemeLog, InsertBlogArticleThemeLogEntry, livestreamBrands, InsertLivestreamBrand, brandAdditionLogs, InsertBrandAdditionLog, tiktokPayments, InsertTiktokPayment } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -10738,6 +10738,68 @@ export async function deleteTiktokImportHistory(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.delete(tiktokCsvImportHistory).where(eq(tiktokCsvImportHistory.id, id));
+}
+
+// ============================================
+// TikTok入金データ関連
+// ============================================
+
+export async function insertTiktokPayments(payments: InsertTiktokPayment[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (payments.length === 0) return 0;
+  await db.insert(tiktokPayments).values(payments);
+  return payments.length;
+}
+
+export async function getTiktokPaymentsSummary(brandId: number = 0) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = brandId > 0 ? [eq(tiktokPayments.brandId, brandId)] : [];
+  const result = await db.select({
+    totalPaymentAmount: sql<number>`COALESCE(SUM(${tiktokPayments.paymentAmount}), 0)`,
+    paymentCount: sql<number>`COUNT(*)`,
+  }).from(tiktokPayments).where(conditions.length > 0 ? and(...conditions) : undefined);
+  return result[0] || { totalPaymentAmount: 0, paymentCount: 0 };
+}
+
+export async function getTiktokPaymentsByMonth(brandId: number = 0) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = brandId > 0 ? [eq(tiktokPayments.brandId, brandId)] : [];
+  return db.select({
+    month: sql<string>`DATE_FORMAT(${tiktokPayments.paymentTime}, '%Y-%m')`,
+    totalPaymentAmount: sql<number>`COALESCE(SUM(${tiktokPayments.paymentAmount}), 0)`,
+    paymentCount: sql<number>`COUNT(*)`,
+  }).from(tiktokPayments)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .groupBy(sql`DATE_FORMAT(${tiktokPayments.paymentTime}, '%Y-%m')`)
+    .orderBy(sql`DATE_FORMAT(${tiktokPayments.paymentTime}, '%Y-%m')`);
+}
+
+export async function getTiktokPaymentsList(brandId: number = 0) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = brandId > 0 ? [eq(tiktokPayments.brandId, brandId)] : [];
+  return db.select().from(tiktokPayments)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(tiktokPayments.paymentTime));
+}
+
+export async function getExistingPaymentReferenceIds(referenceIds: string[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (referenceIds.length === 0) return [];
+  const result = await db.select({ referenceId: tiktokPayments.referenceId })
+    .from(tiktokPayments)
+    .where(inArray(tiktokPayments.referenceId, referenceIds));
+  return result.map(r => r.referenceId);
+}
+
+export async function deleteTiktokPayment(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(tiktokPayments).where(eq(tiktokPayments.id, id));
 }
 
 export async function getExistingSubOrderIds(brandId: number, subOrderIds: string[]) {

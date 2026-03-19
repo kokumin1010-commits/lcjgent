@@ -1,0 +1,118 @@
+name: "Code Safety Check (Layer 4)"
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "server/**"
+      - "drizzle/**"
+
+jobs:
+  safety-check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for large deletions
+        id: check
+        run: |
+          echo "Checking push for suspicious large deletions..."
+          
+          # Compare with previous commit
+          PREV_SHA="${{ github.event.before }}"
+          CURR_SHA="${{ github.sha }}"
+          
+          if [ "$PREV_SHA" = "0000000000000000000000000000000000000000" ]; then
+            echo "Initial push, skipping check."
+            echo "blocked=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          BLOCKED=false
+          REPORT=""
+          
+          # Check each changed file
+          for file in $(git diff --name-only "$PREV_SHA" "$CURR_SHA"); do
+            # Only check server/ and drizzle/ files
+            case "$file" in
+              server/*|drizzle/*) ;;
+              *) continue ;;
+            esac
+            
+            stats=$(git diff --numstat "$PREV_SHA" "$CURR_SHA" -- "$file")
+            [ -z "$stats" ] && continue
+            
+            additions=$(echo "$stats" | awk '{print $1}')
+            deletions=$(echo "$stats" | awk '{print $2}')
+            
+            # Skip binary
+            [ "$deletions" = "-" ] && continue
+            
+            if [ "$deletions" -gt 200 ]; then
+              net=$((additions - deletions))
+              if [ "$net" -lt -100 ]; then
+                BLOCKED=true
+                REPORT="${REPORT}\n- **${file}**: +${additions} / -${deletions} (net: ${net})"
+              fi
+            fi
+          done
+          
+          echo "blocked=$BLOCKED" >> $GITHUB_OUTPUT
+          
+          if [ "$BLOCKED" = "true" ]; then
+            # Save report for issue creation
+            echo -e "$REPORT" > /tmp/report.txt
+            echo "report<<EOF" >> $GITHUB_OUTPUT
+            echo -e "$REPORT" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create recovery branch
+        if: steps.check.outputs.blocked == 'true'
+        run: |
+          PREV_SHA="${{ github.event.before }}"
+          BRANCH_NAME="recovery/pre-push-$(date +%Y%m%d-%H%M%S)"
+          git checkout -b "$BRANCH_NAME" "$PREV_SHA"
+          git push origin "$BRANCH_NAME"
+          echo "Recovery branch created: $BRANCH_NAME"
+
+      - name: Create warning issue
+        if: steps.check.outputs.blocked == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const report = `${{ steps.check.outputs.report }}`;
+            const prevSha = '${{ github.event.before }}';
+            const currSha = '${{ github.sha }}';
+            const actor = '${{ github.actor }}';
+            
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[SAFETY] Large deletion detected in push ${currSha.substring(0, 7)}`,
+              body: `## Code Safety Alert (Layer 4)\n\n` +
+                    `**Pusher:** ${actor}\n` +
+                    `**Commit:** ${currSha}\n` +
+                    `**Previous:** ${prevSha}\n\n` +
+                    `### Suspicious deletions detected:\n${report}\n\n` +
+                    `### Recovery\n` +
+                    `A recovery branch has been created from the previous state.\n` +
+                    `To restore:\n` +
+                    `\`\`\`bash\n` +
+                    `git fetch origin\n` +
+                    `git log --oneline recovery/pre-push-*\n` +
+                    `# Cherry-pick or merge the recovery branch\n` +
+                    `\`\`\`\n\n` +
+                    `### Action Required\n` +
+                    `1. Review the changes in commit ${currSha}\n` +
+                    `2. If accidental, restore from the recovery branch\n` +
+                    `3. If intentional, close this issue`,
+              labels: ['safety-alert', 'automated']
+            });
