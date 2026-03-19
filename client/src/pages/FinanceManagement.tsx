@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import {
   Upload, DollarSign, Package, Users, ShoppingCart,
   TrendingUp, TrendingDown, FileText, Trash2, Search,
-  ChevronLeft, ChevronRight, BarChart3, Calendar, Download,
+  ChevronLeft, ChevronRight, ChevronDown, BarChart3, Calendar, Download,
   Loader2, Eye, RefreshCw, Store, Video, ShoppingBag,
   AlertTriangle, CheckCircle, Clock, Wallet, Building2,
   ArrowUpRight, ArrowDownRight, Crown, Medal, Award
@@ -68,6 +68,7 @@ export default function FinanceManagement() {
   const [orderShop, setOrderShop] = useState("");
   const [orderStatus, setOrderStatus] = useState("");
   const [orderContentType, setOrderContentType] = useState("");
+  const [selectedProductName, setSelectedProductName] = useState<string | null>(null);
   const pageSize = 50;
 
   const monthOptions = useMemo(() => getMonthOptions(), []);
@@ -97,6 +98,10 @@ export default function FinanceManagement() {
   const productsQuery = trpc.tiktokFinance.getProductSummary.useQuery(
     { brandId: 0, month: selectedMonth || undefined },
     { enabled: activeTab === 'products' }
+  );
+  const productBreakdownQuery = trpc.tiktokFinance.getProductCreatorBreakdown.useQuery(
+    { productName: selectedProductName || '', brandId: 0, month: selectedMonth || undefined },
+    { enabled: !!selectedProductName && activeTab === 'products' }
   );
   const dailyQuery = trpc.tiktokFinance.getDailySummary.useQuery(
     { brandId: 0, month: selectedMonth || undefined },
@@ -352,7 +357,7 @@ export default function FinanceManagement() {
                   <CardContent className="pt-4 pb-3">
                     <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
                       <Wallet className="h-3.5 w-3.5" />
-                      実際入金ベース
+                      コミッション算定基準額
                     </div>
                     <p className="text-xl font-bold text-indigo-600">{formatCurrency(summary.totalActCommissionBase)}</p>
                   </CardContent>
@@ -581,16 +586,13 @@ export default function FinanceManagement() {
                       <th className="text-right py-2 px-3">売上</th>
                       <th className="text-right py-2 px-3">LCJ手数料</th>
                       <th className="text-right py-2 px-3">C手数料</th>
-                      <th className="text-right py-2 px-3">入金ベース</th>
+                      <th className="text-right py-2 px-3">算定基準額</th>
                       <th className="text-right py-2 px-3">LCJ率</th>
                       <th className="text-right py-2 px-3">C率</th>
-                      <th className="text-right py-2 px-3">注文数</th>
-                      <th className="text-right py-2 px-3">数量</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {creators.map((c: any, i: number) => (
-                      <tr key={c.creatorUsername} className="border-b hover:bg-muted/50">
+                    {creators.map((c: any, i: number) => (                    <tr key={c.creatorUsername} className="border-b hover:bg-muted/50">
                         <td className="py-2 px-3 w-8">
                           {i < 3 ? rankIcons[i] : <span className="text-muted-foreground">{i + 1}</span>}
                         </td>
@@ -649,16 +651,13 @@ export default function FinanceManagement() {
                       <th className="text-right py-2 px-3">売上</th>
                       <th className="text-right py-2 px-3">LCJ手数料</th>
                       <th className="text-right py-2 px-3">C手数料</th>
-                      <th className="text-right py-2 px-3">入金ベース</th>
+                      <th className="text-right py-2 px-3">算定基準額</th>
                       <th className="text-right py-2 px-3">LCJ率</th>
                       <th className="text-right py-2 px-3">C率</th>
-                      <th className="text-right py-2 px-3">注文数</th>
-                      <th className="text-right py-2 px-3">数量</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {shops.map((s: any, i: number) => (
-                      <tr key={s.shopName} className="border-b hover:bg-muted/50">
+                    {shops.map((s: any, i: number) => (                     <tr key={s.shopName} className="border-b hover:bg-muted/50">
                         <td className="py-2 px-3 w-8">
                           {i < 3 ? rankIcons[i] : <span className="text-muted-foreground">{i + 1}</span>}
                         </td>
@@ -724,18 +723,70 @@ export default function FinanceManagement() {
                   </thead>
                   <tbody>
                     {(productsQuery.data || []).map((p: any, i: number) => (
-                      <tr key={p.productId || i} className="border-b hover:bg-muted/50">
-                        <td className="py-2 px-3 w-8">
-                          {i < 3 ? rankIcons[i] : <span className="text-muted-foreground">{i + 1}</span>}
-                        </td>
-                        <td className="py-2 px-3 font-medium max-w-[300px] truncate">{p.productName || '(不明)'}</td>
-                        <td className="py-2 px-3 text-right font-semibold">{formatCurrency(p.totalSales)}</td>
-                        <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(p.totalActPartnerCommission)}</td>
-                        <td className="py-2 px-3 text-right text-green-600">{formatCurrency(p.totalActCreatorCommission)}</td>
-                        <td className="py-2 px-3 text-right">{formatNumber(p.orderCount)}</td>
-                        <td className="py-2 px-3 text-right">{formatNumber(p.totalQuantity)}</td>
-                        <td className="py-2 px-3 text-right">{formatCurrency(p.avgPrice)}</td>
-                      </tr>
+                      <React.Fragment key={p.productId || i}>
+                        <tr 
+                          className={`border-b hover:bg-muted/50 cursor-pointer ${selectedProductName === p.productName ? 'bg-blue-50' : ''}`}
+                          onClick={() => setSelectedProductName(selectedProductName === p.productName ? null : p.productName)}
+                        >
+                          <td className="py-2 px-3 w-8">
+                            {i < 3 ? rankIcons[i] : <span className="text-muted-foreground">{i + 1}</span>}
+                          </td>
+                          <td className="py-2 px-3 font-medium max-w-[300px] truncate">
+                            <span className="flex items-center gap-1">
+                              {selectedProductName === p.productName ? <ChevronDown className="h-3 w-3 flex-shrink-0" /> : <ChevronRight className="h-3 w-3 flex-shrink-0" />}
+                              {p.productName || '(不明)'}
+                            </span>
+                          </td>
+                          <td className="py-2 px-3 text-right font-semibold">{formatCurrency(p.totalSales)}</td>
+                          <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(p.totalActPartnerCommission)}</td>
+                          <td className="py-2 px-3 text-right text-green-600">{formatCurrency(p.totalActCreatorCommission)}</td>
+                          <td className="py-2 px-3 text-right">{formatNumber(p.orderCount)}</td>
+                          <td className="py-2 px-3 text-right">{formatNumber(p.totalQuantity)}</td>
+                          <td className="py-2 px-3 text-right">{formatCurrency(p.avgPrice)}</td>
+                        </tr>
+                        {selectedProductName === p.productName && (
+                          <tr>
+                            <td colSpan={8} className="p-0">
+                              <div className="bg-slate-50 border-l-4 border-l-blue-400 px-6 py-3">
+                                <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1">
+                                  <Users className="h-3 w-3" />
+                                  クリエイター別内訳
+                                </p>
+                                {productBreakdownQuery.isLoading ? (
+                                  <div className="flex justify-center py-3"><Loader2 className="h-4 w-4 animate-spin" /></div>
+                                ) : (productBreakdownQuery.data || []).length === 0 ? (
+                                  <p className="text-xs text-muted-foreground">データなし</p>
+                                ) : (
+                                  <table className="w-full text-xs">
+                                    <thead>
+                                      <tr className="text-muted-foreground border-b">
+                                        <th className="text-left py-1 px-2">クリエイター</th>
+                                        <th className="text-right py-1 px-2">売上</th>
+                                        <th className="text-right py-1 px-2">LCJ手数料</th>
+                                        <th className="text-right py-1 px-2">C手数料</th>
+                                        <th className="text-right py-1 px-2">注文数</th>
+                                        <th className="text-right py-1 px-2">数量</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {(productBreakdownQuery.data || []).map((bd: any) => (
+                                        <tr key={bd.creatorUsername} className="border-b border-slate-200 hover:bg-slate-100">
+                                          <td className="py-1 px-2 font-medium">{bd.creatorUsername}</td>
+                                          <td className="py-1 px-2 text-right font-semibold">{formatCurrency(bd.totalSales)}</td>
+                                          <td className="py-1 px-2 text-right text-blue-600">{formatCurrency(bd.totalActPartnerCommission)}</td>
+                                          <td className="py-1 px-2 text-right text-green-600">{formatCurrency(bd.totalActCreatorCommission)}</td>
+                                          <td className="py-1 px-2 text-right">{formatNumber(bd.orderCount)}</td>
+                                          <td className="py-1 px-2 text-right">{formatNumber(bd.totalQuantity)}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -768,7 +819,7 @@ export default function FinanceManagement() {
                       <th className="text-right py-2 px-3">売上</th>
                       <th className="text-right py-2 px-3">LCJ手数料</th>
                       <th className="text-right py-2 px-3">C手数料</th>
-                      <th className="text-right py-2 px-3">入金ベース</th>
+                      <th className="text-right py-2 px-3">算定基準額</th>
                       <th className="text-right py-2 px-3">注文数</th>
                       <th className="text-right py-2 px-3">数量</th>
                     </tr>
@@ -827,7 +878,7 @@ export default function FinanceManagement() {
                       <th className="text-right py-2 px-3">売上</th>
                       <th className="text-right py-2 px-3">LCJ手数料</th>
                       <th className="text-right py-2 px-3">C手数料</th>
-                      <th className="text-right py-2 px-3">入金ベース</th>
+                      <th className="text-right py-2 px-3">算定基準額</th>
                       <th className="text-right py-2 px-3">LCJ率</th>
                       <th className="text-right py-2 px-3">C率</th>
                       <th className="text-right py-2 px-3">注文数</th>
@@ -932,7 +983,7 @@ export default function FinanceManagement() {
                         <th className="text-right py-2 px-2">数量</th>
                         <th className="text-right py-2 px-2">LCJ手数料</th>
                         <th className="text-right py-2 px-2">C手数料</th>
-                        <th className="text-right py-2 px-2">入金ベース</th>
+                        <th className="text-right py-2 px-2">算定基準額</th>
                         <th className="text-right py-2 px-2">LCJ率</th>
                         <th className="text-right py-2 px-2">C率</th>
                         <th className="text-center py-2 px-2">ステータス</th>

@@ -10504,8 +10504,8 @@ export async function getTiktokFinanceSummary(brandId: number, month?: string) {
   const result = await db.select({
     totalOrders: sql<number>`count(*)`,
     totalQuantity: sql<number>`COALESCE(sum(${tiktokCommissionOrders.quantity}), 0)`,
-    totalSales: sql<number>`COALESCE(sum(${tiktokCommissionOrders.price}), 0)`,
-    avgPrice: sql<number>`COALESCE(avg(${tiktokCommissionOrders.price}), 0)`,
+    totalSales: sql<number>`COALESCE(sum(${tiktokCommissionOrders.price} * ${tiktokCommissionOrders.quantity}), 0)`,
+    avgPrice: sql<number>`COALESCE(sum(${tiktokCommissionOrders.price} * ${tiktokCommissionOrders.quantity}) / NULLIF(sum(${tiktokCommissionOrders.quantity}), 0), 0)`,
     totalEstPartnerCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.estimatedPartnerCommission}), 0)`,
     totalEstCreatorCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.estimatedCreatorCommission}), 0)`,
     totalActPartnerCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualPartnerCommission}), 0)`,
@@ -10549,7 +10549,7 @@ export async function getTiktokCreatorSummary(brandId: number, month?: string) {
   return db.select({
     creatorUsername: tiktokCommissionOrders.creatorUsername,
     orderCount: sql<number>`count(*)`,
-    totalSales: sql<number>`COALESCE(sum(${tiktokCommissionOrders.price}), 0)`,
+    totalSales: sql<number>`COALESCE(sum(${tiktokCommissionOrders.price} * ${tiktokCommissionOrders.quantity}), 0)`,
     totalQuantity: sql<number>`COALESCE(sum(${tiktokCommissionOrders.quantity}), 0)`,
     totalActPartnerCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualPartnerCommission}), 0)`,
     totalActCreatorCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCreatorCommission}), 0)`,
@@ -10560,7 +10560,7 @@ export async function getTiktokCreatorSummary(brandId: number, month?: string) {
   .from(tiktokCommissionOrders)
   .where(conditions.length > 0 ? and(...conditions) : undefined)
   .groupBy(tiktokCommissionOrders.creatorUsername)
-  .orderBy(desc(sql`sum(${tiktokCommissionOrders.price})`));
+  .orderBy(desc(sql`sum(${tiktokCommissionOrders.price} * ${tiktokCommissionOrders.quantity})`));
 }
 
 export async function getTiktokShopSummary(brandId: number, month?: string) {
@@ -10579,7 +10579,7 @@ export async function getTiktokShopSummary(brandId: number, month?: string) {
     shopName: tiktokCommissionOrders.shopName,
     shopCode: tiktokCommissionOrders.shopCode,
     orderCount: sql<number>`count(*)`,
-    totalSales: sql<number>`COALESCE(sum(${tiktokCommissionOrders.price}), 0)`,
+    totalSales: sql<number>`COALESCE(sum(${tiktokCommissionOrders.price} * ${tiktokCommissionOrders.quantity}), 0)`,
     totalQuantity: sql<number>`COALESCE(sum(${tiktokCommissionOrders.quantity}), 0)`,
     totalActPartnerCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualPartnerCommission}), 0)`,
     totalActCreatorCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCreatorCommission}), 0)`,
@@ -10590,7 +10590,7 @@ export async function getTiktokShopSummary(brandId: number, month?: string) {
   .from(tiktokCommissionOrders)
   .where(conditions.length > 0 ? and(...conditions) : undefined)
   .groupBy(tiktokCommissionOrders.shopName, tiktokCommissionOrders.shopCode)
-  .orderBy(desc(sql`sum(${tiktokCommissionOrders.price})`));
+  .orderBy(desc(sql`sum(${tiktokCommissionOrders.price} * ${tiktokCommissionOrders.quantity})`));
 }
 
 export async function getTiktokProductSummary(brandId: number, month?: string) {
@@ -10609,19 +10609,19 @@ export async function getTiktokProductSummary(brandId: number, month?: string) {
     productName: tiktokCommissionOrders.productName,
     productId: tiktokCommissionOrders.productId,
     orderCount: sql<number>`count(*)`,
-    totalSales: sql<number>`COALESCE(sum(${tiktokCommissionOrders.price}), 0)`,
+    totalSales: sql<number>`COALESCE(sum(${tiktokCommissionOrders.price} * ${tiktokCommissionOrders.quantity}), 0)`,
     totalQuantity: sql<number>`COALESCE(sum(${tiktokCommissionOrders.quantity}), 0)`,
     totalActPartnerCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualPartnerCommission}), 0)`,
     totalActCreatorCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCreatorCommission}), 0)`,
     totalActCommissionBase: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCommissionBase}), 0)`,
     avgPartnerCommissionRate: sql<number>`COALESCE(avg(${tiktokCommissionOrders.partnerCommissionRate}), 0)`,
     avgCreatorCommissionRate: sql<number>`COALESCE(avg(${tiktokCommissionOrders.creatorCommissionRate}), 0)`,
-    avgPrice: sql<number>`COALESCE(avg(${tiktokCommissionOrders.price}), 0)`,
+    avgPrice: sql<number>`COALESCE(sum(${tiktokCommissionOrders.price} * ${tiktokCommissionOrders.quantity}) / NULLIF(sum(${tiktokCommissionOrders.quantity}), 0), 0)`,
   })
   .from(tiktokCommissionOrders)
   .where(conditions.length > 0 ? and(...conditions) : undefined)
   .groupBy(tiktokCommissionOrders.productName, tiktokCommissionOrders.productId)
-  .orderBy(desc(sql`sum(${tiktokCommissionOrders.price})`));
+  .orderBy(desc(sql`sum(${tiktokCommissionOrders.price} * ${tiktokCommissionOrders.quantity})`));
 }
 
 export async function getTiktokDailySummary(brandId: number, month?: string) {
@@ -10639,7 +10639,7 @@ export async function getTiktokDailySummary(brandId: number, month?: string) {
   return db.select({
     date: sql<string>`DATE(${tiktokCommissionOrders.orderCreatedAt})`.as('date'),
     orderCount: sql<number>`count(*)`,
-    totalSales: sql<number>`COALESCE(sum(${tiktokCommissionOrders.price}), 0)`,
+    totalSales: sql<number>`COALESCE(sum(${tiktokCommissionOrders.price} * ${tiktokCommissionOrders.quantity}), 0)`,
     totalQuantity: sql<number>`COALESCE(sum(${tiktokCommissionOrders.quantity}), 0)`,
     totalActPartnerCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualPartnerCommission}), 0)`,
     totalActCreatorCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCreatorCommission}), 0)`,
@@ -10666,7 +10666,7 @@ export async function getTiktokContentTypeSummary(brandId: number, month?: strin
   return db.select({
     contentType: tiktokCommissionOrders.contentType,
     orderCount: sql<number>`count(*)`,
-    totalSales: sql<number>`COALESCE(sum(${tiktokCommissionOrders.price}), 0)`,
+    totalSales: sql<number>`COALESCE(sum(${tiktokCommissionOrders.price} * ${tiktokCommissionOrders.quantity}), 0)`,
   })
   .from(tiktokCommissionOrders)
   .where(conditions.length > 0 ? and(...conditions) : undefined)
@@ -10685,7 +10685,7 @@ export async function getTiktokMonthlySummary(brandId?: number) {
   return db.select({
     month: sql<string>`DATE_FORMAT(${tiktokCommissionOrders.orderCreatedAt}, '%Y-%m')`.as('month'),
     orderCount: sql<number>`count(*)`,
-    totalSales: sql<number>`COALESCE(sum(${tiktokCommissionOrders.price}), 0)`,
+    totalSales: sql<number>`COALESCE(sum(${tiktokCommissionOrders.price} * ${tiktokCommissionOrders.quantity}), 0)`,
     totalQuantity: sql<number>`COALESCE(sum(${tiktokCommissionOrders.quantity}), 0)`,
     totalActPartnerCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualPartnerCommission}), 0)`,
     totalActCreatorCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCreatorCommission}), 0)`,
@@ -10699,6 +10699,33 @@ export async function getTiktokMonthlySummary(brandId?: number) {
   .where(conditions.length > 0 ? and(...conditions) : undefined)
   .groupBy(sql`month`)
   .orderBy(asc(sql`month`));
+}
+
+// 商品別クリエイター内訳
+export async function getTiktokProductCreatorBreakdown(productName: string, brandId: number, month?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const conditions: any[] = [eq(tiktokCommissionOrders.productName, productName)];
+  if (brandId > 0) conditions.push(eq(tiktokCommissionOrders.brandId, brandId));
+  if (month) {
+    const { startDate, endDate } = getJSTMonthRange(month);
+    conditions.push(gte(tiktokCommissionOrders.orderCreatedAt, startDate));
+    conditions.push(lte(tiktokCommissionOrders.orderCreatedAt, endDate));
+  }
+  
+  return db.select({
+    creatorUsername: tiktokCommissionOrders.creatorUsername,
+    orderCount: sql<number>`count(*)`,
+    totalSales: sql<number>`COALESCE(sum(${tiktokCommissionOrders.price} * ${tiktokCommissionOrders.quantity}), 0)`,
+    totalQuantity: sql<number>`COALESCE(sum(${tiktokCommissionOrders.quantity}), 0)`,
+    totalActPartnerCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualPartnerCommission}), 0)`,
+    totalActCreatorCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCreatorCommission}), 0)`,
+  })
+  .from(tiktokCommissionOrders)
+  .where(and(...conditions))
+  .groupBy(tiktokCommissionOrders.creatorUsername)
+  .orderBy(desc(sql`sum(${tiktokCommissionOrders.price} * ${tiktokCommissionOrders.quantity})`));
 }
 
 export async function deleteTiktokOrdersByImportId(importHistoryId: number) {

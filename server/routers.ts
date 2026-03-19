@@ -391,6 +391,7 @@ import {
   getTiktokCreatorSummary,
   getTiktokShopSummary,
   getTiktokProductSummary,
+  getTiktokProductCreatorBreakdown,
   getTiktokDailySummary,
   getTiktokContentTypeSummary,
   getTiktokMonthlySummary,
@@ -17006,6 +17007,13 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
         return getTiktokProductSummary(input.brandId, input.month);
+      }),
+
+    // 商品別クリエイター内訳
+    getProductCreatorBreakdown: protectedProcedure
+      .input(z.object({ productName: z.string(), brandId: z.number().optional().default(0), month: z.string().optional() }))
+      .query(async ({ input }) => {
+        return getTiktokProductCreatorBreakdown(input.productName, input.brandId, input.month);
       }),
 
     // 日別推移
