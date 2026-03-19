@@ -10516,6 +10516,9 @@ export async function getTiktokFinanceSummary(brandId: number, month?: string) {
     totalActCreatorReward: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCreatorReward}), 0)`,
     totalActPartnerShopAd: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualPartnerShopAdPay}), 0)`,
     totalActCreatorShopAd: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCreatorShopAdPay}), 0)`,
+    totalActCommissionBase: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCommissionBase}), 0)`,
+    avgPartnerCommissionRate: sql<number>`COALESCE(avg(${tiktokCommissionOrders.partnerCommissionRate}), 0)`,
+    avgCreatorCommissionRate: sql<number>`COALESCE(avg(${tiktokCommissionOrders.creatorCommissionRate}), 0)`,
     totalReturnQty: sql<number>`COALESCE(sum(${tiktokCommissionOrders.returnQuantity}), 0)`,
     totalRefundQty: sql<number>`COALESCE(sum(${tiktokCommissionOrders.refundQuantity}), 0)`,
     completedOrders: sql<number>`sum(case when ${tiktokCommissionOrders.orderStatus} = '完了' then 1 else 0 end)`,
@@ -10550,6 +10553,9 @@ export async function getTiktokCreatorSummary(brandId: number, month?: string) {
     totalQuantity: sql<number>`COALESCE(sum(${tiktokCommissionOrders.quantity}), 0)`,
     totalActPartnerCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualPartnerCommission}), 0)`,
     totalActCreatorCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCreatorCommission}), 0)`,
+    totalActCommissionBase: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCommissionBase}), 0)`,
+    avgPartnerCommissionRate: sql<number>`COALESCE(avg(${tiktokCommissionOrders.partnerCommissionRate}), 0)`,
+    avgCreatorCommissionRate: sql<number>`COALESCE(avg(${tiktokCommissionOrders.creatorCommissionRate}), 0)`,
   })
   .from(tiktokCommissionOrders)
   .where(conditions.length > 0 ? and(...conditions) : undefined)
@@ -10577,6 +10583,9 @@ export async function getTiktokShopSummary(brandId: number, month?: string) {
     totalQuantity: sql<number>`COALESCE(sum(${tiktokCommissionOrders.quantity}), 0)`,
     totalActPartnerCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualPartnerCommission}), 0)`,
     totalActCreatorCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCreatorCommission}), 0)`,
+    totalActCommissionBase: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCommissionBase}), 0)`,
+    avgPartnerCommissionRate: sql<number>`COALESCE(avg(${tiktokCommissionOrders.partnerCommissionRate}), 0)`,
+    avgCreatorCommissionRate: sql<number>`COALESCE(avg(${tiktokCommissionOrders.creatorCommissionRate}), 0)`,
   })
   .from(tiktokCommissionOrders)
   .where(conditions.length > 0 ? and(...conditions) : undefined)
@@ -10604,6 +10613,9 @@ export async function getTiktokProductSummary(brandId: number, month?: string) {
     totalQuantity: sql<number>`COALESCE(sum(${tiktokCommissionOrders.quantity}), 0)`,
     totalActPartnerCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualPartnerCommission}), 0)`,
     totalActCreatorCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCreatorCommission}), 0)`,
+    totalActCommissionBase: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCommissionBase}), 0)`,
+    avgPartnerCommissionRate: sql<number>`COALESCE(avg(${tiktokCommissionOrders.partnerCommissionRate}), 0)`,
+    avgCreatorCommissionRate: sql<number>`COALESCE(avg(${tiktokCommissionOrders.creatorCommissionRate}), 0)`,
     avgPrice: sql<number>`COALESCE(avg(${tiktokCommissionOrders.price}), 0)`,
   })
   .from(tiktokCommissionOrders)
@@ -10631,6 +10643,7 @@ export async function getTiktokDailySummary(brandId: number, month?: string) {
     totalQuantity: sql<number>`COALESCE(sum(${tiktokCommissionOrders.quantity}), 0)`,
     totalActPartnerCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualPartnerCommission}), 0)`,
     totalActCreatorCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCreatorCommission}), 0)`,
+    totalActCommissionBase: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCommissionBase}), 0)`,
   })
   .from(tiktokCommissionOrders)
   .where(conditions.length > 0 ? and(...conditions) : undefined)
@@ -10676,6 +10689,9 @@ export async function getTiktokMonthlySummary(brandId?: number) {
     totalQuantity: sql<number>`COALESCE(sum(${tiktokCommissionOrders.quantity}), 0)`,
     totalActPartnerCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualPartnerCommission}), 0)`,
     totalActCreatorCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCreatorCommission}), 0)`,
+    totalActCommissionBase: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCommissionBase}), 0)`,
+    avgPartnerCommissionRate: sql<number>`COALESCE(avg(${tiktokCommissionOrders.partnerCommissionRate}), 0)`,
+    avgCreatorCommissionRate: sql<number>`COALESCE(avg(${tiktokCommissionOrders.creatorCommissionRate}), 0)`,
     uniqueCreators: sql<number>`count(distinct ${tiktokCommissionOrders.creatorUsername})`,
     uniqueShops: sql<number>`count(distinct ${tiktokCommissionOrders.shopName})`,
   })

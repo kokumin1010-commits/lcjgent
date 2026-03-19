@@ -51,7 +51,7 @@ function getPrevMonth(month: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-type TabType = 'dashboard' | 'creators' | 'shops' | 'products' | 'daily' | 'orders' | 'imports';
+type TabType = 'dashboard' | 'creators' | 'shops' | 'products' | 'daily' | 'monthly' | 'orders' | 'imports';
 
 export default function FinanceManagement() {
   const [, navigate] = useLocation();
@@ -84,7 +84,7 @@ export default function FinanceManagement() {
   );
   const monthlyQuery = trpc.tiktokFinance.getMonthlySummary.useQuery(
     { brandId: 0 },
-    { enabled: activeTab === 'dashboard' }
+    { enabled: activeTab === 'dashboard' || activeTab === 'monthly' }
   );
   const creatorsQuery = trpc.tiktokFinance.getCreatorSummary.useQuery(
     { brandId: 0, month: selectedMonth || undefined },
@@ -188,6 +188,7 @@ export default function FinanceManagement() {
     { key: 'shops', label: 'ショップ', icon: Store },
     { key: 'products', label: '商品', icon: ShoppingBag },
     { key: 'daily', label: '日別推移', icon: Calendar },
+    { key: 'monthly', label: '月推移', icon: TrendingUp },
     { key: 'orders', label: '注文明細', icon: ShoppingCart },
     { key: 'imports', label: 'インポート', icon: FileText },
   ];
@@ -280,7 +281,7 @@ export default function FinanceManagement() {
                       <div>
                         <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
                           <TrendingUp className="h-3.5 w-3.5" />
-                          総コミッション（佣金）
+                          総コミッション（実績）
                         </div>
                         <p className="text-2xl font-bold text-green-600">
                           {formatCurrency(Number(summary.totalActPartnerCommission) + Number(summary.totalActCreatorCommission))}
@@ -294,8 +295,8 @@ export default function FinanceManagement() {
                       )}
                     </div>
                     <div className="flex gap-4 mt-1 text-xs text-muted-foreground">
-                      <span>パートナー: {formatCurrency(summary.totalActPartnerCommission)}</span>
-                      <span>クリエイター: {formatCurrency(summary.totalActCreatorCommission)}</span>
+                      <span>LCJ: {formatCurrency(summary.totalActPartnerCommission)}</span>
+                      <span>C: {formatCurrency(summary.totalActCreatorCommission)}</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -345,14 +346,50 @@ export default function FinanceManagement() {
                 </Card>
               </div>
 
-              {/* Monthly Trend */}
+              {/* Actual Commission Base Card */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card className="border-l-4 border-l-indigo-500">
+                  <CardContent className="pt-4 pb-3">
+                    <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
+                      <Wallet className="h-3.5 w-3.5" />
+                      実際入金ベース
+                    </div>
+                    <p className="text-xl font-bold text-indigo-600">{formatCurrency(summary.totalActCommissionBase)}</p>
+                  </CardContent>
+                </Card>
+                <Card className="border-l-4 border-l-cyan-500">
+                  <CardContent className="pt-4 pb-3">
+                    <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
+                      <Building2 className="h-3.5 w-3.5" />
+                      平均LCJ手数料率
+                    </div>
+                    <p className="text-xl font-bold text-cyan-600">{formatPercent(summary.avgPartnerCommissionRate)}</p>
+                  </CardContent>
+                </Card>
+                <Card className="border-l-4 border-l-teal-500">
+                  <CardContent className="pt-4 pb-3">
+                    <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
+                      <Users className="h-3.5 w-3.5" />
+                      平均C手数料率
+                    </div>
+                    <p className="text-xl font-bold text-teal-600">{formatPercent(summary.avgCreatorCommissionRate)}</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Monthly Trend (in dashboard) */}
               {monthly.length > 0 && (
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <BarChart3 className="h-4 w-4" />
-                      月別推移
-                    </CardTitle>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <BarChart3 className="h-4 w-4" />
+                        月別推移
+                      </CardTitle>
+                      <Button variant="ghost" size="sm" onClick={() => setActiveTab('monthly')}>
+                        詳細を見る <ChevronRight className="h-3 w-3 ml-1" />
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent>
                     <div className="overflow-x-auto">
@@ -361,9 +398,9 @@ export default function FinanceManagement() {
                           <tr className="border-b text-muted-foreground">
                             <th className="text-left py-2 px-3">月</th>
                             <th className="text-right py-2 px-3">売上</th>
-                            <th className="text-right py-2 px-3">コミッション</th>
+                            <th className="text-right py-2 px-3">LCJ手数料</th>
+                            <th className="text-right py-2 px-3">C手数料</th>
                             <th className="text-right py-2 px-3">注文数</th>
-                            <th className="text-right py-2 px-3">クリエイター</th>
                             <th className="text-right py-2 px-3">前月比</th>
                           </tr>
                         </thead>
@@ -375,11 +412,9 @@ export default function FinanceManagement() {
                               <tr key={m.month} className="border-b hover:bg-muted/50 cursor-pointer" onClick={() => { setSelectedMonth(m.month); }}>
                                 <td className="py-2 px-3 font-medium">{m.month}</td>
                                 <td className="py-2 px-3 text-right">{formatCurrency(m.totalSales)}</td>
-                                <td className="py-2 px-3 text-right text-green-600">
-                                  {formatCurrency(Number(m.totalActPartnerCommission) + Number(m.totalActCreatorCommission))}
-                                </td>
+                                <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(m.totalActPartnerCommission)}</td>
+                                <td className="py-2 px-3 text-right text-green-600">{formatCurrency(m.totalActCreatorCommission)}</td>
                                 <td className="py-2 px-3 text-right">{formatNumber(m.orderCount)}</td>
-                                <td className="py-2 px-3 text-right">{formatNumber(m.uniqueCreators)}</td>
                                 <td className="py-2 px-3 text-right">
                                   {change ? (
                                     <span className={`flex items-center justify-end gap-1 ${change.isUp ? 'text-green-600' : 'text-red-500'}`}>
@@ -429,7 +464,10 @@ export default function FinanceManagement() {
                             </div>
                             <div className="text-right">
                               <p className="font-semibold text-sm">{formatCurrency(c.totalSales)}</p>
-                              <p className="text-xs text-green-600">{formatCurrency(Number(c.totalActPartnerCommission) + Number(c.totalActCreatorCommission))}</p>
+                              <div className="flex gap-2 text-xs">
+                                <span className="text-blue-600">LCJ {formatCurrency(c.totalActPartnerCommission)}</span>
+                                <span className="text-green-600">C {formatCurrency(c.totalActCreatorCommission)}</span>
+                              </div>
                             </div>
                           </div>
                         ))}
@@ -467,7 +505,10 @@ export default function FinanceManagement() {
                             </div>
                             <div className="text-right">
                               <p className="font-semibold text-sm">{formatCurrency(s.totalSales)}</p>
-                              <p className="text-xs text-green-600">{formatCurrency(Number(s.totalActPartnerCommission) + Number(s.totalActCreatorCommission))}</p>
+                              <div className="flex gap-2 text-xs">
+                                <span className="text-blue-600">LCJ {formatCurrency(s.totalActPartnerCommission)}</span>
+                                <span className="text-green-600">C {formatCurrency(s.totalActCreatorCommission)}</span>
+                              </div>
                             </div>
                           </div>
                         ))}
@@ -538,8 +579,11 @@ export default function FinanceManagement() {
                       <th className="text-left py-2 px-3">#</th>
                       <th className="text-left py-2 px-3">クリエイター</th>
                       <th className="text-right py-2 px-3">売上</th>
-                      <th className="text-right py-2 px-3">パートナー手数料</th>
-                      <th className="text-right py-2 px-3">クリエイター手数料</th>
+                      <th className="text-right py-2 px-3">LCJ手数料</th>
+                      <th className="text-right py-2 px-3">C手数料</th>
+                      <th className="text-right py-2 px-3">入金ベース</th>
+                      <th className="text-right py-2 px-3">LCJ率</th>
+                      <th className="text-right py-2 px-3">C率</th>
                       <th className="text-right py-2 px-3">注文数</th>
                       <th className="text-right py-2 px-3">数量</th>
                     </tr>
@@ -554,6 +598,9 @@ export default function FinanceManagement() {
                         <td className="py-2 px-3 text-right font-semibold">{formatCurrency(c.totalSales)}</td>
                         <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(c.totalActPartnerCommission)}</td>
                         <td className="py-2 px-3 text-right text-green-600">{formatCurrency(c.totalActCreatorCommission)}</td>
+                        <td className="py-2 px-3 text-right text-indigo-600">{formatCurrency(c.totalActCommissionBase)}</td>
+                        <td className="py-2 px-3 text-right text-cyan-600">{formatPercent(c.avgPartnerCommissionRate)}</td>
+                        <td className="py-2 px-3 text-right text-teal-600">{formatPercent(c.avgCreatorCommissionRate)}</td>
                         <td className="py-2 px-3 text-right">{formatNumber(c.orderCount)}</td>
                         <td className="py-2 px-3 text-right">{formatNumber(c.totalQuantity)}</td>
                       </tr>
@@ -565,6 +612,8 @@ export default function FinanceManagement() {
                       <td className="py-2 px-3 text-right">{formatCurrency(creators.reduce((s: number, c: any) => s + Number(c.totalSales), 0))}</td>
                       <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(creators.reduce((s: number, c: any) => s + Number(c.totalActPartnerCommission), 0))}</td>
                       <td className="py-2 px-3 text-right text-green-600">{formatCurrency(creators.reduce((s: number, c: any) => s + Number(c.totalActCreatorCommission), 0))}</td>
+                      <td className="py-2 px-3 text-right text-indigo-600">{formatCurrency(creators.reduce((s: number, c: any) => s + Number(c.totalActCommissionBase), 0))}</td>
+                      <td className="py-2 px-3 text-right" colSpan={2}></td>
                       <td className="py-2 px-3 text-right">{formatNumber(creators.reduce((s: number, c: any) => s + Number(c.orderCount), 0))}</td>
                       <td className="py-2 px-3 text-right">{formatNumber(creators.reduce((s: number, c: any) => s + Number(c.totalQuantity), 0))}</td>
                     </tr>
@@ -598,8 +647,11 @@ export default function FinanceManagement() {
                       <th className="text-left py-2 px-3">#</th>
                       <th className="text-left py-2 px-3">ショップ</th>
                       <th className="text-right py-2 px-3">売上</th>
-                      <th className="text-right py-2 px-3">パートナー手数料</th>
-                      <th className="text-right py-2 px-3">クリエイター手数料</th>
+                      <th className="text-right py-2 px-3">LCJ手数料</th>
+                      <th className="text-right py-2 px-3">C手数料</th>
+                      <th className="text-right py-2 px-3">入金ベース</th>
+                      <th className="text-right py-2 px-3">LCJ率</th>
+                      <th className="text-right py-2 px-3">C率</th>
                       <th className="text-right py-2 px-3">注文数</th>
                       <th className="text-right py-2 px-3">数量</th>
                     </tr>
@@ -614,6 +666,9 @@ export default function FinanceManagement() {
                         <td className="py-2 px-3 text-right font-semibold">{formatCurrency(s.totalSales)}</td>
                         <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(s.totalActPartnerCommission)}</td>
                         <td className="py-2 px-3 text-right text-green-600">{formatCurrency(s.totalActCreatorCommission)}</td>
+                        <td className="py-2 px-3 text-right text-indigo-600">{formatCurrency(s.totalActCommissionBase)}</td>
+                        <td className="py-2 px-3 text-right text-cyan-600">{formatPercent(s.avgPartnerCommissionRate)}</td>
+                        <td className="py-2 px-3 text-right text-teal-600">{formatPercent(s.avgCreatorCommissionRate)}</td>
                         <td className="py-2 px-3 text-right">{formatNumber(s.orderCount)}</td>
                         <td className="py-2 px-3 text-right">{formatNumber(s.totalQuantity)}</td>
                       </tr>
@@ -625,6 +680,8 @@ export default function FinanceManagement() {
                       <td className="py-2 px-3 text-right">{formatCurrency(shops.reduce((s: number, c: any) => s + Number(c.totalSales), 0))}</td>
                       <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(shops.reduce((s: number, c: any) => s + Number(c.totalActPartnerCommission), 0))}</td>
                       <td className="py-2 px-3 text-right text-green-600">{formatCurrency(shops.reduce((s: number, c: any) => s + Number(c.totalActCreatorCommission), 0))}</td>
+                      <td className="py-2 px-3 text-right text-indigo-600">{formatCurrency(shops.reduce((s: number, c: any) => s + Number(c.totalActCommissionBase), 0))}</td>
+                      <td className="py-2 px-3 text-right" colSpan={2}></td>
                       <td className="py-2 px-3 text-right">{formatNumber(shops.reduce((s: number, c: any) => s + Number(c.orderCount), 0))}</td>
                       <td className="py-2 px-3 text-right">{formatNumber(shops.reduce((s: number, c: any) => s + Number(c.totalQuantity), 0))}</td>
                     </tr>
@@ -642,7 +699,7 @@ export default function FinanceManagement() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <ShoppingBag className="h-4 w-4" />
-              商品別売上
+              商品別売上・コミッション
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -658,7 +715,8 @@ export default function FinanceManagement() {
                       <th className="text-left py-2 px-3">#</th>
                       <th className="text-left py-2 px-3">商品名</th>
                       <th className="text-right py-2 px-3">売上</th>
-                      <th className="text-right py-2 px-3">コミッション</th>
+                      <th className="text-right py-2 px-3">LCJ手数料</th>
+                      <th className="text-right py-2 px-3">C手数料</th>
                       <th className="text-right py-2 px-3">注文数</th>
                       <th className="text-right py-2 px-3">数量</th>
                       <th className="text-right py-2 px-3">平均単価</th>
@@ -672,7 +730,8 @@ export default function FinanceManagement() {
                         </td>
                         <td className="py-2 px-3 font-medium max-w-[300px] truncate">{p.productName || '(不明)'}</td>
                         <td className="py-2 px-3 text-right font-semibold">{formatCurrency(p.totalSales)}</td>
-                        <td className="py-2 px-3 text-right text-green-600">{formatCurrency(Number(p.totalActPartnerCommission) + Number(p.totalActCreatorCommission))}</td>
+                        <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(p.totalActPartnerCommission)}</td>
+                        <td className="py-2 px-3 text-right text-green-600">{formatCurrency(p.totalActCreatorCommission)}</td>
                         <td className="py-2 px-3 text-right">{formatNumber(p.orderCount)}</td>
                         <td className="py-2 px-3 text-right">{formatNumber(p.totalQuantity)}</td>
                         <td className="py-2 px-3 text-right">{formatCurrency(p.avgPrice)}</td>
@@ -707,8 +766,9 @@ export default function FinanceManagement() {
                     <tr className="border-b text-muted-foreground">
                       <th className="text-left py-2 px-3">日付</th>
                       <th className="text-right py-2 px-3">売上</th>
-                      <th className="text-right py-2 px-3">パートナー手数料</th>
-                      <th className="text-right py-2 px-3">クリエイター手数料</th>
+                      <th className="text-right py-2 px-3">LCJ手数料</th>
+                      <th className="text-right py-2 px-3">C手数料</th>
+                      <th className="text-right py-2 px-3">入金ベース</th>
                       <th className="text-right py-2 px-3">注文数</th>
                       <th className="text-right py-2 px-3">数量</th>
                     </tr>
@@ -720,11 +780,105 @@ export default function FinanceManagement() {
                         <td className="py-2 px-3 text-right">{formatCurrency(d.totalSales)}</td>
                         <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(d.totalActPartnerCommission)}</td>
                         <td className="py-2 px-3 text-right text-green-600">{formatCurrency(d.totalActCreatorCommission)}</td>
+                        <td className="py-2 px-3 text-right text-indigo-600">{formatCurrency(d.totalActCommissionBase)}</td>
                         <td className="py-2 px-3 text-right">{formatNumber(d.orderCount)}</td>
                         <td className="py-2 px-3 text-right">{formatNumber(d.totalQuantity)}</td>
                       </tr>
                     ))}
                   </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 font-bold">
+                      <td className="py-2 px-3">合計</td>
+                      <td className="py-2 px-3 text-right">{formatCurrency((dailyQuery.data || []).reduce((s: number, d: any) => s + Number(d.totalSales), 0))}</td>
+                      <td className="py-2 px-3 text-right text-blue-600">{formatCurrency((dailyQuery.data || []).reduce((s: number, d: any) => s + Number(d.totalActPartnerCommission), 0))}</td>
+                      <td className="py-2 px-3 text-right text-green-600">{formatCurrency((dailyQuery.data || []).reduce((s: number, d: any) => s + Number(d.totalActCreatorCommission), 0))}</td>
+                      <td className="py-2 px-3 text-right text-indigo-600">{formatCurrency((dailyQuery.data || []).reduce((s: number, d: any) => s + Number(d.totalActCommissionBase), 0))}</td>
+                      <td className="py-2 px-3 text-right">{formatNumber((dailyQuery.data || []).reduce((s: number, d: any) => s + Number(d.orderCount), 0))}</td>
+                      <td className="py-2 px-3 text-right">{formatNumber((dailyQuery.data || []).reduce((s: number, d: any) => s + Number(d.totalQuantity), 0))}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Monthly Tab */}
+      {activeTab === 'monthly' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" />
+              月別推移
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {monthlyQuery.isLoading ? (
+              <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+            ) : monthly.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">データなし</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-muted-foreground">
+                      <th className="text-left py-2 px-3">月</th>
+                      <th className="text-right py-2 px-3">売上</th>
+                      <th className="text-right py-2 px-3">LCJ手数料</th>
+                      <th className="text-right py-2 px-3">C手数料</th>
+                      <th className="text-right py-2 px-3">入金ベース</th>
+                      <th className="text-right py-2 px-3">LCJ率</th>
+                      <th className="text-right py-2 px-3">C率</th>
+                      <th className="text-right py-2 px-3">注文数</th>
+                      <th className="text-right py-2 px-3">数量</th>
+                      <th className="text-right py-2 px-3">クリエイター</th>
+                      <th className="text-right py-2 px-3">ショップ</th>
+                      <th className="text-right py-2 px-3">前月比</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {monthly.map((m: any, i: number) => {
+                      const prev = i > 0 ? monthly[i - 1] : null;
+                      const change = prev ? getChangePercent(Number(m.totalSales), Number(prev.totalSales)) : null;
+                      return (
+                        <tr key={m.month} className="border-b hover:bg-muted/50 cursor-pointer" onClick={() => { setSelectedMonth(m.month); setActiveTab('dashboard'); }}>
+                          <td className="py-2 px-3 font-medium">{m.month}</td>
+                          <td className="py-2 px-3 text-right font-semibold">{formatCurrency(m.totalSales)}</td>
+                          <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(m.totalActPartnerCommission)}</td>
+                          <td className="py-2 px-3 text-right text-green-600">{formatCurrency(m.totalActCreatorCommission)}</td>
+                          <td className="py-2 px-3 text-right text-indigo-600">{formatCurrency(m.totalActCommissionBase)}</td>
+                          <td className="py-2 px-3 text-right text-cyan-600">{formatPercent(m.avgPartnerCommissionRate)}</td>
+                          <td className="py-2 px-3 text-right text-teal-600">{formatPercent(m.avgCreatorCommissionRate)}</td>
+                          <td className="py-2 px-3 text-right">{formatNumber(m.orderCount)}</td>
+                          <td className="py-2 px-3 text-right">{formatNumber(m.totalQuantity)}</td>
+                          <td className="py-2 px-3 text-right">{formatNumber(m.uniqueCreators)}</td>
+                          <td className="py-2 px-3 text-right">{formatNumber(m.uniqueShops)}</td>
+                          <td className="py-2 px-3 text-right">
+                            {change ? (
+                              <span className={`flex items-center justify-end gap-1 ${change.isUp ? 'text-green-600' : 'text-red-500'}`}>
+                                {change.isUp ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                                {change.value.toFixed(1)}%
+                              </span>
+                            ) : '-'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 font-bold">
+                      <td className="py-2 px-3">合計</td>
+                      <td className="py-2 px-3 text-right">{formatCurrency(monthly.reduce((s: number, m: any) => s + Number(m.totalSales), 0))}</td>
+                      <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(monthly.reduce((s: number, m: any) => s + Number(m.totalActPartnerCommission), 0))}</td>
+                      <td className="py-2 px-3 text-right text-green-600">{formatCurrency(monthly.reduce((s: number, m: any) => s + Number(m.totalActCreatorCommission), 0))}</td>
+                      <td className="py-2 px-3 text-right text-indigo-600">{formatCurrency(monthly.reduce((s: number, m: any) => s + Number(m.totalActCommissionBase), 0))}</td>
+                      <td className="py-2 px-3 text-right" colSpan={2}></td>
+                      <td className="py-2 px-3 text-right">{formatNumber(monthly.reduce((s: number, m: any) => s + Number(m.orderCount), 0))}</td>
+                      <td className="py-2 px-3 text-right">{formatNumber(monthly.reduce((s: number, m: any) => s + Number(m.totalQuantity), 0))}</td>
+                      <td className="py-2 px-3 text-right" colSpan={3}></td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             )}
@@ -776,8 +930,11 @@ export default function FinanceManagement() {
                         <th className="text-left py-2 px-2">ショップ</th>
                         <th className="text-right py-2 px-2">金額</th>
                         <th className="text-right py-2 px-2">数量</th>
-                        <th className="text-right py-2 px-2">P手数料</th>
+                        <th className="text-right py-2 px-2">LCJ手数料</th>
                         <th className="text-right py-2 px-2">C手数料</th>
+                        <th className="text-right py-2 px-2">入金ベース</th>
+                        <th className="text-right py-2 px-2">LCJ率</th>
+                        <th className="text-right py-2 px-2">C率</th>
                         <th className="text-center py-2 px-2">ステータス</th>
                       </tr>
                     </thead>
@@ -792,6 +949,9 @@ export default function FinanceManagement() {
                           <td className="py-1.5 px-2 text-right">{o.quantity}</td>
                           <td className="py-1.5 px-2 text-right text-blue-600">{formatCurrency(o.actualPartnerCommission)}</td>
                           <td className="py-1.5 px-2 text-right text-green-600">{formatCurrency(o.actualCreatorCommission)}</td>
+                          <td className="py-1.5 px-2 text-right text-indigo-600">{formatCurrency(o.actualCommissionBase)}</td>
+                          <td className="py-1.5 px-2 text-right text-cyan-600">{o.partnerCommissionRate ? formatPercent(o.partnerCommissionRate) : '-'}</td>
+                          <td className="py-1.5 px-2 text-right text-teal-600">{o.creatorCommissionRate ? formatPercent(o.creatorCommissionRate) : '-'}</td>
                           <td className="py-1.5 px-2 text-center">
                             <Badge variant={o.orderStatus === '完了' ? 'default' : 'secondary'} className="text-xs">
                               {o.orderStatus || '-'}
