@@ -10386,7 +10386,10 @@ export async function updateTiktokCsvImportHistory(id: number, data: Partial<Ins
 export async function getTiktokCsvImportHistoryByBrand(brandId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return db.select().from(tiktokCsvImportHistory).where(eq(tiktokCsvImportHistory.brandId, brandId)).orderBy(desc(tiktokCsvImportHistory.createdAt));
+  const query = brandId > 0
+    ? db.select().from(tiktokCsvImportHistory).where(eq(tiktokCsvImportHistory.brandId, brandId)).orderBy(desc(tiktokCsvImportHistory.createdAt))
+    : db.select().from(tiktokCsvImportHistory).orderBy(desc(tiktokCsvImportHistory.createdAt));
+  return query;
 }
 
 export async function bulkInsertTiktokOrders(orders: InsertTiktokCommissionOrder[]) {
@@ -10437,7 +10440,8 @@ export async function getTiktokOrdersByBrand(brandId: number, options?: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  const conditions = [eq(tiktokCommissionOrders.brandId, brandId)];
+  const conditions: any[] = [];
+  if (brandId > 0) conditions.push(eq(tiktokCommissionOrders.brandId, brandId));
   
   if (options?.creatorUsername) {
     conditions.push(eq(tiktokCommissionOrders.creatorUsername, options.creatorUsername));
@@ -10468,7 +10472,7 @@ export async function getTiktokOrdersByBrand(brandId: number, options?: {
     conditions.push(lte(tiktokCommissionOrders.orderCreatedAt, options.dateTo));
   }
   
-  const whereClause = conditions.length > 1 ? and(...conditions) : conditions[0];
+  const whereClause = conditions.length > 1 ? and(...conditions) : conditions.length === 1 ? conditions[0] : undefined;
   
   const [rows, countResult] = await Promise.all([
     db.select()
@@ -10485,9 +10489,17 @@ export async function getTiktokOrdersByBrand(brandId: number, options?: {
   return { rows, total: countResult[0].count };
 }
 
-export async function getTiktokFinanceSummary(brandId: number) {
+export async function getTiktokFinanceSummary(brandId: number, month?: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  
+  const conditions: any[] = [];
+  if (brandId > 0) conditions.push(eq(tiktokCommissionOrders.brandId, brandId));
+  if (month) {
+    const { startDate, endDate } = getJSTMonthRange(month);
+    conditions.push(gte(tiktokCommissionOrders.orderCreatedAt, startDate));
+    conditions.push(lte(tiktokCommissionOrders.orderCreatedAt, endDate));
+  }
   
   const result = await db.select({
     totalOrders: sql<number>`count(*)`,
@@ -10510,16 +10522,26 @@ export async function getTiktokFinanceSummary(brandId: number) {
     processingOrders: sql<number>`sum(case when ${tiktokCommissionOrders.orderStatus} = '処理中' then 1 else 0 end)`,
     minDate: sql<string>`min(${tiktokCommissionOrders.orderCreatedAt})`,
     maxDate: sql<string>`max(${tiktokCommissionOrders.orderCreatedAt})`,
+    uniqueCreators: sql<number>`count(distinct ${tiktokCommissionOrders.creatorUsername})`,
+    uniqueShops: sql<number>`count(distinct ${tiktokCommissionOrders.shopName})`,
   })
   .from(tiktokCommissionOrders)
-  .where(eq(tiktokCommissionOrders.brandId, brandId));
+  .where(conditions.length > 0 ? and(...conditions) : undefined);
   
   return result[0];
 }
 
-export async function getTiktokCreatorSummary(brandId: number) {
+export async function getTiktokCreatorSummary(brandId: number, month?: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  
+  const conditions: any[] = [];
+  if (brandId > 0) conditions.push(eq(tiktokCommissionOrders.brandId, brandId));
+  if (month) {
+    const { startDate, endDate } = getJSTMonthRange(month);
+    conditions.push(gte(tiktokCommissionOrders.orderCreatedAt, startDate));
+    conditions.push(lte(tiktokCommissionOrders.orderCreatedAt, endDate));
+  }
   
   return db.select({
     creatorUsername: tiktokCommissionOrders.creatorUsername,
@@ -10530,14 +10552,22 @@ export async function getTiktokCreatorSummary(brandId: number) {
     totalActCreatorCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCreatorCommission}), 0)`,
   })
   .from(tiktokCommissionOrders)
-  .where(eq(tiktokCommissionOrders.brandId, brandId))
+  .where(conditions.length > 0 ? and(...conditions) : undefined)
   .groupBy(tiktokCommissionOrders.creatorUsername)
   .orderBy(desc(sql`sum(${tiktokCommissionOrders.price})`));
 }
 
-export async function getTiktokShopSummary(brandId: number) {
+export async function getTiktokShopSummary(brandId: number, month?: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  
+  const conditions: any[] = [];
+  if (brandId > 0) conditions.push(eq(tiktokCommissionOrders.brandId, brandId));
+  if (month) {
+    const { startDate, endDate } = getJSTMonthRange(month);
+    conditions.push(gte(tiktokCommissionOrders.orderCreatedAt, startDate));
+    conditions.push(lte(tiktokCommissionOrders.orderCreatedAt, endDate));
+  }
   
   return db.select({
     shopName: tiktokCommissionOrders.shopName,
@@ -10549,14 +10579,22 @@ export async function getTiktokShopSummary(brandId: number) {
     totalActCreatorCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCreatorCommission}), 0)`,
   })
   .from(tiktokCommissionOrders)
-  .where(eq(tiktokCommissionOrders.brandId, brandId))
+  .where(conditions.length > 0 ? and(...conditions) : undefined)
   .groupBy(tiktokCommissionOrders.shopName, tiktokCommissionOrders.shopCode)
   .orderBy(desc(sql`sum(${tiktokCommissionOrders.price})`));
 }
 
-export async function getTiktokProductSummary(brandId: number) {
+export async function getTiktokProductSummary(brandId: number, month?: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  
+  const conditions: any[] = [];
+  if (brandId > 0) conditions.push(eq(tiktokCommissionOrders.brandId, brandId));
+  if (month) {
+    const { startDate, endDate } = getJSTMonthRange(month);
+    conditions.push(gte(tiktokCommissionOrders.orderCreatedAt, startDate));
+    conditions.push(lte(tiktokCommissionOrders.orderCreatedAt, endDate));
+  }
   
   return db.select({
     productName: tiktokCommissionOrders.productName,
@@ -10569,14 +10607,22 @@ export async function getTiktokProductSummary(brandId: number) {
     avgPrice: sql<number>`COALESCE(avg(${tiktokCommissionOrders.price}), 0)`,
   })
   .from(tiktokCommissionOrders)
-  .where(eq(tiktokCommissionOrders.brandId, brandId))
+  .where(conditions.length > 0 ? and(...conditions) : undefined)
   .groupBy(tiktokCommissionOrders.productName, tiktokCommissionOrders.productId)
   .orderBy(desc(sql`sum(${tiktokCommissionOrders.price})`));
 }
 
-export async function getTiktokDailySummary(brandId: number) {
+export async function getTiktokDailySummary(brandId: number, month?: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  
+  const conditions: any[] = [];
+  if (brandId > 0) conditions.push(eq(tiktokCommissionOrders.brandId, brandId));
+  if (month) {
+    const { startDate, endDate } = getJSTMonthRange(month);
+    conditions.push(gte(tiktokCommissionOrders.orderCreatedAt, startDate));
+    conditions.push(lte(tiktokCommissionOrders.orderCreatedAt, endDate));
+  }
   
   return db.select({
     date: sql<string>`DATE(${tiktokCommissionOrders.orderCreatedAt})`.as('date'),
@@ -10587,14 +10633,22 @@ export async function getTiktokDailySummary(brandId: number) {
     totalActCreatorCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCreatorCommission}), 0)`,
   })
   .from(tiktokCommissionOrders)
-  .where(eq(tiktokCommissionOrders.brandId, brandId))
+  .where(conditions.length > 0 ? and(...conditions) : undefined)
   .groupBy(sql`DATE(${tiktokCommissionOrders.orderCreatedAt})`)
   .orderBy(asc(sql`DATE(${tiktokCommissionOrders.orderCreatedAt})`));
 }
 
-export async function getTiktokContentTypeSummary(brandId: number) {
+export async function getTiktokContentTypeSummary(brandId: number, month?: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  
+  const conditions: any[] = [];
+  if (brandId > 0) conditions.push(eq(tiktokCommissionOrders.brandId, brandId));
+  if (month) {
+    const { startDate, endDate } = getJSTMonthRange(month);
+    conditions.push(gte(tiktokCommissionOrders.orderCreatedAt, startDate));
+    conditions.push(lte(tiktokCommissionOrders.orderCreatedAt, endDate));
+  }
   
   return db.select({
     contentType: tiktokCommissionOrders.contentType,
@@ -10602,9 +10656,33 @@ export async function getTiktokContentTypeSummary(brandId: number) {
     totalSales: sql<number>`COALESCE(sum(${tiktokCommissionOrders.price}), 0)`,
   })
   .from(tiktokCommissionOrders)
-  .where(eq(tiktokCommissionOrders.brandId, brandId))
+  .where(conditions.length > 0 ? and(...conditions) : undefined)
   .groupBy(tiktokCommissionOrders.contentType)
   .orderBy(desc(sql`count(*)`));
+}
+
+// 月別推移サマリー（全ブランド横断）
+export async function getTiktokMonthlySummary(brandId?: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const conditions: any[] = [];
+  if (brandId && brandId > 0) conditions.push(eq(tiktokCommissionOrders.brandId, brandId));
+  
+  return db.select({
+    month: sql<string>`DATE_FORMAT(${tiktokCommissionOrders.orderCreatedAt}, '%Y-%m')`.as('month'),
+    orderCount: sql<number>`count(*)`,
+    totalSales: sql<number>`COALESCE(sum(${tiktokCommissionOrders.price}), 0)`,
+    totalQuantity: sql<number>`COALESCE(sum(${tiktokCommissionOrders.quantity}), 0)`,
+    totalActPartnerCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualPartnerCommission}), 0)`,
+    totalActCreatorCommission: sql<number>`COALESCE(sum(${tiktokCommissionOrders.actualCreatorCommission}), 0)`,
+    uniqueCreators: sql<number>`count(distinct ${tiktokCommissionOrders.creatorUsername})`,
+    uniqueShops: sql<number>`count(distinct ${tiktokCommissionOrders.shopName})`,
+  })
+  .from(tiktokCommissionOrders)
+  .where(conditions.length > 0 ? and(...conditions) : undefined)
+  .groupBy(sql`DATE_FORMAT(${tiktokCommissionOrders.orderCreatedAt}, '%Y-%m')`)
+  .orderBy(asc(sql`DATE_FORMAT(${tiktokCommissionOrders.orderCreatedAt}, '%Y-%m')`));
 }
 
 export async function deleteTiktokOrdersByImportId(importHistoryId: number) {

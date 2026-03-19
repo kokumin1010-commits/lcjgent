@@ -393,6 +393,7 @@ import {
   getTiktokProductSummary,
   getTiktokDailySummary,
   getTiktokContentTypeSummary,
+  getTiktokMonthlySummary,
   deleteTiktokOrdersByImportId,
   deleteTiktokImportHistory,
   getExistingSubOrderIds,
@@ -16965,7 +16966,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
 
     // インポート履歴取得
     getImportHistory: protectedProcedure
-      .input(z.object({ brandId: z.number() }))
+      .input(z.object({ brandId: z.number().optional().default(0) }))
       .query(async ({ input }) => {
         return getTiktokCsvImportHistoryByBrand(input.brandId);
       }),
@@ -16979,52 +16980,59 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         return { success: true };
       }),
 
-    // 全体サマリー
+    // 全体サマリー（brandId=0で全ブランド横断、month指定で月別フィルタ）
     getSummary: protectedProcedure
-      .input(z.object({ brandId: z.number() }))
+      .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
-        return getTiktokFinanceSummary(input.brandId);
+        return getTiktokFinanceSummary(input.brandId, input.month);
       }),
 
     // クリエイター別サマリー
     getCreatorSummary: protectedProcedure
-      .input(z.object({ brandId: z.number() }))
+      .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
-        return getTiktokCreatorSummary(input.brandId);
+        return getTiktokCreatorSummary(input.brandId, input.month);
       }),
 
     // ショップ別サマリー
     getShopSummary: protectedProcedure
-      .input(z.object({ brandId: z.number() }))
+      .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
-        return getTiktokShopSummary(input.brandId);
+        return getTiktokShopSummary(input.brandId, input.month);
       }),
 
     // 商品別サマリー
     getProductSummary: protectedProcedure
-      .input(z.object({ brandId: z.number() }))
+      .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
-        return getTiktokProductSummary(input.brandId);
+        return getTiktokProductSummary(input.brandId, input.month);
       }),
 
     // 日別推移
     getDailySummary: protectedProcedure
-      .input(z.object({ brandId: z.number() }))
+      .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
-        return getTiktokDailySummary(input.brandId);
+        return getTiktokDailySummary(input.brandId, input.month);
       }),
 
     // コンテンツタイプ別
     getContentTypeSummary: protectedProcedure
-      .input(z.object({ brandId: z.number() }))
+      .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
       .query(async ({ input }) => {
-        return getTiktokContentTypeSummary(input.brandId);
+        return getTiktokContentTypeSummary(input.brandId, input.month);
+      }),
+
+    // 月別推移サマリー
+    getMonthlySummary: protectedProcedure
+      .input(z.object({ brandId: z.number().optional().default(0) }))
+      .query(async ({ input }) => {
+        return getTiktokMonthlySummary(input.brandId);
       }),
 
     // 注文明細一覧（ページネーション付き）
     getOrders: protectedProcedure
       .input(z.object({
-        brandId: z.number(),
+        brandId: z.number().optional().default(0),
         limit: z.number().optional().default(50),
         offset: z.number().optional().default(0),
         search: z.string().optional(),
