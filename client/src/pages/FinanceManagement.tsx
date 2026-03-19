@@ -213,8 +213,8 @@ export default function FinanceManagement() {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("brandId", "0");
-      const res = await fetch("/api/tiktok-csv-upload", { method: "POST", body: formData });
+      formData.append("brandId", "1");
+      const res = await fetch("/api/csv-upload", { method: "POST", body: formData });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Upload failed");
       toast.success(`${result.importedRows}件インポート（${result.skippedRows}件スキップ）`);
