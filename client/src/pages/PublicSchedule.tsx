@@ -370,6 +370,9 @@ export default function PublicSchedule() {
     setAddModalEndDate("");
   };
 
+  // Names to exclude from legend (test/dummy accounts)
+  const excludeLiverNames = new Set(['Test Liver', 'テストライバー', '.', '..', '。', '未指定', 'sgkiki']);
+
   // Get unique liver names and assign colors from DB
   const liverColorMap = useMemo(() => {
     const map = new Map<string, typeof liverColors[0]>();
@@ -381,9 +384,11 @@ export default function PublicSchedule() {
     // Primary source: getPublicLiverNamesWithColors (all livers from DB + schedules)
     if (liverNamesWithColors) {
       for (const liver of liverNamesWithColors) {
-        allNames.add(liver.name);
-        if (liver.color) {
-          dbColorLookup.set(liver.name, liver.color);
+        if (!excludeLiverNames.has(liver.name)) {
+          allNames.add(liver.name);
+          if (liver.color) {
+            dbColorLookup.set(liver.name, liver.color);
+          }
         }
       }
     }
@@ -391,14 +396,14 @@ export default function PublicSchedule() {
     // Fallback: existingLivers (schedule-based names only, no colors)
     if (existingLivers) {
       existingLivers.forEach(name => {
-        if (name && name !== '未指定') allNames.add(name);
+        if (name && !excludeLiverNames.has(name)) allNames.add(name);
       });
     }
     
     // Also include any livers from current month schedules
     if (schedules) {
       schedules.forEach(s => {
-        if (s.liverName) allNames.add(s.liverName);
+        if (s.liverName && !excludeLiverNames.has(s.liverName)) allNames.add(s.liverName);
       });
     }
     
