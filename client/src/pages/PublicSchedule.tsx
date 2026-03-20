@@ -225,8 +225,8 @@ export default function PublicSchedule() {
   // Fetch existing liver names
   const { data: existingLivers } = trpc.schedule.getPublicLiverNames.useQuery();
 
-  // Fetch all livers from DB (for color mapping and legend)
-  const { data: allLivers } = trpc.liverManagement.listAll.useQuery();
+  // Fetch all active liver names with colors (lightweight API)
+  const { data: liverColorsFromDB } = trpc.schedule.getPublicLiverColors.useQuery();
 
   // Edit mode state
   const [isEditMode, setIsEditMode] = useState(false);
@@ -374,30 +374,26 @@ export default function PublicSchedule() {
   const liverColorMap = useMemo(() => {
     const map = new Map<string, typeof liverColors[0]>();
     
-    // First: Build a name→color lookup from allLivers DB data (unique names, first occurrence wins)
-    const dbLiverColors = new Map<string, string>();
-    if (allLivers) {
-      // Sort by ID ascending so oldest (real) accounts take priority
-      const sorted = [...allLivers].sort((a, b) => (a.id as number) - (b.id as number));
-      for (const liver of sorted) {
-        if (liver.name && liver.isActive && !dbLiverColors.has(liver.name)) {
-          dbLiverColors.set(liver.name, liver.color || '#FF69B4');
+    // Build a name→color lookup from DB liver colors
+    const dbColorLookup = new Map<string, string>();
+    if (liverColorsFromDB) {
+      for (const liver of liverColorsFromDB) {
+        if (!dbColorLookup.has(liver.name)) {
+          dbColorLookup.set(liver.name, liver.color);
         }
       }
     }
     
-    // Collect all liver names from: existingLivers (schedule-based) + allLivers DB
+    // Collect all liver names from: existingLivers (schedule-based) + DB livers
     const allNames = new Set<string>();
     if (existingLivers) {
       existingLivers.forEach(name => {
         if (name && name !== '未指定') allNames.add(name);
       });
     }
-    if (allLivers) {
-      allLivers.forEach(liver => {
-        if (liver.name && liver.isActive && liver.name !== 'Test Liver' && liver.name !== 'テストライバー' && liver.name !== '.' && liver.name !== '..' && liver.name !== '。') {
-          allNames.add(liver.name);
-        }
+    if (liverColorsFromDB) {
+      liverColorsFromDB.forEach(liver => {
+        allNames.add(liver.name);
       });
     }
     // Also include any livers from current month schedules
@@ -411,7 +407,7 @@ export default function PublicSchedule() {
     let fallbackIndex = 0;
     const sortedNames = Array.from(allNames).sort((a, b) => a.localeCompare(b, 'ja'));
     for (const name of sortedNames) {
-      const dbColor = dbLiverColors.get(name);
+      const dbColor = dbColorLookup.get(name);
       if (dbColor) {
         map.set(name, hexToLiverColor(dbColor));
       } else {
@@ -421,7 +417,7 @@ export default function PublicSchedule() {
     }
     
     return map;
-  }, [schedules, allLivers, existingLivers]);
+  }, [schedules, liverColorsFromDB, existingLivers]);
 
   // Get selected group's member liver names
   const selectedGroupLiverNames = useMemo(() => {

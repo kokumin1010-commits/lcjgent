@@ -9138,6 +9138,21 @@ ${conversationText}
           .sort();
       }),
 
+    // Public: Get all active liver names with their colors (lightweight)
+    getPublicLiverColors: publicProcedure
+      .query(async () => {
+        const db = await getDb();
+        if (!db) return [];
+        const result = await db
+          .selectDistinct({ name: livers.name, color: livers.color })
+          .from(livers)
+          .where(eq(livers.isActive, true));
+        return result
+          .filter(r => r.name && r.name !== 'Test Liver' && r.name !== '\u30c6\u30b9\u30c8\u30e9\u30a4\u30d0\u30fc' && r.name !== '.' && r.name !== '..' && r.name !== '\u3002')
+          .map(r => ({ name: r.name!, color: r.color || '#FF69B4' }))
+          .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+      }),
+
     // Public: Create a schedule (no auth required for public calendar)
     publicCreate: publicProcedure
       .input(
