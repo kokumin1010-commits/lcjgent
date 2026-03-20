@@ -58,7 +58,7 @@ function formatFullDate(dateKey: string): string {
   return `${year}年${month}月${day}日（${weekdays[date.getDay()]}）`;
 }
 
-// Liver colors for calendar display
+// Liver colors for calendar display (expanded palette)
 const liverColors = [
   { bg: "bg-pink-100", text: "text-pink-700", border: "border-pink-300", color: "#EC4899" },
   { bg: "bg-purple-100", text: "text-purple-700", border: "border-purple-300", color: "#8B5CF6" },
@@ -68,7 +68,45 @@ const liverColors = [
   { bg: "bg-orange-100", text: "text-orange-700", border: "border-orange-300", color: "#F97316" },
   { bg: "bg-red-100", text: "text-red-700", border: "border-red-300", color: "#EF4444" },
   { bg: "bg-teal-100", text: "text-teal-700", border: "border-teal-300", color: "#14B8A6" },
+  { bg: "bg-indigo-100", text: "text-indigo-700", border: "border-indigo-300", color: "#6366F1" },
+  { bg: "bg-cyan-100", text: "text-cyan-700", border: "border-cyan-300", color: "#06B6D4" },
+  { bg: "bg-rose-100", text: "text-rose-700", border: "border-rose-300", color: "#F43F5E" },
+  { bg: "bg-lime-100", text: "text-lime-700", border: "border-lime-300", color: "#84CC16" },
+  { bg: "bg-amber-100", text: "text-amber-700", border: "border-amber-300", color: "#D97706" },
+  { bg: "bg-emerald-100", text: "text-emerald-700", border: "border-emerald-300", color: "#059669" },
+  { bg: "bg-violet-100", text: "text-violet-700", border: "border-violet-300", color: "#7C3AED" },
+  { bg: "bg-fuchsia-100", text: "text-fuchsia-700", border: "border-fuchsia-300", color: "#C026D3" },
+  { bg: "bg-sky-100", text: "text-sky-700", border: "border-sky-300", color: "#0284C7" },
+  { bg: "bg-stone-100", text: "text-stone-700", border: "border-stone-300", color: "#78716C" },
 ];
+
+// Helper: Convert hex color to a light background style with matching text color
+function hexToLiverColor(hex: string): typeof liverColors[0] {
+  // Map known DB colors to appropriate Tailwind classes
+  const colorMap: Record<string, typeof liverColors[0]> = {
+    "#FF69B4": { bg: "bg-pink-100", text: "text-pink-700", border: "border-pink-300", color: "#EC4899" },
+    "#EC4899": { bg: "bg-pink-100", text: "text-pink-700", border: "border-pink-300", color: "#EC4899" },
+    "#9B59B6": { bg: "bg-purple-100", text: "text-purple-700", border: "border-purple-300", color: "#9B59B6" },
+    "#8B5CF6": { bg: "bg-purple-100", text: "text-purple-700", border: "border-purple-300", color: "#8B5CF6" },
+    "#9370DB": { bg: "bg-violet-100", text: "text-violet-700", border: "border-violet-300", color: "#9370DB" },
+    "#7C3AED": { bg: "bg-violet-100", text: "text-violet-700", border: "border-violet-300", color: "#7C3AED" },
+    "#3B82F6": { bg: "bg-blue-100", text: "text-blue-700", border: "border-blue-300", color: "#3B82F6" },
+    "#3498DB": { bg: "bg-blue-100", text: "text-blue-700", border: "border-blue-300", color: "#3498DB" },
+    "#10B981": { bg: "bg-green-100", text: "text-green-700", border: "border-green-300", color: "#10B981" },
+    "#32CD32": { bg: "bg-green-100", text: "text-green-700", border: "border-green-300", color: "#32CD32" },
+    "#1ABC9C": { bg: "bg-teal-100", text: "text-teal-700", border: "border-teal-300", color: "#1ABC9C" },
+    "#14B8A6": { bg: "bg-teal-100", text: "text-teal-700", border: "border-teal-300", color: "#14B8A6" },
+    "#F59E0B": { bg: "bg-yellow-100", text: "text-yellow-700", border: "border-yellow-300", color: "#F59E0B" },
+    "#FFD700": { bg: "bg-yellow-100", text: "text-yellow-700", border: "border-yellow-300", color: "#FFD700" },
+    "#F1C40F": { bg: "bg-yellow-100", text: "text-yellow-700", border: "border-yellow-300", color: "#F1C40F" },
+    "#F97316": { bg: "bg-orange-100", text: "text-orange-700", border: "border-orange-300", color: "#F97316" },
+    "#E67E22": { bg: "bg-orange-100", text: "text-orange-700", border: "border-orange-300", color: "#E67E22" },
+    "#EF4444": { bg: "bg-red-100", text: "text-red-700", border: "border-red-300", color: "#EF4444" },
+    "#059669": { bg: "bg-emerald-100", text: "text-emerald-700", border: "border-emerald-300", color: "#059669" },
+  };
+  const upper = hex.toUpperCase();
+  return colorMap[upper] || { bg: "bg-gray-100", text: "text-gray-700", border: "border-gray-300", color: hex };
+}
 
 // Category colors
 const categoryColors: Record<string, typeof liverColors[0]> = {
@@ -186,6 +224,9 @@ export default function PublicSchedule() {
 
   // Fetch existing liver names
   const { data: existingLivers } = trpc.schedule.getPublicLiverNames.useQuery();
+
+  // Fetch all livers from DB (for color mapping and legend)
+  const { data: allLivers } = trpc.liverManagement.listAll.useQuery();
 
   // Edit mode state
   const [isEditMode, setIsEditMode] = useState(false);
@@ -329,17 +370,58 @@ export default function PublicSchedule() {
     setAddModalEndDate("");
   };
 
-  // Get unique liver names and assign colors
+  // Get unique liver names and assign colors from DB
   const liverColorMap = useMemo(() => {
-    if (!schedules) return new Map<string, typeof liverColors[0]>();
-    
-    const uniqueLivers = Array.from(new Set(schedules.map(s => s.liverName).filter((name): name is string => Boolean(name))));
     const map = new Map<string, typeof liverColors[0]>();
-    uniqueLivers.forEach((liver, index) => {
-      map.set(liver, liverColors[index % liverColors.length]);
-    });
+    
+    // First: Build a name→color lookup from allLivers DB data (unique names, first occurrence wins)
+    const dbLiverColors = new Map<string, string>();
+    if (allLivers) {
+      // Sort by ID ascending so oldest (real) accounts take priority
+      const sorted = [...allLivers].sort((a, b) => (a.id as number) - (b.id as number));
+      for (const liver of sorted) {
+        if (liver.name && liver.isActive && !dbLiverColors.has(liver.name)) {
+          dbLiverColors.set(liver.name, liver.color || '#FF69B4');
+        }
+      }
+    }
+    
+    // Collect all liver names from: existingLivers (schedule-based) + allLivers DB
+    const allNames = new Set<string>();
+    if (existingLivers) {
+      existingLivers.forEach(name => {
+        if (name && name !== '未指定') allNames.add(name);
+      });
+    }
+    if (allLivers) {
+      allLivers.forEach(liver => {
+        if (liver.name && liver.isActive && liver.name !== 'Test Liver' && liver.name !== 'テストライバー' && liver.name !== '.' && liver.name !== '..' && liver.name !== '。') {
+          allNames.add(liver.name);
+        }
+      });
+    }
+    // Also include any livers from current month schedules
+    if (schedules) {
+      schedules.forEach(s => {
+        if (s.liverName) allNames.add(s.liverName);
+      });
+    }
+    
+    // Assign colors: use DB color if available, otherwise fallback to palette
+    let fallbackIndex = 0;
+    const sortedNames = Array.from(allNames).sort((a, b) => a.localeCompare(b, 'ja'));
+    for (const name of sortedNames) {
+      const dbColor = dbLiverColors.get(name);
+      if (dbColor) {
+        map.set(name, hexToLiverColor(dbColor));
+      } else {
+        map.set(name, liverColors[fallbackIndex % liverColors.length]);
+        fallbackIndex++;
+      }
+    }
+    
     return map;
-  }, [schedules]);
+  }, [schedules, allLivers, existingLivers]);
 
   // Get selected group's member liver names
   const selectedGroupLiverNames = useMemo(() => {
@@ -994,7 +1076,7 @@ export default function PublicSchedule() {
           {/* Calendar Grid - Improved */}
           <div className="flex-1">
             {calendarWeeks.map((week, weekIndex) => (
-              <div key={weekIndex} className="grid grid-cols-7 border-b" style={{ minHeight: '90px' }}>
+              <div key={weekIndex} className="grid grid-cols-7 border-b" style={{ minHeight: '100px' }}>
                 {week.map(({ date, isCurrentMonth }, dayIndex) => {
                   const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
                   const daySchedules = schedulesByDate.get(dateKey) || [];
@@ -1045,7 +1127,7 @@ export default function PublicSchedule() {
                             <div
                               key={`${schedule.id}-${dateKey}`}
                               className={cn(
-                                "text-[9px] leading-tight py-px truncate flex items-center gap-px",
+                                "text-[10px] leading-tight py-0.5 truncate flex items-center gap-0.5",
                                 liverColor?.bg || "bg-gray-100",
                                 liverColor?.text || "text-gray-700",
                                 isMultiDay ? [
@@ -1073,7 +1155,7 @@ export default function PublicSchedule() {
                           );
                         })}
                         {daySchedules.length > 4 && (
-                          <div className="text-[9px] text-gray-400 px-0.5 text-center">
+                          <div className="text-[10px] text-gray-400 px-0.5 text-center">
                             +{daySchedules.length - 4}
                           </div>
                         )}
