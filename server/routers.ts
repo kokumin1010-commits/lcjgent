@@ -9138,6 +9138,54 @@ ${conversationText}
           .sort();
       }),
 
+    // Public: Get all liver names with their DB colors (combines schedules + livers table)
+    getPublicLiverNamesWithColors: publicProcedure
+      .query(async () => {
+        const db = await getDb();
+        if (!db) return [];
+        
+        // Get all unique liver names from schedules
+        const scheduleResult = await db
+          .selectDistinct({ liverName: schedules.liverName })
+          .from(schedules)
+          .where(and(
+            isNotNull(schedules.liverName),
+            not(eq(schedules.status, "cancelled"))
+          ));
+        const scheduleNames = new Set(
+          scheduleResult
+            .map(r => r.liverName)
+            .filter((name): name is string => Boolean(name))
+        );
+        
+        // Get all active livers with their colors
+        const liversResult = await db
+          .selectDistinct({ name: livers.name, color: livers.color })
+          .from(livers)
+          .where(eq(livers.isActive, true));
+        
+        // Build color lookup from livers table
+        const colorMap = new Map<string, string>();
+        for (const l of liversResult) {
+          if (l.name && !colorMap.has(l.name)) {
+            colorMap.set(l.name, l.color || '#FF69B4');
+          }
+        }
+        
+        // Combine: all names from both sources
+        const allNames = new Set<string>();
+        scheduleNames.forEach(n => { if (n !== '\u672a\u6307\u5b9a') allNames.add(n); });
+        for (const l of liversResult) {
+          if (l.name && l.name !== 'Test Liver' && l.name !== '\u30c6\u30b9\u30c8\u30e9\u30a4\u30d0\u30fc' && l.name !== '.' && l.name !== '..' && l.name !== '\u3002') {
+            allNames.add(l.name);
+          }
+        }
+        
+        return Array.from(allNames)
+          .map(name => ({ name, color: colorMap.get(name) || null }))
+          .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+      }),
+
     // Public: Get all active liver names with their colors (lightweight)
     getPublicLiverColors: publicProcedure
       .query(async () => {

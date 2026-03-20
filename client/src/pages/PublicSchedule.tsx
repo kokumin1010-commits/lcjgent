@@ -225,8 +225,8 @@ export default function PublicSchedule() {
   // Fetch existing liver names
   const { data: existingLivers } = trpc.schedule.getPublicLiverNames.useQuery();
 
-  // Fetch all active liver names with colors (lightweight API)
-  const { data: liverColorsFromDB } = trpc.schedule.getPublicLiverColors.useQuery();
+  // Fetch all liver names with DB colors (combines schedules + livers table)
+  const { data: liverNamesWithColors } = trpc.schedule.getPublicLiverNamesWithColors.useQuery();
 
   // Edit mode state
   const [isEditMode, setIsEditMode] = useState(false);
@@ -374,28 +374,27 @@ export default function PublicSchedule() {
   const liverColorMap = useMemo(() => {
     const map = new Map<string, typeof liverColors[0]>();
     
-    // Build a name→color lookup from DB liver colors
+    // Collect all liver names and their DB colors
+    const allNames = new Set<string>();
     const dbColorLookup = new Map<string, string>();
-    if (liverColorsFromDB) {
-      for (const liver of liverColorsFromDB) {
-        if (!dbColorLookup.has(liver.name)) {
+    
+    // Primary source: getPublicLiverNamesWithColors (all livers from DB + schedules)
+    if (liverNamesWithColors) {
+      for (const liver of liverNamesWithColors) {
+        allNames.add(liver.name);
+        if (liver.color) {
           dbColorLookup.set(liver.name, liver.color);
         }
       }
     }
     
-    // Collect all liver names from: existingLivers (schedule-based) + DB livers
-    const allNames = new Set<string>();
+    // Fallback: existingLivers (schedule-based names only, no colors)
     if (existingLivers) {
       existingLivers.forEach(name => {
         if (name && name !== '未指定') allNames.add(name);
       });
     }
-    if (liverColorsFromDB) {
-      liverColorsFromDB.forEach(liver => {
-        allNames.add(liver.name);
-      });
-    }
+    
     // Also include any livers from current month schedules
     if (schedules) {
       schedules.forEach(s => {
@@ -417,7 +416,7 @@ export default function PublicSchedule() {
     }
     
     return map;
-  }, [schedules, liverColorsFromDB, existingLivers]);
+  }, [schedules, liverNamesWithColors, existingLivers]);
 
   // Get selected group's member liver names
   const selectedGroupLiverNames = useMemo(() => {
