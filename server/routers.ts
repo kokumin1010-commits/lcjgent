@@ -9172,11 +9172,14 @@ ${conversationText}
           }
         }
         
+        // Names to exclude (test/dummy accounts)
+        const excludeNames = new Set(['Test Liver', '\u30c6\u30b9\u30c8\u30e9\u30a4\u30d0\u30fc', '.', '..', '\u3002', '\u672a\u6307\u5b9a', 'sgkiki']);
+        
         // Combine: all names from both sources
         const allNames = new Set<string>();
-        scheduleNames.forEach(n => { if (n !== '\u672a\u6307\u5b9a') allNames.add(n); });
+        scheduleNames.forEach(n => { if (!excludeNames.has(n)) allNames.add(n); });
         for (const l of liversResult) {
-          if (l.name && l.name !== 'Test Liver' && l.name !== '\u30c6\u30b9\u30c8\u30e9\u30a4\u30d0\u30fc' && l.name !== '.' && l.name !== '..' && l.name !== '\u3002') {
+          if (l.name && !excludeNames.has(l.name)) {
             allNames.add(l.name);
           }
         }
@@ -9195,8 +9198,9 @@ ${conversationText}
           .selectDistinct({ name: livers.name, color: livers.color })
           .from(livers)
           .where(eq(livers.isActive, true));
+        const excludeNames = new Set(['Test Liver', '\u30c6\u30b9\u30c8\u30e9\u30a4\u30d0\u30fc', '.', '..', '\u3002', '\u672a\u6307\u5b9a', 'sgkiki']);
         return result
-          .filter(r => r.name && r.name !== 'Test Liver' && r.name !== '\u30c6\u30b9\u30c8\u30e9\u30a4\u30d0\u30fc' && r.name !== '.' && r.name !== '..' && r.name !== '\u3002')
+          .filter(r => r.name && !excludeNames.has(r.name))
           .map(r => ({ name: r.name!, color: r.color || '#FF69B4' }))
           .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
       }),
