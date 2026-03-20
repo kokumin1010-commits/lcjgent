@@ -262,7 +262,13 @@ export default function FinanceManagement() {
     setTapUploading(true);
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+      const bytes = new Uint8Array(arrayBuffer);
+      let binary = '';
+      const chunkSize = 8192;
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+      }
+      const base64 = btoa(binary);
       uploadTapMutation.mutate({ brandId: 0, fileContent: base64, reportMonth: tapUploadMonth });
     } catch (err: any) {
       toast.error(`アップロード失敗: ${err.message}`);
