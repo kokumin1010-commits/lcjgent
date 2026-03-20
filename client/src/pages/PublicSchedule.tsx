@@ -153,6 +153,9 @@ export default function PublicSchedule() {
   // Brand filter state
   const [selectedBrandId, setSelectedBrandId] = useState<number | null>(null);
 
+  // Liver name filter state (for legend tap filtering)
+  const [selectedLiverName, setSelectedLiverName] = useState<string | null>(null);
+
   // Fetch schedule groups with members
   const { data: scheduleGroups } = trpc.scheduleGroup.listWithMembers.useQuery();
 
@@ -449,6 +452,11 @@ export default function PublicSchedule() {
     if (selectedBrandId) {
       filteredSchedules = filteredSchedules.filter(s => s.brandId === selectedBrandId);
     }
+
+    // Filter by selected liver name (legend tap)
+    if (selectedLiverName) {
+      filteredSchedules = filteredSchedules.filter(s => s.liverName === selectedLiverName);
+    }
     
     const map = new Map<string, (Schedule & { isMultiDay?: boolean; isStart?: boolean; isEnd?: boolean; spanDays?: number })[]>();
     
@@ -511,7 +519,7 @@ export default function PublicSchedule() {
     });
     
     return map;
-  }, [schedules, selectedGroupLiverNames, selectedBrandId]);
+  }, [schedules, selectedGroupLiverNames, selectedBrandId, selectedLiverName]);
 
   // Get today's date key in JST
   const todayKey = getJSTDateKey(new Date());
@@ -1172,12 +1180,32 @@ export default function PublicSchedule() {
             <div className="px-3 py-2 border-t bg-gray-50/50">
               <div className="flex flex-wrap gap-x-3 gap-y-1">
                 {Array.from(liverColorMap.entries()).map(([name, color]) => (
-                  <div key={name} className="flex items-center gap-1">
+                  <div
+                    key={name}
+                    className={cn(
+                      "flex items-center gap-1 cursor-pointer rounded-full px-1.5 py-0.5 transition-all",
+                      selectedLiverName === name
+                        ? "ring-2 ring-offset-1 opacity-100"
+                        : selectedLiverName
+                          ? "opacity-40"
+                          : "opacity-100 hover:bg-gray-100"
+                    )}
+                    style={selectedLiverName === name ? { ringColor: color.color } : undefined}
+                    onClick={() => setSelectedLiverName(prev => prev === name ? null : name)}
+                  >
                     <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color.color }} />
-                    <span className="text-[10px] text-gray-600">{name}</span>
+                    <span className={cn("text-[10px]", selectedLiverName === name ? "font-bold text-gray-900" : "text-gray-600")}>{name}</span>
                   </div>
                 ))}
               </div>
+              {selectedLiverName && (
+                <button
+                  onClick={() => setSelectedLiverName(null)}
+                  className="mt-1 text-[10px] text-blue-500 hover:text-blue-700"
+                >
+                  × フィルター解除
+                </button>
+              )}
             </div>
           )}
         </>
@@ -1260,12 +1288,32 @@ export default function PublicSchedule() {
             <div className="px-3 py-2 border-t bg-gray-50/50">
               <div className="flex flex-wrap gap-x-3 gap-y-1">
                 {Array.from(liverColorMap.entries()).map(([name, color]) => (
-                  <div key={name} className="flex items-center gap-1">
+                  <div
+                    key={name}
+                    className={cn(
+                      "flex items-center gap-1 cursor-pointer rounded-full px-1.5 py-0.5 transition-all",
+                      selectedLiverName === name
+                        ? "ring-2 ring-offset-1 opacity-100"
+                        : selectedLiverName
+                          ? "opacity-40"
+                          : "opacity-100 hover:bg-gray-100"
+                    )}
+                    style={selectedLiverName === name ? { ringColor: color.color } : undefined}
+                    onClick={() => setSelectedLiverName(prev => prev === name ? null : name)}
+                  >
                     <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color.color }} />
-                    <span className="text-[10px] text-gray-600">{name}</span>
+                    <span className={cn("text-[10px]", selectedLiverName === name ? "font-bold text-gray-900" : "text-gray-600")}>{name}</span>
                   </div>
                 ))}
               </div>
+              {selectedLiverName && (
+                <button
+                  onClick={() => setSelectedLiverName(null)}
+                  className="mt-1 text-[10px] text-blue-500 hover:text-blue-700"
+                >
+                  × フィルター解除
+                </button>
+              )}
             </div>
           )}
         </>
@@ -1396,34 +1444,97 @@ export default function PublicSchedule() {
       {/* Bottom Sheet for Date Details - TimeTree Style */}
       <Sheet open={bottomSheetOpen} onOpenChange={setBottomSheetOpen}>
         <SheetContent side="bottom" className="h-[85vh] rounded-t-3xl p-0">
-          {/* Handle bar */}
-          <div className="flex justify-center pt-3 pb-2">
-            <div className="w-10 h-1 bg-gray-300 rounded-full" />
-          </div>
+          {/* Swipe handler area - swipe down to close, left/right to change date */}
+          <div
+            onTouchStart={(e) => {
+              const touch = e.touches[0];
+              (e.currentTarget as any)._touchStart = { x: touch.clientX, y: touch.clientY, time: Date.now() };
+            }}
+            onTouchEnd={(e) => {
+              const start = (e.currentTarget as any)._touchStart;
+              if (!start) return;
+              const touch = e.changedTouches[0];
+              const dx = touch.clientX - start.x;
+              const dy = touch.clientY - start.y;
+              const dt = Date.now() - start.time;
+              const absDx = Math.abs(dx);
+              const absDy = Math.abs(dy);
+              
+              // Swipe down to close (vertical dominant, downward, > 60px)
+              if (absDy > absDx && dy > 60 && dt < 500) {
+                setBottomSheetOpen(false);
+                return;
+              }
+              
+              // Swipe left/right to change date (horizontal dominant, > 50px)
+              if (absDx > absDy && absDx > 50 && dt < 500 && selectedDate) {
+                const [y, m, d] = selectedDate.split('-').map(Number);
+                const current = new Date(y, m - 1, d);
+                if (dx < 0) {
+                  // Swipe left = next day
+                  current.setDate(current.getDate() + 1);
+                } else {
+                  // Swipe right = previous day
+                  current.setDate(current.getDate() - 1);
+                }
+                const newKey = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
+                setSelectedDate(newKey);
+              }
+            }}
+          >
+            {/* Handle bar */}
+            <div className="flex justify-center pt-3 pb-2">
+              <div className="w-10 h-1 bg-gray-300 rounded-full" />
+            </div>
           
-          {/* Header */}
-          <div className="px-4 pb-4 border-b">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold">
-                {selectedDate && formatDateForSheet(selectedDate)}
-              </h2>
-              <div className="flex items-center gap-2">
-                <button className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center">
-                  <span className="text-lg">☺</span>
-                </button>
-                <button
-                  onClick={() => {
-                    if (user) {
-                      handleAddFromSheet();
-                    } else {
-                      toast.info("予定を追加するにはログインが必要です");
-                      navigate("/login");
-                    }
-                  }}
-                  className="w-8 h-8 bg-black rounded-full flex items-center justify-center"
-                >
-                  <Plus className="h-5 w-5 text-white" />
-                </button>
+            {/* Header */}
+            <div className="px-4 pb-4 border-b">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      if (!selectedDate) return;
+                      const [y, m, d] = selectedDate.split('-').map(Number);
+                      const prev = new Date(y, m - 1, d - 1);
+                      setSelectedDate(`${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}-${String(prev.getDate()).padStart(2, '0')}`);
+                    }}
+                    className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-100 transition-colors"
+                  >
+                    <ChevronLeft className="h-5 w-5 text-gray-500" />
+                  </button>
+                  <h2 className="text-xl font-bold">
+                    {selectedDate && formatDateForSheet(selectedDate)}
+                  </h2>
+                  <button
+                    onClick={() => {
+                      if (!selectedDate) return;
+                      const [y, m, d] = selectedDate.split('-').map(Number);
+                      const next = new Date(y, m - 1, d + 1);
+                      setSelectedDate(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`);
+                    }}
+                    className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-100 transition-colors"
+                  >
+                    <ChevronRight className="h-5 w-5 text-gray-500" />
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center">
+                    <span className="text-lg">☺</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (user) {
+                        handleAddFromSheet();
+                      } else {
+                        toast.info("予定を追加するにはログインが必要です");
+                        navigate("/login");
+                      }
+                    }}
+                    className="w-8 h-8 bg-black rounded-full flex items-center justify-center"
+                  >
+                    <Plus className="h-5 w-5 text-white" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
