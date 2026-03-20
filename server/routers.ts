@@ -404,6 +404,14 @@ import {
   getExistingPaymentReferenceIds,
   deleteTiktokPayment,
   getExistingSubOrderIds,
+  bulkInsertTiktokTapReports,
+  getTiktokTapSummary,
+  getTiktokTapCreatorSummary,
+  getTiktokTapShopSummary,
+  getTiktokTapMonthlySummary,
+  getTiktokTapProductSummary,
+  deleteTiktokTapReportsByMonth,
+  getTiktokTapAvailableMonths,
   createLivestreamSet,
   createLivestreamSetItem,
   getLivestreamSetsByLivestreamId,
@@ -17254,6 +17262,142 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .input(z.object({ paymentId: z.number() }))
       .mutation(async ({ input }) => {
         await deleteTiktokPayment(input.paymentId);
+        return { success: true };
+      }),
+
+    // === TAP (TikTok Affiliate Program) ===
+    
+    // TAP XLSXアップロード
+    uploadTapXlsx: protectedProcedure
+      .input(z.object({
+        brandId: z.number(),
+        fileContent: z.string(), // Base64 encoded XLSX content
+        reportMonth: z.string(), // YYYY-MM
+      }))
+      .mutation(async ({ ctx, input }) => {
+        try {
+          const XLSX = await import('xlsx');
+          const buffer = Buffer.from(input.fileContent, 'base64');
+          const workbook = XLSX.read(buffer, { type: 'buffer' });
+          const sheetName = workbook.SheetNames[0];
+          const sheet = workbook.Sheets[sheetName];
+          const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+          
+          if (rows.length === 0) {
+            throw new Error('TAPデータが空です');
+          }
+          
+          // Parse rows into TAP reports
+          const reports: any[] = [];
+          for (const row of rows) {
+            const creatorUsername = String(row['Creator username'] || row['クリエイターユーザー名'] || '').trim();
+            const productName = String(row['Product name'] || row['商品名'] || '').trim();
+            const shopName = String(row['Shop name'] || row['ショップ名'] || '').trim();
+            const productId = String(row['Product ID'] || row['商品ID'] || '').trim();
+            
+            if (!creatorUsername && !productName) continue;
+            
+            const parseNum = (val: any): number => {
+              if (val === '' || val === null || val === undefined) return 0;
+              const str = String(val).replace(/[¥,$%,]/g, '').trim();
+              const num = parseFloat(str);
+              return isNaN(num) ? 0 : Math.round(num);
+            };
+            
+            reports.push({
+              brandId: input.brandId,
+              reportMonth: input.reportMonth,
+              creatorUsername,
+              productId,
+              productName,
+              shopName,
+              affiliateGmv: parseNum(row['Affiliate GMV'] || row['アフィリエイトGMV']),
+              videoGmv: parseNum(row['Video GMV'] || row['動画GMV']),
+              liveGmv: parseNum(row['LIVE GMV'] || row['ライブGMV']),
+              gmvRefund: parseNum(row['GMV refund'] || row['GMV返金']),
+              settledGmv: parseNum(row['Settled GMV'] || row['確定GMV']),
+              showcaseRevenue: parseNum(row['Showcase revenue'] || row['ショーケース収益']),
+              linkGmv: parseNum(row['Link GMV'] || row['リンクGMV']),
+              orders: parseNum(row['Orders'] || row['注文数']),
+              salesCount: parseNum(row['Sales count'] || row['販売数']),
+              videoViews: parseNum(row['Video views'] || row['動画視聴数']),
+              liveViews: parseNum(row['LIVE views'] || row['ライブ視聴数']),
+              liveCount: parseNum(row['LIVE count'] || row['ライブ回数']),
+              videoCount: parseNum(row['Video count'] || row['動画数']),
+              estimatedPartnerCommission: parseNum(row['Estimated partner commission'] || row['推定パートナーコミッション']),
+              actualPartnerCommission: parseNum(row['Actual partner commission'] || row['実績パートナーコミッション']),
+              estimatedCreatorCommission: parseNum(row['Estimated creator commission'] || row['推定クリエイターコミッション']),
+              actualCreatorCommission: parseNum(row['Actual creator commission'] || row['実績クリエイターコミッション']),
+              source: 'TAP',
+              uploadedBy: ctx.user.id,
+              uploadedByName: ctx.user.name || ctx.user.email,
+            });
+          }
+          
+          // Delete existing data for this month and re-import
+          await deleteTiktokTapReportsByMonth(input.brandId, input.reportMonth);
+          const insertedCount = await bulkInsertTiktokTapReports(reports);
+          
+          return {
+            totalRows: reports.length,
+            importedRows: insertedCount,
+            reportMonth: input.reportMonth,
+          };
+        } catch (error: any) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `TAPデータインポートに失敗しました: ${error.message}`,
+          });
+        }
+      }),
+
+    // TAPサマリー
+    getTapSummary: protectedProcedure
+      .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
+      .query(async ({ input }) => {
+        return getTiktokTapSummary(input.brandId, input.month);
+      }),
+
+    // TAPクリエイター別
+    getTapCreatorSummary: protectedProcedure
+      .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
+      .query(async ({ input }) => {
+        return getTiktokTapCreatorSummary(input.brandId, input.month);
+      }),
+
+    // TAPショップ別
+    getTapShopSummary: protectedProcedure
+      .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
+      .query(async ({ input }) => {
+        return getTiktokTapShopSummary(input.brandId, input.month);
+      }),
+
+    // TAP月別推移
+    getTapMonthlySummary: protectedProcedure
+      .input(z.object({ brandId: z.number().optional().default(0) }))
+      .query(async ({ input }) => {
+        return getTiktokTapMonthlySummary(input.brandId);
+      }),
+
+    // TAP商品別
+    getTapProductSummary: protectedProcedure
+      .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
+      .query(async ({ input }) => {
+        return getTiktokTapProductSummary(input.brandId, input.month);
+      }),
+
+    // TAP利用可能月一覧
+    getTapAvailableMonths: protectedProcedure
+      .input(z.object({ brandId: z.number().optional().default(0) }))
+      .query(async ({ input }) => {
+        return getTiktokTapAvailableMonths(input.brandId);
+      }),
+
+    // TAP月別データ削除
+    deleteTapMonth: protectedProcedure
+      .input(z.object({ brandId: z.number(), reportMonth: z.string() }))
+      .mutation(async ({ input }) => {
+        await deleteTiktokTapReportsByMonth(input.brandId, input.reportMonth);
         return { success: true };
       }),
   }),

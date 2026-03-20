@@ -51,7 +51,7 @@ function getPrevMonth(month: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-type TabType = 'dashboard' | 'creators' | 'shops' | 'products' | 'daily' | 'monthly' | 'orders' | 'imports' | 'payments';
+type TabType = 'dashboard' | 'creators' | 'shops' | 'products' | 'daily' | 'monthly' | 'orders' | 'imports' | 'payments' | 'tap' | 'tap-creators' | 'tap-shops' | 'tap-products';
 
 export default function FinanceManagement() {
   const [, navigate] = useLocation();
@@ -77,6 +77,12 @@ export default function FinanceManagement() {
   const [smartUploadDialogOpen, setSmartUploadDialogOpen] = useState(false);
   const [smartUploading, setSmartUploading] = useState(false);
   const smartFileInputRef = useRef<HTMLInputElement>(null);
+  const [tapMonth, setTapMonth] = useState<string>('');
+  const tapFileInputRef = useRef<HTMLInputElement>(null);
+  const [tapUploading, setTapUploading] = useState(false);
+  const [tapUploadDialogOpen, setTapUploadDialogOpen] = useState(false);
+  const [tapUploadMonth, setTapUploadMonth] = useState<string>('');
+  const [deleteTapMonthDialog, setDeleteTapMonthDialog] = useState<string | null>(null);
   const pageSize = 50;
 
   const monthOptions = useMemo(() => getMonthOptions(), []);
@@ -145,6 +151,32 @@ export default function FinanceManagement() {
     { enabled: activeTab === 'imports' }
   );
 
+  // TAP Queries
+  const tapSummaryQuery = trpc.tiktokFinance.getTapSummary.useQuery(
+    { brandId: 0, month: tapMonth || undefined },
+    { enabled: activeTab === 'tap' || activeTab === 'dashboard' }
+  );
+  const tapCreatorsQuery = trpc.tiktokFinance.getTapCreatorSummary.useQuery(
+    { brandId: 0, month: tapMonth || undefined },
+    { enabled: activeTab === 'tap' || activeTab === 'tap-creators' }
+  );
+  const tapShopsQuery = trpc.tiktokFinance.getTapShopSummary.useQuery(
+    { brandId: 0, month: tapMonth || undefined },
+    { enabled: activeTab === 'tap' || activeTab === 'tap-shops' }
+  );
+  const tapProductsQuery = trpc.tiktokFinance.getTapProductSummary.useQuery(
+    { brandId: 0, month: tapMonth || undefined },
+    { enabled: activeTab === 'tap-products' }
+  );
+  const tapMonthlyQuery = trpc.tiktokFinance.getTapMonthlySummary.useQuery(
+    { brandId: 0 },
+    { enabled: activeTab === 'tap' || activeTab === 'dashboard' }
+  );
+  const tapAvailableMonthsQuery = trpc.tiktokFinance.getTapAvailableMonths.useQuery(
+    { brandId: 0 },
+    { enabled: activeTab.startsWith('tap') }
+  );
+
   const deleteMutation = trpc.tiktokFinance.deleteImport.useMutation({
     onSuccess: () => {
       toast.success("インポートデータを削除しました");
@@ -187,6 +219,59 @@ export default function FinanceManagement() {
     },
   });
 
+  // TAP mutations
+  const uploadTapMutation = trpc.tiktokFinance.uploadTapXlsx.useMutation({
+    onSuccess: (result) => {
+      toast.success(`TAPデータ${result.importedRows}件インポート（${result.reportMonth}）`);
+      setTapUploadDialogOpen(false);
+      setTapUploading(false);
+      tapSummaryQuery.refetch();
+      tapCreatorsQuery.refetch();
+      tapShopsQuery.refetch();
+      tapMonthlyQuery.refetch();
+      tapAvailableMonthsQuery.refetch();
+    },
+    onError: (error) => {
+      toast.error(`TAPアップロード失敗: ${error.message}`);
+      setTapUploading(false);
+    },
+  });
+
+  const deleteTapMonthMutation = trpc.tiktokFinance.deleteTapMonth.useMutation({
+    onSuccess: () => {
+      toast.success('TAPデータを削除しました');
+      setDeleteTapMonthDialog(null);
+      tapSummaryQuery.refetch();
+      tapCreatorsQuery.refetch();
+      tapShopsQuery.refetch();
+      tapMonthlyQuery.refetch();
+      tapAvailableMonthsQuery.refetch();
+    },
+    onError: (error) => {
+      toast.error(`削除に失敗: ${error.message}`);
+    },
+  });
+
+  const handleTapXlsxUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!tapUploadMonth) {
+      toast.error('レポート月を選択してください');
+      return;
+    }
+    setTapUploading(true);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+      uploadTapMutation.mutate({ brandId: 0, fileContent: base64, reportMonth: tapUploadMonth });
+    } catch (err: any) {
+      toast.error(`アップロード失敗: ${err.message}`);
+      setTapUploading(false);
+    } finally {
+      if (tapFileInputRef.current) tapFileInputRef.current.value = '';
+    }
+  };
+
   const handlePaymentCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -212,6 +297,20 @@ export default function FinanceManagement() {
       const text = await file.text();
       const firstLine = text.split(/\r?\n/)[0] || '';
       
+      // Check if it's an XLSX file (TAP data)
+      if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+        // TAP XLSX detected - need month selection
+        setSmartUploadDialogOpen(false);
+        setSmartUploading(false);
+        setTapUploadDialogOpen(true);
+        // Store the file for later upload
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        if (tapFileInputRef.current) tapFileInputRef.current.files = dt.files;
+        toast.info('TAPデータを検出しました。レポート月を選択してアップロードしてください。');
+        return;
+      }
+
       if (firstLine.includes('Reference ID') && firstLine.includes('Payment')) {
         // Payment CSV detected
         const arrayBuffer = await file.arrayBuffer();
@@ -300,6 +399,7 @@ export default function FinanceManagement() {
     { key: 'orders', label: '注文明細', icon: ShoppingCart },
     { key: 'imports', label: 'インポート', icon: FileText },
     { key: 'payments', label: '入金月別', icon: Wallet },
+    { key: 'tap', label: 'TAP分析', icon: Video },
   ];
 
   return (
@@ -329,7 +429,7 @@ export default function FinanceManagement() {
           </Select>
           <Button onClick={() => setSmartUploadDialogOpen(true)} variant="outline">
             <Upload className="h-4 w-4 mr-2" />
-            CSVアップロード
+            データアップロード
           </Button>
         </div>
       </div>
@@ -1327,6 +1427,608 @@ export default function FinanceManagement() {
         </Card>
       )}
 
+      {/* TAP Analysis Tab */}
+      {activeTab === 'tap' && (
+        <div className="space-y-6">
+          {/* TAP Header */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <Badge variant="secondary" className="text-sm px-3 py-1">TAP</Badge>
+              <span className="text-sm text-muted-foreground">TikTok Affiliate Program（マーケットプレイス）</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Select value={tapMonth} onValueChange={(v) => setTapMonth(v === 'all' ? '' : v)}>
+                <SelectTrigger className="w-[160px]">
+                  <Calendar className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="全期間" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全期間</SelectItem>
+                  {(tapAvailableMonthsQuery.data || []).map((m: any) => (
+                    <SelectItem key={m.reportMonth} value={m.reportMonth}>{m.reportMonth} ({m.recordCount}件)</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="sm" onClick={() => setTapUploadDialogOpen(true)}>
+                <Upload className="h-4 w-4 mr-2" />
+                TAPアップロード
+              </Button>
+            </div>
+          </div>
+
+          {/* TAP KPI Cards */}
+          {tapSummaryQuery.data && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Card className="border-l-4 border-l-violet-500">
+                <CardContent className="pt-4 pb-3">
+                  <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
+                    <DollarSign className="h-3.5 w-3.5" />
+                    アフィリエイトGMV
+                  </div>
+                  <p className="text-2xl font-bold text-violet-600">{formatCurrency(tapSummaryQuery.data.totalAffiliateGmv)}</p>
+                  <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+                    <span>LIVE: {formatCurrency(tapSummaryQuery.data.totalLiveGmv)}</span>
+                    <span>動画: {formatCurrency(tapSummaryQuery.data.totalVideoGmv)}</span>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-l-4 border-l-green-500">
+                <CardContent className="pt-4 pb-3">
+                  <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
+                    <TrendingUp className="h-3.5 w-3.5" />
+                    コミッション
+                  </div>
+                  <p className="text-2xl font-bold text-green-600">{formatCurrency(tapSummaryQuery.data.totalActualPartnerCommission)}</p>
+                  <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+                    <span>LCJ: {formatCurrency(tapSummaryQuery.data.totalActualPartnerCommission)}</span>
+                    <span>C: {formatCurrency(tapSummaryQuery.data.totalActualCreatorCommission)}</span>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-l-4 border-l-blue-500">
+                <CardContent className="pt-4 pb-3">
+                  <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
+                    <ShoppingCart className="h-3.5 w-3.5" />
+                    注文数 / 販売数
+                  </div>
+                  <p className="text-2xl font-bold">{formatNumber(tapSummaryQuery.data.totalOrders)}</p>
+                  <p className="text-xs text-muted-foreground mt-1">販売数: {formatNumber(tapSummaryQuery.data.totalSalesCount)}</p>
+                </CardContent>
+              </Card>
+              <Card className="border-l-4 border-l-orange-500">
+                <CardContent className="pt-4 pb-3">
+                  <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
+                    <Video className="h-3.5 w-3.5" />
+                    パフォーマンス
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div>
+                      <p className="text-lg font-bold">{formatNumber(tapSummaryQuery.data.totalLiveViews)}</p>
+                      <p className="text-xs text-muted-foreground">LIVE視聴</p>
+                    </div>
+                    <div className="h-8 w-px bg-border" />
+                    <div>
+                      <p className="text-lg font-bold">{formatNumber(tapSummaryQuery.data.totalVideoViews)}</p>
+                      <p className="text-xs text-muted-foreground">動画視聴</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* TAP Sub-tabs */}
+          <div className="flex gap-2 border-b pb-2">
+            {[
+              { key: 'tap' as TabType, label: '概要', icon: BarChart3 },
+              { key: 'tap-creators' as TabType, label: 'クリエイター別', icon: Users },
+              { key: 'tap-shops' as TabType, label: 'ショップ別', icon: Store },
+              { key: 'tap-products' as TabType, label: '商品別', icon: ShoppingBag },
+            ].map(sub => (
+              <button
+                key={sub.key}
+                onClick={() => setActiveTab(sub.key)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  activeTab === sub.key
+                    ? 'bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-300'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                }`}
+              >
+                <sub.icon className="h-3.5 w-3.5" />
+                {sub.label}
+              </button>
+            ))}
+          </div>
+
+          {/* TAP Monthly Trend */}
+          {(activeTab === 'tap') && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4" />
+                  TAP月別推移
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {tapMonthlyQuery.isLoading ? (
+                  <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                ) : !tapMonthlyQuery.data || tapMonthlyQuery.data.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">TAPデータがありません。XLSXファイルをアップロードしてください。</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-muted/50">
+                          <th className="text-left py-2 px-3">月</th>
+                          <th className="text-right py-2 px-3">アフィリGMV</th>
+                          <th className="text-right py-2 px-3">LIVE GMV</th>
+                          <th className="text-right py-2 px-3">動画GMV</th>
+                          <th className="text-right py-2 px-3">LCJ手数料</th>
+                          <th className="text-right py-2 px-3">注文数</th>
+                          <th className="text-right py-2 px-3">LIVE視聴</th>
+                          <th className="text-center py-2 px-3">操作</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(tapMonthlyQuery.data || []).map((m: any) => (
+                          <tr key={m.reportMonth} className="border-b hover:bg-muted/50">
+                            <td className="py-2 px-3 font-medium">{m.reportMonth}</td>
+                            <td className="py-2 px-3 text-right font-semibold text-violet-600">{formatCurrency(m.totalAffiliateGmv)}</td>
+                            <td className="py-2 px-3 text-right">{formatCurrency(m.totalLiveGmv)}</td>
+                            <td className="py-2 px-3 text-right">{formatCurrency(m.totalVideoGmv)}</td>
+                            <td className="py-2 px-3 text-right text-green-600">{formatCurrency(m.totalActualPartnerCommission)}</td>
+                            <td className="py-2 px-3 text-right">{formatNumber(m.totalOrders)}</td>
+                            <td className="py-2 px-3 text-right">{formatNumber(m.totalLiveViews)}</td>
+                            <td className="py-2 px-3 text-center">
+                              <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700" onClick={() => setDeleteTapMonthDialog(m.reportMonth)}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* TAP Creators */}
+          {(activeTab === 'tap' || activeTab === 'tap-creators') && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  クリエイター別実績
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {tapCreatorsQuery.isLoading ? (
+                  <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                ) : !tapCreatorsQuery.data || tapCreatorsQuery.data.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">データがありません</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-muted/50">
+                          <th className="text-left py-2 px-3">#</th>
+                          <th className="text-left py-2 px-3">クリエイター</th>
+                          <th className="text-right py-2 px-3">アフィリGMV</th>
+                          <th className="text-right py-2 px-3">LIVE GMV</th>
+                          <th className="text-right py-2 px-3">動画GMV</th>
+                          <th className="text-right py-2 px-3">LCJ手数料</th>
+                          <th className="text-right py-2 px-3">注文数</th>
+                          <th className="text-right py-2 px-3">LIVE視聴</th>
+                          <th className="text-right py-2 px-3">動画視聴</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(tapCreatorsQuery.data || []).map((c: any, i: number) => (
+                          <tr key={c.creatorUsername} className="border-b hover:bg-muted/50">
+                            <td className="py-2 px-3">{i < 3 ? rankIcons[i] : <span className="text-muted-foreground">{i + 1}</span>}</td>
+                            <td className="py-2 px-3 font-medium">{c.creatorUsername}</td>
+                            <td className="py-2 px-3 text-right font-semibold text-violet-600">{formatCurrency(c.totalAffiliateGmv)}</td>
+                            <td className="py-2 px-3 text-right">{formatCurrency(c.totalLiveGmv)}</td>
+                            <td className="py-2 px-3 text-right">{formatCurrency(c.totalVideoGmv)}</td>
+                            <td className="py-2 px-3 text-right text-green-600">{formatCurrency(c.totalActualPartnerCommission)}</td>
+                            <td className="py-2 px-3 text-right">{formatNumber(c.totalOrders)}</td>
+                            <td className="py-2 px-3 text-right">{formatNumber(c.totalLiveViews)}</td>
+                            <td className="py-2 px-3 text-right">{formatNumber(c.totalVideoViews)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* TAP Shops */}
+          {(activeTab === 'tap' || activeTab === 'tap-shops') && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Store className="h-4 w-4" />
+                  ショップ別実績
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {tapShopsQuery.isLoading ? (
+                  <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                ) : !tapShopsQuery.data || tapShopsQuery.data.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">データがありません</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-muted/50">
+                          <th className="text-left py-2 px-3">#</th>
+                          <th className="text-left py-2 px-3">ショップ名</th>
+                          <th className="text-right py-2 px-3">アフィリGMV</th>
+                          <th className="text-right py-2 px-3">LIVE GMV</th>
+                          <th className="text-right py-2 px-3">動画GMV</th>
+                          <th className="text-right py-2 px-3">LCJ手数料</th>
+                          <th className="text-right py-2 px-3">注文数</th>
+                          <th className="text-right py-2 px-3">商品数</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(tapShopsQuery.data || []).map((s: any, i: number) => (
+                          <tr key={s.shopName} className="border-b hover:bg-muted/50">
+                            <td className="py-2 px-3">{i < 3 ? rankIcons[i] : <span className="text-muted-foreground">{i + 1}</span>}</td>
+                            <td className="py-2 px-3 font-medium">{s.shopName}</td>
+                            <td className="py-2 px-3 text-right font-semibold text-violet-600">{formatCurrency(s.totalAffiliateGmv)}</td>
+                            <td className="py-2 px-3 text-right">{formatCurrency(s.totalLiveGmv)}</td>
+                            <td className="py-2 px-3 text-right">{formatCurrency(s.totalVideoGmv)}</td>
+                            <td className="py-2 px-3 text-right text-green-600">{formatCurrency(s.totalActualPartnerCommission)}</td>
+                            <td className="py-2 px-3 text-right">{formatNumber(s.totalOrders)}</td>
+                            <td className="py-2 px-3 text-right">{formatNumber(s.productCount)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* TAP Products */}
+          {activeTab === 'tap-products' && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <ShoppingBag className="h-4 w-4" />
+                  商品別実績
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {tapProductsQuery.isLoading ? (
+                  <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                ) : !tapProductsQuery.data || tapProductsQuery.data.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">データがありません</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-muted/50">
+                          <th className="text-left py-2 px-3">#</th>
+                          <th className="text-left py-2 px-3">商品名</th>
+                          <th className="text-left py-2 px-3">ショップ</th>
+                          <th className="text-right py-2 px-3">アフィリGMV</th>
+                          <th className="text-right py-2 px-3">LIVE GMV</th>
+                          <th className="text-right py-2 px-3">動画GMV</th>
+                          <th className="text-right py-2 px-3">注文数</th>
+                          <th className="text-right py-2 px-3">販売数</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(tapProductsQuery.data || []).map((p: any, i: number) => (
+                          <tr key={`${p.productName}-${p.shopName}`} className="border-b hover:bg-muted/50">
+                            <td className="py-2 px-3">{i < 3 ? rankIcons[i] : <span className="text-muted-foreground">{i + 1}</span>}</td>
+                            <td className="py-2 px-3 font-medium max-w-[200px] truncate" title={p.productName}>{p.productName}</td>
+                            <td className="py-2 px-3 text-xs text-muted-foreground max-w-[150px] truncate" title={p.shopName}>{p.shopName}</td>
+                            <td className="py-2 px-3 text-right font-semibold text-violet-600">{formatCurrency(p.totalAffiliateGmv)}</td>
+                            <td className="py-2 px-3 text-right">{formatCurrency(p.totalLiveGmv)}</td>
+                            <td className="py-2 px-3 text-right">{formatCurrency(p.totalVideoGmv)}</td>
+                            <td className="py-2 px-3 text-right">{formatNumber(p.totalOrders)}</td>
+                            <td className="py-2 px-3 text-right">{formatNumber(p.totalSalesCount)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* TAP sub-tabs redirect */}
+      {(activeTab === 'tap-creators' || activeTab === 'tap-shops' || activeTab === 'tap-products') && (
+        <div className="space-y-6">
+          {/* TAP Header */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <Badge variant="secondary" className="text-sm px-3 py-1">TAP</Badge>
+              <span className="text-sm text-muted-foreground">TikTok Affiliate Program</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Select value={tapMonth} onValueChange={(v) => setTapMonth(v === 'all' ? '' : v)}>
+                <SelectTrigger className="w-[160px]">
+                  <Calendar className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="全期間" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全期間</SelectItem>
+                  {(tapAvailableMonthsQuery.data || []).map((m: any) => (
+                    <SelectItem key={m.reportMonth} value={m.reportMonth}>{m.reportMonth}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="ghost" size="sm" onClick={() => setActiveTab('tap')}>
+                <ChevronLeft className="h-3 w-3 mr-1" /> TAP概要に戻る
+              </Button>
+            </div>
+          </div>
+
+          {/* TAP Sub-tabs */}
+          <div className="flex gap-2 border-b pb-2">
+            {[
+              { key: 'tap' as TabType, label: '概要', icon: BarChart3 },
+              { key: 'tap-creators' as TabType, label: 'クリエイター別', icon: Users },
+              { key: 'tap-shops' as TabType, label: 'ショップ別', icon: Store },
+              { key: 'tap-products' as TabType, label: '商品別', icon: ShoppingBag },
+            ].map(sub => (
+              <button
+                key={sub.key}
+                onClick={() => setActiveTab(sub.key)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  activeTab === sub.key
+                    ? 'bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-300'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                }`}
+              >
+                <sub.icon className="h-3.5 w-3.5" />
+                {sub.label}
+              </button>
+            ))}
+          </div>
+
+          {/* TAP Creators Detail */}
+          {activeTab === 'tap-creators' && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  クリエイター別実績
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {tapCreatorsQuery.isLoading ? (
+                  <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                ) : !tapCreatorsQuery.data || tapCreatorsQuery.data.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">データがありません</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-muted/50">
+                          <th className="text-left py-2 px-3">#</th>
+                          <th className="text-left py-2 px-3">クリエイター</th>
+                          <th className="text-right py-2 px-3">アフィリGMV</th>
+                          <th className="text-right py-2 px-3">LIVE GMV</th>
+                          <th className="text-right py-2 px-3">動画GMV</th>
+                          <th className="text-right py-2 px-3">LCJ手数料</th>
+                          <th className="text-right py-2 px-3">C手数料</th>
+                          <th className="text-right py-2 px-3">注文数</th>
+                          <th className="text-right py-2 px-3">LIVE視聴</th>
+                          <th className="text-right py-2 px-3">動画視聴</th>
+                          <th className="text-right py-2 px-3">LIVE回数</th>
+                          <th className="text-right py-2 px-3">動画数</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(tapCreatorsQuery.data || []).map((c: any, i: number) => (
+                          <tr key={c.creatorUsername} className="border-b hover:bg-muted/50">
+                            <td className="py-2 px-3">{i < 3 ? rankIcons[i] : <span className="text-muted-foreground">{i + 1}</span>}</td>
+                            <td className="py-2 px-3 font-medium">{c.creatorUsername}</td>
+                            <td className="py-2 px-3 text-right font-semibold text-violet-600">{formatCurrency(c.totalAffiliateGmv)}</td>
+                            <td className="py-2 px-3 text-right">{formatCurrency(c.totalLiveGmv)}</td>
+                            <td className="py-2 px-3 text-right">{formatCurrency(c.totalVideoGmv)}</td>
+                            <td className="py-2 px-3 text-right text-green-600">{formatCurrency(c.totalActualPartnerCommission)}</td>
+                            <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(c.totalActualCreatorCommission)}</td>
+                            <td className="py-2 px-3 text-right">{formatNumber(c.totalOrders)}</td>
+                            <td className="py-2 px-3 text-right">{formatNumber(c.totalLiveViews)}</td>
+                            <td className="py-2 px-3 text-right">{formatNumber(c.totalVideoViews)}</td>
+                            <td className="py-2 px-3 text-right">{formatNumber(c.totalLiveCount)}</td>
+                            <td className="py-2 px-3 text-right">{formatNumber(c.totalVideoCount)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* TAP Shops Detail */}
+          {activeTab === 'tap-shops' && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Store className="h-4 w-4" />
+                  ショップ別実績
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {tapShopsQuery.isLoading ? (
+                  <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                ) : !tapShopsQuery.data || tapShopsQuery.data.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">データがありません</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-muted/50">
+                          <th className="text-left py-2 px-3">#</th>
+                          <th className="text-left py-2 px-3">ショップ名</th>
+                          <th className="text-right py-2 px-3">アフィリGMV</th>
+                          <th className="text-right py-2 px-3">LIVE GMV</th>
+                          <th className="text-right py-2 px-3">動画GMV</th>
+                          <th className="text-right py-2 px-3">LCJ手数料</th>
+                          <th className="text-right py-2 px-3">注文数</th>
+                          <th className="text-right py-2 px-3">商品数</th>
+                          <th className="text-right py-2 px-3">クリエイター数</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(tapShopsQuery.data || []).map((s: any, i: number) => (
+                          <tr key={s.shopName} className="border-b hover:bg-muted/50">
+                            <td className="py-2 px-3">{i < 3 ? rankIcons[i] : <span className="text-muted-foreground">{i + 1}</span>}</td>
+                            <td className="py-2 px-3 font-medium">{s.shopName}</td>
+                            <td className="py-2 px-3 text-right font-semibold text-violet-600">{formatCurrency(s.totalAffiliateGmv)}</td>
+                            <td className="py-2 px-3 text-right">{formatCurrency(s.totalLiveGmv)}</td>
+                            <td className="py-2 px-3 text-right">{formatCurrency(s.totalVideoGmv)}</td>
+                            <td className="py-2 px-3 text-right text-green-600">{formatCurrency(s.totalActualPartnerCommission)}</td>
+                            <td className="py-2 px-3 text-right">{formatNumber(s.totalOrders)}</td>
+                            <td className="py-2 px-3 text-right">{formatNumber(s.productCount)}</td>
+                            <td className="py-2 px-3 text-right">{formatNumber(s.creatorCount)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* TAP Products Detail */}
+          {activeTab === 'tap-products' && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <ShoppingBag className="h-4 w-4" />
+                  商品別実績
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {tapProductsQuery.isLoading ? (
+                  <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                ) : !tapProductsQuery.data || tapProductsQuery.data.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">データがありません</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-muted/50">
+                          <th className="text-left py-2 px-3">#</th>
+                          <th className="text-left py-2 px-3">商品名</th>
+                          <th className="text-left py-2 px-3">ショップ</th>
+                          <th className="text-right py-2 px-3">アフィリGMV</th>
+                          <th className="text-right py-2 px-3">LIVE GMV</th>
+                          <th className="text-right py-2 px-3">動画GMV</th>
+                          <th className="text-right py-2 px-3">注文数</th>
+                          <th className="text-right py-2 px-3">販売数</th>
+                          <th className="text-right py-2 px-3">LIVE視聴</th>
+                          <th className="text-right py-2 px-3">動画視聴</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(tapProductsQuery.data || []).map((p: any, i: number) => (
+                          <tr key={`${p.productName}-${p.shopName}`} className="border-b hover:bg-muted/50">
+                            <td className="py-2 px-3">{i < 3 ? rankIcons[i] : <span className="text-muted-foreground">{i + 1}</span>}</td>
+                            <td className="py-2 px-3 font-medium max-w-[200px] truncate" title={p.productName}>{p.productName}</td>
+                            <td className="py-2 px-3 text-xs text-muted-foreground max-w-[150px] truncate" title={p.shopName}>{p.shopName}</td>
+                            <td className="py-2 px-3 text-right font-semibold text-violet-600">{formatCurrency(p.totalAffiliateGmv)}</td>
+                            <td className="py-2 px-3 text-right">{formatCurrency(p.totalLiveGmv)}</td>
+                            <td className="py-2 px-3 text-right">{formatCurrency(p.totalVideoGmv)}</td>
+                            <td className="py-2 px-3 text-right">{formatNumber(p.totalOrders)}</td>
+                            <td className="py-2 px-3 text-right">{formatNumber(p.totalSalesCount)}</td>
+                            <td className="py-2 px-3 text-right">{formatNumber(p.totalLiveViews)}</td>
+                            <td className="py-2 px-3 text-right">{formatNumber(p.totalVideoViews)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* TAP Upload Dialog */}
+      <Dialog open={tapUploadDialogOpen} onOpenChange={setTapUploadDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Badge variant="secondary">TAP</Badge>
+              TAPデータアップロード
+            </DialogTitle>
+            <DialogDescription>
+              TikTokマーケットプレイスのレポートXLSXファイルをアップロードします。同じ月のデータは上書きされます。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">レポート月</label>
+              <Select value={tapUploadMonth} onValueChange={setTapUploadMonth}>
+                <SelectTrigger className="w-full mt-1">
+                  <SelectValue placeholder="月を選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  {monthOptions.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">XLSXファイル</label>
+              <input
+                ref={tapFileInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleTapXlsxUpload}
+                disabled={tapUploading || !tapUploadMonth}
+                className="w-full mt-1"
+              />
+            </div>
+            {tapUploading && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                アップロード中...
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete TAP Month Confirmation Dialog */}
+      <Dialog open={!!deleteTapMonthDialog} onOpenChange={(open) => !open && setDeleteTapMonthDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>TAPデータの削除</DialogTitle>
+            <DialogDescription>{deleteTapMonthDialog}の全TAPデータを削除します。この操作は元に戻せません。</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTapMonthDialog(null)}>キャンセル</Button>
+            <Button variant="destructive" onClick={() => deleteTapMonthDialog && deleteTapMonthMutation.mutate({ brandId: 0, reportMonth: deleteTapMonthDialog })} disabled={deleteTapMonthMutation.isPending}>
+              {deleteTapMonthMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              削除する
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Upload Dialog */}
       <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
         <DialogContent>
@@ -1409,14 +2111,15 @@ export default function FinanceManagement() {
             <input
               ref={smartFileInputRef}
               type="file"
-              accept=".csv"
+              accept=".csv,.xlsx,.xls"
               onChange={handleSmartCsvUpload}
               disabled={smartUploading}
               className="w-full"
             />
             <div className="text-xs text-muted-foreground space-y-1">
-              <p>• コミッションCSV: 「サブ注文ID」ヘッダー含む</p>
-              <p>• 入金CSV: 「Reference ID」ヘッダー含む</p>
+              <p>• <Badge variant="outline" className="text-xs">CAP</Badge> コミッションCSV: 「サブ注文ID」ヘッダー含む</p>
+              <p>• <Badge variant="outline" className="text-xs">入金</Badge> 入金CSV: 「Reference ID」ヘッダー含む</p>
+              <p>• <Badge variant="secondary" className="text-xs">TAP</Badge> TAPレポートXLSX: TikTokマーケットプレイスデータ</p>
             </div>
             {smartUploading && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">

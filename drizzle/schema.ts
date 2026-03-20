@@ -2469,6 +2469,9 @@ export const tiktokCommissionOrders = mysqlTable("tiktok_commission_orders", {
   platform: varchar("platform", { length: 20 }), // プラットフォーム（TTS/TT_PRO）
   factorType: varchar("factorType", { length: 20 }), // 要因のタイプ
   
+  // データソースタグ
+  source: mysqlEnum("source", ["CAP", "TAP"]).default("CAP"), // CAP=LCJ専属ライバー, TAP=マーケットプレイス全体
+  
   // タイムスタンプ
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
@@ -2504,6 +2507,9 @@ export const tiktokCsvImportHistory = mysqlTable("tiktok_csv_import_history", {
   
   // ステータス
   status: mysqlEnum("status", ["processing", "completed", "failed"]).default("processing").notNull(),
+  
+  // データソースタグ
+  source: mysqlEnum("importSource", ["CAP", "TAP", "PAYMENT"]).default("CAP"), // CAP=コミッションCSV, TAP=TAPレポートXLSX, PAYMENT=入金CSV
   errorMessage: text("errorMessage"), // エラーメッセージ
   
   // 作成者情報
@@ -4083,3 +4089,70 @@ export const recruitmentStatusHistory = mysqlTable("recruitment_status_history",
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 export type RecruitmentStatusHistory = typeof recruitmentStatusHistory.$inferSelect;
+
+
+// ============================================
+// TikTok TAP (TikTok Affiliate Program) データ
+// ============================================
+
+/**
+ * TikTok TAP Reports table - TAPレポートデータ（XLSXインポート）
+ * クリエイター×商品×ショップ×月の集計データ
+ * CAPデータ（注文単位の明細）とは別に、マーケットプレイス全体のパフォーマンスを記録
+ */
+export const tiktokTapReports = mysqlTable("tiktok_tap_reports", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: int("brandId").notNull(), // References brands.id
+  importHistoryId: int("importHistoryId"), // References tiktokCsvImportHistory.id
+
+  // 期間情報
+  dateRange: varchar("dateRange", { length: 50 }).notNull(), // 例: "2025-10-01-2025-10-31"
+  reportMonth: varchar("reportMonth", { length: 7 }).notNull(), // YYYY-MM形式
+
+  // クリエイター情報
+  creatorUsername: varchar("creatorUsername", { length: 255 }).notNull(),
+
+  // 商品情報
+  productId: varchar("productId", { length: 64 }).notNull(),
+  productName: text("productName").notNull(),
+
+  // ショップ情報
+  shopId: varchar("shopId", { length: 64 }),
+  shopName: varchar("shopName", { length: 255 }),
+
+  // GMVデータ（円）
+  affiliateGmv: bigint("affiliateGmv", { mode: "number" }).default(0), // アフィリエイトGMV
+  videoGmv: bigint("videoGmv", { mode: "number" }).default(0), // アフィリエイト動画GMV
+  liveGmv: bigint("liveGmv", { mode: "number" }).default(0), // アフィリエイトLIVE GMV
+  gmvRefund: bigint("gmvRefund", { mode: "number" }).default(0), // GMV（返金）
+  settledGmv: bigint("settledGmv", { mode: "number" }).default(0), // 決済済みGMV
+  showcaseRevenue: bigint("showcaseRevenue", { mode: "number" }).default(0), // 収益（ショーケース）
+  linkGmv: bigint("linkGmv", { mode: "number" }).default(0), // リンクGMV
+
+  // 注文・販売データ
+  orders: int("orders").default(0), // 注文数
+  salesCount: int("salesCount").default(0), // 販売数
+  linkSalesCount: int("linkSalesCount").default(0), // リンクでの商品販売数
+  linkOrders: int("linkOrders").default(0), // リンク注文数
+
+  // パフォーマンスデータ
+  videoViews: bigint("videoViews", { mode: "number" }).default(0), // 動画視聴数
+  liveViews: bigint("liveViews", { mode: "number" }).default(0), // LIVE視聴数
+  liveCount: int("liveCount").default(0), // LIVE回数
+  videoCount: int("videoCount").default(0), // 動画数
+  showcaseProducts: int("showcaseProducts").default(0), // ショーケースに追加した商品数
+
+  // 手数料データ（円）
+  estimatedPartnerCommission: bigint("estimatedPartnerCommission", { mode: "number" }).default(0), // 推定アフィリエイトパートナー手数料額
+  actualPartnerCommission: bigint("actualPartnerCommission", { mode: "number" }).default(0), // 実際のアフィリエイトパートナー手数料額
+  estimatedCreatorCommission: bigint("estimatedCreatorCommission", { mode: "number" }).default(0), // クリエイターの推定成果報酬額
+  actualCreatorCommission: bigint("actualCreatorCommission", { mode: "number" }).default(0), // クリエイターの実際の手数料額
+  linkEstimatedPartnerCommission: bigint("linkEstimatedPartnerCommission", { mode: "number" }).default(0), // リンクパートナーの推定成果報酬額
+  linkEstimatedCreatorCommission: bigint("linkEstimatedCreatorCommission", { mode: "number" }).default(0), // リンククリエイターの推定成果報酬額
+
+  // タイムスタンプ
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type TiktokTapReport = typeof tiktokTapReports.$inferSelect;
+export type InsertTiktokTapReport = typeof tiktokTapReports.$inferInsert;
