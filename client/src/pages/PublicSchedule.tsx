@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Calendar, Clock, User, Plus, ChevronDown, ChevronLeft, ChevronRight, X, LogIn, LogOut, UserPlus, Settings, Check } from "lucide-react";
+import { Calendar, Clock, User, Plus, ChevronDown, ChevronLeft, ChevronRight, X, LogIn, LogOut, UserPlus, Settings, Check, List, LayoutGrid, CalendarDays } from "lucide-react";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Link, useLocation } from "wouter";
@@ -96,6 +96,16 @@ export default function PublicSchedule() {
   const [, navigate] = useLocation();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'month' | 'week' | 'list'>('month');
+  const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => {
+    const now = new Date();
+    const day = now.getDay();
+    const diff = day === 0 ? 6 : day - 1; // Monday start
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - diff);
+    monday.setHours(0, 0, 0, 0);
+    return monday;
+  });
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
   const [bottomSheetOpen, setBottomSheetOpen] = useState(false);
 
@@ -786,26 +796,87 @@ export default function PublicSchedule() {
         </div>
       </div>
 
-      {/* Month Navigation */}
-      <div className="flex justify-center gap-4 py-2 border-b">
-        <button 
-          onClick={goToPrevMonth}
-          className="px-4 py-1 text-gray-500 hover:text-gray-700"
-        >
-          ←
-        </button>
-        <button 
-          onClick={() => setCurrentDate(new Date())}
-          className="px-4 py-1 text-blue-500 font-medium"
-        >
-          今日
-        </button>
-        <button 
-          onClick={goToNextMonth}
-          className="px-4 py-1 text-gray-500 hover:text-gray-700"
-        >
-          →
-        </button>
+      {/* Navigation + View Mode Toggle */}
+      <div className="flex items-center justify-between px-3 py-2 border-b">
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => {
+              if (viewMode === 'month') goToPrevMonth();
+              else if (viewMode === 'week') {
+                const prev = new Date(currentWeekStart);
+                prev.setDate(prev.getDate() - 7);
+                setCurrentWeekStart(prev);
+              } else {
+                goToPrevMonth();
+              }
+            }}
+            className="p-1.5 rounded-full hover:bg-gray-100"
+          >
+            <ChevronLeft className="h-4 w-4 text-gray-500" />
+          </button>
+          <button 
+            onClick={() => {
+              const now = new Date();
+              setCurrentDate(now);
+              const day = now.getDay();
+              const diff = day === 0 ? 6 : day - 1;
+              const monday = new Date(now);
+              monday.setDate(now.getDate() - diff);
+              monday.setHours(0, 0, 0, 0);
+              setCurrentWeekStart(monday);
+            }}
+            className="px-3 py-1 text-sm text-blue-500 font-medium rounded-full hover:bg-blue-50"
+          >
+            今日
+          </button>
+          <button 
+            onClick={() => {
+              if (viewMode === 'month') goToNextMonth();
+              else if (viewMode === 'week') {
+                const next = new Date(currentWeekStart);
+                next.setDate(next.getDate() + 7);
+                setCurrentWeekStart(next);
+              } else {
+                goToNextMonth();
+              }
+            }}
+            className="p-1.5 rounded-full hover:bg-gray-100"
+          >
+            <ChevronRight className="h-4 w-4 text-gray-500" />
+          </button>
+        </div>
+        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+          <button
+            onClick={() => setViewMode('month')}
+            className={cn(
+              "p-1.5 rounded-md transition-colors",
+              viewMode === 'month' ? "bg-white shadow-sm" : "hover:bg-gray-200"
+            )}
+            title="月表示"
+          >
+            <LayoutGrid className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => setViewMode('week')}
+            className={cn(
+              "p-1.5 rounded-md transition-colors",
+              viewMode === 'week' ? "bg-white shadow-sm" : "hover:bg-gray-200"
+            )}
+            title="週表示"
+          >
+            <CalendarDays className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => setViewMode('list')}
+            className={cn(
+              "p-1.5 rounded-md transition-colors",
+              viewMode === 'list' ? "bg-white shadow-sm" : "hover:bg-gray-200"
+            )}
+            title="リスト表示"
+          >
+            <List className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* Schedule Group Tabs */}
@@ -902,108 +973,328 @@ export default function PublicSchedule() {
         </div>
       )}
 
-      {/* Weekday Headers */}
-      <div className="grid grid-cols-7 border-b">
-        {["月", "火", "水", "木", "金", "土", "日"].map((day, i) => (
-          <div
-            key={day}
-            className={cn(
-              "text-center text-xs font-medium py-2",
-              i === 5 ? "text-blue-500" : i === 6 ? "text-red-500" : "text-gray-500"
-            )}
-          >
-            {day}
+      {/* === MONTH VIEW === */}
+      {viewMode === 'month' && (
+        <>
+          {/* Weekday Headers */}
+          <div className="grid grid-cols-7 border-b">
+            {["月", "火", "水", "木", "金", "土", "日"].map((day, i) => (
+              <div
+                key={day}
+                className={cn(
+                  "text-center text-xs font-medium py-2",
+                  i === 5 ? "text-blue-500" : i === 6 ? "text-red-500" : "text-gray-500"
+                )}
+              >
+                {day}
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      {/* Calendar Grid - TimeTree Style */}
-      <div className="flex-1">
-        {calendarWeeks.map((week, weekIndex) => (
-          <div key={weekIndex} className="grid grid-cols-7 border-b min-h-[100px]">
-            {week.map(({ date, isCurrentMonth }, dayIndex) => {
-              const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+          {/* Calendar Grid - Improved */}
+          <div className="flex-1">
+            {calendarWeeks.map((week, weekIndex) => (
+              <div key={weekIndex} className="grid grid-cols-7 border-b" style={{ minHeight: '90px' }}>
+                {week.map(({ date, isCurrentMonth }, dayIndex) => {
+                  const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+                  const daySchedules = schedulesByDate.get(dateKey) || [];
+                  const isToday = dateKey === todayKey;
+                  const isSelected = dateKey === selectedDate && bottomSheetOpen;
+                  const dayOfWeek = date.getDay();
+                  
+                  return (
+                    <div
+                      key={dayIndex}
+                      className={cn(
+                        "border-r last:border-r-0 p-0.5 cursor-pointer hover:bg-gray-50 transition-colors",
+                        !isCurrentMonth && "bg-gray-50/50",
+                        isSelected && "bg-blue-50"
+                      )}
+                      onClick={() => handleDateClick(dateKey, isCurrentMonth)}
+                    >
+                      {/* Date number */}
+                      <div className="flex justify-center mb-0.5">
+                        <span
+                          className={cn(
+                            "w-6 h-6 flex items-center justify-center text-xs rounded-full",
+                            isToday && "bg-blue-500 text-white font-bold",
+                            !isToday && !isCurrentMonth && "text-gray-300",
+                            !isToday && isCurrentMonth && dayOfWeek === 0 && "text-red-500",
+                            !isToday && isCurrentMonth && dayOfWeek === 6 && "text-blue-500",
+                            !isToday && isCurrentMonth && dayOfWeek !== 0 && dayOfWeek !== 6 && "text-gray-700"
+                          )}
+                        >
+                          {date.getDate()}
+                        </span>
+                      </div>
+                      
+                      {/* Schedule bars - improved with liver name */}
+                      <div className="space-y-px">
+                        {daySchedules.slice(0, 4).map((schedule: Schedule & { isMultiDay?: boolean; isStart?: boolean; isEnd?: boolean }) => {
+                          const liverColor = schedule.liverName 
+                            ? liverColorMap.get(schedule.liverName) 
+                            : categoryColors[schedule.category || "other"];
+                          
+                          const isMultiDay = schedule.isMultiDay;
+                          const isStart = schedule.isStart;
+                          const isEnd = schedule.isEnd;
+                          const timeStr = formatTimeJST(new Date(schedule.startTime));
+                          const liverInitial = schedule.liverName ? schedule.liverName.charAt(0) : '';
+                          
+                          return (
+                            <div
+                              key={`${schedule.id}-${dateKey}`}
+                              className={cn(
+                                "text-[9px] leading-tight py-px truncate flex items-center gap-px",
+                                liverColor?.bg || "bg-gray-100",
+                                liverColor?.text || "text-gray-700",
+                                isMultiDay ? [
+                                  "relative",
+                                  isStart ? "rounded-l pl-0.5 -mr-0.5" : "-mx-0.5",
+                                  isEnd ? "rounded-r pr-0.5 -ml-0.5" : "-mx-0.5",
+                                  !isStart && !isEnd && "-mx-0.5",
+                                ] : "rounded px-0.5"
+                              )}
+                            >
+                              {isMultiDay && !isStart ? (
+                                <span className="opacity-0">&nbsp;</span>
+                              ) : (
+                                <>
+                                  {!schedule.isAllDay && !isMultiDay && (
+                                    <span className="opacity-70 shrink-0">{timeStr}</span>
+                                  )}
+                                  {schedule.liverName && (
+                                    <span className="font-bold shrink-0">{liverInitial}</span>
+                                  )}
+                                  <span className="truncate">{schedule.title}</span>
+                                </>
+                              )}
+                            </div>
+                          );
+                        })}
+                        {daySchedules.length > 4 && (
+                          <div className="text-[9px] text-gray-400 px-0.5 text-center">
+                            +{daySchedules.length - 4}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+
+          {/* Liver Legend */}
+          {liverColorMap.size > 0 && (
+            <div className="px-3 py-2 border-t bg-gray-50/50">
+              <div className="flex flex-wrap gap-x-3 gap-y-1">
+                {Array.from(liverColorMap.entries()).map(([name, color]) => (
+                  <div key={name} className="flex items-center gap-1">
+                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color.color }} />
+                    <span className="text-[10px] text-gray-600">{name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* === WEEK VIEW === */}
+      {viewMode === 'week' && (
+        <>
+          {/* Weekday Headers with dates */}
+          <div className="grid grid-cols-7 border-b">
+            {["月", "火", "水", "木", "金", "土", "日"].map((day, i) => {
+              const d = new Date(currentWeekStart);
+              d.setDate(d.getDate() + i);
+              const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+              const isToday = dateKey === todayKey;
+              return (
+                <div key={day} className="text-center py-1.5 border-r last:border-r-0">
+                  <div className={cn("text-[10px] font-medium", i === 5 ? "text-blue-500" : i === 6 ? "text-red-500" : "text-gray-500")}>{day}</div>
+                  <div className={cn(
+                    "w-7 h-7 mx-auto flex items-center justify-center text-sm rounded-full",
+                    isToday && "bg-blue-500 text-white font-bold"
+                  )}>{d.getDate()}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Week Grid - taller cells */}
+          <div className="grid grid-cols-7 flex-1" style={{ minHeight: '400px' }}>
+            {[0, 1, 2, 3, 4, 5, 6].map((i) => {
+              const d = new Date(currentWeekStart);
+              d.setDate(d.getDate() + i);
+              const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
               const daySchedules = schedulesByDate.get(dateKey) || [];
               const isToday = dateKey === todayKey;
-              const isSelected = dateKey === selectedDate && bottomSheetOpen;
-              const dayOfWeek = date.getDay();
               
               return (
                 <div
-                  key={dayIndex}
+                  key={i}
                   className={cn(
-                    "border-r last:border-r-0 p-1 cursor-pointer hover:bg-gray-50 transition-colors",
-                    !isCurrentMonth && "bg-gray-50",
-                    isSelected && "bg-blue-50"
+                    "border-r last:border-r-0 border-b p-1 cursor-pointer hover:bg-gray-50",
+                    isToday && "bg-blue-50/30"
                   )}
-                  onClick={() => handleDateClick(dateKey, isCurrentMonth)}
+                  onClick={() => { setSelectedDate(dateKey); setBottomSheetOpen(true); }}
                 >
-                  {/* Date number */}
-                  <div className="flex justify-center mb-1">
-                    <span
-                      className={cn(
-                        "w-7 h-7 flex items-center justify-center text-sm rounded-full",
-                        isToday && "bg-blue-500 text-white font-bold",
-                        !isToday && !isCurrentMonth && "text-gray-300",
-                        !isToday && isCurrentMonth && dayOfWeek === 0 && "text-red-500",
-                        !isToday && isCurrentMonth && dayOfWeek === 6 && "text-blue-500",
-                        !isToday && isCurrentMonth && dayOfWeek !== 0 && dayOfWeek !== 6 && "text-gray-700"
-                      )}
-                    >
-                      {date.getDate()}
-                    </span>
-                  </div>
-                  
-                  {/* Schedule bars */}
                   <div className="space-y-0.5">
-                    {daySchedules.slice(0, 3).map((schedule: Schedule & { isMultiDay?: boolean; isStart?: boolean; isEnd?: boolean }) => {
+                    {daySchedules.map((schedule) => {
                       const liverColor = schedule.liverName 
                         ? liverColorMap.get(schedule.liverName) 
                         : categoryColors[schedule.category || "other"];
-                      
-                      // 複数日予定のスタイル
-                      const isMultiDay = schedule.isMultiDay;
-                      const isStart = schedule.isStart;
-                      const isEnd = schedule.isEnd;
-                      
                       return (
                         <div
                           key={`${schedule.id}-${dateKey}`}
                           className={cn(
-                            "text-[10px] py-0.5 truncate",
+                            "text-[10px] leading-snug py-0.5 px-1 rounded truncate",
                             liverColor?.bg || "bg-gray-100",
-                            liverColor?.text || "text-gray-700",
-                            // 複数日予定の場合は横に広がるスタイル
-                            isMultiDay ? [
-                              "relative",
-                              isStart ? "rounded-l pl-1 -mr-1" : "-mx-1",
-                              isEnd ? "rounded-r pr-1 -ml-1" : "-mx-1",
-                              !isStart && !isEnd && "-mx-1",
-                            ] : "rounded px-1"
+                            liverColor?.text || "text-gray-700"
                           )}
-                          style={isMultiDay && !isStart && !isEnd ? { marginLeft: '-4px', marginRight: '-4px' } : undefined}
                         >
-                          {isMultiDay && !isStart ? (
-                            // 複数日予定の途中はタイトルを表示しない（バーのみ）
-                            <span className="opacity-0"> </span>
-                          ) : (
-                            schedule.isAllDay || isMultiDay ? schedule.title : `${formatTimeJST(new Date(schedule.startTime))} ${schedule.title}`
+                          <div className="truncate">
+                            {!schedule.isAllDay && (
+                              <span className="opacity-70">{formatTimeJST(new Date(schedule.startTime))} </span>
+                            )}
+                            <span className="font-medium">{schedule.title}</span>
+                          </div>
+                          {schedule.liverName && (
+                            <div className="text-[9px] opacity-70 truncate">{schedule.liverName}</div>
                           )}
                         </div>
                       );
                     })}
-                    {daySchedules.length > 3 && (
-                      <div className="text-[10px] text-gray-400 px-1">
-                        +{daySchedules.length - 3}件
-                      </div>
-                    )}
                   </div>
                 </div>
               );
             })}
           </div>
-        ))}
-      </div>
+
+          {/* Liver Legend */}
+          {liverColorMap.size > 0 && (
+            <div className="px-3 py-2 border-t bg-gray-50/50">
+              <div className="flex flex-wrap gap-x-3 gap-y-1">
+                {Array.from(liverColorMap.entries()).map(([name, color]) => (
+                  <div key={name} className="flex items-center gap-1">
+                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color.color }} />
+                    <span className="text-[10px] text-gray-600">{name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* === LIST VIEW === */}
+      {viewMode === 'list' && (
+        <div className="flex-1 overflow-y-auto">
+          {(() => {
+            // Generate all dates for current month
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const dates: string[] = [];
+            for (let d = 1; d <= daysInMonth; d++) {
+              dates.push(`${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
+            }
+            
+            // Only show dates that have schedules
+            const datesWithSchedules = dates.filter(dk => (schedulesByDate.get(dk) || []).length > 0);
+            
+            if (datesWithSchedules.length === 0) {
+              return (
+                <div className="flex items-center justify-center h-64 text-gray-400">
+                  この月の予定はありません
+                </div>
+              );
+            }
+            
+            return datesWithSchedules.map((dateKey) => {
+              const daySchedules = schedulesByDate.get(dateKey) || [];
+              const [, , dayStr] = dateKey.split("-");
+              const dateObj = new Date(dateKey + 'T00:00:00');
+              const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
+              const dayOfWeek = dateObj.getDay();
+              const isToday = dateKey === todayKey;
+              
+              return (
+                <div key={dateKey} className="border-b">
+                  {/* Date header */}
+                  <div className={cn(
+                    "sticky top-0 px-4 py-2 flex items-center gap-2",
+                    isToday ? "bg-blue-50" : "bg-gray-50"
+                  )}>
+                    <span className={cn(
+                      "w-8 h-8 flex items-center justify-center rounded-full text-sm font-bold",
+                      isToday && "bg-blue-500 text-white",
+                      !isToday && dayOfWeek === 0 && "text-red-500",
+                      !isToday && dayOfWeek === 6 && "text-blue-500"
+                    )}>
+                      {parseInt(dayStr)}
+                    </span>
+                    <span className={cn(
+                      "text-sm font-medium",
+                      dayOfWeek === 0 ? "text-red-500" : dayOfWeek === 6 ? "text-blue-500" : "text-gray-700"
+                    )}>
+                      {weekdays[dayOfWeek]}
+                    </span>
+                    <span className="text-xs text-gray-400">{daySchedules.length}件</span>
+                  </div>
+                  
+                  {/* Schedules */}
+                  <div className="px-4 py-1">
+                    {daySchedules.map((schedule) => {
+                      const liverColor = schedule.liverName 
+                        ? liverColorMap.get(schedule.liverName) 
+                        : categoryColors[schedule.category || "other"];
+                      return (
+                        <div
+                          key={`${schedule.id}-${dateKey}`}
+                          className="flex items-center gap-3 py-2 cursor-pointer hover:bg-gray-50 rounded-lg px-2 -mx-2"
+                          onClick={() => { setSelectedDate(dateKey); setSelectedSchedule(schedule); }}
+                        >
+                          {/* Time */}
+                          <div className="w-14 text-right text-xs text-gray-500 shrink-0">
+                            {schedule.isAllDay ? "終日" : formatTimeJST(new Date(schedule.startTime))}
+                          </div>
+                          
+                          {/* Color bar */}
+                          <div 
+                            className="w-1 self-stretch rounded-full min-h-[36px] shrink-0"
+                            style={{ backgroundColor: liverColor?.color || "#6B7280" }}
+                          />
+                          
+                          {/* Content */}
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm text-gray-900 truncate">{schedule.title}</div>
+                            {schedule.liverName && (
+                              <div className="text-xs text-gray-500 truncate">{schedule.liverName}</div>
+                            )}
+                          </div>
+                          
+                          {/* Liver avatar */}
+                          {schedule.liverName && (
+                            <div 
+                              className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                              style={{ backgroundColor: liverColor?.color || "#6B7280" }}
+                            >
+                              {schedule.liverName.charAt(0)}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            });
+          })()}
+        </div>
+      )}
 
       {/* Floating Add Button */}
       <button
@@ -1094,8 +1385,11 @@ export default function PublicSchedule() {
                       {/* Content */}
                       <div className="flex-1 min-w-0">
                         <h3 className="font-medium text-gray-900 truncate">{schedule.title}</h3>
+                        {schedule.liverName && (
+                          <p className="text-sm text-gray-500 truncate">{schedule.liverName}</p>
+                        )}
                         {schedule.description && (
-                          <p className="text-sm text-gray-500 truncate">{schedule.description}</p>
+                          <p className="text-xs text-gray-400 truncate">{schedule.description}</p>
                         )}
                       </div>
                       
