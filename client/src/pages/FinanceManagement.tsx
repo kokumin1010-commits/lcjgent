@@ -74,6 +74,9 @@ export default function FinanceManagement() {
   const paymentFileInputRef = useRef<HTMLInputElement>(null);
   const [deletePaymentId, setDeletePaymentId] = useState<number | null>(null);
   const [deletePaymentDialogOpen, setDeletePaymentDialogOpen] = useState(false);
+  const [smartUploadDialogOpen, setSmartUploadDialogOpen] = useState(false);
+  const [smartUploading, setSmartUploading] = useState(false);
+  const smartFileInputRef = useRef<HTMLInputElement>(null);
   const pageSize = 50;
 
   const monthOptions = useMemo(() => getMonthOptions(), []);
@@ -200,6 +203,44 @@ export default function FinanceManagement() {
     }
   };
 
+  // Smart CSV upload - auto-detect CSV type by headers
+  const handleSmartCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSmartUploading(true);
+    try {
+      const text = await file.text();
+      const firstLine = text.split(/\r?\n/)[0] || '';
+      
+      if (firstLine.includes('Reference ID') && firstLine.includes('Payment')) {
+        // Payment CSV detected
+        const arrayBuffer = await file.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+        uploadPaymentCsvMutation.mutate({ brandId: 0, csvContent: base64 });
+        setSmartUploadDialogOpen(false);
+      } else if (firstLine.includes('\u30b5\u30d6\u6ce8\u6587ID') || firstLine.includes('Sub Order ID')) {
+        // CAP/Commission CSV detected
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('brandId', '1');
+        const res = await fetch('/api/csv-upload', { method: 'POST', body: formData });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || 'Upload failed');
+        toast.success(`${result.importedRows}\u4ef6\u30a4\u30f3\u30dd\u30fc\u30c8\uff08${result.skippedRows}\u4ef6\u30b9\u30ad\u30c3\u30d7\uff09`);
+        summaryQuery.refetch();
+        importsQuery.refetch();
+        setSmartUploadDialogOpen(false);
+      } else {
+        toast.error('CSV\u306e\u5f62\u5f0f\u3092\u5224\u5225\u3067\u304d\u307e\u305b\u3093\u3002TikTok\u30b3\u30df\u30c3\u30b7\u30e7\u30f3CSV\u307e\u305f\u306f\u5165\u91d1CSV\u3092\u30a2\u30c3\u30d7\u30ed\u30fc\u30c9\u3057\u3066\u304f\u3060\u3055\u3044\u3002');
+      }
+    } catch (err: any) {
+      toast.error(`\u30a2\u30c3\u30d7\u30ed\u30fc\u30c9\u5931\u6557: ${err.message}`);
+    } finally {
+      setSmartUploading(false);
+      if (smartFileInputRef.current) smartFileInputRef.current.value = '';
+    }
+  };
+
   const summary = summaryQuery.data;
   const prevSummary = prevSummaryQuery.data;
   const creators = creatorsQuery.data || [];
@@ -286,7 +327,7 @@ export default function FinanceManagement() {
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={() => setUploadDialogOpen(true)} variant="outline">
+          <Button onClick={() => setSmartUploadDialogOpen(true)} variant="outline">
             <Upload className="h-4 w-4 mr-2" />
             CSVアップロード
           </Button>
@@ -1346,6 +1387,38 @@ export default function FinanceManagement() {
               className="w-full"
             />
             {paymentCsvUploading && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                アップロード中...
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Smart CSV Upload Dialog */}
+      <Dialog open={smartUploadDialogOpen} onOpenChange={setSmartUploadDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>CSVアップロード</DialogTitle>
+            <DialogDescription>
+              TikTokのCSVファイルをアップロードしてください。コミッションCSVまたは入金CSVを自動判別します。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <input
+              ref={smartFileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={handleSmartCsvUpload}
+              disabled={smartUploading}
+              className="w-full"
+            />
+            <div className="text-xs text-muted-foreground space-y-1">
+              <p>• コミッションCSV: 「サブ注文ID」ヘッダー含む</p>
+              <p>• 入金CSV: 「Reference ID」ヘッダー含む</p>
+            </div>
+            {smartUploading && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 アップロード中...

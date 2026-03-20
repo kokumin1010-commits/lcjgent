@@ -17153,6 +17153,8 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             csvText = csvText.slice(1);
           }
           csvText = csvText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+          // Clean tab characters that TikTok sometimes inserts between fields
+          csvText = csvText.replace(/\t,/g, ",").replace(/,\t/g, ",").replace(/\t/g, "");
           const lines = csvText.split("\n").filter(l => l.trim());
           
           if (lines.length < 2) {
