@@ -10895,6 +10895,22 @@ export async function getTiktokTapSummary(brandId: number = 0, month?: string) {
   }).from(tiktokTapReports)
     .where(conditions.length > 0 ? and(...conditions) : undefined);
   
+  // CAPデータからLCJ手数料を突合
+  const capConditions: string[] = [];
+  if (brandId > 0) capConditions.push(`brandId = ${brandId}`);
+  if (month) capConditions.push(`DATE_FORMAT(orderCreatedAt, '%Y-%m') = '${month}'`);
+  const capWhere = capConditions.length > 0 ? `WHERE ${capConditions.join(' AND ')}` : '';
+  const capResult = await db.execute(sql.raw(
+    `SELECT COALESCE(SUM(CAST(actualPartnerCommission AS DECIMAL(20,2))), 0) as capLcjCommission,
+            COALESCE(SUM(CAST(actualCreatorCommission AS DECIMAL(20,2))), 0) as capCreatorCommission
+     FROM tiktok_commission_orders ${capWhere}`
+  ));
+  const capRow = (capResult as any)[0]?.[0] || (capResult as any).rows?.[0];
+  if (capRow && result[0]) {
+    (result[0] as any).totalActualPartnerCommission = Number(capRow.capLcjCommission) || 0;
+    (result[0] as any).totalActualCreatorCommission = Number(capRow.capCreatorCommission) || 0;
+  }
+  
   return result[0];
 }
 
@@ -10905,7 +10921,7 @@ export async function getTiktokTapCreatorSummary(brandId: number = 0, month?: st
   if (brandId > 0) conditions.push(eq(tiktokTapReports.brandId, brandId));
   if (month) conditions.push(eq(tiktokTapReports.reportMonth, month));
   
-  return db.select({
+  const tapData = await db.select({
     creatorUsername: tiktokTapReports.creatorUsername,
     totalAffiliateGmv: sql<number>`COALESCE(SUM(affiliateGmv), 0)`,
     totalVideoGmv: sql<number>`COALESCE(SUM(videoGmv), 0)`,
@@ -10921,6 +10937,27 @@ export async function getTiktokTapCreatorSummary(brandId: number = 0, month?: st
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .groupBy(tiktokTapReports.creatorUsername)
     .orderBy(sql`SUM(affiliateGmv) DESC`);
+  
+  // CAPデータからクリエイター別LCJ手数料を突合
+  const capConditions: string[] = [];
+  if (brandId > 0) capConditions.push(`brandId = ${brandId}`);
+  if (month) capConditions.push(`DATE_FORMAT(orderCreatedAt, '%Y-%m') = '${month}'`);
+  const capWhere = capConditions.length > 0 ? `WHERE ${capConditions.join(' AND ')}` : '';
+  const capResult = await db.execute(sql.raw(
+    `SELECT creatorUsername,
+            COALESCE(SUM(CAST(actualPartnerCommission AS DECIMAL(20,2))), 0) as capLcjCommission
+     FROM tiktok_commission_orders ${capWhere}
+     GROUP BY creatorUsername`
+  ));
+  const capMap = new Map<string, number>();
+  const capRows = (capResult as any)[0] || (capResult as any).rows || [];
+  for (const r of capRows) {
+    capMap.set(r.creatorUsername, Number(r.capLcjCommission) || 0);
+  }
+  return tapData.map(t => ({
+    ...t,
+    totalActualPartnerCommission: capMap.get(t.creatorUsername) || 0,
+  }));
 }
 
 export async function getTiktokTapShopSummary(brandId: number = 0, month?: string) {
@@ -10930,17 +10967,42 @@ export async function getTiktokTapShopSummary(brandId: number = 0, month?: strin
   if (brandId > 0) conditions.push(eq(tiktokTapReports.brandId, brandId));
   if (month) conditions.push(eq(tiktokTapReports.reportMonth, month));
   
-  return db.select({
+  const tapData = await db.select({
     shopName: tiktokTapReports.shopName,
     totalAffiliateGmv: sql<number>`COALESCE(SUM(affiliateGmv), 0)`,
     totalOrders: sql<number>`COALESCE(SUM(orders), 0)`,
     totalVideoViews: sql<number>`COALESCE(SUM(videoViews), 0)`,
     totalLiveViews: sql<number>`COALESCE(SUM(liveViews), 0)`,
+    totalLiveGmv: sql<number>`COALESCE(SUM(liveGmv), 0)`,
+    totalVideoGmv: sql<number>`COALESCE(SUM(videoGmv), 0)`,
     totalEstimatedPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
+    totalActualPartnerCommission: sql<number>`COALESCE(SUM(actualPartnerCommission), 0)`,
+    productCount: sql<number>`COUNT(DISTINCT productId)`,
   }).from(tiktokTapReports)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .groupBy(tiktokTapReports.shopName)
     .orderBy(sql`SUM(affiliateGmv) DESC`);
+  
+  // CAPデータからショップ別LCJ手数料を突合
+  const capConditions: string[] = [];
+  if (brandId > 0) capConditions.push(`brandId = ${brandId}`);
+  if (month) capConditions.push(`DATE_FORMAT(orderCreatedAt, '%Y-%m') = '${month}'`);
+  const capWhere = capConditions.length > 0 ? `WHERE ${capConditions.join(' AND ')}` : '';
+  const capResult = await db.execute(sql.raw(
+    `SELECT shopName,
+            COALESCE(SUM(CAST(actualPartnerCommission AS DECIMAL(20,2))), 0) as capLcjCommission
+     FROM tiktok_commission_orders ${capWhere}
+     GROUP BY shopName`
+  ));
+  const capMap = new Map<string, number>();
+  const capRows = (capResult as any)[0] || (capResult as any).rows || [];
+  for (const r of capRows) {
+    capMap.set(r.shopName, Number(r.capLcjCommission) || 0);
+  }
+  return tapData.map(t => ({
+    ...t,
+    totalActualPartnerCommission: capMap.get(t.shopName) || 0,
+  }));
 }
 
 export async function getTiktokTapMonthlySummary(brandId: number = 0) {
@@ -10949,7 +11011,7 @@ export async function getTiktokTapMonthlySummary(brandId: number = 0) {
   const conditions = [];
   if (brandId > 0) conditions.push(eq(tiktokTapReports.brandId, brandId));
   
-  return db.select({
+  const tapData = await db.select({
     reportMonth: tiktokTapReports.reportMonth,
     totalAffiliateGmv: sql<number>`COALESCE(SUM(affiliateGmv), 0)`,
     totalVideoGmv: sql<number>`COALESCE(SUM(videoGmv), 0)`,
@@ -10963,6 +11025,26 @@ export async function getTiktokTapMonthlySummary(brandId: number = 0) {
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .groupBy(tiktokTapReports.reportMonth)
     .orderBy(sql`reportMonth DESC`);
+  
+  // CAPデータから月別LCJ手数料を突合
+  const capConditions: string[] = [];
+  if (brandId > 0) capConditions.push(`brandId = ${brandId}`);
+  const capWhere = capConditions.length > 0 ? `WHERE ${capConditions.join(' AND ')}` : '';
+  const capResult = await db.execute(sql.raw(
+    `SELECT DATE_FORMAT(orderCreatedAt, '%Y-%m') as month,
+            COALESCE(SUM(CAST(actualPartnerCommission AS DECIMAL(20,2))), 0) as capLcjCommission
+     FROM tiktok_commission_orders ${capWhere}
+     GROUP BY month`
+  ));
+  const capMap = new Map<string, number>();
+  const capRows = (capResult as any)[0] || (capResult as any).rows || [];
+  for (const r of capRows) {
+    capMap.set(r.month, Number(r.capLcjCommission) || 0);
+  }
+  return tapData.map(t => ({
+    ...t,
+    totalActualPartnerCommission: capMap.get(t.reportMonth) || 0,
+  }));
 }
 
 export async function getTiktokTapProductSummary(brandId: number = 0, month?: string) {
@@ -10972,7 +11054,7 @@ export async function getTiktokTapProductSummary(brandId: number = 0, month?: st
   if (brandId > 0) conditions.push(eq(tiktokTapReports.brandId, brandId));
   if (month) conditions.push(eq(tiktokTapReports.reportMonth, month));
   
-  return db.select({
+  const tapData = await db.select({
     productId: tiktokTapReports.productId,
     productName: tiktokTapReports.productName,
     totalAffiliateGmv: sql<number>`COALESCE(SUM(affiliateGmv), 0)`,
@@ -10981,10 +11063,32 @@ export async function getTiktokTapProductSummary(brandId: number = 0, month?: st
     totalVideoViews: sql<number>`COALESCE(SUM(videoViews), 0)`,
     totalLiveViews: sql<number>`COALESCE(SUM(liveViews), 0)`,
     totalEstimatedPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
+    totalActualPartnerCommission: sql<number>`COALESCE(SUM(actualPartnerCommission), 0)`,
   }).from(tiktokTapReports)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .groupBy(tiktokTapReports.productId, tiktokTapReports.productName)
     .orderBy(sql`SUM(affiliateGmv) DESC`);
+  
+  // CAPデータから商品別LCJ手数料を突合
+  const capConditions: string[] = [];
+  if (brandId > 0) capConditions.push(`brandId = ${brandId}`);
+  if (month) capConditions.push(`DATE_FORMAT(orderCreatedAt, '%Y-%m') = '${month}'`);
+  const capWhere = capConditions.length > 0 ? `WHERE ${capConditions.join(' AND ')}` : '';
+  const capResult = await db.execute(sql.raw(
+    `SELECT productId,
+            COALESCE(SUM(CAST(actualPartnerCommission AS DECIMAL(20,2))), 0) as capLcjCommission
+     FROM tiktok_commission_orders ${capWhere}
+     GROUP BY productId`
+  ));
+  const capMap = new Map<string, number>();
+  const capRows = (capResult as any)[0] || (capResult as any).rows || [];
+  for (const r of capRows) {
+    capMap.set(String(r.productId), Number(r.capLcjCommission) || 0);
+  }
+  return tapData.map(t => ({
+    ...t,
+    totalActualPartnerCommission: capMap.get(t.productId) || 0,
+  }));
 }
 
 export async function deleteTiktokTapReportsByMonth(brandId: number, reportMonth: string) {
