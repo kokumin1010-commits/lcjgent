@@ -51,7 +51,7 @@ function getPrevMonth(month: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-type TabType = 'dashboard' | 'creators' | 'shops' | 'products' | 'daily' | 'monthly' | 'orders' | 'imports';
+type TabType = 'dashboard' | 'creators' | 'shops' | 'products' | 'daily' | 'monthly' | 'orders' | 'imports' | 'payments';
 
 export default function FinanceManagement() {
   const [, navigate] = useLocation();
@@ -135,7 +135,7 @@ export default function FinanceManagement() {
   );
   const paymentsByMonthQuery = trpc.tiktokFinance.getPaymentsByMonth.useQuery(
     { brandId: 0 },
-    { enabled: activeTab === 'monthly' || activeTab === 'dashboard' }
+    { enabled: activeTab === 'monthly' || activeTab === 'dashboard' || activeTab === 'payments' }
   );
   const paymentsListQuery = trpc.tiktokFinance.getPaymentsList.useQuery(
     { brandId: 0 },
@@ -258,6 +258,7 @@ export default function FinanceManagement() {
     { key: 'monthly', label: '月推移', icon: TrendingUp },
     { key: 'orders', label: '注文明細', icon: ShoppingCart },
     { key: 'imports', label: 'インポート', icon: FileText },
+    { key: 'payments', label: '入金月別', icon: Wallet },
   ];
 
   return (
@@ -415,18 +416,23 @@ export default function FinanceManagement() {
 
               {/* Payment & Commission Rate Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="border-l-4 border-l-indigo-500">
+                <Card className="border-l-4 border-l-indigo-500 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setActiveTab('payments')}>
                   <CardContent className="pt-4 pb-3">
-                    <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-                      <Wallet className="h-3.5 w-3.5" />
-                      入金額（実績）
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
+                          <Wallet className="h-3.5 w-3.5" />
+                          入金額（実績）
+                        </div>
+                        <p className="text-xl font-bold text-indigo-600">
+                          {paymentSummaryQuery.data ? formatCurrency(paymentSummaryQuery.data.totalPaymentAmount) : '未登録'}
+                        </p>
+                        {paymentSummaryQuery.data && (
+                          <p className="text-xs text-muted-foreground mt-1">{paymentSummaryQuery.data.paymentCount}件の入金</p>
+                        )}
+                      </div>
+                      <ChevronRight className="h-5 w-5 text-muted-foreground" />
                     </div>
-                    <p className="text-xl font-bold text-indigo-600">
-                      {paymentSummaryQuery.data ? formatCurrency(paymentSummaryQuery.data.totalPaymentAmount) : '未登録'}
-                    </p>
-                    {paymentSummaryQuery.data && (
-                      <p className="text-xs text-muted-foreground mt-1">{paymentSummaryQuery.data.totalPayments}件の入金</p>
-                    )}
                   </CardContent>
                 </Card>
                 <Card className="border-l-4 border-l-cyan-500">
@@ -1202,6 +1208,82 @@ export default function FinanceManagement() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* Payments Tab - 入金月別 */}
+      {activeTab === 'payments' && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Wallet className="h-4 w-4" />
+                入金月別推移
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-muted-foreground">
+                  合計: <span className="font-bold text-indigo-600">{formatCurrency((paymentsByMonthQuery.data || []).reduce((s: number, p: any) => s + Number(p.totalPaymentAmount), 0))}</span>
+                  <span className="ml-2">({(paymentsByMonthQuery.data || []).reduce((s: number, p: any) => s + Number(p.paymentCount), 0)}件)</span>
+                </p>
+                <Button variant="ghost" size="sm" onClick={() => setActiveTab('dashboard')}>
+                  <ChevronLeft className="h-3 w-3 mr-1" /> ダッシュボードに戻る
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {paymentsByMonthQuery.isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : !paymentsByMonthQuery.data || paymentsByMonthQuery.data.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">入金データがありません</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="text-left py-3 px-4 font-medium">月</th>
+                      <th className="text-right py-3 px-4 font-medium">入金額</th>
+                      <th className="text-right py-3 px-4 font-medium">件数</th>
+                      <th className="text-right py-3 px-4 font-medium">前月比</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...(paymentsByMonthQuery.data || [])].reverse().map((pm: any, idx: number, arr: any[]) => {
+                      const prevMonth = arr[idx + 1];
+                      const change = prevMonth ? getChangePercent(Number(pm.totalPaymentAmount), Number(prevMonth.totalPaymentAmount)) : null;
+                      return (
+                        <tr key={pm.month} className="border-b hover:bg-muted/50">
+                          <td className="py-3 px-4 font-medium">{pm.month}</td>
+                          <td className="py-3 px-4 text-right font-semibold text-indigo-600">{formatCurrency(pm.totalPaymentAmount)}</td>
+                          <td className="py-3 px-4 text-right">{formatNumber(pm.paymentCount)}件</td>
+                          <td className="py-3 px-4 text-right">
+                            {change ? (
+                              <span className={`inline-flex items-center gap-1 ${change.isUp ? 'text-green-600' : 'text-red-600'}`}>
+                                {change.isUp ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                                {change.value.toFixed(1)}%
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-muted/30 font-semibold">
+                      <td className="py-3 px-4">合計</td>
+                      <td className="py-3 px-4 text-right text-indigo-600">{formatCurrency((paymentsByMonthQuery.data || []).reduce((s: number, p: any) => s + Number(p.totalPaymentAmount), 0))}</td>
+                      <td className="py-3 px-4 text-right">{formatNumber((paymentsByMonthQuery.data || []).reduce((s: number, p: any) => s + Number(p.paymentCount), 0))}件</td>
+                      <td className="py-3 px-4"></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {/* Upload Dialog */}
