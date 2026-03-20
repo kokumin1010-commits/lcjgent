@@ -10766,16 +10766,24 @@ export async function getTiktokPaymentsSummary(brandId: number = 0) {
 export async function getTiktokPaymentsByMonth(brandId: number = 0) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const conditions: any[] = [isNotNull(tiktokPayments.paymentTime)];
-  if (brandId > 0) conditions.push(eq(tiktokPayments.brandId, brandId));
-  return db.select({
-    month: sql<string>`DATE_FORMAT(${tiktokPayments.paymentTime}, '%Y-%m')`,
-    totalPaymentAmount: sql<number>`COALESCE(SUM(${tiktokPayments.paymentAmount}), 0)`,
-    paymentCount: sql<number>`COUNT(*)`,
-  }).from(tiktokPayments)
-    .where(and(...conditions))
-    .groupBy(sql`DATE_FORMAT(${tiktokPayments.paymentTime}, '%Y-%m')`)
-    .orderBy(sql`DATE_FORMAT(${tiktokPayments.paymentTime}, '%Y-%m')`);
+  const brandFilter = brandId > 0 ? sql`AND brandId = ${brandId}` : sql``;
+  const result = await db.execute(sql`
+    SELECT 
+      DATE_FORMAT(paymentTime, '%Y-%m') as month,
+      COALESCE(SUM(paymentAmount), 0) as totalPaymentAmount,
+      COUNT(*) as paymentCount
+    FROM tiktok_payments
+    WHERE paymentTime IS NOT NULL ${brandFilter}
+    GROUP BY DATE_FORMAT(paymentTime, '%Y-%m')
+    ORDER BY DATE_FORMAT(paymentTime, '%Y-%m')
+  `);
+  // mysql2 returns [rows, fields]
+  const rows = Array.isArray(result) && Array.isArray(result[0]) ? result[0] : result;
+  return (rows as any[]).map((r: any) => ({
+    month: r.month as string,
+    totalPaymentAmount: Number(r.totalPaymentAmount),
+    paymentCount: Number(r.paymentCount),
+  }));
 }
 
 export async function getTiktokPaymentsList(brandId: number = 0) {
