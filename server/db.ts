@@ -10857,6 +10857,11 @@ export async function bulkInsertTiktokTapReports(reports: InsertTiktokTapReport[
         actualPartnerCommission: sql`VALUES(actualPartnerCommission)`,
         estimatedCreatorCommission: sql`VALUES(estimatedCreatorCommission)`,
         actualCreatorCommission: sql`VALUES(actualCreatorCommission)`,
+        showcaseProducts: sql`VALUES(showcaseProducts)`,
+        linkSalesCount: sql`VALUES(linkSalesCount)`,
+        linkOrders: sql`VALUES(linkOrders)`,
+        linkEstimatedPartnerCommission: sql`VALUES(linkEstimatedPartnerCommission)`,
+        linkEstimatedCreatorCommission: sql`VALUES(linkEstimatedCreatorCommission)`,
       },
     });
     insertedCount += batch.length;
@@ -10872,7 +10877,7 @@ export async function getTiktokTapSummary(brandId: number = 0, month?: string) {
   if (month) conditions.push(eq(tiktokTapReports.reportMonth, month));
   
   const result = await db.select({
-    totalGmv: sql<number>`COALESCE(SUM(affiliateGmv), 0)`,
+    totalAffiliateGmv: sql<number>`COALESCE(SUM(affiliateGmv), 0)`,
     totalVideoGmv: sql<number>`COALESCE(SUM(videoGmv), 0)`,
     totalLiveGmv: sql<number>`COALESCE(SUM(liveGmv), 0)`,
     totalOrders: sql<number>`COALESCE(SUM(orders), 0)`,
@@ -10902,7 +10907,7 @@ export async function getTiktokTapCreatorSummary(brandId: number = 0, month?: st
   
   return db.select({
     creatorUsername: tiktokTapReports.creatorUsername,
-    totalGmv: sql<number>`COALESCE(SUM(affiliateGmv), 0)`,
+    totalAffiliateGmv: sql<number>`COALESCE(SUM(affiliateGmv), 0)`,
     totalVideoGmv: sql<number>`COALESCE(SUM(videoGmv), 0)`,
     totalLiveGmv: sql<number>`COALESCE(SUM(liveGmv), 0)`,
     totalOrders: sql<number>`COALESCE(SUM(orders), 0)`,
@@ -10927,7 +10932,7 @@ export async function getTiktokTapShopSummary(brandId: number = 0, month?: strin
   
   return db.select({
     shopName: tiktokTapReports.shopName,
-    totalGmv: sql<number>`COALESCE(SUM(affiliateGmv), 0)`,
+    totalAffiliateGmv: sql<number>`COALESCE(SUM(affiliateGmv), 0)`,
     totalOrders: sql<number>`COALESCE(SUM(orders), 0)`,
     totalVideoViews: sql<number>`COALESCE(SUM(videoViews), 0)`,
     totalLiveViews: sql<number>`COALESCE(SUM(liveViews), 0)`,
@@ -10945,8 +10950,8 @@ export async function getTiktokTapMonthlySummary(brandId: number = 0) {
   if (brandId > 0) conditions.push(eq(tiktokTapReports.brandId, brandId));
   
   return db.select({
-    month: tiktokTapReports.reportMonth,
-    totalGmv: sql<number>`COALESCE(SUM(affiliateGmv), 0)`,
+    reportMonth: tiktokTapReports.reportMonth,
+    totalAffiliateGmv: sql<number>`COALESCE(SUM(affiliateGmv), 0)`,
     totalVideoGmv: sql<number>`COALESCE(SUM(videoGmv), 0)`,
     totalLiveGmv: sql<number>`COALESCE(SUM(liveGmv), 0)`,
     totalOrders: sql<number>`COALESCE(SUM(orders), 0)`,
@@ -10970,7 +10975,7 @@ export async function getTiktokTapProductSummary(brandId: number = 0, month?: st
   return db.select({
     productId: tiktokTapReports.productId,
     productName: tiktokTapReports.productName,
-    totalGmv: sql<number>`COALESCE(SUM(affiliateGmv), 0)`,
+    totalAffiliateGmv: sql<number>`COALESCE(SUM(affiliateGmv), 0)`,
     totalOrders: sql<number>`COALESCE(SUM(orders), 0)`,
     totalSalesCount: sql<number>`COALESCE(SUM(salesCount), 0)`,
     totalVideoViews: sql<number>`COALESCE(SUM(videoViews), 0)`,
@@ -10999,13 +11004,13 @@ export async function getTiktokTapAvailableMonths(brandId: number = 0) {
   const conditions = [];
   if (brandId > 0) conditions.push(eq(tiktokTapReports.brandId, brandId));
   
-  const result = await db.selectDistinct({
-    month: tiktokTapReports.reportMonth,
+  return db.select({
+    reportMonth: tiktokTapReports.reportMonth,
+    recordCount: sql<number>`COUNT(*)`,
   }).from(tiktokTapReports)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .groupBy(tiktokTapReports.reportMonth)
     .orderBy(sql`reportMonth DESC`);
-  
-  return result.map(r => r.month);
 }
 
 // ============================================

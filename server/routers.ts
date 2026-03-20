@@ -17287,50 +17287,62 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
             throw new Error('TAPデータが空です');
           }
           
+          // Helper: parse Japanese yen formatted numbers (e.g., "6,659,954円" → 6659954)
+          const parseNum = (val: any): number => {
+            if (val === '' || val === null || val === undefined) return 0;
+            if (typeof val === 'number') return Math.round(val);
+            const str = String(val).replace(/[¥,$%円,]/g, '').trim();
+            const num = parseFloat(str);
+            return isNaN(num) ? 0 : Math.round(num);
+          };
+          
           // Parse rows into TAP reports
           const reports: any[] = [];
           for (const row of rows) {
-            const creatorUsername = String(row['Creator username'] || row['クリエイターユーザー名'] || '').trim();
-            const productName = String(row['Product name'] || row['商品名'] || '').trim();
-            const shopName = String(row['Shop name'] || row['ショップ名'] || '').trim();
-            const productId = String(row['Product ID'] || row['商品ID'] || '').trim();
+            // Skip summary row (日付 = "概要")
+            const dateVal = String(row['日付'] || row['Date'] || '').trim();
+            if (dateVal === '概要' || dateVal === 'Summary' || dateVal === '') continue;
+            
+            // Support both Japanese and English headers
+            const creatorUsername = String(row['クリエイター名'] || row['Creator username'] || row['Creator name'] || '').trim();
+            const productName = String(row['商品名'] || row['Product name'] || '').trim();
+            const shopName = String(row['ショップ名'] || row['Shop name'] || '').trim();
+            const productId = String(row['商品ID'] || row['Product ID'] || '').trim();
+            const shopId = String(row['ショップID'] || row['Shop ID'] || '').trim();
             
             if (!creatorUsername && !productName) continue;
-            
-            const parseNum = (val: any): number => {
-              if (val === '' || val === null || val === undefined) return 0;
-              const str = String(val).replace(/[¥,$%,]/g, '').trim();
-              const num = parseFloat(str);
-              return isNaN(num) ? 0 : Math.round(num);
-            };
             
             reports.push({
               brandId: input.brandId,
               reportMonth: input.reportMonth,
+              dateRange: dateVal, // e.g., "2025-10-01-2025-10-31"
               creatorUsername,
               productId,
               productName,
+              shopId,
               shopName,
-              affiliateGmv: parseNum(row['Affiliate GMV'] || row['アフィリエイトGMV']),
-              videoGmv: parseNum(row['Video GMV'] || row['動画GMV']),
-              liveGmv: parseNum(row['LIVE GMV'] || row['ライブGMV']),
-              gmvRefund: parseNum(row['GMV refund'] || row['GMV返金']),
-              settledGmv: parseNum(row['Settled GMV'] || row['確定GMV']),
-              showcaseRevenue: parseNum(row['Showcase revenue'] || row['ショーケース収益']),
-              linkGmv: parseNum(row['Link GMV'] || row['リンクGMV']),
-              orders: parseNum(row['Orders'] || row['注文数']),
-              salesCount: parseNum(row['Sales count'] || row['販売数']),
-              videoViews: parseNum(row['Video views'] || row['動画視聴数']),
-              liveViews: parseNum(row['LIVE views'] || row['ライブ視聴数']),
-              liveCount: parseNum(row['LIVE count'] || row['ライブ回数']),
-              videoCount: parseNum(row['Video count'] || row['動画数']),
-              estimatedPartnerCommission: parseNum(row['Estimated partner commission'] || row['推定パートナーコミッション']),
-              actualPartnerCommission: parseNum(row['Actual partner commission'] || row['実績パートナーコミッション']),
-              estimatedCreatorCommission: parseNum(row['Estimated creator commission'] || row['推定クリエイターコミッション']),
-              actualCreatorCommission: parseNum(row['Actual creator commission'] || row['実績クリエイターコミッション']),
-              source: 'TAP',
-              uploadedBy: ctx.user.id,
-              uploadedByName: ctx.user.name || ctx.user.email,
+              affiliateGmv: parseNum(row['アフィリエイトGMV'] || row['Affiliate GMV']),
+              videoGmv: parseNum(row['アフィリエイト動画GMV'] || row['Video GMV']),
+              liveGmv: parseNum(row['アフィリエイトLIVE GMV'] || row['LIVE GMV']),
+              gmvRefund: parseNum(row['GMV（返金）'] || row['GMV refund']),
+              settledGmv: parseNum(row['決済済みGMV'] || row['Settled GMV']),
+              showcaseRevenue: parseNum(row['収益（ショーケース）'] || row['Showcase revenue']),
+              linkGmv: parseNum(row['リンクGMV'] || row['Link GMV']),
+              orders: parseNum(row['注文'] || row['Orders']),
+              salesCount: parseNum(row['販売数'] || row['Sales count']),
+              videoViews: parseNum(row['動画視聴数'] || row['Video views']),
+              liveViews: parseNum(row['LIVE視聴数'] || row['LIVE views']),
+              liveCount: parseNum(row['LIVE'] || row['LIVE count']),
+              videoCount: parseNum(row['動画'] || row['Video count']),
+              showcaseProducts: parseNum(row['ショーケースに追加した商品'] || row['Showcase products']),
+              estimatedPartnerCommission: parseNum(row['推定アフィリエイトパートナー手数料額'] || row['Estimated partner commission']),
+              actualPartnerCommission: parseNum(row['実際のアフィリエイトパートナー手数料額'] || row['Actual partner commission']),
+              estimatedCreatorCommission: parseNum(row['クリエイターの推定成果報酬額'] || row['Estimated creator commission']),
+              actualCreatorCommission: parseNum(row['クリエイターの実際の手数料額'] || row['Actual creator commission']),
+              linkSalesCount: parseNum(row['リンクでの商品販売数'] || row['Link sales count']),
+              linkOrders: parseNum(row['リンク注文数'] || row['Link orders']),
+              linkEstimatedPartnerCommission: parseNum(row['リンクパートナーの推定成果報酬額'] || row['Link estimated partner commission']),
+              linkEstimatedCreatorCommission: parseNum(row['リンククリエイターの推定成果報酬額'] || row['Link estimated creator commission']),
             });
           }
           
