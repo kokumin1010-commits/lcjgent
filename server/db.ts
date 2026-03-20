@@ -10766,13 +10766,14 @@ export async function getTiktokPaymentsSummary(brandId: number = 0) {
 export async function getTiktokPaymentsByMonth(brandId: number = 0) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const conditions = brandId > 0 ? [eq(tiktokPayments.brandId, brandId)] : [];
+  const conditions: any[] = [isNotNull(tiktokPayments.paymentTime)];
+  if (brandId > 0) conditions.push(eq(tiktokPayments.brandId, brandId));
   return db.select({
     month: sql<string>`DATE_FORMAT(${tiktokPayments.paymentTime}, '%Y-%m')`,
     totalPaymentAmount: sql<number>`COALESCE(SUM(${tiktokPayments.paymentAmount}), 0)`,
     paymentCount: sql<number>`COUNT(*)`,
   }).from(tiktokPayments)
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .where(and(...conditions))
     .groupBy(sql`DATE_FORMAT(${tiktokPayments.paymentTime}, '%Y-%m')`)
     .orderBy(sql`DATE_FORMAT(${tiktokPayments.paymentTime}, '%Y-%m')`);
 }
