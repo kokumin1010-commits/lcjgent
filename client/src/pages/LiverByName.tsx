@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, TrendingUp, Clock, Calendar, DollarSign, Users, Eye, ShoppingCart, MousePointer, ChevronRight, ImageOff, BarChart3, Search, X } from "lucide-react";
+import { ArrowLeft, TrendingUp, Clock, Calendar, DollarSign, Users, Eye, ShoppingCart, MousePointer, ChevronRight, ImageOff, BarChart3, Search, X, AlertTriangle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   BarChart,
@@ -135,6 +135,24 @@ export default function LiverByName() {
     const month = parseInt(date.toLocaleDateString('ja-JP', { ...options, month: 'numeric' }));
     const day = parseInt(date.toLocaleDateString('ja-JP', { ...options, day: 'numeric' }));
     return `${month}/${day}`;
+  };
+
+  // 整合性チェック: 開始〜終了時刻から計算した配信時間とCSVのdurationを比較
+  const checkDataIntegrity = (livestream: any) => {
+    if (!livestream.livestreamDate || !livestream.livestreamEndTime || !livestream.duration) return null;
+    const start = new Date(livestream.livestreamDate);
+    const end = new Date(livestream.livestreamEndTime);
+    const calcMins = Math.round((end.getTime() - start.getTime()) / 60000);
+    const diff = Math.abs(calcMins - livestream.duration);
+    if (diff > 30) {
+      return {
+        csvDuration: livestream.duration,
+        calcDuration: calcMins,
+        diff,
+        message: `開始〜終了: ${Math.floor(calcMins/60)}h${calcMins%60}m / CSV: ${Math.floor(livestream.duration/60)}h${livestream.duration%60}m（差${diff}分）`
+      };
+    }
+    return null;
   };
 
   const formatTimeRange = (livestream: any) => {
@@ -495,12 +513,18 @@ export default function LiverByName() {
         {/* Livestream History */}
         <Card className="bg-gray-900/50 border-gray-800">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
+            <CardTitle className="flex items-center gap-2 text-lg flex-wrap">
               <Calendar className="w-5 h-5 text-green-500" />
               {tr.livestreamHistory}
               <span className="text-sm text-white ml-2">
                 ({data?.livestreams?.length || 0} {tr.livestreams})
               </span>
+              {data?.livestreams && data.livestreams.filter(l => checkDataIntegrity(l)).length > 0 && (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-900/50 text-orange-400 text-xs">
+                  <AlertTriangle className="w-3 h-3" />
+                  {data.livestreams.filter(l => checkDataIntegrity(l)).length}件 要確認
+                </span>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -509,7 +533,7 @@ export default function LiverByName() {
                 {data.livestreams.map((livestream) => (
                   <div 
                     key={livestream.id} 
-                    className="rounded-lg bg-gray-800/50 border border-gray-700/50 hover:border-gray-600/50 transition-colors cursor-pointer overflow-hidden"
+                    className={`rounded-lg bg-gray-800/50 border transition-colors cursor-pointer overflow-hidden ${checkDataIntegrity(livestream) ? 'border-orange-500/60 hover:border-orange-400/80' : 'border-gray-700/50 hover:border-gray-600/50'}`}
                     onClick={() => navigate(`/livestreams/${livestream.id}`)}
                   >
                     <div className="flex">
@@ -582,10 +606,20 @@ export default function LiverByName() {
                           </div>
                           
                           <div className="flex items-center gap-2">
-                            <Clock className="w-4 h-4 text-blue-500" />
+                            <Clock className={`w-4 h-4 ${checkDataIntegrity(livestream) ? 'text-orange-500' : 'text-blue-500'}`} />
                             <div>
-                              <p className="text-xs text-white">{tr.duration}</p>
-                              <p className="font-medium text-blue-400">{formatDuration(livestream.duration)}</p>
+                              <p className="text-xs text-white flex items-center gap-1">
+                                {tr.duration}
+                                {checkDataIntegrity(livestream) && (
+                                  <span className="relative group">
+                                    <AlertTriangle className="w-3 h-3 text-orange-400 animate-pulse cursor-help" />
+                                    <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-orange-900/95 text-orange-200 text-[10px] rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none">
+                                      {checkDataIntegrity(livestream)?.message}
+                                    </span>
+                                  </span>
+                                )}
+                              </p>
+                              <p className={`font-medium ${checkDataIntegrity(livestream) ? 'text-orange-400' : 'text-blue-400'}`}>{formatDuration(livestream.duration)}</p>
                             </div>
                           </div>
                           
