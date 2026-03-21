@@ -62,6 +62,13 @@ export default function LiverSampleRequest() {
   const isAuthenticated = !!token || !!meQuery.data;
   const isCheckingAuth = meQuery.isLoading;
 
+  // Auto-redirect to login if not authenticated (must be before any conditional returns)
+  useEffect(() => {
+    if (!isCheckingAuth && !isAuthenticated) {
+      navigate("/liver/login?redirect=/liver/sample-request");
+    }
+  }, [isCheckingAuth, isAuthenticated, navigate]);
+
   // Create form state
   const [scheduledDate, setScheduledDate] = useState("");
   const [postalCode, setPostalCode] = useState("");
@@ -220,23 +227,8 @@ export default function LiverSampleRequest() {
     cancelled: { label: "キャンセル", color: "bg-gray-600", icon: XCircle },
   };
 
-  // Show loading while checking auth
-  if (isCheckingAuth) {
-    return (
-      <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-2 border-white border-t-transparent rounded-full" />
-      </div>
-    );
-  }
-
-  // If not authenticated, auto-redirect to login with return URL
-  useEffect(() => {
-    if (!isCheckingAuth && !isAuthenticated) {
-      navigate("/liver/login?redirect=/liver/sample-request");
-    }
-  }, [isCheckingAuth, isAuthenticated, navigate]);
-
-  if (!isAuthenticated) {
+  // Show loading while checking auth, or spinner while redirecting to login
+  if (isCheckingAuth || !isAuthenticated) {
     return (
       <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
         <div className="animate-spin w-8 h-8 border-2 border-white border-t-transparent rounded-full" />
