@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, TrendingUp, Clock, Calendar, DollarSign, Users, Eye, ShoppingCart, MousePointer, ChevronRight, ImageOff, BarChart3 } from "lucide-react";
+import { ArrowLeft, TrendingUp, Clock, Calendar, DollarSign, Users, Eye, ShoppingCart, MousePointer, ChevronRight, ImageOff, BarChart3, Search, X } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   BarChart,
@@ -50,6 +50,7 @@ export default function LiverByName() {
   }, []);
   
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].value);
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   
   const { data, isLoading } = trpc.liverManagement.getLivestreamsByStreamerName.useQuery({
     streamerName: decodedName,
@@ -136,20 +137,29 @@ export default function LiverByName() {
     return `${month}/${day}`;
   };
 
-  const formatStartTime = (livestream: any) => {
-    // livestreamStartTimeフィールドがある場合はそれを使用（例: "14:30"）
+  const formatTimeRange = (livestream: any) => {
+    const options: Intl.DateTimeFormatOptions = { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit', hour12: false };
+    
+    // 開始時間を取得
+    let startTime: string | null = null;
     if (livestream.livestreamStartTime) {
-      return livestream.livestreamStartTime;
-    }
-    // なければlivestreamDateの時間部分を使用
-    if (livestream.livestreamDate) {
+      startTime = livestream.livestreamStartTime;
+    } else if (livestream.livestreamDate) {
       const date = new Date(livestream.livestreamDate);
-      const options: Intl.DateTimeFormatOptions = { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit', hour12: false };
       const time = date.toLocaleTimeString('ja-JP', options);
-      // 00:00の場合は時間情報がないとみなして非表示
-      if (time === '00:00') return null;
-      return time;
+      if (time !== '00:00') startTime = time;
     }
+    
+    // 終了時間を取得
+    let endTime: string | null = null;
+    if (livestream.livestreamEndTime) {
+      const endDate = new Date(livestream.livestreamEndTime);
+      endTime = endDate.toLocaleTimeString('ja-JP', options);
+    }
+    
+    if (!startTime && !endTime) return null;
+    if (startTime && endTime) return `${startTime} - ${endTime}`;
+    if (startTime) return startTime;
     return null;
   };
 
@@ -504,25 +514,33 @@ export default function LiverByName() {
                   >
                     <div className="flex">
                       {/* Left: Screenshot Thumbnail */}
-                      <div className="flex-shrink-0 w-28 sm:w-36 md:w-44 relative max-h-[160px] overflow-hidden">
+                      <div className="flex-shrink-0 w-28 sm:w-36 md:w-44 relative max-h-[160px] overflow-hidden group">
                         {(livestream as any).screenshotUrl ? (
-                          <img 
-                            src={(livestream as any).screenshotUrl} 
-                            alt="配信スクリーンショット"
-                            className="w-full h-full object-cover object-top min-h-[120px] max-h-[160px]"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = 'none';
-                              const parent = target.parentElement;
-                              if (parent) {
-                                parent.classList.add('flex', 'items-center', 'justify-center', 'bg-gray-700/50');
-                                const placeholder = document.createElement('div');
-                                placeholder.className = 'text-center p-2';
-                                placeholder.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mx-auto mb-1 text-gray-500"><line x1="2" y1="2" x2="22" y2="22"></line><rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="m21 15-5-5L5 21"></path></svg><span class="text-xs text-gray-500 block">No Image</span>`;
-                                parent.appendChild(placeholder);
-                              }
-                            }}
-                          />
+                          <>
+                            <img 
+                              src={(livestream as any).screenshotUrl} 
+                              alt="配信スクリーンショット"
+                              className="w-full h-full object-cover object-top min-h-[120px] max-h-[160px]"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                                const parent = target.parentElement;
+                                if (parent) {
+                                  const nextSib = parent.nextElementSibling;
+                                  if (nextSib) nextSib.remove();
+                                }
+                              }}
+                            />
+                            <div 
+                              className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-zoom-in"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setZoomedImage((livestream as any).screenshotUrl);
+                              }}
+                            >
+                              <Search className="w-6 h-6 text-white drop-shadow-lg" />
+                            </div>
+                          </>
                         ) : (
                           <div className="w-full h-full min-h-[120px] max-h-[160px] bg-gray-700/50 flex items-center justify-center">
                             <div className="text-center p-2">
@@ -539,8 +557,8 @@ export default function LiverByName() {
                           <div className="flex items-center gap-2">
                             <Calendar className="w-4 h-4 text-white" />
                             <span className="font-medium text-white">{formatDate(livestream.livestreamDate)}</span>
-                            {formatStartTime(livestream) && (
-                              <span className="text-xs text-white/60">{formatStartTime(livestream)}</span>
+                            {formatTimeRange(livestream) && (
+                              <span className="text-xs text-white/60">{formatTimeRange(livestream)}</span>
                             )}
                           </div>
                           {livestream.result && (
@@ -617,6 +635,27 @@ export default function LiverByName() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Image Zoom Modal */}
+      {zoomedImage && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setZoomedImage(null)}
+        >
+          <button
+            className="absolute top-4 right-4 text-white/80 hover:text-white z-50 bg-black/50 rounded-full p-2"
+            onClick={() => setZoomedImage(null)}
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img 
+            src={zoomedImage} 
+            alt="拡大表示"
+            className="max-w-full max-h-full object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }
