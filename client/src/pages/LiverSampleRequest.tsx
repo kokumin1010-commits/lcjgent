@@ -29,6 +29,10 @@ import {
   TrendingUp,
   Truck,
   ShoppingBag,
+  ChevronDown,
+  ChevronUp,
+  History,
+  BarChart3,
 } from "lucide-react";
 
 // Types
@@ -48,6 +52,12 @@ const RANK_CONFIG = {
   black: { label: "BLACK", color: "bg-gradient-to-r from-gray-900 to-black border border-purple-500", icon: "🖤", textColor: "text-purple-400" },
 };
 
+// 月表示のフォーマット
+function formatMonth(month: string): string {
+  const [y, m] = month.split("-");
+  return `${y}年${parseInt(m)}月`;
+}
+
 export default function LiverSampleRequest() {
   const [, navigate] = useLocation();
   const token = getLiverToken();
@@ -55,16 +65,14 @@ export default function LiverSampleRequest() {
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
 
   // Use liver.me to verify actual authentication (server-side check)
-  // IMPORTANT: Only trust meQuery.data, not just the presence of a token
-  // A token in localStorage might be invalid, expired, or belong to a different user type
   const meQuery = trpc.liver.me.useQuery(undefined, {
     retry: false,
-    staleTime: 0, // Always recheck auth
+    staleTime: 0,
   });
   const isAuthenticated = !!meQuery.data;
   const isCheckingAuth = meQuery.isLoading;
 
-  // Auto-redirect to login if not authenticated (must be before any conditional returns)
+  // Auto-redirect to login if not authenticated
   useEffect(() => {
     if (!isCheckingAuth && !isAuthenticated) {
       navigate("/liver/login?redirect=/liver/sample-request");
@@ -89,14 +97,25 @@ export default function LiverSampleRequest() {
   // Rank detail dialog
   const [rankDetailOpen, setRankDetailOpen] = useState(false);
 
+  // Breakdown toggle
+  const [showBreakdown, setShowBreakdown] = useState(false);
+
+  // History toggle
+  const [showHistory, setShowHistory] = useState(false);
+
   // Error/success
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // API calls - use ctx-based auth (token is optional fallback)
+  // API calls
   const creditQuery = trpc.sampleRequest.getMyCredit.useQuery(
-    { token: token || undefined },
+    { token: token || undefined, forceRecalc: true },
     { enabled: isAuthenticated }
+  );
+
+  const historyQuery = trpc.sampleRequest.getMyCreditHistory.useQuery(
+    { token: token || undefined },
+    { enabled: isAuthenticated && showHistory }
   );
 
   const requestsQuery = trpc.sampleRequest.getMyRequests.useQuery(
@@ -160,7 +179,6 @@ export default function LiverSampleRequest() {
 
   function startCreate() {
     resetForm();
-    // 保存済み住所を自動入力
     if (savedAddressQuery.data) {
       setPostalCode(savedAddressQuery.data.postalCode || "");
       setAddress(savedAddressQuery.data.address || "");
@@ -229,13 +247,31 @@ export default function LiverSampleRequest() {
     cancelled: { label: "キャンセル", color: "bg-gray-600", icon: XCircle },
   };
 
-  // Show loading while checking auth, or spinner while redirecting to login
+  // Show loading while checking auth
   if (isCheckingAuth || !isAuthenticated) {
     return (
       <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
         <div className="animate-spin w-8 h-8 border-2 border-white border-t-transparent rounded-full" />
       </div>
     );
+  }
+
+  // Next rank info helper
+  function getNextRankInfo() {
+    if (!credit) return null;
+    const prevStats = (credit as any).prevMonthStats;
+    if (!prevStats) return null;
+    const { streamingHours: ph, monthlySales: ps } = prevStats;
+    if (credit.rank === "none") {
+      return { target: "SILVER", hoursNeeded: Math.max(0, 10 - ph), salesNeeded: Math.max(0, 500000 - ps) };
+    }
+    if (credit.rank === "silver") {
+      return { target: "GOLD", hoursNeeded: Math.max(0, 30 - ph), salesNeeded: Math.max(0, 1000000 - ps) };
+    }
+    if (credit.rank === "gold") {
+      return { target: "BLACK", hoursNeeded: Math.max(0, 60 - ph), salesNeeded: Math.max(0, 3000000 - ps) };
+    }
+    return null; // Already BLACK
   }
 
   return (
@@ -304,7 +340,7 @@ export default function LiverSampleRequest() {
                 />
               </div>
 
-              {/* Credit Breakdown */}
+              {/* Credit Summary */}
               <div className="grid grid-cols-3 gap-2 text-center text-xs">
                 <div className="bg-gray-800/50 rounded p-2">
                   <div className="text-gray-500">合計</div>
@@ -320,29 +356,118 @@ export default function LiverSampleRequest() {
                 </div>
               </div>
 
-              {/* Rank Progress */}
-              {credit.rank === "none" && (
-                <div className="mt-3 bg-gray-800/50 rounded p-2 text-xs text-gray-400">
-                  <div className="flex items-center gap-1 mb-1">
-                    <TrendingUp className="h-3 w-3" />
-                    <span>SILVERまで: 配信{Math.max(0, 10 - Number(credit.streamingHours))}h / 売上¥{Math.max(0, 500000 - Number(credit.monthlySales)).toLocaleString()}</span>
+              {/* ★ 計算内訳トグル */}
+              <button
+                onClick={() => setShowBreakdown(!showBreakdown)}
+                className="w-full mt-3 flex items-center justify-center gap-1 text-xs text-purple-400 hover:text-purple-300 transition-colors py-1"
+              >
+                <BarChart3 className="h-3 w-3" />
+                <span>計算内訳を{showBreakdown ? "閉じる" : "見る"}</span>
+                {showBreakdown ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+              </button>
+
+              {/* ★ 計算内訳セクション */}
+              {showBreakdown && (
+                <div className="mt-2 bg-gray-800/70 rounded-lg p-3 space-y-2 text-xs border border-gray-700/50">
+                  <div className="text-gray-400 font-semibold mb-2 flex items-center gap-1">
+                    <BarChart3 className="h-3 w-3" />
+                    {credit.month && formatMonth(credit.month)} クレジット内訳
+                  </div>
+
+                  {/* ランク判定根拠（先月の実績） */}
+                  {(credit as any).prevMonthStats && (
+                    <div className="bg-gray-900/50 rounded p-2 mb-2">
+                      <div className="text-gray-500 mb-1">
+                        ランク判定根拠（{formatMonth((credit as any).prevMonthStats.month)}の実績）
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <span className="text-gray-500">配信時間: </span>
+                          <span className="text-white">{(credit as any).prevMonthStats.streamingHours}h</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">売上: </span>
+                          <span className="text-white">¥{Number((credit as any).prevMonthStats.monthlySales).toLocaleString()}</span>
+                        </div>
+                      </div>
+                      <div className="mt-1">
+                        <span className="text-gray-500">判定結果: </span>
+                        <span className={`font-semibold ${RANK_CONFIG[credit.rank as keyof typeof RANK_CONFIG]?.textColor}`}>
+                          {RANK_CONFIG[credit.rank as keyof typeof RANK_CONFIG]?.label || "ランクなし"}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 今月の実績 */}
+                  <div className="bg-gray-900/50 rounded p-2 mb-2">
+                    <div className="text-gray-500 mb-1">今月の実績（クレジット計算元）</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <span className="text-gray-500">配信時間: </span>
+                        <span className="text-white">{credit.streamingHours}h</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">売上: </span>
+                        <span className="text-white">¥{Number(credit.monthlySales).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 内訳テーブル */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-400">配信クレジット</span>
+                      <span className="text-white">
+                        {credit.streamingHours}h × ¥500 = <span className="font-semibold">¥{Number(credit.streamingCredit).toLocaleString()}</span>
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-400">売上クレジット</span>
+                      <span className="text-white">
+                        ¥{Number(credit.monthlySales).toLocaleString()} × 3% = <span className="font-semibold">¥{Number(credit.salesCredit).toLocaleString()}</span>
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-400">ランクボーナス</span>
+                      <span className={`font-semibold ${credit.rankBonus > 0 ? "text-yellow-400" : "text-gray-500"}`}>
+                        {credit.rankBonus > 0 ? `+¥${Number(credit.rankBonus).toLocaleString()}` : "¥0"}
+                      </span>
+                    </div>
+                    {Number(credit.carryoverCredit) > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">繰り越し</span>
+                        <span className="text-blue-400 font-semibold">+¥{Number(credit.carryoverCredit).toLocaleString()}</span>
+                      </div>
+                    )}
+                    <div className="border-t border-gray-700 pt-1 flex justify-between items-center">
+                      <span className="text-gray-300 font-semibold">合計</span>
+                      <span className="text-white font-bold text-sm">¥{Number(credit.totalCredit).toLocaleString()}</span>
+                    </div>
                   </div>
                 </div>
               )}
-              {credit.rank === "silver" && (
-                <div className="mt-3 bg-gray-800/50 rounded p-2 text-xs text-gray-400">
-                  <div className="flex items-center gap-1 mb-1">
-                    <TrendingUp className="h-3 w-3" />
-                    <span>GOLDまで: 配信{Math.max(0, 30 - Number(credit.streamingHours))}h / 売上¥{Math.max(0, 1000000 - Number(credit.monthlySales)).toLocaleString()}</span>
+
+              {/* Next Rank Progress */}
+              {(() => {
+                const nextRank = getNextRankInfo();
+                if (!nextRank) return null;
+                if (credit.rank === "black") return null;
+                return (
+                  <div className="mt-3 bg-gray-800/50 rounded p-2 text-xs text-gray-400">
+                    <div className="flex items-center gap-1 mb-1">
+                      <TrendingUp className="h-3 w-3" />
+                      <span>{nextRank.target}まで: 配信{nextRank.hoursNeeded > 0 ? `${nextRank.hoursNeeded}h` : "達成✓"} / 売上{nextRank.salesNeeded > 0 ? `¥${nextRank.salesNeeded.toLocaleString()}` : "達成✓"}</span>
+                    </div>
+                    <div className="text-gray-600 text-[10px]">※ 先月の実績で翌月のランクが決まります</div>
                   </div>
-                </div>
-              )}
-              {credit.rank === "gold" && (
-                <div className="mt-3 bg-gray-800/50 rounded p-2 text-xs text-gray-400">
-                  <div className="flex items-center gap-1 mb-1">
-                    <TrendingUp className="h-3 w-3" />
-                    <span>BLACKまで: 配信{Math.max(0, 60 - Number(credit.streamingHours))}h / 売上¥{Math.max(0, 3000000 - Number(credit.monthlySales)).toLocaleString()}</span>
-                  </div>
+                );
+              })()}
+
+              {credit.rank === "black" && (
+                <div className="mt-3 bg-purple-900/30 border border-purple-700/50 rounded p-2 text-xs text-purple-300 flex items-center gap-1">
+                  <Star className="h-3 w-3" />
+                  最高ランク BLACK 達成！全特典が利用可能です
                 </div>
               )}
 
@@ -354,6 +479,94 @@ export default function LiverSampleRequest() {
               )}
             </CardContent>
           </Card>
+        )}
+
+        {/* ============ CREDIT HISTORY ============ */}
+        {credit && activeView === "list" && (
+          <div>
+            <button
+              onClick={() => setShowHistory(!showHistory)}
+              className="w-full flex items-center justify-center gap-2 text-sm text-gray-400 hover:text-gray-300 transition-colors py-2"
+            >
+              <History className="h-4 w-4" />
+              <span>過去のクレジット履歴</span>
+              {showHistory ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+
+            {showHistory && (
+              <div className="space-y-2 mt-2">
+                {historyQuery.isLoading ? (
+                  <div className="text-center py-4">
+                    <div className="animate-spin w-5 h-5 border-2 border-purple-400 border-t-transparent rounded-full mx-auto" />
+                  </div>
+                ) : historyQuery.data && historyQuery.data.length > 0 ? (
+                  historyQuery.data.map((h: any) => {
+                    const rankCfg = RANK_CONFIG[h.rank as keyof typeof RANK_CONFIG] || RANK_CONFIG.none;
+                    return (
+                      <Card key={h.month} className="bg-gray-900 border-gray-800">
+                        <CardContent className="p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-semibold text-white">{formatMonth(h.month)}</span>
+                            {h.rank !== "none" && (
+                              <Badge className={`${rankCfg.color} text-white text-xs px-2`}>
+                                {rankCfg.icon} {rankCfg.label}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-xs mb-2">
+                            <div>
+                              <span className="text-gray-500">配信: </span>
+                              <span className="text-white">{h.streamingHours}h</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">売上: </span>
+                              <span className="text-white">¥{Number(h.monthlySales).toLocaleString()}</span>
+                            </div>
+                          </div>
+                          <div className="space-y-1 text-xs">
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">配信 {h.streamingHours}h × ¥500</span>
+                              <span className="text-gray-300">¥{Number(h.streamingCredit).toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">売上 × 3%</span>
+                              <span className="text-gray-300">¥{Number(h.salesCredit).toLocaleString()}</span>
+                            </div>
+                            {h.rankBonus > 0 && (
+                              <div className="flex justify-between">
+                                <span className="text-gray-500">ランクボーナス</span>
+                                <span className="text-yellow-400">+¥{Number(h.rankBonus).toLocaleString()}</span>
+                              </div>
+                            )}
+                            {h.carryoverCredit > 0 && (
+                              <div className="flex justify-between">
+                                <span className="text-gray-500">繰り越し</span>
+                                <span className="text-blue-400">+¥{Number(h.carryoverCredit).toLocaleString()}</span>
+                              </div>
+                            )}
+                            <div className="border-t border-gray-700 pt-1 flex justify-between">
+                              <span className="text-gray-400 font-semibold">合計</span>
+                              <span className="text-white font-semibold">¥{Number(h.totalCredit).toLocaleString()}</span>
+                            </div>
+                            {h.usedCredit > 0 && (
+                              <div className="flex justify-between">
+                                <span className="text-gray-500">使用済み</span>
+                                <span className="text-orange-400">-¥{Number(h.usedCredit).toLocaleString()}</span>
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })
+                ) : (
+                  <div className="text-center text-gray-500 text-sm py-4">
+                    過去のクレジット履歴はありません
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         )}
 
         {/* ============ CREDIT USAGE MENU ============ */}
@@ -848,6 +1061,7 @@ export default function LiverSampleRequest() {
                   <p>※ 未使用クレジットは翌月に繰り越されます</p>
                   <p>※ 当月配信予定のある方のみクレジット使用可能</p>
                   <p>※ 配信に使用する商品のみクレジット使用可能</p>
+                  <p>※ ランクは先月の実績で翌月が決まります</p>
                 </div>
               </div>
             </div>
@@ -858,6 +1072,7 @@ export default function LiverSampleRequest() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
         {/* ============ RANK DETAIL DIALOG ============ */}
         <Dialog open={rankDetailOpen} onOpenChange={setRankDetailOpen}>
           <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-md max-h-[80vh] overflow-y-auto">
@@ -868,6 +1083,12 @@ export default function LiverSampleRequest() {
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
+              <div className="bg-gray-800 rounded-lg p-3 text-xs text-gray-300">
+                <div className="font-semibold text-gray-200 mb-1">ランク判定ルール</div>
+                <p>先月の配信時間と売上で、翌月のランクが決まります。</p>
+                <p className="text-purple-400 mt-1">例: 2月に60h以上配信 + 300万円以上売上 → 3月はBLACKランク</p>
+              </div>
+
               {/* SILVER */}
               <div className={`rounded-lg border p-3 ${credit?.rank === "silver" ? "border-gray-400 bg-gray-800" : "border-gray-700 bg-gray-800/50"}`}>
                 <div className="flex items-center justify-between mb-2">
@@ -877,7 +1098,7 @@ export default function LiverSampleRequest() {
                   {credit?.rank === "silver" && <Badge className="bg-green-600 text-white text-xs">現在</Badge>}
                 </div>
                 <div className="text-xs space-y-1 text-gray-300">
-                  <div className="font-semibold text-gray-200 mb-1">達成条件</div>
+                  <div className="font-semibold text-gray-200 mb-1">達成条件（先月の実績）</div>
                   <p>・月間配信 10時間以上</p>
                   <p>・月間売上 50万円以上</p>
                   <div className="font-semibold text-gray-200 mt-2 mb-1">特典</div>
@@ -897,7 +1118,7 @@ export default function LiverSampleRequest() {
                   {credit?.rank === "gold" && <Badge className="bg-green-600 text-white text-xs">現在</Badge>}
                 </div>
                 <div className="text-xs space-y-1 text-gray-300">
-                  <div className="font-semibold text-gray-200 mb-1">達成条件</div>
+                  <div className="font-semibold text-gray-200 mb-1">達成条件（先月の実績）</div>
                   <p>・月間配信 30時間以上</p>
                   <p>・月間売上 100万円以上</p>
                   <div className="font-semibold text-gray-200 mt-2 mb-1">特典</div>
@@ -917,7 +1138,7 @@ export default function LiverSampleRequest() {
                   {credit?.rank === "black" && <Badge className="bg-green-600 text-white text-xs">現在</Badge>}
                 </div>
                 <div className="text-xs space-y-1 text-gray-300">
-                  <div className="font-semibold text-gray-200 mb-1">達成条件</div>
+                  <div className="font-semibold text-gray-200 mb-1">達成条件（先月の実績）</div>
                   <p>・月間配信 60時間以上</p>
                   <p>・月間売上 300万円以上</p>
                   <div className="font-semibold text-gray-200 mt-2 mb-1">特典</div>
@@ -934,9 +1155,9 @@ export default function LiverSampleRequest() {
               <div className="bg-gray-800 rounded-lg p-3">
                 <div className="text-xs font-semibold text-gray-200 mb-2">クレジット計算方法</div>
                 <div className="text-xs text-gray-400 space-y-1">
-                  <p>・配信時間 × 500円</p>
-                  <p>・月間売上 × 3%</p>
-                  <p>・ランクボーナス（上記参照）</p>
+                  <p>・配信時間 × 500円（今月の実績）</p>
+                  <p>・月間売上 × 3%（今月の実績）</p>
+                  <p>・ランクボーナス（先月の実績で決定）</p>
                   <p className="text-purple-400 mt-1">※ 未使用クレジットは翌月に繰り越されます</p>
                 </div>
               </div>

@@ -64,9 +64,15 @@ function getRankBonus(rank: string): number {
 export const sampleRequestRouter = router({
   // ========== ライバー向けAPI ==========
 
+  // Helper: 指定月のbrandLivestreamsから実績を取得
+  // month: "YYYY-MM" 形式
+  // Returns: { monthlySales, streamingMinutes, streamingHours }
+  // (This is a local helper, not an API endpoint)
+
   // クレジット残高取得（ライバー用） - ctx認証 + input.token フォールバック
+  // ★ ランクは「先月の実績」で判定、クレジット計算は「今月の実績」で行う
   getMyCredit: publicProcedure
-    .input(z.object({ token: z.string().optional() }).optional())
+    .input(z.object({ token: z.string().optional(), forceRecalc: z.boolean().optional() }).optional())
     .query(async ({ input, ctx }) => {
       // Try ctx-based auth first, then fall back to input.token
       let liverData: { liverId: number; type: string } | null = null;
@@ -80,82 +86,149 @@ export const sampleRequestRouter = router({
       if (!liverData) throw new TRPCError({ code: "UNAUTHORIZED", message: "認証エラー" });
 
       const db = await getDb();
-      const now = new Date();
-      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      // JSTでの現在月を計算
+      const nowJST = new Date(Date.now() + 9 * 60 * 60 * 1000);
+      const currentMonth = `${nowJST.getUTCFullYear()}-${String(nowJST.getUTCMonth() + 1).padStart(2, "0")}`;
 
-      const credits = await db.select().from(liverCredits)
-        .where(and(eq(liverCredits.liverId, liverData.liverId), eq(liverCredits.month, currentMonth)));
+      // 先月を計算（ランク判定用）
+      const prevDate = new Date(nowJST);
+      prevDate.setUTCMonth(prevDate.getUTCMonth() - 1);
+      const prevMonth = `${prevDate.getUTCFullYear()}-${String(prevDate.getUTCMonth() + 1).padStart(2, "0")}`;
 
-      if (credits.length === 0) {
-        // liver_creditsにレコードがない場合、brandLivestreamsから自動計算して生成
-        const [yearNum, monthNum] = currentMonth.split("-").map(Number);
-        // JST月初: 1日 00:00 JST = 前日 15:00 UTC
+      // Helper: 指定月のbrandLivestreamsから実績を取得
+      async function getMonthStats(month: string) {
+        const [yearNum, monthNum] = month.split("-").map(Number);
         const monthStart = new Date(Date.UTC(yearNum, monthNum - 1, 1, 0, 0, 0) - 9 * 60 * 60 * 1000);
-        // JST月末: 末日 23:59:59 JST
         const lastDay = new Date(yearNum, monthNum, 0).getDate();
         const monthEnd = new Date(Date.UTC(yearNum, monthNum - 1, lastDay, 23, 59, 59) - 9 * 60 * 60 * 1000);
 
-        const livestreamStats = await db.select({
+        const stats = await db.select({
           totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
           totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
         }).from(brandLivestreams)
           .where(and(
-            eq(brandLivestreams.liverId, liverData.liverId),
+            eq(brandLivestreams.liverId, liverData!.liverId),
             isNull(brandLivestreams.deletedAt),
             gte(brandLivestreams.livestreamDate, monthStart),
             lte(brandLivestreams.livestreamDate, monthEnd)
           ));
 
-        const monthlySales = Number(livestreamStats[0]?.totalSales || 0);
-        const streamingMinutes = Number(livestreamStats[0]?.totalDuration || 0);
-        const streamingHours = Math.round((streamingMinutes / 60) * 10) / 10; // 小数点1桁
+        const monthlySales = Number(stats[0]?.totalSales || 0);
+        const streamingMinutes = Number(stats[0]?.totalDuration || 0);
+        const streamingHours = Math.round((streamingMinutes / 60) * 10) / 10;
+        return { monthlySales, streamingMinutes, streamingHours };
+      }
+
+      // 既存のliver_creditsレコードを確認
+      const existingCredits = await db.select().from(liverCredits)
+        .where(and(eq(liverCredits.liverId, liverData.liverId), eq(liverCredits.month, currentMonth)));
+
+      // forceRecalcが指定されている場合、または既存レコードがない場合は再計算
+      const shouldRecalc = existingCredits.length === 0 || input?.forceRecalc;
+
+      if (shouldRecalc) {
+        // 今月の実績を取得（クレジット計算用）
+        const currentStats = await getMonthStats(currentMonth);
+        // 先月の実績を取得（ランク判定用）
+        const prevStats = await getMonthStats(prevMonth);
+
+        // ★ ランクは先月の実績で判定
+        const rank = calculateRank(prevStats.streamingHours, prevStats.monthlySales);
+        const rankBonus = getRankBonus(rank);
+
+        // ★ クレジットは今月の実績で計算
+        const streamingCredit = Math.round(currentStats.streamingHours * 500);
+        const salesCredit = Math.round(currentStats.monthlySales * 0.03);
 
         // 前月以前の繰り越しクレジットを確認
-        const allCredits = await db.select().from(liverCredits)
-          .where(eq(liverCredits.liverId, liverData.liverId))
+        const prevCreditRows = await db.select().from(liverCredits)
+          .where(and(
+            eq(liverCredits.liverId, liverData.liverId),
+            sql`${liverCredits.month} < ${currentMonth}`
+          ))
           .orderBy(desc(liverCredits.month))
           .limit(1);
-        const carryover = allCredits.length > 0 ? Math.max(0, Number(allCredits[0].remainingCredit)) : 0;
+        const carryover = prevCreditRows.length > 0 ? Math.max(0, Number(prevCreditRows[0].remainingCredit)) : 0;
 
-        // 実績がある場合のみクレジットを計算・保存
-        if (monthlySales > 0 || streamingMinutes > 0) {
-          const rank = calculateRank(streamingHours, monthlySales);
-          const rankBonus = getRankBonus(rank);
-          const streamingCredit = Math.round(streamingHours * 500);
-          const salesCredit = Math.round(monthlySales * 0.03);
-          const totalCredit = streamingCredit + salesCredit + rankBonus + carryover;
+        const totalCredit = streamingCredit + salesCredit + rankBonus + carryover;
 
-          // liver_creditsに自動保存
-          await db.insert(liverCredits).values({
-            liverId: liverData.liverId,
-            month: currentMonth,
-            rank,
-            streamingHours: String(streamingHours),
-            monthlySales: String(monthlySales),
-            streamingCredit: String(streamingCredit),
-            salesCredit: String(salesCredit),
-            rankBonus: String(rankBonus),
-            carryoverCredit: String(carryover),
-            totalCredit: String(totalCredit),
-            usedCredit: "0",
-            remainingCredit: String(totalCredit),
-            isFirstMonth: false,
-          });
+        // 実績がある場合（今月 or 先月）のみ保存
+        if (currentStats.monthlySales > 0 || currentStats.streamingMinutes > 0 || prevStats.monthlySales > 0 || prevStats.streamingMinutes > 0) {
+          if (existingCredits.length > 0) {
+            // 既存レコードを更新（usedCreditは維持）
+            const usedCredit = Number(existingCredits[0].usedCredit);
+            await db.update(liverCredits)
+              .set({
+                rank,
+                streamingHours: String(currentStats.streamingHours),
+                monthlySales: String(currentStats.monthlySales),
+                streamingCredit: String(streamingCredit),
+                salesCredit: String(salesCredit),
+                rankBonus: String(rankBonus),
+                carryoverCredit: String(carryover),
+                totalCredit: String(totalCredit),
+                remainingCredit: String(totalCredit - usedCredit),
+              })
+              .where(eq(liverCredits.id, existingCredits[0].id));
 
-          return {
-            month: currentMonth,
-            rank,
-            streamingHours,
-            monthlySales,
-            totalCredit,
-            usedCredit: 0,
-            remainingCredit: totalCredit,
-            carryoverCredit: carryover,
-            isFirstMonth: false,
-            rankBonus,
-            streamingCredit,
-            salesCredit,
-          };
+            return {
+              month: currentMonth,
+              rank,
+              streamingHours: currentStats.streamingHours,
+              monthlySales: currentStats.monthlySales,
+              totalCredit,
+              usedCredit,
+              remainingCredit: totalCredit - usedCredit,
+              carryoverCredit: carryover,
+              isFirstMonth: existingCredits[0].isFirstMonth || false,
+              rankBonus,
+              streamingCredit,
+              salesCredit,
+              // ★ 先月の実績（ランク判定根拠）
+              prevMonthStats: {
+                month: prevMonth,
+                streamingHours: prevStats.streamingHours,
+                monthlySales: prevStats.monthlySales,
+              },
+            };
+          } else {
+            // 新規レコード作成
+            await db.insert(liverCredits).values({
+              liverId: liverData.liverId,
+              month: currentMonth,
+              rank,
+              streamingHours: String(currentStats.streamingHours),
+              monthlySales: String(currentStats.monthlySales),
+              streamingCredit: String(streamingCredit),
+              salesCredit: String(salesCredit),
+              rankBonus: String(rankBonus),
+              carryoverCredit: String(carryover),
+              totalCredit: String(totalCredit),
+              usedCredit: "0",
+              remainingCredit: String(totalCredit),
+              isFirstMonth: false,
+            });
+
+            return {
+              month: currentMonth,
+              rank,
+              streamingHours: currentStats.streamingHours,
+              monthlySales: currentStats.monthlySales,
+              totalCredit,
+              usedCredit: 0,
+              remainingCredit: totalCredit,
+              carryoverCredit: carryover,
+              isFirstMonth: false,
+              rankBonus,
+              streamingCredit,
+              salesCredit,
+              prevMonthStats: {
+                month: prevMonth,
+                streamingHours: prevStats.streamingHours,
+                monthlySales: prevStats.monthlySales,
+              },
+            };
+          }
         }
 
         return {
@@ -171,10 +244,17 @@ export const sampleRequestRouter = router({
           rankBonus: 0,
           streamingCredit: 0,
           salesCredit: 0,
+          prevMonthStats: {
+            month: prevMonth,
+            streamingHours: prevStats.streamingHours,
+            monthlySales: prevStats.monthlySales,
+          },
         };
       }
 
-      const c = credits[0];
+      // 既存レコードがある場合はそのまま返す + 先月の実績も取得
+      const prevStats = await getMonthStats(prevMonth);
+      const c = existingCredits[0];
       return {
         month: c.month,
         rank: c.rank as "none" | "silver" | "gold" | "black",
@@ -188,6 +268,11 @@ export const sampleRequestRouter = router({
         rankBonus: Number(c.rankBonus),
         streamingCredit: Number(c.streamingCredit),
         salesCredit: Number(c.salesCredit),
+        prevMonthStats: {
+          month: prevMonth,
+          streamingHours: prevStats.streamingHours,
+          monthlySales: prevStats.monthlySales,
+        },
       };
     }),
 
@@ -666,6 +751,96 @@ export const sampleRequestRouter = router({
       }
 
       return { success: true, rank, totalCredit: baseCredit };
+    }),
+
+  // ライバー自身のクレジット履歴取得（ライバー用）
+  getMyCreditHistory: publicProcedure
+    .input(z.object({ token: z.string().optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      let liverData: { liverId: number; type: string } | null = null;
+      const ctxToken = getLiverTokenFromCtx(ctx);
+      if (ctxToken) {
+        liverData = await verifyLiverToken(ctxToken);
+      }
+      if (!liverData && input?.token) {
+        liverData = await verifyLiverToken(input.token);
+      }
+      if (!liverData) throw new TRPCError({ code: "UNAUTHORIZED", message: "認証エラー" });
+
+      const db = await getDb();
+
+      // liver_creditsから全履歴を取得
+      const credits = await db.select().from(liverCredits)
+        .where(eq(liverCredits.liverId, liverData.liverId))
+        .orderBy(desc(liverCredits.month));
+
+      // 履歴がない場合は過去6ヶ月分をbrandLivestreamsから自動生成
+      if (credits.length === 0) {
+        const nowJST = new Date(Date.now() + 9 * 60 * 60 * 1000);
+        const history = [];
+        for (let i = 1; i <= 6; i++) {
+          const d = new Date(nowJST);
+          d.setUTCMonth(d.getUTCMonth() - i);
+          const month = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+          const [yearNum, monthNum] = month.split("-").map(Number);
+          const monthStart = new Date(Date.UTC(yearNum, monthNum - 1, 1, 0, 0, 0) - 9 * 60 * 60 * 1000);
+          const lastDay = new Date(yearNum, monthNum, 0).getDate();
+          const monthEnd = new Date(Date.UTC(yearNum, monthNum - 1, lastDay, 23, 59, 59) - 9 * 60 * 60 * 1000);
+
+          const stats = await db.select({
+            totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
+            totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
+          }).from(brandLivestreams)
+            .where(and(
+              eq(brandLivestreams.liverId, liverData.liverId),
+              isNull(brandLivestreams.deletedAt),
+              gte(brandLivestreams.livestreamDate, monthStart),
+              lte(brandLivestreams.livestreamDate, monthEnd)
+            ));
+
+          const monthlySales = Number(stats[0]?.totalSales || 0);
+          const streamingMinutes = Number(stats[0]?.totalDuration || 0);
+          const streamingHours = Math.round((streamingMinutes / 60) * 10) / 10;
+
+          if (monthlySales > 0 || streamingMinutes > 0) {
+            // ランクはその月の実績で計算（履歴表示用）
+            const rank = calculateRank(streamingHours, monthlySales);
+            const rankBonus = getRankBonus(rank);
+            const streamingCredit = Math.round(streamingHours * 500);
+            const salesCredit = Math.round(monthlySales * 0.03);
+            const totalCredit = streamingCredit + salesCredit + rankBonus;
+
+            history.push({
+              month,
+              rank,
+              streamingHours,
+              monthlySales,
+              streamingCredit,
+              salesCredit,
+              rankBonus,
+              carryoverCredit: 0,
+              totalCredit,
+              usedCredit: 0,
+              remainingCredit: totalCredit,
+            });
+          }
+        }
+        return history;
+      }
+
+      return credits.map(c => ({
+        month: c.month,
+        rank: c.rank,
+        streamingHours: Number(c.streamingHours),
+        monthlySales: Number(c.monthlySales),
+        streamingCredit: Number(c.streamingCredit),
+        salesCredit: Number(c.salesCredit),
+        rankBonus: Number(c.rankBonus),
+        carryoverCredit: Number(c.carryoverCredit),
+        totalCredit: Number(c.totalCredit),
+        usedCredit: Number(c.usedCredit),
+        remainingCredit: Number(c.remainingCredit),
+      }));
     }),
 
   // ライバーのクレジット履歴取得（運営用 - ライバー詳細ページ向け）
