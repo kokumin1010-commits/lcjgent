@@ -244,7 +244,7 @@ export default function LiverSampleRequest() {
         {/* Header */}
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => {
-            if (activeView === "list") navigate("/liver");
+            if (activeView === "list") navigate("/liver/mypage");
             else setActiveView("list");
           }}>
             <ArrowLeft className="h-5 w-5" />

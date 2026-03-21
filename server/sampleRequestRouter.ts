@@ -2,8 +2,8 @@ import { router, publicProcedure, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "./db";
-import { sampleRequests, sampleRequestItems, liverCredits, mallProducts, livers } from "../drizzle/schema";
-import { eq, desc, and, sql, like, or } from "drizzle-orm";
+import { sampleRequests, sampleRequestItems, liverCredits, mallProducts, livers, brandLivestreams } from "../drizzle/schema";
+import { eq, desc, and, sql, like, or, gte, lte, isNull } from "drizzle-orm";
 import { jwtVerify } from "jose";
 import { ENV } from "./_core/env";
 
@@ -87,13 +87,76 @@ export const sampleRequestRouter = router({
         .where(and(eq(liverCredits.liverId, liverData.liverId), eq(liverCredits.month, currentMonth)));
 
       if (credits.length === 0) {
+        // liver_creditsにレコードがない場合、brandLivestreamsから自動計算して生成
+        const [yearNum, monthNum] = currentMonth.split("-").map(Number);
+        // JST月初: 1日 00:00 JST = 前日 15:00 UTC
+        const monthStart = new Date(Date.UTC(yearNum, monthNum - 1, 1, 0, 0, 0) - 9 * 60 * 60 * 1000);
+        // JST月末: 末日 23:59:59 JST
+        const lastDay = new Date(yearNum, monthNum, 0).getDate();
+        const monthEnd = new Date(Date.UTC(yearNum, monthNum - 1, lastDay, 23, 59, 59) - 9 * 60 * 60 * 1000);
+
+        const livestreamStats = await db.select({
+          totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
+          totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
+        }).from(brandLivestreams)
+          .where(and(
+            eq(brandLivestreams.liverId, liverData.liverId),
+            isNull(brandLivestreams.deletedAt),
+            gte(brandLivestreams.livestreamDate, monthStart),
+            lte(brandLivestreams.livestreamDate, monthEnd)
+          ));
+
+        const monthlySales = Number(livestreamStats[0]?.totalSales || 0);
+        const streamingMinutes = Number(livestreamStats[0]?.totalDuration || 0);
+        const streamingHours = Math.round((streamingMinutes / 60) * 10) / 10; // 小数点1桁
+
         // 前月以前の繰り越しクレジットを確認
         const allCredits = await db.select().from(liverCredits)
           .where(eq(liverCredits.liverId, liverData.liverId))
           .orderBy(desc(liverCredits.month))
           .limit(1);
-        
         const carryover = allCredits.length > 0 ? Math.max(0, Number(allCredits[0].remainingCredit)) : 0;
+
+        // 実績がある場合のみクレジットを計算・保存
+        if (monthlySales > 0 || streamingMinutes > 0) {
+          const rank = calculateRank(streamingHours, monthlySales);
+          const rankBonus = getRankBonus(rank);
+          const streamingCredit = Math.round(streamingHours * 500);
+          const salesCredit = Math.round(monthlySales * 0.03);
+          const totalCredit = streamingCredit + salesCredit + rankBonus + carryover;
+
+          // liver_creditsに自動保存
+          await db.insert(liverCredits).values({
+            liverId: liverData.liverId,
+            month: currentMonth,
+            rank,
+            streamingHours: String(streamingHours),
+            monthlySales: String(monthlySales),
+            streamingCredit: String(streamingCredit),
+            salesCredit: String(salesCredit),
+            rankBonus: String(rankBonus),
+            carryoverCredit: String(carryover),
+            totalCredit: String(totalCredit),
+            usedCredit: "0",
+            remainingCredit: String(totalCredit),
+            isFirstMonth: false,
+          });
+
+          return {
+            month: currentMonth,
+            rank,
+            streamingHours,
+            monthlySales,
+            totalCredit,
+            usedCredit: 0,
+            remainingCredit: totalCredit,
+            carryoverCredit: carryover,
+            isFirstMonth: false,
+            rankBonus,
+            streamingCredit,
+            salesCredit,
+          };
+        }
 
         return {
           month: currentMonth,
