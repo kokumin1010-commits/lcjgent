@@ -34,7 +34,8 @@ import {
   ExternalLink,
   HelpCircle,
   ArrowLeft,
-  Info
+  Info,
+  Package
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -886,6 +887,24 @@ export default function LiverMypage() {
                 <div>
                   <p className="text-sm font-bold text-white">{lt("dashboard.powerTitle")}</p>
                   <p className="text-xs text-white">{lt("dashboard.powerDescription")}</p>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 text-white" />
+            </CardContent>
+          </Card>
+        </Link>
+
+        {/* Sample Request Link */}
+        <Link href="/liver/sample-request" className="block">
+          <Card className="bg-gradient-to-r from-emerald-600/20 via-teal-600/20 to-cyan-600/20 border-emerald-500/30 hover:border-emerald-400/50 transition-all cursor-pointer">
+            <CardContent className="p-3 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center">
+                  <Package className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-white">{language === 'en' ? 'Sample Request' : language === 'zh-TW' ? '\u6A23\u54C1\u7533\u8ACB' : '\u30B5\u30F3\u30D7\u30EB\u8ACB\u6C42'}</p>
+                  <p className="text-xs text-white">{language === 'en' ? 'Request product samples with your credits' : language === 'zh-TW' ? '\u4F7F\u7528\u4FE1\u7528\u984D\u5EA6\u7533\u8ACB\u7522\u54C1\u6A23\u54C1' : '\u30AF\u30EC\u30B8\u30C3\u30C8\u3092\u4F7F\u3063\u3066\u5546\u54C1\u30B5\u30F3\u30D7\u30EB\u3092\u7533\u8ACB'}</p>
                 </div>
               </div>
               <ChevronRight className="h-5 w-5 text-white" />

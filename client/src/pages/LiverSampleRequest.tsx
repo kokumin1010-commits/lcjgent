@@ -54,12 +54,14 @@ export default function LiverSampleRequest() {
   const [activeView, setActiveView] = useState<ActiveView>("list");
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
 
-  // Use liver.me to check authentication (supports both JWT header and cookie)
+  // Use liver.me to verify actual authentication (server-side check)
+  // IMPORTANT: Only trust meQuery.data, not just the presence of a token
+  // A token in localStorage might be invalid, expired, or belong to a different user type
   const meQuery = trpc.liver.me.useQuery(undefined, {
     retry: false,
-    staleTime: 30000,
+    staleTime: 0, // Always recheck auth
   });
-  const isAuthenticated = !!token || !!meQuery.data;
+  const isAuthenticated = !!meQuery.data;
   const isCheckingAuth = meQuery.isLoading;
 
   // Auto-redirect to login if not authenticated (must be before any conditional returns)
