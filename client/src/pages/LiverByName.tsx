@@ -136,6 +136,23 @@ export default function LiverByName() {
     return `${month}/${day}`;
   };
 
+  const formatStartTime = (livestream: any) => {
+    // livestreamStartTimeフィールドがある場合はそれを使用（例: "14:30"）
+    if (livestream.livestreamStartTime) {
+      return livestream.livestreamStartTime;
+    }
+    // なければlivestreamDateの時間部分を使用
+    if (livestream.livestreamDate) {
+      const date = new Date(livestream.livestreamDate);
+      const options: Intl.DateTimeFormatOptions = { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit', hour12: false };
+      const time = date.toLocaleTimeString('ja-JP', options);
+      // 00:00の場合は時間情報がないとみなして非表示
+      if (time === '00:00') return null;
+      return time;
+    }
+    return null;
+  };
+
   // Calculate growth percentages
   const getGrowthInfo = (data: any[], index: number) => {
     if (!data || index <= 0) return null;
@@ -522,6 +539,9 @@ export default function LiverByName() {
                           <div className="flex items-center gap-2">
                             <Calendar className="w-4 h-4 text-white" />
                             <span className="font-medium text-white">{formatDate(livestream.livestreamDate)}</span>
+                            {formatStartTime(livestream) && (
+                              <span className="text-xs text-white/60">{formatStartTime(livestream)}</span>
+                            )}
                           </div>
                           {livestream.result && (
                             <span className={`px-2 py-0.5 rounded text-xs ${
