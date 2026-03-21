@@ -54,6 +54,14 @@ export default function LiverSampleRequest() {
   const [activeView, setActiveView] = useState<ActiveView>("list");
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
 
+  // Use liver.me to check authentication (supports both JWT header and cookie)
+  const meQuery = trpc.liver.me.useQuery(undefined, {
+    retry: false,
+    staleTime: 30000,
+  });
+  const isAuthenticated = !!token || !!meQuery.data;
+  const isCheckingAuth = meQuery.isLoading;
+
   // Create form state
   const [scheduledDate, setScheduledDate] = useState("");
   const [postalCode, setPostalCode] = useState("");
@@ -76,25 +84,25 @@ export default function LiverSampleRequest() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // API calls
+  // API calls - use ctx-based auth (token is optional fallback)
   const creditQuery = trpc.sampleRequest.getMyCredit.useQuery(
-    { token: token || "" },
-    { enabled: !!token }
+    { token: token || undefined },
+    { enabled: isAuthenticated }
   );
 
   const requestsQuery = trpc.sampleRequest.getMyRequests.useQuery(
-    { token: token || "" },
-    { enabled: !!token }
+    { token: token || undefined },
+    { enabled: isAuthenticated }
   );
 
   const searchProductsQuery = trpc.sampleRequest.searchProducts.useQuery(
-    { token: token || "", query: searchQuery },
-    { enabled: !!token && searchQuery.length >= 1 }
+    { token: token || undefined, query: searchQuery },
+    { enabled: isAuthenticated && searchQuery.length >= 1 }
   );
 
   const savedAddressQuery = trpc.sampleRequest.getSavedAddress.useQuery(
-    { token: token || "" },
-    { enabled: !!token }
+    { token: token || undefined },
+    { enabled: isAuthenticated }
   );
 
   const createMutation = trpc.sampleRequest.create.useMutation({
@@ -189,7 +197,7 @@ export default function LiverSampleRequest() {
     if (items.some(i => !i.productName)) { setError("商品名を入力してください"); return; }
 
     createMutation.mutate({
-      token: token || "",
+      token: token || undefined,
       scheduledDate,
       postalCode: postalCode || undefined,
       address: address || undefined,
@@ -212,10 +220,26 @@ export default function LiverSampleRequest() {
     cancelled: { label: "キャンセル", color: "bg-gray-600", icon: XCircle },
   };
 
-  if (!token) {
+  // Show loading while checking auth
+  if (isCheckingAuth) {
     return (
       <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-2 border-white border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  // If not authenticated via token or cookie, redirect to login
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center flex-col gap-4">
         <p>ログインが必要です</p>
+        <button
+          onClick={() => navigate("/liver/login")}
+          className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded text-white"
+        >
+          ログインページへ
+        </button>
       </div>
     );
   }

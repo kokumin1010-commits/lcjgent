@@ -7,7 +7,7 @@ import { eq, desc, and, sql, like, or } from "drizzle-orm";
 import { jwtVerify } from "jose";
 import { ENV } from "./_core/env";
 
-// Helper: verify liver token
+// Helper: verify liver token (JWT)
 async function verifyLiverToken(token: string): Promise<{ liverId: number; type: string } | null> {
   try {
     const secret = new TextEncoder().encode(ENV.cookieSecret);
@@ -17,6 +17,30 @@ async function verifyLiverToken(token: string): Promise<{ liverId: number; type:
   } catch {
     return null;
   }
+}
+
+// Helper: get liver token from ctx (Authorization header or cookie)
+function getLiverTokenFromCtx(ctx: any): string | null {
+  // First try Authorization header (for localStorage-based auth)
+  const authHeader = ctx.req?.headers?.authorization;
+  if (authHeader?.startsWith("Bearer ")) {
+    return authHeader.slice(7);
+  }
+  // Fallback to liver_session cookie
+  return ctx.req?.cookies?.liver_session || null;
+}
+
+// Helper: authenticate liver from ctx (supports both header and cookie)
+async function authenticateLiver(ctx: any): Promise<{ liverId: number; type: string }> {
+  const token = getLiverTokenFromCtx(ctx);
+  if (!token) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "認証エラー: トークンがありません" });
+  }
+  const liverData = await verifyLiverToken(token);
+  if (!liverData) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "認証エラー: 無効なトークンです" });
+  }
+  return liverData;
 }
 
 // ランク判定ロジック
@@ -40,11 +64,19 @@ function getRankBonus(rank: string): number {
 export const sampleRequestRouter = router({
   // ========== ライバー向けAPI ==========
 
-  // クレジット残高取得（ライバー用）
+  // クレジット残高取得（ライバー用） - ctx認証 + input.token フォールバック
   getMyCredit: publicProcedure
-    .input(z.object({ token: z.string() }))
-    .query(async ({ input }) => {
-      const liverData = await verifyLiverToken(input.token);
+    .input(z.object({ token: z.string().optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      // Try ctx-based auth first, then fall back to input.token
+      let liverData: { liverId: number; type: string } | null = null;
+      const ctxToken = getLiverTokenFromCtx(ctx);
+      if (ctxToken) {
+        liverData = await verifyLiverToken(ctxToken);
+      }
+      if (!liverData && input?.token) {
+        liverData = await verifyLiverToken(input.token);
+      }
       if (!liverData) throw new TRPCError({ code: "UNAUTHORIZED", message: "認証エラー" });
 
       const db = await getDb();
@@ -96,14 +128,21 @@ export const sampleRequestRouter = router({
       };
     }),
 
-  // 商品検索（mall_productsから）
+  // 商品検索（mall_productsから） - ctx認証 + input.token フォールバック
   searchProducts: publicProcedure
     .input(z.object({
-      token: z.string(),
+      token: z.string().optional(),
       query: z.string().min(1),
     }))
-    .query(async ({ input }) => {
-      const liverData = await verifyLiverToken(input.token);
+    .query(async ({ input, ctx }) => {
+      let liverData: { liverId: number; type: string } | null = null;
+      const ctxToken = getLiverTokenFromCtx(ctx);
+      if (ctxToken) {
+        liverData = await verifyLiverToken(ctxToken);
+      }
+      if (!liverData && input.token) {
+        liverData = await verifyLiverToken(input.token);
+      }
       if (!liverData) throw new TRPCError({ code: "UNAUTHORIZED", message: "認証エラー" });
 
       const db = await getDb();
@@ -135,10 +174,10 @@ export const sampleRequestRouter = router({
       }));
     }),
 
-  // サンプル請求作成
+  // サンプル請求作成 - ctx認証 + input.token フォールバック
   create: publicProcedure
     .input(z.object({
-      token: z.string(),
+      token: z.string().optional(),
       scheduledDate: z.string(),
       postalCode: z.string().optional(),
       address: z.string().optional(),
@@ -151,8 +190,15 @@ export const sampleRequestRouter = router({
         quantity: z.number().min(1),
       })).min(1),
     }))
-    .mutation(async ({ input }) => {
-      const liverData = await verifyLiverToken(input.token);
+    .mutation(async ({ input, ctx }) => {
+      let liverData: { liverId: number; type: string } | null = null;
+      const ctxToken = getLiverTokenFromCtx(ctx);
+      if (ctxToken) {
+        liverData = await verifyLiverToken(ctxToken);
+      }
+      if (!liverData && input.token) {
+        liverData = await verifyLiverToken(input.token);
+      }
       if (!liverData) throw new TRPCError({ code: "UNAUTHORIZED", message: "認証エラー" });
 
       const db = await getDb();
@@ -262,11 +308,18 @@ export const sampleRequestRouter = router({
       return { id: requestId, message: "サンプル請求を送信しました" };
     }),
 
-  // 自分の請求履歴取得
+  // 自分の請求履歴取得 - ctx認証 + input.token フォールバック
   getMyRequests: publicProcedure
-    .input(z.object({ token: z.string() }))
-    .query(async ({ input }) => {
-      const liverData = await verifyLiverToken(input.token);
+    .input(z.object({ token: z.string().optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      let liverData: { liverId: number; type: string } | null = null;
+      const ctxToken = getLiverTokenFromCtx(ctx);
+      if (ctxToken) {
+        liverData = await verifyLiverToken(ctxToken);
+      }
+      if (!liverData && input?.token) {
+        liverData = await verifyLiverToken(input.token);
+      }
       if (!liverData) throw new TRPCError({ code: "UNAUTHORIZED", message: "認証エラー" });
 
       const db = await getDb();
@@ -296,11 +349,18 @@ export const sampleRequestRouter = router({
       return result;
     }),
 
-  // 保存済み配送先住所を取得
+  // 保存済み配送先住所を取得 - ctx認証 + input.token フォールバック
   getSavedAddress: publicProcedure
-    .input(z.object({ token: z.string() }))
-    .query(async ({ input }) => {
-      const liverData = await verifyLiverToken(input.token);
+    .input(z.object({ token: z.string().optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      let liverData: { liverId: number; type: string } | null = null;
+      const ctxToken = getLiverTokenFromCtx(ctx);
+      if (ctxToken) {
+        liverData = await verifyLiverToken(ctxToken);
+      }
+      if (!liverData && input?.token) {
+        liverData = await verifyLiverToken(input.token);
+      }
       if (!liverData) throw new TRPCError({ code: "UNAUTHORIZED", message: "認証エラー" });
 
       const db = await getDb();
