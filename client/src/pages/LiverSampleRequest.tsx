@@ -229,17 +229,17 @@ export default function LiverSampleRequest() {
     );
   }
 
-  // If not authenticated via token or cookie, redirect to login
+  // If not authenticated, auto-redirect to login with return URL
+  useEffect(() => {
+    if (!isCheckingAuth && !isAuthenticated) {
+      navigate("/liver/login?redirect=/liver/sample-request");
+    }
+  }, [isCheckingAuth, isAuthenticated, navigate]);
+
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center flex-col gap-4">
-        <p>ログインが必要です</p>
-        <button
-          onClick={() => navigate("/liver/login")}
-          className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded text-white"
-        >
-          ログインページへ
-        </button>
+      <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-2 border-white border-t-transparent rounded-full" />
       </div>
     );
   }

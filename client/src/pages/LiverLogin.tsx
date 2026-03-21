@@ -20,6 +20,10 @@ export default function LiverLogin() {
   const { language, setLanguage } = useLanguage();
   const lt = createLiverT(language as LiverLanguage);
 
+  // Get redirect URL from query params
+  const searchParams = new URLSearchParams(window.location.search);
+  const redirectUrl = searchParams.get("redirect") || "/liver/mypage";
+
   // Check if already logged in
   const hasToken = !!getLiverToken();
   const meQuery = trpc.liver.me.useQuery(undefined, {
@@ -48,8 +52,8 @@ export default function LiverLogin() {
     
     // Query completed
     if (meQuery.data) {
-      // Valid session - redirect to mypage
-      navigate("/liver/mypage");
+      // Valid session - redirect to target page
+      navigate(redirectUrl);
     } else {
       // Do NOT clear token here - let the user try to login again
       // The token might still be valid, just a temporary network issue
@@ -98,8 +102,8 @@ export default function LiverLogin() {
         if (savedToken) {
           // Small delay to ensure localStorage is synced
           await new Promise(resolve => setTimeout(resolve, 100));
-          console.log('Navigating to mypage...');
-          navigate("/liver/mypage");
+          console.log('Navigating to:', redirectUrl);
+          navigate(redirectUrl);
         } else {
           console.error('Failed to save token to localStorage');
           setError(lt("login.tokenError"));
