@@ -17744,6 +17744,7 @@ export async function getAutoApprovalCandidates(limit: number = 50) {
       isForceSubmitted: lineReceipts.isForceSubmitted,
       aiRejectionCategory: lineReceipts.aiRejectionCategory,
       submittedAt: lineReceipts.submittedAt,
+      status: lineReceipts.status,
     })
     .from(lineReceipts)
     .where(eq(lineReceipts.status, "pending"))

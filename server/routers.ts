@@ -12029,6 +12029,7 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         id: z.number(),
         pointsOverride: z.number().optional(),
         note: z.string().optional(),
+        forceOverrideDuplicate: z.boolean().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") {
@@ -12060,10 +12061,15 @@ ${input.productNames.map((n: string) => `- ${n}`).join("\n")}
         }
         
         // 承認時にも注文番号の重複チェック（承認済みレシートとの重複のみブロック、未承認同士は警告のみ）
-        const { checkDuplicateOrderNumberGlobal } = await import("./db");
-        const duplicateOrder = await checkDuplicateOrderNumberGlobal(orderNumber, input.id);
-        if (duplicateOrder && duplicateOrder.status === "approved") {
-          throw new TRPCError({ code: "CONFLICT", message: `注文番号 ${orderNumber} は既に承認済みのレシートで使用されています。重複申請のため承認できません。` });
+        // forceOverrideDuplicate が true の場合は重複チェックをスキップ（管理者最高権限）
+        if (!input.forceOverrideDuplicate) {
+          const { checkDuplicateOrderNumberGlobal } = await import("./db");
+          const duplicateOrder = await checkDuplicateOrderNumberGlobal(orderNumber, input.id);
+          if (duplicateOrder && duplicateOrder.status === "approved") {
+            throw new TRPCError({ code: "CONFLICT", message: `注文番号 ${orderNumber} は既に承認済みのレシートで使用されています。重複申請のため承認できません。` });
+          }
+        } else {
+          console.log(`[Admin Override] Force approving receipt #${input.id} despite duplicate order number: ${orderNumber}`);
         }
         
         // 確変チャンス結果を確認し、確変ポイント（1.5%）を適用
@@ -12726,6 +12732,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         pointsOverride: z.number().optional(),
         note: z.string().optional(),
         orderNumber: z.string().optional(),
+        forceOverrideDuplicate: z.boolean().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         if (ctx.user.role !== "admin") {
@@ -12778,10 +12785,15 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         }
         
         // 承認時にも注文番号の重複チェック（承認済みレシートとの重複のみブロック、未承認同士は警告のみ）
-        const { checkDuplicateOrderNumberGlobal } = await import("./db");
-        const duplicateOrder = await checkDuplicateOrderNumberGlobal(orderNumber, input.id);
-        if (duplicateOrder && duplicateOrder.status === "approved") {
-          throw new TRPCError({ code: "CONFLICT", message: `注文番号 ${orderNumber} は既に承認済みのレシートで使用されています。重複申請のため承認できません。` });
+        // forceOverrideDuplicate が true の場合は重複チェックをスキップ（管理者最高権限）
+        if (!input.forceOverrideDuplicate) {
+          const { checkDuplicateOrderNumberGlobal } = await import("./db");
+          const duplicateOrder = await checkDuplicateOrderNumberGlobal(orderNumber, input.id);
+          if (duplicateOrder && duplicateOrder.status === "approved") {
+            throw new TRPCError({ code: "CONFLICT", message: `注文番号 ${orderNumber} は既に承認済みのレシートで使用されています。重複申請のため承認できません。` });
+          }
+        } else {
+          console.log(`[Admin Override] Force approving LINE receipt #${input.id} despite duplicate order number: ${orderNumber}`);
         }
         
         // 確変チャンス結果を確認し、確変ポイント（1.5%）を適用
@@ -13116,6 +13128,100 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         }
         
         return { success: true };
+      }),
+    
+    // Restore rejected LINE receipt back to pending (admin override)
+    adminRestoreLineReceipt: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        note: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        const { getLineReceiptById, updateLineReceiptStatus } = await import("./db");
+        const receipt = await getLineReceiptById(input.id);
+        if (!receipt) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "レシートが見つかりません" });
+        }
+        if (receipt.status === "approved") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "既に承認済みのレシートは恢復できません" });
+        }
+        if (receipt.status === "pending" || receipt.status === "on_hold") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "このレシートは既に審査待ち状態です" });
+        }
+        
+        const restoreNote = `[管理者恢復] ${input.note || "管理者による手動恢復"}`;
+        await updateLineReceiptStatus(input.id, "pending", ctx.user.id, restoreNote);
+        console.log(`[Admin Restore] Restored LINE receipt #${input.id} from ${receipt.status} to pending by user #${ctx.user.id}`);
+        
+        return { success: true, previousStatus: receipt.status };
+      }),
+    
+    // Manual point award for LINE receipt (admin override - bypasses all checks)
+    adminManualAwardPoints: protectedProcedure
+      .input(z.object({
+        receiptId: z.number(),
+        receiptType: z.enum(["line_receipt", "point_request"]),
+        points: z.number().min(1, "ポイントは1以上です"),
+        note: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "管理者権限が必要です" });
+        }
+        
+        if (input.receiptType === "line_receipt") {
+          const { getLineReceiptById, updateLineReceiptStatus, awardPointsForLineReceipt, getLinePointBalance } = await import("./db");
+          const { pushMessage } = await import("./line");
+          const receipt = await getLineReceiptById(input.receiptId);
+          if (!receipt) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "レシートが見つかりません" });
+          }
+          
+          // Force approve if not already approved
+          if (receipt.status !== "approved") {
+            await updateLineReceiptStatus(input.receiptId, "approved", ctx.user.id, 
+              `[管理者手動承認] ${input.note || "管理者による手動ポイント付与"}`);
+          }
+          
+          // Award points (bypasses idempotent check by updating pointsAwarded first)
+          const result = await awardPointsForLineReceipt(input.receiptId, input.points);
+          console.log(`[Admin Manual Award] Awarded ${input.points}pt for LINE receipt #${input.receiptId} by user #${ctx.user.id}. Skipped: ${result.skipped}`);
+          
+          // Send LINE notification
+          try {
+            const balance = await getLinePointBalance(receipt.lineUserId);
+            const newBalance = balance?.balance ?? input.points;
+            const storeName = receipt.storeName || "不明";
+            const amount = receipt.totalAmount ? `¥${receipt.totalAmount.toLocaleString()}` : "不明";
+            const appUrl = process.env.APP_URL || "https://lcjmall.com";
+            const message = `🎉 レシートが承認されました！\n\n🏠 店舗名: ${storeName}\n💰 購入金額: ${amount}\n⭐ 獲得ポイント: ${input.points}ポイント\n\n📊 現在の残高: ${newBalance}ポイント\n\nご利用ありがとうございます！\n\n📋 ポイント履歴を確認する\n${appUrl}/mypage`;
+            await pushMessage(receipt.lineUserId, [{ type: "text", text: message }]);
+          } catch (notifyErr) {
+            console.error("[Admin Manual Award] Failed to send LINE notification:", notifyErr);
+          }
+          
+          return { success: true, pointsAwarded: input.points, skipped: result.skipped };
+        } else {
+          // point_request type
+          const { getPointRequestById, updateReceiptStatus, awardPointsForReceipt } = await import("./db");
+          const request = await getPointRequestById(input.receiptId);
+          if (!request) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "申請が見つかりません" });
+          }
+          
+          if (request.status !== "approved") {
+            await updateReceiptStatus(input.receiptId, "approved", ctx.user.id,
+              `[管理者手動承認] ${input.note || "管理者による手動ポイント付与"}`);
+          }
+          
+          const result = await awardPointsForReceipt(input.receiptId, input.points);
+          console.log(`[Admin Manual Award] Awarded ${input.points}pt for point request #${input.receiptId} by user #${ctx.user.id}`);
+          
+          return { success: true, pointsAwarded: input.points };
+        }
       }),
     
     // Get LINE receipt statistics (admin only)

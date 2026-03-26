@@ -462,6 +462,28 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
     },
   });
   
+  // Restore rejected receipt back to pending
+  const restoreMutation = trpc.point.adminRestoreLineReceipt.useMutation({
+    onSuccess: (data) => {
+      utils.point.adminGetLineReceipts.invalidate();
+      utils.point.adminGetLineStatistics.invalidate();
+      toast.success(`レシートを審査待ちに恢復しました（元ステータス: ${data.previousStatus}）`);
+    },
+  });
+  
+  // Manual point award (admin override)
+  const manualAwardMutation = trpc.point.adminManualAwardPoints.useMutation({
+    onSuccess: (data) => {
+      utils.point.adminGetLineReceipts.invalidate();
+      utils.point.adminGetLineStatistics.invalidate();
+      toast.success(`手動ポイント付与完了: ${data.pointsAwarded}pt${data.skipped ? " (既に付与済み)" : ""}`);
+      setCalcReceiptId(null);
+      setCalcAmount("");
+      setCalcPoints(0);
+      setActionNote("");
+    },
+  });
+  
   const approveMutation = trpc.point.adminApproveLineReceipt.useMutation({
     onSuccess: () => {
       utils.point.adminGetLineReceipts.invalidate();
@@ -809,13 +831,14 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
   };
   
   // Handle approve from calculator panel
-  const handleCalcApprove = () => {
+  const handleCalcApprove = (forceOverride = false) => {
     if (!calcReceiptId) return;
     approveMutation.mutate({
       id: calcReceiptId,
       pointsOverride: calcPoints > 0 ? calcPoints : undefined,
       note: actionNote || undefined,
       orderNumber: calcOrderNumber.trim() || undefined,
+      forceOverrideDuplicate: forceOverride || undefined,
     });
   };
   
@@ -2018,14 +2041,36 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                           
                           {/* Already processed info - Compact */}
                           {selectedCalcReceipt.receipt.status === "approved" && (
-                            <div className="bg-green-50 border border-green-200 rounded p-2 text-center">
-                              <div className="flex items-center justify-center gap-1">
-                                <CheckCircle className="w-4 h-4 text-green-600" />
-                                <span className="text-xs font-medium text-green-700">{t("lr.approved")}</span>
-                                {selectedCalcReceipt.receipt.pointsAwarded != null && (
-                                  <span className="text-xs text-green-600">({selectedCalcReceipt.receipt.pointsAwarded}pt)</span>
-                                )}
+                            <div className="space-y-2">
+                              <div className="bg-green-50 border border-green-200 rounded p-2 text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  <CheckCircle className="w-4 h-4 text-green-600" />
+                                  <span className="text-xs font-medium text-green-700">{t("lr.approved")}</span>
+                                  {selectedCalcReceipt.receipt.pointsAwarded != null && (
+                                    <span className="text-xs text-green-600">({selectedCalcReceipt.receipt.pointsAwarded}pt)</span>
+                                  )}
+                                </div>
                               </div>
+                              {/* 0ポイント承認済みの場合に手動ポイント付与ボタンを表示 */}
+                              {(selectedCalcReceipt.receipt.pointsAwarded === 0 || selectedCalcReceipt.receipt.pointsAwarded === null) && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-full h-8 text-xs border-purple-300 text-purple-700 hover:bg-purple-50"
+                                  onClick={() => {
+                                    if (calcPoints <= 0) { toast.error("ポイントを入力してください"); return; }
+                                    manualAwardMutation.mutate({
+                                      receiptId: selectedCalcReceipt.receipt.id,
+                                      receiptType: "line_receipt",
+                                      points: calcPoints,
+                                      note: actionNote || "管理者手動ポイント付与",
+                                    });
+                                  }}
+                                  disabled={manualAwardMutation.isPending}
+                                >
+                                  {manualAwardMutation.isPending ? "付与中..." : <><Zap className="w-3 h-3 mr-1" />手動ポイント付与 ({calcPoints}pt)</>}
+                                </Button>
+                              )}
                             </div>
                           )}
                           {selectedCalcReceipt.receipt.status === "rejected" && (
@@ -2039,9 +2084,10 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                   <p className="text-[10px] text-red-500 mt-1 line-clamp-2">{selectedCalcReceipt.receipt.reviewNote}</p>
                                 )}
                               </div>
+                              {/* 管理者最高権限ボタン群 */}
                               <Button 
                                 className="w-full h-9 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold shadow-md"
-                                onClick={handleCalcApprove}
+                                onClick={() => handleCalcApprove(true)}
                                 disabled={approveMutation.isPending}
                               >
                                 {approveMutation.isPending ? (
@@ -2053,6 +2099,34 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                                   </>
                                 )}
                               </Button>
+                              <div className="flex gap-1.5">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="flex-1 h-8 text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
+                                  onClick={() => restoreMutation.mutate({ id: selectedCalcReceipt.receipt.id, note: actionNote || undefined })}
+                                  disabled={restoreMutation.isPending}
+                                >
+                                  {restoreMutation.isPending ? "恢復中..." : <><RotateCcw className="w-3 h-3 mr-1" />審査待ちに戻す</>}
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="flex-1 h-8 text-xs border-purple-300 text-purple-700 hover:bg-purple-50"
+                                  onClick={() => {
+                                    if (calcPoints <= 0) { toast.error("ポイントを入力してください"); return; }
+                                    manualAwardMutation.mutate({
+                                      receiptId: selectedCalcReceipt.receipt.id,
+                                      receiptType: "line_receipt",
+                                      points: calcPoints,
+                                      note: actionNote || "管理者手動ポイント付与",
+                                    });
+                                  }}
+                                  disabled={manualAwardMutation.isPending}
+                                >
+                                  {manualAwardMutation.isPending ? "付与中..." : <><Zap className="w-3 h-3 mr-1" />手動ポイント付与</>}
+                                </Button>
+                              </div>
                             </div>
                           )}
                         </>
