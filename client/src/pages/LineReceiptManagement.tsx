@@ -469,6 +469,9 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
       utils.point.adminGetLineStatistics.invalidate();
       toast.success(`レシートを審査待ちに恢復しました（元ステータス: ${data.previousStatus}）`);
     },
+    onError: (error) => {
+      toast.error(`❌ 恢復エラー: ${error.message}`, { duration: 5000 });
+    },
   });
   
   // Manual point award (admin override)
@@ -481,6 +484,9 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
       setCalcAmount("");
       setCalcPoints(0);
       setActionNote("");
+    },
+    onError: (error) => {
+      toast.error(`❌ ポイント付与エラー: ${error.message}`, { duration: 5000 });
     },
   });
   
@@ -502,6 +508,16 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
       setActionNote("");
       setCalcOrderNumber("");
       setIsOrderNumberEditing(false);
+    },
+    onError: (error) => {
+      console.error("[Approve Error]", error);
+      if (error.message.includes("重複") || error.message.includes("duplicate")) {
+        toast.error(`⚠️ 重複エラー: ${error.message}`, { duration: 8000 });
+      } else if (error.message.includes("注文番号")) {
+        toast.error(`⚠️ 注文番号エラー: ${error.message}`, { duration: 8000 });
+      } else {
+        toast.error(`❌ 承認エラー: ${error.message}`, { duration: 5000 });
+      }
     },
   });
   
@@ -526,6 +542,10 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
       }
       setCalcOrderNumber("");
       setIsOrderNumberEditing(false);
+      lastRejectedIdRef.current = null;
+    },
+    onError: (error) => {
+      toast.error(`❌ 拒否エラー: ${error.message}`, { duration: 5000 });
       lastRejectedIdRef.current = null;
     },
   });
@@ -559,6 +579,9 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
       }
       setCalcOrderNumber("");
       setIsOrderNumberEditing(false);
+    },
+    onError: (error) => {
+      toast.error(`❌ 保留エラー: ${error.message}`, { duration: 5000 });
     },
   });
   
