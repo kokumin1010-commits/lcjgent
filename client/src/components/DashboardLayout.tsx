@@ -22,7 +22,7 @@ import {
 import { useLanguage, Language } from "@/contexts/LanguageContext";
 
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, MessageCircle, Package, ShoppingCart, UserCheck, Zap, Wallet, Calculator, UserRoundCog, Megaphone, Store, GraduationCap, Receipt, BarChart3, Heart, Newspaper, Bot, Tag, Gift, Handshake, Mail, History, TrendingUp } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, MessageCircle, Package, ShoppingCart, UserCheck, Zap, Wallet, Calculator, UserRoundCog, Megaphone, Store, GraduationCap, Receipt, BarChart3, Heart, Newspaper, Bot, Tag, Gift, Handshake, Mail, History, TrendingUp, ClipboardCheck } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -106,6 +106,7 @@ function DashboardLayoutContent({
     { icon: Calendar, label: t("nav.calendar"), path: "/master/calendar" },
     { icon: Video, label: t("nav.livers"), path: "/master/livers" },
     { icon: Zap, label: t("nav.liverCommand") || "ライバー司令塔", path: "/master/livers-dashboard" },
+    { icon: ClipboardCheck, label: "売上チェック", path: "/master/sales-check" },
     { icon: Calculator, label: "配信シミュレーター", path: "/master/simulator" },
     { icon: Package, label: "セット申請管理", path: "/master/set-applications" },
     { icon: Gift, label: "サンプル管理", path: "/master/sample-requests" },

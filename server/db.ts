@@ -19509,3 +19509,87 @@ export async function countBrandSampleApplications() {
   const result = await db.select({ count: sql<number>`count(*)` }).from(brandSampleApplications);
   return result[0]?.count ?? 0;
 }
+
+
+// =============================================
+// ライバー売上×配信時間チェック＆訂正機能
+// =============================================
+
+/**
+ * 全ライバーの配信記録を月別に取得（チェック用）
+ * ライバー名、ブランド名を含む
+ */
+export async function getLivestreamsForSalesCheck(month: string, liverId?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const { startDate, endDate } = getJSTMonthRange(month);
+  
+  const conditions = [
+    isNull(brandLivestreams.deletedAt),
+    sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
+    sql`${brandLivestreams.livestreamDate} <= ${endDate}`,
+  ];
+  
+  if (liverId) {
+    conditions.push(eq(brandLivestreams.liverId, liverId));
+  }
+  
+  const results = await db
+    .select({
+      id: brandLivestreams.id,
+      liverId: brandLivestreams.liverId,
+      liverName: livers.name,
+      liverColor: livers.color,
+      liverAvatar: livers.avatarUrl,
+      brandId: brandLivestreams.brandId,
+      brandName: brands.name,
+      livestreamDate: brandLivestreams.livestreamDate,
+      livestreamEndTime: brandLivestreams.livestreamEndTime,
+      salesAmount: brandLivestreams.salesAmount,
+      manualSalesAmount: brandLivestreams.manualSalesAmount,
+      duration: brandLivestreams.duration,
+      viewerCount: brandLivestreams.viewerCount,
+      orderCount: brandLivestreams.orderCount,
+      screenshotUrl: brandLivestreams.screenshotUrl,
+      beforeScreenshotUrl: brandLivestreams.beforeScreenshotUrl,
+      result: brandLivestreams.result,
+      remarks: brandLivestreams.remarks,
+      streamerName: brandLivestreams.streamerName,
+      livestreamStartTime: brandLivestreams.livestreamStartTime,
+    })
+    .from(brandLivestreams)
+    .leftJoin(livers, eq(brandLivestreams.liverId, livers.id))
+    .leftJoin(brands, eq(brandLivestreams.brandId, brands.id))
+    .where(and(...conditions))
+    .orderBy(desc(brandLivestreams.livestreamDate));
+  
+  return results;
+}
+
+/**
+ * 配信記録の売上・配信時間を訂正（管理者用）
+ */
+export async function correctLivestreamData(
+  id: number,
+  data: {
+    salesAmount?: number | null;
+    duration?: number | null;
+    viewerCount?: number | null;
+    orderCount?: number | null;
+    remarks?: string | null;
+  }
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const updateData: Record<string, unknown> = {};
+  if (data.salesAmount !== undefined) updateData.salesAmount = data.salesAmount;
+  if (data.duration !== undefined) updateData.duration = data.duration;
+  if (data.viewerCount !== undefined) updateData.viewerCount = data.viewerCount;
+  if (data.orderCount !== undefined) updateData.orderCount = data.orderCount;
+  if (data.remarks !== undefined) updateData.remarks = data.remarks;
+  
+  await db.update(brandLivestreams).set(updateData).where(eq(brandLivestreams.id, id));
+  return { success: true };
+}

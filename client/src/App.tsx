@@ -117,6 +117,7 @@ const StepEmailTemplates = lazy(() => import("./pages/StepEmailTemplates"));
 const StepEmailLogs = lazy(() => import("./pages/StepEmailLogs"));
 const StepEmailAnalytics = lazy(() => import("./pages/StepEmailAnalytics"));
 const BrandSampleLP = lazy(() => import("./pages/BrandSampleLP"));
+const SalesCheck = lazy(() => import("./pages/SalesCheck"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -317,6 +318,11 @@ function Router() {
           </DashboardLayout>
         </Route>
         <Route path={"/master/livers-dashboard"} component={LiverDashboardNew} />
+        <Route path={"/master/sales-check"}>
+          <DashboardLayout>
+            <SalesCheck />
+          </DashboardLayout>
+        </Route>
         <Route path={"/master/simulator"} component={Simulator} />
         <Route path={"/master/set-applications"}>
           <DashboardLayout>

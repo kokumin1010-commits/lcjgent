@@ -570,6 +570,8 @@ import {
   getBrandSampleApplicationById,
   updateBrandSampleApplicationStatus,
   countBrandSampleApplications,
+  getLivestreamsForSalesCheck,
+  correctLivestreamData,
 } from "./db";
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
@@ -19561,8 +19563,35 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       return { total, pending, reviewing, approved, rejected };
     }),
   }),
-});
 
+  // ===== ライバー売上×配信時間チェック＆訂正 =====
+  salesCheck: router({
+    // 配信記録一覧取得（チェック用）
+    list: protectedProcedure
+      .input(z.object({
+        month: z.string(), // format: "YYYY-MM"
+        liverId: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        return await getLivestreamsForSalesCheck(input.month, input.liverId);
+      }),
+
+    // 配信記録の訂正
+    correct: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        salesAmount: z.number().optional().nullable(),
+        duration: z.number().optional().nullable(),
+        viewerCount: z.number().optional().nullable(),
+        orderCount: z.number().optional().nullable(),
+        remarks: z.string().optional().nullable(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        return await correctLivestreamData(id, data);
+      }),
+  }),
+});
 export type AppRouter = typeof appRouter;
 
 // CSV parsing helper functions
