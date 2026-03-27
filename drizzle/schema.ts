@@ -4219,3 +4219,30 @@ export const stepEmailClicks = mysqlTable("step_email_clicks", {
 
 export type StepEmailClick = typeof stepEmailClicks.$inferSelect;
 export type InsertStepEmailClick = typeof stepEmailClicks.$inferInsert;
+
+
+/**
+ * Brand Sample Applications table - ブランド向けサンプル提供LP申込
+ */
+export const brandSampleApplications = mysqlTable("brand_sample_applications", {
+  id: int("id").autoincrement().primaryKey(),
+  companyName: varchar("company_name", { length: 255 }).notNull(),
+  contactPerson: varchar("contact_person", { length: 255 }).notNull(),
+  email: varchar("email", { length: 320 }).notNull(),
+  phone: varchar("phone", { length: 50 }),
+  brandName: varchar("brand_name", { length: 255 }).notNull(),
+  productUrl: text("product_url").notNull(),
+  productStrength: text("product_strength").notNull(), // 商品の強み
+  pastSalesRecord: text("past_sales_record"), // 過去の販売実績
+  plan: mysqlEnum("plan", ["light", "algorithm", "market_jack"]).notNull(), // 梅・竹・松
+  sampleCount: int("sample_count").notNull(), // 30, 50, 100
+  status: mysqlEnum("status", ["pending", "reviewing", "approved", "rejected"]).default("pending").notNull(),
+  reviewNote: text("review_note"), // 審査メモ
+  reviewedAt: timestamp("reviewed_at"),
+  reviewedBy: int("reviewed_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type BrandSampleApplication = typeof brandSampleApplications.$inferSelect;
+export type InsertBrandSampleApplication = typeof brandSampleApplications.$inferInsert;

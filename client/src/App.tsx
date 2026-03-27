@@ -116,6 +116,7 @@ const SampleRequestsAdmin = lazy(() => import("./pages/SampleRequestsAdmin"));
 const StepEmailTemplates = lazy(() => import("./pages/StepEmailTemplates"));
 const StepEmailLogs = lazy(() => import("./pages/StepEmailLogs"));
 const StepEmailAnalytics = lazy(() => import("./pages/StepEmailAnalytics"));
+const BrandSampleLP = lazy(() => import("./pages/BrandSampleLP"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -403,6 +404,9 @@ function Router() {
         <Route path={"/liver/sample-request"} component={LiverSampleRequest} />
         <Route path={"/liver/forgot-password"} component={LiverForgotPassword} />
         <Route path={"/liver/reset-password"} component={LiverResetPassword} />
+        
+        {/* Brand Sample LP */}
+        <Route path="/brand-sample" component={BrandSampleLP} />
         
         {/* 404 */}
         <Route path={"/404"} component={NotFound} />

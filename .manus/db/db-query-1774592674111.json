@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS brand_sample_applications (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  company_name VARCHAR(255) NOT NULL,\n  contact_person VARCHAR(255) NOT NULL,\n  email VARCHAR(320) NOT NULL,\n  phone VARCHAR(50),\n  brand_name VARCHAR(255) NOT NULL,\n  product_url TEXT NOT NULL,\n  product_strength TEXT NOT NULL,\n  past_sales_record TEXT,\n  plan ENUM('light', 'algorithm', 'market_jack') NOT NULL,\n  sample_count INT NOT NULL,\n  status ENUM('pending', 'reviewing', 'approved', 'rejected') DEFAULT 'pending' NOT NULL,\n  review_note TEXT,\n  reviewed_at TIMESTAMP NULL,\n  reviewed_by INT,\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,\n  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute CREATE TABLE IF NOT EXISTS brand_sample_applications (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  company_name VARCHAR(255) NOT NULL,\n  contact_person VARCHAR(255) NOT NULL,\n  email VARCHAR(320) NOT NULL,\n  phone VARCHAR(50),\n  brand_name VARCHAR(255) NOT NULL,\n  product_url TEXT NOT NULL,\n  product_strength TEXT NOT NULL,\n  past_sales_record TEXT,\n  plan ENUM('light', 'algorithm', 'market_jack') NOT NULL,\n  sample_count INT NOT NULL,\n  status ENUM('pending', 'reviewing', 'approved', 'rejected') DEFAULT 'pending' NOT NULL,\n  review_note TEXT,\n  reviewed_at TIMESTAMP NULL,\n  reviewed_by INT,\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,\n  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1774
+}

@@ -565,6 +565,11 @@ import {
   createBrandAdditionLog,
   getAllBrandAdditionLogs,
   createBrandByLiver,
+  createBrandSampleApplication,
+  listBrandSampleApplications,
+  getBrandSampleApplicationById,
+  updateBrandSampleApplicationStatus,
+  countBrandSampleApplications,
 } from "./db";
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
@@ -19381,6 +19386,173 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       }
 
       return { seeded: true, count: defaults.length };
+    }),
+  }),
+
+  // ============================================================
+  // Brand Sample Application (LP申込)
+  // ============================================================
+  brandSample: router({
+    // 公開: LP申込フォーム送信
+    submit: publicProcedure
+      .input(z.object({
+        companyName: z.string().min(1),
+        contactPerson: z.string().min(1),
+        email: z.string().email(),
+        phone: z.string().optional(),
+        brandName: z.string().min(1),
+        productUrl: z.string().url(),
+        productStrength: z.string().min(1),
+        pastSalesRecord: z.string().optional(),
+        plan: z.enum(["light", "algorithm", "market_jack"]),
+        sampleCount: z.number().int().min(30),
+      }))
+      .mutation(async ({ input }) => {
+        await createBrandSampleApplication(input as any);
+
+        // 自動返信メール送信
+        try {
+          const { sendEmail } = await import("./emailService");
+          const planNames: Record<string, string> = {
+            light: "ライト検証プラン（30個）",
+            algorithm: "アルゴリズム攻略プラン（50個）",
+            market_jack: "市場ジャックプラン（100個）",
+          };
+          await sendEmail({
+            to: [input.email],
+            subject: "【LCJ】サンプル提供プログラム 審査申込を受け付けました",
+            content: `${input.contactPerson} 様\n\nこの度はLCJサンプル提供プログラムにお申し込みいただき、誠にありがとうございます。\n\n■ お申込内容\nプラン: ${planNames[input.plan]}\nブランド名: ${input.brandName}\n\n現在、審査チームにて商品情報を確認しております。\n審査結果は3営業日以内にメールにてご連絡いたします。\n\n※ 毎月限定20ブランドのみ受付のため、審査通過率は約30%となっております。\n\n何かご不明な点がございましたら、このメールにご返信ください。\n\nLCJ サンプル提供プログラム事務局`,
+            html: `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+  <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 30px; text-align: center; border-radius: 12px 12px 0 0;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">審査申込を受け付けました</h1>
+    <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0;">LCJ サンプル提供プログラム</p>
+  </div>
+  <div style="padding: 30px; background: #f8f9fa; border-radius: 0 0 12px 12px;">
+    <p>${input.contactPerson} 様</p>
+    <p>この度はLCJサンプル提供プログラムにお申し込みいただき、誠にありがとうございます。</p>
+    <div style="background: white; border-radius: 8px; padding: 20px; margin: 20px 0; border-left: 4px solid #667eea;">
+      <h3 style="margin: 0 0 12px; color: #333;">お申込内容</h3>
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr><td style="padding: 6px 0; color: #666;">プラン</td><td style="padding: 6px 0; font-weight: bold;">${planNames[input.plan]}</td></tr>
+        <tr><td style="padding: 6px 0; color: #666;">ブランド名</td><td style="padding: 6px 0; font-weight: bold;">${input.brandName}</td></tr>
+        <tr><td style="padding: 6px 0; color: #666;">サンプル数</td><td style="padding: 6px 0; font-weight: bold;">${input.sampleCount}個</td></tr>
+      </table>
+    </div>
+    <div style="background: #fff3cd; border-radius: 8px; padding: 16px; margin: 20px 0;">
+      <p style="margin: 0; font-size: 14px;">⏰ 審査結果は<strong>3営業日以内</strong>にメールにてご連絡いたします。</p>
+    </div>
+    <p style="color: #666; font-size: 13px;">※ 毎月限定20ブランドのみ受付のため、審査通過率は約30%となっております。</p>
+  </div>
+</div>`,
+          });
+        } catch (e) {
+          console.error("[BrandSample] Failed to send confirmation email:", e);
+        }
+
+        // オーナーに通知
+        try {
+          const { notifyOwner } = await import("./_core/notification");
+          await notifyOwner({
+            title: "新規サンプル申込",
+            content: `${input.companyName} / ${input.brandName} が${input.plan === "light" ? "ライト" : input.plan === "algorithm" ? "アルゴリズム攻略" : "市場ジャック"}プラン（${input.sampleCount}個）で申込みました。`,
+          });
+        } catch (e) {
+          console.error("[BrandSample] Failed to notify owner:", e);
+        }
+
+        return { success: true };
+      }),
+
+    // 管理: 申込一覧
+    list: protectedProcedure
+      .input(z.object({
+        status: z.string().optional(),
+        limit: z.number().int().optional(),
+        offset: z.number().int().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return await listBrandSampleApplications(input ?? {});
+      }),
+
+    // 管理: 申込詳細
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return await getBrandSampleApplicationById(input.id);
+      }),
+
+    // 管理: ステータス更新（審査通過/却下）
+    updateStatus: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(["reviewing", "approved", "rejected"]),
+        reviewNote: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        await updateBrandSampleApplicationStatus(input.id, input.status, input.reviewNote, ctx.user.id);
+
+        // 審査結果メール送信
+        const app = await getBrandSampleApplicationById(input.id);
+        if (app && (input.status === "approved" || input.status === "rejected")) {
+          try {
+            const { sendEmail } = await import("./emailService");
+            if (input.status === "approved") {
+              await sendEmail({
+                to: [app.email],
+                subject: "【LCJ】🎉 審査通過のお知らせ - サンプル提供プログラム",
+                content: `${app.contactPerson} 様\n\nおめでとうございます！\n貴社の「${app.brandName}」がLCJサンプル提供プログラムの審査を通過しました。\n\n次のステップ:\n1. 下記のLCJ倉庫宛にサンプルを${app.sampleCount}個ご送付ください\n2. TikTok Seller Centerでアフィリエイトリンク（報酬20%）を発行してください\n3. サンプル到着後、ライバーへの配布と動画投稿を開始します\n\nLCJ サンプル提供プログラム事務局`,
+                html: `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+  <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 40px 30px; text-align: center; border-radius: 12px 12px 0 0;">
+    <h1 style="color: white; margin: 0; font-size: 28px;">🎉 審査通過！</h1>
+    <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0; font-size: 16px;">おめでとうございます</p>
+  </div>
+  <div style="padding: 30px; background: #f8f9fa; border-radius: 0 0 12px 12px;">
+    <p>${app.contactPerson} 様</p>
+    <p>貴社の<strong>「${app.brandName}」</strong>がLCJサンプル提供プログラムの審査を通過しました！</p>
+    <div style="background: white; border-radius: 8px; padding: 20px; margin: 20px 0;">
+      <h3 style="color: #11998e; margin: 0 0 16px;">📋 次のステップ</h3>
+      <div style="margin-bottom: 12px; padding: 12px; background: #f0fdf4; border-radius: 6px;"><strong>STEP 1</strong><br>LCJ倉庫宛にサンプルを<strong>${app.sampleCount}個</strong>ご送付ください</div>
+      <div style="margin-bottom: 12px; padding: 12px; background: #f0fdf4; border-radius: 6px;"><strong>STEP 2</strong><br>TikTok Seller Centerで<strong>アフィリエイトリンク（報酬20%）</strong>を発行してください</div>
+      <div style="padding: 12px; background: #f0fdf4; border-radius: 6px;"><strong>STEP 3</strong><br>サンプル到着後、ライバーへの配布と動画投稿を開始します</div>
+    </div>
+  </div>
+</div>`,
+              });
+            } else {
+              await sendEmail({
+                to: [app.email],
+                subject: "【LCJ】審査結果のお知らせ - サンプル提供プログラム",
+                content: `${app.contactPerson} 様\n\nこの度はLCJサンプル提供プログラムにお申し込みいただき、誠にありがとうございました。\n\n慎重に審査を行いました結果、今回は見送りとさせていただくこととなりました。\n${input.reviewNote ? `\n理由: ${input.reviewNote}\n` : ""}\n商品の改善後、再度のお申し込みをお待ちしております。\n\nLCJ サンプル提供プログラム事務局`,
+                html: `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+  <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 30px; text-align: center; border-radius: 12px 12px 0 0;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">審査結果のお知らせ</h1>
+  </div>
+  <div style="padding: 30px; background: #f8f9fa; border-radius: 0 0 12px 12px;">
+    <p>${app.contactPerson} 様</p>
+    <p>この度はLCJサンプル提供プログラムにお申し込みいただき、誠にありがとうございました。</p>
+    <p>慎重に審査を行いました結果、今回は見送りとさせていただくこととなりました。</p>
+    ${input.reviewNote ? `<div style="background: #fff3cd; border-radius: 8px; padding: 16px; margin: 20px 0;"><p style="margin: 0;"><strong>改善ポイント:</strong> ${input.reviewNote}</p></div>` : ""}
+    <p>商品の改善後、再度のお申し込みをお待ちしております。</p>
+  </div>
+</div>`,
+              });
+            }
+          } catch (e) {
+            console.error("[BrandSample] Failed to send review result email:", e);
+          }
+        }
+
+        return { success: true };
+      }),
+
+    // 管理: 統計
+    stats: protectedProcedure.query(async () => {
+      const total = await countBrandSampleApplications();
+      const pending = (await listBrandSampleApplications({ status: "pending" })).length;
+      const reviewing = (await listBrandSampleApplications({ status: "reviewing" })).length;
+      const approved = (await listBrandSampleApplications({ status: "approved" })).length;
+      const rejected = (await listBrandSampleApplications({ status: "rejected" })).length;
+      return { total, pending, reviewing, approved, rejected };
     }),
   }),
 });
