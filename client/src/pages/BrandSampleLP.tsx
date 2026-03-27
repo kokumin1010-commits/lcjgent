@@ -117,7 +117,7 @@ function InlineCTA({ onClick, text = "無料で審査に申し込む", variant =
       </Button>
       <p className="text-xs text-gray-400 mt-2 flex items-center justify-center gap-1">
         <Clock className="h-3 w-3" />
-        入力30秒・初期費用0円
+        入力30秒・初期費用¥200,000→¥0
       </p>
     </div>
   );
@@ -218,27 +218,85 @@ function formatCountdown(ms: number) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-function UrgencyBadge() {
+function HeroCountdown() {
   const { config, remaining } = useCountdownStage();
+  const time = formatCountdown(remaining);
+  const [h, m, s] = time.split(':');
   return (
-    <div className={`inline-flex items-center gap-2 ${config.badgeBg} ${config.badgeText} rounded-full px-4 py-2 text-sm font-medium`}>
-      <Zap className="h-4 w-4 animate-pulse" />
-      {config.label}
-      <span className="text-red-400">|</span>
-      <span className="font-mono font-black tabular-nums">{formatCountdown(remaining)}</span>
+    <div className="relative">
+      {/* Glow effect */}
+      <div className="absolute inset-0 bg-gradient-to-r from-red-600/30 via-orange-500/20 to-red-600/30 blur-3xl rounded-3xl" />
+      <div className="relative bg-gradient-to-r from-red-600 via-red-500 to-orange-500 rounded-2xl p-6 md:p-8 shadow-2xl shadow-red-500/40 border border-red-400/30">
+        {/* Sparkle particles */}
+        <div className="absolute inset-0 overflow-hidden rounded-2xl">
+          {Array.from({ length: 12 }).map((_, i) => (
+            <div key={i} className="absolute w-1 h-1 bg-white rounded-full animate-ping" style={{
+              left: `${Math.random() * 100}%`, top: `${Math.random() * 100}%`,
+              animationDelay: `${Math.random() * 3}s`, animationDuration: `${1.5 + Math.random() * 2}s`,
+            }} />
+          ))}
+        </div>
+        <div className="relative text-center">
+          <div className="flex items-center justify-center gap-2 mb-3">
+            <Zap className="h-5 w-5 text-yellow-300 animate-pulse" />
+            <span className="text-white/90 text-sm md:text-base font-bold tracking-wide">{config.label}</span>
+            <Zap className="h-5 w-5 text-yellow-300 animate-pulse" />
+          </div>
+          <div className="flex items-center justify-center gap-2 md:gap-4">
+            {[{ v: h, l: '時間' }, { v: m, l: '分' }, { v: s, l: '秒' }].map((unit, i) => (
+              <div key={i} className="flex items-center gap-2 md:gap-4">
+                <div className="flex flex-col items-center">
+                  <div className="bg-black/30 backdrop-blur-sm rounded-xl px-4 py-2 md:px-6 md:py-3 border border-white/20 shadow-inner">
+                    <span className="font-mono font-black text-4xl md:text-6xl lg:text-7xl text-white tabular-nums drop-shadow-lg">{unit.v}</span>
+                  </div>
+                  <span className="text-white/70 text-[10px] md:text-xs mt-1 font-medium">{unit.l}</span>
+                </div>
+                {i < 2 && <span className="text-white/60 text-3xl md:text-5xl font-black mb-4">:</span>}
+              </div>
+            ))}
+          </div>
+          <p className="text-yellow-200/80 text-xs md:text-sm mt-3 font-medium">この特別オファーは残り時間で終了します</p>
+        </div>
+      </div>
     </div>
   );
 }
 
 // ============================================================
-// Price Strike-through Badge
+// Hero Price Offer (Large)
 // ============================================================
-function PriceStrikethrough() {
+function HeroPriceOffer() {
   return (
-    <div className="inline-flex items-center gap-3 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-full px-5 py-2.5 text-sm font-medium">
-      <span className="line-through text-gray-400 font-normal">通常 広告費20万円</span>
-      <ArrowRight className="h-4 w-4 text-amber-500" />
-      <span className="font-black text-red-600 text-base">今なら 0円</span>
+    <div className="relative mt-4">
+      <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/20 via-amber-500/10 to-yellow-500/20 blur-2xl rounded-2xl" />
+      <div className="relative bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border-2 border-yellow-500/50 rounded-2xl p-5 md:p-6 shadow-xl">
+        <div className="flex items-center justify-center gap-2 mb-2">
+          <Sparkles className="h-4 w-4 text-yellow-400 animate-pulse" />
+          <span className="text-yellow-400 text-xs md:text-sm font-bold tracking-wider uppercase">Special Limited Offer</span>
+          <Sparkles className="h-4 w-4 text-yellow-400 animate-pulse" />
+        </div>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 md:gap-6">
+          <div className="flex flex-col items-center">
+            <span className="text-gray-500 text-xs mb-1">通常プラン</span>
+            <div className="relative">
+              <span className="text-gray-400 text-2xl md:text-3xl font-black">¥200,000</span>
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full h-0.5 bg-red-500 rotate-[-8deg]" />
+              </div>
+            </div>
+            <span className="text-gray-500 text-[10px]">(初期費用)</span>
+          </div>
+          <div className="flex items-center">
+            <ArrowRight className="h-6 w-6 md:h-8 md:w-8 text-yellow-400 animate-pulse" />
+          </div>
+          <div className="flex flex-col items-center">
+            <span className="text-yellow-400 text-xs mb-1 font-bold">このページ限定</span>
+            <span className="text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-amber-300 to-yellow-400 drop-shadow-lg">¥0</span>
+            <span className="text-yellow-400/80 text-xs font-medium mt-1">初期費用 完全無料</span>
+          </div>
+        </div>
+        <p className="text-center text-yellow-300/60 text-[10px] md:text-xs mt-3">このページにたどり着いたあなただけの特別オファーです</p>
+      </div>
     </div>
   );
 }
@@ -628,7 +686,7 @@ export default function BrandSampleLP() {
       id: "light",
       name: "ライト検証",
       samples: 30,
-      price: "初期費用 0円",
+      price: "初期費用 ¥200,000 → ¥0",
       tagline: "まずはリスクゼロで検証",
       color: "bg-blue-50 text-blue-600",
       gradient: "linear-gradient(135deg, #3b82f6, #6366f1)",
@@ -644,7 +702,7 @@ export default function BrandSampleLP() {
       id: "algorithm",
       name: "アルゴリズム攻略",
       samples: 50,
-      price: "初期費用 0円",
+      price: "初期費用 ¥200,000 → ¥0",
       tagline: "TikTokの売上の柱を作る",
       color: "bg-purple-50 text-purple-600",
       gradient: "linear-gradient(135deg, #8b5cf6, #d946ef)",
@@ -661,7 +719,7 @@ export default function BrandSampleLP() {
       id: "market_jack",
       name: "市場ジャック",
       samples: 100,
-      price: "初期費用 0円",
+      price: "初期費用 ¥200,000 → ¥0",
       tagline: "最速でランキング入りを狙う",
       color: "bg-amber-50 text-amber-600",
       gradient: "linear-gradient(135deg, #f59e0b, #ef4444)",
@@ -721,12 +779,18 @@ export default function BrandSampleLP() {
             </div>
           </div>
 
+          {/* Countdown + Price Offer - Full Width */}
+          <div className="mb-10 md:mb-14">
+            <HeroCountdown />
+            <HeroPriceOffer />
+          </div>
+
           <div className="grid md:grid-cols-2 gap-12 items-center">
             {/* Hero Text */}
             <div>
-              <div className="mb-4 flex flex-wrap items-center gap-3">
-                <UrgencyBadge />
-                <PriceStrikethrough />
+              <div className="inline-flex items-center gap-2 bg-green-500/20 border border-green-500/40 rounded-full px-4 py-2 mb-5">
+                <CheckCircle2 className="h-4 w-4 text-green-400" />
+                <span className="text-green-300 text-sm font-bold">このページ限定の特別オファー</span>
               </div>
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-black leading-tight mb-6">
                 TikTok Shopの売上は
@@ -736,15 +800,20 @@ export default function BrandSampleLP() {
                 </span>
                 で決まる
               </h1>
-              <p className="text-lg text-gray-300 mb-8 leading-relaxed">
-                初期費用0円。30個のサンプルが、貴社のTikTok売上を自動化する
-                <strong className="text-white">最強のテストマーケティング</strong>になります。
+              <p className="text-lg text-gray-300 mb-4 leading-relaxed">
+                本来<strong className="text-yellow-300">初期費用¥200,000</strong>のプランが、
+                このページから申し込むと<strong className="text-white text-xl">完全無料</strong>。
+              </p>
+              <p className="text-base text-gray-400 mb-8 leading-relaxed">
+                30個のサンプルを送るだけで、貴社のTikTok売上を自動化する
+                <strong className="text-white">最強のテストマーケティング</strong>が始まります。
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button
                   onClick={() => openModal()}
-                  className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-8 py-6 text-lg font-bold rounded-xl shadow-2xl shadow-purple-500/30 transition-all hover:scale-105"
+                  className="relative bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-8 py-6 text-lg font-bold rounded-xl shadow-2xl shadow-purple-500/30 transition-all hover:scale-105 overflow-hidden group"
                 >
+                  <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
                   {stageConfig.ctaLabel} <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
                 <Button
@@ -757,7 +826,7 @@ export default function BrandSampleLP() {
               </div>
               <p className="text-xs text-gray-500 mt-3 flex items-center gap-1">
                 <Clock className="h-3 w-3" />
-                入力30秒・初期費用0円・審査無料
+                入力30秒・初期費用¥200,000→¥0・審査無料
               </p>
             </div>
 
@@ -1335,7 +1404,7 @@ export default function BrandSampleLP() {
               貴社に最適なプランを
               <span className="text-purple-600">お選びください</span>
             </h2>
-            <p className="text-gray-500">すべてのプランで初期費用0円。サンプル提供のみでスタートできます。</p>
+            <p className="text-gray-500">すべてのプランで<strong className="text-red-600">初期費用¥200,000が今なら¥0</strong>。サンプル提供のみでスタートできます。</p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-6 md:gap-8">
@@ -1431,8 +1500,8 @@ export default function BrandSampleLP() {
           <div className="space-y-4">
             {[
               {
-                q: "本当に初期費用0円ですか？",
-                a: "はい、初期費用・月額費用は一切かかりません。必要なのはサンプル商品の提供のみです。売上が発生した場合のみ、TikTok Shopのアフィリエイト報酬（20%）がクリエイターに支払われます。",
+                q: "本当に初期費用¥200,000が無料になるのですか？",
+                a: "はい、本来¥200,000の初期費用が、このページからのお申し込みに限り完全無料です。月額費用も一切かかりません。必要なのはサンプル商品の提供のみです。売上が発生した場合のみ、TikTok Shopのアフィリエイト報酬がクリエイターに支払われます。",
               },
               {
                 q: "審査基準は何ですか？",
@@ -1474,31 +1543,36 @@ export default function BrandSampleLP() {
         <div className="max-w-3xl mx-auto px-4">
           <img src={LCJ_LOGO_URL} alt="Live Commerce Japan" className="h-12 mx-auto mb-6 rounded-lg bg-white p-1.5" />
           <p className="text-amber-400 text-sm font-bold mb-4">日本最大級ライブコマース事務所</p>
-          <div className="mb-6 flex flex-wrap justify-center items-center gap-3">
-            <UrgencyBadge />
-            <PriceStrikethrough />
+          {/* Mini Countdown */}
+          <div className="mb-8">
+            <HeroCountdown />
           </div>
-          <h2 className="text-3xl md:text-4xl font-black mb-6">
-            30個のサンプルが、
+          <h2 className="text-3xl md:text-4xl font-black mb-4">
+            このページに出会えた
             <br />
-            <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-              TikTok売上を自動化する
+            <span className="bg-gradient-to-r from-yellow-300 via-amber-300 to-yellow-400 bg-clip-text text-transparent">
+              あなたはラッキーです
             </span>
           </h2>
+          <p className="text-gray-300 mb-2 text-lg">
+            本来<strong className="text-yellow-300">初期費用¥200,000</strong>のプランが
+          </p>
+          <p className="text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-amber-300 to-yellow-400 mb-4">完全無料</p>
           <p className="text-gray-400 mb-8">
-            毎月限定20ブランド。審査通過率30%。
+            30個のサンプルを送るだけ。TikTok Shopの売上が自動で生まれます。
             <br />
-            今すぐ申し込んで、TikTok Shopの売上を手に入れましょう。
+            <span className="text-yellow-400/80 font-medium">毎月限定20ブランド・審査通過率30%</span>
           </p>
           <Button
             onClick={() => openModal()}
-            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-10 py-6 text-lg font-bold rounded-xl shadow-2xl shadow-purple-500/30 transition-all hover:scale-105"
+            className="relative bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-10 py-7 text-xl font-bold rounded-xl shadow-2xl shadow-purple-500/30 transition-all hover:scale-105 overflow-hidden group animate-pulse"
           >
-            {stageConfig.ctaLabel} <ArrowRight className="ml-2 h-5 w-5" />
+            <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
+            {stageConfig.ctaLabel} <ArrowRight className="ml-2 h-6 w-6" />
           </Button>
           <p className="text-xs text-gray-500 mt-3 flex items-center justify-center gap-1">
             <Clock className="h-3 w-3" />
-            入力30秒・初期費用0円・審査無料
+            入力30秒・初期費用¥200,000→¥0・審査無料
           </p>
         </div>
       </section>
