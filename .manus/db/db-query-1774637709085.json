@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `ab_test_events` (\n  `id` int AUTO_INCREMENT PRIMARY KEY,\n  `session_id` varchar(64) NOT NULL,\n  `variant_id` varchar(32) NOT NULL,\n  `event_type` enum('view','cta_click','scroll_past_hero') NOT NULL,\n  `dwell_time_ms` bigint,\n  `page_url` text,\n  `user_agent` text,\n  `referrer` text,\n  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute CREATE TABLE IF NOT EXISTS `ab_test_events` (\n  `id` int AUTO_INCREMENT PRIMARY KEY,\n  `session_id` varchar(64) NOT NULL,\n  `variant_id` varchar(32) NOT NULL,\n  `event_type` enum('view','cta_click','scroll_past_hero') NOT NULL,\n  `dwell_time_ms` bigint,\n  `page_url` text,\n  `user_agent` text,\n  `referrer` text,\n  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1742
+}

@@ -15,6 +15,50 @@ import {
 const LCJ_LOGO_URL = "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/lcj_logo_e21ead0b.jpg";
 
 // ============================================================
+// AB Test Variants
+// ============================================================
+const AB_VARIANTS = [
+  {
+    id: "A",
+    headline: <>サンプル30個送るだけで<br /><span className="bg-gradient-to-r from-purple-400 via-pink-400 to-amber-400 bg-clip-text text-transparent">TikTokが勝手に売ってくれる</span></>,
+    subCopy: "本来初期費用¥200,000のプランが、このページから申し込むと完全無料。",
+    subDetail: "30個のサンプルを送るだけで、貴社のTikTok売上を自動化する\n最強のテストマーケティングが始まります。",
+  },
+  {
+    id: "B",
+    headline: <>あなたの商品が<br /><span className="bg-gradient-to-r from-purple-400 via-pink-400 to-amber-400 bg-clip-text text-transparent">TikTokでバズる仕組み</span>、<br />できてます。</>,
+    subCopy: "本来初期費用¥200,000のプランが、このページから申し込むと完全無料。",
+    subDetail: "350名のライバーが貴社の商品を紹介・販売。\nTikTokのアルゴリズムが自動的に拡散します。",
+  },
+  {
+    id: "C",
+    headline: <>広告費¥0で<br /><span className="bg-gradient-to-r from-purple-400 via-pink-400 to-amber-400 bg-clip-text text-transparent">TikTok Shop売上1億円</span>の<br />実績あり</>,
+    subCopy: "本来初期費用¥200,000のプランが、このページから申し込むと完全無料。",
+    subDetail: "KYOGOKU様は1時間のライブ配信で1億円+。\n次はあなたのブランドの番です。",
+  },
+];
+
+function getAbSessionId(): string {
+  const key = "lcj_ab_session";
+  let sid = localStorage.getItem(key);
+  if (!sid) {
+    sid = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem(key, sid);
+  }
+  return sid;
+}
+
+function getAbVariant(): typeof AB_VARIANTS[number] {
+  const key = "lcj_ab_variant";
+  let vid = localStorage.getItem(key);
+  if (!vid || !AB_VARIANTS.find(v => v.id === vid)) {
+    vid = AB_VARIANTS[Math.floor(Math.random() * AB_VARIANTS.length)].id;
+    localStorage.setItem(key, vid);
+  }
+  return AB_VARIANTS.find(v => v.id === vid) || AB_VARIANTS[0];
+}
+
+// ============================================================
 // Brand Results Data
 // ============================================================
 const BRAND_RESULTS = [
@@ -675,9 +719,61 @@ export default function BrandSampleLP() {
   const [modalOpen, setModalOpen] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
   const { config: stageConfig } = useCountdownStage();
+  const [abVariant] = useState(() => getAbVariant());
+  const [abSessionId] = useState(() => getAbSessionId());
+  const recordMut = trpc.abTest.record.useMutation();
+  const pageLoadRef = useRef(Date.now());
+  const viewRecordedRef = useRef(false);
+
+  // Record view event on mount
+  useEffect(() => {
+    if (viewRecordedRef.current) return;
+    viewRecordedRef.current = true;
+    recordMut.mutate({
+      sessionId: abSessionId,
+      variantId: abVariant.id,
+      eventType: "view",
+      pageUrl: window.location.href,
+      userAgent: navigator.userAgent,
+      referrer: document.referrer || undefined,
+    });
+  }, []);
+
+  // Record dwell time on unload
+  useEffect(() => {
+    const handler = () => {
+      const dwell = Date.now() - pageLoadRef.current;
+      navigator.sendBeacon?.(
+        "/api/trpc/abTest.record",
+        new Blob([JSON.stringify({
+          json: {
+            sessionId: abSessionId,
+            variantId: abVariant.id,
+            eventType: "scroll_past_hero" as const,
+            dwellTimeMs: dwell,
+            pageUrl: window.location.href,
+          },
+        })], { type: "application/json" })
+      );
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [abSessionId, abVariant.id]);
+
+  const trackCtaClick = useCallback(() => {
+    const dwell = Date.now() - pageLoadRef.current;
+    recordMut.mutate({
+      sessionId: abSessionId,
+      variantId: abVariant.id,
+      eventType: "cta_click",
+      dwellTimeMs: dwell,
+      pageUrl: window.location.href,
+    });
+  }, [abSessionId, abVariant.id, recordMut]);
 
   const openModal = (planId?: string) => {
     if (planId) setSelectedPlan(planId);
+    trackCtaClick();
     setModalOpen(true);
   };
 
@@ -793,20 +889,14 @@ export default function BrandSampleLP() {
                 <span className="text-green-300 text-sm font-bold">このページ限定の特別オファー</span>
               </div>
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-black leading-tight mb-6">
-                TikTok Shopの売上は
-                <br />
-                <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-amber-400 bg-clip-text text-transparent">
-                  UGCの数
-                </span>
-                で決まる
+                {abVariant.headline}
               </h1>
               <p className="text-lg text-gray-300 mb-4 leading-relaxed">
                 本来<strong className="text-yellow-300">初期費用¥200,000</strong>のプランが、
                 このページから申し込むと<strong className="text-white text-xl">完全無料</strong>。
               </p>
-              <p className="text-base text-gray-400 mb-8 leading-relaxed">
-                30個のサンプルを送るだけで、貴社のTikTok売上を自動化する
-                <strong className="text-white">最強のテストマーケティング</strong>が始まります。
+              <p className="text-base text-gray-400 mb-8 leading-relaxed whitespace-pre-line">
+                {abVariant.subDetail}
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button
@@ -898,15 +988,16 @@ export default function BrandSampleLP() {
           <div className="text-center mb-16">
             <div className="inline-flex items-center gap-2 bg-purple-50 text-purple-700 rounded-full px-4 py-2 mb-4 text-sm font-medium">
               <BarChart3 className="h-4 w-4" />
-              LCJの3チャネル戦略
+              なぜ売れるのか？
             </div>
             <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">
-              なぜ<span className="text-purple-600">UGCの数</span>が
-              売上を決めるのか？
+              「勝手に売れる」が
+              <span className="text-purple-600">止まらない</span>
+              仕組み
             </h2>
             <p className="text-gray-500 max-w-2xl mx-auto">
-              TikTokアルゴリズムは「多くの人が紹介している商品」を自動的に拡散します。
-              LCJは3つのチャネルで大量のUGCを生み出し、アルゴリズムを攻略します。
+              TikTokは「みんなが紹介している商品」を自動的に拡散します。
+              LCJは3つのチャネルで「売れる流れ」を作り出し、あなたの商品がバズる環境を整えます。
             </p>
           </div>
 
@@ -914,8 +1005,8 @@ export default function BrandSampleLP() {
             {[
               {
                 icon: <Radio className="h-8 w-8" />,
-                title: "ライブ配信で\n即時売上を生む",
-                desc: "所属ライバーがリアルタイムで商品を紹介・販売。視聴者との双方向コミュニケーションで、1時間で数百万円の売上を生み出すことも。",
+                title: "ライブ配信で\nその場で売れる！",
+                desc: "所属ライバーがリアルタイムで商品を紹介・販売。1時間の配信で数百万円の売上が生まれることも。",
                 stat: "1配信あたり平均視聴者 3,000人+",
                 color: "from-red-500 to-pink-500",
                 bgColor: "bg-red-50",
@@ -923,8 +1014,8 @@ export default function BrandSampleLP() {
               },
               {
                 icon: <Video className="h-8 w-8" />,
-                title: "UGC動画が\n一斉に投稿される",
-                desc: "ライバーが実際に商品を使い、リアルな口コミ動画をTikTokに投稿。アルゴリズムが「売れる商品」と判定し、自動的にレコメンドに表示します。",
+                title: "口コミ動画が\n一斉にバズる！",
+                desc: "ライバーが実際に商品を使い、リアルな口コミ動画をTikTokに投稿。「売れてる商品」として自動的にレコメンドに表示されます。",
                 stat: "1サンプルあたり平均1.5本の動画が生成",
                 color: "from-purple-500 to-pink-500",
                 bgColor: "bg-purple-50",
@@ -932,8 +1023,8 @@ export default function BrandSampleLP() {
               },
               {
                 icon: <Store className="h-8 w-8" />,
-                title: "LCJ MALLで\n購入者レビュー蓄積",
-                desc: "自社ECモール「LCJ MALL」で実際の購入者によるリアルレビューが蓄積。TikTok Shop上での信頼性を高め、コンバージョン率を向上させます。",
+                title: "LCJ MALLで\n信頼が積み上がる！",
+                desc: "自社ECモール「LCJ MALL」で購入者のリアルレビューが蓄積。TikTok Shopでの信頼性が上がり、「買ってみよう」が止まらなくなります。",
                 stat: "購入者レビュー平均4.5以上",
                 color: "from-emerald-500 to-teal-500",
                 bgColor: "bg-emerald-50",
@@ -961,7 +1052,7 @@ export default function BrandSampleLP() {
           </div>
 
           {/* CTA after 3-channel */}
-          <InlineCTA onClick={() => openModal()} text="3チャネル戦略を試してみる" />
+          <InlineCTA onClick={() => openModal()} text="この仕組みを無料で試してみる" />
         </div>
       </section>
 

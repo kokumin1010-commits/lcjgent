@@ -4248,3 +4248,23 @@ export const brandSampleApplications = mysqlTable("brand_sample_applications", {
 
 export type BrandSampleApplication = typeof brandSampleApplications.$inferSelect;
 export type InsertBrandSampleApplication = typeof brandSampleApplications.$inferInsert;
+
+
+/**
+ * AB Test Events table - ファーストビューABテスト計測
+ * バリアント別の滞在時間・CTAタップを記録
+ */
+export const abTestEvents = mysqlTable("ab_test_events", {
+  id: int("id").autoincrement().primaryKey(),
+  sessionId: varchar("session_id", { length: 64 }).notNull(), // ブラウザセッション識別子
+  variantId: varchar("variant_id", { length: 32 }).notNull(), // バリアント識別子 (e.g., "A", "B", "C")
+  eventType: mysqlEnum("event_type", ["view", "cta_click", "scroll_past_hero"]).notNull(),
+  dwellTimeMs: bigint("dwell_time_ms", { mode: "number" }), // ページ滞在時間（ミリ秒）
+  pageUrl: text("page_url"), // ページURL
+  userAgent: text("user_agent"), // ブラウザ情報
+  referrer: text("referrer"), // リファラー
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type AbTestEvent = typeof abTestEvents.$inferSelect;
+export type InsertAbTestEvent = typeof abTestEvents.$inferInsert;

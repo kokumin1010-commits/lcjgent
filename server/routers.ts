@@ -572,6 +572,9 @@ import {
   countBrandSampleApplications,
   getLivestreamsForSalesCheck,
   correctLivestreamData,
+  recordAbTestEvent,
+  getAbTestStats,
+  getAbTestRecentEvents,
 } from "./db";
 import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
@@ -19626,6 +19629,38 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
           .set({ verifiedAt: new Date(), verifiedBy: ctx.user.id })
           .where(inArray(brandLivestreams.id, input.ids));
         return { count: input.ids.length };
+      }),
+  }),
+
+  // ============================================================
+  // AB Test Events (ファーストビューABテスト)
+  // ============================================================
+  abTest: router({
+    // 公開: イベント記録（view, cta_click, scroll_past_hero）
+    record: publicProcedure
+      .input(z.object({
+        sessionId: z.string().min(1),
+        variantId: z.string().min(1),
+        eventType: z.enum(["view", "cta_click", "scroll_past_hero"]),
+        dwellTimeMs: z.number().optional(),
+        pageUrl: z.string().optional(),
+        userAgent: z.string().optional(),
+        referrer: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        return await recordAbTestEvent(input);
+      }),
+
+    // 管理者: 統計取得
+    stats: protectedProcedure.query(async () => {
+      return await getAbTestStats();
+    }),
+
+    // 管理者: 直近イベント取得
+    recentEvents: protectedProcedure
+      .input(z.object({ limit: z.number().int().min(1).max(200).default(50) }).optional())
+      .query(async ({ input }) => {
+        return await getAbTestRecentEvents(input?.limit ?? 50);
       }),
   }),
 });

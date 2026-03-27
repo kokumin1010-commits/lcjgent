@@ -119,6 +119,7 @@ const StepEmailAnalytics = lazy(() => import("./pages/StepEmailAnalytics"));
 const BrandSampleLP = lazy(() => import("./pages/BrandSampleLP"));
 const BrandApplications = lazy(() => import("./pages/BrandApplications"));
 const SalesCheck = lazy(() => import("./pages/SalesCheck"));
+const AbTestDashboard = lazy(() => import("./pages/AbTestDashboard"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -420,6 +421,7 @@ function Router() {
 
         {/* Brand Sample LP */}
         <Route path="/brand-sample" component={BrandSampleLP} />
+        <Route path="/master/ab-test" component={AbTestDashboard} />
         
         {/* 404 */}
         <Route path={"/404"} component={NotFound} />
