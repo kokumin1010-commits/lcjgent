@@ -540,41 +540,10 @@ async function processOneBatch(adminUserId: number, batchSize: number, confidenc
     const missingOrderNumber = !orderNumber;
     const missingAmount = !candidate.totalAmount || candidate.totalAmount <= 0;
 
+    // 注文番号なしでも即却下せず、LLMに画像から読み取りを試みさせる
+    // missingOrderNumber フラグはSTEP 2のLLM審査で使用される
     if (missingOrderNumber) {
-      await updateLineReceiptStatus(candidate.id, "rejected", adminUserId,
-        `[AI自動] 注文番号なし: OCRで注文番号を検出できなかったため自動却下`);
-      try {
-        await createReceiptReviewLog({
-          receiptType: "line_receipt",
-          receiptId: candidate.id,
-          decision: "rejected",
-          rejectionCategory: "missing_order_number",
-          rejectionNote: `AI自動却下: 注文番号なし (ORDER_NUMBER_MISSING)`,
-          totalAmount: candidate.totalAmount ?? undefined,
-          hasOrderNumber: "no",
-          imageCount: candidate.imageUrls?.length ?? 1,
-          fraudScore: candidate.fraudScore ?? undefined,
-          fraudFlagCount: candidate.fraudFlags?.length ?? 0,
-          pointsCalculated: candidate.pointsCalculated ?? undefined,
-          reviewedBy: adminUserId,
-        });
-      } catch (logErr) {
-        console.error("[AI AutoApprove Scheduler] Failed to log ORDER_NUMBER_MISSING rejection:", logErr);
-      }
-      results.push({
-        id: candidate.id,
-        action: "rejected_ai" as const,
-        reason: `注文番号なし (ORDER_NUMBER_MISSING)`,
-        orderNumber: undefined,
-        amount: candidate.totalAmount ?? undefined,
-        lineUserId: candidate.lineUserId,
-        storeName: ocrData?.storeName,
-        imageUrl: candidate.imageUrl,
-        reasonCode: "ORDER_NUMBER_MISSING",
-        beforeStatus: candidate.status,
-        afterStatus: "rejected",
-      });
-      continue;
+      console.log(`[AI AutoApprove Scheduler] Receipt #${candidate.id}: OCRで注文番号未検出 → LLMで画像から読み取りを試行`);
     }
 
     // --- Rule 3: Force-submitted receipts → skip ---
@@ -686,7 +655,7 @@ async function processOneBatch(adminUserId: number, batchSize: number, confidenc
 
         const imageContents: any[] = allImageUrls.map(url => ({
           type: "image_url" as const,
-          image_url: { url, detail: "low" as const },
+          image_url: { url, detail: "high" as const },
         }));
 
         let missingDataNote = "";
@@ -770,38 +739,43 @@ async function processOneBatch(adminUserId: number, batchSize: number, confidenc
               content: imageContents,
             },
           ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "receipt_review",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  shouldApprove: { type: "boolean", description: "承認すべきか" },
+                  confidence: { type: "integer", description: "信頼度スコア 0-100" },
+                  reason: { type: "string", description: "判断理由（日本語）" },
+                  rejectionCategory: { type: ["string", "null"], description: "却下カテゴリー", enum: ["not_order_detail", "not_tiktok_shop", "not_delivered", "blurry_image", "missing_order_number", "missing_amount", "partial_screenshot", "duplicate", "wrong_store", "suspicious", "incomplete_info", "other", null] },
+                  isTikTokShop: { type: ["boolean", "null"], description: "TikTok Shopかどうか" },
+                  isDelivered: { type: ["boolean", "null"], description: "配達済みかどうか" },
+                  detectedOrderNumber: { type: ["string", "null"], description: "画像から検出した注文番号" },
+                  detectedAmount: { type: ["number", "null"], description: "画像から検出した金額" },
+                },
+                required: ["shouldApprove", "confidence", "reason", "rejectionCategory", "isTikTokShop", "isDelivered", "detectedOrderNumber", "detectedAmount"],
+                additionalProperties: false,
+              },
+            },
+          },
         });
 
         const msgContent = llmResult.choices[0]?.message?.content as string;
         let parsed: any = {};
         try {
-          let jsonStr = typeof msgContent === "string" ? msgContent : "{}";
-          if (jsonStr.includes("```json")) {
-            jsonStr = jsonStr.replace(/```json\s*/g, "").replace(/```\s*/g, "");
-          } else if (jsonStr.includes("```")) {
-            jsonStr = jsonStr.replace(/```\s*/g, "");
-          }
-          jsonStr = jsonStr.trim();
-          const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            parsed = JSON.parse(jsonMatch[0]);
-          }
+          parsed = JSON.parse(typeof msgContent === "string" ? msgContent : "{}");
         } catch {
-          // LLM応答解析失敗 → 自動却下
-          await updateLineReceiptStatus(candidate.id, "rejected", adminUserId,
-            "[AI自動却下] AI応答の解析に失敗しました");
-          try {
-            const appUrl = process.env.APP_URL || "https://lcjmall.com";
-            const rejectMsg = `❌ レシートが承認されませんでした\n\n画像を正しく読み取れませんでした。以下を確認して再度送信してください🙏\n\n• スクリーンショットが鮮明に撮れているか\n• 画像が切れていないか\n\nお問い合わせ: ${appUrl}/mypage`;
-            const { pushMessage: pushMsgSched } = await import("./line");
-            await pushMsgSched(candidate.lineUserId, [{ type: "text", text: rejectMsg }]);
-          } catch (notifyErr) {
-            console.error(`[AI AutoApprove Scheduler] LINE rejection notification error:`, notifyErr);
-          }
+          // response_formatでもパース失敗の場合は保留にする（却下しない）
+          console.error(`[AI AutoApprove Scheduler] JSON parse failed for receipt #${candidate.id}, holding for manual review`);
+          await updateLineReceiptStatus(candidate.id, "on_hold", adminUserId,
+            "[AI自動] AI応答の解析に失敗 - 人間審査待ち");
           results.push({
             id: candidate.id,
-            action: "rejected_ai",
-            reason: "AI応答解析失敗",
+            action: "held",
+            reason: "AI応答解析失敗 - 保留",
             orderNumber,
             amount: candidate.totalAmount ?? undefined,
           });
@@ -817,10 +791,53 @@ async function processOneBatch(adminUserId: number, batchSize: number, confidenc
           if (detectedOrder && detectedOrder !== "null" && detectedOrder.length >= 10) {
             orderNumberMap.set(candidate.id, detectedOrder);
             console.log(`[AI AutoApprove Scheduler] LLM detected order number for receipt #${candidate.id}: ${detectedOrder}`);
+            // DBにも注文番号を保存
+            try {
+              const { db } = await import("./db");
+              const { lineReceipts } = await import("../drizzle/schema");
+              const { eq } = await import("drizzle-orm");
+              await db.update(lineReceipts).set({ orderNumber: detectedOrder }).where(eq(lineReceipts.id, candidate.id));
+              console.log(`[AI AutoApprove Scheduler] Saved LLM-detected order number to DB for receipt #${candidate.id}`);
+            } catch (dbErr) {
+              console.error(`[AI AutoApprove Scheduler] Failed to save detected order number:`, dbErr);
+            }
+            // LLMで検出した注文番号で重複チェック
+            const dupes = await batchCheckDuplicateOrderNumbers([detectedOrder]);
+            const dupeList = dupes.get(detectedOrder) || [];
+            const sameUserDupe = dupeList.find(d => d.id !== candidate.id && d.status === "approved" && d.lineUserId === candidate.lineUserId);
+            if (sameUserDupe) {
+              await updateLineReceiptStatus(candidate.id, "rejected", adminUserId,
+                `[AI自動] LLM検出注文番号重複: ${detectedOrder} (承認済みレシート #${sameUserDupe.id})`);
+              try {
+                const appUrl = process.env.APP_URL || "https://lcjmall.com";
+                const rejectMsg = `❌ レシートが承認されませんでした\n\nこの注文番号(${detectedOrder})は既にポイントが付与されています。\n同じ注文での再申請はできません。\n\nお問い合わせ: ${appUrl}/mypage`;
+                await pushMsg(candidate.lineUserId, [{ type: "text", text: rejectMsg }]);
+              } catch (notifyErr) {
+                console.error(`[AI AutoApprove Scheduler] LINE notification error:`, notifyErr);
+              }
+              results.push({
+                id: candidate.id,
+                action: "rejected_duplicate",
+                reason: `LLM検出注文番号重複: ${detectedOrder}`,
+                orderNumber: detectedOrder,
+                amount: candidate.totalAmount ?? undefined,
+              });
+              continue;
+            }
           }
         }
         if (missingAmount && parsed.detectedAmount && typeof parsed.detectedAmount === "number" && parsed.detectedAmount > 0) {
           console.log(`[AI AutoApprove Scheduler] LLM detected amount for receipt #${candidate.id}: ${parsed.detectedAmount}`);
+          // DBにも金額を保存
+          try {
+            const { db } = await import("./db");
+            const { lineReceipts } = await import("../drizzle/schema");
+            const { eq } = await import("drizzle-orm");
+            await db.update(lineReceipts).set({ totalAmount: parsed.detectedAmount }).where(eq(lineReceipts.id, candidate.id));
+            console.log(`[AI AutoApprove Scheduler] Saved LLM-detected amount to DB for receipt #${candidate.id}: ${parsed.detectedAmount}`);
+          } catch (dbErr) {
+            console.error(`[AI AutoApprove Scheduler] Failed to save detected amount:`, dbErr);
+          }
         }
 
         // If LLM says don't approve

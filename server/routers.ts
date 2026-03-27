@@ -13574,7 +13574,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
               
               const imageContents: any[] = allImageUrls.map(url => ({
                 type: "image_url" as const,
-                image_url: { url, detail: "low" as const },
+                image_url: { url, detail: "high" as const },
               }));
               // Build additional context for missing data
               let missingDataNote = "";
@@ -13690,39 +13690,45 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
                     content: imageContents,
                   },
                 ],
+                response_format: {
+                  type: "json_schema",
+                  json_schema: {
+                    name: "receipt_review",
+                    strict: true,
+                    schema: {
+                      type: "object",
+                      properties: {
+                        shouldApprove: { type: "boolean", description: "承認すべきか" },
+                        confidence: { type: "integer", description: "信頼度スコア 0-100" },
+                        reason: { type: "string", description: "判断理由（日本語）" },
+                        rejectionCategory: { type: ["string", "null"], description: "却下カテゴリー", enum: ["not_order_detail", "not_tiktok_shop", "not_delivered", "blurry_image", "missing_order_number", "missing_amount", "partial_screenshot", "duplicate", "wrong_store", "suspicious", "incomplete_info", "other", null] },
+                        isTikTokShop: { type: ["boolean", "null"], description: "TikTok Shopかどうか" },
+                        isDelivered: { type: ["boolean", "null"], description: "配達済みかどうか" },
+                        detectedOrderNumber: { type: ["string", "null"], description: "画像から検出した注文番号" },
+                        detectedAmount: { type: ["number", "null"], description: "画像から検出した金額" },
+                      },
+                      required: ["shouldApprove", "confidence", "reason", "rejectionCategory", "isTikTokShop", "isDelivered", "detectedOrderNumber", "detectedAmount"],
+                      additionalProperties: false,
+                    },
+                  },
+                },
               });
               
               const msgContent = llmResult.choices[0]?.message?.content as string;
               let parsed: any = {};
               try {
-                let jsonStr = typeof msgContent === "string" ? msgContent : "{}";
-                if (jsonStr.includes("```json")) {
-                  jsonStr = jsonStr.replace(/```json\s*/g, "").replace(/```\s*/g, "");
-                } else if (jsonStr.includes("```")) {
-                  jsonStr = jsonStr.replace(/```\s*/g, "");
-                }
-                jsonStr = jsonStr.trim();
-                const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
-                if (jsonMatch) {
-                  parsed = JSON.parse(jsonMatch[0]);
-                }
+                parsed = JSON.parse(typeof msgContent === "string" ? msgContent : "{}");
               } catch {
-                // Parse error → reject (LLMがまともな応答を返せなかった)
+                // response_formatでもパース失敗の場合は保留にする（却下しない）
                 if (!input.dryRun) {
-                  await updateLineReceiptStatus(candidate.id, "rejected", ctx.user.id,
-                    "[AI自動却下] AI応答の解析に失敗しました");
-                  try {
-                    const appUrl = process.env.APP_URL || "https://lcjmall.com";
-                    const rejectMsg = `❌ レシートが承認されませんでした\n\n画像を正しく読み取れませんでした。以下を確認して再度送信してください🙏\n\n• スクリーンショットが鮮明に撮れているか\n• 画像が切れていないか\n\nお問い合わせ: ${appUrl}/mypage`;
-                    await pushMsg(candidate.lineUserId, [{ type: "text", text: rejectMsg }]);
-                  } catch (notifyErr) {
-                    console.error(`[AI AutoApprove] LINE rejection notification error:`, notifyErr);
-                  }
+                  await updateLineReceiptStatus(candidate.id, "on_hold", ctx.user.id,
+                    "[AI自動] AI応答の解析に失敗 - 人間審査待ち");
+                  // パース失敗時はユーザーに通知しない（保留にするだけ）
                 }
                 results.push({
                   id: candidate.id,
-                  action: "rejected_ai",
-                  reason: "AI応答解析失敗",
+                  action: "held",
+                  reason: "AI応答解析失敗 - 保留",
                   orderNumber,
                   amount: candidate.totalAmount ?? undefined,
                   lineUserId: candidate.lineUserId,
@@ -16441,7 +16447,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
               if (allImageUrls.length > 0) {
                 const imageContents: any[] = allImageUrls.map(url => ({
                   type: "image_url" as const,
-                  image_url: { url, detail: "low" as const },
+                  image_url: { url, detail: "high" as const },
                 }));
                 imageContents.push({
                   type: "text" as const,
