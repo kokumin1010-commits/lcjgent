@@ -8,8 +8,23 @@ import {
   Rocket, TrendingUp, Users, Video, CheckCircle2, ArrowRight,
   Zap, Shield, BarChart3, Star, ChevronDown, Play, Target,
   Award, Clock, Eye, ShoppingCart, Sparkles, ChevronRight,
-  Building2, Mail, Phone, Globe, FileText, Send
+  Building2, Mail, Phone, Globe, FileText, Send, Mic, Radio,
+  MessageSquare, Heart, ThumbsUp, Store
 } from "lucide-react";
+
+const LCJ_LOGO_URL = "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/lcj_logo_e21ead0b.jpg";
+
+// ============================================================
+// Brand Results Data
+// ============================================================
+const BRAND_RESULTS = [
+  { name: "KYOGOKU", amount: "1億円", amountNum: 100000000, color: "from-red-600 to-amber-500" },
+  { name: "DDS RENOVATIO", amount: "550万円", amountNum: 5500000, color: "from-purple-600 to-pink-500" },
+  { name: "mistine", amount: "180万円", amountNum: 1800000, color: "from-blue-600 to-cyan-500" },
+  { name: "RECORE SERUM", amount: "180万円", amountNum: 1800000, color: "from-emerald-600 to-teal-500" },
+  { name: "Spatreatment", amount: "150万円", amountNum: 1500000, color: "from-amber-600 to-yellow-500" },
+  { name: "F&W", amount: "160万円", amountNum: 1600000, color: "from-gray-700 to-gray-500" },
+];
 
 // ============================================================
 // Animated Counter Component
@@ -44,6 +59,41 @@ function AnimatedCounter({ end, duration = 2000, prefix = "", suffix = "" }: {
   }, [started, end, duration]);
 
   return <div ref={ref}>{prefix}{count.toLocaleString()}{suffix}</div>;
+}
+
+// ============================================================
+// Brand Result Card (Scrolling Ticker)
+// ============================================================
+function BrandResultsTicker() {
+  return (
+    <div className="overflow-hidden py-4">
+      <div className="flex animate-scroll gap-6" style={{ width: "max-content" }}>
+        {[...BRAND_RESULTS, ...BRAND_RESULTS, ...BRAND_RESULTS].map((brand, i) => (
+          <div key={i} className="flex items-center gap-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl px-5 py-3 shrink-0">
+            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${brand.color} flex items-center justify-center text-white font-black text-xs`}>
+              {brand.name.charAt(0)}
+            </div>
+            <div>
+              <p className="text-white/80 text-xs font-medium">{brand.name}</p>
+              <p className="text-white font-black text-lg">{brand.amount}<span className="text-white/60 text-xs">+</span></p>
+            </div>
+          </div>
+        ))}
+      </div>
+      <style>{`
+        @keyframes scroll {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-33.333%); }
+        }
+        .animate-scroll {
+          animation: scroll 25s linear infinite;
+        }
+        .animate-scroll:hover {
+          animation-play-state: paused;
+        }
+      `}</style>
+    </div>
+  );
 }
 
 // ============================================================
@@ -164,7 +214,7 @@ export default function BrandSampleLP() {
       icon: <Zap className="h-8 w-8 text-purple-600" />,
       features: [
         "クリエイター15〜25名にサンプル配布",
-        "ショート動画＋小規模Live配信を組み合わせ",
+        "ショート動画＋ライブ配信を組み合わせ",
         "TikTokアルゴリズムに「売れる商品」として認知",
         "月次パフォーマンスレポート付き",
         "専任コーディネーターがサポート",
@@ -220,7 +270,7 @@ export default function BrandSampleLP() {
           </div>
           <h1 className="text-3xl font-black text-gray-900 mb-4">審査申込を受け付けました</h1>
           <p className="text-gray-600 mb-2">3営業日以内に審査結果をメールにてご連絡いたします。</p>
-          <p className="text-sm text-gray-400 mb-8">※ 毎月限定20ブランドのみ受付のため、審査通過率は約30%です。</p>
+          <p className="text-sm text-gray-400 mb-8">※ 毎月限定20ブランド受付のため、審査通過率は約30%です。</p>
           <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
             <h3 className="font-bold text-gray-900 mb-3">審査通過後の流れ</h3>
             <div className="space-y-3 text-left">
@@ -266,7 +316,16 @@ export default function BrandSampleLP() {
         </div>
 
         <div className="relative max-w-6xl mx-auto px-4 py-20 md:py-32">
+          {/* LCJ Logo + Authority Badge */}
+          <div className="flex items-center gap-4 mb-8">
+            <img src={LCJ_LOGO_URL} alt="Live Commerce Japan" className="h-12 md:h-16 rounded-lg bg-white p-1.5" />
+            <div className="bg-gradient-to-r from-amber-500/20 to-amber-600/20 border border-amber-500/40 rounded-full px-4 py-2">
+              <span className="text-amber-300 text-sm font-bold tracking-wide">日本最大級ライブコマース事務所</span>
+            </div>
+          </div>
+
           <div className="grid md:grid-cols-2 gap-12 items-center">
+            {/* Hero Text */}
             <div>
               <div className="inline-flex items-center gap-2 bg-purple-500/20 border border-purple-500/30 rounded-full px-4 py-2 mb-6">
                 <Sparkles className="h-4 w-4 text-purple-400" />
@@ -305,7 +364,7 @@ export default function BrandSampleLP() {
             <div className="grid grid-cols-2 gap-4">
               {[
                 { label: "累計UGC動画", value: 2400, suffix: "本+", icon: <Video className="h-6 w-6" />, color: "from-purple-500 to-pink-500" },
-                { label: "提携クリエイター", value: 350, suffix: "名+", icon: <Users className="h-6 w-6" />, color: "from-blue-500 to-cyan-500" },
+                { label: "提携ライバー", value: 350, suffix: "名+", icon: <Users className="h-6 w-6" />, color: "from-blue-500 to-cyan-500" },
                 { label: "平均ROAS", value: 580, suffix: "%", icon: <TrendingUp className="h-6 w-6" />, color: "from-green-500 to-emerald-500" },
                 { label: "ブランド導入実績", value: 85, suffix: "社+", icon: <Building2 className="h-6 w-6" />, color: "from-amber-500 to-orange-500" },
               ].map((stat, i) => (
@@ -321,6 +380,12 @@ export default function BrandSampleLP() {
               ))}
             </div>
           </div>
+
+          {/* Brand Results Ticker */}
+          <div className="mt-12">
+            <p className="text-center text-sm text-gray-500 mb-2">1時間ライブコマース売上実績</p>
+            <BrandResultsTicker />
+          </div>
         </div>
 
         {/* Wave divider */}
@@ -332,127 +397,456 @@ export default function BrandSampleLP() {
       </section>
 
       {/* ============================================================ */}
-      {/* SOCIAL PROOF BAR */}
+      {/* AUTHORITY BAR - 日本最大級の権威性 */}
       {/* ============================================================ */}
-      <section className="py-8 bg-white border-b border-gray-100">
+      <section className="py-10 bg-white border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-4">
-          <p className="text-center text-sm text-gray-400 mb-4">導入ブランド実績</p>
-          <div className="flex flex-wrap justify-center gap-8 items-center opacity-50">
-            {["コスメブランドA", "サプリメントB", "スキンケアC", "ヘアケアD", "フードE"].map((brand, i) => (
-              <div key={i} className="text-gray-400 font-bold text-lg tracking-wider">{brand}</div>
-            ))}
+          <div className="flex flex-col md:flex-row items-center justify-center gap-6 md:gap-12">
+            <img src={LCJ_LOGO_URL} alt="Live Commerce Japan" className="h-10 md:h-12 opacity-90" />
+            <div className="flex flex-wrap justify-center gap-x-8 gap-y-3 items-center">
+              {[
+                { label: "所属ライバー", value: "350名+" },
+                { label: "累計配信時間", value: "50,000時間+" },
+                { label: "取扱ブランド", value: "85社+" },
+                { label: "月間視聴者数", value: "500万人+" },
+              ].map((stat, i) => (
+                <div key={i} className="text-center">
+                  <p className="text-xs text-gray-400">{stat.label}</p>
+                  <p className="text-lg font-black text-gray-900">{stat.value}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
       {/* ============================================================ */}
-      {/* LOGIC EDUCATION - なぜUGCが重要なのか */}
+      {/* WHY LCJ - 3チャネル訴求セクション */}
       {/* ============================================================ */}
       <section id="logic" className="py-20 md:py-28 bg-white">
         <div className="max-w-6xl mx-auto px-4">
           <div className="text-center mb-16">
             <div className="inline-flex items-center gap-2 bg-purple-50 text-purple-700 rounded-full px-4 py-2 mb-4 text-sm font-medium">
               <BarChart3 className="h-4 w-4" />
-              なぜ30個のサンプルで売上が変わるのか
+              日本最大級ライブコマース事務所だからできる
             </div>
             <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">
-              TikTokのアルゴリズムは
-              <span className="text-purple-600">「UGCの量」</span>
-              で売れる商品を判定する
+              <span className="text-purple-600">3つのチャネル</span>で
+              <br className="md:hidden" />
+              レビューが一気に集まる
             </h2>
             <p className="text-gray-500 max-w-2xl mx-auto">
-              フォロワー数ゼロのアカウントでも、UGC動画が増えれば
-              TikTokが自動的に「売れる商品」として拡散してくれます。
+              サンプルを送るだけで、ライブ配信・UGC動画・ECレビューの
+              3方向から貴社商品の口コミが自動的に生まれます。
             </p>
           </div>
 
-          {/* 3-Step Logic */}
-          <div className="grid md:grid-cols-3 gap-8 mb-16">
+          {/* 3 Channel Cards */}
+          <div className="grid md:grid-cols-3 gap-6 mb-16">
             {[
               {
-                step: "STEP 1",
-                title: "サンプルをライバーに配布",
-                desc: "LCJが厳選した実績あるTikTokクリエイターに、貴社の商品サンプルを配布します。",
-                icon: <Send className="h-8 w-8" />,
-                color: "from-blue-500 to-cyan-500",
-                detail: "30〜100個のサンプルを5〜50名のクリエイターに配布",
+                icon: <Radio className="h-8 w-8" />,
+                title: "ライブ配信で\nリアルタイム紹介",
+                desc: "350名以上の所属ライバーが、ライブ配信中に貴社商品をリアルタイムで紹介。視聴者との双方向コミュニケーションで購買意欲を直接刺激します。",
+                stat: "1配信あたり平均視聴者 3,000人+",
+                color: "from-red-500 to-pink-500",
+                bgColor: "bg-red-50",
+                highlight: "KYOGOKU 1時間で1億円+の売上実績",
               },
               {
-                step: "STEP 2",
-                title: "UGC動画が一斉に投稿される",
-                desc: "クリエイターが実際に商品を使い、リアルな口コミ動画をTikTokに投稿します。",
                 icon: <Video className="h-8 w-8" />,
+                title: "UGC動画が\n一斉に投稿される",
+                desc: "ライバーが実際に商品を使い、リアルな口コミ動画をTikTokに投稿。アルゴリズムが「売れる商品」と判定し、自動的にレコメンドに表示します。",
+                stat: "1サンプルあたり平均1.5本の動画が生成",
                 color: "from-purple-500 to-pink-500",
-                detail: "1サンプルあたり平均1.5本の動画が生成",
+                bgColor: "bg-purple-50",
+                highlight: "累計2,400本+のUGC動画を生成",
               },
               {
-                step: "STEP 3",
-                title: "アルゴリズムが自動拡散",
-                desc: "UGC動画の数が一定を超えると、TikTokが「売れる商品」と判定し、自動的にレコメンドに表示します。",
-                icon: <Rocket className="h-8 w-8" />,
-                color: "from-amber-500 to-red-500",
-                detail: "平均ROAS 580%を達成",
+                icon: <Store className="h-8 w-8" />,
+                title: "LCJ MALLで\n購入者レビュー蓄積",
+                desc: "自社ECモール「LCJ MALL」で実際の購入者によるリアルレビューが蓄積。TikTok Shop上での信頼性を高め、コンバージョン率を向上させます。",
+                stat: "購入者レビュー平均4.5以上",
+                color: "from-emerald-500 to-teal-500",
+                bgColor: "bg-emerald-50",
+                highlight: "ECレビューがTikTok Shopの売上を後押し",
               },
             ].map((item, i) => (
-              <div key={i} className="relative">
-                {i < 2 && (
-                  <div className="hidden md:block absolute top-16 -right-4 z-10">
-                    <ChevronRight className="h-8 w-8 text-gray-300" />
-                  </div>
-                )}
-                <div className="bg-gray-50 rounded-2xl p-8 h-full hover:shadow-lg transition-all group">
-                  <div className="text-xs font-bold text-purple-600 mb-4 tracking-wider">{item.step}</div>
-                  <div className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br ${item.color} text-white mb-5 group-hover:scale-110 transition-transform`}>
-                    {item.icon}
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-3">{item.title}</h3>
-                  <p className="text-gray-500 text-sm leading-relaxed mb-4">{item.desc}</p>
-                  <div className="bg-white rounded-lg px-4 py-2 border border-gray-200">
-                    <p className="text-xs text-purple-600 font-medium">{item.detail}</p>
-                  </div>
+              <div key={i} className={`relative rounded-2xl ${item.bgColor} p-8 hover:shadow-xl transition-all group overflow-hidden`}>
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br opacity-10 rounded-bl-full" style={{ backgroundImage: `linear-gradient(135deg, var(--tw-gradient-stops))` }} />
+                <div className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br ${item.color} text-white mb-5 group-hover:scale-110 transition-transform`}>
+                  {item.icon}
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-3 whitespace-pre-line">{item.title}</h3>
+                <p className="text-gray-500 text-sm leading-relaxed mb-4">{item.desc}</p>
+                <div className="bg-white rounded-lg px-4 py-2 border border-gray-200 mb-3">
+                  <p className="text-xs text-purple-600 font-medium">{item.stat}</p>
+                </div>
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg px-4 py-2">
+                  <p className="text-xs text-amber-700 font-bold flex items-center gap-1">
+                    <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
+                    {item.highlight}
+                  </p>
                 </div>
               </div>
             ))}
           </div>
+        </div>
+      </section>
 
-          {/* ROI Calculator */}
-          <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-3xl p-8 md:p-12 border border-purple-100">
-            <div className="grid md:grid-cols-2 gap-8 items-center">
-              <div>
-                <h3 className="text-2xl font-black text-gray-900 mb-4">
-                  サンプル50個の投資対効果
-                </h3>
-                <p className="text-gray-600 mb-6">
-                  仮に商品原価が1個500円の場合、50個で25,000円の投資。
-                  これが平均ROAS 580%で回ると…
-                </p>
-                <div className="space-y-4">
-                  {[
-                    { label: "サンプル原価", value: "¥25,000", sub: "50個 × ¥500" },
-                    { label: "生成されるUGC動画", value: "約75本", sub: "1サンプル平均1.5本" },
-                    { label: "想定売上（3ヶ月）", value: "¥145,000", sub: "ROAS 580%", highlight: true },
-                  ].map((row, i) => (
-                    <div key={i} className={`flex justify-between items-center p-4 rounded-xl ${row.highlight ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white" : "bg-white"}`}>
-                      <div>
-                        <p className={`text-sm ${row.highlight ? "text-white/80" : "text-gray-500"}`}>{row.label}</p>
-                        <p className={`text-xs ${row.highlight ? "text-white/60" : "text-gray-400"}`}>{row.sub}</p>
+      {/* ============================================================ */}
+      {/* 5-STEP FLOW - サンプルから売上までの流れ */}
+      {/* ============================================================ */}
+      <section className="py-20 md:py-28 bg-gray-50">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="text-center mb-16">
+            <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 rounded-full px-4 py-2 mb-4 text-sm font-medium">
+              <Rocket className="h-4 w-4" />
+              サンプルから売上が生まれるまで
+            </div>
+            <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">
+              <span className="text-purple-600">5つのSTEP</span>で
+              売上が自動化される
+            </h2>
+            <p className="text-gray-500 max-w-2xl mx-auto">
+              サンプルを送るだけ。あとはLCJの仕組みが自動的に売上を生み出します。
+            </p>
+          </div>
+
+          {/* STEP 1 */}
+          <div className="relative">
+            {/* Vertical line connector */}
+            <div className="absolute left-8 md:left-1/2 top-0 bottom-0 w-0.5 bg-gradient-to-b from-blue-300 via-purple-400 to-amber-400 hidden md:block" style={{ transform: "translateX(-50%)" }} />
+
+            {/* STEP 1: サンプル配布 */}
+            <div className="relative mb-16 md:mb-24">
+              <div className="md:grid md:grid-cols-2 md:gap-12 items-center">
+                <div className="md:text-right mb-6 md:mb-0">
+                  <div className="inline-flex items-center gap-2 bg-blue-100 text-blue-700 rounded-full px-4 py-1.5 text-xs font-bold mb-4">
+                    STEP 1
+                  </div>
+                  <h3 className="text-2xl font-black text-gray-900 mb-3">サンプルをライバーに配布</h3>
+                  <p className="text-gray-500 leading-relaxed">
+                    LCJが厳選した実績あるTikTokライバーに、貴社の商品サンプルを配布。
+                    <strong className="text-gray-900">350名以上</strong>の所属ライバーの中から、
+                    商品カテゴリに最適なライバーを選定します。
+                  </p>
+                  <div className="mt-4 inline-flex items-center gap-2 bg-blue-50 rounded-lg px-4 py-2">
+                    <Send className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm text-blue-700 font-medium">30〜100個のサンプルを5〜50名に配布</span>
+                  </div>
+                </div>
+                <div className="relative">
+                  <div className="absolute -left-4 md:left-0 top-1/2 -translate-y-1/2 md:-translate-x-1/2 w-8 h-8 bg-blue-500 rounded-full border-4 border-white shadow-lg z-10 hidden md:flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">1</span>
+                  </div>
+                  <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 ml-0 md:ml-8">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white">
+                        <Users className="h-6 w-6" />
                       </div>
-                      <p className={`text-xl font-black ${row.highlight ? "text-white" : "text-gray-900"}`}>{row.value}</p>
+                      <div>
+                        <p className="text-sm text-gray-400">LCJ所属ライバー</p>
+                        <p className="text-2xl font-black text-gray-900">350名+</p>
+                      </div>
                     </div>
-                  ))}
+                    <div className="grid grid-cols-3 gap-2">
+                      {["美容系", "食品系", "ガジェット", "ファッション", "健康系", "ライフスタイル"].map((cat, i) => (
+                        <div key={i} className="bg-gray-50 rounded-lg px-2 py-1.5 text-center">
+                          <p className="text-xs text-gray-600 font-medium">{cat}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="text-center">
-                <div className="bg-white rounded-2xl p-8 shadow-xl border border-purple-100">
-                  <p className="text-sm text-gray-500 mb-2">投資回収率</p>
-                  <div className="text-7xl font-black bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent mb-2">
-                    <AnimatedCounter end={580} suffix="%" />
+            </div>
+
+            {/* STEP 2: ライブ配信 */}
+            <div className="relative mb-16 md:mb-24">
+              <div className="md:grid md:grid-cols-2 md:gap-12 items-center">
+                <div className="order-2 md:order-1 relative">
+                  <div className="absolute -left-4 md:right-0 top-1/2 -translate-y-1/2 md:translate-x-1/2 w-8 h-8 bg-red-500 rounded-full border-4 border-white shadow-lg z-10 hidden md:flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">2</span>
                   </div>
-                  <p className="text-sm text-gray-400">平均ROAS</p>
-                  <div className="mt-6 pt-6 border-t border-gray-100">
-                    <p className="text-sm text-gray-500">つまり、<strong className="text-gray-900">25,000円の投資</strong>が</p>
-                    <p className="text-2xl font-black text-green-600 mt-1">+¥120,000の利益</p>
-                    <p className="text-xs text-gray-400 mt-1">に変わります</p>
+                  <div className="bg-gradient-to-br from-red-50 to-pink-50 rounded-2xl p-6 shadow-lg border border-red-100 mr-0 md:mr-8">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
+                        <span className="text-xs font-bold text-red-600">LIVE配信中</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs text-gray-500">
+                        <Eye className="h-3 w-3" />
+                        3,247人が視聴中
+                      </div>
+                    </div>
+                    {/* Brand result highlight */}
+                    <div className="bg-white rounded-xl p-4 border border-red-100 mb-3">
+                      <p className="text-xs text-gray-400 mb-1">1時間ライブコマース売上実績</p>
+                      <div className="space-y-2">
+                        {BRAND_RESULTS.slice(0, 3).map((b, i) => (
+                          <div key={i} className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-6 h-6 rounded bg-gradient-to-br ${b.color} flex items-center justify-center text-white text-[10px] font-bold`}>
+                                {b.name.charAt(0)}
+                              </div>
+                              <span className="text-sm text-gray-700 font-medium">{b.name}</span>
+                            </div>
+                            <span className="text-sm font-black text-red-600">{b.amount}+</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Heart className="h-4 w-4 text-red-400" />
+                      <span className="text-xs text-gray-500">リアルタイムで購買意欲を直接刺激</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="order-1 md:order-2 mb-6 md:mb-0">
+                  <div className="inline-flex items-center gap-2 bg-red-100 text-red-700 rounded-full px-4 py-1.5 text-xs font-bold mb-4">
+                    STEP 2
+                  </div>
+                  <h3 className="text-2xl font-black text-gray-900 mb-3">ライブ配信でリアルタイム紹介</h3>
+                  <p className="text-gray-500 leading-relaxed">
+                    所属ライバーがライブ配信中に貴社商品をリアルタイムで紹介・販売。
+                    視聴者との双方向コミュニケーションで、
+                    <strong className="text-gray-900">1時間で数百万円の売上</strong>を生み出すことも。
+                  </p>
+                  <div className="mt-4 inline-flex items-center gap-2 bg-red-50 rounded-lg px-4 py-2">
+                    <Radio className="h-4 w-4 text-red-600" />
+                    <span className="text-sm text-red-700 font-medium">KYOGOKU 1時間で1億円+の売上実績</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ROI Data Mix - Between Step 2 and 3 */}
+            <div className="relative mb-16 md:mb-24">
+              <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-3xl p-8 md:p-12 border border-purple-100 max-w-4xl mx-auto">
+                <div className="grid md:grid-cols-2 gap-8 items-center">
+                  <div>
+                    <div className="flex items-center gap-3 mb-4">
+                      <img src={LCJ_LOGO_URL} alt="LCJ" className="h-8 rounded" />
+                      <span className="text-xs text-purple-600 font-bold bg-purple-100 px-3 py-1 rounded-full">投資対効果</span>
+                    </div>
+                    <h3 className="text-2xl font-black text-gray-900 mb-4">
+                      サンプル50個の投資対効果
+                    </h3>
+                    <p className="text-gray-600 mb-6">
+                      仮に商品原価が1個500円の場合、50個で25,000円の投資。
+                      これが平均ROAS 580%で回ると…
+                    </p>
+                    <div className="space-y-4">
+                      {[
+                        { label: "サンプル原価", value: "¥25,000", sub: "50個 × ¥500" },
+                        { label: "生成されるUGC動画", value: "約75本", sub: "1サンプル平均1.5本" },
+                        { label: "想定売上（3ヶ月）", value: "¥145,000", sub: "ROAS 580%", highlight: true },
+                      ].map((row, i) => (
+                        <div key={i} className={`flex justify-between items-center p-4 rounded-xl ${row.highlight ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white" : "bg-white"}`}>
+                          <div>
+                            <p className={`text-sm ${row.highlight ? "text-white/80" : "text-gray-500"}`}>{row.label}</p>
+                            <p className={`text-xs ${row.highlight ? "text-white/60" : "text-gray-400"}`}>{row.sub}</p>
+                          </div>
+                          <p className={`text-xl font-black ${row.highlight ? "text-white" : "text-gray-900"}`}>{row.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="bg-white rounded-2xl p-8 shadow-xl border border-purple-100">
+                      <p className="text-sm text-gray-500 mb-2">投資回収率</p>
+                      <div className="text-7xl font-black bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent mb-2">
+                        <AnimatedCounter end={580} suffix="%" />
+                      </div>
+                      <p className="text-sm text-gray-400">平均ROAS</p>
+                      <div className="mt-6 pt-6 border-t border-gray-100">
+                        <p className="text-sm text-gray-500">つまり、<strong className="text-gray-900">25,000円の投資</strong>が</p>
+                        <p className="text-2xl font-black text-green-600 mt-1">+¥120,000の利益</p>
+                        <p className="text-xs text-gray-400 mt-1">に変わります</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* STEP 3: UGC動画 */}
+            <div className="relative mb-16 md:mb-24">
+              <div className="md:grid md:grid-cols-2 md:gap-12 items-center">
+                <div className="md:text-right mb-6 md:mb-0">
+                  <div className="inline-flex items-center gap-2 bg-purple-100 text-purple-700 rounded-full px-4 py-1.5 text-xs font-bold mb-4">
+                    STEP 3
+                  </div>
+                  <h3 className="text-2xl font-black text-gray-900 mb-3">UGC動画が一斉に投稿される</h3>
+                  <p className="text-gray-500 leading-relaxed">
+                    ライバーが実際に商品を使い、リアルな口コミ動画をTikTokに投稿。
+                    <strong className="text-gray-900">累計2,400本以上</strong>のUGC動画を生成してきた実績があります。
+                  </p>
+                  <div className="mt-4 inline-flex items-center gap-2 bg-purple-50 rounded-lg px-4 py-2">
+                    <Video className="h-4 w-4 text-purple-600" />
+                    <span className="text-sm text-purple-700 font-medium">1サンプルあたり平均1.5本の動画が生成</span>
+                  </div>
+                </div>
+                <div className="relative">
+                  <div className="absolute -left-4 md:left-0 top-1/2 -translate-y-1/2 md:-translate-x-1/2 w-8 h-8 bg-purple-500 rounded-full border-4 border-white shadow-lg z-10 hidden md:flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">3</span>
+                  </div>
+                  <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 ml-0 md:ml-8">
+                    <div className="grid grid-cols-3 gap-3 mb-4">
+                      {[
+                        { platform: "TikTok", icon: "🎵", count: "1,800+" },
+                        { platform: "Instagram", icon: "📸", count: "400+" },
+                        { platform: "YouTube", icon: "▶️", count: "200+" },
+                      ].map((p, i) => (
+                        <div key={i} className="bg-gray-50 rounded-xl p-3 text-center">
+                          <span className="text-2xl">{p.icon}</span>
+                          <p className="text-xs text-gray-500 mt-1">{p.platform}</p>
+                          <p className="text-sm font-black text-gray-900">{p.count}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="bg-purple-50 rounded-lg p-3">
+                      <p className="text-xs text-purple-700 font-medium text-center">
+                        累計 <span className="text-lg font-black">2,400本+</span> のUGC動画を生成
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* STEP 4: LCJ MALLレビュー */}
+            <div className="relative mb-16 md:mb-24">
+              <div className="md:grid md:grid-cols-2 md:gap-12 items-center">
+                <div className="order-2 md:order-1 relative">
+                  <div className="absolute -left-4 md:right-0 top-1/2 -translate-y-1/2 md:translate-x-1/2 w-8 h-8 bg-emerald-500 rounded-full border-4 border-white shadow-lg z-10 hidden md:flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">4</span>
+                  </div>
+                  <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-6 shadow-lg border border-emerald-100 mr-0 md:mr-8">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Store className="h-5 w-5 text-emerald-600" />
+                      <span className="text-sm font-bold text-emerald-700">LCJ MALL</span>
+                    </div>
+                    <div className="space-y-3 mb-4">
+                      {[
+                        { stars: 5, text: "ライブで見て即購入！使い心地最高です", name: "M.T さん" },
+                        { stars: 5, text: "動画で紹介されてた通り、肌がもちもちに", name: "K.S さん" },
+                        { stars: 4, text: "コスパ良し。リピート確定です！", name: "A.Y さん" },
+                      ].map((review, i) => (
+                        <div key={i} className="bg-white rounded-lg p-3 border border-emerald-100">
+                          <div className="flex items-center gap-1 mb-1">
+                            {Array.from({ length: review.stars }).map((_, j) => (
+                              <Star key={j} className="h-3 w-3 fill-amber-400 text-amber-400" />
+                            ))}
+                          </div>
+                          <p className="text-xs text-gray-600">{review.text}</p>
+                          <p className="text-[10px] text-gray-400 mt-1">{review.name}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-emerald-600 font-medium">購入者レビュー平均 <span className="text-lg font-black">4.5</span> / 5.0</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="order-1 md:order-2 mb-6 md:mb-0">
+                  <div className="inline-flex items-center gap-2 bg-emerald-100 text-emerald-700 rounded-full px-4 py-1.5 text-xs font-bold mb-4">
+                    STEP 4
+                  </div>
+                  <h3 className="text-2xl font-black text-gray-900 mb-3">LCJ MALLで購入者レビュー蓄積</h3>
+                  <p className="text-gray-500 leading-relaxed">
+                    自社ECモール「LCJ MALL」で実際の購入者によるリアルレビューが蓄積。
+                    ライブ配信やUGC動画を見た視聴者が購入し、
+                    <strong className="text-gray-900">信頼性の高い口コミ</strong>がさらに新規顧客を呼び込みます。
+                  </p>
+                  <div className="mt-4 inline-flex items-center gap-2 bg-emerald-50 rounded-lg px-4 py-2">
+                    <MessageSquare className="h-4 w-4 text-emerald-600" />
+                    <span className="text-sm text-emerald-700 font-medium">ECレビューがTikTok Shopの売上を後押し</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Brand Results Mix - Between Step 4 and 5 */}
+            <div className="relative mb-16 md:mb-24">
+              <div className="bg-gradient-to-br from-gray-950 via-red-950 to-gray-950 rounded-3xl p-8 md:p-12 max-w-4xl mx-auto overflow-hidden relative">
+                <div className="absolute inset-0 overflow-hidden">
+                  {Array.from({ length: 10 }).map((_, i) => (
+                    <div key={i} className="absolute rounded-full bg-red-500/5 animate-pulse" style={{
+                      width: `${Math.random() * 150 + 50}px`, height: `${Math.random() * 150 + 50}px`,
+                      left: `${Math.random() * 100}%`, top: `${Math.random() * 100}%`,
+                      animationDelay: `${Math.random() * 3}s`,
+                    }} />
+                  ))}
+                </div>
+                <div className="relative">
+                  <div className="flex items-center gap-3 mb-6">
+                    <img src={LCJ_LOGO_URL} alt="LCJ" className="h-8 rounded bg-white p-1" />
+                    <span className="text-amber-400 text-sm font-bold">1時間ライブコマース売上実績</span>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {BRAND_RESULTS.map((brand, i) => (
+                      <div key={i} className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-4 hover:bg-white/10 transition-all group">
+                        <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${brand.color} flex items-center justify-center text-white font-black text-sm mb-3 group-hover:scale-110 transition-transform`}>
+                          {brand.name.charAt(0)}
+                        </div>
+                        <p className="text-white/70 text-xs font-medium mb-1">{brand.name}</p>
+                        <p className="text-white font-black text-xl">{brand.amount}<span className="text-white/50 text-xs">+</span></p>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-center text-gray-500 text-xs mt-6">※ 各ブランドの1時間あたりのライブコマース売上実績</p>
+                </div>
+              </div>
+            </div>
+
+            {/* STEP 5: アルゴリズム拡散 */}
+            <div className="relative">
+              <div className="md:grid md:grid-cols-2 md:gap-12 items-center">
+                <div className="md:text-right mb-6 md:mb-0">
+                  <div className="inline-flex items-center gap-2 bg-amber-100 text-amber-700 rounded-full px-4 py-1.5 text-xs font-bold mb-4">
+                    STEP 5
+                  </div>
+                  <h3 className="text-2xl font-black text-gray-900 mb-3">アルゴリズムが自動拡散</h3>
+                  <p className="text-gray-500 leading-relaxed">
+                    ライブ配信・UGC動画・購入者レビューの3チャネルからの信号が集まると、
+                    TikTokが<strong className="text-gray-900">「売れる商品」</strong>と判定。
+                    自動的にレコメンドに表示され、売上が加速度的に伸びます。
+                  </p>
+                  <div className="mt-4 inline-flex items-center gap-2 bg-amber-50 rounded-lg px-4 py-2">
+                    <TrendingUp className="h-4 w-4 text-amber-600" />
+                    <span className="text-sm text-amber-700 font-medium">平均ROAS 580%を達成</span>
+                  </div>
+                </div>
+                <div className="relative">
+                  <div className="absolute -left-4 md:left-0 top-1/2 -translate-y-1/2 md:-translate-x-1/2 w-8 h-8 bg-amber-500 rounded-full border-4 border-white shadow-lg z-10 hidden md:flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">5</span>
+                  </div>
+                  <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-6 shadow-lg border border-amber-100 ml-0 md:ml-8">
+                    <div className="text-center mb-4">
+                      <p className="text-xs text-gray-400 mb-1">3チャネルの相乗効果</p>
+                      <div className="flex items-center justify-center gap-2 mb-3">
+                        <div className="bg-red-100 rounded-lg p-2"><Radio className="h-4 w-4 text-red-600" /></div>
+                        <span className="text-gray-300">+</span>
+                        <div className="bg-purple-100 rounded-lg p-2"><Video className="h-4 w-4 text-purple-600" /></div>
+                        <span className="text-gray-300">+</span>
+                        <div className="bg-emerald-100 rounded-lg p-2"><Store className="h-4 w-4 text-emerald-600" /></div>
+                        <span className="text-gray-300">=</span>
+                        <div className="bg-amber-100 rounded-lg p-2"><Rocket className="h-4 w-4 text-amber-600" /></div>
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-xl p-4 border border-amber-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-gray-400">TikTokアルゴリズム評価</span>
+                        <span className="text-xs font-bold text-green-600">売れる商品と認定</span>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                        <div className="bg-gradient-to-r from-purple-500 via-pink-500 to-amber-500 h-full rounded-full animate-pulse" style={{ width: "92%" }} />
+                      </div>
+                      <p className="text-right text-xs text-amber-600 font-bold mt-1">92%</p>
+                    </div>
+                    <p className="text-center text-xs text-gray-500 mt-3">自動レコメンド → 売上が加速度的に伸びる</p>
                   </div>
                 </div>
               </div>
@@ -464,7 +858,7 @@ export default function BrandSampleLP() {
       {/* ============================================================ */}
       {/* WHY AUDIT SYSTEM */}
       {/* ============================================================ */}
-      <section className="py-20 bg-gray-50">
+      <section className="py-20 bg-white">
         <div className="max-w-6xl mx-auto px-4">
           <div className="text-center mb-12">
             <div className="inline-flex items-center gap-2 bg-amber-50 text-amber-700 rounded-full px-4 py-2 mb-4 text-sm font-medium">
@@ -513,7 +907,7 @@ export default function BrandSampleLP() {
       {/* ============================================================ */}
       {/* PLAN COMPARISON - 松竹梅 */}
       {/* ============================================================ */}
-      <section className="py-20 md:py-28 bg-white">
+      <section className="py-20 md:py-28 bg-gray-50">
         <div className="max-w-6xl mx-auto px-4">
           <div className="text-center mb-16">
             <div className="inline-flex items-center gap-2 bg-pink-50 text-pink-700 rounded-full px-4 py-2 mb-4 text-sm font-medium">
@@ -542,7 +936,7 @@ export default function BrandSampleLP() {
       </section>
 
       {/* ============================================================ */}
-      {/* PROCESS STEPS */}
+      {/* PROCESS STEPS - 申込の流れ */}
       {/* ============================================================ */}
       <section className="py-20 bg-gradient-to-br from-gray-950 via-purple-950 to-gray-950 text-white">
         <div className="max-w-6xl mx-auto px-4">
@@ -572,8 +966,8 @@ export default function BrandSampleLP() {
               },
               {
                 step: "03",
-                title: "UGC動画＆売上が自動発生",
-                desc: "クリエイターが動画を投稿。TikTokアルゴリズムが拡散し、売上が自動的に発生します。",
+                title: "3チャネルで売上が自動発生",
+                desc: "ライブ配信・UGC動画・LCJ MALLレビューの3チャネルで売上が自動的に発生します。",
                 icon: <TrendingUp className="h-8 w-8" />,
                 time: "最短2週間で結果",
               },
@@ -789,6 +1183,10 @@ export default function BrandSampleLP() {
                 q: "審査に落ちた場合、再申込はできますか？",
                 a: "はい、可能です。審査結果のフィードバックをもとに商品を改善いただいた上で、再度お申し込みいただけます。",
               },
+              {
+                q: "ライブ配信とUGC動画の違いは？",
+                a: "ライブ配信はリアルタイムで視聴者と対話しながら商品を紹介・販売する形式で、即時の売上が期待できます。UGC動画はTikTokに投稿される短尺の口コミ動画で、アルゴリズムによる長期的な拡散効果があります。LCJでは両方を組み合わせることで最大の効果を発揮します。",
+              },
             ].map((faq, i) => (
               <details key={i} className="group bg-gray-50 rounded-xl border border-gray-100 overflow-hidden">
                 <summary className="flex items-center justify-between p-5 cursor-pointer hover:bg-gray-100 transition-colors">
@@ -807,6 +1205,8 @@ export default function BrandSampleLP() {
       {/* ============================================================ */}
       <section className="py-20 bg-gradient-to-br from-gray-950 via-purple-950 to-gray-950 text-white text-center">
         <div className="max-w-3xl mx-auto px-4">
+          <img src={LCJ_LOGO_URL} alt="Live Commerce Japan" className="h-12 mx-auto mb-6 rounded-lg bg-white p-1.5" />
+          <p className="text-amber-400 text-sm font-bold mb-4">日本最大級ライブコマース事務所</p>
           <h2 className="text-3xl md:text-4xl font-black mb-6">
             30個のサンプルが、
             <br />
@@ -830,7 +1230,7 @@ export default function BrandSampleLP() {
 
       {/* Footer */}
       <footer className="py-8 bg-gray-950 text-center">
-        <p className="text-sm text-gray-500">&copy; {new Date().getFullYear()} LCJ. All rights reserved.</p>
+        <p className="text-sm text-gray-500">&copy; {new Date().getFullYear()} Live Commerce Japan. All rights reserved.</p>
       </footer>
     </div>
   );
