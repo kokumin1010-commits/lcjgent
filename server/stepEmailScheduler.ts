@@ -5,6 +5,7 @@ import {
   getEligibleUsersForStepEmail,
   createStepEmailLog,
   hasStepEmailBeenSent,
+  createLinePointTransaction,
 } from "./db";
 
 const STEP_EMAIL_INTERVAL = 60 * 60 * 1000; // 1 hour
@@ -81,6 +82,23 @@ async function processStepEmails() {
 
           if (result.success) {
             totalSent++;
+
+            // Award welcome bonus points for Day 0 template
+            if (template.delayDays === 0) {
+              try {
+                const pointLineUserId = user.lineUserId || `email_${user.id}`;
+                await createLinePointTransaction({
+                  lineUserId: pointLineUserId,
+                  type: "earn",
+                  amount: 30,
+                  referenceType: "system",
+                  description: "ウェルカム特典: 30ポイントプレゼント",
+                });
+                console.log(`[Step Email] Awarded 30pt welcome bonus to user ${user.id} (${pointLineUserId})`);
+              } catch (ptErr) {
+                console.error(`[Step Email] Failed to award welcome bonus to user ${user.id}:`, ptErr);
+              }
+            }
           } else {
             totalFailed++;
           }

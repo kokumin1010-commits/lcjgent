@@ -19439,6 +19439,7 @@ export async function getEligibleUsersForStepEmail(templateId: number, delayDays
     id: lineUsers.id,
     email: lineUsers.email,
     displayName: lineUsers.displayName,
+    lineUserId: lineUsers.lineUserId,
   })
     .from(lineUsers)
     .where(and(
