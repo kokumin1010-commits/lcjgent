@@ -1,0 +1,8 @@
+{
+  "query": "ALTER TABLE step_email_logs ADD COLUMN trackingId varchar(64) AFTER errorMessage, ADD COLUMN openedAt timestamp NULL AFTER trackingId, ADD COLUMN openCount int NOT NULL DEFAULT 0 AFTER openedAt, ADD COLUMN clickedAt timestamp NULL AFTER openCount, ADD COLUMN clickCount int NOT NULL DEFAULT 0 AFTER clickedAt;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute ALTER TABLE step_email_logs ADD COLUMN trackingId varchar(64) AFTER errorMessage, ADD COLUMN openedAt timestamp NULL AFTER trackingId, ADD COLUMN openCount int NOT NULL DEFAULT 0 AFTER openedAt, ADD COLUMN clickedAt timestamp NULL AFTER openCount, ADD COLUMN clickCount int NOT NULL DEFAULT 0 AFTER clickedAt;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'trackingid' in 'step_email_logs'"
+  ]
+}

@@ -61,3 +61,57 @@ trackingRouter.get("/pixel/:token", async (req, res) => {
 
   res.send(pixel);
 });
+
+/**
+ * Step Email - Open tracking pixel
+ * Records email open event for step emails
+ */
+trackingRouter.get("/step-email/open/:trackingId", async (req, res) => {
+  const { trackingId } = req.params;
+
+  try {
+    const { recordStepEmailOpen } = await import("./db");
+    await recordStepEmailOpen(trackingId);
+  } catch (error) {
+    console.error("[Step Email Tracking] Error recording open:", error);
+  }
+
+  // Return transparent 1x1 pixel GIF
+  const pixel = Buffer.from(
+    "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+    "base64"
+  );
+
+  res.set({
+    "Content-Type": "image/gif",
+    "Content-Length": String(pixel.length),
+    "Cache-Control": "no-store, no-cache, must-revalidate, private",
+    "Pragma": "no-cache",
+    "Expires": "0",
+  });
+
+  res.send(pixel);
+});
+
+/**
+ * Step Email - Click tracking redirect
+ * Records click event and redirects to the original URL
+ */
+trackingRouter.get("/step-email/click/:trackingId", async (req, res) => {
+  const { trackingId } = req.params;
+  const url = req.query.url as string;
+
+  if (!url) {
+    return res.status(400).send("Missing URL parameter");
+  }
+
+  try {
+    const { recordStepEmailClick } = await import("./db");
+    await recordStepEmailClick(trackingId, decodeURIComponent(url));
+  } catch (error) {
+    console.error("[Step Email Tracking] Error recording click:", error);
+  }
+
+  // Redirect to the original URL
+  res.redirect(302, decodeURIComponent(url));
+});

@@ -19141,6 +19141,248 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
   // ============================================================
   // Lessons Learned - AI自動進化システム（server/lessonsRouter.ts）
   lessons: lessonsRouter,
+
+  // ============================================================
+  // Step Email - ステップメール管理・送信履歴・アナリティクス
+  stepEmail: router({
+    // テンプレート一覧
+    listTemplates: protectedProcedure.query(async () => {
+      const { getAllStepEmailTemplates } = await import("./db");
+      return getAllStepEmailTemplates();
+    }),
+
+    // テンプレート取得
+    getTemplate: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const { getStepEmailTemplateById } = await import("./db");
+        return getStepEmailTemplateById(input.id);
+      }),
+
+    // テンプレート作成
+    createTemplate: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1),
+        subject: z.string().min(1),
+        bodyHtml: z.string().min(1),
+        bodyText: z.string().min(1),
+        delayDays: z.number().min(0),
+        sortOrder: z.number().optional(),
+        isEnabled: z.boolean().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { createStepEmailTemplate } = await import("./db");
+        await createStepEmailTemplate(input);
+        return { success: true };
+      }),
+
+    // テンプレート更新
+    updateTemplate: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        subject: z.string().optional(),
+        bodyHtml: z.string().optional(),
+        bodyText: z.string().optional(),
+        delayDays: z.number().optional(),
+        sortOrder: z.number().optional(),
+        isEnabled: z.boolean().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        const { updateStepEmailTemplate } = await import("./db");
+        await updateStepEmailTemplate(id, data);
+        return { success: true };
+      }),
+
+    // テンプレート削除
+    deleteTemplate: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const { deleteStepEmailTemplate } = await import("./db");
+        await deleteStepEmailTemplate(input.id);
+        return { success: true };
+      }),
+
+    // 送信履歴一覧
+    getLogs: protectedProcedure
+      .input(z.object({
+        page: z.number().optional(),
+        limit: z.number().optional(),
+        status: z.string().optional(),
+        templateId: z.number().optional(),
+        search: z.string().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        const { getStepEmailLogs } = await import("./db");
+        return getStepEmailLogs(input ?? {});
+      }),
+
+    // アナリティクス
+    getAnalytics: protectedProcedure.query(async () => {
+      const { getStepEmailAnalytics } = await import("./db");
+      return getStepEmailAnalytics();
+    }),
+
+    // 手動送信トリガー
+    triggerSend: protectedProcedure.mutation(async () => {
+      const { startStepEmailScheduler } = await import("./stepEmailScheduler");
+      // Just trigger a manual run
+      const { getEnabledStepEmailTemplates, getEligibleUsersForStepEmail } = await import("./db");
+      const templates = await getEnabledStepEmailTemplates();
+      let totalEligible = 0;
+      for (const t of templates) {
+        const users = await getEligibleUsersForStepEmail(t.id, t.delayDays);
+        totalEligible += users.length;
+      }
+      return { templates: templates.length, eligibleUsers: totalEligible, message: `${templates.length}テンプレート、${totalEligible}人の対象ユーザーが見つかりました` };
+    }),
+
+    // デフォルトテンプレートをシード
+    seedDefaults: protectedProcedure.mutation(async () => {
+      const { getAllStepEmailTemplates, createStepEmailTemplate } = await import("./db");
+      const existing = await getAllStepEmailTemplates();
+      if (existing.length > 0) {
+        return { seeded: false, count: existing.length };
+      }
+
+      const defaults = [
+        {
+          name: "Day 0: ウェルカムメール",
+          subject: "🎉 ご登録ありがとうございます！特別ポイントをプレゼント",
+          bodyHtml: `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #fff;">
+  <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 30px; text-align: center; border-radius: 8px 8px 0 0;">
+    <h1 style="color: #fff; margin: 0; font-size: 24px;">🎉 ようこそ！LCJ MALLへ</h1>
+    <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0;">ご登録ありがとうございます</p>
+  </div>
+  <div style="padding: 30px;">
+    <p style="font-size: 16px; color: #333;">こんにちは、{{name}} さま！</p>
+    <p style="color: #555; line-height: 1.8;">LCJ MALLへのご登録、誠にありがとうございます。<br>ウェルカム特典として、<strong>初回限定ポイント</strong>をプレゼントいたします！</p>
+    <div style="background: #f8f4ff; border-radius: 12px; padding: 20px; text-align: center; margin: 20px 0;">
+      <p style="font-size: 14px; color: #764ba2; margin: 0 0 5px;">ウェルカム特典</p>
+      <p style="font-size: 32px; font-weight: bold; color: #764ba2; margin: 0;">30 pt</p>
+      <p style="font-size: 12px; color: #999; margin: 5px 0 0;">自動付与済み</p>
+    </div>
+    <p style="color: #555; line-height: 1.8;">さらに、お友達を招待すると最大<strong>5,000ポイント</strong>がもらえるチャンス！</p>
+    <a href="https://lcj-mall.manus.space/referral" style="display: block; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; text-align: center; padding: 14px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 20px 0;">お友達招待でポイントGET →</a>
+  </div>
+</div>`,
+          bodyText: "こんにちは、{{name}} さま！\n\nLCJ MALLへのご登録、誠にありがとうございます。\nウェルカム特典として、初回限定30ポイントをプレゼントいたします！\n\nお友達招待で最大5,000ポイントGET！\nhttps://lcj-mall.manus.space/referral",
+          delayDays: 0,
+          sortOrder: 1,
+          isEnabled: true,
+        },
+        {
+          name: "Day 1: お友達招待リマインド",
+          subject: "🎰 確変チャンス！お友達を招待して最大5,000ptをGET",
+          bodyHtml: `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #fff;">
+  <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 40px 30px; text-align: center; border-radius: 8px 8px 0 0;">
+    <h1 style="color: #fff; margin: 0; font-size: 24px;">🎰 確変チャンス到来！</h1>
+    <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0;">お友達招待でポイント大量獲得</p>
+  </div>
+  <div style="padding: 30px;">
+    <p style="font-size: 16px; color: #333;">{{name}} さま</p>
+    <p style="color: #555; line-height: 1.8;">お友達を招待するだけで、ルーレットが回せる「確変チャンス」！<br>ステージをクリアするごとに、どんどんポイントが貯まります！</p>
+    <div style="background: #fff5f5; border-radius: 12px; padding: 20px; margin: 20px 0;">
+      <p style="font-weight: bold; color: #f5576c; margin: 0 0 10px;">🏆 ステージ別報酬</p>
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr><td style="padding: 8px; border-bottom: 1px solid #ffe0e0;">ステージ1: 1人招待</td><td style="padding: 8px; text-align: right; border-bottom: 1px solid #ffe0e0; font-weight: bold; color: #f5576c;">+100pt</td></tr>
+        <tr><td style="padding: 8px; border-bottom: 1px solid #ffe0e0;">ステージ2: 3人招待</td><td style="padding: 8px; text-align: right; border-bottom: 1px solid #ffe0e0; font-weight: bold; color: #f5576c;">+500pt</td></tr>
+        <tr><td style="padding: 8px; border-bottom: 1px solid #ffe0e0;">ステージ3: 5人招待</td><td style="padding: 8px; text-align: right; border-bottom: 1px solid #ffe0e0; font-weight: bold; color: #f5576c;">+1,000pt</td></tr>
+        <tr><td style="padding: 8px;">ステージ4: 10人招待</td><td style="padding: 8px; text-align: right; font-weight: bold; color: #f5576c;">+3,000pt</td></tr>
+      </table>
+    </div>
+    <a href="https://lcj-mall.manus.space/referral" style="display: block; background: linear-gradient(135deg, #f093fb, #f5576c); color: #fff; text-align: center; padding: 14px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 20px 0;">今すぐ招待を始める →</a>
+  </div>
+</div>`,
+          bodyText: "{{name}} さま\n\nお友達を招待するだけでルーレットが回せる確変チャンス！\nステージ別報酬: 1人招待+100pt / 3人+500pt / 5人+1000pt / 10人+3000pt\n\nhttps://lcj-mall.manus.space/referral",
+          delayDays: 1,
+          sortOrder: 2,
+          isEnabled: true,
+        },
+        {
+          name: "Day 3: ブランド正規品紹介",
+          subject: "✨ ブランド正規品がポイントで交換できる！",
+          bodyHtml: `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #fff;">
+  <div style="background: linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%); padding: 40px 30px; text-align: center; border-radius: 8px 8px 0 0;">
+    <h1 style="color: #fff; margin: 0; font-size: 24px;">✨ ブランド正規品をポイントで</h1>
+    <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0;">貯まったポイントで人気商品をゲット</p>
+  </div>
+  <div style="padding: 30px;">
+    <p style="font-size: 16px; color: #333;">{{name}} さま</p>
+    <p style="color: #555; line-height: 1.8;">LCJ MALLでは、貯まったポイントで<strong>ブランド正規品</strong>と交換できます！</p>
+    <div style="background: #f8f0ff; border-radius: 12px; padding: 20px; margin: 20px 0;">
+      <p style="font-weight: bold; color: #a18cd1; margin: 0 0 15px;">💎 人気交換商品</p>
+      <p style="color: #555; margin: 5px 0;">● KYOGOKU シャンプー・トリートメント</p>
+      <p style="color: #555; margin: 5px 0;">● ヘアケアシリーズセット</p>
+      <p style="color: #555; margin: 5px 0;">● 限定コラボアイテム</p>
+    </div>
+    <a href="https://lcj-mall.manus.space/mall" style="display: block; background: linear-gradient(135deg, #a18cd1, #fbc2eb); color: #fff; text-align: center; padding: 14px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 20px 0;">商品をチェックする →</a>
+  </div>
+</div>`,
+          bodyText: "{{name}} さま\n\nLCJ MALLでは、貯まったポイントでブランド正規品と交換できます！\n\n人気交換商品:\n- KYOGOKU シャンプー・トリートメント\n- ヘアケアシリーズセット\n- 限定コラボアイテム\n\nhttps://lcj-mall.manus.space/mall",
+          delayDays: 3,
+          sortOrder: 3,
+          isEnabled: true,
+        },
+        {
+          name: "Day 7: レシートキャンペーン案内",
+          subject: "📸 レシートを撮ってポイントを貯めよう！確変チャンスも",
+          bodyHtml: `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #fff;">
+  <div style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); padding: 40px 30px; text-align: center; border-radius: 8px 8px 0 0;">
+    <h1 style="color: #fff; margin: 0; font-size: 24px;">📸 レシートでポイントGET</h1>
+    <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0;">TikTok Shopの購入レシートをアップロード</p>
+  </div>
+  <div style="padding: 30px;">
+    <p style="font-size: 16px; color: #333;">{{name}} さま</p>
+    <p style="color: #555; line-height: 1.8;">TikTok Shopでお買い物したら、<strong>レシートをアップロード</strong>するだけでポイントが貯まります！<br>さらに、<strong>確変チャンス</strong>でボーナスポイントも！</p>
+    <div style="background: #f0fff4; border-radius: 12px; padding: 20px; margin: 20px 0; text-align: center;">
+      <p style="font-size: 14px; color: #43e97b; margin: 0 0 5px;">レシートアップロードで</p>
+      <p style="font-size: 28px; font-weight: bold; color: #2d8659; margin: 0;">10～50 pt / 枚</p>
+      <p style="font-size: 12px; color: #999; margin: 5px 0 0;">+ 確変チャンスでボーナス</p>
+    </div>
+    <a href="https://lcj-mall.manus.space/receipt-upload" style="display: block; background: linear-gradient(135deg, #43e97b, #38f9d7); color: #fff; text-align: center; padding: 14px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 20px 0;">レシートをアップロード →</a>
+  </div>
+</div>`,
+          bodyText: "{{name}} さま\n\nTikTok Shopでお買い物したら、レシートをアップロードするだけでポイントが貯まります！\nレシートアップロード: 10～50pt/枚 + 確変チャンスでボーナス\n\nhttps://lcj-mall.manus.space/receipt-upload",
+          delayDays: 7,
+          sortOrder: 4,
+          isEnabled: true,
+        },
+        {
+          name: "Day 14: ポイント有効期限リマインド",
+          subject: "⚠️ ポイントの有効期限が近づいています！お得に使いましょう",
+          bodyHtml: `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #fff;">
+  <div style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); padding: 40px 30px; text-align: center; border-radius: 8px 8px 0 0;">
+    <h1 style="color: #fff; margin: 0; font-size: 24px;">⚠️ ポイントを使おう！</h1>
+    <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0;">有効期限が近づいています</p>
+  </div>
+  <div style="padding: 30px;">
+    <p style="font-size: 16px; color: #333;">{{name}} さま</p>
+    <p style="color: #555; line-height: 1.8;">お持ちのポイントの有効期限が近づいています。<br>期限切れ前に、お得な商品と交換しましょう！</p>
+    <div style="background: #fff9e6; border: 2px dashed #fee140; border-radius: 12px; padding: 20px; margin: 20px 0; text-align: center;">
+      <p style="font-size: 14px; color: #e67e22; margin: 0 0 5px;">💡 ポイントを增やす方法</p>
+      <p style="color: #555; margin: 5px 0;">① お友達招待 → 最大5,000pt</p>
+      <p style="color: #555; margin: 5px 0;">② レシートアップロード → 10～50pt/枚</p>
+      <p style="color: #555; margin: 5px 0;">③ 確変チャンス → ボーナスpt</p>
+    </div>
+    <a href="https://lcj-mall.manus.space/mall" style="display: block; background: linear-gradient(135deg, #fa709a, #fee140); color: #fff; text-align: center; padding: 14px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 20px 0;">ポイントを使う →</a>
+  </div>
+</div>`,
+          bodyText: "{{name}} さま\n\nお持ちのポイントの有効期限が近づいています。\n期限切れ前に、お得な商品と交換しましょう！\n\nポイントを增やす方法:\n1. お友達招待 → 最大5,000pt\n2. レシートアップロード → 10～50pt/枚\n3. 確変チャンス → ボーナスpt\n\nhttps://lcj-mall.manus.space/mall",
+          delayDays: 14,
+          sortOrder: 5,
+          isEnabled: true,
+        },
+      ];
+
+      for (const tpl of defaults) {
+        await createStepEmailTemplate(tpl);
+      }
+
+      return { seeded: true, count: defaults.length };
+    }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

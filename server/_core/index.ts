@@ -21,6 +21,7 @@ import { startAutoPostScheduler } from "../autoPostScheduler";
 import { startSeoMonitor } from "../seoMonitor";
 import { startArticleRewriter } from "../articleRewriter";
 import { initPointExpiryScheduler } from "../pointExpiryScheduler";
+import { startStepEmailScheduler } from "../stepEmailScheduler";
 import { trackingRouter } from "../tracking";
 import { devSafetyRouter } from "../devSafety";
 
@@ -1494,6 +1495,9 @@ async function startServer() {
     
     // Start AI auto-approve scheduler (server-side autonomous batch processing)
     startAiAutoApproveScheduler();
+    
+    // Start step email scheduler (sends step emails every 1 hour)
+    startStepEmailScheduler();
     
     // Seed popup variants on startup (idempotent - only inserts if table is empty)
     import("../db").then(({ seedPopupVariants }) => {

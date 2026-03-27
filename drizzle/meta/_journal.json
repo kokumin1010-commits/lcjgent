@@ -820,6 +820,20 @@
       "when": 1774487409604,
       "tag": "0116_cold_scream",
       "breakpoints": true
+    },
+    {
+      "idx": 117,
+      "version": "5",
+      "when": 1774588393475,
+      "tag": "0117_broken_chimera",
+      "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "5",
+      "when": 1774588731299,
+      "tag": "0118_glossy_prowler",
+      "breakpoints": true
     }
   ]
 }

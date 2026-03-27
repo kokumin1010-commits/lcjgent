@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, isNull, gte, lte, gt, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks, blogArticleSeoMetrics, InsertBlogArticleSeoMetric, blogArticleStats, InsertBlogArticleStat, blogArticleThemeLog, InsertBlogArticleThemeLogEntry, livestreamBrands, InsertLivestreamBrand, brandAdditionLogs, InsertBrandAdditionLog, tiktokPayments, InsertTiktokPayment, tiktokTapReports, InsertTiktokTapReport } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks, blogArticleSeoMetrics, InsertBlogArticleSeoMetric, blogArticleStats, InsertBlogArticleStat, blogArticleThemeLog, InsertBlogArticleThemeLogEntry, livestreamBrands, InsertLivestreamBrand, brandAdditionLogs, InsertBrandAdditionLog, tiktokPayments, InsertTiktokPayment, tiktokTapReports, InsertTiktokTapReport, stepEmailTemplates, InsertStepEmailTemplate, stepEmailLogs, InsertStepEmailLog, stepEmailClicks, InsertStepEmailClick } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -19215,4 +19215,241 @@ export async function countDuplicateImageRejections(lineUserId: string): Promise
     );
   
   return result[0]?.count ?? 0;
+}
+
+
+// ============================================================
+// Step Email Template & Log & Analytics helpers
+// ============================================================
+
+/** Get all step email templates ordered by delayDays */
+export async function getAllStepEmailTemplates() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(stepEmailTemplates).orderBy(asc(stepEmailTemplates.delayDays));
+}
+
+/** Get enabled step email templates */
+export async function getEnabledStepEmailTemplates() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(stepEmailTemplates)
+    .where(eq(stepEmailTemplates.isEnabled, true))
+    .orderBy(asc(stepEmailTemplates.delayDays));
+}
+
+/** Get step email template by ID */
+export async function getStepEmailTemplateById(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(stepEmailTemplates).where(eq(stepEmailTemplates.id, id)).limit(1);
+  return result[0] ?? null;
+}
+
+/** Create step email template */
+export async function createStepEmailTemplate(data: InsertStepEmailTemplate) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.insert(stepEmailTemplates).values(data);
+}
+
+/** Update step email template */
+export async function updateStepEmailTemplate(id: number, data: Partial<InsertStepEmailTemplate>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.update(stepEmailTemplates).set(data).where(eq(stepEmailTemplates.id, id));
+}
+
+/** Delete step email template */
+export async function deleteStepEmailTemplate(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.delete(stepEmailTemplates).where(eq(stepEmailTemplates.id, id));
+}
+
+/** Create step email log */
+export async function createStepEmailLog(data: InsertStepEmailLog) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.insert(stepEmailLogs).values(data);
+}
+
+/** Check if a step email has already been sent to a user for a template */
+export async function hasStepEmailBeenSent(templateId: number, lineUserId: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select({ id: stepEmailLogs.id })
+    .from(stepEmailLogs)
+    .where(and(
+      eq(stepEmailLogs.templateId, templateId),
+      eq(stepEmailLogs.lineUserId, lineUserId),
+      eq(stepEmailLogs.status, "sent")
+    ))
+    .limit(1);
+  return result.length > 0;
+}
+
+/** Get step email logs with pagination and filtering */
+export async function getStepEmailLogs(opts: {
+  page?: number;
+  limit?: number;
+  status?: string;
+  templateId?: number;
+  search?: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const page = opts.page ?? 1;
+  const limit = opts.limit ?? 50;
+  const offset = (page - 1) * limit;
+
+  const conditions: any[] = [];
+  if (opts.status) conditions.push(eq(stepEmailLogs.status, opts.status as any));
+  if (opts.templateId) conditions.push(eq(stepEmailLogs.templateId, opts.templateId));
+  if (opts.search) conditions.push(like(stepEmailLogs.email, `%${opts.search}%`));
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [rows, countResult] = await Promise.all([
+    db.select({
+      log: stepEmailLogs,
+      templateName: stepEmailTemplates.name,
+    })
+      .from(stepEmailLogs)
+      .leftJoin(stepEmailTemplates, eq(stepEmailLogs.templateId, stepEmailTemplates.id))
+      .where(whereClause)
+      .orderBy(desc(stepEmailLogs.sentAt))
+      .limit(limit)
+      .offset(offset),
+    db.select({ count: sql<number>`count(*)` })
+      .from(stepEmailLogs)
+      .where(whereClause),
+  ]);
+
+  return {
+    logs: rows,
+    total: countResult[0]?.count ?? 0,
+    page,
+    limit,
+  };
+}
+
+/** Record email open (tracking pixel hit) */
+export async function recordStepEmailOpen(trackingId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(stepEmailLogs)
+    .set({
+      openedAt: sql`COALESCE(opened_at, NOW())`,
+      openCount: sql`open_count + 1`,
+    })
+    .where(eq(stepEmailLogs.trackingId, trackingId));
+}
+
+/** Record email link click */
+export async function recordStepEmailClick(trackingId: string, url: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Find the log entry
+  const logResult = await db.select({ id: stepEmailLogs.id })
+    .from(stepEmailLogs)
+    .where(eq(stepEmailLogs.trackingId, trackingId))
+    .limit(1);
+
+  if (logResult.length === 0) return;
+
+  const logId = logResult[0].id;
+
+  // Insert click record
+  await db.insert(stepEmailClicks).values({
+    logId,
+    trackingId,
+    url,
+  });
+
+  // Update log click stats
+  await db.update(stepEmailLogs)
+    .set({
+      clickedAt: sql`COALESCE(clicked_at, NOW())`,
+      clickCount: sql`click_count + 1`,
+    })
+    .where(eq(stepEmailLogs.trackingId, trackingId));
+}
+
+/** Get step email analytics summary */
+export async function getStepEmailAnalytics() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Overall stats
+  const overallStats = await db.select({
+    totalSent: sql<number>`COUNT(CASE WHEN status = 'sent' THEN 1 END)`,
+    totalFailed: sql<number>`COUNT(CASE WHEN status = 'failed' THEN 1 END)`,
+    totalSkipped: sql<number>`COUNT(CASE WHEN status = 'skipped' THEN 1 END)`,
+    totalOpened: sql<number>`COUNT(CASE WHEN opened_at IS NOT NULL THEN 1 END)`,
+    totalClicked: sql<number>`COUNT(CASE WHEN clicked_at IS NOT NULL THEN 1 END)`,
+    totalOpenCount: sql<number>`COALESCE(SUM(open_count), 0)`,
+    totalClickCount: sql<number>`COALESCE(SUM(click_count), 0)`,
+  }).from(stepEmailLogs);
+
+  // Per-template stats
+  const perTemplateStats = await db.select({
+    templateId: stepEmailLogs.templateId,
+    templateName: stepEmailTemplates.name,
+    delayDays: stepEmailTemplates.delayDays,
+    sent: sql<number>`COUNT(CASE WHEN ${stepEmailLogs.status} = 'sent' THEN 1 END)`,
+    failed: sql<number>`COUNT(CASE WHEN ${stepEmailLogs.status} = 'failed' THEN 1 END)`,
+    opened: sql<number>`COUNT(CASE WHEN ${stepEmailLogs.openedAt} IS NOT NULL THEN 1 END)`,
+    clicked: sql<number>`COUNT(CASE WHEN ${stepEmailLogs.clickedAt} IS NOT NULL THEN 1 END)`,
+  })
+    .from(stepEmailLogs)
+    .leftJoin(stepEmailTemplates, eq(stepEmailLogs.templateId, stepEmailTemplates.id))
+    .groupBy(stepEmailLogs.templateId, stepEmailTemplates.name, stepEmailTemplates.delayDays)
+    .orderBy(asc(stepEmailTemplates.delayDays));
+
+  // Daily send trend (last 30 days)
+  const dailyTrend = await db.select({
+    date: sql<string>`DATE(sentAt)`.as("date"),
+    sent: sql<number>`COUNT(CASE WHEN status = 'sent' THEN 1 END)`,
+    opened: sql<number>`COUNT(CASE WHEN opened_at IS NOT NULL THEN 1 END)`,
+    clicked: sql<number>`COUNT(CASE WHEN clicked_at IS NOT NULL THEN 1 END)`,
+  })
+    .from(stepEmailLogs)
+    .where(gte(stepEmailLogs.sentAt, sql`DATE_SUB(NOW(), INTERVAL 30 DAY)`))
+    .groupBy(sql`DATE(sentAt)`)
+    .orderBy(asc(sql`DATE(sentAt)`));
+
+  return {
+    overall: overallStats[0],
+    perTemplate: perTemplateStats,
+    dailyTrend,
+  };
+}
+
+/** Get users eligible for step emails (registered users with email, not yet sent for a given template) */
+export async function getEligibleUsersForStepEmail(templateId: number, delayDays: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Find line_users who registered at least delayDays ago AND haven't received this template yet
+  const cutoffDate = new Date(Date.now() - delayDays * 24 * 60 * 60 * 1000);
+
+  const result = await db.select({
+    id: lineUsers.id,
+    email: lineUsers.email,
+    displayName: lineUsers.displayName,
+  })
+    .from(lineUsers)
+    .where(and(
+      isNotNull(lineUsers.email),
+      lte(lineUsers.createdAt, cutoffDate),
+      // Exclude users who already received this template
+      sql`${lineUsers.id} NOT IN (
+        SELECT lineUserId FROM step_email_logs 
+        WHERE templateId = ${templateId} AND status = 'sent'
+      )`
+    ));
+
+  return result;
 }

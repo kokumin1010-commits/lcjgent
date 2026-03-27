@@ -22,7 +22,7 @@ import {
 import { useLanguage, Language } from "@/contexts/LanguageContext";
 
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, MessageCircle, Package, ShoppingCart, UserCheck, Zap, Wallet, Calculator, UserRoundCog, Megaphone, Store, GraduationCap, Receipt, BarChart3, Heart, Newspaper, Bot, Tag, Gift, Handshake } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, ClipboardList, Settings, FileText, UserCog, Globe, Brain, Building2, CreditCard, MessageSquare, Bell, AlertCircle, Calendar, Video, MessageCircle, Package, ShoppingCart, UserCheck, Zap, Wallet, Calculator, UserRoundCog, Megaphone, Store, GraduationCap, Receipt, BarChart3, Heart, Newspaper, Bot, Tag, Gift, Handshake, Mail, History, TrendingUp } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -113,6 +113,9 @@ function DashboardLayoutContent({
     { icon: Newspaper, label: "ブログ管理", path: "/master/blog" },
     { icon: Megaphone, label: "紹介コード管理", path: "/master/referral", adminOnly: true },
     { icon: Receipt, label: "レシート管理", path: "/master/receipts" },
+    { icon: Mail, label: "ステップメール", path: "/master/step-email" },
+    { icon: History, label: "送信履歴", path: "/master/step-email/logs" },
+    { icon: TrendingUp, label: "メールアナリティクス", path: "/master/step-email/analytics" },
     { icon: BarChart3, label: "レシート分析", path: "/master/receipt-analytics" },
     { icon: Heart, label: "入荷リクエスト", path: "/master/product-requests" },
     { icon: Users, label: t("nav.staff"), path: "/master/staff" },

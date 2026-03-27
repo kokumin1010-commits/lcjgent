@@ -4156,3 +4156,66 @@ export const tiktokTapReports = mysqlTable("tiktok_tap_reports", {
 
 export type TiktokTapReport = typeof tiktokTapReports.$inferSelect;
 export type InsertTiktokTapReport = typeof tiktokTapReports.$inferInsert;
+
+
+// =============================================
+// Step Email Templates & Logs
+// ステップメール自動送信テンプレートと送信ログ
+// =============================================
+
+/**
+ * Step Email Templates
+ * 会員登録後に自動送信されるステップメールのテンプレート
+ */
+export const stepEmailTemplates = mysqlTable("step_email_templates", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(), // テンプレート名（管理用）
+  subject: varchar("subject", { length: 500 }).notNull(), // メール件名
+  bodyHtml: text("bodyHtml").notNull(), // HTML本文
+  bodyText: text("bodyText").notNull(), // テキスト本文（フォールバック）
+  delayDays: int("delayDays").notNull(), // 登録後何日目に送信するか
+  sortOrder: int("sortOrder").default(0).notNull(), // 表示順
+  isEnabled: boolean("isEnabled").default(true).notNull(), // 有効/無効
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type StepEmailTemplate = typeof stepEmailTemplates.$inferSelect;
+export type InsertStepEmailTemplate = typeof stepEmailTemplates.$inferInsert;
+
+/**
+ * Step Email Logs
+ * ステップメール送信ログ（重複送信防止・履歴管理）
+ */
+export const stepEmailLogs = mysqlTable("step_email_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  templateId: int("templateId").notNull(), // References step_email_templates.id
+  lineUserId: int("lineUserId").notNull(), // References line_users.id
+  email: varchar("email", { length: 320 }).notNull(), // 送信先メールアドレス
+  status: mysqlEnum("status", ["sent", "failed", "skipped"]).default("sent").notNull(),
+  errorMessage: text("errorMessage"), // エラーメッセージ（失敗時）
+  trackingId: varchar("tracking_id", { length: 64 }), // ユニークトラッキングID
+  openedAt: timestamp("opened_at"), // 開封日時
+  openCount: int("open_count").default(0).notNull(), // 開封回数
+  clickedAt: timestamp("clicked_at"), // 初回クリック日時
+  clickCount: int("click_count").default(0).notNull(), // クリック回数
+  sentAt: timestamp("sentAt").defaultNow().notNull(),
+});
+
+export type StepEmailLog = typeof stepEmailLogs.$inferSelect;
+export type InsertStepEmailLog = typeof stepEmailLogs.$inferInsert;
+
+/**
+ * Step Email Click Tracking
+ * メール内リンクのクリック追跡
+ */
+export const stepEmailClicks = mysqlTable("step_email_clicks", {
+  id: int("id").autoincrement().primaryKey(),
+  logId: int("log_id").notNull(), // References step_email_logs.id
+  trackingId: varchar("tracking_id", { length: 64 }).notNull(), // References step_email_logs.tracking_id
+  url: text("url").notNull(), // クリックされたURL
+  clickedAt: timestamp("clicked_at").defaultNow().notNull(),
+});
+
+export type StepEmailClick = typeof stepEmailClicks.$inferSelect;
+export type InsertStepEmailClick = typeof stepEmailClicks.$inferInsert;

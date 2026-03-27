@@ -1,0 +1,8 @@
+{
+  "query": "ALTER TABLE step_email_logs ADD COLUMN trackingId varchar(64) UNIQUE AFTER errorMessage; ALTER TABLE step_email_logs ADD COLUMN openedAt timestamp NULL AFTER trackingId; ALTER TABLE step_email_logs ADD COLUMN openCount int NOT NULL DEFAULT 0 AFTER openedAt; ALTER TABLE step_email_logs ADD COLUMN clickedAt timestamp NULL AFTER openCount; ALTER TABLE step_email_logs ADD COLUMN clickCount int NOT NULL DEFAULT 0 AFTER clickedAt;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute ALTER TABLE step_email_logs ADD COLUMN trackingId varchar(64) UNIQUE AFTER errorMessage; ALTER TABLE step_email_logs ADD COLUMN openedAt timestamp NULL AFTER trackingId; ALTER TABLE step_email_logs ADD COLUMN openCount int NOT NULL DEFAULT 0 AFTER openedAt; ALTER TABLE step_email_logs ADD COLUMN clickedAt timestamp NULL AFTER openCount; ALTER TABLE step_email_logs ADD COLUMN clickCount int NOT NULL DEFAULT 0 AFTER clickedAt;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 8200 (HY000) at line 1: unsupported add column 'trackingid' constraint UNIQUE KEY when altering 'GgA9WvTBCZMf6mjyMMwACw.step_email_logs'"
+  ]
+}

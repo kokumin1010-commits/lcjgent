@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE step_email_logs ADD COLUMN opened_at timestamp NULL; ALTER TABLE step_email_logs ADD COLUMN open_count int NOT NULL DEFAULT 0; ALTER TABLE step_email_logs ADD COLUMN clicked_at timestamp NULL; ALTER TABLE step_email_logs ADD COLUMN click_count int NOT NULL DEFAULT 0;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute ALTER TABLE step_email_logs ADD COLUMN opened_at timestamp NULL; ALTER TABLE step_email_logs ADD COLUMN open_count int NOT NULL DEFAULT 0; ALTER TABLE step_email_logs ADD COLUMN clicked_at timestamp NULL; ALTER TABLE step_email_logs ADD COLUMN click_count int NOT NULL DEFAULT 0;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 3063
+}

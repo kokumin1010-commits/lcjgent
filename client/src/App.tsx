@@ -113,6 +113,9 @@ const BeautyWallet = lazy(() => import("./pages/BeautyWallet"));
 const KakuhenTest = lazy(() => import("./pages/KakuhenTest"));
 const SetApplicationsAdmin = lazy(() => import("./pages/SetApplicationsAdmin"));
 const SampleRequestsAdmin = lazy(() => import("./pages/SampleRequestsAdmin"));
+const StepEmailTemplates = lazy(() => import("./pages/StepEmailTemplates"));
+const StepEmailLogs = lazy(() => import("./pages/StepEmailLogs"));
+const StepEmailAnalytics = lazy(() => import("./pages/StepEmailAnalytics"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -359,6 +362,9 @@ function Router() {
             <HRManagement />
           </DashboardLayout>
         </Route>
+        <Route path={"/master/step-email/analytics"} component={StepEmailAnalytics} />
+        <Route path={"/master/step-email/logs"} component={StepEmailLogs} />
+        <Route path={"/master/step-email"} component={StepEmailTemplates} />
         <Route path={"/master/referral"} component={ReferralManagement} />
         <Route path={"/master/ai-learning"}>
           <DashboardLayout>
