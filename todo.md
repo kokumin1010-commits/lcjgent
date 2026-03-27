@@ -6884,3 +6884,8 @@
 - [x] 承認ボタンが押せない根本原因を調査（全mutationにonErrorハンドラがなくエラーが表示されない）
 - [x] バグを修正（全mutationにonErrorハンドラ追加、エラートースト表示）
 - [x] ブラウザで検証（デプロイ後に確認）
+
+## バグ修正: 承認ボタンの循環参照エラー (Converting circular structure to JSON)
+- [x] onErrorハンドラでエラーオブジェクトの循環参照を修正（onClickがReactイベントを引数に渡していた根本原因）
+- [x] ローカルで検証（187 passed）
+- [x] デプロイ

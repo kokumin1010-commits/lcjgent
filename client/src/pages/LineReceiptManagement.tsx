@@ -510,7 +510,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
       setIsOrderNumberEditing(false);
     },
     onError: (error) => {
-      console.error("[Approve Error]", error);
+      console.error("[Approve Error]", error.message);
       if (error.message.includes("重複") || error.message.includes("duplicate")) {
         toast.error(`⚠️ 重複エラー: ${error.message}`, { duration: 8000 });
       } else if (error.message.includes("注文番号")) {
@@ -2005,7 +2005,7 @@ export default function LineReceiptManagement({ embedded = false }: { embedded?:
                             <div className="space-y-1.5">
                               <Button 
                                 className="w-full h-10 bg-green-600 hover:bg-green-700 text-white text-sm font-bold shadow-md"
-                                onClick={handleCalcApprove}
+                                onClick={() => handleCalcApprove()}
                                 disabled={approveMutation.isPending}
                               >
                                 {approveMutation.isPending ? (
