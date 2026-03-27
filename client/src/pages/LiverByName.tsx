@@ -13,8 +13,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, TrendingUp, Clock, Calendar, DollarSign, Users, Eye, ShoppingCart, MousePointer, ChevronRight, ImageOff, BarChart3, Search, X, AlertTriangle } from "lucide-react";
+import { ArrowLeft, TrendingUp, Clock, Calendar, DollarSign, Users, Eye, ShoppingCart, MousePointer, ChevronRight, ImageOff, BarChart3, Search, X, AlertTriangle, CheckCircle2, Edit3, Undo2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   BarChart,
   Bar,
@@ -51,7 +56,75 @@ export default function LiverByName() {
   
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].value);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
-  
+  const { user } = useAuth();
+  const utils = trpc.useUtils();
+
+  // 訂正ダイアログのstate
+  const [correctDialogOpen, setCorrectDialogOpen] = useState(false);
+  const [correctTarget, setCorrectTarget] = useState<any>(null);
+  const [correctForm, setCorrectForm] = useState({
+    salesAmount: "",
+    duration: "",
+    viewerCount: "",
+    orderCount: "",
+  });
+
+  // Mutations
+  const verifyMutation = trpc.salesCheck.verify.useMutation({
+    onSuccess: () => {
+      toast.success("配信記録を確認しました");
+      utils.liverManagement.getLivestreamsByStreamerName.invalidate();
+    },
+    onError: () => toast.error("確認に失敗しました"),
+  });
+
+  const unverifyMutation = trpc.salesCheck.unverify.useMutation({
+    onSuccess: () => {
+      toast.success("確認を取り消しました");
+      utils.liverManagement.getLivestreamsByStreamerName.invalidate();
+    },
+    onError: () => toast.error("取消に失敗しました"),
+  });
+
+  const verifyBulkMutation = trpc.salesCheck.verifyBulk.useMutation({
+    onSuccess: (result) => {
+      toast.success(`${result.count}件の配信記録を確認しました`);
+      utils.liverManagement.getLivestreamsByStreamerName.invalidate();
+    },
+    onError: () => toast.error("一括確認に失敗しました"),
+  });
+
+  const correctMutation = trpc.salesCheck.correct.useMutation({
+    onSuccess: () => {
+      toast.success("配信記録を訂正しました");
+      setCorrectDialogOpen(false);
+      utils.liverManagement.getLivestreamsByStreamerName.invalidate();
+    },
+    onError: () => toast.error("訂正に失敗しました"),
+  });
+
+  const openCorrectDialog = (livestream: any) => {
+    setCorrectTarget(livestream);
+    setCorrectForm({
+      salesAmount: String(livestream.gmv || livestream.salesAmount || ""),
+      duration: String(livestream.duration || ""),
+      viewerCount: String(livestream.viewerCount || ""),
+      orderCount: String(livestream.orderCount || ""),
+    });
+    setCorrectDialogOpen(true);
+  };
+
+  const handleCorrectSubmit = () => {
+    if (!correctTarget) return;
+    correctMutation.mutate({
+      id: correctTarget.id,
+      salesAmount: correctForm.salesAmount ? Number(correctForm.salesAmount) : null,
+      duration: correctForm.duration ? Number(correctForm.duration) : null,
+      viewerCount: correctForm.viewerCount ? Number(correctForm.viewerCount) : null,
+      orderCount: correctForm.orderCount ? Number(correctForm.orderCount) : null,
+    });
+  };
+
   const { data, isLoading } = trpc.liverManagement.getLivestreamsByStreamerName.useQuery({
     streamerName: decodedName,
     month: selectedMonth,
@@ -61,6 +134,11 @@ export default function LiverByName() {
   const { data: growthData, isLoading: isGrowthLoading } = trpc.liverManagement.getLiverMonthlyGrowth.useQuery({
     streamerName: decodedName,
   });
+
+  const unverifiedIds = useMemo(() => {
+    if (!data?.livestreams) return [];
+    return data.livestreams.filter((l: any) => !l.verifiedAt).map((l: any) => l.id);
+  }, [data?.livestreams]);
   
   const translations = {
     ja: {
@@ -525,7 +603,24 @@ export default function LiverByName() {
                   {data.livestreams.filter(l => checkDataIntegrity(l)).length}件 要確認
                 </span>
               )}
+              {unverifiedIds.length > 0 && (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-900/50 text-blue-400 text-xs">
+                  未確認: {unverifiedIds.length}件
+                </span>
+              )}
             </CardTitle>
+            {user && unverifiedIds.length > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs border-green-600 text-green-400 hover:bg-green-900/30"
+                onClick={() => verifyBulkMutation.mutate({ ids: unverifiedIds })}
+                disabled={verifyBulkMutation.isPending}
+              >
+                <CheckCircle2 className="w-3 h-3 mr-1" />
+                全て確認済みにする
+              </Button>
+            )}
           </CardHeader>
           <CardContent>
             {data?.livestreams && data.livestreams.length > 0 ? (
@@ -585,15 +680,26 @@ export default function LiverByName() {
                               <span className="text-xs text-white/60">{formatTimeRange(livestream)}</span>
                             )}
                           </div>
-                          {livestream.result && (
-                            <span className={`px-2 py-0.5 rounded text-xs ${
-                              livestream.result === "成功" 
-                                ? "bg-green-900/50 text-green-400" 
-                                : "bg-red-900/50 text-red-400"
-                            }`}>
-                              {livestream.result}
-                            </span>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {livestream.result && (
+                              <span className={`px-2 py-0.5 rounded text-xs ${
+                                livestream.result === "成功" 
+                                  ? "bg-green-900/50 text-green-400" 
+                                  : "bg-red-900/50 text-red-400"
+                              }`}>
+                                {livestream.result}
+                              </span>
+                            )}
+                            {(livestream as any).verifiedAt ? (
+                              <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-green-900/50 text-green-400">
+                                <CheckCircle2 className="w-3 h-3" /> 確認済
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded text-xs bg-gray-700/50 text-gray-400">
+                                未確認
+                              </span>
+                            )}
+                          </div>
                         </div>
                         
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
@@ -650,7 +756,49 @@ export default function LiverByName() {
                           </p>
                         )}
                         
-                        <div className="flex justify-end mt-2">
+                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-700/50">
+                          {user && (
+                            <div className="flex items-center gap-2">
+                              {(livestream as any).verifiedAt ? (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 text-xs text-gray-400 hover:text-orange-400"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    unverifyMutation.mutate({ id: livestream.id });
+                                  }}
+                                  disabled={unverifyMutation.isPending}
+                                >
+                                  <Undo2 className="w-3 h-3 mr-1" /> 確認取消
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 text-xs text-green-400 hover:text-green-300 hover:bg-green-900/30"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    verifyMutation.mutate({ id: livestream.id });
+                                  }}
+                                  disabled={verifyMutation.isPending}
+                                >
+                                  <CheckCircle2 className="w-3 h-3 mr-1" /> 確認済み
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 text-xs text-blue-400 hover:text-blue-300 hover:bg-blue-900/30"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openCorrectDialog(livestream);
+                                }}
+                              >
+                                <Edit3 className="w-3 h-3 mr-1" /> 訂正
+                              </Button>
+                            </div>
+                          )}
                           <span className="text-xs text-white flex items-center gap-1 hover:text-white transition-colors">
                             詳細を見る <ChevronRight className="w-3 h-3" />
                           </span>
@@ -690,6 +838,80 @@ export default function LiverByName() {
           />
         </div>
       )}
+
+      {/* 訂正ダイアログ */}
+      <Dialog open={correctDialogOpen} onOpenChange={setCorrectDialogOpen}>
+        <DialogContent className="bg-gray-900 border-gray-700 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-white">配信記録の訂正</DialogTitle>
+          </DialogHeader>
+          {correctTarget && (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-400">
+                {formatDate(correctTarget.livestreamDate)} の配信記録を訂正します
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-300">売上 (円)</Label>
+                  <Input
+                    type="number"
+                    value={correctForm.salesAmount}
+                    onChange={(e) => setCorrectForm(prev => ({ ...prev, salesAmount: e.target.value }))}
+                    className="bg-gray-800 border-gray-600 text-white"
+                    placeholder="例: 1000000"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-300">配信時間 (分)</Label>
+                  <Input
+                    type="number"
+                    value={correctForm.duration}
+                    onChange={(e) => setCorrectForm(prev => ({ ...prev, duration: e.target.value }))}
+                    className="bg-gray-800 border-gray-600 text-white"
+                    placeholder="例: 120"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-300">視聴者数</Label>
+                  <Input
+                    type="number"
+                    value={correctForm.viewerCount}
+                    onChange={(e) => setCorrectForm(prev => ({ ...prev, viewerCount: e.target.value }))}
+                    className="bg-gray-800 border-gray-600 text-white"
+                    placeholder="例: 5000"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-300">注文数</Label>
+                  <Input
+                    type="number"
+                    value={correctForm.orderCount}
+                    onChange={(e) => setCorrectForm(prev => ({ ...prev, orderCount: e.target.value }))}
+                    className="bg-gray-800 border-gray-600 text-white"
+                    placeholder="例: 100"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCorrectDialogOpen(false)}
+              className="border-gray-600 text-gray-300"
+            >
+              キャンセル
+            </Button>
+            <Button
+              onClick={handleCorrectSubmit}
+              disabled={correctMutation.isPending}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {correctMutation.isPending ? "訂正中..." : "訂正する"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

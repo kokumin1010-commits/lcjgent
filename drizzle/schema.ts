@@ -323,6 +323,8 @@ export const brandLivestreams = mysqlTable("brand_livestreams", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   deletedAt: timestamp("deletedAt"), // ソフトデリート用タイムスタンプ（NULLなら有効、値があれば削除済み）
+  verifiedAt: timestamp("verifiedAt"), // 本部確認日時
+  verifiedBy: int("verifiedBy"), // 確認者のUser ID
 });
 
 export type BrandLivestream = typeof brandLivestreams.$inferSelect;

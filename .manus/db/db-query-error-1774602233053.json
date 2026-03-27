@@ -1,0 +1,8 @@
+{
+  "query": "ALTER TABLE brand_livestreams ADD COLUMN verifiedAt TIMESTAMP NULL; ALTER TABLE brand_livestreams ADD COLUMN verifiedBy INT NULL;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user ViCMbGRGvoSuVwV.root --database GgA9WvTBCZMf6mjyMMwACw --execute ALTER TABLE brand_livestreams ADD COLUMN verifiedAt TIMESTAMP NULL; ALTER TABLE brand_livestreams ADD COLUMN verifiedBy INT NULL;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1060 (42S21) at line 1: Duplicate column name 'verifiedAt'"
+  ]
+}

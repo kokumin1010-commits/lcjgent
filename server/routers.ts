@@ -577,8 +577,8 @@ import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
-import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups } from "../drizzle/schema";
-import { eq, and, not, isNotNull, isNull, desc, gt } from "drizzle-orm";
+import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams } from "../drizzle/schema";
+import { eq, and, not, isNotNull, isNull, desc, gt, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
 import { ENV } from "./_core/env";
@@ -19589,6 +19589,43 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .mutation(async ({ input }) => {
         const { id, ...data } = input;
         return await correctLivestreamData(id, data);
+      }),
+
+    // 本部確認（単件）
+    verify: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB not available");
+        await db.update(brandLivestreams)
+          .set({ verifiedAt: new Date(), verifiedBy: ctx.user.id })
+          .where(eq(brandLivestreams.id, input.id));
+        return { success: true };
+      }),
+
+    // 確認取消
+    unverify: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB not available");
+        await db.update(brandLivestreams)
+          .set({ verifiedAt: null, verifiedBy: null })
+          .where(eq(brandLivestreams.id, input.id));
+        return { success: true };
+      }),
+
+    // 一括確認
+    verifyBulk: protectedProcedure
+      .input(z.object({ ids: z.array(z.number()) }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB not available");
+        if (input.ids.length === 0) return { count: 0 };
+        await db.update(brandLivestreams)
+          .set({ verifiedAt: new Date(), verifiedBy: ctx.user.id })
+          .where(inArray(brandLivestreams.id, input.ids));
+        return { count: input.ids.length };
       }),
   }),
 });

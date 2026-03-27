@@ -4,12 +4,18 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("./db", () => ({
   getLivestreamsForSalesCheck: vi.fn(),
   correctLivestreamData: vi.fn(),
+  verifyLivestream: vi.fn(),
+  unverifyLivestream: vi.fn(),
+  verifyLivestreamsBulk: vi.fn(),
 }));
 
-import { getLivestreamsForSalesCheck, correctLivestreamData } from "./db";
+import { getLivestreamsForSalesCheck, correctLivestreamData, verifyLivestream, unverifyLivestream, verifyLivestreamsBulk } from "./db";
 
 const mockGetLivestreams = vi.mocked(getLivestreamsForSalesCheck);
 const mockCorrectData = vi.mocked(correctLivestreamData);
+const mockVerify = vi.mocked(verifyLivestream);
+const mockUnverify = vi.mocked(unverifyLivestream);
+const mockVerifyBulk = vi.mocked(verifyLivestreamsBulk);
 
 describe("salesCheck - getLivestreamsForSalesCheck", () => {
   beforeEach(() => {
@@ -122,5 +128,39 @@ describe("salesCheck - correctLivestreamData", () => {
       remarks: "管理者により訂正: 売上金額を修正",
     });
     expect(result).toEqual({ success: true });
+  });
+});
+
+describe("salesCheck - verifyLivestream", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("should verify a livestream with userId", async () => {
+    mockVerify.mockResolvedValue({ success: true });
+    const result = await verifyLivestream(1, 42);
+    expect(mockVerify).toHaveBeenCalledWith(1, 42);
+    expect(result).toEqual({ success: true });
+  });
+
+  it("should unverify a livestream", async () => {
+    mockUnverify.mockResolvedValue({ success: true });
+    const result = await unverifyLivestream(5);
+    expect(mockUnverify).toHaveBeenCalledWith(5);
+    expect(result).toEqual({ success: true });
+  });
+
+  it("should bulk verify multiple livestreams", async () => {
+    mockVerifyBulk.mockResolvedValue({ count: 3 });
+    const result = await verifyLivestreamsBulk([1, 2, 3], 42);
+    expect(mockVerifyBulk).toHaveBeenCalledWith([1, 2, 3], 42);
+    expect(result).toEqual({ count: 3 });
+  });
+
+  it("should handle empty array for bulk verify", async () => {
+    mockVerifyBulk.mockResolvedValue({ count: 0 });
+    const result = await verifyLivestreamsBulk([], 42);
+    expect(mockVerifyBulk).toHaveBeenCalledWith([], 42);
+    expect(result).toEqual({ count: 0 });
   });
 });
