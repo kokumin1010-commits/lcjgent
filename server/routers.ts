@@ -19409,7 +19409,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         email: z.string().email(),
         phone: z.string().optional(),
         brandName: z.string().min(1),
-        productUrl: z.string().url(),
+        productUrl: z.string().min(1),
         productStrength: z.string().min(1),
         pastSalesRecord: z.string().optional(),
         plan: z.enum(["light", "algorithm", "market_jack"]),
