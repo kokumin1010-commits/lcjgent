@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -124,19 +124,121 @@ function InlineCTA({ onClick, text = "無料で審査に申し込む", variant =
 }
 
 // ============================================================
-// Urgency Badge
+// Cookie helpers
 // ============================================================
+function getCookie(name: string): string | null {
+  const m = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  return m ? decodeURIComponent(m[2]) : null;
+}
+function setCookie(name: string, value: string, days: number) {
+  const d = new Date(); d.setTime(d.getTime() + days * 86400000);
+  document.cookie = `${name}=${encodeURIComponent(value)};expires=${d.toUTCString()};path=/;SameSite=Lax`;
+}
+
+// ============================================================
+// 3-Stage Perpetual Countdown
+// ============================================================
+type Stage = 1 | 2 | 3;
+interface StageConfig {
+  label: string;
+  slots: string;
+  ctaLabel: string;
+  durationMs: number;
+  badgeBg: string;
+  badgeText: string;
+}
+const STAGE_CONFIGS: Record<Stage, StageConfig> = {
+  1: {
+    label: "審査枠 残り3ブランド",
+    slots: "3",
+    ctaLabel: "今すぐ無料審査に申し込む",
+    durationMs: 72 * 3600 * 1000,
+    badgeBg: "bg-red-50",
+    badgeText: "text-red-700",
+  },
+  2: {
+    label: "キャンセル緊急枠 残り1ブランド",
+    slots: "1",
+    ctaLabel: "緊急枠を今すぐ確保する",
+    durationMs: 24 * 3600 * 1000,
+    badgeBg: "bg-orange-50",
+    badgeText: "text-orange-700",
+  },
+  3: {
+    label: "次回優先リスト受付中",
+    slots: "0",
+    ctaLabel: "優先リストに登録する",
+    durationMs: 48 * 3600 * 1000,
+    badgeBg: "bg-purple-50",
+    badgeText: "text-purple-700",
+  },
+};
+
+function useCountdownStage() {
+  const getState = useCallback(() => {
+    const raw = getCookie("lcj_cd_start");
+    const stageRaw = getCookie("lcj_cd_stage");
+    const now = Date.now();
+    let stage: Stage = stageRaw ? (parseInt(stageRaw, 10) as Stage) : 1;
+    if (stage < 1 || stage > 3) stage = 1;
+    let start = raw ? parseInt(raw, 10) : 0;
+    if (!start) {
+      start = now;
+      setCookie("lcj_cd_start", String(start), 30);
+      setCookie("lcj_cd_stage", "1", 30);
+      stage = 1;
+    }
+    const cfg = STAGE_CONFIGS[stage];
+    const elapsed = now - start;
+    const remaining = Math.max(0, cfg.durationMs - elapsed);
+    if (remaining <= 0) {
+      const nextStage: Stage = stage === 3 ? 1 : ((stage + 1) as Stage);
+      setCookie("lcj_cd_start", String(now), 30);
+      setCookie("lcj_cd_stage", String(nextStage), 30);
+      return { stage: nextStage, remaining: STAGE_CONFIGS[nextStage].durationMs, config: STAGE_CONFIGS[nextStage] };
+    }
+    return { stage, remaining, config: cfg };
+  }, []);
+
+  const [state, setState] = useState(getState);
+
+  useEffect(() => {
+    const id = setInterval(() => setState(getState()), 1000);
+    return () => clearInterval(id);
+  }, [getState]);
+
+  return state;
+}
+
+function formatCountdown(ms: number) {
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
 function UrgencyBadge() {
-  const [remaining] = useState(() => Math.floor(Math.random() * 5) + 3); // 3-7
-  const now = new Date();
-  const deadline = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  const deadlineStr = `${deadline.getMonth() + 1}/${deadline.getDate()}`;
+  const { config, remaining } = useCountdownStage();
   return (
-    <div className="inline-flex items-center gap-2 bg-red-50 text-red-700 rounded-full px-4 py-2 text-sm font-medium animate-pulse">
-      <Zap className="h-4 w-4" />
-      今月の審査枠 残り<span className="font-black text-red-600">{remaining}ブランド</span>
+    <div className={`inline-flex items-center gap-2 ${config.badgeBg} ${config.badgeText} rounded-full px-4 py-2 text-sm font-medium`}>
+      <Zap className="h-4 w-4 animate-pulse" />
+      {config.label}
       <span className="text-red-400">|</span>
-      締切 {deadlineStr}
+      <span className="font-mono font-black tabular-nums">{formatCountdown(remaining)}</span>
+    </div>
+  );
+}
+
+// ============================================================
+// Price Strike-through Badge
+// ============================================================
+function PriceStrikethrough() {
+  return (
+    <div className="inline-flex items-center gap-3 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-full px-5 py-2.5 text-sm font-medium">
+      <span className="line-through text-gray-400 font-normal">通常 広告費20万円</span>
+      <ArrowRight className="h-4 w-4 text-amber-500" />
+      <span className="font-black text-red-600 text-base">今なら 0円</span>
     </div>
   );
 }
@@ -514,6 +616,7 @@ export default function BrandSampleLP() {
   const [selectedPlan, setSelectedPlan] = useState<string>("algorithm");
   const [modalOpen, setModalOpen] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
+  const { config: stageConfig } = useCountdownStage();
 
   const openModal = (planId?: string) => {
     if (planId) setSelectedPlan(planId);
@@ -621,8 +724,9 @@ export default function BrandSampleLP() {
           <div className="grid md:grid-cols-2 gap-12 items-center">
             {/* Hero Text */}
             <div>
-              <div className="mb-4">
+              <div className="mb-4 flex flex-wrap items-center gap-3">
                 <UrgencyBadge />
+                <PriceStrikethrough />
               </div>
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-black leading-tight mb-6">
                 TikTok Shopの売上は
@@ -641,7 +745,7 @@ export default function BrandSampleLP() {
                   onClick={() => openModal()}
                   className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-8 py-6 text-lg font-bold rounded-xl shadow-2xl shadow-purple-500/30 transition-all hover:scale-105"
                 >
-                  今すぐ無料審査に申し込む <ArrowRight className="ml-2 h-5 w-5" />
+                  {stageConfig.ctaLabel} <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
                 <Button
                   variant="outline"
@@ -1312,7 +1416,7 @@ export default function BrandSampleLP() {
               onClick={() => openModal()}
               className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-10 py-6 text-lg font-bold rounded-xl shadow-2xl shadow-purple-500/30 transition-all hover:scale-105"
             >
-              30秒で無料審査に申し込む <ArrowRight className="ml-2 h-5 w-5" />
+              {stageConfig.ctaLabel} <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
           </div>
         </div>
@@ -1370,8 +1474,9 @@ export default function BrandSampleLP() {
         <div className="max-w-3xl mx-auto px-4">
           <img src={LCJ_LOGO_URL} alt="Live Commerce Japan" className="h-12 mx-auto mb-6 rounded-lg bg-white p-1.5" />
           <p className="text-amber-400 text-sm font-bold mb-4">日本最大級ライブコマース事務所</p>
-          <div className="mb-6">
+          <div className="mb-6 flex flex-wrap justify-center items-center gap-3">
             <UrgencyBadge />
+            <PriceStrikethrough />
           </div>
           <h2 className="text-3xl md:text-4xl font-black mb-6">
             30個のサンプルが、
@@ -1389,7 +1494,7 @@ export default function BrandSampleLP() {
             onClick={() => openModal()}
             className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-10 py-6 text-lg font-bold rounded-xl shadow-2xl shadow-purple-500/30 transition-all hover:scale-105"
           >
-            今すぐ無料審査に申し込む <ArrowRight className="ml-2 h-5 w-5" />
+            {stageConfig.ctaLabel} <ArrowRight className="ml-2 h-5 w-5" />
           </Button>
           <p className="text-xs text-gray-500 mt-3 flex items-center justify-center gap-1">
             <Clock className="h-3 w-3" />
