@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import {
   Zap, Shield, BarChart3, Star, ChevronDown, Play, Target,
   Award, Clock, Eye, ShoppingCart, Sparkles, ChevronRight,
   Building2, Mail, Phone, Globe, FileText, Send, Mic, Radio,
-  MessageSquare, Heart, ThumbsUp, Store
+  MessageSquare, Heart, ThumbsUp, Store, X
 } from "lucide-react";
 
 const LCJ_LOGO_URL = "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/lcj_logo_e21ead0b.jpg";
@@ -97,25 +97,66 @@ function BrandResultsTicker() {
 }
 
 // ============================================================
-// Plan Card Component
+// Inline CTA Button (散りばめ用)
 // ============================================================
-function PlanCard({ plan, isPopular, selected, onSelect }: {
+function InlineCTA({ onClick, text = "無料で審査に申し込む", variant = "primary" }: {
+  onClick: () => void; text?: string; variant?: "primary" | "secondary" | "dark";
+}) {
+  const styles = {
+    primary: "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-2xl shadow-purple-500/30",
+    secondary: "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-2xl shadow-amber-500/30",
+    dark: "bg-white text-gray-900 hover:bg-gray-100 shadow-2xl",
+  };
+  return (
+    <div className="text-center my-8">
+      <Button
+        onClick={onClick}
+        className={`${styles[variant]} px-10 py-6 text-lg font-bold rounded-xl transition-all hover:scale-105`}
+      >
+        {text} <ArrowRight className="ml-2 h-5 w-5" />
+      </Button>
+      <p className="text-xs text-gray-400 mt-2 flex items-center justify-center gap-1">
+        <Clock className="h-3 w-3" />
+        入力30秒・初期費用0円
+      </p>
+    </div>
+  );
+}
+
+// ============================================================
+// Urgency Badge
+// ============================================================
+function UrgencyBadge() {
+  const [remaining] = useState(() => Math.floor(Math.random() * 5) + 3); // 3-7
+  const now = new Date();
+  const deadline = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const deadlineStr = `${deadline.getMonth() + 1}/${deadline.getDate()}`;
+  return (
+    <div className="inline-flex items-center gap-2 bg-red-50 text-red-700 rounded-full px-4 py-2 text-sm font-medium animate-pulse">
+      <Zap className="h-4 w-4" />
+      今月の審査枠 残り<span className="font-black text-red-600">{remaining}ブランド</span>
+      <span className="text-red-400">|</span>
+      締切 {deadlineStr}
+    </div>
+  );
+}
+
+// ============================================================
+// Plan Card Component (Updated: opens modal)
+// ============================================================
+function PlanCard({ plan, isPopular, onSelect }: {
   plan: { id: string; name: string; samples: number; price: string; features: string[]; color: string; gradient: string; icon: React.ReactNode; tagline: string };
   isPopular: boolean;
-  selected: boolean;
   onSelect: () => void;
 }) {
   return (
     <div
-      onClick={onSelect}
-      className={`relative rounded-2xl border-2 p-6 cursor-pointer transition-all duration-300 hover:scale-[1.02] ${
-        selected
-          ? `border-transparent ring-4 ring-purple-400/50 shadow-2xl shadow-purple-500/20`
-          : isPopular
+      className={`relative rounded-2xl border-2 p-6 transition-all duration-300 hover:scale-[1.02] ${
+        isPopular
           ? "border-purple-300 shadow-xl shadow-purple-500/10"
           : "border-gray-200 shadow-md hover:shadow-lg"
       }`}
-      style={{ background: selected ? plan.gradient : "white" }}
+      style={{ background: isPopular ? plan.gradient : "white" }}
     >
       {isPopular && (
         <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-bold px-6 py-1.5 rounded-full shadow-lg animate-pulse">
@@ -123,33 +164,32 @@ function PlanCard({ plan, isPopular, selected, onSelect }: {
         </div>
       )}
       <div className="text-center">
-        <div className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 ${selected ? "bg-white/20" : plan.color}`}>
+        <div className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 ${isPopular ? "bg-white/20" : plan.color}`}>
           {plan.icon}
         </div>
-        <h3 className={`text-xl font-bold mb-1 ${selected ? "text-white" : "text-gray-900"}`}>{plan.name}</h3>
-        <p className={`text-sm mb-4 ${selected ? "text-white/80" : "text-gray-500"}`}>{plan.tagline}</p>
-        <div className={`text-5xl font-black mb-1 ${selected ? "text-white" : "text-gray-900"}`}>
+        <h3 className={`text-xl font-bold mb-1 ${isPopular ? "text-white" : "text-gray-900"}`}>{plan.name}</h3>
+        <p className={`text-sm mb-4 ${isPopular ? "text-white/80" : "text-gray-500"}`}>{plan.tagline}</p>
+        <div className={`text-5xl font-black mb-1 ${isPopular ? "text-white" : "text-gray-900"}`}>
           {plan.samples}<span className="text-lg font-medium">個</span>
         </div>
-        <p className={`text-sm mb-6 ${selected ? "text-white/70" : "text-gray-400"}`}>{plan.price}</p>
+        <p className={`text-sm mb-6 ${isPopular ? "text-white/70" : "text-gray-400"}`}>{plan.price}</p>
         <ul className="space-y-3 text-left mb-6">
           {plan.features.map((f, i) => (
-            <li key={i} className={`flex items-start gap-2 text-sm ${selected ? "text-white/90" : "text-gray-600"}`}>
-              <CheckCircle2 className={`h-4 w-4 mt-0.5 shrink-0 ${selected ? "text-white" : "text-green-500"}`} />
+            <li key={i} className={`flex items-start gap-2 text-sm ${isPopular ? "text-white/90" : "text-gray-600"}`}>
+              <CheckCircle2 className={`h-4 w-4 mt-0.5 shrink-0 ${isPopular ? "text-white" : "text-green-500"}`} />
               {f}
             </li>
           ))}
         </ul>
         <Button
-          className={`w-full py-3 text-base font-bold rounded-xl transition-all ${
-            selected
+          onClick={(e) => { e.stopPropagation(); onSelect(); }}
+          className={`w-full py-4 text-base font-bold rounded-xl transition-all hover:scale-[1.03] ${
+            isPopular
               ? "bg-white text-purple-700 hover:bg-white/90 shadow-lg"
-              : isPopular
-              ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg"
-              : "bg-gray-900 text-white hover:bg-gray-800"
+              : "bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-lg"
           }`}
         >
-          {selected ? "選択中" : "このプランを選ぶ"}
+          このプランで申し込む <ArrowRight className="ml-1 h-4 w-4" />
         </Button>
       </div>
     </div>
@@ -157,10 +197,15 @@ function PlanCard({ plan, isPopular, selected, onSelect }: {
 }
 
 // ============================================================
-// Main LP Component
+// Application Modal (2-step form)
 // ============================================================
-export default function BrandSampleLP() {
-  const [selectedPlan, setSelectedPlan] = useState<string>("algorithm");
+function ApplicationModal({ isOpen, onClose, plan, plans }: {
+  isOpen: boolean;
+  onClose: () => void;
+  plan: string;
+  plans: { id: string; name: string; samples: number }[];
+}) {
+  const [step, setStep] = useState<1 | 2>(1);
   const [formData, setFormData] = useState({
     companyName: "",
     contactPerson: "",
@@ -173,7 +218,20 @@ export default function BrandSampleLP() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const formRef = useRef<HTMLDivElement>(null);
+  const [selectedPlan, setSelectedPlan] = useState(plan);
+
+  useEffect(() => {
+    setSelectedPlan(plan);
+  }, [plan]);
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [isOpen]);
 
   const submitMutation = trpc.brandSample.submit.useMutation({
     onSuccess: () => {
@@ -185,6 +243,282 @@ export default function BrandSampleLP() {
       setIsSubmitting(false);
     },
   });
+
+  const handleStep1Next = () => {
+    if (!formData.companyName || !formData.contactPerson || !formData.email) {
+      toast.error("会社名・担当者名・メールアドレスを入力してください");
+      return;
+    }
+    setStep(2);
+  };
+
+  const handleSubmit = () => {
+    setIsSubmitting(true);
+    const p = plans.find((pp) => pp.id === selectedPlan)!;
+    submitMutation.mutate({
+      companyName: formData.companyName,
+      contactPerson: formData.contactPerson,
+      email: formData.email,
+      phone: formData.phone,
+      brandName: formData.brandName || "未入力",
+      productUrl: formData.productUrl || "未入力",
+      productStrength: formData.productStrength || "未入力",
+      pastSalesRecord: formData.pastSalesRecord,
+      plan: selectedPlan as "light" | "algorithm" | "market_jack",
+      sampleCount: p.samples,
+    });
+  };
+
+  const handleSkipSubmit = () => {
+    setIsSubmitting(true);
+    const p = plans.find((pp) => pp.id === selectedPlan)!;
+    submitMutation.mutate({
+      companyName: formData.companyName,
+      contactPerson: formData.contactPerson,
+      email: formData.email,
+      phone: formData.phone,
+      brandName: "未入力（後日ご連絡）",
+      productUrl: "未入力",
+      productStrength: "未入力（後日ご連絡）",
+      pastSalesRecord: "",
+      plan: selectedPlan as "light" | "algorithm" | "market_jack",
+      sampleCount: p.samples,
+    });
+  };
+
+  if (!isOpen) return null;
+
+  const currentPlan = plans.find((p) => p.id === selectedPlan);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+
+      {/* Modal */}
+      <div className="relative bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        {/* Close button */}
+        <button onClick={onClose} className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100 transition-colors z-10">
+          <X className="h-5 w-5 text-gray-400" />
+        </button>
+
+        {submitted ? (
+          /* Success State */
+          <div className="p-8 text-center">
+            <div className="w-20 h-20 bg-gradient-to-br from-green-400 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-green-500/30">
+              <CheckCircle2 className="h-10 w-10 text-white" />
+            </div>
+            <h2 className="text-2xl font-black text-gray-900 mb-3">申込を受け付けました！</h2>
+            <p className="text-gray-600 mb-2">3営業日以内にスタッフよりご連絡いたします。</p>
+            <p className="text-sm text-gray-400 mb-6">選択プラン: {currentPlan?.name}（サンプル{currentPlan?.samples}個）</p>
+            <div className="bg-gray-50 rounded-xl p-5 text-left mb-6">
+              <h3 className="font-bold text-gray-900 mb-3 text-sm">次のステップ</h3>
+              <div className="space-y-2">
+                {["スタッフからメールまたはお電話でご連絡", "商品の詳細をヒアリング", "審査結果をお知らせ（通過率約30%）"].map((s, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <div className="w-5 h-5 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">{i + 1}</div>
+                    <p className="text-sm text-gray-600">{s}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <Button onClick={onClose} className="w-full bg-gray-900 text-white hover:bg-gray-800 py-3 rounded-xl font-bold">
+              閉じる
+            </Button>
+          </div>
+        ) : step === 1 ? (
+          /* Step 1: Quick Info */
+          <div className="p-8">
+            <div className="text-center mb-6">
+              <div className="inline-flex items-center gap-2 bg-purple-50 text-purple-700 rounded-full px-4 py-1.5 text-xs font-bold mb-3">
+                <Zap className="h-3 w-3" />
+                入力30秒で完了
+              </div>
+              <h2 className="text-2xl font-black text-gray-900 mb-2">まずはお気軽にご連絡ください</h2>
+              <p className="text-sm text-gray-500">スタッフが詳細をヒアリングしてご提案します</p>
+            </div>
+
+            {/* Plan selector */}
+            <div className="flex gap-1.5 mb-6 p-1 bg-gray-100 rounded-xl">
+              {plans.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => setSelectedPlan(p.id)}
+                  className={`flex-1 py-2 px-2 rounded-lg text-xs font-medium transition-all ${
+                    selectedPlan === p.id
+                      ? "bg-white text-purple-700 shadow-sm"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  {p.name}
+                </button>
+              ))}
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm text-gray-600 mb-1.5 block font-medium">会社名 <span className="text-red-500">*</span></label>
+                <Input
+                  placeholder="株式会社〇〇"
+                  value={formData.companyName}
+                  onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+                  className="py-3"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-gray-600 mb-1.5 block font-medium">ご担当者名 <span className="text-red-500">*</span></label>
+                <Input
+                  placeholder="山田 太郎"
+                  value={formData.contactPerson}
+                  onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
+                  className="py-3"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-gray-600 mb-1.5 block font-medium">メールアドレス <span className="text-red-500">*</span></label>
+                <Input
+                  type="email"
+                  placeholder="info@example.com"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="py-3"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-gray-600 mb-1.5 block font-medium">電話番号 <span className="text-gray-400 font-normal">(任意)</span></label>
+                <Input
+                  type="tel"
+                  placeholder="03-1234-5678"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  className="py-3"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 space-y-3">
+              <Button
+                onClick={handleStep1Next}
+                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white py-5 text-base font-bold rounded-xl shadow-2xl shadow-purple-500/30 transition-all hover:scale-[1.02]"
+              >
+                次へ — 商品情報を入力 <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+              <button
+                onClick={handleSkipSubmit}
+                disabled={!formData.companyName || !formData.contactPerson || !formData.email || isSubmitting}
+                className="w-full text-center text-sm text-purple-600 hover:text-purple-800 font-medium py-2 transition-colors disabled:opacity-50"
+              >
+                {isSubmitting ? "送信中..." : "商品情報は後で伝える（まず連絡だけ）"}
+              </button>
+            </div>
+
+            <p className="text-center text-[11px] text-gray-400 mt-4">
+              ※ 審査結果は3営業日以内にご連絡いたします
+            </p>
+          </div>
+        ) : (
+          /* Step 2: Product Details */
+          <div className="p-8">
+            <div className="text-center mb-6">
+              <div className="inline-flex items-center gap-2 bg-green-50 text-green-700 rounded-full px-4 py-1.5 text-xs font-bold mb-3">
+                <CheckCircle2 className="h-3 w-3" />
+                あと少しで完了
+              </div>
+              <h2 className="text-2xl font-black text-gray-900 mb-2">商品情報を教えてください</h2>
+              <p className="text-sm text-gray-500">審査がスムーズに進みます（任意項目もあります）</p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm text-gray-600 mb-1.5 block font-medium">ブランド名 <span className="text-red-500">*</span></label>
+                <Input
+                  placeholder="ブランド名"
+                  value={formData.brandName}
+                  onChange={(e) => setFormData({ ...formData, brandName: e.target.value })}
+                  className="py-3"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-gray-600 mb-1.5 block font-medium">商品URL <span className="text-gray-400 font-normal">(任意)</span></label>
+                <Input
+                  placeholder="https://example.com/product（なければ未入力でOK）"
+                  value={formData.productUrl}
+                  onChange={(e) => setFormData({ ...formData, productUrl: e.target.value })}
+                  className="py-3"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-gray-600 mb-1.5 block font-medium">商品の強み・特徴 <span className="text-red-500">*</span></label>
+                <Textarea
+                  placeholder="他社商品との差別化ポイント、ターゲット層、価格帯など"
+                  rows={3}
+                  value={formData.productStrength}
+                  onChange={(e) => setFormData({ ...formData, productStrength: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="text-sm text-gray-600 mb-1.5 block font-medium">過去の販売実績 <span className="text-gray-400 font-normal">(任意)</span></label>
+                <Textarea
+                  placeholder="EC売上、SNSフォロワー数、メディア掲載実績など"
+                  rows={2}
+                  value={formData.pastSalesRecord}
+                  onChange={(e) => setFormData({ ...formData, pastSalesRecord: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 space-y-3">
+              <Button
+                onClick={handleSubmit}
+                disabled={isSubmitting || !formData.brandName || !formData.productStrength}
+                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white py-5 text-base font-bold rounded-xl shadow-2xl shadow-purple-500/30 transition-all hover:scale-[1.02] disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <div className="flex items-center gap-2">
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    送信中...
+                  </div>
+                ) : (
+                  <>
+                    無料審査に申し込む（{currentPlan?.name}） <ArrowRight className="ml-2 h-5 w-5" />
+                  </>
+                )}
+              </Button>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setStep(1)}
+                  className="flex-1 text-center text-sm text-gray-500 hover:text-gray-700 font-medium py-2 transition-colors"
+                >
+                  ← 戻る
+                </button>
+                <button
+                  onClick={handleSkipSubmit}
+                  disabled={isSubmitting}
+                  className="flex-1 text-center text-sm text-purple-600 hover:text-purple-800 font-medium py-2 transition-colors disabled:opacity-50"
+                >
+                  {isSubmitting ? "送信中..." : "商品情報は後で伝える"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Main LP Component
+// ============================================================
+export default function BrandSampleLP() {
+  const [selectedPlan, setSelectedPlan] = useState<string>("algorithm");
+  const [modalOpen, setModalOpen] = useState(false);
+  const formRef = useRef<HTMLDivElement>(null);
+
+  const openModal = (planId?: string) => {
+    if (planId) setSelectedPlan(planId);
+    setModalOpen(true);
+  };
 
   const plans = [
     {
@@ -240,59 +574,19 @@ export default function BrandSampleLP() {
     },
   ];
 
-  const scrollToForm = () => {
-    formRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  const handleSubmit = () => {
-    if (!formData.companyName || !formData.contactPerson || !formData.email || !formData.brandName || !formData.productUrl || !formData.productStrength) {
-      toast.error("必須項目をすべて入力してください");
-      return;
-    }
-    setIsSubmitting(true);
-    const plan = plans.find((p) => p.id === selectedPlan)!;
-    submitMutation.mutate({
-      ...formData,
-      plan: selectedPlan as "light" | "algorithm" | "market_jack",
-      sampleCount: plan.samples,
-    });
-  };
-
   // ============================================================
   // RENDER
   // ============================================================
-  if (submitted) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 flex items-center justify-center p-4">
-        <div className="max-w-lg text-center">
-          <div className="w-24 h-24 bg-gradient-to-br from-green-400 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-green-500/30 animate-bounce">
-            <CheckCircle2 className="h-12 w-12 text-white" />
-          </div>
-          <h1 className="text-3xl font-black text-gray-900 mb-4">審査申込を受け付けました</h1>
-          <p className="text-gray-600 mb-2">3営業日以内に審査結果をメールにてご連絡いたします。</p>
-          <p className="text-sm text-gray-400 mb-8">※ 毎月限定20ブランド受付のため、審査通過率は約30%です。</p>
-          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
-            <h3 className="font-bold text-gray-900 mb-3">審査通過後の流れ</h3>
-            <div className="space-y-3 text-left">
-              {[
-                "LCJ倉庫宛にサンプルをご送付",
-                "TikTok Seller Centerでアフィリエイトリンク（報酬20%）を発行",
-                "ライバーへの配布・動画投稿を開始",
-              ].map((step, i) => (
-                <div key={i} className="flex items-start gap-3">
-                  <div className="w-7 h-7 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-sm font-bold shrink-0">{i + 1}</div>
-                  <p className="text-sm text-gray-600 pt-0.5">{step}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-white">
+      {/* Application Modal */}
+      <ApplicationModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        plan={selectedPlan}
+        plans={plans}
+      />
+
       {/* ============================================================ */}
       {/* HERO SECTION */}
       {/* ============================================================ */}
@@ -327,9 +621,8 @@ export default function BrandSampleLP() {
           <div className="grid md:grid-cols-2 gap-12 items-center">
             {/* Hero Text */}
             <div>
-              <div className="inline-flex items-center gap-2 bg-purple-500/20 border border-purple-500/30 rounded-full px-4 py-2 mb-6">
-                <Sparkles className="h-4 w-4 text-purple-400" />
-                <span className="text-sm text-purple-300 font-medium">毎月限定20ブランド ・ 審査通過率30%</span>
+              <div className="mb-4">
+                <UrgencyBadge />
               </div>
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-black leading-tight mb-6">
                 TikTok Shopの売上は
@@ -345,10 +638,10 @@ export default function BrandSampleLP() {
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button
-                  onClick={scrollToForm}
+                  onClick={() => openModal()}
                   className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-8 py-6 text-lg font-bold rounded-xl shadow-2xl shadow-purple-500/30 transition-all hover:scale-105"
                 >
-                  無料審査に申し込む <ArrowRight className="ml-2 h-5 w-5" />
+                  今すぐ無料審査に申し込む <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
                 <Button
                   variant="outline"
@@ -358,6 +651,10 @@ export default function BrandSampleLP() {
                   詳しく見る <ChevronDown className="ml-2 h-5 w-5" />
                 </Button>
               </div>
+              <p className="text-xs text-gray-500 mt-3 flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                入力30秒・初期費用0円・審査無料
+              </p>
             </div>
 
             {/* Hero Stats */}
@@ -421,33 +718,31 @@ export default function BrandSampleLP() {
       </section>
 
       {/* ============================================================ */}
-      {/* WHY LCJ - 3チャネル訴求セクション */}
+      {/* 3-CHANNEL LOGIC */}
       {/* ============================================================ */}
       <section id="logic" className="py-20 md:py-28 bg-white">
         <div className="max-w-6xl mx-auto px-4">
           <div className="text-center mb-16">
             <div className="inline-flex items-center gap-2 bg-purple-50 text-purple-700 rounded-full px-4 py-2 mb-4 text-sm font-medium">
               <BarChart3 className="h-4 w-4" />
-              日本最大級ライブコマース事務所だからできる
+              LCJの3チャネル戦略
             </div>
             <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">
-              <span className="text-purple-600">3つのチャネル</span>で
-              <br className="md:hidden" />
-              レビューが一気に集まる
+              なぜ<span className="text-purple-600">UGCの数</span>が
+              売上を決めるのか？
             </h2>
             <p className="text-gray-500 max-w-2xl mx-auto">
-              サンプルを送るだけで、ライブ配信・UGC動画・ECレビューの
-              3方向から貴社商品の口コミが自動的に生まれます。
+              TikTokアルゴリズムは「多くの人が紹介している商品」を自動的に拡散します。
+              LCJは3つのチャネルで大量のUGCを生み出し、アルゴリズムを攻略します。
             </p>
           </div>
 
-          {/* 3 Channel Cards */}
-          <div className="grid md:grid-cols-3 gap-6 mb-16">
+          <div className="grid md:grid-cols-3 gap-6">
             {[
               {
                 icon: <Radio className="h-8 w-8" />,
-                title: "ライブ配信で\nリアルタイム紹介",
-                desc: "350名以上の所属ライバーが、ライブ配信中に貴社商品をリアルタイムで紹介。視聴者との双方向コミュニケーションで購買意欲を直接刺激します。",
+                title: "ライブ配信で\n即時売上を生む",
+                desc: "所属ライバーがリアルタイムで商品を紹介・販売。視聴者との双方向コミュニケーションで、1時間で数百万円の売上を生み出すことも。",
                 stat: "1配信あたり平均視聴者 3,000人+",
                 color: "from-red-500 to-pink-500",
                 bgColor: "bg-red-50",
@@ -491,6 +786,9 @@ export default function BrandSampleLP() {
               </div>
             ))}
           </div>
+
+          {/* CTA after 3-channel */}
+          <InlineCTA onClick={() => openModal()} text="3チャネル戦略を試してみる" />
         </div>
       </section>
 
@@ -620,6 +918,9 @@ export default function BrandSampleLP() {
                 </div>
               </div>
             </div>
+
+            {/* CTA between Step 2 and ROI */}
+            <InlineCTA onClick={() => openModal()} text="この実績を貴社でも実現する" variant="secondary" />
 
             {/* ROI Data Mix - Between Step 2 and 3 */}
             <div className="relative mb-16 md:mb-24">
@@ -797,6 +1098,15 @@ export default function BrandSampleLP() {
                     ))}
                   </div>
                   <p className="text-center text-gray-500 text-xs mt-6">※ 各ブランドの1時間あたりのライブコマース売上実績</p>
+                  {/* CTA inside brand results */}
+                  <div className="text-center mt-8">
+                    <Button
+                      onClick={() => openModal()}
+                      className="bg-white text-gray-900 hover:bg-gray-100 px-10 py-5 text-base font-bold rounded-xl shadow-2xl transition-all hover:scale-105"
+                    >
+                      次はあなたのブランドの番です <ArrowRight className="ml-2 h-5 w-5" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -846,7 +1156,7 @@ export default function BrandSampleLP() {
                       </div>
                       <p className="text-right text-xs text-amber-600 font-bold mt-1">92%</p>
                     </div>
-                    <p className="text-center text-xs text-gray-500 mt-3">自動レコメンド → 売上が加速度的に伸びる</p>
+                    <p className="text-center text-xs text-gray-500 mt-3">自動レコメンドで新規顧客が流入し続ける</p>
                   </div>
                 </div>
               </div>
@@ -901,6 +1211,9 @@ export default function BrandSampleLP() {
               </div>
             ))}
           </div>
+
+          {/* CTA after audit section */}
+          <InlineCTA onClick={() => openModal()} text="審査通過率30% — 今すぐ挑戦する" />
         </div>
       </section>
 
@@ -927,8 +1240,7 @@ export default function BrandSampleLP() {
                 key={plan.id}
                 plan={plan}
                 isPopular={plan.id === "algorithm"}
-                selected={selectedPlan === plan.id}
-                onSelect={() => setSelectedPlan(plan.id)}
+                onSelect={() => openModal(plan.id)}
               />
             ))}
           </div>
@@ -953,9 +1265,9 @@ export default function BrandSampleLP() {
               {
                 step: "01",
                 title: "無料審査に申し込む",
-                desc: "下のフォームから商品情報を入力。3営業日以内に審査結果をお知らせします。",
+                desc: "ポップアップフォームから基本情報を入力。たった30秒で完了します。",
                 icon: <FileText className="h-8 w-8" />,
-                time: "所要時間: 3分",
+                time: "所要時間: 30秒",
               },
               {
                 step: "02",
@@ -993,164 +1305,15 @@ export default function BrandSampleLP() {
               </div>
             ))}
           </div>
-        </div>
-      </section>
 
-      {/* ============================================================ */}
-      {/* APPLICATION FORM */}
-      {/* ============================================================ */}
-      <section ref={formRef} className="py-20 md:py-28 bg-gradient-to-br from-purple-50 via-white to-pink-50">
-        <div className="max-w-3xl mx-auto px-4">
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center gap-2 bg-red-50 text-red-700 rounded-full px-4 py-2 mb-4 text-sm font-medium animate-pulse">
-              <Zap className="h-4 w-4" />
-              毎月限定20ブランド ・ 残り枠わずか
-            </div>
-            <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">
-              今すぐ無料審査に申し込む
-            </h2>
-            <p className="text-gray-500">
-              選択中のプラン: <strong className="text-purple-600">{plans.find((p) => p.id === selectedPlan)?.name}</strong>
-              （サンプル{plans.find((p) => p.id === selectedPlan)?.samples}個）
-            </p>
-          </div>
-
-          <div className="bg-white rounded-3xl shadow-2xl shadow-purple-500/10 border border-gray-100 p-8 md:p-10">
-            {/* Plan selector mini */}
-            <div className="flex gap-2 mb-8 p-1 bg-gray-100 rounded-xl">
-              {plans.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => setSelectedPlan(p.id)}
-                  className={`flex-1 py-2.5 px-3 rounded-lg text-sm font-medium transition-all ${
-                    selectedPlan === p.id
-                      ? "bg-white text-purple-700 shadow-sm"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  {p.name}
-                </button>
-              ))}
-            </div>
-
-            <div className="space-y-6">
-              {/* Company Info */}
-              <div>
-                <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
-                  <Building2 className="h-4 w-4 text-purple-600" />
-                  会社情報
-                </h3>
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm text-gray-600 mb-1.5 block">会社名 <span className="text-red-500">*</span></label>
-                    <Input
-                      placeholder="株式会社〇〇"
-                      value={formData.companyName}
-                      onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-600 mb-1.5 block">ご担当者名 <span className="text-red-500">*</span></label>
-                    <Input
-                      placeholder="山田 太郎"
-                      value={formData.contactPerson}
-                      onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-600 mb-1.5 block">メールアドレス <span className="text-red-500">*</span></label>
-                    <Input
-                      type="email"
-                      placeholder="info@example.com"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-600 mb-1.5 block">電話番号</label>
-                    <Input
-                      type="tel"
-                      placeholder="03-1234-5678"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Product Info */}
-              <div className="pt-4 border-t border-gray-100">
-                <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
-                  <ShoppingCart className="h-4 w-4 text-purple-600" />
-                  商品情報
-                </h3>
-                <div className="space-y-4">
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm text-gray-600 mb-1.5 block">ブランド名 <span className="text-red-500">*</span></label>
-                      <Input
-                        placeholder="ブランド名"
-                        value={formData.brandName}
-                        onChange={(e) => setFormData({ ...formData, brandName: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm text-gray-600 mb-1.5 block">商品URL <span className="text-red-500">*</span></label>
-                      <Input
-                        type="url"
-                        placeholder="https://example.com/product"
-                        value={formData.productUrl}
-                        onChange={(e) => setFormData({ ...formData, productUrl: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-600 mb-1.5 block">商品の強み・特徴 <span className="text-red-500">*</span></label>
-                    <Textarea
-                      placeholder="他社商品との差別化ポイント、ターゲット層、価格帯など"
-                      rows={3}
-                      value={formData.productStrength}
-                      onChange={(e) => setFormData({ ...formData, productStrength: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-600 mb-1.5 block">過去の販売実績（任意）</label>
-                    <Textarea
-                      placeholder="EC売上、SNSフォロワー数、メディア掲載実績など"
-                      rows={2}
-                      value={formData.pastSalesRecord}
-                      onChange={(e) => setFormData({ ...formData, pastSalesRecord: e.target.value })}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Submit */}
-              <div className="pt-6">
-                <Button
-                  onClick={handleSubmit}
-                  disabled={isSubmitting}
-                  className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white py-6 text-lg font-bold rounded-xl shadow-2xl shadow-purple-500/30 transition-all hover:scale-[1.02] disabled:opacity-50"
-                >
-                  {isSubmitting ? (
-                    <div className="flex items-center gap-2">
-                      <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                      送信中...
-                    </div>
-                  ) : (
-                    <>
-                      無料審査に申し込む（{plans.find((p) => p.id === selectedPlan)?.name}）
-                      <ArrowRight className="ml-2 h-5 w-5" />
-                    </>
-                  )}
-                </Button>
-                <p className="text-center text-xs text-gray-400 mt-4">
-                  ※ 審査結果は3営業日以内にメールにてご連絡いたします。
-                  <br />
-                  ※ 審査通過率は約30%です。商品の品質・市場性を総合的に判断します。
-                </p>
-              </div>
-            </div>
+          {/* CTA in dark section */}
+          <div className="text-center mt-12">
+            <Button
+              onClick={() => openModal()}
+              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-10 py-6 text-lg font-bold rounded-xl shadow-2xl shadow-purple-500/30 transition-all hover:scale-105"
+            >
+              30秒で無料審査に申し込む <ArrowRight className="ml-2 h-5 w-5" />
+            </Button>
           </div>
         </div>
       </section>
@@ -1207,6 +1370,9 @@ export default function BrandSampleLP() {
         <div className="max-w-3xl mx-auto px-4">
           <img src={LCJ_LOGO_URL} alt="Live Commerce Japan" className="h-12 mx-auto mb-6 rounded-lg bg-white p-1.5" />
           <p className="text-amber-400 text-sm font-bold mb-4">日本最大級ライブコマース事務所</p>
+          <div className="mb-6">
+            <UrgencyBadge />
+          </div>
           <h2 className="text-3xl md:text-4xl font-black mb-6">
             30個のサンプルが、
             <br />
@@ -1220,11 +1386,15 @@ export default function BrandSampleLP() {
             今すぐ申し込んで、TikTok Shopの売上を手に入れましょう。
           </p>
           <Button
-            onClick={scrollToForm}
+            onClick={() => openModal()}
             className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-10 py-6 text-lg font-bold rounded-xl shadow-2xl shadow-purple-500/30 transition-all hover:scale-105"
           >
-            無料審査に申し込む <ArrowRight className="ml-2 h-5 w-5" />
+            今すぐ無料審査に申し込む <ArrowRight className="ml-2 h-5 w-5" />
           </Button>
+          <p className="text-xs text-gray-500 mt-3 flex items-center justify-center gap-1">
+            <Clock className="h-3 w-3" />
+            入力30秒・初期費用0円・審査無料
+          </p>
         </div>
       </section>
 
