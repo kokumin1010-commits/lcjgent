@@ -19249,7 +19249,7 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       const defaults = [
         {
           name: "Day 0: ウェルカムメール",
-          subject: "🎉 ご登録ありがとうございます！特別ポイントをプレゼント",
+          subject: "🎰 ウェルカムルーレット！回してポイントをGETしよう",
           bodyHtml: `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #fff;">
   <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 30px; text-align: center; border-radius: 8px 8px 0 0;">
     <h1 style="color: #fff; margin: 0; font-size: 24px;">🎉 ようこそ！LCJ MALLへ</h1>
@@ -19257,17 +19257,17 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
   </div>
   <div style="padding: 30px;">
     <p style="font-size: 16px; color: #333;">こんにちは、{{name}} さま！</p>
-    <p style="color: #555; line-height: 1.8;">LCJ MALLへのご登録、誠にありがとうございます。<br>ウェルカム特典として、<strong>初回限定ポイント</strong>をプレゼントいたします！</p>
-    <div style="background: #f8f4ff; border-radius: 12px; padding: 20px; text-align: center; margin: 20px 0;">
-      <p style="font-size: 14px; color: #764ba2; margin: 0 0 5px;">ウェルカム特典</p>
-      <p style="font-size: 32px; font-weight: bold; color: #764ba2; margin: 0;">30 pt</p>
-      <p style="font-size: 12px; color: #999; margin: 5px 0 0;">自動付与済み</p>
+    <p style="color: #555; line-height: 1.8;">LCJ MALLへのご登録、誠にありがとうございます。<br>ウェルカム特典として、<strong>スペシャルルーレット</strong>をご用意しました！</p>
+    <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 16px; padding: 30px 20px; text-align: center; margin: 20px 0;">
+      <p style="font-size: 14px; color: #ffd700; margin: 0 0 8px; letter-spacing: 2px;">✨ WELCOME BONUS ✨</p>
+      <p style="font-size: 36px; font-weight: bold; color: #fff; margin: 0; text-shadow: 0 0 20px rgba(255,215,0,0.5);">🎰 ルーレットチャンス</p>
+      <p style="font-size: 14px; color: #ffd700; margin: 10px 0 0;">回して当たりをGETしよう！</p>
     </div>
-    <p style="color: #555; line-height: 1.8;">さらに、お友達を招待すると最大<strong>5,000ポイント</strong>がもらえるチャンス！</p>
-    <a href="https://lcj-mall.manus.space/referral" style="display: block; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; text-align: center; padding: 14px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 20px 0;">お友達招待でポイントGET →</a>
+    <p style="color: #555; line-height: 1.8; text-align: center;">今すぐルーレットを回して、<strong>ポイントをGET</strong>！<br>さらにお友達招待で最大<strong>5,000pt</strong>のチャンスも！</p>
+    <a href="https://lcjmall.com/friend-challenge" style="display: block; background: linear-gradient(135deg, #f5af19, #f12711); color: #fff; text-align: center; padding: 16px; border-radius: 50px; text-decoration: none; font-weight: bold; font-size: 18px; margin: 20px 0; box-shadow: 0 4px 15px rgba(245,175,25,0.4);">🎰 ルーレットを回してポイントGET！</a>
   </div>
 </div>`,
-          bodyText: "こんにちは、{{name}} さま！\n\nLCJ MALLへのご登録、誠にありがとうございます。\nウェルカム特典として、初回限定30ポイントをプレゼントいたします！\n\nお友達招待で最大5,000ポイントGET！\nhttps://lcj-mall.manus.space/referral",
+          bodyText: "こんにちは、{{name}} さま！\n\nLCJ MALLへのご登録、誠にありがとうございます。\nウェルカム特典として、スペシャルルーレットをご用意しました！\n\n今すぐルーレットを回してポイントをGET！\nhttps://lcjmall.com/friend-challenge",
           delayDays: 0,
           sortOrder: 1,
           isEnabled: true,
