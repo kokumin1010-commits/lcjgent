@@ -62,12 +62,12 @@ function getAbVariant(): typeof AB_VARIANTS[number] {
 // Brand Results Data
 // ============================================================
 const BRAND_RESULTS = [
-  { name: "KYOGOKU", amount: "1億円", amountNum: 100000000, color: "from-red-600 to-amber-500" },
-  { name: "DDS RENOVATIO", amount: "550万円", amountNum: 5500000, color: "from-purple-600 to-pink-500" },
-  { name: "mistine", amount: "180万円", amountNum: 1800000, color: "from-blue-600 to-cyan-500" },
-  { name: "RECORE SERUM", amount: "180万円", amountNum: 1800000, color: "from-emerald-600 to-teal-500" },
-  { name: "Spatreatment", amount: "150万円", amountNum: 1500000, color: "from-amber-600 to-yellow-500" },
-  { name: "F&W", amount: "160万円", amountNum: 1600000, color: "from-gray-700 to-gray-500" },
+  { name: "KYOGOKU", amount: "1億円", amountNum: 100000000, color: "from-red-600 to-amber-500", image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/kyogoku_product_10fb9943.jpg" },
+  { name: "DDS RENOVATIO", amount: "550万円", amountNum: 5500000, color: "from-purple-600 to-pink-500", image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/dds_renovatio_product_e728f6d8.jpg" },
+  { name: "mistine", amount: "180万円", amountNum: 1800000, color: "from-blue-600 to-cyan-500", image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mistine_product_a0799615.jpg" },
+  { name: "RECORE SERUM", amount: "180万円", amountNum: 1800000, color: "from-emerald-600 to-teal-500", image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/recore_serum_product_3c0e9821.jpg" },
+  { name: "Spatreatment", amount: "150万円", amountNum: 1500000, color: "from-amber-600 to-yellow-500", image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/spatreatment_product_f1f6ac6b.png" },
+  { name: "F&W", amount: "160万円", amountNum: 1600000, color: "from-gray-700 to-gray-500", image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/fw_product_9dbe94e7.png" },
 ];
 
 // ============================================================
@@ -106,17 +106,40 @@ function AnimatedCounter({ end, duration = 2000, prefix = "", suffix = "" }: {
 }
 
 // ============================================================
+// Sticky Countdown Bar (appears after scrolling past hero)
+// ============================================================
+function StickyCountdownBar({ visible, onCtaClick }: { visible: boolean; onCtaClick: () => void }) {
+  const { config, remaining } = useCountdownStage();
+  const time = formatCountdown(remaining);
+  return (
+    <div className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${visible ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'}`}>
+      <div className="bg-gradient-to-r from-red-600 via-red-500 to-orange-500 shadow-lg">
+        <div className="max-w-6xl mx-auto px-3 py-2 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Zap className="h-4 w-4 text-yellow-300 shrink-0 animate-pulse" />
+            <span className="text-white text-xs font-bold truncate hidden sm:inline">{config.label}</span>
+            <span className="text-white text-xs font-bold truncate sm:hidden">残り枠わずか</span>
+            <span className="font-mono font-black text-white text-sm sm:text-base tabular-nums">{time}</span>
+          </div>
+          <button onClick={onCtaClick} className="shrink-0 bg-white text-red-600 hover:bg-yellow-50 text-xs sm:text-sm font-bold px-3 sm:px-5 py-1.5 sm:py-2 rounded-lg transition-all hover:scale-105 shadow-md">
+            今すぐ申し込む
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
 // Brand Result Card (Scrolling Ticker)
 // ============================================================
 function BrandResultsTicker() {
   return (
-    <div className="overflow-hidden py-4">
-      <div className="flex animate-scroll gap-6" style={{ width: "max-content" }}>
+    <div className="overflow-hidden py-3">
+      <div className="flex animate-scroll gap-4" style={{ width: "max-content" }}>
         {[...BRAND_RESULTS, ...BRAND_RESULTS, ...BRAND_RESULTS].map((brand, i) => (
-          <div key={i} className="flex items-center gap-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl px-5 py-3 shrink-0">
-            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${brand.color} flex items-center justify-center text-white font-black text-xs`}>
-              {brand.name.charAt(0)}
-            </div>
+          <div key={i} className="flex items-center gap-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl px-4 py-2.5 shrink-0">
+            <img src={brand.image} alt={brand.name} className="w-10 h-10 rounded-xl object-cover" onError={(e) => { const t = e.target as HTMLImageElement; t.style.display='none'; }} />
             <div>
               <p className="text-white/80 text-xs font-medium">{brand.name}</p>
               <p className="text-white font-black text-lg">{brand.amount}<span className="text-white/60 text-xs">+</span></p>
@@ -152,10 +175,10 @@ function InlineCTA({ onClick, text = "無料で審査に申し込む", variant =
     dark: "bg-white text-gray-900 hover:bg-gray-100 shadow-2xl",
   };
   return (
-    <div className="text-center my-8">
+    <div className="text-center my-4 md:my-6">
       <Button
         onClick={onClick}
-        className={`${styles[variant]} px-10 py-6 text-lg font-bold rounded-xl transition-all hover:scale-105`}
+        className={`${styles[variant]} px-8 py-4 md:px-10 md:py-6 text-base md:text-lg font-bold rounded-xl transition-all hover:scale-105`}
       >
         {text} <ArrowRight className="ml-2 h-5 w-5" />
       </Button>
@@ -834,6 +857,19 @@ export default function BrandSampleLP() {
   // ============================================================
   // RENDER
   // ============================================================
+  const heroRef = useRef<HTMLElement>(null);
+  const [showSticky, setShowSticky] = useState(false);
+  useEffect(() => {
+    const handleScroll = () => {
+      if (heroRef.current) {
+        const heroBottom = heroRef.current.getBoundingClientRect().bottom;
+        setShowSticky(heroBottom < 0);
+      }
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   return (
     <div className="min-h-screen bg-white">
       {/* Application Modal */}
@@ -844,10 +880,13 @@ export default function BrandSampleLP() {
         plans={plans}
       />
 
+      {/* Sticky Countdown Bar */}
+      <StickyCountdownBar visible={showSticky} onCtaClick={() => openModal()} />
+
       {/* ============================================================ */}
       {/* HERO SECTION */}
       {/* ============================================================ */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-gray-950 via-purple-950 to-gray-950 text-white">
+      <section ref={heroRef} className="relative overflow-hidden bg-gradient-to-br from-gray-950 via-purple-950 to-gray-950 text-white">
         {/* Animated background particles */}
         <div className="absolute inset-0 overflow-hidden">
           {Array.from({ length: 20 }).map((_, i) => (
@@ -866,7 +905,7 @@ export default function BrandSampleLP() {
           ))}
         </div>
 
-        <div className="relative max-w-6xl mx-auto px-4 py-20 md:py-32">
+        <div className="relative max-w-6xl mx-auto px-4 py-12 md:py-32">
           {/* LCJ Logo + Authority Badge */}
           <div className="flex items-center gap-4 mb-8">
             <img src={LCJ_LOGO_URL} alt="Live Commerce Japan" className="h-12 md:h-16 rounded-lg bg-white p-1.5" />
@@ -983,10 +1022,10 @@ export default function BrandSampleLP() {
       {/* ============================================================ */}
       {/* 3-CHANNEL LOGIC */}
       {/* ============================================================ */}
-      <section id="logic" className="py-20 md:py-28 bg-white">
+      <section id="logic" className="py-10 md:py-20 bg-white">
         <div className="max-w-6xl mx-auto px-4">
-          <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 bg-purple-50 text-purple-700 rounded-full px-4 py-2 mb-4 text-sm font-medium">
+          <div className="text-center mb-8 md:mb-16">
+            <div className="inline-flex items-center gap-2 bg-purple-50 text-purple-700 rounded-full px-4 py-2 mb-3 text-sm font-medium">
               <BarChart3 className="h-4 w-4" />
               なぜ売れるのか？
             </div>
@@ -1059,14 +1098,14 @@ export default function BrandSampleLP() {
       {/* ============================================================ */}
       {/* 5-STEP FLOW - サンプルから売上までの流れ */}
       {/* ============================================================ */}
-      <section className="py-20 md:py-28 bg-gray-50">
+      <section className="py-10 md:py-20 bg-gray-50">
         <div className="max-w-6xl mx-auto px-4">
-          <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 rounded-full px-4 py-2 mb-4 text-sm font-medium">
+          <div className="text-center mb-8 md:mb-16">
+            <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 rounded-full px-4 py-2 mb-3 text-sm font-medium">
               <Rocket className="h-4 w-4" />
               サンプルから売上が生まれるまで
             </div>
-            <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">
+            <h2 className="text-2xl md:text-4xl font-black text-gray-900 mb-3">
               <span className="text-purple-600">5つのSTEP</span>で
               売上が自動化される
             </h2>
@@ -1081,7 +1120,7 @@ export default function BrandSampleLP() {
             <div className="absolute left-8 md:left-1/2 top-0 bottom-0 w-0.5 bg-gradient-to-b from-blue-300 via-purple-400 to-amber-400 hidden md:block" style={{ transform: "translateX(-50%)" }} />
 
             {/* STEP 1: サンプル配布 */}
-            <div className="relative mb-16 md:mb-24">
+            <div className="relative mb-8 md:mb-24">
               <div className="md:grid md:grid-cols-2 md:gap-12 items-center">
                 <div className="md:text-right mb-6 md:mb-0">
                   <div className="inline-flex items-center gap-2 bg-blue-100 text-blue-700 rounded-full px-4 py-1.5 text-xs font-bold mb-4">
@@ -1102,7 +1141,7 @@ export default function BrandSampleLP() {
                   <div className="absolute -left-4 md:left-0 top-1/2 -translate-y-1/2 md:-translate-x-1/2 w-8 h-8 bg-blue-500 rounded-full border-4 border-white shadow-lg z-10 hidden md:flex items-center justify-center">
                     <span className="text-white text-xs font-bold">1</span>
                   </div>
-                  <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 ml-0 md:ml-8">
+                    <div className="bg-white rounded-2xl p-4 md:p-6 shadow-lg border border-gray-100 ml-0 md:ml-8">
                     <div className="flex items-center gap-4 mb-4">
                       <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white">
                         <Users className="h-6 w-6" />
@@ -1125,13 +1164,13 @@ export default function BrandSampleLP() {
             </div>
 
             {/* STEP 2: ライブ配信 */}
-            <div className="relative mb-16 md:mb-24">
+            <div className="relative mb-8 md:mb-24">
               <div className="md:grid md:grid-cols-2 md:gap-12 items-center">
                 <div className="order-2 md:order-1 relative">
                   <div className="absolute -left-4 md:right-0 top-1/2 -translate-y-1/2 md:translate-x-1/2 w-8 h-8 bg-red-500 rounded-full border-4 border-white shadow-lg z-10 hidden md:flex items-center justify-center">
                     <span className="text-white text-xs font-bold">2</span>
                   </div>
-                  <div className="bg-gradient-to-br from-red-50 to-pink-50 rounded-2xl p-6 shadow-lg border border-red-100 mr-0 md:mr-8">
+                  <div className="bg-gradient-to-br from-red-50 to-pink-50 rounded-2xl p-4 md:p-6 shadow-lg border border-red-100 mr-0 md:mr-8">
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
@@ -1149,9 +1188,7 @@ export default function BrandSampleLP() {
                         {BRAND_RESULTS.slice(0, 3).map((b, i) => (
                           <div key={i} className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <div className={`w-6 h-6 rounded bg-gradient-to-br ${b.color} flex items-center justify-center text-white text-[10px] font-bold`}>
-                                {b.name.charAt(0)}
-                              </div>
+                              <img src={b.image} alt={b.name} className="w-6 h-6 rounded object-cover" onError={(e) => { const t = e.target as HTMLImageElement; t.style.display='none'; }} />
                               <span className="text-sm text-gray-700 font-medium">{b.name}</span>
                             </div>
                             <span className="text-sm font-black text-red-600">{b.amount}+</span>
@@ -1187,8 +1224,8 @@ export default function BrandSampleLP() {
             <InlineCTA onClick={() => openModal()} text="この実績を貴社でも実現する" variant="secondary" />
 
             {/* ROI Data Mix - Between Step 2 and 3 */}
-            <div className="relative mb-16 md:mb-24">
-              <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-3xl p-8 md:p-12 border border-purple-100 max-w-4xl mx-auto">
+            <div className="relative mb-8 md:mb-24">
+              <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-3xl p-5 md:p-12 border border-purple-100 max-w-4xl mx-auto">
                 <div className="grid md:grid-cols-2 gap-8 items-center">
                   <div>
                     <div className="flex items-center gap-3 mb-4">
@@ -1237,7 +1274,7 @@ export default function BrandSampleLP() {
             </div>
 
             {/* STEP 3: UGC動画 */}
-            <div className="relative mb-16 md:mb-24">
+            <div className="relative mb-8 md:mb-24">
               <div className="md:grid md:grid-cols-2 md:gap-12 items-center">
                 <div className="md:text-right mb-6 md:mb-0">
                   <div className="inline-flex items-center gap-2 bg-purple-100 text-purple-700 rounded-full px-4 py-1.5 text-xs font-bold mb-4">
@@ -1282,7 +1319,7 @@ export default function BrandSampleLP() {
             </div>
 
             {/* STEP 4: LCJ MALLレビュー */}
-            <div className="relative mb-16 md:mb-24">
+            <div className="relative mb-8 md:mb-24">
               <div className="md:grid md:grid-cols-2 md:gap-12 items-center">
                 <div className="order-2 md:order-1 relative">
                   <div className="absolute -left-4 md:right-0 top-1/2 -translate-y-1/2 md:translate-x-1/2 w-8 h-8 bg-emerald-500 rounded-full border-4 border-white shadow-lg z-10 hidden md:flex items-center justify-center">
@@ -1334,8 +1371,8 @@ export default function BrandSampleLP() {
             </div>
 
             {/* Brand Results Mix - Between Step 4 and 5 */}
-            <div className="relative mb-16 md:mb-24">
-              <div className="bg-gradient-to-br from-gray-950 via-red-950 to-gray-950 rounded-3xl p-8 md:p-12 max-w-4xl mx-auto overflow-hidden relative">
+            <div className="relative mb-8 md:mb-24">
+              <div className="bg-gradient-to-br from-gray-950 via-red-950 to-gray-950 rounded-3xl p-5 md:p-12 max-w-4xl mx-auto overflow-hidden relative">
                 <div className="absolute inset-0 overflow-hidden">
                   {Array.from({ length: 10 }).map((_, i) => (
                     <div key={i} className="absolute rounded-full bg-red-500/5 animate-pulse" style={{
@@ -1353,9 +1390,7 @@ export default function BrandSampleLP() {
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {BRAND_RESULTS.map((brand, i) => (
                       <div key={i} className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-4 hover:bg-white/10 transition-all group">
-                        <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${brand.color} flex items-center justify-center text-white font-black text-sm mb-3 group-hover:scale-110 transition-transform`}>
-                          {brand.name.charAt(0)}
-                        </div>
+                        <img src={brand.image} alt={brand.name} className="w-10 h-10 rounded-lg object-cover mb-3 group-hover:scale-110 transition-transform" onError={(e) => { const t = e.target as HTMLImageElement; t.style.display='none'; }} />
                         <p className="text-white/70 text-xs font-medium mb-1">{brand.name}</p>
                         <p className="text-white font-black text-xl">{brand.amount}<span className="text-white/50 text-xs">+</span></p>
                       </div>
@@ -1432,45 +1467,45 @@ export default function BrandSampleLP() {
       {/* ============================================================ */}
       {/* WHY AUDIT SYSTEM */}
       {/* ============================================================ */}
-      <section className="py-20 bg-white">
+      <section className="py-10 md:py-16 bg-white">
         <div className="max-w-6xl mx-auto px-4">
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center gap-2 bg-amber-50 text-amber-700 rounded-full px-4 py-2 mb-4 text-sm font-medium">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center gap-2 bg-amber-50 text-amber-700 rounded-full px-4 py-2 mb-3 text-sm font-medium">
               <Shield className="h-4 w-4" />
               なぜ審査制なのか
             </div>
-            <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">
+            <h2 className="text-2xl md:text-4xl font-black text-gray-900 mb-3">
               「選ばれたブランド」だけが
               <span className="text-amber-600">結果を出せる</span>
             </h2>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-3 gap-4">
             {[
               {
-                icon: <Award className="h-7 w-7" />,
+                icon: <Award className="h-6 w-6" />,
                 title: "クリエイターの信頼を守る",
                 desc: "売れない商品を紹介させると、クリエイターのフォロワーが離れます。審査で「TikTokで売れる商品」だけを厳選します。",
                 color: "bg-amber-50 text-amber-600",
               },
               {
-                icon: <TrendingUp className="h-7 w-7" />,
+                icon: <TrendingUp className="h-6 w-6" />,
                 title: "成功事例を積み上げる",
                 desc: "審査を通過した商品は高確率で売れるため、成功事例が増え、さらに優秀なクリエイターが集まる好循環が生まれます。",
                 color: "bg-green-50 text-green-600",
               },
               {
-                icon: <Star className="h-7 w-7" />,
+                icon: <Star className="h-6 w-6" />,
                 title: "ブランド価値を高める",
                 desc: "「LCJ審査通過」はTikTok市場での信頼の証。通過したブランドはクリエイターから優先的に選ばれます。",
                 color: "bg-purple-50 text-purple-600",
               },
             ].map((item, i) => (
-              <div key={i} className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 hover:shadow-md transition-all">
-                <div className={`inline-flex items-center justify-center w-14 h-14 rounded-xl ${item.color} mb-5`}>
+              <div key={i} className="bg-white rounded-2xl p-5 md:p-8 shadow-sm border border-gray-100 hover:shadow-md transition-all">
+                <div className={`inline-flex items-center justify-center w-11 h-11 md:w-14 md:h-14 rounded-xl ${item.color} mb-3 md:mb-5`}>
                   {item.icon}
                 </div>
-                <h3 className="text-lg font-bold text-gray-900 mb-3">{item.title}</h3>
+                <h3 className="text-base md:text-lg font-bold text-gray-900 mb-2">{item.title}</h3>
                 <p className="text-sm text-gray-500 leading-relaxed">{item.desc}</p>
               </div>
             ))}
@@ -1484,14 +1519,14 @@ export default function BrandSampleLP() {
       {/* ============================================================ */}
       {/* PLAN COMPARISON - 松竹梅 */}
       {/* ============================================================ */}
-      <section className="py-20 md:py-28 bg-gray-50">
+      <section className="py-10 md:py-20 bg-gray-50">
         <div className="max-w-6xl mx-auto px-4">
-          <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 bg-pink-50 text-pink-700 rounded-full px-4 py-2 mb-4 text-sm font-medium">
+          <div className="text-center mb-8 md:mb-16">
+            <div className="inline-flex items-center gap-2 bg-pink-50 text-pink-700 rounded-full px-4 py-2 mb-3 text-sm font-medium">
               <Sparkles className="h-4 w-4" />
               プラン比較
             </div>
-            <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">
+            <h2 className="text-2xl md:text-4xl font-black text-gray-900 mb-3">
               貴社に最適なプランを
               <span className="text-purple-600">お選びください</span>
             </h2>
@@ -1514,17 +1549,17 @@ export default function BrandSampleLP() {
       {/* ============================================================ */}
       {/* PROCESS STEPS - 申込の流れ */}
       {/* ============================================================ */}
-      <section className="py-20 bg-gradient-to-br from-gray-950 via-purple-950 to-gray-950 text-white">
+      <section className="py-10 md:py-16 bg-gradient-to-br from-gray-950 via-purple-950 to-gray-950 text-white">
         <div className="max-w-6xl mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-black mb-4">
+          <div className="text-center mb-8 md:mb-16">
+            <h2 className="text-2xl md:text-4xl font-black mb-3">
               申込から売上発生まで
               <span className="text-purple-400">たった3ステップ</span>
             </h2>
             <p className="text-gray-400">面倒な手続きは一切なし。サンプルを送るだけで始められます。</p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-3 gap-4 md:gap-8">
             {[
               {
                 step: "01",
@@ -1585,9 +1620,9 @@ export default function BrandSampleLP() {
       {/* ============================================================ */}
       {/* FAQ */}
       {/* ============================================================ */}
-      <section className="py-20 bg-white">
+      <section className="py-10 md:py-16 bg-white">
         <div className="max-w-3xl mx-auto px-4">
-          <h2 className="text-3xl font-black text-center text-gray-900 mb-12">よくある質問</h2>
+          <h2 className="text-2xl md:text-3xl font-black text-center text-gray-900 mb-6 md:mb-12">よくある質問</h2>
           <div className="space-y-4">
             {[
               {
@@ -1630,7 +1665,7 @@ export default function BrandSampleLP() {
       {/* ============================================================ */}
       {/* FINAL CTA */}
       {/* ============================================================ */}
-      <section className="py-20 bg-gradient-to-br from-gray-950 via-purple-950 to-gray-950 text-white text-center">
+      <section className="py-12 md:py-20 bg-gradient-to-br from-gray-950 via-purple-950 to-gray-950 text-white text-center">
         <div className="max-w-3xl mx-auto px-4">
           <img src={LCJ_LOGO_URL} alt="Live Commerce Japan" className="h-12 mx-auto mb-6 rounded-lg bg-white p-1.5" />
           <p className="text-amber-400 text-sm font-bold mb-4">日本最大級ライブコマース事務所</p>
@@ -1656,7 +1691,7 @@ export default function BrandSampleLP() {
           </p>
           <Button
             onClick={() => openModal()}
-            className="relative bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-10 py-7 text-xl font-bold rounded-xl shadow-2xl shadow-purple-500/30 transition-all hover:scale-105 overflow-hidden group animate-pulse"
+            className="relative bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-8 py-5 md:px-10 md:py-7 text-lg md:text-xl font-bold rounded-xl shadow-2xl shadow-purple-500/30 transition-all hover:scale-105 overflow-hidden group animate-pulse"
           >
             <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
             {stageConfig.ctaLabel} <ArrowRight className="ml-2 h-6 w-6" />
