@@ -4033,6 +4033,7 @@ export const sampleRequests = mysqlTable("sample_requests", {
   postalCode: varchar("postal_code", { length: 10 }),
   address: text("address"),
   phone: varchar("phone", { length: 20 }),
+  recipientName: varchar("recipient_name", { length: 255 }), // 宛名（本名）
   
   // ライバーのメモ
   memo: text("memo"),

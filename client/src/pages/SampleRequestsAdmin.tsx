@@ -252,6 +252,11 @@ export default function SampleRequestsAdmin() {
                             <div>
                               <span className="text-sm font-semibold text-white">{req.liverName}</span>
                               <span className="text-xs text-gray-500 ml-2">#{req.id}</span>
+                              {(req as any).liverCredit && (
+                                <span className="text-xs text-purple-400 ml-2">
+                                  残クレジット: ¥{Number((req as any).liverCredit.remainingCredit).toLocaleString()}
+                                </span>
+                              )}
                             </div>
                           </div>
                           <div className="flex items-center gap-3">
@@ -310,6 +315,9 @@ export default function SampleRequestsAdmin() {
                           {req.address && (
                             <div className="text-xs bg-gray-800 rounded p-2">
                               <div className="text-gray-500 mb-1">配送先</div>
+                              {(req as any).recipientName && (
+                                <div className="text-white font-semibold mb-1">{(req as any).recipientName}</div>
+                              )}
                               <div className="text-white">
                                 {req.postalCode && <span>〒{req.postalCode} </span>}
                                 {req.address}

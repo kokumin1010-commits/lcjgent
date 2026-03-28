@@ -84,6 +84,7 @@ export default function LiverSampleRequest() {
   const [postalCode, setPostalCode] = useState("");
   const [address, setAddress] = useState("");
   const [phone, setPhone] = useState("");
+  const [recipientName, setRecipientName] = useState("");
   const [memo, setMemo] = useState("");
   const [items, setItems] = useState<SampleItem[]>([]);
 
@@ -172,6 +173,7 @@ export default function LiverSampleRequest() {
     setPostalCode("");
     setAddress("");
     setPhone("");
+    setRecipientName("");
     setMemo("");
     setItems([]);
     setError("");
@@ -183,6 +185,7 @@ export default function LiverSampleRequest() {
       setPostalCode(savedAddressQuery.data.postalCode || "");
       setAddress(savedAddressQuery.data.address || "");
       setPhone(savedAddressQuery.data.phone || "");
+      setRecipientName((savedAddressQuery.data as any).recipientName || "");
     }
     setActiveView("create");
     setHowToOpen(true);
@@ -219,6 +222,7 @@ export default function LiverSampleRequest() {
   function handleSubmit() {
     setError("");
     if (!scheduledDate) { setError("配信予定日を入力してください"); return; }
+    if (!recipientName) { setError("宛名（本名）を入力してください"); return; }
     if (!address) { setError("配送先住所を入力してください"); return; }
     if (items.length === 0) { setError("商品を1つ以上追加してください"); return; }
     if (items.some(i => !i.productName)) { setError("商品名を入力してください"); return; }
@@ -229,6 +233,7 @@ export default function LiverSampleRequest() {
       postalCode: postalCode || undefined,
       address: address || undefined,
       phone: phone || undefined,
+      recipientName: recipientName || undefined,
       memo: memo || undefined,
       items: items.map(i => ({
         mallProductId: i.mallProductId,
@@ -710,6 +715,17 @@ export default function LiverSampleRequest() {
                   />
                 </div>
 
+                {/* Recipient Name */}
+                <div>
+                  <Label className="text-gray-400 text-sm">宛名（本名）*</Label>
+                  <Input
+                    value={recipientName}
+                    onChange={e => setRecipientName(e.target.value)}
+                    placeholder="例: 山田 太郎"
+                    className="bg-gray-800 border-gray-700 text-white text-sm mt-1"
+                  />
+                </div>
+
                 {/* Shipping Address */}
                 <div className="space-y-3">
                   <Label className="text-gray-400 text-sm">配送先住所 *</Label>
@@ -919,6 +935,7 @@ export default function LiverSampleRequest() {
                 <div>
                   <span className="text-gray-500 text-sm">配送先</span>
                   <div className="text-white text-sm mt-1 bg-gray-800 rounded p-2">
+                    {(selectedRequest as any).recipientName && <div className="font-semibold mb-1">{(selectedRequest as any).recipientName}</div>}
                     {selectedRequest.postalCode && <span>〒{selectedRequest.postalCode} </span>}
                     {selectedRequest.address}
                     {selectedRequest.phone && <div className="text-gray-400 text-xs mt-1">TEL: {selectedRequest.phone}</div>}

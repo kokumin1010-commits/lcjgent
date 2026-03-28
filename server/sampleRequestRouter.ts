@@ -330,6 +330,7 @@ export const sampleRequestRouter = router({
       postalCode: z.string().optional(),
       address: z.string().optional(),
       phone: z.string().optional(),
+      recipientName: z.string().optional(),
       memo: z.string().optional(),
       items: z.array(z.object({
         mallProductId: z.number().nullable(),
@@ -418,7 +419,7 @@ export const sampleRequestRouter = router({
       // 住所をライバープロフィールに保存（次回自動入力用）
       if (input.address) {
         await db.execute(
-          sql`UPDATE livers SET shipping_postal_code = ${input.postalCode || null}, shipping_address = ${input.address || null}, shipping_phone = ${input.phone || null} WHERE id = ${liverData.liverId}`
+          sql`UPDATE livers SET shipping_postal_code = ${input.postalCode || null}, shipping_address = ${input.address || null}, shipping_phone = ${input.phone || null}, shipping_recipient_name = ${input.recipientName || null} WHERE id = ${liverData.liverId}`
         );
       }
 
@@ -435,6 +436,7 @@ export const sampleRequestRouter = router({
         postalCode: input.postalCode || null,
         address: input.address || null,
         phone: input.phone || null,
+        recipientName: input.recipientName || null,
         memo: input.memo || null,
       });
 
@@ -515,7 +517,7 @@ export const sampleRequestRouter = router({
       
       // livers テーブルから配送先住所を取得
       const rows = await db.execute(
-        sql`SELECT shipping_postal_code, shipping_address, shipping_phone FROM livers WHERE id = ${liverData.liverId}`
+        sql`SELECT shipping_postal_code, shipping_address, shipping_phone, shipping_recipient_name FROM livers WHERE id = ${liverData.liverId}`
       );
       
       const liverRow = (rows as any)[0]?.[0];
@@ -525,6 +527,7 @@ export const sampleRequestRouter = router({
         postalCode: liverRow.shipping_postal_code || "",
         address: liverRow.shipping_address || "",
         phone: liverRow.shipping_phone || "",
+        recipientName: liverRow.shipping_recipient_name || "",
       };
     }),
 
@@ -546,16 +549,36 @@ export const sampleRequestRouter = router({
         ? await db.select().from(sampleRequests).where(and(...conditions)).orderBy(desc(sampleRequests.createdAt))
         : await db.select().from(sampleRequests).orderBy(desc(sampleRequests.createdAt));
 
+      // ライバーごとのクレジット残高を一括取得
+      const liverIds = [...new Set(requests.map(r => r.liverId))];
+      const creditMap = new Map<number, { totalCredit: number; remainingCredit: number; rank: string }>();
+      if (liverIds.length > 0) {
+        // JSTでの現在月を計算
+        const nowJST = new Date(Date.now() + 9 * 60 * 60 * 1000);
+        const currentMonth = `${nowJST.getUTCFullYear()}-${String(nowJST.getUTCMonth() + 1).padStart(2, "0")}`;
+        const allCredits = await db.select().from(liverCredits)
+          .where(eq(liverCredits.month, currentMonth));
+        for (const c of allCredits) {
+          creditMap.set(c.liverId, {
+            totalCredit: Number(c.totalCredit),
+            remainingCredit: Number(c.remainingCredit),
+            rank: c.rank,
+          });
+        }
+      }
+
       const result = [];
       for (const req of requests) {
         const items = await db.select().from(sampleRequestItems)
           .where(eq(sampleRequestItems.requestId, req.id));
+        const liverCredit = creditMap.get(req.liverId) || null;
         result.push({
           ...req,
           totalAmount: Number(req.totalAmount),
           creditUsed: Number(req.creditUsed),
           outOfPocketAmount: Number(req.outOfPocketAmount),
           cashAmount: Number(req.cashAmount),
+          liverCredit,
           items: items.map(i => ({
             ...i,
             price: Number(i.price),
