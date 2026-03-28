@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useLocation as useWouterLocation } from "wouter";
+import { useLocation as useWouterLocation, useSearch } from "wouter";
 import { useParams, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -54,14 +54,34 @@ export default function LiverByName() {
     return options;
   }, []);
   
-  const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].value);
+  // URLクエリパラメータからmonthを読み取り、なければ最新月
+  const searchString = useSearch();
+  const initialMonth = useMemo(() => {
+    const params = new URLSearchParams(searchString);
+    const monthParam = params.get('month');
+    if (monthParam && monthOptions.some(o => o.value === monthParam)) {
+      return monthParam;
+    }
+    return monthOptions[0].value;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  
+  const [selectedMonth, setSelectedMonth] = useState(initialMonth);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const { user } = useAuth();
   const utils = trpc.useUtils();
 
-  // スタッフ選択関連のstate
-  const [selectedStaffId, setSelectedStaffId] = useState<number | null>(null);
-  const [selectedStaffName, setSelectedStaffName] = useState<string | null>(null);
+  // スタッフ選択関連のstate（localStorageから前回の選択を復元）
+  const [selectedStaffId, setSelectedStaffId] = useState<number | null>(() => {
+    try {
+      const saved = localStorage.getItem('lcj_verifier_staff_id');
+      return saved ? Number(saved) : null;
+    } catch { return null; }
+  });
+  const [selectedStaffName, setSelectedStaffName] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('lcj_verifier_staff_name');
+    } catch { return null; }
+  });
   const [staffSelectDialogOpen, setStaffSelectDialogOpen] = useState(false);
   const [staffSelectAction, setStaffSelectAction] = useState<{ type: 'single' | 'bulk'; id?: number; ids?: number[] } | null>(null);
   const [staffSearchQuery, setStaffSearchQuery] = useState('');
@@ -91,6 +111,13 @@ export default function LiverByName() {
   // スタッフ選択後の確認実行
   const executeVerifyWithStaff = (staffId: number, staffName: string) => {
     if (!staffSelectAction) return;
+    // localStorageに保存して次回から自動選択
+    try {
+      localStorage.setItem('lcj_verifier_staff_id', String(staffId));
+      localStorage.setItem('lcj_verifier_staff_name', staffName);
+    } catch {}
+    setSelectedStaffId(staffId);
+    setSelectedStaffName(staffName);
     if (staffSelectAction.type === 'single' && staffSelectAction.id) {
       verifyMutation.mutate({ id: staffSelectAction.id, staffId, staffName });
     } else if (staffSelectAction.type === 'bulk' && staffSelectAction.ids) {
@@ -407,7 +434,13 @@ export default function LiverByName() {
               <p className="text-sm text-white">{tr.livestreamHistory}</p>
             </div>
           </div>
-          <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+          <Select value={selectedMonth} onValueChange={(value) => {
+            setSelectedMonth(value);
+            // URLクエリパラメータを更新（ブラウザ履歴に残す）
+            const url = new URL(window.location.href);
+            url.searchParams.set('month', value);
+            window.history.replaceState({}, '', url.toString());
+          }}>
             <SelectTrigger className="w-40 bg-transparent border-gray-700 text-white">
               <SelectValue />
             </SelectTrigger>
@@ -968,12 +1001,28 @@ export default function LiverByName() {
               className="w-full pl-9 pr-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-green-500"
             />
           </div>
+          {/* 前回の担当者があればクイックボタンを表示 */}
+          {selectedStaffId && selectedStaffName && (
+            <button
+              className="w-full flex items-center gap-3 p-3 rounded-lg border-2 border-green-500 bg-green-900/30 hover:bg-green-900/50 transition-all text-left mb-2"
+              onClick={() => executeVerifyWithStaff(selectedStaffId, selectedStaffName)}
+            >
+              <div className="w-8 h-8 rounded-full bg-green-700 flex items-center justify-center text-sm font-medium text-white">
+                {selectedStaffName.charAt(0)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-green-400 mb-0.5">前回と同じ担当者で確認</p>
+                <p className="text-sm font-medium text-white truncate">{selectedStaffName}</p>
+              </div>
+              <CheckCircle2 className="w-5 h-5 text-green-400" />
+            </button>
+          )}
           <div className="space-y-2 max-h-80 overflow-y-auto">
             {staffList && staffList.filter((s: any) => !staffSearchQuery || s.name?.toLowerCase().includes(staffSearchQuery.toLowerCase()) || s.department?.toLowerCase().includes(staffSearchQuery.toLowerCase())).length > 0 ? (
               staffList.filter((s: any) => !staffSearchQuery || s.name?.toLowerCase().includes(staffSearchQuery.toLowerCase()) || s.department?.toLowerCase().includes(staffSearchQuery.toLowerCase())).map((s: any) => (
                 <button
                   key={s.id}
-                  className="w-full flex items-center gap-3 p-3 rounded-lg border border-gray-700 hover:border-green-500 hover:bg-green-900/20 transition-all text-left"
+                  className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-all text-left ${s.id === selectedStaffId ? 'border-green-500/50 bg-green-900/10' : 'border-gray-700 hover:border-green-500 hover:bg-green-900/20'}`}
                   onClick={() => executeVerifyWithStaff(s.id, s.name)}
                 >
                   <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm font-medium text-white">
@@ -985,7 +1034,7 @@ export default function LiverByName() {
                       <p className="text-xs text-gray-400 truncate">{s.department}{s.position ? ` / ${s.position}` : ''}</p>
                     )}
                   </div>
-                  <CheckCircle2 className="w-4 h-4 text-gray-600" />
+                  <CheckCircle2 className={`w-4 h-4 ${s.id === selectedStaffId ? 'text-green-400' : 'text-gray-600'}`} />
                 </button>
               ))
             ) : (
