@@ -8115,7 +8115,7 @@ export async function getLivestreamsByStreamerName(streamerName: string, month?:
     .where(and(whereConditions, isNull(brandLivestreams.deletedAt)))
     .orderBy(sql`${brandLivestreams.livestreamDate} DESC`);
   
-  const totalSales = livestreams.reduce((sum, l) => sum + (l.gmv || 0), 0);
+  const totalSales = livestreams.reduce((sum, l) => sum + (l.salesAmount || 0), 0);
   const totalDuration = livestreams.reduce((sum, l) => sum + (l.duration || 0), 0);
   
   return { livestreams, totalSales, totalDuration };

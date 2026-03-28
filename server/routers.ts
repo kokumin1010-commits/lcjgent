@@ -10366,7 +10366,7 @@ ${conversationText}
             const pastLivestreams = await getLivestreamsByLiverId(input.liverId);
             if (pastLivestreams.length > 1) {
               const recentStreams = pastLivestreams.slice(0, 10);
-              const avgSales = Math.round(recentStreams.reduce((sum, ls) => sum + (ls.gmv || 0), 0) / recentStreams.length);
+              const avgSales = Math.round(recentStreams.reduce((sum, ls) => sum + (ls.salesAmount || ls.gmv || 0), 0) / recentStreams.length);
               const avgDuration = Math.round(recentStreams.reduce((sum, ls) => sum + (ls.duration || 0), 0) / recentStreams.length);
               const totalStreams = pastLivestreams.length;
               

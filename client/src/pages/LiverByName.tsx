@@ -64,6 +64,7 @@ export default function LiverByName() {
   const [selectedStaffName, setSelectedStaffName] = useState<string | null>(null);
   const [staffSelectDialogOpen, setStaffSelectDialogOpen] = useState(false);
   const [staffSelectAction, setStaffSelectAction] = useState<{ type: 'single' | 'bulk'; id?: number; ids?: number[] } | null>(null);
+  const [staffSearchQuery, setStaffSearchQuery] = useState('');
 
   // HRスタッフ一覧取得
   const { data: staffList } = trpc.staff.listActive.useQuery(undefined, {
@@ -83,6 +84,7 @@ export default function LiverByName() {
   // スタッフ選択ダイアログを開く
   const openStaffSelectDialog = (action: { type: 'single' | 'bulk'; id?: number; ids?: number[] }) => {
     setStaffSelectAction(action);
+    setStaffSearchQuery('');
     setStaffSelectDialogOpen(true);
   };
 
@@ -135,7 +137,7 @@ export default function LiverByName() {
   const openCorrectDialog = (livestream: any) => {
     setCorrectTarget(livestream);
     setCorrectForm({
-      salesAmount: String(livestream.gmv || livestream.salesAmount || ""),
+      salesAmount: String(livestream.salesAmount || ""),
       duration: String(livestream.duration || ""),
       viewerCount: String(livestream.viewerCount || ""),
       orderCount: String(livestream.orderCount || ""),
@@ -741,7 +743,7 @@ export default function LiverByName() {
                             <DollarSign className="w-4 h-4 text-yellow-500" />
                             <div>
                               <p className="text-xs text-white">{tr.sales}</p>
-                              <p className="font-medium text-yellow-400">{formatCurrency(livestream.gmv || livestream.salesAmount)}</p>
+                              <p className="font-medium text-yellow-400">{formatCurrency(livestream.salesAmount)}</p>
                             </div>
                           </div>
                           
@@ -956,9 +958,19 @@ export default function LiverByName() {
               確認者を選択してください
             </DialogTitle>
           </DialogHeader>
+          <div className="relative mb-2">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="名前で検索..."
+              value={staffSearchQuery}
+              onChange={(e) => setStaffSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-green-500"
+            />
+          </div>
           <div className="space-y-2 max-h-80 overflow-y-auto">
-            {staffList && staffList.length > 0 ? (
-              staffList.map((s: any) => (
+            {staffList && staffList.filter((s: any) => !staffSearchQuery || s.name?.toLowerCase().includes(staffSearchQuery.toLowerCase()) || s.department?.toLowerCase().includes(staffSearchQuery.toLowerCase())).length > 0 ? (
+              staffList.filter((s: any) => !staffSearchQuery || s.name?.toLowerCase().includes(staffSearchQuery.toLowerCase()) || s.department?.toLowerCase().includes(staffSearchQuery.toLowerCase())).map((s: any) => (
                 <button
                   key={s.id}
                   className="w-full flex items-center gap-3 p-3 rounded-lg border border-gray-700 hover:border-green-500 hover:bg-green-900/20 transition-all text-left"
