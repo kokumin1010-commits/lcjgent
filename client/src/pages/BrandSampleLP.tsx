@@ -62,12 +62,12 @@ function getAbVariant(): typeof AB_VARIANTS[number] {
 // Brand Results Data
 // ============================================================
 const BRAND_RESULTS = [
-  { name: "KYOGOKU", amount: "1億円", amountNum: 100000000, color: "from-red-600 to-amber-500", image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/kyogoku_product_10fb9943.jpg" },
-  { name: "DDS RENOVATIO", amount: "550万円", amountNum: 5500000, color: "from-purple-600 to-pink-500", image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/dds_renovatio_product_e728f6d8.jpg" },
-  { name: "mistine", amount: "180万円", amountNum: 1800000, color: "from-blue-600 to-cyan-500", image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mistine_product_a0799615.jpg" },
-  { name: "RECORE SERUM", amount: "180万円", amountNum: 1800000, color: "from-emerald-600 to-teal-500", image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/recore_serum_product_3c0e9821.jpg" },
-  { name: "Spatreatment", amount: "150万円", amountNum: 1500000, color: "from-amber-600 to-yellow-500", image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/spatreatment_product_f1f6ac6b.png" },
-  { name: "F&W", amount: "160万円", amountNum: 1600000, color: "from-gray-700 to-gray-500", image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/fw_product_9dbe94e7.png" },
+  { name: "KYOGOKU", amount: "1億円", amountNum: 100000000, color: "from-red-600 to-amber-500", image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/kyogoku_brand_40102589.png" },
+  { name: "DDS RENOVATIO", amount: "550万円", amountNum: 5500000, color: "from-purple-600 to-pink-500", image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/dds_renovatio_brand_1556ab5a.png" },
+  { name: "mistine", amount: "180万円", amountNum: 1800000, color: "from-blue-600 to-cyan-500", image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/mistine_brand_8294a2ff.png" },
+  { name: "RECORE SERUM", amount: "180万円", amountNum: 1800000, color: "from-emerald-600 to-teal-500", image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/recore_serum_brand_c64432da.png" },
+  { name: "Spatreatment", amount: "150万円", amountNum: 1500000, color: "from-amber-600 to-yellow-500", image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/spatreatment_brand_960b0e54.png" },
+  { name: "F&W", amount: "160万円", amountNum: 1600000, color: "from-gray-700 to-gray-500", image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663045992616/GgA9WvTBCZMf6mjyMMwACw/fw_brand_f63ce747.png" },
 ];
 
 // ============================================================
@@ -905,86 +905,81 @@ export default function BrandSampleLP() {
           ))}
         </div>
 
-        <div className="relative max-w-6xl mx-auto px-4 py-12 md:py-32">
+        <div className="relative max-w-4xl mx-auto px-4 py-10 md:py-24 text-center">
           {/* LCJ Logo + Authority Badge */}
-          <div className="flex items-center gap-4 mb-8">
-            <img src={LCJ_LOGO_URL} alt="Live Commerce Japan" className="h-12 md:h-16 rounded-lg bg-white p-1.5" />
-            <div className="bg-gradient-to-r from-amber-500/20 to-amber-600/20 border border-amber-500/40 rounded-full px-4 py-2">
-              <span className="text-amber-300 text-sm font-bold tracking-wide">日本最大級ライブコマース事務所</span>
-            </div>
+          <div className="flex items-center justify-center gap-3 mb-5">
+            <img src={LCJ_LOGO_URL} alt="Live Commerce Japan" className="h-10 md:h-14 rounded-lg bg-white p-1.5" />
           </div>
+          <p className="text-amber-400 text-sm font-bold mb-4 md:mb-6">日本最大級ライブコマース事務所</p>
 
-          {/* Countdown + Price Offer - Full Width */}
-          <div className="mb-10 md:mb-14">
+          {/* Countdown */}
+          <div className="mb-6 md:mb-8">
             <HeroCountdown />
-            <HeroPriceOffer />
           </div>
 
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            {/* Hero Text */}
-            <div>
-              <div className="inline-flex items-center gap-2 bg-green-500/20 border border-green-500/40 rounded-full px-4 py-2 mb-5">
-                <CheckCircle2 className="h-4 w-4 text-green-400" />
-                <span className="text-green-300 text-sm font-bold">このページ限定の特別オファー</span>
-              </div>
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-black leading-tight mb-6">
-                {abVariant.headline}
-              </h1>
-              <p className="text-lg text-gray-300 mb-4 leading-relaxed">
-                本来<strong className="text-yellow-300">初期費用¥200,000</strong>のプランが、
-                このページから申し込むと<strong className="text-white text-xl">完全無料</strong>。
-              </p>
-              <p className="text-base text-gray-400 mb-8 leading-relaxed whitespace-pre-line">
-                {abVariant.subDetail}
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4">
-                <Button
-                  onClick={() => openModal()}
-                  className="relative bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-8 py-6 text-lg font-bold rounded-xl shadow-2xl shadow-purple-500/30 transition-all hover:scale-105 overflow-hidden group"
-                >
-                  <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
-                  {stageConfig.ctaLabel} <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => document.getElementById("logic")?.scrollIntoView({ behavior: "smooth" })}
-                  className="border-gray-600 text-gray-300 hover:bg-gray-800 px-8 py-6 text-lg rounded-xl bg-transparent"
-                >
-                  詳しく見る <ChevronDown className="ml-2 h-5 w-5" />
-                </Button>
-              </div>
-              <p className="text-xs text-gray-500 mt-3 flex items-center gap-1">
-                <Clock className="h-3 w-3" />
-                入力30秒・初期費用¥200,000→¥0・審査無料
-              </p>
-            </div>
+          {/* Lucky Message + Free Offer */}
+          <h1 className="text-3xl md:text-5xl font-black mb-3 md:mb-4 leading-tight">
+            このページに出会えた
+            <br />
+            <span className="bg-gradient-to-r from-yellow-300 via-amber-300 to-yellow-400 bg-clip-text text-transparent">
+              あなたはラッキーです
+            </span>
+          </h1>
+          <p className="text-gray-300 mb-2 text-base md:text-lg">
+            本来<strong className="text-yellow-300">初期費用¥200,000</strong>のプランが
+          </p>
+          <p className="text-5xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-amber-300 to-yellow-400 mb-3 md:mb-4">完全無料</p>
+          <p className="text-gray-400 text-sm md:text-base mb-2">
+            30個のサンプルを送るだけ。TikTok Shopの売上が自動で生まれます。
+          </p>
+          <p className="text-yellow-400/80 font-medium text-sm mb-6 md:mb-8">毎月限定20ブランド・審査通過率30%</p>
 
-            {/* Hero Stats */}
-            <div className="grid grid-cols-2 gap-4">
-              {[
-                { label: "累計UGC動画", value: 2400, suffix: "本+", icon: <Video className="h-6 w-6" />, color: "from-purple-500 to-pink-500" },
-                { label: "提携ライバー", value: 350, suffix: "名+", icon: <Users className="h-6 w-6" />, color: "from-blue-500 to-cyan-500" },
-                { label: "平均ROAS", value: 580, suffix: "%", icon: <TrendingUp className="h-6 w-6" />, color: "from-green-500 to-emerald-500" },
-                { label: "ブランド導入実績", value: 85, suffix: "社+", icon: <Building2 className="h-6 w-6" />, color: "from-amber-500 to-orange-500" },
-              ].map((stat, i) => (
-                <div key={i} className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5 hover:bg-white/10 transition-all">
-                  <div className={`inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br ${stat.color} mb-3`}>
-                    {stat.icon}
-                  </div>
-                  <div className="text-2xl md:text-3xl font-black">
-                    <AnimatedCounter end={stat.value} suffix={stat.suffix} />
-                  </div>
-                  <p className="text-sm text-gray-400 mt-1">{stat.label}</p>
+          {/* CTA Button */}
+          <Button
+            onClick={() => openModal()}
+            className="relative bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-8 py-5 md:px-12 md:py-7 text-lg md:text-xl font-bold rounded-xl shadow-2xl shadow-purple-500/30 transition-all hover:scale-105 overflow-hidden group animate-pulse"
+          >
+            <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
+            {stageConfig.ctaLabel} <ArrowRight className="ml-2 h-5 w-5" />
+          </Button>
+          <p className="text-xs text-gray-500 mt-2 flex items-center justify-center gap-1">
+            <Clock className="h-3 w-3" />
+            入力30秒・初期費用¥200,000→¥0・審査無料
+          </p>
+
+          {/* Hero Stats - compact row */}
+          <div className="grid grid-cols-4 gap-2 md:gap-4 mt-8 md:mt-12">
+            {[
+              { label: "UGC動画", value: 2400, suffix: "本+", icon: <Video className="h-4 w-4 md:h-5 md:w-5" />, color: "from-purple-500 to-pink-500" },
+              { label: "ライバー", value: 350, suffix: "名+", icon: <Users className="h-4 w-4 md:h-5 md:w-5" />, color: "from-blue-500 to-cyan-500" },
+              { label: "ROAS", value: 580, suffix: "%", icon: <TrendingUp className="h-4 w-4 md:h-5 md:w-5" />, color: "from-green-500 to-emerald-500" },
+              { label: "導入実績", value: 85, suffix: "社+", icon: <Building2 className="h-4 w-4 md:h-5 md:w-5" />, color: "from-amber-500 to-orange-500" },
+            ].map((stat, i) => (
+              <div key={i} className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-2 md:p-4">
+                <div className={`inline-flex items-center justify-center w-7 h-7 md:w-9 md:h-9 rounded-lg bg-gradient-to-br ${stat.color} mb-1 md:mb-2`}>
+                  {stat.icon}
                 </div>
-              ))}
-            </div>
+                <div className="text-lg md:text-2xl font-black">
+                  <AnimatedCounter end={stat.value} suffix={stat.suffix} />
+                </div>
+                <p className="text-[10px] md:text-xs text-gray-400">{stat.label}</p>
+              </div>
+            ))}
           </div>
 
           {/* Brand Results Ticker */}
-          <div className="mt-12">
-            <p className="text-center text-sm text-gray-500 mb-2">1時間ライブコマース売上実績</p>
+          <div className="mt-6 md:mt-10">
+            <p className="text-center text-xs text-gray-500 mb-1">1時間ライブコマース売上実績</p>
             <BrandResultsTicker />
           </div>
+
+          {/* Scroll hint */}
+          <button
+            onClick={() => document.getElementById("logic")?.scrollIntoView({ behavior: "smooth" })}
+            className="mt-6 text-gray-500 hover:text-gray-300 transition-colors flex items-center gap-1 mx-auto text-sm"
+          >
+            詳しく見る <ChevronDown className="h-4 w-4 animate-bounce" />
+          </button>
         </div>
 
         {/* Wave divider */}
@@ -1589,13 +1584,13 @@ export default function BrandSampleLP() {
                     <ArrowRight className="h-8 w-8 text-purple-500/50" />
                   </div>
                 )}
-                <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-8 h-full hover:bg-white/10 transition-all">
-                  <div className="text-5xl font-black text-purple-500/30 mb-4">{item.step}</div>
-                  <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-purple-500/20 text-purple-400 mb-5">
+                <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5 md:p-8 h-full hover:bg-white/10 transition-all">
+                  <div className="text-3xl md:text-5xl font-black text-purple-500/30 mb-2 md:mb-4">{item.step}</div>
+                  <div className="inline-flex items-center justify-center w-10 h-10 md:w-14 md:h-14 rounded-xl bg-purple-500/20 text-purple-400 mb-3 md:mb-5">
                     {item.icon}
                   </div>
-                  <h3 className="text-xl font-bold mb-3">{item.title}</h3>
-                  <p className="text-gray-400 text-sm leading-relaxed mb-4">{item.desc}</p>
+                  <h3 className="text-lg md:text-xl font-bold mb-2 md:mb-3">{item.title}</h3>
+                  <p className="text-gray-400 text-sm leading-relaxed mb-3 md:mb-4">{item.desc}</p>
                   <div className="flex items-center gap-2 text-xs text-purple-400">
                     <Clock className="h-3 w-3" />
                     {item.time}
@@ -1665,26 +1660,19 @@ export default function BrandSampleLP() {
       {/* ============================================================ */}
       {/* FINAL CTA */}
       {/* ============================================================ */}
-      <section className="py-12 md:py-20 bg-gradient-to-br from-gray-950 via-purple-950 to-gray-950 text-white text-center">
+      <section className="py-10 md:py-16 bg-gradient-to-br from-gray-950 via-purple-950 to-gray-950 text-white text-center">
         <div className="max-w-3xl mx-auto px-4">
-          <img src={LCJ_LOGO_URL} alt="Live Commerce Japan" className="h-12 mx-auto mb-6 rounded-lg bg-white p-1.5" />
-          <p className="text-amber-400 text-sm font-bold mb-4">日本最大級ライブコマース事務所</p>
-          {/* Mini Countdown */}
-          <div className="mb-8">
+          <div className="mb-6">
             <HeroCountdown />
           </div>
-          <h2 className="text-3xl md:text-4xl font-black mb-4">
-            このページに出会えた
-            <br />
-            <span className="bg-gradient-to-r from-yellow-300 via-amber-300 to-yellow-400 bg-clip-text text-transparent">
-              あなたはラッキーです
-            </span>
+          <h2 className="text-2xl md:text-4xl font-black mb-3">
+            今すぐ始めましょう
           </h2>
-          <p className="text-gray-300 mb-2 text-lg">
+          <p className="text-gray-300 mb-2 text-base">
             本来<strong className="text-yellow-300">初期費用¥200,000</strong>のプランが
           </p>
-          <p className="text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-amber-300 to-yellow-400 mb-4">完全無料</p>
-          <p className="text-gray-400 mb-8">
+          <p className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-amber-300 to-yellow-400 mb-3">完全無料</p>
+          <p className="text-gray-400 text-sm mb-6">
             30個のサンプルを送るだけ。TikTok Shopの売上が自動で生まれます。
             <br />
             <span className="text-yellow-400/80 font-medium">毎月限定20ブランド・審査通過率30%</span>
@@ -1696,7 +1684,7 @@ export default function BrandSampleLP() {
             <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
             {stageConfig.ctaLabel} <ArrowRight className="ml-2 h-6 w-6" />
           </Button>
-          <p className="text-xs text-gray-500 mt-3 flex items-center justify-center gap-1">
+          <p className="text-xs text-gray-500 mt-2 flex items-center justify-center gap-1">
             <Clock className="h-3 w-3" />
             入力30秒・初期費用¥200,000→¥0・審査無料
           </p>
