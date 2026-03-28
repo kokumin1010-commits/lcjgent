@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, TrendingUp, Clock, Calendar, DollarSign, Users, Eye, ShoppingCart, MousePointer, ChevronRight, ImageOff, BarChart3, Search, X, AlertTriangle, CheckCircle2, Edit3, Undo2 } from "lucide-react";
+import { ArrowLeft, TrendingUp, Clock, Calendar, DollarSign, Users, Eye, ShoppingCart, MousePointer, ChevronRight, ImageOff, BarChart3, Search, X, AlertTriangle, CheckCircle2, Edit3, Undo2, UserCheck } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
@@ -59,6 +59,17 @@ export default function LiverByName() {
   const { user } = useAuth();
   const utils = trpc.useUtils();
 
+  // スタッフ選択関連のstate
+  const [selectedStaffId, setSelectedStaffId] = useState<number | null>(null);
+  const [selectedStaffName, setSelectedStaffName] = useState<string | null>(null);
+  const [staffSelectDialogOpen, setStaffSelectDialogOpen] = useState(false);
+  const [staffSelectAction, setStaffSelectAction] = useState<{ type: 'single' | 'bulk'; id?: number; ids?: number[] } | null>(null);
+
+  // HRスタッフ一覧取得
+  const { data: staffList } = trpc.staff.listActive.useQuery(undefined, {
+    enabled: !!user,
+  });
+
   // 訂正ダイアログのstate
   const [correctDialogOpen, setCorrectDialogOpen] = useState(false);
   const [correctTarget, setCorrectTarget] = useState<any>(null);
@@ -68,6 +79,24 @@ export default function LiverByName() {
     viewerCount: "",
     orderCount: "",
   });
+
+  // スタッフ選択ダイアログを開く
+  const openStaffSelectDialog = (action: { type: 'single' | 'bulk'; id?: number; ids?: number[] }) => {
+    setStaffSelectAction(action);
+    setStaffSelectDialogOpen(true);
+  };
+
+  // スタッフ選択後の確認実行
+  const executeVerifyWithStaff = (staffId: number, staffName: string) => {
+    if (!staffSelectAction) return;
+    if (staffSelectAction.type === 'single' && staffSelectAction.id) {
+      verifyMutation.mutate({ id: staffSelectAction.id, staffId, staffName });
+    } else if (staffSelectAction.type === 'bulk' && staffSelectAction.ids) {
+      verifyBulkMutation.mutate({ ids: staffSelectAction.ids, staffId, staffName });
+    }
+    setStaffSelectDialogOpen(false);
+    setStaffSelectAction(null);
+  };
 
   // Mutations
   const verifyMutation = trpc.salesCheck.verify.useMutation({
@@ -614,7 +643,7 @@ export default function LiverByName() {
                 size="sm"
                 variant="outline"
                 className="text-xs border-green-600 text-green-400 hover:bg-green-900/30"
-                onClick={() => verifyBulkMutation.mutate({ ids: unverifiedIds })}
+                onClick={() => openStaffSelectDialog({ type: 'bulk', ids: unverifiedIds })}
                 disabled={verifyBulkMutation.isPending}
               >
                 <CheckCircle2 className="w-3 h-3 mr-1" />
@@ -691,8 +720,13 @@ export default function LiverByName() {
                               </span>
                             )}
                             {(livestream as any).verifiedAt ? (
-                              <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-green-900/50 text-green-400">
-                                <CheckCircle2 className="w-3 h-3" /> 確認済
+                              <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-green-900/50 text-green-400" title={`${(livestream as any).verifiedByStaffName || ''} ${(livestream as any).verifiedAt ? new Date((livestream as any).verifiedAt).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}`}>
+                                <CheckCircle2 className="w-3 h-3" />
+                                {(livestream as any).verifiedByStaffName ? (
+                                  <>{(livestream as any).verifiedByStaffName}が確認</>
+                                ) : (
+                                  <>確認済</>
+                                )}
                               </span>
                             ) : (
                               <span className="px-2 py-0.5 rounded text-xs bg-gray-700/50 text-gray-400">
@@ -779,7 +813,7 @@ export default function LiverByName() {
                                   className="h-7 text-xs text-green-400 hover:text-green-300 hover:bg-green-900/30"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    verifyMutation.mutate({ id: livestream.id });
+                                    openStaffSelectDialog({ type: 'single', id: livestream.id });
                                   }}
                                   disabled={verifyMutation.isPending}
                                 >
@@ -908,6 +942,51 @@ export default function LiverByName() {
               className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               {correctMutation.isPending ? "訂正中..." : "訂正する"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* スタッフ選択ダイアログ */}
+      <Dialog open={staffSelectDialogOpen} onOpenChange={setStaffSelectDialogOpen}>
+        <DialogContent className="bg-gray-900 border-gray-700 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              <UserCheck className="w-5 h-5 text-green-400" />
+              確認者を選択してください
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {staffList && staffList.length > 0 ? (
+              staffList.map((s: any) => (
+                <button
+                  key={s.id}
+                  className="w-full flex items-center gap-3 p-3 rounded-lg border border-gray-700 hover:border-green-500 hover:bg-green-900/20 transition-all text-left"
+                  onClick={() => executeVerifyWithStaff(s.id, s.name)}
+                >
+                  <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm font-medium text-white">
+                    {s.name?.charAt(0) || '?'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white truncate">{s.name}</p>
+                    {s.department && (
+                      <p className="text-xs text-gray-400 truncate">{s.department}{s.position ? ` / ${s.position}` : ''}</p>
+                    )}
+                  </div>
+                  <CheckCircle2 className="w-4 h-4 text-gray-600" />
+                </button>
+              ))
+            ) : (
+              <p className="text-center text-gray-400 py-4">スタッフが見つかりません</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setStaffSelectDialogOpen(false)}
+              className="border-gray-600 text-gray-300"
+            >
+              キャンセル
             </Button>
           </DialogFooter>
         </DialogContent>

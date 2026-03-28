@@ -19596,12 +19596,21 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
 
     // 本部確認（単件）
     verify: protectedProcedure
-      .input(z.object({ id: z.number() }))
+      .input(z.object({
+        id: z.number(),
+        staffId: z.number().optional(),
+        staffName: z.string().optional(),
+      }))
       .mutation(async ({ input, ctx }) => {
         const db = await getDb();
         if (!db) throw new Error("DB not available");
         await db.update(brandLivestreams)
-          .set({ verifiedAt: new Date(), verifiedBy: ctx.user.id })
+          .set({
+            verifiedAt: new Date(),
+            verifiedBy: ctx.user.id,
+            verifiedByStaffId: input.staffId ?? null,
+            verifiedByStaffName: input.staffName ?? null,
+          })
           .where(eq(brandLivestreams.id, input.id));
         return { success: true };
       }),
@@ -19613,20 +19622,29 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         const db = await getDb();
         if (!db) throw new Error("DB not available");
         await db.update(brandLivestreams)
-          .set({ verifiedAt: null, verifiedBy: null })
+          .set({ verifiedAt: null, verifiedBy: null, verifiedByStaffId: null, verifiedByStaffName: null })
           .where(eq(brandLivestreams.id, input.id));
         return { success: true };
       }),
 
     // 一括確認
     verifyBulk: protectedProcedure
-      .input(z.object({ ids: z.array(z.number()) }))
+      .input(z.object({
+        ids: z.array(z.number()),
+        staffId: z.number().optional(),
+        staffName: z.string().optional(),
+      }))
       .mutation(async ({ input, ctx }) => {
         const db = await getDb();
         if (!db) throw new Error("DB not available");
         if (input.ids.length === 0) return { count: 0 };
         await db.update(brandLivestreams)
-          .set({ verifiedAt: new Date(), verifiedBy: ctx.user.id })
+          .set({
+            verifiedAt: new Date(),
+            verifiedBy: ctx.user.id,
+            verifiedByStaffId: input.staffId ?? null,
+            verifiedByStaffName: input.staffName ?? null,
+          })
           .where(inArray(brandLivestreams.id, input.ids));
         return { count: input.ids.length };
       }),
