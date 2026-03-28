@@ -549,6 +549,33 @@ export default function BlogArticlePage() {
             dangerouslySetInnerHTML={{ __html: article.contentHtml || "" }}
           />
 
+          {/* CTA Banner - LCJ MALL Receipt Upload */}
+          <div className="my-10 relative overflow-hidden rounded-2xl bg-gradient-to-r from-pink-500 via-rose-500 to-orange-400 p-1">
+            <div className="rounded-xl bg-gradient-to-r from-pink-500/95 via-rose-500/95 to-orange-400/95 px-6 py-8 sm:px-10 sm:py-10 text-white text-center relative">
+              <div className="absolute inset-0 opacity-10" style={{backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.4\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")'}} />
+              <div className="relative z-10">
+                <div className="text-3xl sm:text-4xl font-black mb-3 tracking-tight">
+                  🎉 TikTokで買い物したら
+                </div>
+                <div className="text-xl sm:text-2xl font-bold mb-4 opacity-95">
+                  レシートをアップするだけでポイントGET！
+                </div>
+                <p className="text-sm sm:text-base mb-6 opacity-90 max-w-lg mx-auto">
+                  TikTok Shopで購入した商品のレシートをLCJ MALLにアップロードするだけ。
+                  AI自動審査で即ポイント還元！確変チャンスで最大10倍も。
+                </p>
+                <a
+                  href="https://lcjmall.com"
+                  className="inline-flex items-center gap-2 bg-white text-pink-600 font-bold px-8 py-3 rounded-full text-lg hover:bg-pink-50 transition-colors shadow-lg hover:shadow-xl no-underline"
+                >
+                  <ShoppingBag className="h-5 w-5" />
+                  今すぐLCJ MALLでレシートをアップ
+                  <ChevronRight className="h-5 w-5" />
+                </a>
+              </div>
+            </div>
+          </div>
+
           {/* Related Products Section (inline) */}
           {relatedProducts.length > 0 && (
             <section className="mt-10 pt-8 border-t">
