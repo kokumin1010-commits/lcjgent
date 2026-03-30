@@ -13,7 +13,7 @@ export const adFormRouter = router({
       email: z.string().email(),
       phone: z.string().optional(),
       monthlyBudget: z.string().optional(),
-      plan: z.enum(["light", "algorithm", "market_jack", "tiktok_ads"]),
+      plan: z.enum(["light", "algorithm", "market_jack", "tiktok_ads", "live_commerce"]),
       message: z.string().optional(),
       source: z.string().optional(),
     }))
@@ -40,19 +40,20 @@ export const adFormRouter = router({
           algorithm: "アルゴリズム攻略",
           market_jack: "市場ジャック",
           tiktok_ads: "TikTok広告運用",
+          live_commerce: "ライブコマースSaaS",
         };
         await sendEmail({
           to: [input.email],
-          subject: "【LCJ】TikTok広告運用 無料相談のお申し込みを受け付けました",
-          content: `${input.contactPerson} 様\n\nこの度はLCJのTikTok広告運用サービスにお問い合わせいただき、誠にありがとうございます。\n\n■ お申込内容\nプラン: ${planNames[input.plan]}\n月間広告予算: ${input.monthlyBudget || "未回答"}\n\n担当者より1営業日以内にご連絡いたします。\n\nLive Commerce Japan`,
+          subject: input.plan === 'live_commerce' ? '【LCJ】ライブコマースSaaS 無料相談のお申し込みを受け付けました' : '【LCJ】TikTok広告運用 無料相談のお申し込みを受け付けました',
+          content: `${input.contactPerson} 様\n\nこの度はLCJの${input.plan === 'live_commerce' ? 'ライブコマースSaaS' : 'TikTok広告運用'}サービスにお問い合わせいただき、誠にありがとうございます。\n\n■ お申込内容\nプラン: ${planNames[input.plan]}\n月間広告予算: ${input.monthlyBudget || "未回答"}\n\n担当者より1営業日以内にご連絡いたします。\n\nLive Commerce Japan`,
           html: `<div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto;">
   <div style="background: linear-gradient(135deg, #ff0050 0%, #7c2ae8 100%); padding: 40px 30px; text-align: center; border-radius: 12px 12px 0 0;">
     <h1 style="color: white; margin: 0; font-size: 24px;">お問い合わせを受け付けました</h1>
-    <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0;">TikTok広告運用サービス</p>
+    <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0;">${input.plan === 'live_commerce' ? 'ライブコマースSaaS' : 'TikTok広告運用サービス'}</p>
   </div>
   <div style="padding: 30px; background: #f8f9fa; border-radius: 0 0 12px 12px;">
     <p>${input.contactPerson} 様</p>
-    <p>この度はLCJのTikTok広告運用サービスにお問い合わせいただき、誠にありがとうございます。</p>
+    <p>この度はLCJの${input.plan === 'live_commerce' ? 'ライブコマースSaaS' : 'TikTok広告運用'}サービスにお問い合わせいただき、誠にありがとうございます。</p>
     <div style="background: white; border-radius: 8px; padding: 20px; margin: 20px 0; border-left: 4px solid #ff0050;">
       <h3 style="margin: 0 0 12px; color: #333;">お申込内容</h3>
       <table style="width: 100%; border-collapse: collapse;">
@@ -74,8 +75,8 @@ export const adFormRouter = router({
       try {
         const { notifyOwner } = await import("./_core/notification");
         await notifyOwner({
-          title: "🔥 新規TikTok広告申込",
-          content: `${input.companyName} / ${input.contactPerson}様 がTikTok広告運用で申込。予算: ${input.monthlyBudget || "未回答"}`,
+          title: input.plan === 'live_commerce' ? '🎬 新規ライブコマースSaaS申込' : '🔥 新規TikTok広告申込',
+          content: `${input.companyName} / ${input.contactPerson}様 が${input.plan === 'live_commerce' ? 'ライブコマースSaaS' : 'TikTok広告運用'}で申込。${input.message ? input.message + ' / ' : ''}予算: ${input.monthlyBudget || '未回答'}`,
         });
       } catch (e) {
         console.error("[AdForm] Failed to notify owner:", e);
