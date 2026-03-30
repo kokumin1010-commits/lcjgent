@@ -3,6 +3,17 @@ import { z } from "zod";
 import { getDb } from "./db";
 import { adFormSubmissions } from "../drizzle/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
+import Stripe from "stripe";
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
+  apiVersion: "2024-12-18.acacia" as any,
+});
+
+const PRICE_IDS: Record<string, string> = {
+  basic: "price_1TGisjAJUpUA2CHe7bykIk9x",
+  standard: "price_1TGiskAJUpUA2CHenO9suBcU",
+  premium: "price_1TGislAJUpUA2CHe4ubvznN7",
+};
 
 export const adFormRouter = router({
   // 公開: LP申込フォーム送信
@@ -151,6 +162,31 @@ export const adFormRouter = router({
         .where(eq(adFormSubmissions.id, input.id));
 
       return { success: true };
+    }),
+
+  // Stripe Checkout セッション作成
+  createCheckout: publicProcedure
+    .input(z.object({
+      plan: z.enum(["basic", "standard", "premium"]),
+      email: z.string().email().optional(),
+      successUrl: z.string().optional(),
+      cancelUrl: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const priceId = PRICE_IDS[input.plan];
+      if (!priceId) throw new Error("Invalid plan");
+
+      const session = await stripe.checkout.sessions.create({
+        mode: "subscription",
+        payment_method_types: ["card"],
+        line_items: [{ price: priceId, quantity: 1 }],
+        customer_email: input.email || undefined,
+        success_url: input.successUrl || "https://livecommercejapan.jp/live-commerce?checkout=success",
+        cancel_url: input.cancelUrl || "https://livecommercejapan.jp/live-commerce?checkout=cancel",
+        locale: "ja",
+      });
+
+      return { url: session.url };
     }),
 
   // 管理: 詳細取得
