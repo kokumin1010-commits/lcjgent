@@ -13,7 +13,7 @@ export const adFormRouter = router({
       email: z.string().email(),
       phone: z.string().optional(),
       monthlyBudget: z.string().optional(),
-      plan: z.enum(["light", "algorithm", "market_jack"]),
+      plan: z.enum(["light", "algorithm", "market_jack", "tiktok_ads"]),
       message: z.string().optional(),
       source: z.string().optional(),
     }))
@@ -39,6 +39,7 @@ export const adFormRouter = router({
           light: "ライト検証",
           algorithm: "アルゴリズム攻略",
           market_jack: "市場ジャック",
+          tiktok_ads: "TikTok広告運用",
         };
         await sendEmail({
           to: [input.email],
@@ -74,7 +75,7 @@ export const adFormRouter = router({
         const { notifyOwner } = await import("./_core/notification");
         await notifyOwner({
           title: "🔥 新規TikTok広告申込",
-          content: `${input.companyName} / ${input.contactPerson}様 が${input.plan === "light" ? "ライト検証" : input.plan === "algorithm" ? "アルゴリズム攻略" : "市場ジャック"}プランで申込。予算: ${input.monthlyBudget || "未回答"}`,
+          content: `${input.companyName} / ${input.contactPerson}様 がTikTok広告運用で申込。予算: ${input.monthlyBudget || "未回答"}`,
         });
       } catch (e) {
         console.error("[AdForm] Failed to notify owner:", e);
