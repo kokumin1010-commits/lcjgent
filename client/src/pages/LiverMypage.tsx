@@ -469,16 +469,18 @@ export default function LiverMypage() {
     
     const totalSales = livestreams.reduce((sum: number, ls: LivestreamRecord) => sum + (ls.salesAmount || 0), 0);
     const totalHours = livestreams.reduce((sum: number, ls: LivestreamRecord) => {
-      if (ls.duration && ls.duration > 0) {
-        return sum + (ls.duration / 60);
-      }
+      // start/endからの計算を優先（日付またぎ対応）
       if (ls.livestreamDate && ls.livestreamEndTime) {
         const start = new Date(ls.livestreamDate).getTime();
         const end = new Date(ls.livestreamEndTime).getTime();
-        const diff = (end - start) / (1000 * 60 * 60);
-        // マイナス値は無視（データ入力ミスの可能性）
-        if (diff > 0) return sum + diff;
-        return sum;
+        let diffMs = end - start;
+        // 終了が開始より前の場合、日付をまたいでいる可能性 → 24時間加算
+        if (diffMs < 0) diffMs += 24 * 60 * 60 * 1000;
+        const diffHours = diffMs / (1000 * 60 * 60);
+        if (diffHours > 0 && diffHours < 24) return sum + diffHours;
+      }
+      if (ls.duration && ls.duration > 0) {
+        return sum + (ls.duration / 60);
       }
       return sum;
     }, 0);
@@ -1018,11 +1020,16 @@ export default function LiverMypage() {
                 const endDate = parseDate(ls.livestreamEndTime);
                 const rawStartDate = startDate;
                 const rawEndDate = endDate;
-                const durationRaw = ls.duration 
-                  ? Math.round(ls.duration / 60 * 10) / 10
-                  : (rawEndDate && rawStartDate)
-                    ? Math.round((rawEndDate.getTime() - rawStartDate.getTime()) / (1000 * 60 * 60) * 10) / 10
-                    : 0;
+                // duration計算: start/endからの計算を優先し、DBのdurationはフォールバックとして使用
+                let durationRaw = 0;
+                if (rawEndDate && rawStartDate) {
+                  let calcMs = rawEndDate.getTime() - rawStartDate.getTime();
+                  // 終了が開始より前の場合、日付をまたいでいる可能性 → 24時間加算
+                  if (calcMs < 0) calcMs += 24 * 60 * 60 * 1000;
+                  durationRaw = Math.round(calcMs / (1000 * 60 * 60) * 10) / 10;
+                } else if (ls.duration) {
+                  durationRaw = Math.round(ls.duration / 60 * 10) / 10;
+                }
                 // マイナス値は0として表示（データ入力ミスの可能性）
                 const duration = Math.max(0, durationRaw);
                 const hasAiAdvice = ls.aiStructuredAdvice || ls.aiAdvice;

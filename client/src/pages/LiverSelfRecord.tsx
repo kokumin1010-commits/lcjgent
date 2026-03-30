@@ -28,10 +28,13 @@ const normalizeTime = (time: string): string => {
 };
 
 // 安全にDateオブジェクトを生成するヘルパー
+// 【重要】明示的にJST(+09:00)として解釈する。
+// ブラウザのタイムゾーンに依存すると、UTC設定の端末で時間がずれるバグが発生する。
 const safeCreateDate = (date: string, time: string): Date | null => {
   if (!date || !time) return null;
   const normalizedTime = normalizeTime(time);
-  const dateStr = `${date}T${normalizedTime}:00`;
+  // +09:00を付けてJSTとして明示的に解釈（ブラウザTZに依存しない）
+  const dateStr = `${date}T${normalizedTime}:00+09:00`;
   const d = new Date(dateStr);
   return isNaN(d.getTime()) ? null : d;
 };

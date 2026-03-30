@@ -10212,8 +10212,17 @@ ${conversationText}
 ## 日時抽出ルール
 - 画面上部の日時範囲から抽出
 - 例: "Feb 04 16:00:54 - Feb 05 00:11:00" → startDateTime: "2026-02-04 16:00", endDateTime: "2026-02-05 00:11"
-- 【重要】年が明示されていない場合は、必ず2026年としてください（現在は2026年2月です）
-- 日付が1月、2月の場合は2026年、それ以外の月で過去の日付の場合は2025年の可能性があります
+- 【重要】年が明示されていない場合は、必ず2026年としてください（現在は2026年3月です）
+- 日付が1月、2月、3月の場合は2026年、それ以外の月で過去の日付の場合は2025年の可能性があります
+- 【重要】時刻は必ず24時間形式で読み取ってください。TikTokダッシュボードの時刻は24時間形式です。
+- 【重要】配信は通常夜（19:00～02:00 JST）に行われます。終了時刻が開始時刻より前の場合は、日付をまたいでいる可能性が高いです。例: 開始 21:30 終了 00:34 → endDateTimeは翌日の00:34です。
+- 【重要】終了時刻が開始時刻より小さい場合（例: start=21:30, end=00:34）、endDateTimeの日付を翌日にしてください。
+
+## durationMinutesの計算ルール
+- 【最優先】startDateTimeとendDateTimeから計算してください: (endDateTime - startDateTime) を分に変換
+- 例: start="2026-03-20 21:30", end="2026-03-21 00:34" → durationMinutes = 184
+- 画面上の時間表示（例: "2h 30m"）がある場合は、それも参考にしてください
+- durationMinutesは通常30分以上です。数分以下の値は誤読の可能性が高いです。
 
 ## 出力形式（必ずこの形式で返してください）
 {
@@ -10294,6 +10303,34 @@ ${conversationText}
             console.log(`[analyzeScreenshot] 予測客単価: ${parsed.salesAmount} ÷ ${parsed.orderCount} = ${expectedAvgOrder}円`);
           }
           
+          // 【重要】durationMinutesのバリデーションと再計算
+          // AIが返すdurationMinutesが不正確な場合があるため、startDateTime/endDateTimeから再計算
+          let validatedDuration = parsed.durationMinutes ?? null;
+          if (parsed.startDateTime && parsed.endDateTime) {
+            try {
+              const startDt = new Date(parsed.startDateTime);
+              const endDt = new Date(parsed.endDateTime);
+              if (!isNaN(startDt.getTime()) && !isNaN(endDt.getTime())) {
+                let calcDuration = Math.round((endDt.getTime() - startDt.getTime()) / (1000 * 60));
+                // 終了が開始より前の場合、日付をまたいでいる可能性 → 24時間加算
+                if (calcDuration < 0) {
+                  calcDuration += 24 * 60;
+                  // endDateTimeの日付も翌日に修正
+                  const correctedEnd = new Date(endDt.getTime() + 24 * 60 * 60 * 1000);
+                  parsed.endDateTime = correctedEnd.toISOString().replace('T', ' ').substring(0, 16);
+                  console.log(`[analyzeScreenshot] endDateTime corrected to next day: ${parsed.endDateTime}`);
+                }
+                // AIの値が極端に小さい場合（30分未満）は再計算値を使用
+                if (calcDuration >= 10 && (validatedDuration === null || validatedDuration < 30 || Math.abs(calcDuration - validatedDuration) > calcDuration * 0.5)) {
+                  console.log(`[analyzeScreenshot] Duration corrected: AI=${validatedDuration}min -> calc=${calcDuration}min`);
+                  validatedDuration = calcDuration;
+                }
+              }
+            } catch (e) {
+              console.error('[analyzeScreenshot] Duration validation error:', e);
+            }
+          }
+
           // Ensure required fields exist with defaults
           return {
             salesAmount: parsed.salesAmount ?? null,
@@ -10301,7 +10338,7 @@ ${conversationText}
             peakViewerCount: parsed.peakViewerCount ?? null,
             productClicks: parsed.productClicks ?? null,
             orderCount: parsed.orderCount ?? null,
-            durationMinutes: parsed.durationMinutes ?? null,
+            durationMinutes: validatedDuration,
             startDateTime: parsed.startDateTime ?? null,
             endDateTime: parsed.endDateTime ?? null,
             rawData: parsed.rawData ?? {},
@@ -10534,8 +10571,17 @@ ${metricsDescription}${historicalContext}`,
 ## 日時抽出ルール
 - 画面上部の日時範囲から抽出
 - 例: "Feb 04 16:00:54 - Feb 05 00:11:00" → startDateTime: "2026-02-04 16:00", endDateTime: "2026-02-05 00:11"
-- 【重要】年が明示されていない場合は、必ず2026年としてください（現在は2026年2月です）
-- 日付が1月、2月の場合は2026年、それ以外の月で過去の日付の場合は2025年の可能性があります
+- 【重要】年が明示されていない場合は、必ず2026年としてください（現在は2026年3月です）
+- 日付が1月、2月、3月の場合は2026年、それ以外の月で過去の日付の場合は2025年の可能性があります
+- 【重要】時刻は必ず24時間形式で読み取ってください。TikTokダッシュボードの時刻は24時間形式です。
+- 【重要】配信は通常夜（19:00～02:00 JST）に行われます。終了時刻が開始時刻より前の場合は、日付をまたいでいる可能性が高いです。例: 開始 21:30 終了 00:34 → endDateTimeは翌日の00:34です。
+- 【重要】終了時刻が開始時刻より小さい場合（例: start=21:30, end=00:34）、endDateTimeの日付を翌日にしてください。
+
+## durationMinutesの計算ルール
+- 【最優先】startDateTimeとendDateTimeから計算してください: (endDateTime - startDateTime) を分に変換
+- 例: start="2026-03-20 21:30", end="2026-03-21 00:34" → durationMinutes = 184
+- 画面上の時間表示（例: "2h 30m"）がある場合は、それも参考にしてください
+- durationMinutesは通常30分以上です。数分以下の値は誤読の可能性が高いです。
 
 ## 出力形式（必ずこの形式で返してください）
 {
@@ -10697,8 +10743,31 @@ ${metricsDescription}${historicalContext}`,
           mergedResult.confidence = 'medium';
         }
 
-        console.log(`[analyzeMultipleScreenshots] Merged result:`, JSON.stringify(mergedResult, null, 2));
+         // 【重要】mergedResultのdurationMinutesをstartDateTime/endDateTimeから再計算・バリデーション
+        if (mergedResult.startDateTime && mergedResult.endDateTime) {
+          try {
+            const startDt = new Date(mergedResult.startDateTime);
+            const endDt = new Date(mergedResult.endDateTime);
+            if (!isNaN(startDt.getTime()) && !isNaN(endDt.getTime())) {
+              let calcDuration = Math.round((endDt.getTime() - startDt.getTime()) / (1000 * 60));
+              if (calcDuration < 0) {
+                calcDuration += 24 * 60;
+                const correctedEnd = new Date(endDt.getTime() + 24 * 60 * 60 * 1000);
+                mergedResult.endDateTime = correctedEnd.toISOString().replace('T', ' ').substring(0, 16);
+                console.log(`[analyzeMultipleScreenshots] endDateTime corrected to next day: ${mergedResult.endDateTime}`);
+              }
+              const currentDur = mergedResult.durationMinutes;
+              if (calcDuration >= 10 && (currentDur === null || currentDur < 30 || Math.abs(calcDuration - currentDur) > calcDuration * 0.5)) {
+                console.log(`[analyzeMultipleScreenshots] Duration corrected: ${currentDur}min -> ${calcDuration}min`);
+                mergedResult.durationMinutes = calcDuration;
+              }
+            }
+          } catch (e) {
+            console.error('[analyzeMultipleScreenshots] Duration validation error:', e);
+          }
+        }
 
+        console.log(`[analyzeMultipleScreenshots] Merged result:`, JSON.stringify(mergedResult, null, 2));
         // Save to history if requested
         if (input.saveToHistory) {
           try {
