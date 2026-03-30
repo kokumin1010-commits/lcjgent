@@ -118,6 +118,7 @@ const StepEmailLogs = lazy(() => import("./pages/StepEmailLogs"));
 const StepEmailAnalytics = lazy(() => import("./pages/StepEmailAnalytics"));
 const BrandSampleLP = lazy(() => import("./pages/BrandSampleLP"));
 const BrandApplications = lazy(() => import("./pages/BrandApplications"));
+const AdFormSubmissions = lazy(() => import("./pages/AdFormSubmissions"));
 const SalesCheck = lazy(() => import("./pages/SalesCheck"));
 const AbTestDashboard = lazy(() => import("./pages/AbTestDashboard"));
 
@@ -416,6 +417,12 @@ function Router() {
         <Route path="/master/brand-applications">
           <DashboardLayout>
             <BrandApplications />
+          </DashboardLayout>
+        </Route>
+
+        <Route path="/master/ad-form-submissions">
+          <DashboardLayout>
+            <AdFormSubmissions />
           </DashboardLayout>
         </Route>
 

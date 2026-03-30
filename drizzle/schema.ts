@@ -4271,3 +4271,28 @@ export const abTestEvents = mysqlTable("ab_test_events", {
 
 export type AbTestEvent = typeof abTestEvents.$inferSelect;
 export type InsertAbTestEvent = typeof abTestEvents.$inferInsert;
+
+
+/**
+ * Ad Form Submissions table - TikTok広告LP申込フォーム
+ */
+export const adFormSubmissions = mysqlTable("ad_form_submissions", {
+  id: int("id").autoincrement().primaryKey(),
+  companyName: varchar("company_name", { length: 255 }).notNull(),
+  contactPerson: varchar("contact_person", { length: 255 }).notNull(),
+  email: varchar("email", { length: 320 }).notNull(),
+  phone: varchar("phone", { length: 50 }),
+  monthlyBudget: varchar("monthly_budget", { length: 100 }),
+  plan: mysqlEnum("plan", ["light", "algorithm", "market_jack"]).default("light").notNull(),
+  message: text("message"),
+  source: varchar("source", { length: 100 }).default("tiktok_ads_lp"),
+  status: mysqlEnum("status", ["pending", "contacted", "in_progress", "contracted", "rejected"]).default("pending").notNull(),
+  reviewNote: text("review_note"),
+  reviewedAt: timestamp("reviewed_at"),
+  reviewedBy: int("reviewed_by"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AdFormSubmission = typeof adFormSubmissions.$inferSelect;
+export type InsertAdFormSubmission = typeof adFormSubmissions.$inferInsert;

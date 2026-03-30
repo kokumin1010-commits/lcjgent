@@ -100,7 +100,8 @@ function DashboardLayoutContent({
     { icon: Building2, label: t("nav.brands"), path: "/master/brands" },
     { icon: Tag, label: "ブランド追加ログ", path: "/master/brand-addition-logs" },
     { icon: Handshake, label: "招商管理", path: "/master/recruitment" },
-    { icon: Inbox, label: "ブランド申込フォーム一覧", path: "/master/brand-applications", hasBadge: true },
+    { icon: Inbox, label: "ブランド申込フォーム一覧", path: "/master/brand-applications", hasBadge: true, badgeType: "brand" as const },
+    { icon: Megaphone, label: "広告申込フォーム一覧", path: "/master/ad-form-submissions", hasBadge: true, badgeType: "adForm" as const },
     { icon: CreditCard, label: t("nav.businessCards"), path: "/master/business-cards" },
     { icon: MessageSquare, label: t("nav.line"), path: "/master/line" },
     { icon: Bell, label: t("nav.lineFollowUps"), path: "/master/line/follow-ups" },
@@ -213,7 +214,7 @@ function DashboardLayoutContent({
                           className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
                         />
                         <span>{item.label}</span>
-                        {(item as any).hasBadge && <BrandAppBadge />}
+                        {(item as any).hasBadge && (item as any).badgeType === "adForm" ? <AdFormBadge /> : (item as any).hasBadge ? <BrandAppBadge /> : null}
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   );
@@ -333,6 +334,19 @@ function DashboardLayoutContent({
         <main className="flex-1 p-4">{children}</main>
       </SidebarInset>
     </>
+  );
+}
+
+function AdFormBadge() {
+  const { data: stats } = trpc.adForm.stats.useQuery(undefined, {
+    refetchInterval: 60000,
+  });
+  const pendingCount = stats?.pending ?? 0;
+  if (pendingCount === 0) return null;
+  return (
+    <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-pink-500 px-1.5 text-[10px] font-bold text-white leading-none animate-pulse">
+      {pendingCount}
+    </span>
   );
 }
 
