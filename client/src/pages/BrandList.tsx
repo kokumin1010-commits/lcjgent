@@ -41,6 +41,7 @@ const translations = {
     sortByName: "名前順",
     sortByGmv: "売上順",
     sortByAdBudget: "広告費順",
+    sortByCreatedAt: "登録順",
     // 期間フィルター
     period: "期間",
     allTime: "全期間",
@@ -79,6 +80,7 @@ const translations = {
     sortByName: "名称排序",
     sortByGmv: "销售额排序",
     sortByAdBudget: "广告费排序",
+    sortByCreatedAt: "注册顺序",
     // 期間フィルター
     period: "期间",
     allTime: "全期间",
@@ -250,6 +252,10 @@ export default function BrandList() {
       const adA = (a as any).totalAdBudget || 0;
       const adB = (b as any).totalAdBudget || 0;
       return adB - adA;
+    } else if (sortBy === "createdAt") {
+      const dateA = (a as any).createdAt ? new Date((a as any).createdAt).getTime() : 0;
+      const dateB = (b as any).createdAt ? new Date((b as any).createdAt).getTime() : 0;
+      return dateB - dateA; // 新しい順
     } else {
       return (a.name || "").localeCompare(b.name || "", "ja");
     }
@@ -459,6 +465,7 @@ export default function BrandList() {
                   <SelectItem value="gmv">{t.sortByGmv}</SelectItem>
                   <SelectItem value="adBudget">{t.sortByAdBudget}</SelectItem>
                   <SelectItem value="name">{t.sortByName}</SelectItem>
+                  <SelectItem value="createdAt">{t.sortByCreatedAt}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
