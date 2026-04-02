@@ -124,6 +124,7 @@ const AbTestDashboard = lazy(() => import("./pages/AbTestDashboard"));
 const AgencyLogin = lazy(() => import("./pages/AgencyLogin"));
 const AgencyDashboard = lazy(() => import("./pages/AgencyDashboard"));
 const AgencyManagement = lazy(() => import("./pages/AgencyManagement"));
+const AgencyLiverRegister = lazy(() => import("./pages/AgencyLiverRegister"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -434,6 +435,7 @@ function Router() {
         <Route path="/master/ab-test" component={AbTestDashboard} />
 
         {/* Agency (事務所) Pages */}
+        <Route path="/agency/:agencyCode/liver/register" component={AgencyLiverRegister} />
         <Route path="/agency/login" component={AgencyLogin} />
         <Route path="/agency/dashboard" component={AgencyDashboard} />
         <Route path="/master/agencies">

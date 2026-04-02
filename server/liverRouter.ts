@@ -63,6 +63,9 @@ export const liverRouter = router({
         email: z.string().email(),
         password: z.string().min(6),
         color: z.string().optional(),
+        agencyCode: z.string().optional(), // 事務所コード（loginId）でagencyId自動紐付け
+        tiktokAccount: z.string().optional(),
+        instagramAccount: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -75,6 +78,21 @@ export const liverRouter = router({
         });
       }
 
+      // Resolve agencyId from agencyCode if provided
+      let agencyId: number | null = null;
+      if (input.agencyCode) {
+        const { eq } = await import("drizzle-orm");
+        const { agencies } = await import("../drizzle/schema");
+        const { getDb: getDbFn } = await import("./db");
+        const db = await getDbFn();
+        if (db) {
+          const results = await db.select().from(agencies).where(eq(agencies.loginId, input.agencyCode)).limit(1);
+          if (results[0] && results[0].isActive) {
+            agencyId = results[0].id;
+          }
+        }
+      }
+
       // Hash password
       const hashedPassword = await bcrypt.hash(input.password, 10);
 
@@ -84,6 +102,9 @@ export const liverRouter = router({
         email: input.email,
         password: hashedPassword,
         color: input.color || "#FF69B4",
+        ...(agencyId ? { agencyId } : {}),
+        ...(input.tiktokAccount ? { tiktokAccount: input.tiktokAccount } : {}),
+        ...(input.instagramAccount ? { instagramAccount: input.instagramAccount } : {}),
       });
 
       // Get the created liver
