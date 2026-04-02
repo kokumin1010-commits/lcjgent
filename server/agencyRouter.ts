@@ -196,6 +196,66 @@ export const agencyRouter = router({
     }));
   }),
 
+  // ===== 事務所からライバー新規登録 =====
+
+  registerLiver: publicProcedure
+    .input(z.object({
+      name: z.string().min(1),
+      email: z.string().email(),
+      password: z.string().min(6),
+      color: z.string().optional(),
+      tiktokAccount: z.string().optional(),
+      instagramAccount: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const token = getAgencyToken(ctx);
+      if (!token) throw new TRPCError({ code: "UNAUTHORIZED" });
+      const payload = await verifyAgencyToken(token);
+      if (!payload) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+      // Check if email already exists
+      const { checkLiverEmailExists, createLiver, getLiverById } = await import("./db");
+      const exists = await checkLiverEmailExists(input.email);
+      if (exists) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "このメールアドレスは既に登録されています",
+        });
+      }
+
+      // Hash password
+      const hashedPassword = await bcrypt.hash(input.password, 10);
+
+      // Create liver with agencyId
+      const liverId = await createLiver({
+        name: input.name,
+        email: input.email,
+        password: hashedPassword,
+        color: input.color || "#FF69B4",
+        tiktokAccount: input.tiktokAccount || null,
+        instagramAccount: input.instagramAccount || null,
+        agencyId: payload.agencyId,
+      });
+
+      const liver = await getLiverById(liverId);
+      if (!liver) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "ライバーの作成に失敗しました",
+        });
+      }
+
+      return {
+        success: true,
+        liver: {
+          id: liver.id,
+          name: liver.name,
+          email: liver.email,
+          color: liver.color,
+        },
+      };
+    }),
+
   // ===== ダッシュボード =====
 
   dashboard: publicProcedure.query(async ({ ctx }) => {

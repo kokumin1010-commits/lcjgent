@@ -1,12 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
   Building2, Users, Video, TrendingUp, Calendar, LogOut,
-  ChevronRight, Clock, BarChart3, History, Settings
+  ChevronRight, Clock, BarChart3, History, Settings, UserPlus, Copy, Check
 } from "lucide-react";
+import { toast } from "sonner";
 import { getAgencyToken, clearAgencyToken } from "@/lib/agencyAuth";
 
 export default function AgencyDashboard() {
@@ -258,9 +262,135 @@ function DashboardTab({ dashboard, livers }: { dashboard: any; livers: any }) {
 
 // ===== Livers Tab =====
 function LiversTab({ livers }: { livers: any }) {
+  const [showRegister, setShowRegister] = useState(false);
+  const [regName, setRegName] = useState("");
+  const [regEmail, setRegEmail] = useState("");
+  const [regPassword, setRegPassword] = useState("");
+  const [regTiktok, setRegTiktok] = useState("");
+  const [regInstagram, setRegInstagram] = useState("");
+  const [regColor, setRegColor] = useState("#FF69B4");
+  const [registeredInfo, setRegisteredInfo] = useState<{name: string; email: string; password: string} | null>(null);
+  const [copied, setCopied] = useState(false);
+  const utils = trpc.useUtils();
+
+  const registerMutation = trpc.agency.registerLiver.useMutation({
+    onSuccess: (data) => {
+      setRegisteredInfo({ name: regName, email: regEmail, password: regPassword });
+      toast.success(`${regName} さんを登録しました！`);
+      utils.agency.getMyLivers.invalidate();
+      utils.agency.dashboard.invalidate();
+      setRegName(""); setRegEmail(""); setRegPassword("");
+      setRegTiktok(""); setRegInstagram(""); setRegColor("#FF69B4");
+    },
+    onError: (err) => {
+      toast.error(err.message || "登録に失敗しました");
+    },
+  });
+
+  const handleRegister = () => {
+    if (!regName || !regEmail || !regPassword) {
+      toast.error("名前・メール・パスワードは必須です");
+      return;
+    }
+    if (regPassword.length < 6) {
+      toast.error("パスワードは6文字以上にしてください");
+      return;
+    }
+    registerMutation.mutate({
+      name: regName,
+      email: regEmail,
+      password: regPassword,
+      color: regColor,
+      tiktokAccount: regTiktok || undefined,
+      instagramAccount: regInstagram || undefined,
+    });
+  };
+
+  const copyLoginInfo = () => {
+    if (!registeredInfo) return;
+    const text = `【ライバーログイン情報】\nログインURL: https://lcjmall.com/liver/login\nメール: ${registeredInfo.email}\nパスワード: ${registeredInfo.password}\nマイページ: https://lcjmall.com/liver/mypage`;
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    toast.success("ログイン情報をコピーしました");
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-bold text-white">所属ライバー一覧</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-white">所属ライバー一覧</h2>
+        <Dialog open={showRegister} onOpenChange={(open) => { setShowRegister(open); if (!open) setRegisteredInfo(null); }}>
+          <DialogTrigger asChild>
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
+              <UserPlus className="w-4 h-4" />
+              ライバーを新規登録
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="bg-slate-800 border-slate-700 text-white max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-white">ライバー新規登録</DialogTitle>
+            </DialogHeader>
+            {registeredInfo ? (
+              <div className="space-y-4">
+                <div className="bg-green-900/30 border border-green-700 rounded-lg p-4">
+                  <p className="text-green-400 font-bold mb-2">✅ 登録完了！</p>
+                  <p className="text-sm text-slate-300">以下の情報をライバーに共有してください：</p>
+                </div>
+                <div className="bg-slate-900 rounded-lg p-4 space-y-2 text-sm">
+                  <p><span className="text-slate-400">ログインURL:</span> <span className="text-blue-400">https://lcjmall.com/liver/login</span></p>
+                  <p><span className="text-slate-400">メール:</span> <span className="text-white">{registeredInfo.email}</span></p>
+                  <p><span className="text-slate-400">パスワード:</span> <span className="text-white">{registeredInfo.password}</span></p>
+                  <p><span className="text-slate-400">マイページ:</span> <span className="text-blue-400">https://lcjmall.com/liver/mypage</span></p>
+                </div>
+                <Button onClick={copyLoginInfo} className="w-full bg-blue-600 hover:bg-blue-700 gap-2">
+                  {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  {copied ? "コピーしました" : "ログイン情報をコピー"}
+                </Button>
+                <Button onClick={() => { setRegisteredInfo(null); }} variant="outline" className="w-full border-slate-600 text-slate-300 hover:bg-slate-700">
+                  続けて登録する
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-slate-300">名前 <span className="text-red-400">*</span></Label>
+                  <Input value={regName} onChange={(e) => setRegName(e.target.value)} placeholder="例: 田中花子" className="bg-slate-900 border-slate-600 text-white mt-1" />
+                </div>
+                <div>
+                  <Label className="text-slate-300">メールアドレス <span className="text-red-400">*</span></Label>
+                  <Input type="email" value={regEmail} onChange={(e) => setRegEmail(e.target.value)} placeholder="例: hanako@example.com" className="bg-slate-900 border-slate-600 text-white mt-1" />
+                </div>
+                <div>
+                  <Label className="text-slate-300">パスワード <span className="text-red-400">*</span> <span className="text-xs text-slate-500">(6文字以上)</span></Label>
+                  <Input type="password" value={regPassword} onChange={(e) => setRegPassword(e.target.value)} placeholder="ログイン用パスワード" className="bg-slate-900 border-slate-600 text-white mt-1" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-slate-300">TikTokアカウント</Label>
+                    <Input value={regTiktok} onChange={(e) => setRegTiktok(e.target.value)} placeholder="@username" className="bg-slate-900 border-slate-600 text-white mt-1" />
+                  </div>
+                  <div>
+                    <Label className="text-slate-300">Instagramアカウント</Label>
+                    <Input value={regInstagram} onChange={(e) => setRegInstagram(e.target.value)} placeholder="@username" className="bg-slate-900 border-slate-600 text-white mt-1" />
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-slate-300">テーマカラー</Label>
+                  <div className="flex items-center gap-3 mt-1">
+                    <input type="color" value={regColor} onChange={(e) => setRegColor(e.target.value)} className="w-10 h-10 rounded cursor-pointer border-0" />
+                    <span className="text-sm text-slate-400">{regColor}</span>
+                  </div>
+                </div>
+                <Button onClick={handleRegister} disabled={registerMutation.isPending} className="w-full bg-blue-600 hover:bg-blue-700 gap-2">
+                  <UserPlus className="w-4 h-4" />
+                  {registerMutation.isPending ? "登録中..." : "ライバーを登録"}
+                </Button>
+                <p className="text-xs text-slate-500 text-center">登録後、ライバーは https://lcjmall.com/liver/login からログインできます</p>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      </div>
       {livers && livers.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {livers.map((l: any) => (
@@ -309,7 +439,7 @@ function LiversTab({ livers }: { livers: any }) {
           <CardContent className="p-12 text-center">
             <Users className="w-12 h-12 text-slate-600 mx-auto mb-4" />
             <p className="text-slate-400">所属ライバーがいません</p>
-            <p className="text-sm text-slate-500 mt-2">管理者がライバーを割り当てると表示されます</p>
+            <p className="text-sm text-slate-500 mt-2">上の「ライバーを新規登録」ボタンからライバーを追加できます</p>
           </CardContent>
         </Card>
       )}
