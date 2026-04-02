@@ -848,11 +848,12 @@ export const livers = mysqlTable("livers", {
   language: varchar("language", { length: 10 }).default("ja"), // UI言語設定（ja/zh-TW/en）
   lineLinkCode: varchar("lineLinkCode", { length: 10 }), // LINE連携コード（L-XXXXXX形式、8文字）
   lineLinkCodeExpiresAt: timestamp("lineLinkCodeExpiresAt"), // LINE連携コードの有効期限
+   // 事務所（エージェンシー）
+  agencyId: int("agencyId"), // References agencies.id（NULLの場合はLCJ直属）
   // タイムスタンプ
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
 export type Liver = typeof livers.$inferSelect;
 export type InsertLiver = typeof livers.$inferInsert;
 
@@ -4296,3 +4297,28 @@ export const adFormSubmissions = mysqlTable("ad_form_submissions", {
 
 export type AdFormSubmission = typeof adFormSubmissions.$inferSelect;
 export type InsertAdFormSubmission = typeof adFormSubmissions.$inferInsert;
+
+/**
+ * Agencies table for managing external live commerce agencies
+ * 事務所（エージェンシー）管理テーブル
+ * 
+ * 機能:
+ * - 外部事務所のアカウント管理
+ * - 事務所ごとのライバー管理・ライブ管理
+ * - マルチテナント対応
+ */
+export const agencies = mysqlTable("agencies", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  loginId: varchar("loginId", { length: 100 }).notNull().unique(),
+  password: varchar("password", { length: 255 }).notNull(),
+  logoUrl: text("logoUrl"),
+  contactEmail: varchar("contactEmail", { length: 320 }),
+  contactPhone: varchar("contactPhone", { length: 50 }),
+  description: text("description"),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Agency = typeof agencies.$inferSelect;
+export type InsertAgency = typeof agencies.$inferInsert;

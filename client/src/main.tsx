@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { getLiverToken } from "@/lib/liverAuth";
+import { getAgencyToken } from "@/lib/agencyAuth";
 import { UNAUTHED_ERR_MSG } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink, TRPCClientError } from "@trpc/client";
@@ -70,12 +71,18 @@ const trpcClient = trpc.createClient({
         // Get liver token from localStorage
         const liverToken = getLiverToken();
         
+        // Get agency token from localStorage
+        const agencyToken = getAgencyToken();
+        
         // Get LCJ MALL session token from localStorage (fallback for cookie issues)
         const lcjSessionToken = localStorage.getItem('lcj_session_token');
         
         // Add Authorization header based on current page context
         const headers = new Headers(init?.headers);
         const currentPath = window.location.pathname;
+        
+        // Agency pages should use agencyToken
+        const isAgencyPage = currentPath.startsWith('/agency/');
         
         // Determine which token to use based on the page context
         // LCJ MALL pages (mypage, line-login, etc.) should use lcjSessionToken
@@ -98,7 +105,9 @@ const trpcClient = trpc.createClient({
         
         // IMPORTANT: Always send liver token if it exists and we're on a liver page
         // This ensures the token is sent even during page transitions
-        if (liverToken && (isLiverPage || !isLcjMallPage)) {
+        if (agencyToken && isAgencyPage) {
+          headers.set("Authorization", `Bearer ${agencyToken}`);
+        } else if (liverToken && (isLiverPage || !isLcjMallPage)) {
           // Prioritize liver token for liver pages and non-LCJ pages
           headers.set("Authorization", `Bearer ${liverToken}`);
         } else if (lcjSessionToken && isLcjMallPage) {

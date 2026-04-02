@@ -121,6 +121,9 @@ const BrandApplications = lazy(() => import("./pages/BrandApplications"));
 const AdFormSubmissions = lazy(() => import("./pages/AdFormSubmissions"));
 const SalesCheck = lazy(() => import("./pages/SalesCheck"));
 const AbTestDashboard = lazy(() => import("./pages/AbTestDashboard"));
+const AgencyLogin = lazy(() => import("./pages/AgencyLogin"));
+const AgencyDashboard = lazy(() => import("./pages/AgencyDashboard"));
+const AgencyManagement = lazy(() => import("./pages/AgencyManagement"));
 
 // ページ遷移時のフォールバック（軽量スピナー）
 function PageLoader() {
@@ -429,6 +432,15 @@ function Router() {
         {/* Brand Sample LP */}
         <Route path="/brand-sample" component={BrandSampleLP} />
         <Route path="/master/ab-test" component={AbTestDashboard} />
+
+        {/* Agency (事務所) Pages */}
+        <Route path="/agency/login" component={AgencyLogin} />
+        <Route path="/agency/dashboard" component={AgencyDashboard} />
+        <Route path="/master/agencies">
+          <DashboardLayout>
+            <AgencyManagement />
+          </DashboardLayout>
+        </Route>
         
         {/* 404 */}
         <Route path={"/404"} component={NotFound} />
