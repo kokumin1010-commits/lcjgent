@@ -1,5 +1,8 @@
 FROM node:22-slim AS base
 
+# Install build tools for native modules (bcrypt) and OpenSSL for Prisma/DB
+RUN apt-get update && apt-get install -y python3 make g++ openssl && rm -rf /var/lib/apt/lists/*
+
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@10.4.1 --activate
 
@@ -8,7 +11,7 @@ WORKDIR /app
 # Copy package files
 COPY package.json pnpm-lock.yaml ./
 
-# Install dependencies
+# Install all dependencies
 RUN pnpm install --no-frozen-lockfile
 
 # Copy source code
@@ -20,6 +23,8 @@ RUN pnpm run build
 # Production stage
 FROM node:22-slim AS production
 
+# Install runtime dependencies for native modules
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@10.4.1 --activate
 
 WORKDIR /app
@@ -32,7 +37,6 @@ COPY --from=base /app/client/dist ./client/dist
 COPY --from=base /app/drizzle ./drizzle
 
 EXPOSE 8080
-
 ENV NODE_ENV=production
 ENV PORT=8080
 
