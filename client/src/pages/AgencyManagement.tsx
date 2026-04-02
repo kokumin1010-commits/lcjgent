@@ -13,10 +13,10 @@ import {
 import {
   Building2, Plus, Users, Edit, UserPlus, UserMinus, Eye, EyeOff, ExternalLink
 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 export default function AgencyManagement() {
-  const { toast } = useToast();
+
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showAssignDialog, setShowAssignDialog] = useState(false);
   const [selectedAgencyId, setSelectedAgencyId] = useState<number | null>(null);
@@ -39,32 +39,32 @@ export default function AgencyManagement() {
 
   const createMutation = trpc.agency.create.useMutation({
     onSuccess: () => {
-      toast({ title: "事務所を作成しました" });
+      toast.success("事務所を作成しました");
       setShowCreateDialog(false);
       resetForm();
       agenciesQuery.refetch();
     },
-    onError: (err) => toast({ title: "エラー", description: err.message, variant: "destructive" }),
+    onError: (err) => toast.error(`エラー: ${err.message}`),
   });
 
   const updateMutation = trpc.agency.update.useMutation({
     onSuccess: () => {
-      toast({ title: "事務所を更新しました" });
+      toast.success("事務所を更新しました");
       setEditingAgency(null);
       resetForm();
       agenciesQuery.refetch();
     },
-    onError: (err) => toast({ title: "エラー", description: err.message, variant: "destructive" }),
+    onError: (err) => toast.error(`エラー: ${err.message}`),
   });
 
   const assignMutation = trpc.agency.assignLiver.useMutation({
     onSuccess: () => {
-      toast({ title: "ライバーを割り当てました" });
+      toast.success("ライバーを割り当てました");
       agenciesQuery.refetch();
       unassignedLiversQuery.refetch();
       if (selectedAgencyId) agencyLiversQuery.refetch();
     },
-    onError: (err) => toast({ title: "エラー", description: err.message, variant: "destructive" }),
+    onError: (err) => toast.error(`エラー: ${err.message}`),
   });
 
   const resetForm = () => {
