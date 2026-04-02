@@ -1,4 +1,4 @@
-FROM node:22-slim AS base
+FROM node:22-slim
 
 # Install build tools for native modules (bcrypt, sharp) and OpenSSL
 RUN apt-get update && apt-get install -y python3 make g++ openssl && rm -rf /var/lib/apt/lists/*
@@ -8,7 +8,7 @@ RUN corepack enable && corepack prepare pnpm@10.4.1 --activate
 
 WORKDIR /app
 
-# Copy package files AND patches (pnpm patchedDependencies requires patches/)
+# Copy package files AND patches
 COPY package.json pnpm-lock.yaml ./
 COPY patches/ ./patches/
 
@@ -21,24 +21,8 @@ COPY . .
 # Build
 RUN pnpm run build
 
-# Production stage
-FROM node:22-slim AS production
-
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
-RUN corepack enable && corepack prepare pnpm@10.4.1 --activate
-
-WORKDIR /app
-
-# Copy package files AND patches for production install
-COPY package.json pnpm-lock.yaml ./
-COPY patches/ ./patches/
-
-RUN pnpm install --no-frozen-lockfile --prod
-
-COPY --from=base /app/dist ./dist
-COPY --from=base /app/client/dist ./client/dist
-COPY --from=base /app/drizzle ./drizzle
+# Remove dev dependencies to reduce image size
+RUN pnpm prune --prod
 
 EXPOSE 8080
 ENV NODE_ENV=production
