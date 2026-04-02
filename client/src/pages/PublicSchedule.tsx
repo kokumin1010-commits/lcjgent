@@ -130,7 +130,12 @@ type Schedule = {
   parentScheduleId?: number | null; // 繰り返し予定の親 ID
 };
 
-export default function PublicSchedule() {
+type PublicScheduleProps = {
+  agencyCode?: string;
+  agencyName?: string;
+};
+
+export default function PublicSchedule({ agencyCode, agencyName }: PublicScheduleProps = {}) {
   const [, navigate] = useLocation();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -219,17 +224,25 @@ export default function PublicSchedule() {
     return { start, end };
   }, [currentDate]);
 
-  // Fetch schedules
-  const { data: schedules, isLoading, refetch } = trpc.schedule.getPublicByDateRange.useQuery({
-    startDate: dateRange.start.toISOString(),
-    endDate: dateRange.end.toISOString(),
-  });
+  // Fetch schedules - use agency-specific API if agencyCode is provided
+  const { data: schedules, isLoading, refetch } = agencyCode
+    ? trpc.schedule.getByAgencyCode.useQuery({
+        agencyCode,
+        startDate: dateRange.start.toISOString(),
+        endDate: dateRange.end.toISOString(),
+      })
+    : trpc.schedule.getPublicByDateRange.useQuery({
+        startDate: dateRange.start.toISOString(),
+        endDate: dateRange.end.toISOString(),
+      });
 
   // Fetch existing liver names
-  const { data: existingLivers } = trpc.schedule.getPublicLiverNames.useQuery();
+  const { data: existingLivers } = trpc.schedule.getPublicLiverNames.useQuery(undefined, { enabled: !agencyCode });
 
-  // Fetch all liver names with DB colors (combines schedules + livers table)
-  const { data: liverNamesWithColors } = trpc.schedule.getPublicLiverNamesWithColors.useQuery();
+  // Fetch all liver names with DB colors - use agency-specific API if agencyCode is provided
+  const { data: liverNamesWithColors } = agencyCode
+    ? trpc.schedule.getLiverNamesByAgencyCode.useQuery({ agencyCode })
+    : trpc.schedule.getPublicLiverNamesWithColors.useQuery();
 
   // Edit mode state
   const [isEditMode, setIsEditMode] = useState(false);
@@ -814,7 +827,10 @@ export default function PublicSchedule() {
       <div className="sticky top-0 bg-white z-10 px-4 py-3 border-b">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-pink-400 to-pink-500 rounded-lg flex items-center justify-center">
+            <div className={cn(
+              "w-10 h-10 rounded-lg flex items-center justify-center",
+              agencyCode ? "bg-gradient-to-br from-blue-500 to-cyan-500" : "bg-gradient-to-br from-pink-400 to-pink-500"
+            )}>
               <Calendar className="h-5 w-5 text-white" />
             </div>
             <div>
@@ -825,7 +841,7 @@ export default function PublicSchedule() {
                 {currentDate.getFullYear()}年{currentDate.getMonth() + 1}月
                 <ChevronDown className="h-4 w-4" />
               </button>
-              <p className="text-xs text-gray-500">LCJ スケジュール</p>
+              <p className="text-xs text-gray-500">{agencyName || 'LCJ'} スケジュール</p>
             </div>
           </div>
           {/* User Menu */}
@@ -867,16 +883,20 @@ export default function PublicSchedule() {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem onClick={() => navigate("/login")}>
-                  <LogIn className="h-4 w-4 mr-2" />
-                  管理者ログイン
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
+                {!agencyCode && (
+                  <>
+                    <DropdownMenuItem onClick={() => navigate("/login")}>
+                      <LogIn className="h-4 w-4 mr-2" />
+                      管理者ログイン
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 <DropdownMenuItem onClick={() => navigate("/liver/login")}>
                   <LogIn className="h-4 w-4 mr-2" />
                   ライバーログイン
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate("/liver/register")}>
+                <DropdownMenuItem onClick={() => navigate(agencyCode ? `/agency/${agencyCode}/liver/register` : "/liver/register")}>
                   <UserPlus className="h-4 w-4 mr-2" />
                   ライバー新規登録
                 </DropdownMenuItem>
@@ -969,8 +989,8 @@ export default function PublicSchedule() {
         </div>
       </div>
 
-      {/* Schedule Group Tabs */}
-      {scheduleGroups && scheduleGroups.length > 0 && (
+      {/* Schedule Group Tabs - hide for agency-specific pages */}
+      {!agencyCode && scheduleGroups && scheduleGroups.length > 0 && (
         <div className="border-b">
           <ScrollArea className="w-full whitespace-nowrap">
             <div className="flex gap-1 p-2">

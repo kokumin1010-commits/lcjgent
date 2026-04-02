@@ -3034,6 +3034,56 @@ export async function getSchedulesByDateRange(startDate: Date, endDate: Date) {
     .orderBy(asc(schedules.startTime));
 }
 
+// Get schedules by agency ID (filter by livers belonging to the agency)
+export async function getSchedulesByAgency(agencyId: number, startDate: Date, endDate: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // Get liver names belonging to this agency
+  const agencyLivers = await db
+    .select({ name: livers.name })
+    .from(livers)
+    .where(and(
+      eq(livers.agencyId, agencyId),
+      eq(livers.isActive, true)
+    ));
+  
+  const liverNames = agencyLivers.map(l => l.name).filter(Boolean);
+  if (liverNames.length === 0) return [];
+  
+  return await db
+    .select()
+    .from(schedules)
+    .where(
+      and(
+        sql`${schedules.startTime} >= ${startDate}`,
+        sql`${schedules.startTime} <= ${endDate}`,
+        not(eq(schedules.status, "cancelled")),
+        inArray(schedules.liverName, liverNames)
+      )
+    )
+    .orderBy(asc(schedules.startTime));
+}
+
+// Get liver names with colors by agency ID
+export async function getLiverNamesByAgency(agencyId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const result = await db
+    .select({ name: livers.name, color: livers.color })
+    .from(livers)
+    .where(and(
+      eq(livers.agencyId, agencyId),
+      eq(livers.isActive, true)
+    ));
+  
+  return result
+    .filter(r => r.name)
+    .map(r => ({ name: r.name!, color: r.color || '#FF69B4' }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+}
+
 // Get schedules by liver name
 export async function getSchedulesByLiverName(liverName: string, startDate?: Date, endDate?: Date) {
   const db = await getDb();

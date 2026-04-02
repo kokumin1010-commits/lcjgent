@@ -166,6 +166,8 @@ import {
   getSchedulesByDate,
   getSchedulesByDateRange,
   getSchedulesByLiverName,
+  getSchedulesByAgency,
+  getLiverNamesByAgency,
   updateSchedule,
   deleteSchedule,
   updateRecurringSchedules,
@@ -580,7 +582,7 @@ import { generateImage } from "./_core/imageGeneration";
 import { pushMessage, leaveGroup } from "./line";
 import { notifyOwner } from "./_core/notification";
 import { getDb } from "./db";
-import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams } from "../drizzle/schema";
+import { lineUsers, brands, lineGroups, schedules, adAlertHistory, adInvestmentRecords, brandAdPerformanceStats, tiktokCommissionOrders, livestreamSets, livestreamSetItems, simulations, livers, userReferralProgress, productMaster, bwLinkedAccounts, livestreamBrands, brandAdditionLogs, staff, reportStaff, reports, reportFollowups, brandLivestreams, agencies } from "../drizzle/schema";
 import { eq, and, not, isNotNull, isNull, desc, gt, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { jwtVerify } from "jose";
@@ -9225,6 +9227,44 @@ ${conversationText}
           .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
       }),
 
+    // Public: Get schedules by agency code (for agency-specific schedule pages)
+    getByAgencyCode: publicProcedure
+      .input(
+        z.object({
+          agencyCode: z.string(),
+          startDate: z.string(),
+          endDate: z.string(),
+        })
+      )
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return [];
+        // Find agency by loginId (agencyCode)
+        const agencyResult = await db
+          .select({ id: agencies.id })
+          .from(agencies)
+          .where(eq(agencies.loginId, input.agencyCode))
+          .limit(1);
+        if (agencyResult.length === 0) return [];
+        const agencyId = agencyResult[0].id;
+        const startDate = new Date(input.startDate);
+        const endDate = new Date(input.endDate);
+        return await getSchedulesByAgency(agencyId, startDate, endDate);
+      }),
+    // Public: Get liver names with colors by agency code
+    getLiverNamesByAgencyCode: publicProcedure
+      .input(z.object({ agencyCode: z.string() }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return [];
+        const agencyResult = await db
+          .select({ id: agencies.id })
+          .from(agencies)
+          .where(eq(agencies.loginId, input.agencyCode))
+          .limit(1);
+        if (agencyResult.length === 0) return [];
+        return await getLiverNamesByAgency(agencyResult[0].id);
+      }),
     // Public: Create a schedule (no auth required for public calendar)
     publicCreate: publicProcedure
       .input(

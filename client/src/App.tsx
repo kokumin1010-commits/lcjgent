@@ -38,6 +38,7 @@ const LineFollowUps = lazy(() => import("./pages/LineFollowUps"));
 const PendingResponses = lazy(() => import("./pages/PendingResponses"));
 const Calendar = lazy(() => import("./pages/Calendar"));
 const PublicSchedule = lazy(() => import("./pages/PublicSchedule"));
+const MobmartSchedule = lazy(() => import("./pages/MobmartSchedule"));
 const PublicLiverSchedule = lazy(() => import("./pages/PublicLiverSchedule"));
 const LiverRegister = lazy(() => import("./pages/LiverRegister"));
 const LiverLogin = lazy(() => import("./pages/LiverLogin"));
@@ -392,6 +393,7 @@ function Router() {
         {/* Public Pages - Schedule */}
         <Route path={"/s"} component={PublicSchedule} />
         <Route path={"/s/:name"} component={PublicLiverSchedule} />
+        <Route path={"/mobmart/s"} component={MobmartSchedule} />
         
         {/* Schedule Group Management */}
         <Route path={"/master/schedule-groups"} component={ScheduleGroupManagement} />
