@@ -59,11 +59,13 @@ const DAILY_TYPE_PLAN: ArticleTypeRotation[] = [
 
 /** カテゴリ優先度ウェイト（キーワードのカテゴリ名の一部マッチ） */
 const CATEGORY_WEIGHTS: Record<string, number> = {
-  'シャンプー': 0.35,
-  'スキンケア': 0.25,
-  '美容家電': 0.15,
-  'フレグランス': 0.10,
-  'オーラルケア': 0.10,
+  'TikTok': 0.25,
+  'ポイ活': 0.20,
+  'レシート': 0.15,
+  'ライブコマース': 0.15,
+  'LCJ': 0.10,
+  'シャンプー': 0.05,
+  'スキンケア': 0.05,
   'default': 0.05,
 };
 
@@ -78,6 +80,11 @@ const MAX_RETRY_COUNT = 3;
 
 // ─── Category keyword mapping for auto-assignment ───
 const CATEGORY_KEYWORD_MAP: Record<string, string[]> = {
+  'TikTok Shop': ['TikTok', 'ティックトック', 'TikTok Shop', 'アフィリエイト', 'ソーシャルコマース', 'ショート動画', 'TikTok広告'],
+  'ポイ活・ポイント': ['ポイ活', 'ポイント', 'キャッシュバック', 'ポイントサイト', 'マイル', 'クレカ', '二重取り', 'ポイント活動'],
+  'レシート副業': ['レシート', '副業', '買取', 'スキャン', '家計簿', 'お小遣い稼ぎ', 'レシートアプリ'],
+  'ライブコマース': ['ライブコマース', 'ライブ配信', 'ライブコマーサー', 'ライブショッピング', 'インフルエンサーコマース', '配信販売'],
+  'LCJ MALL': ['LCJ', 'MALL', '越境EC', '海外商品', '個人輸入', '海外通販'],
   'シャンプー・トリートメント': ['シャンプー', 'トリートメント', 'コンディショナー', 'ヘアマスク', '洗髪', 'ヘアウォッシュ'],
   'カラーケア': ['カラー', 'ヘアカラー', '紫シャンプー', 'カラーシャンプー', '染め', 'ブリーチ', 'ハイトーン', 'カラートリートメント'],
   'ダメージケア': ['ダメージ', '修復', 'パサパサ', '枝毛', '切れ毛', 'ケラチン', '補修', 'ヘアオイル'],
@@ -85,10 +92,10 @@ const CATEGORY_KEYWORD_MAP: Record<string, string[]> = {
   '美容師監修ケア': ['美容師', 'サロン', 'プロ', '専売', '監修', 'スタイリスト'],
   'スキンケア': ['スキンケア', '化粧水', '美容液', 'クレンジング', '洗顔', '保湿', 'セラム'],
   '美容家電': ['ドライヤー', 'ヘアアイロン', 'コテ', '美顔器', '美容家電'],
-  'TikTok Shop': ['TikTok', 'ティックトック', 'ライブコマース', 'ライブ配信', 'ソーシャルコマース'],
   'ランキング・比較': ['ランキング', '比較', 'おすすめ', '人気', 'ベスト', 'TOP'],
   '美容トレンド': ['トレンド', '最新', '新作', '話題'],
   'Eコマース': ['EC', 'オンラインショップ', '通販', '越境EC', 'D2C'],
+  '節約・お得情報': ['節約', 'お得', 'クーポン', 'セール', 'コスパ', '賢い買い物', '値引き'],
 };
 
 /**
@@ -427,14 +434,14 @@ async function autoReplenishKeywords() {
       }
 
       const categories = [
+        { cat: "tiktok-shop", desc: "TikTok Shopでの購入方法、お得な使い方、商品レビュー、TikTok Shop始め方、出店方法、売れ筋商品、TikTokアフィリエイト" },
+        { cat: "point-katsu", desc: "ポイ活、ポイント活動、ポイントサイト、キャッシュバック、ポイント二重取り、クレカポイント、マイル貯め方" },
+        { cat: "receipt-side-job", desc: "レシートで副業、レシート買取アプリ、レシートポイ活、レシートスキャンで稼ぐ、家計簿アプリ連携" },
+        { cat: "live-commerce", desc: "ライブコマース、ライブ配信販売、ライブコマーサー、ライブ配信で稼ぐ、ライブショッピング、インフルエンサーコマース" },
+        { cat: "lcj-mall", desc: "LCJ MALL、越境EC、海外商品購入、個人輸入、海外通販、お得な買い物術" },
+        { cat: "ec-trends", desc: `EC最新トレンド${currentYear}、ソーシャルコマース、D2C、サブスクリプションEC、AI×EC、パーソナライズ` },
+        { cat: "money-saving", desc: "節約術、お得情報、クーポン活用、セール攻略、コスパ最強、賢い買い物" },
         { cat: "shampoo-treatment", desc: "シャンプー・トリートメント おすすめ、比較、ランキング、成分、選び方" },
-        { cat: "color-care", desc: "カラーケア、紫シャンプー、カラーシャンプー、ブリーチ後ケア、ハイトーン維持" },
-        { cat: "damage-care", desc: "ダメージケア、ケラチントリートメント、髪の修復、パサパサ改善" },
-        { cat: "ingredient-analysis", desc: "成分解析、アミノ酸シャンプー、シリコンフリー、無添加" },
-        { cat: "professional-care", desc: "美容師おすすめ、サロン専売品、プロ用ヘアケア" },
-        { cat: "tiktok-shop", desc: "TikTok Shopでの購入方法、お得な使い方、商品レビュー、TikTok Shop始め方" },
-        { cat: "ranking-comparison", desc: "商品ランキング、比較記事、市販vs専売、コスパ比較" },
-        { cat: "beauty-trends", desc: `美容トレンド${currentYear}、最新ヘアケア、話題の成分、新商品` },
       ];
 
       // Pick 3 random categories to generate for variety
@@ -447,7 +454,7 @@ async function autoReplenishKeywords() {
             messages: [
               {
                 role: "system",
-                content: `あなたはSEOキーワードリサーチの専門家です。LCJ MALL（美容・ヘアケア商品を扱うECサイト。TikTok Shop連携あり）のための日本語ロングテールSEOキーワードを生成してください。
+                content: `あなたはSEOキーワードリサーチの専門家です。LCJ MALL（TikTok Shop連携ECモール。ポイ活・レシート副業・ライブコマース情報も発信。ドメイン: lcjmall.com）のための日本語ロングテールSEOキーワードを生成してください。
 ルール:
 - 3〜6語のロングテールキーワード
 - 購買意図が高いキーワードを優先（「おすすめ」「比較」「ランキング」「口コミ」「選び方」）
@@ -895,7 +902,7 @@ export async function executeAutoPostWithType(
 以下の条件で、検索エンジンとAI検索エンジン（ChatGPT、Perplexity、Google AI Overview）の両方で上位表示される記事を生成してください。
 
 メインキーワード: ${keyword}
-サイト: LCJ MALL（美容・ヘアケア商品を扱うECサイト。ドメイン: lcjmall.com。TikTok Shop連携あり）
+サイト: LCJ MALL（TikTok Shop連携ECモール。ポイ活・レシート副業・ライブコマース情報も発信。ドメイン: lcjmall.com）
 記事カテゴリ: ${categoryName || '自動判定'}
 現在の年: ${currentYear}年
 トーン: ${schedule.tone}
@@ -915,7 +922,7 @@ JSON形式で以下を出力してください:
   "seoTitle": "SEO用タイトル（60字以内）",
   "seoDescription": "SEO用ディスクリプション（155字以内）",
   "tags": ["記事テーマに合ったタグ名1", "タグ名2", "タグ名3", "タグ名4", "タグ名5"],
-  "suggestedCategory": "最適なカテゴリ名（シャンプー・トリートメント/カラーケア/ダメージケア/成分解析/美容師監修ケア/スキンケア/美容家電/TikTok Shop/ランキング・比較/美容トレンド/Eコマース）"
+  "suggestedCategory": "最適なカテゴリ名（TikTok Shop/ポイ活・ポイント/レシート副業/ライブコマース/LCJ MALL/シャンプー・トリートメント/カラーケア/ダメージケア/成分解析/美容師監修ケア/スキンケア/美容家電/ランキング・比較/美容トレンド/Eコマース/節約・お得情報）"
 }
 
 SEO/GEO最適化要件:
