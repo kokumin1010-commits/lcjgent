@@ -78,31 +78,93 @@ export const recruitmentRouter = router({
         personInCharge: z.number().nullable().optional(),
         contactInfo: z.string().optional(),
         memo: z.string().optional(),
+        status: z.string().optional(),
       })),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       let created = 0;
+      let updated = 0;
+
+      // ステータス自動識別マッピング
+      const STATUS_MAP: Record<string, string> = {
+        "已登记": "registered", "登记": "registered", "registered": "registered",
+        "已发送邮件": "email_sent", "已发邮件": "email_sent", "邮件已发": "email_sent", "email_sent": "email_sent", "emailed": "email_sent",
+        "已收到回复": "replied", "已回复": "replied", "回复": "replied", "replied": "replied",
+        "同意": "agreed", "agreed": "agreed",
+        "合作": "cooperating", "合作中": "cooperating", "cooperating": "cooperating",
+        "拒绝": "rejected", "已拒绝": "rejected", "rejected": "rejected",
+      };
+
+      const resolveStatus = (raw?: string): string => {
+        if (!raw || !raw.trim()) return "registered";
+        const normalized = raw.trim().toLowerCase();
+        return STATUS_MAP[normalized] || STATUS_MAP[raw.trim()] || "registered";
+      };
+
       for (const item of input.items) {
-        const [result] = await db.insert(recruitmentBrands).values({
-          brandName: item.brandName,
-          brandType: item.brandType,
-          personInCharge: item.personInCharge ?? null,
-          contactInfo: item.contactInfo || null,
-          memo: item.memo || null,
-          status: "registered",
-          createdBy: ctx.user?.id ?? null,
-        });
-        await db.insert(recruitmentStatusHistory).values({
-          recruitmentBrandId: result.insertId,
-          oldStatus: null,
-          newStatus: "registered",
-          changedBy: ctx.user?.id ?? null,
-          note: "批量导入",
-        });
-        created++;
+        const resolvedStatus = resolveStatus(item.status);
+
+        // 重複チェック: 同名ブランドが存在するか確認
+        const existing = await db.select()
+          .from(recruitmentBrands)
+          .where(and(
+            eq(recruitmentBrands.brandName, item.brandName),
+            isNull(recruitmentBrands.deletedAt)
+          ))
+          .limit(1);
+
+        if (existing.length > 0) {
+          // 重複: 最新状態で上書き
+          const existingBrand = existing[0];
+          const updateData: Record<string, any> = {};
+          if (item.brandType) updateData.brandType = item.brandType;
+          if (item.contactInfo) updateData.contactInfo = item.contactInfo;
+          if (item.memo) updateData.memo = item.memo;
+          if (item.personInCharge !== undefined) updateData.personInCharge = item.personInCharge;
+
+          // ステータスが変更された場合のみ更新
+          if (resolvedStatus !== existingBrand.status) {
+            updateData.status = resolvedStatus;
+            updateData.lastFollowedAt = new Date();
+            // ステータス変更履歴を記録
+            await db.insert(recruitmentStatusHistory).values({
+              recruitmentBrandId: existingBrand.id,
+              oldStatus: existingBrand.status,
+              newStatus: resolvedStatus,
+              changedBy: ctx.user?.id ?? null,
+              note: `批量导入更新 (从 ${STATUS_LABELS[existingBrand.status] || existingBrand.status} → ${STATUS_LABELS[resolvedStatus] || resolvedStatus})`,
+            });
+          }
+
+          if (Object.keys(updateData).length > 0) {
+            await db.update(recruitmentBrands)
+              .set(updateData)
+              .where(eq(recruitmentBrands.id, existingBrand.id));
+          }
+          updated++;
+        } else {
+          // 新規作成
+          const [result] = await db.insert(recruitmentBrands).values({
+            brandName: item.brandName,
+            brandType: item.brandType,
+            personInCharge: item.personInCharge ?? null,
+            contactInfo: item.contactInfo || null,
+            memo: item.memo || null,
+            status: resolvedStatus,
+            createdBy: ctx.user?.id ?? null,
+          });
+          await db.insert(recruitmentStatusHistory).values({
+            recruitmentBrandId: result.insertId,
+            oldStatus: null,
+            newStatus: resolvedStatus,
+            changedBy: ctx.user?.id ?? null,
+            note: "批量导入",
+          });
+          created++;
+        }
       }
-      return { success: true, created };
+      return { success: true, created, updated };
     }),
 
   // ===== 2. ブランド更新 =====

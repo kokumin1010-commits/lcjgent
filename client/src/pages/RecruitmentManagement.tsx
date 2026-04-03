@@ -274,8 +274,11 @@ export default function RecruitmentManagement() {
   });
 
   const batchCreateMutation = trpc.recruitment.batchCreate.useMutation({
-    onSuccess: (data) => {
-      toast.success(`成功导入${data.created}个品牌`);
+    onSuccess: (data: any) => {
+      const msgs: string[] = [];
+      if (data.created > 0) msgs.push(`新增 ${data.created} 个`);
+      if (data.updated > 0) msgs.push(`更新 ${data.updated} 个`);
+      toast.success(`导入完成: ${msgs.join(", ")}`);
       setImportOpen(false);
       setImportData([]);
       setImportStep("upload");
@@ -430,6 +433,7 @@ export default function RecruitmentManagement() {
             brandType: findFieldValue(row, keys, ["品牌类型", "类型", "分类", "type", "category", "brandtype"]),
             contactInfo: findFieldValue(row, keys, ["联系方式", "联系人", "电话", "邮箱", "contact", "email", "phone"]),
             memo: findFieldValue(row, keys, ["备注", "说明", "描述", "memo", "note", "remark"]),
+            status: findFieldValue(row, keys, ["状态", "进度", "status", "state", "品牌状态"]),
           };
         }).filter(i => i.brandName);
 
@@ -460,6 +464,7 @@ export default function RecruitmentManagement() {
             brandType: findFieldValue(row, headers, ["品牌类型", "类型", "分类", "type", "category"]),
             contactInfo: findFieldValue(row, headers, ["联系方式", "联系人", "电话", "邮箱", "contact"]),
             memo: findFieldValue(row, headers, ["备注", "说明", "描述", "memo", "note"]),
+            status: findFieldValue(row, headers, ["状态", "进度", "status", "state", "品牌状态"]),
           };
         }).filter(i => i.brandName);
 
@@ -684,6 +689,30 @@ export default function RecruitmentManagement() {
               className="pl-10 bg-gray-800 border-gray-700 text-white"
             />
           </div>
+          {/* ブランドタイプフィルタ */}
+          <div className="w-40">
+            <Select
+              value={typeFilter.length === 1 ? typeFilter[0] : "_all"}
+              onValueChange={(v) => {
+                if (v === "_all") {
+                  setTypeFilter([]);
+                } else {
+                  setTypeFilter([v]);
+                }
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
+                <SelectValue placeholder="品牌类型" />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-800 border-gray-700">
+                <SelectItem value="_all" className="text-gray-300 hover:bg-gray-700">全部类型</SelectItem>
+                {(brandTypes || []).map((bt: string) => (
+                  <SelectItem key={bt} value={bt} className="text-gray-300 hover:bg-gray-700">{bt}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="w-48">
             <SearchableStaffSelect
               value={personFilter[0] ?? null}
@@ -695,7 +724,7 @@ export default function RecruitmentManagement() {
             className="w-40 bg-gray-800 border-gray-700 text-white" placeholder="开始日期" />
           <Input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }}
             className="w-40 bg-gray-800 border-gray-700 text-white" placeholder="结束日期" />
-          {(search || statusFilter.length > 0 || personFilter.length > 0 || dateFrom || dateTo) && (
+          {(search || statusFilter.length > 0 || typeFilter.length > 0 || personFilter.length > 0 || dateFrom || dateTo) && (
             <Button variant="ghost" size="sm" onClick={clearFilters} className="text-gray-400 hover:text-white">
               <X className="w-4 h-4 mr-1" /> 清除
             </Button>
@@ -1305,8 +1334,15 @@ export default function RecruitmentManagement() {
                     <span>自动匹配: 联系方式、联系人、电话、邮箱、contact</span>
                   </div>
                   <div className="flex gap-2">
+                    <span className="text-orange-400 w-20 shrink-0">状态</span>
+                    <span>自动匹配: 状态、进度、status、state（自动识别并更新）</span>
+                  </div>
+                  <div className="flex gap-2">
                     <span className="text-purple-400 w-20 shrink-0">备注</span>
                     <span>自动匹配: 备注、说明、描述、memo、note</span>
+                  </div>
+                  <div className="mt-2 p-2 bg-gray-700/30 rounded text-gray-300">
+                    <strong>重复品牌处理:</strong> 导入时如果品牌名称已存在，将优先覆盖为最新状态。
                   </div>
                 </div>
               </div>
@@ -1345,6 +1381,7 @@ export default function RecruitmentManagement() {
                         <th className="p-2 text-left text-gray-400 w-8">#</th>
                         <th className="p-2 text-left text-gray-400">品牌名称</th>
                         <th className="p-2 text-left text-gray-400">品牌类型</th>
+                        <th className="p-2 text-left text-gray-400">状态</th>
                         <th className="p-2 text-left text-gray-400">联系方式</th>
                         <th className="p-2 text-left text-gray-400">备注</th>
                         <th className="p-2 text-center text-gray-400 w-10"></th>
@@ -1367,6 +1404,25 @@ export default function RecruitmentManagement() {
                               onChange={e => updateImportItem(idx, "brandType", e.target.value)}
                               className="bg-transparent border-gray-700 text-white text-xs h-7 px-1"
                             />
+                          </td>
+                          <td className="p-2">
+                            <Select
+                              value={item.status || "_auto"}
+                              onValueChange={(v) => updateImportItem(idx, "status", v === "_auto" ? "" : v)}
+                            >
+                              <SelectTrigger className="bg-transparent border-gray-700 text-white text-xs h-7 px-1">
+                                <SelectValue placeholder="自动" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-gray-800 border-gray-700">
+                                <SelectItem value="_auto" className="text-gray-300 text-xs">自动识别</SelectItem>
+                                <SelectItem value="registered" className="text-gray-300 text-xs">已登记</SelectItem>
+                                <SelectItem value="email_sent" className="text-gray-300 text-xs">已发邮件</SelectItem>
+                                <SelectItem value="replied" className="text-gray-300 text-xs">已回复</SelectItem>
+                                <SelectItem value="agreed" className="text-gray-300 text-xs">同意</SelectItem>
+                                <SelectItem value="cooperating" className="text-gray-300 text-xs">合作</SelectItem>
+                                <SelectItem value="rejected" className="text-gray-300 text-xs">拒绝</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </td>
                           <td className="p-2">
                             <Input

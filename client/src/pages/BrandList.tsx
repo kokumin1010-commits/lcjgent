@@ -12,7 +12,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Building2, X, ArrowLeft, DollarSign, TrendingUp, Gem, Calendar, ChevronDown, Handshake } from "lucide-react";
+import { Plus, Search, Building2, X, ArrowLeft, DollarSign, TrendingUp, Gem, Calendar, ChevronDown, Handshake, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const translations = {
   ja: {
@@ -147,10 +159,38 @@ export default function BrandList() {
 
   const periodOptions = useMemo(() => generatePeriodOptions(), []);
 
+  // 削除関連の状態
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
+
+  const utils = trpc.useUtils();
+
   const { data: brandsData, isLoading } = trpc.brand.list.useQuery({
     status: statusFilter || undefined,
     search: appliedSearch || undefined,
   });
+
+  const deleteMutation = trpc.brand.delete.useMutation({
+    onSuccess: () => {
+      toast.success("ブランドを削除しました");
+      setDeleteTarget(null);
+      utils.brand.list.invalidate();
+    },
+    onError: (err) => {
+      toast.error("削除に失敗しました: " + err.message);
+    },
+  });
+
+  const handleDelete = (e: React.MouseEvent, brand: { id: number; name: string }) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDeleteTarget(brand);
+  };
+
+  const confirmDelete = () => {
+    if (deleteTarget) {
+      deleteMutation.mutate({ id: deleteTarget.id });
+    }
+  };
 
   // 全ライブストリームデータを取得（期間フィルター用）
   const { data: allLivestreamsData } = trpc.brandLivestream.listAll.useQuery();
@@ -561,6 +601,17 @@ export default function BrandList() {
                     </div>
                   </div>
 
+                  {/* 削除ボタン */}
+                  <div className="flex justify-end">
+                    <button
+                      onClick={(e) => handleDelete(e, { id: brand.id, name: brand.name })}
+                      className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-400 transition-colors px-2 py-1 rounded hover:bg-red-500/10"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      削除
+                    </button>
+                  </div>
+
                 </div>
               </Link>
             ))}
@@ -572,6 +623,30 @@ export default function BrandList() {
           </div>
         )}
       </div>
+
+      {/* 削除確認ダイアログ */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent className="bg-gray-900 border-gray-700 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">ブランドを削除しますか？</AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-400">
+              <strong className="text-red-400">{deleteTarget?.name}</strong> を削除します。この操作により、関連する商品、ライブ配信、契約、メモなどのデータもすべて削除されます。この操作は取り消せません。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white">
+              キャンセル
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-red-600 hover:bg-red-700 text-white"
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "削除中..." : "削除する"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
