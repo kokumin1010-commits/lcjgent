@@ -680,7 +680,7 @@ async function processOneBatch(adminUserId: number, batchSize: number, confidenc
         // Get learning examples
         let learningPrompt = "";
         try {
-          learningPrompt = await buildLearningExamplesPrompt(8);
+          learningPrompt = await buildLearningExamplesPrompt(30);
         } catch (e) { /* ignore */ }
 
         const llmResult = await invokeLLM({
@@ -689,50 +689,40 @@ async function processOneBatch(adminUserId: number, batchSize: number, confidenc
               role: "system",
               content: `あなたはTikTok Shopのレシート審査AIです。レシート画像とOCRデータを見て、承認すべきか判断してください。
 
+=== 重要な注意事項 ===
+★ 過去の審査実績では人間審査員の承認率は約85%です。AIが却下したレシートの多くが人間によって承認されています。
+★ 「迎えに入れば承認」の姿勢で審査してください。明らかに基準を満たさない場合のみ却下してください。
+★ 注文番号がOCRで取れなくても、画像から読み取れる場合は承認可能です。
+
 === 承認基準（全て満たす必要がある） ===
 1. TikTok Shopの「注文詳細」画面のスクリーンショットであること
-2. 「配達済み」のステータスが確認できること
-3. 注文番号（16-19桁の数字）が読み取れること
+2. 「配達済み」のステータスが確認できること（「受取確認待ち」「配送完了」「已签收」「已完成」も配達済みとみなす）
+3. 注文番号（16-19桁の数字）が読み取れること（OCRで取れなくても画像から読み取れればOK）
 4. 合計金額が読み取れること
 
-=== 却下基準（いずれか1つでも該当すれば却下） ===
+=== 却下基準（明らかに該当する場合のみ却下） ===
 ★ 注文詳細画面ではない場合 (rejectionCategory: "not_order_detail")
 ★ TikTok Shop以外のプラットフォーム (rejectionCategory: "not_tiktok_shop")
 ★ 配達未完了 (rejectionCategory: "not_delivered")
-★ 画像が不鮮明 (rejectionCategory: "blurry_image")
-★ 注文番号が見えない (rejectionCategory: "missing_order_number")
-★ 金額が見えない (rejectionCategory: "missing_amount")
-★ スクリーンショットが不完全 (rejectionCategory: "partial_screenshot")
-★ 重複申請 (rejectionCategory: "duplicate")
-★ 対象外店舗 (rejectionCategory: "wrong_store")
-★ 不正の疑い (rejectionCategory: "suspicious")
+★ 画像が不鮮明で全く読み取れない (rejectionCategory: "blurry_image")
+★ 不正の疑いが強い (rejectionCategory: "suspicious")
 
-=== グレーゾーン判定ガイド ===
-- 複数枚のスクショがある場合: 全ての画像を総合的に判断
+=== グレーゾーン判定ガイド（承認側に寤る） ===
+- 複数枚のスクショがある場合: 全ての画像を総合的に判断。一部の情報が別の画像にある場合も承認
 - 中国語のTikTok Shop: 「抖音商城」「拖音商城」もTikTok Shopとして承認
 - 金額が小さい（100円未満等）: 金額の大小では却下しない
-- ステータスが「受取確認待ち」: 配達済みとみなす（confidenceを少し下げる）
+- ステータスが「受取確認待ち」: 配達済みとみなす
+- 注文番号がOCRで取れなかった場合: 画像から読み取ってdetectedOrderNumberに設定
+- 画像が少し不明瞭でも必要情報が読み取れるなら承認
 
 === 信頼度スコアガイドライン ===
 - 90-100: 全ての情報が明確に確認できる
-- 75-89: ほぼ確認できるが一部不明瞭な点がある
-- 50-74: 判断が難しい、人間の確認が必要
-- 0-49: 明らかに基準を満たしていない
+- 80-89: ほぼ確認できるが一部不明瞭な点がある（承認可能）
+- 60-79: 判断が難しいが承認の可能性が高い
+- 40-59: 判断が難しい、人間の確認が必要
+- 0-39: 明らかに基準を満たしていない
 
-必ず以下のJSON形式で回答してください：
-{
-  "shouldApprove": true/false,
-  "confidence": 0-100,
-  "reason": "判断理由（日本語）",
-  "rejectionCategory": "not_order_detail" | "not_tiktok_shop" | "not_delivered" | "blurry_image" | "missing_order_number" | "missing_amount" | "partial_screenshot" | "duplicate" | "wrong_store" | "suspicious" | "incomplete_info" | "other" | null,
-  "isTikTokShop": true/false/null,
-  "isDelivered": true/false/null,
-  "detectedOrderNumber": "string or null",
-  "detectedAmount": number or null
-}
-
-★ 重要: OCRで注文番号や金額が取得できなかった場合でも、画像から読み取れる場合はそれを基に判定してください。
-★ 過去の審査実績では承認率約75%です。基準を満たすレシートは積極的に承認してください。${statisticsPrompt}${learningPrompt}`,
+${statisticsPrompt}${learningPrompt}`,
             },
             {
               role: "user",
@@ -901,21 +891,13 @@ async function processOneBatch(adminUserId: number, batchSize: number, confidenc
           break; // バッチループを中断、次のバッチで再処理
         }
         
-        // その他のLLMエラー（画像非対応等）は自動却下
-        await updateLineReceiptStatus(candidate.id, "rejected", adminUserId,
-          `[AI自動却下] 画像読み取り失敗: ${llmErr.message?.substring(0, 100)}`);
-        try {
-          const appUrl = process.env.APP_URL || "https://lcjmall.com";
-          const rejectMsg = `❌ レシートが承認されませんでした\n\n画像を読み取れませんでした。以下を確認して再度送信してください🙏\n\n• スクリーンショットが鮮明に撮れているか\n• 画像が切れていないか\n• 対応している画像形式（JPEG/PNG）か\n\nお問い合わせ: ${appUrl}/mypage`;
-          const { pushMessage: pushMsgSched } = await import("./line");
-          await pushMsgSched(candidate.lineUserId, [{ type: "text", text: rejectMsg }]);
-        } catch (notifyErr) {
-          console.error(`[AI AutoApprove Scheduler] LINE rejection notification error:`, notifyErr);
-        }
+        // その他のLLMエラー（画像非対応等）はon_holdにして人間審査待ち（自動却下しない）
+        await updateLineReceiptStatus(candidate.id, "on_hold", adminUserId,
+          `[AI自動] 画像読み取り失敗 - 人間審査待ち: ${llmErr.message?.substring(0, 100)}`);
         results.push({
           id: candidate.id,
-          action: "rejected_ai",
-          reason: `画像読み取り失敗: ${llmErr.message?.substring(0, 100)}`,
+          action: "held",
+          reason: `画像読み取り失敗 - 人間審査待ち: ${llmErr.message?.substring(0, 100)}`,
           orderNumber,
           amount: candidate.totalAmount ?? undefined,
         });

@@ -8452,8 +8452,9 @@ export async function checkDuplicateOrderNumberGlobal(
   if (!db) throw new Error("Database not available");
   
   // 1. Search lineReceipts table (ocrRawText JSON field)
-  // Only check non-rejected receipts to avoid false positives from previously rejected duplicates
-  let conditions = sql`JSON_EXTRACT(${lineReceipts.ocrRawText}, '$.orderNumber') = ${orderNumber} AND ${lineReceipts.status} != 'rejected'`;
+  // Check approved/pending/on_hold receipts (approvedはポイント発送済みなので再提出不可)
+  // rejectedは除外して再提出を許可
+  let conditions = sql`JSON_EXTRACT(${lineReceipts.ocrRawText}, '$.orderNumber') = ${orderNumber} AND ${lineReceipts.status} IN ('approved', 'pending', 'on_hold')`;
   
   if (excludeId) {
     conditions = sql`${conditions} AND ${lineReceipts.id} != ${excludeId}`;
@@ -18430,12 +18431,51 @@ export async function getRecentAiReceiptLearningExamples(limit: number = 10) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  const results = await db.select()
+  // パターン別に学習例を取得してバランス良く選択
+  // false_reject: AIが却下したが人間が承認したケース（最も重要）
+  const falseRejects = await db.select()
     .from(aiReceiptLearningExamples)
-    .where(eq(aiReceiptLearningExamples.isActive, true))
+    .where(and(
+      eq(aiReceiptLearningExamples.isActive, true),
+      eq(aiReceiptLearningExamples.errorType, "false_reject"),
+    ))
     .orderBy(desc(aiReceiptLearningExamples.createdAt))
-    .limit(limit);
+    .limit(Math.ceil(limit * 0.4));
   
+  // held_but_approved: 保留にしたが人間が承認したケース
+  const heldApproved = await db.select()
+    .from(aiReceiptLearningExamples)
+    .where(and(
+      eq(aiReceiptLearningExamples.isActive, true),
+      eq(aiReceiptLearningExamples.errorType, "held_but_approved"),
+    ))
+    .orderBy(desc(aiReceiptLearningExamples.createdAt))
+    .limit(Math.ceil(limit * 0.3));
+  
+  // その他のエラータイプ
+  const existingIds = [...falseRejects, ...heldApproved].map(e => e.id);
+  let others: typeof falseRejects = [];
+  if (existingIds.length < limit) {
+    const remaining = limit - existingIds.length;
+    if (existingIds.length > 0) {
+      others = await db.select()
+        .from(aiReceiptLearningExamples)
+        .where(and(
+          eq(aiReceiptLearningExamples.isActive, true),
+          sql`${aiReceiptLearningExamples.id} NOT IN (${sql.join(existingIds.map(id => sql`${id}`), sql`, `)})`
+        ))
+        .orderBy(desc(aiReceiptLearningExamples.createdAt))
+        .limit(remaining);
+    } else {
+      others = await db.select()
+        .from(aiReceiptLearningExamples)
+        .where(eq(aiReceiptLearningExamples.isActive, true))
+        .orderBy(desc(aiReceiptLearningExamples.createdAt))
+        .limit(remaining);
+    }
+  }
+  
+  const results = [...falseRejects, ...heldApproved, ...others];
   return results;
 }
 
@@ -18513,8 +18553,9 @@ export async function buildLearningExamplesPrompt(limit: number = 8): Promise<st
     lines.push("");
   }
   
-  lines.push("上記の修正例を参考に、同様のパターンでは人間の判定に合わせた判断をしてください。");
-  lines.push("特に「注文番号なし」とAIが判定したが実際には画像に注文番号が存在するケースに注意してください。");
+  lines.push("★ 重要: 上記の修正例の大半は「AIが却下したが人間が承認した」ケースです。AIは却下に偏りすぎる傾向があります。");
+  lines.push("★ 同様のパターンでは人間の判定（承認）に合わせた判断をしてください。");
+  lines.push("★ 「注文番号なし」とAIが判定したが実際には画像に注文番号が存在するケースが非常に多いです。画像をよく見てください。");
   
   return lines.join("\n");
 }

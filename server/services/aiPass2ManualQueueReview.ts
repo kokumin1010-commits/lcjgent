@@ -189,7 +189,7 @@ export async function runAiPass2ManualQueueReview(config: Pass2Config): Promise<
   let statisticsPrompt = "";
   try { statisticsPrompt = await buildStatisticsLearningPrompt(); } catch { /* ignore */ }
   let learningPrompt = "";
-  try { learningPrompt = await buildLearningExamplesPrompt(8); } catch { /* ignore */ }
+  try { learningPrompt = await buildLearningExamplesPrompt(30); } catch { /* ignore */ }
 
   // ===== STEP 5: Process each candidate =====
   for (const candidate of candidates) {
@@ -325,24 +325,10 @@ export async function runAiPass2ManualQueueReview(config: Pass2Config): Promise<
       console.error(`[AI Pass2] Level3 error for #${candidate.id}:`, level3Err.message);
     }
 
-    // ---- CHECK 4: ORDER_NUMBER_MISSING ----
-    if (!orderNumber) {
-      if (!config.dryRun) {
-        await updateLineReceiptStatus(candidate.id, "rejected", config.adminUserId,
-          `[AI Pass2] 注文番号なし: OCRで注文番号を検出できなかったため自動却下`);
-      }
-      results.push({
-        receiptId: candidate.id,
-        lineUserId: candidate.lineUserId,
-        action: "auto_rejected",
-        reasonCode: "ORDER_NUMBER_MISSING",
-        reason: `注文番号なし (ORDER_NUMBER_MISSING)`,
-        totalAmount: candidate.totalAmount ?? undefined,
-      });
-      progress.autoRejected++;
-      progress.processed++;
-      config.onProgress?.(progress);
-      continue;
+    // ---- CHECK 4: ORDER_NUMBER_MISSING → LLMで読み取り試行（即却下しない） ----
+    const missingOrderNumber = !orderNumber;
+    if (missingOrderNumber) {
+      console.log(`[AI Pass2] Receipt #${candidate.id}: OCRで注文番号未検出 → LLMで画像から読み取りを試行`);
     }
 
     // ---- CHECK 5: Force-submitted → KEEP_MANUAL (never auto-approve) ----
@@ -455,8 +441,16 @@ export async function runAiPass2ManualQueueReview(config: Pass2Config): Promise<
 
         const imageContents: any[] = allImageUrls.map(url => ({
           type: "image_url" as const,
-          image_url: { url, detail: "low" as const },
+          image_url: { url, detail: "high" as const },
         }));
+
+        let missingDataNote = "";
+        if (missingOrderNumber) {
+          missingDataNote += "\n\n❗ OCRで注文番号が取得できませんでした。画像から注文番号（16-19桁の数字）を読み取ってdetectedOrderNumberに設定してください。";
+        }
+        if (!candidate.totalAmount || candidate.totalAmount <= 0) {
+          missingDataNote += "\n\n❗ OCRで金額が取得できませんでした。画像から合計金額を読み取ってdetectedAmountに設定してください。";
+        }
 
         imageContents.push({
           type: "text" as const,
@@ -466,7 +460,7 @@ export async function runAiPass2ManualQueueReview(config: Pass2Config): Promise<
             shopName: ocrData.shopName || candidate.storeName,
             isTikTokShop: ocrData.isTikTokShop,
             isDelivered: ocrData.isDelivered,
-          })}\n\n${exampleContext}`,
+          })}${missingDataNote}\n\n${exampleContext}`,
         });
 
         const llmResult = await invokeLLM({
@@ -475,54 +469,68 @@ export async function runAiPass2ManualQueueReview(config: Pass2Config): Promise<
               role: "system",
               content: `あなたはTikTok Shopのレシート審査AIです。レシート画像とOCRデータを見て、承認すべきか判断してください。
 
+=== 重要な注意事項 ===
+★ 過去の審査実績では人間審査員の承認率は約85%です。AIが却下したレシートの多くが人間によって承認されています。
+★ 「迎えに入れば承認」の姿勢で審査してください。明らかに基準を満たさない場合のみ却下してください。
+★ 注文番号がOCRで取れなくても、画像から読み取れる場合は承認可能です。
+
 === 承認基準（全て満たす必要がある） ===
 1. TikTok Shopの「注文詳細」画面のスクリーンショットであること
-2. 「配達済み」のステータスが確認できること
-3. 注文番号（16-19桁の数字）が読み取れること
+2. 「配達済み」のステータスが確認できること（「受取確認待ち」「配送完了」「已签收」「已完成」も配達済みとみなす）
+3. 注文番号（16-19桁の数字）が読み取れること（OCRで取れなくても画像から読み取れればOK）
 4. 合計金額が読み取れること
 
-=== 却下基準（いずれか1つでも該当すれば却下） ===
+=== 却下基準（明らかに該当する場合のみ却下） ===
 ★ 注文詳細画面ではない場合 (rejectionCategory: "not_order_detail")
 ★ TikTok Shop以外のプラットフォーム (rejectionCategory: "not_tiktok_shop")
 ★ 配達未完了 (rejectionCategory: "not_delivered")
-★ 画像が不鮮明 (rejectionCategory: "blurry_image")
-★ 注文番号が見えない (rejectionCategory: "missing_order_number")
-★ 金額が見えない (rejectionCategory: "missing_amount")
-★ スクリーンショットが不完全 (rejectionCategory: "partial_screenshot")
-★ 対象外店舗 (rejectionCategory: "wrong_store")
-★ 不正の疑い (rejectionCategory: "suspicious")
+★ 画像が不鮮明で全く読み取れない (rejectionCategory: "blurry_image")
+★ 不正の疑いが強い (rejectionCategory: "suspicious")
 
-=== グレーゾーン判定ガイド ===
-- 複数枚のスクショがある場合: 全ての画像を総合的に判断
+=== グレーゾーン判定ガイド（承認側に寤る） ===
+- 複数枚のスクショがある場合: 全ての画像を総合的に判断。一部の情報が別の画像にある場合も承認
 - 中国語のTikTok Shop: 「抖音商城」「拖音商城」もTikTok Shopとして承認
 - 金額が小さい（100円未満等）: 金額の大小では却下しない
-- ステータスが「受取確認待ち」: 配達済みとみなす（confidenceを少し下げる）
+- ステータスが「受取確認待ち」: 配達済みとみなす
+- 注文番号がOCRで取れなかった場合: 画像から読み取ってdetectedOrderNumberに設定
+- 画像が少し不明瞭でも必要情報が読み取れるなら承認
 
 === 信頼度スコアガイドライン ===
 - 90-100: 全ての情報が明確に確認できる
-- 75-89: ほぼ確認できるが一部不明瞭な点がある
-- 50-74: 判断が難しい、人間の確認が必要
-- 0-49: 明らかに基準を満たしていない
+- 80-89: ほぼ確認できるが一部不明瞭な点がある（承認可能）
+- 60-79: 判断が難しいが承認の可能性が高い
+- 40-59: 判断が難しい、人間の確認が必要
+- 0-39: 明らかに基準を満たしていない
 
-必ず以下のJSON形式で回答してください：
-{
-  "shouldApprove": true/false,
-  "confidence": 0-100,
-  "reason": "判断理由（日本語）",
-  "rejectionCategory": "..." | null,
-  "isTikTokShop": true/false/null,
-  "isDelivered": true/false/null,
-  "detectedOrderNumber": "string or null",
-  "detectedAmount": number or null
-}
-
-★ 過去の審査実績では承認率約75%です。基準を満たすレシートは積極的に承認してください。${statisticsPrompt}${learningPrompt}`,
+${statisticsPrompt}${learningPrompt}`,
             },
             {
               role: "user",
               content: imageContents,
             },
           ],
+          response_format: {
+            type: "json_schema" as const,
+            json_schema: {
+              name: "receipt_review",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  shouldApprove: { type: "boolean", description: "承認すべきか" },
+                  confidence: { type: "number", description: "信頼度 0-100" },
+                  reason: { type: "string", description: "判断理由" },
+                  rejectionCategory: { type: ["string", "null"], description: "却下カテゴリ" },
+                  isTikTokShop: { type: ["boolean", "null"], description: "TikTok Shopか" },
+                  isDelivered: { type: ["boolean", "null"], description: "配達済みか" },
+                  detectedOrderNumber: { type: ["string", "null"], description: "検出した注文番号" },
+                  detectedAmount: { type: ["number", "null"], description: "検出した金額" },
+                },
+                required: ["shouldApprove", "confidence", "reason", "rejectionCategory", "isTikTokShop", "isDelivered", "detectedOrderNumber", "detectedAmount"],
+                additionalProperties: false,
+              },
+            },
+          },
         });
 
         const msgContent = llmResult.choices[0]?.message?.content as string;
@@ -556,6 +564,61 @@ export async function runAiPass2ManualQueueReview(config: Pass2Config): Promise<
 
         aiConfidence = typeof llmParsed.confidence === "number" ? llmParsed.confidence : 0;
         aiReason = llmParsed.reason || "LLM判定";
+
+        // LLMが注文番号を検出した場合、DBに保存して重複チェック
+        if (missingOrderNumber && llmParsed.detectedOrderNumber) {
+          const detectedOrder = String(llmParsed.detectedOrderNumber).trim();
+          if (detectedOrder && detectedOrder !== "null" && detectedOrder.length >= 10) {
+            orderNumberMap.set(candidate.id, detectedOrder);
+            console.log(`[AI Pass2] LLM detected order number for receipt #${candidate.id}: ${detectedOrder}`);
+            // DBにも注文番号を保存（ocrRawTextを更新）
+            try {
+              const updatedOcr = { ...ocrData, orderNumber: detectedOrder };
+              await db.update(lineReceipts).set({ ocrRawText: JSON.stringify(updatedOcr) }).where(eq(lineReceipts.id, candidate.id));
+              console.log(`[AI Pass2] Saved LLM-detected order number to DB for receipt #${candidate.id}`);
+            } catch (dbErr: any) {
+              console.error(`[AI Pass2] Failed to save detected order number:`, dbErr.message);
+            }
+            // LLMで検出した注文番号で重複チェック
+            const dupeCheck = await batchCheckDuplicateOrderNumbers([detectedOrder]);
+            const dupeList = dupeCheck.get(detectedOrder) || [];
+            const sameUserDupe = dupeList.find(d => d.id !== candidate.id && d.status === "approved" && d.lineUserId === candidate.lineUserId);
+            if (sameUserDupe) {
+              if (!config.dryRun) {
+                await updateLineReceiptStatus(candidate.id, "rejected", config.adminUserId,
+                  `[AI Pass2] LLM検出注文番号重複: ${detectedOrder} (承認済みレシート #${sameUserDupe.id})`);
+              }
+              results.push({
+                receiptId: candidate.id,
+                lineUserId: candidate.lineUserId,
+                action: "auto_rejected",
+                reasonCode: "DUPLICATE_SAME_USER_ORDER",
+                reason: `LLM検出注文番号重複: ${detectedOrder}`,
+                orderNumber: detectedOrder,
+                totalAmount: candidate.totalAmount ?? undefined,
+                winnerReceiptId: sameUserDupe.id,
+                winnerLineUserId: sameUserDupe.lineUserId,
+              });
+              progress.autoRejected++;
+              progress.processed++;
+              config.onProgress?.(progress);
+              continue;
+            }
+          }
+        }
+
+        // LLMが金額を検出した場合、DBに保存
+        if ((!candidate.totalAmount || candidate.totalAmount <= 0) && llmParsed.detectedAmount && typeof llmParsed.detectedAmount === "number" && llmParsed.detectedAmount > 0) {
+          try {
+            await db.update(lineReceipts).set({ 
+              totalAmount: llmParsed.detectedAmount,
+              pointsCalculated: Math.floor(llmParsed.detectedAmount * 0.01),
+            }).where(eq(lineReceipts.id, candidate.id));
+            console.log(`[AI Pass2] Saved LLM-detected amount to DB for receipt #${candidate.id}: ${llmParsed.detectedAmount}`);
+          } catch (dbErr: any) {
+            console.error(`[AI Pass2] Failed to save detected amount:`, dbErr.message);
+          }
+        }
 
       } catch (llmErr: any) {
         console.error(`[AI Pass2] LLM error for #${candidate.id}:`, llmErr.message);

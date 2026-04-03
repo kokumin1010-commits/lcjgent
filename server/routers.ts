@@ -14655,8 +14655,8 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         
         const { batchId } = startPass2InBackground({
           limit: input?.limit ?? 0,
-          approveThreshold: input?.approveThreshold ?? 95,
-          minUserApprovalRate: input?.minUserApprovalRate ?? 80,
+          approveThreshold: input?.approveThreshold ?? 80,
+          minUserApprovalRate: input?.minUserApprovalRate ?? 50,
           adminUserId: ctx.user.id,
           dryRun: false,
           sendNotifications: input?.sendNotifications ?? true,
