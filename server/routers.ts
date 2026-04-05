@@ -19419,10 +19419,10 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
         <tr><td style="padding: 8px;">ステージ4: 10人招待</td><td style="padding: 8px; text-align: right; font-weight: bold; color: #f5576c;">+3,000pt</td></tr>
       </table>
     </div>
-    <a href="https://lcj-mall.manus.space/referral" style="display: block; background: linear-gradient(135deg, #f093fb, #f5576c); color: #fff; text-align: center; padding: 14px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 20px 0;">今すぐ招待を始める →</a>
+    <a href="https://lcjmall.com/referral" style="display: block; background: linear-gradient(135deg, #f093fb, #f5576c); color: #fff; text-align: center; padding: 14px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 20px 0;">今すぐ招待を始める →</a>
   </div>
 </div>`,
-          bodyText: "{{name}} さま\n\nお友達を招待するだけでルーレットが回せる確変チャンス！\nステージ別報酬: 1人招待+100pt / 3人+500pt / 5人+1000pt / 10人+3000pt\n\nhttps://lcj-mall.manus.space/referral",
+          bodyText: "{{name}} さま\n\nお友達を招待するだけでルーレットが回せる確変チャンス！\nステージ別報酬: 1人招待+100pt / 3人+500pt / 5人+1000pt / 10人+3000pt\n\nhttps://lcjmall.com/referral",
           delayDays: 1,
           sortOrder: 2,
           isEnabled: true,
@@ -19444,10 +19444,10 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       <p style="color: #555; margin: 5px 0;">● ヘアケアシリーズセット</p>
       <p style="color: #555; margin: 5px 0;">● 限定コラボアイテム</p>
     </div>
-    <a href="https://lcj-mall.manus.space/mall" style="display: block; background: linear-gradient(135deg, #a18cd1, #fbc2eb); color: #fff; text-align: center; padding: 14px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 20px 0;">商品をチェックする →</a>
+    <a href="https://lcjmall.com/mall" style="display: block; background: linear-gradient(135deg, #a18cd1, #fbc2eb); color: #fff; text-align: center; padding: 14px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 20px 0;">商品をチェックする →</a>
   </div>
 </div>`,
-          bodyText: "{{name}} さま\n\nLCJ MALLでは、貯まったポイントでブランド正規品と交換できます！\n\n人気交換商品:\n- KYOGOKU シャンプー・トリートメント\n- ヘアケアシリーズセット\n- 限定コラボアイテム\n\nhttps://lcj-mall.manus.space/mall",
+          bodyText: "{{name}} さま\n\nLCJ MALLでは、貯まったポイントでブランド正規品と交換できます！\n\n人気交換商品:\n- KYOGOKU シャンプー・トリートメント\n- ヘアケアシリーズセット\n- 限定コラボアイテム\n\nhttps://lcjmall.com/mall",
           delayDays: 3,
           sortOrder: 3,
           isEnabled: true,
@@ -19468,10 +19468,10 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       <p style="font-size: 28px; font-weight: bold; color: #2d8659; margin: 0;">10～50 pt / 枚</p>
       <p style="font-size: 12px; color: #999; margin: 5px 0 0;">+ 確変チャンスでボーナス</p>
     </div>
-    <a href="https://lcj-mall.manus.space/receipt-upload" style="display: block; background: linear-gradient(135deg, #43e97b, #38f9d7); color: #fff; text-align: center; padding: 14px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 20px 0;">レシートをアップロード →</a>
+    <a href="https://lcjmall.com/receipt-upload" style="display: block; background: linear-gradient(135deg, #43e97b, #38f9d7); color: #fff; text-align: center; padding: 14px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 20px 0;">レシートをアップロード →</a>
   </div>
 </div>`,
-          bodyText: "{{name}} さま\n\nTikTok Shopでお買い物したら、レシートをアップロードするだけでポイントが貯まります！\nレシートアップロード: 10～50pt/枚 + 確変チャンスでボーナス\n\nhttps://lcj-mall.manus.space/receipt-upload",
+          bodyText: "{{name}} さま\n\nTikTok Shopでお買い物したら、レシートをアップロードするだけでポイントが貯まります！\nレシートアップロード: 10～50pt/枚 + 確変チャンスでボーナス\n\nhttps://lcjmall.com/receipt-upload",
           delayDays: 7,
           sortOrder: 4,
           isEnabled: true,
@@ -19493,10 +19493,10 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       <p style="color: #555; margin: 5px 0;">② レシートアップロード → 10～50pt/枚</p>
       <p style="color: #555; margin: 5px 0;">③ 確変チャンス → ボーナスpt</p>
     </div>
-    <a href="https://lcj-mall.manus.space/mall" style="display: block; background: linear-gradient(135deg, #fa709a, #fee140); color: #fff; text-align: center; padding: 14px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 20px 0;">ポイントを使う →</a>
+    <a href="https://lcjmall.com/mall" style="display: block; background: linear-gradient(135deg, #fa709a, #fee140); color: #fff; text-align: center; padding: 14px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 20px 0;">ポイントを使う →</a>
   </div>
 </div>`,
-          bodyText: "{{name}} さま\n\nお持ちのポイントの有効期限が近づいています。\n期限切れ前に、お得な商品と交換しましょう！\n\nポイントを增やす方法:\n1. お友達招待 → 最大5,000pt\n2. レシートアップロード → 10～50pt/枚\n3. 確変チャンス → ボーナスpt\n\nhttps://lcj-mall.manus.space/mall",
+          bodyText: "{{name}} さま\n\nお持ちのポイントの有効期限が近づいています。\n期限切れ前に、お得な商品と交換しましょう！\n\nポイントを增やす方法:\n1. お友達招待 → 最大5,000pt\n2. レシートアップロード → 10～50pt/枚\n3. 確変チャンス → ボーナスpt\n\nhttps://lcjmall.com/mall",
           delayDays: 14,
           sortOrder: 5,
           isEnabled: true,

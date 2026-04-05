@@ -90,7 +90,7 @@ export async function sendReminderEmail(
   const getBaseUrl = () => {
     // In production, use the deployed domain
     if (process.env.NODE_ENV === 'production') {
-      return process.env.APP_URL || 'https://your-domain.manus.space';
+      return process.env.APP_URL || 'https://lcjmall.com';
     }
     // In development, use the dev server URL
     return 'https://3000-i58mz8953bkj8oa3sie09-f1f28683.sg1.manus.computer';
