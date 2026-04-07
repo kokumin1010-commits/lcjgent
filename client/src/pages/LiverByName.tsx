@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, TrendingUp, Clock, Calendar, DollarSign, Users, Eye, ShoppingCart, MousePointer, ChevronRight, ImageOff, BarChart3, Search, X, AlertTriangle, CheckCircle2, Edit3, Undo2, UserCheck } from "lucide-react";
+import { ArrowLeft, TrendingUp, Clock, Calendar, DollarSign, Users, Eye, ShoppingCart, MousePointer, ChevronRight, ImageOff, BarChart3, Search, X, AlertTriangle, CheckCircle2, Edit3, Undo2, UserCheck, Upload, Package, FileSpreadsheet } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
@@ -68,6 +68,168 @@ export default function LiverByName() {
   const [selectedMonth, setSelectedMonth] = useState(initialMonth);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const { user } = useAuth();
+  
+  // CSVアップロード用state
+  const [isImportingProductCsv, setIsImportingProductCsv] = useState(false);
+  const [uploadingLivestreamId, setUploadingLivestreamId] = useState<number | null>(null);
+  
+  // ライバーのroleを取得（localStorageから）
+  const liverInfo = useMemo(() => {
+    try {
+      const info = localStorage.getItem('liver_info');
+      return info ? JSON.parse(info) : null;
+    } catch { return null; }
+  }, []);
+  const isLiverAdmin = liverInfo?.role === 'admin';
+  
+  // ライバーのme APIからもroleを取得（フォールバック）
+  const { data: liverMe } = trpc.liver.me.useQuery(undefined, {
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+  const isAdmin = isLiverAdmin || liverMe?.role === 'admin' || !!user;
+  
+  // CSVインポートmutation
+  const importProductCsvMutation = trpc.brandLivestream.importProductCsv.useMutation({
+    onSuccess: (result) => {
+      toast.success(`${result.importedCount}件の商品をインポートしました`);
+      setUploadingLivestreamId(null);
+      // データを再取得
+      utils.liverManagement.getLivestreamsByStreamerName.invalidate();
+    },
+    onError: (error) => {
+      toast.error(`インポートエラー: ${error.message}`);
+    },
+  });
+  
+  // CSVパース関数（TikTok Creator-Live-Recap-Product-List形式）
+  const parseProductCsv = (text: string) => {
+    const lines = text.split('\n').filter(line => line.trim());
+    const products: Array<{
+      productName: string;
+      grossRevenue: number | null;
+      directGmv: number | null;
+      itemsSold: number | null;
+      customers: number | null;
+      orders: number | null;
+      ctr: string | null;
+      ctor: string | null;
+      productImpressions: number | null;
+      productClicks: number | null;
+    }> = [];
+    
+    let dataStartIndex = 0;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].includes('Product') && lines[i].includes('Gross revenue')) {
+        dataStartIndex = i + 1;
+        break;
+      }
+    }
+    
+    for (let i = dataStartIndex; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line.trim()) continue;
+      
+      const values: string[] = [];
+      let current = '';
+      let inQuotes = false;
+      
+      for (const char of line) {
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          values.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      values.push(current.trim());
+      
+      if (values.length < 10) continue;
+      
+      const parseYen = (val: string): number | null => {
+        if (!val || val === '0円' || val === '-') return null;
+        const num = parseInt(val.replace(/[,円\s]/g, ''), 10);
+        return isNaN(num) ? null : num;
+      };
+      
+      const parseNum = (val: string): number | null => {
+        if (!val || val === '-') return null;
+        const num = parseFloat(val.replace(/,/g, ''));
+        return isNaN(num) ? null : num;
+      };
+      
+      const productName = values[0];
+      if (!productName || productName === 'Product') continue;
+      
+      products.push({
+        productName,
+        grossRevenue: parseYen(values[1]),
+        directGmv: parseYen(values[2]),
+        itemsSold: parseNum(values[3]) as number | null,
+        customers: parseNum(values[4]) as number | null,
+        orders: parseNum(values[5]) as number | null,
+        ctr: values[6] || null,
+        ctor: values[7] || null,
+        productImpressions: parseNum(values[8]) as number | null,
+        productClicks: parseNum(values[9]) as number | null,
+      });
+    }
+    
+    return products;
+  };
+  
+  const handleProductCsvUpload = async (livestreamId: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setIsImportingProductCsv(true);
+    setUploadingLivestreamId(livestreamId);
+    
+    try {
+      if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+        const XLSX = await import('xlsx');
+        const arrayBuffer = await file.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const csvText = XLSX.utils.sheet_to_csv(worksheet);
+        const products = parseProductCsv(csvText);
+        
+        if (products.length === 0) {
+          toast.error('商品データが見つかりませんでした');
+          return;
+        }
+        
+        await importProductCsvMutation.mutateAsync({
+          livestreamId,
+          fileName: file.name,
+          products,
+        });
+      } else {
+        const text = await file.text();
+        const products = parseProductCsv(text);
+        
+        if (products.length === 0) {
+          toast.error('商品データが見つかりませんでした');
+          return;
+        }
+        
+        await importProductCsvMutation.mutateAsync({
+          livestreamId,
+          fileName: file.name,
+          products,
+        });
+      }
+    } catch (error) {
+      console.error('CSV import error:', error);
+      toast.error('CSVのインポートに失敗しました');
+    } finally {
+      setIsImportingProductCsv(false);
+      e.target.value = '';
+    }
+  };
   const utils = trpc.useUtils();
 
   // スタッフ選択関連のstate（localStorageから前回の選択を復元）
@@ -744,7 +906,19 @@ export default function LiverByName() {
                               <span className="text-xs text-white/60">{formatTimeRange(livestream)}</span>
                             )}
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {/* CSVアップロードステータス */}
+                            {(livestream as any).productCount > 0 ? (
+                              <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-emerald-900/50 text-emerald-400">
+                                <FileSpreadsheet className="w-3 h-3" />
+                                CSV済 ({(livestream as any).productCount}品)
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-gray-700/50 text-gray-500">
+                                <FileSpreadsheet className="w-3 h-3" />
+                                CSV未
+                              </span>
+                            )}
                             {livestream.result && (
                               <span className={`px-2 py-0.5 rounded text-xs ${
                                 livestream.result === "成功" 
@@ -826,8 +1000,34 @@ export default function LiverByName() {
                         )}
                         
                         <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-700/50">
+                          <div className="flex items-center gap-2">
+                          {/* CSVアップロードボタン（管理者のみ） */}
+                          {isAdmin && (
+                            <label
+                              className={`inline-flex items-center gap-1 h-7 px-2 text-xs rounded cursor-pointer transition-colors ${
+                                (livestream as any).productCount > 0
+                                  ? 'text-emerald-400 hover:text-emerald-300 hover:bg-emerald-900/30'
+                                  : 'text-orange-400 hover:text-orange-300 hover:bg-orange-900/30'
+                              } ${uploadingLivestreamId === livestream.id ? 'opacity-50 pointer-events-none' : ''}`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {uploadingLivestreamId === livestream.id ? (
+                                <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <Upload className="w-3 h-3" />
+                              )}
+                              {(livestream as any).productCount > 0 ? 'CSV再アップ' : 'CSVアップ'}
+                              <input
+                                type="file"
+                                accept=".csv,.xlsx,.xls"
+                                className="hidden"
+                                onChange={(e) => handleProductCsvUpload(livestream.id, e)}
+                                disabled={isImportingProductCsv}
+                              />
+                            </label>
+                          )}
                           {user && (
-                            <div className="flex items-center gap-2">
+                            <>
                               {(livestream as any).verifiedAt ? (
                                 <Button
                                   size="sm"
@@ -866,8 +1066,9 @@ export default function LiverByName() {
                               >
                                 <Edit3 className="w-3 h-3 mr-1" /> 訂正
                               </Button>
-                            </div>
+                            </>
                           )}
+                          </div>
                           <span className="text-xs text-white flex items-center gap-1 hover:text-white transition-colors">
                             詳細を見る <ChevronRight className="w-3 h-3" />
                           </span>

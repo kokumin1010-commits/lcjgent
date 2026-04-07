@@ -7358,7 +7358,7 @@ Respond with a JSON object.`,
       }),
 
     // 商品別CSVインポート（TikTok Creator-Live-Recap-Product-List形式）
-    importProductCsv: protectedProcedure
+    importProductCsv: publicProcedure
       .input(
         z.object({
           livestreamId: z.number(),
@@ -7380,6 +7380,41 @@ Respond with a JSON object.`,
         })
       )
       .mutation(async ({ ctx, input }) => {
+        // マスター管理者 OR ライバーadminのどちらかの認証が必要
+        let importerName = 'unknown';
+        let importerId = 0;
+        
+        if (ctx.user) {
+          // マスター管理者認証
+          importerName = ctx.user.name || ctx.user.email;
+          importerId = ctx.user.id;
+        } else {
+          // ライバートークンでの認証を試行
+          const authHeader = ctx.req.headers.authorization;
+          if (authHeader?.startsWith('Bearer ')) {
+            const token = authHeader.slice(7);
+            try {
+              const { jwtVerify } = await import('jose');
+              const secret = new TextEncoder().encode(ENV.cookieSecret);
+              const { payload } = await jwtVerify(token, secret);
+              if (payload.liverId) {
+                const liver = await getLiverById(payload.liverId as number);
+                if (liver && liver.role === 'admin') {
+                  importerName = liver.name || liver.email;
+                  importerId = liver.id;
+                } else {
+                  throw new TRPCError({ code: 'FORBIDDEN', message: 'CSVアップロードは管理者のみ利用可能です' });
+                }
+              }
+            } catch (e: any) {
+              if (e.code === 'FORBIDDEN') throw e;
+              throw new TRPCError({ code: 'UNAUTHORIZED', message: '認証が必要です' });
+            }
+          } else {
+            throw new TRPCError({ code: 'UNAUTHORIZED', message: '認証が必要です' });
+          }
+        }
+        
         const count = await importLivestreamProductsFromCsv(
           input.livestreamId,
           input.products
@@ -7394,8 +7429,8 @@ Respond with a JSON object.`,
           fileName: input.fileName || 'unknown.xlsx',
           productCount: count,
           totalGmv,
-          importedBy: ctx.user.id,
-          importedByName: ctx.user.name || ctx.user.email,
+          importedBy: importerId,
+          importedByName: importerName,
         });
         
         return { success: true, importedCount: count };

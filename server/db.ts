@@ -8172,7 +8172,30 @@ export async function getLivestreamsByStreamerName(streamerName: string, month?:
   const totalSales = livestreams.reduce((sum, l) => sum + (l.salesAmount || 0), 0);
   const totalDuration = livestreams.reduce((sum, l) => sum + (l.duration || 0), 0);
   
-  return { livestreams, totalSales, totalDuration };
+  // 各配信のCSVインポート商品数を取得
+  const livestreamIds = livestreams.map(l => l.id);
+  let productCountMap: Record<number, number> = {};
+  if (livestreamIds.length > 0) {
+    const productCounts = await db
+      .select({
+        livestreamId: livestreamProducts.livestreamId,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(livestreamProducts)
+      .where(sql`${livestreamProducts.livestreamId} IN (${sql.join(livestreamIds.map(id => sql`${id}`), sql`, `)})`)
+      .groupBy(livestreamProducts.livestreamId);
+    
+    for (const pc of productCounts) {
+      productCountMap[pc.livestreamId] = Number(pc.count);
+    }
+  }
+  
+  const livestreamsWithProductCount = livestreams.map(l => ({
+    ...l,
+    productCount: productCountMap[l.id] || 0,
+  }));
+  
+  return { livestreams: livestreamsWithProductCount, totalSales, totalDuration };
 }
 
 

@@ -135,11 +135,11 @@ export const liverRouter = router({
           name: liver.name,
           email: liver.email,
           color: liver.color,
+          role: liver.role || 'liver',
         },
       };
     }),
-
-  // Login
+  // Loginn
   login: publicProcedure
     .input(
       z.object({
@@ -194,6 +194,7 @@ export const liverRouter = router({
           color: liver.color,
           avatarUrl: liver.avatarUrl,
           language: liver.language || 'ja',
+          role: liver.role || 'liver',
         },
       };
     }),

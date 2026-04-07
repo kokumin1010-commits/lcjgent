@@ -90,6 +90,11 @@ export default function LiverLogin() {
         console.log('Token received, saving to localStorage...');
         setLiverToken(data.token);
         
+        // ライバー情報をlocalStorageに保存（role含む）
+        if (data.liver) {
+          localStorage.setItem('liver_info', JSON.stringify(data.liver));
+        }
+        
         // DBのlanguage設定を自動適用
         if (data.liver?.language) {
           setLanguage(data.liver.language as LiverLanguage);
