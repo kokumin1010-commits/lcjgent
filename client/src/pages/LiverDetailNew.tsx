@@ -100,18 +100,20 @@ export default function LiverDetailNew() {
   const [, setLocation] = useLocation();
   const { language } = useLanguage();
   
-  // Generate month options (last 12 months)
+  // Generate month options (last 24 months + all-time)
   const monthOptions = useMemo(() => {
-    const options = [];
+    const options: { value: string; label: string }[] = [
+      { value: "all", label: language === 'zh' ? '全部期间' : '全期間' },
+    ];
     const now = new Date();
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 24; i++) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
       const label = `${date.getFullYear()}年${date.getMonth() + 1}月`;
       options.push({ value, label });
     }
     return options;
-  }, []);
+  }, [language]);
   
   // Previous month for comparison
   const previousMonth = useMemo(() => {
@@ -120,7 +122,7 @@ export default function LiverDetailNew() {
     return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}`;
   }, []);
   
-  const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].value);
+  const [selectedMonth, setSelectedMonth] = useState(monthOptions[1].value); // default to current month
   const [showAllHistory, setShowAllHistory] = useState(false);
   const [showAllProducts, setShowAllProducts] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
@@ -131,32 +133,45 @@ export default function LiverDetailNew() {
   const [bulkNewCategoryName, setBulkNewCategoryName] = useState("");
   const [showBulkNewCategoryInput, setShowBulkNewCategoryInput] = useState(false);
   
+  // For getById/getLivestreams, use current month when "all" is selected
+  const statsMonth = selectedMonth === 'all' ? monthOptions[1].value : selectedMonth;
+  const prevStatsMonth = useMemo(() => {
+    if (selectedMonth === 'all') return previousMonth;
+    const [y, m] = selectedMonth.split('-').map(Number);
+    const prev = new Date(y, m - 2, 1);
+    return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+  }, [selectedMonth, previousMonth]);
+  
   const { data: liver, isLoading: liverLoading } = trpc.liverManagement.getById.useQuery({
     id: liverId,
-    month: selectedMonth,
+    month: statsMonth,
   });
   
   const { data: previousStats } = trpc.liverManagement.getById.useQuery({
     id: liverId,
-    month: previousMonth,
+    month: prevStatsMonth,
   });
   
   const { data: livestreams, isLoading: livestreamsLoading } = trpc.liverManagement.getLivestreams.useQuery({
     liverId,
-    month: selectedMonth,
+    month: statsMonth,
   });
 
-  // New: Top products, brand performance, category analysis
+  // New: Top products, brand performance, category analysis (with month filter)
+  const apiMonth = selectedMonth === 'all' ? undefined : selectedMonth;
   const { data: topProducts, isLoading: topProductsLoading } = trpc.liverManagement.getTopProducts.useQuery({
     liverId,
+    month: apiMonth,
   });
 
   const { data: brandPerformance, isLoading: brandLoading } = trpc.liverManagement.getLiverBrandPerformance.useQuery({
     liverId,
+    month: apiMonth,
   });
 
   const { data: categoryAnalysis, isLoading: categoryLoading } = trpc.liverManagement.getCategoryAnalysis.useQuery({
     liverId,
+    month: apiMonth,
   });
 
   // Set Analysis (セット戦略分析)
@@ -555,6 +570,26 @@ export default function LiverDetailNew() {
           </CardContent>
         </Card>
         
+        {/* Month Selector */}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-cyan-400">
+            <Calendar className="w-5 h-5" />
+            <span className="text-sm font-medium">{language === 'zh' ? '期间选择' : '期間選択'}</span>
+          </div>
+          <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+            <SelectTrigger className="w-[200px] bg-[#0a1a2a]/80 border-cyan-500/30 text-cyan-100 hover:border-cyan-400/50 focus:ring-cyan-500/30">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-[#0a1a2a] border-cyan-500/30">
+              {monthOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value} className="text-cyan-100 hover:bg-cyan-900/30 focus:bg-cyan-900/30">
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         {/* Stats Comparison */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Previous Month */}
@@ -562,7 +597,7 @@ export default function LiverDetailNew() {
             <CardContent className="p-6">
               <h3 className="text-sm text-cyan-500/60 mb-4 flex items-center gap-2">
                 <Calendar className="w-4 h-4" />
-                {tr.prevMonth}（{previousMonth.replace("-", "年")}月）
+                {tr.prevMonth}（{prevStatsMonth.replace("-", "年")}月）
               </h3>
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-[#0a1520]/60 rounded-xl p-4 border border-yellow-500/20">
@@ -592,7 +627,7 @@ export default function LiverDetailNew() {
             <CardContent className="p-6">
               <h3 className="text-sm text-cyan-400 mb-4 flex items-center gap-2">
                 <Sparkles className="w-4 h-4" />
-                {tr.currentMonth}（{monthOptions.find(m => m.value === selectedMonth)?.label}）
+                {tr.currentMonth}（{monthOptions.find(m => m.value === statsMonth)?.label}）
               </h3>
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-[#0a1520]/60 rounded-xl p-4 border border-yellow-500/30">

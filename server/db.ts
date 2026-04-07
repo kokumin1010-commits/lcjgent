@@ -9310,9 +9310,18 @@ export async function getLiverRecentLivestreams(liverId: number, limit: number =
 /**
  * Get liver's brand performance breakdown
  */
-export async function getLiverBrandPerformance(liverId: number) {
+export async function getLiverBrandPerformance(liverId: number, month?: string) {
   const db = await getDb();
   if (!db) return [];
+  
+  // Build date filter conditions
+  const conditions: any[] = [eq(brandLivestreams.liverId, liverId), isNull(brandLivestreams.deletedAt)];
+  if (month) {
+    const [year, mon] = month.split('-').map(Number);
+    const startDate = new Date(year, mon - 1, 1);
+    const endDate = new Date(year, mon, 1);
+    conditions.push(sql`${brandLivestreams.livestreamDate} >= ${startDate.toISOString().slice(0,10)} AND ${brandLivestreams.livestreamDate} < ${endDate.toISOString().slice(0,10)}`);
+  }
   
   const performance = await db
     .select({
@@ -9325,7 +9334,7 @@ export async function getLiverBrandPerformance(liverId: number) {
     })
     .from(brandLivestreams)
     .leftJoin(brands, eq(brandLivestreams.brandId, brands.id))
-    .where(and(eq(brandLivestreams.liverId, liverId), isNull(brandLivestreams.deletedAt)))
+    .where(and(...conditions))
     .groupBy(brandLivestreams.brandId, brands.name)
     .orderBy(sql`SUM(${brandLivestreams.salesAmount}) DESC`);
   
@@ -11321,15 +11330,24 @@ export async function deleteLivestreamSetsByLivestreamId(livestreamId: number) {
  * Get top selling products for a specific liver
  * ライバー別の売れ筋商品ランキング
  */
-export async function getTopProductsByLiver(liverId: number, limit: number = 20) {
+export async function getTopProductsByLiver(liverId: number, limit: number = 20, month?: string) {
   const db = await getDb();
   if (!db) return [];
+  
+  // Build date filter conditions
+  const conditions: any[] = [eq(brandLivestreams.liverId, liverId), isNull(brandLivestreams.deletedAt)];
+  if (month) {
+    const [year, mon] = month.split('-').map(Number);
+    const startDate = new Date(year, mon - 1, 1);
+    const endDate = new Date(year, mon, 1);
+    conditions.push(sql`${brandLivestreams.livestreamDate} >= ${startDate.toISOString().slice(0,10)} AND ${brandLivestreams.livestreamDate} < ${endDate.toISOString().slice(0,10)}`);
+  }
   
   // Get all livestream IDs for this liver
   const liverLivestreams = await db
     .select({ id: brandLivestreams.id })
     .from(brandLivestreams)
-    .where(and(eq(brandLivestreams.liverId, liverId), isNull(brandLivestreams.deletedAt)));
+    .where(and(...conditions));
   
   if (liverLivestreams.length === 0) return [];
   
@@ -11373,15 +11391,24 @@ export async function getTopProductsByLiver(liverId: number, limit: number = 20)
  * Get product category analysis for a specific liver
  * ライバー別の得意カテゴリ分析（商品名からカテゴリを推定）
  */
-export async function getLiverCategoryAnalysis(liverId: number) {
+export async function getLiverCategoryAnalysis(liverId: number, month?: string) {
   const db = await getDb();
   if (!db) return [];
+  
+  // Build date filter conditions
+  const conditions: any[] = [eq(brandLivestreams.liverId, liverId), isNull(brandLivestreams.deletedAt)];
+  if (month) {
+    const [year, mon] = month.split('-').map(Number);
+    const startDate = new Date(year, mon - 1, 1);
+    const endDate = new Date(year, mon, 1);
+    conditions.push(sql`${brandLivestreams.livestreamDate} >= ${startDate.toISOString().slice(0,10)} AND ${brandLivestreams.livestreamDate} < ${endDate.toISOString().slice(0,10)}`);
+  }
   
   // Get all livestream IDs for this liver
   const liverLivestreams = await db
     .select({ id: brandLivestreams.id })
     .from(brandLivestreams)
-    .where(and(eq(brandLivestreams.liverId, liverId), isNull(brandLivestreams.deletedAt)));
+    .where(and(...conditions));
   
   if (liverLivestreams.length === 0) return [];
   

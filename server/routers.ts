@@ -9747,9 +9747,10 @@ ${conversationText}
     getLiverBrandPerformance: publicProcedure
       .input(z.object({
         liverId: z.number(),
+        month: z.string().optional(),
       }))
       .query(async ({ input }) => {
-        return await getLiverBrandPerformance(input.liverId);
+        return await getLiverBrandPerformance(input.liverId, input.month);
       }),
 
     // Get top selling products by liver (ライバー別売れ筋商品ランキング)
@@ -9757,18 +9758,20 @@ ${conversationText}
       .input(z.object({
         liverId: z.number(),
         limit: z.number().optional().default(20),
+        month: z.string().optional(),
       }))
       .query(async ({ input }) => {
-        return await getTopProductsByLiver(input.liverId, input.limit);
+        return await getTopProductsByLiver(input.liverId, input.limit, input.month);
       }),
 
     // Get liver category analysis (ライバー別得意カテゴリ分析)
     getCategoryAnalysis: publicProcedure
       .input(z.object({
         liverId: z.number(),
+        month: z.string().optional(),
       }))
       .query(async ({ input }) => {
-        return await getLiverCategoryAnalysis(input.liverId);
+        return await getLiverCategoryAnalysis(input.liverId, input.month);
       }),
 
     // ===== Product Category Mapping (手動カテゴリ分類) =====
