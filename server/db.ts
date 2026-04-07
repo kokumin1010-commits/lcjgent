@@ -3491,9 +3491,13 @@ export async function importLivestreamProductsFromCsv(
   
   // Insert new products
   if (products.length > 0) {
+    // 数字のみの商品名（TikTok商品ID）を実際の商品名に解決
+    const productNames = products.map(p => p.productName);
+    const resolvedNames = await resolveNumericProductNames(productNames);
+    
     const insertData = products.map(p => ({
       livestreamId,
-      productName: p.productName,
+      productName: resolvedNames.get(p.productName) || p.productName,
       grossRevenue: p.grossRevenue ?? null,
       directGmv: p.directGmv ?? null,
       gmv: p.directGmv ?? null, // Use directGmv as gmv for backward compatibility
@@ -8893,6 +8897,14 @@ export async function getLiverDashboardStats(liverId: number, yearMonth: string)
     .orderBy(desc(sql`totalSales`))
     .limit(5);
   
+  // 数字のみの商品名を解決
+  const productSalesNames = productSales.map(p => p.productName);
+  const resolvedProductSalesNames = await resolveNumericProductNames(productSalesNames);
+  const resolvedProductSales = productSales.map(p => ({
+    ...p,
+    productName: resolvedProductSalesNames.get(p.productName) || p.productName,
+  }));
+  
   // Get best streaming time (hour with highest sales)
   const hourlyStats: { hour: number; sales: number; count: number }[] = [];
   for (let h = 0; h < 24; h++) {
@@ -8980,7 +8992,7 @@ export async function getLiverDashboardStats(liverId: number, yearMonth: string)
       dailyPaceNeeded,
     },
     past6Months,
-    topProducts: productSales,
+    topProducts: resolvedProductSales,
     bestHour: bestHour.sales > 0 ? bestHour : null,
     hourlyStats: hourlyStats.filter(h => h.count > 0),
     highlights: {
@@ -9332,6 +9344,75 @@ export async function getLiverBrandPerformance(liverId: number) {
 // ========================================
 
 /**
+ * 数字のみの商品名（TikTok商品ID）を実際の商品名に解決するヘルパー関数
+ * tiktok_tap_reportsテーブルからproductId→productNameのマッピングを取得
+ */
+export async function resolveNumericProductNames(productNames: string[]): Promise<Map<string, string>> {
+  const db = await getDb();
+  if (!db) return new Map();
+  
+  // 数字のみの商品名をフィルタ
+  const numericNames = productNames.filter(name => /^\d+$/.test(name));
+  if (numericNames.length === 0) return new Map();
+  
+  const resolvedMap = new Map<string, string>();
+  
+  // tiktok_tap_reportsから商品名を解決
+  try {
+    const results = await db
+      .select({
+        productId: tiktokTapReports.productId,
+        productName: tiktokTapReports.productName,
+      })
+      .from(tiktokTapReports)
+      .where(sql`${tiktokTapReports.productId} IN (${sql.join(numericNames.map(id => sql`${id}`), sql`, `)})`);
+    
+    // 同じproductIdに複数の名前がある場合は最初のものを使用
+    for (const r of results) {
+      if (r.productId && r.productName && !resolvedMap.has(r.productId)) {
+        resolvedMap.set(r.productId, r.productName);
+      }
+    }
+  } catch (e) {
+    console.error('[resolveNumericProductNames] tiktok_tap_reports lookup error:', e);
+  }
+  
+  // product_name_aliasesからも解決を試みる（手動マッピング）
+  try {
+    const unresolvedIds = numericNames.filter(id => !resolvedMap.has(id));
+    if (unresolvedIds.length > 0) {
+      const aliasResults = await db
+        .select({
+          aliasName: productNameAliases.aliasName,
+          masterId: productNameAliases.productMasterId,
+        })
+        .from(productNameAliases)
+        .where(sql`${productNameAliases.aliasName} IN (${sql.join(unresolvedIds.map(id => sql`${id}`), sql`, `)})`);
+      
+      if (aliasResults.length > 0) {
+        const masterIds = aliasResults.map(a => a.masterId);
+        const masters = await db
+          .select({ id: productMaster.id, canonicalName: productMaster.canonicalName })
+          .from(productMaster)
+          .where(sql`${productMaster.id} IN (${sql.join(masterIds.map(id => sql`${id}`), sql`, `)})`);
+        
+        const masterMap = new Map(masters.map(m => [m.id, m.canonicalName]));
+        for (const alias of aliasResults) {
+          const masterName = masterMap.get(alias.masterId);
+          if (masterName) {
+            resolvedMap.set(alias.aliasName, masterName);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[resolveNumericProductNames] product_name_aliases lookup error:', e);
+  }
+  
+  return resolvedMap;
+}
+
+/**
  * Get top selling products across all livers for a given month
  * 売れ筋商品ランキング（全ライバー合計）
  */
@@ -9421,6 +9502,10 @@ export async function getTopSellingProducts(month: string, limit: number = 10) {
     }
   });
   
+  // 数字のみの商品名を実際の商品名に解決
+  const allProductNames = products.map(p => p.productName);
+  const resolvedNames = await resolveNumericProductNames(allProductNames);
+  
   return products.map((p, index) => {
     // Get livers who sold this product, sorted by sales
     const liverSalesForProduct = productLiversMap.get(p.productName);
@@ -9434,9 +9519,13 @@ export async function getTopSellingProducts(month: string, limit: number = 10) {
           }))
       : [];
     
+    // 数字IDの場合は解決した商品名を使用
+    const displayName = resolvedNames.get(p.productName) || p.productName;
+    
     return {
       rank: index + 1,
-      productName: p.productName,
+      productName: displayName,
+      originalProductId: /^\d+$/.test(p.productName) ? p.productName : undefined,
       totalGmv: Number(p.totalGmv),
       totalItemsSold: Number(p.totalItemsSold),
       totalOrders: Number(p.totalOrders),
@@ -11261,15 +11350,23 @@ export async function getTopProductsByLiver(liverId: number, limit: number = 20)
     .orderBy(sql`SUM(COALESCE(${livestreamProducts.directGmv}, ${livestreamProducts.gmv}, 0)) DESC`)
     .limit(limit);
   
-  return products.map((p, index) => ({
-    rank: index + 1,
-    productName: p.productName,
-    totalGmv: Number(p.totalGmv),
-    totalItemsSold: Number(p.totalItemsSold),
-    totalOrders: Number(p.totalOrders),
-    livestreamCount: Number(p.livestreamCount),
-    avgGmvPerStream: Number(p.livestreamCount) > 0 ? Math.round(Number(p.totalGmv) / Number(p.livestreamCount)) : 0,
-  }));
+  // 数字のみの商品名を実際の商品名に解決
+  const allProductNames = products.map(p => p.productName);
+  const resolvedNames = await resolveNumericProductNames(allProductNames);
+  
+  return products.map((p, index) => {
+    const displayName = resolvedNames.get(p.productName) || p.productName;
+    return {
+      rank: index + 1,
+      productName: displayName,
+      originalProductId: /^\d+$/.test(p.productName) ? p.productName : undefined,
+      totalGmv: Number(p.totalGmv),
+      totalItemsSold: Number(p.totalItemsSold),
+      totalOrders: Number(p.totalOrders),
+      livestreamCount: Number(p.livestreamCount),
+      avgGmvPerStream: Number(p.livestreamCount) > 0 ? Math.round(Number(p.totalGmv) / Number(p.livestreamCount)) : 0,
+    };
+  });
 }
 
 /**
@@ -11301,6 +11398,16 @@ export async function getLiverCategoryAnalysis(liverId: number) {
     .where(sql`${livestreamProducts.livestreamId} IN (${sql.join(livestreamIds.map(id => sql`${id}`), sql`, `)})`)
     .groupBy(livestreamProducts.productName);
   
+  // 数字のみの商品名を実際の商品名に解決
+  const allProductNames = products.map(p => p.productName);
+  const resolvedNames = await resolveNumericProductNames(allProductNames);
+  
+  // 解決済み商品名で置き換え
+  const resolvedProducts = products.map(p => ({
+    ...p,
+    productName: resolvedNames.get(p.productName) || p.productName,
+  }));
+  
   // Load manual category mappings from DB (priority over pattern matching)
   const manualMappings = await db.select().from(productCategoryMappings);
   const manualMappingMap = new Map<string, string>();
@@ -11324,7 +11431,7 @@ export async function getLiverCategoryAnalysis(liverId: number) {
   
   const categoryMap = new Map<string, { gmv: number; itemsSold: number; productCount: number; products: { name: string; gmv: number }[] }>();
   
-  for (const product of products) {
+  for (const product of resolvedProducts) {
     let assignedCategory: string | null = null;
     
     // 1. Check manual mapping first (highest priority)
