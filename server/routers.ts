@@ -11,6 +11,7 @@ import * as chardet from "chardet";
 import { sendCoachingToLiver } from "./_core/lineMessaging";
 import { lessonsRouter } from "./lessonsRouter";
 import { blogRouter, autoPostRouter } from "./blogRouter";
+import { locationRouter } from "./locationRouter";
 import {
   createStaff,
   getAllStaff,
@@ -9314,6 +9315,7 @@ ${conversationText}
           notes: z.string().optional(),
           scheduleGroupId: z.number().optional(), // スケジュールグループID
           brandId: z.number().optional(), // ブランドID
+          locationId: z.number().optional(), // 配信場所ID
         })
       )
       .mutation(async ({ input }) => {
@@ -9328,6 +9330,7 @@ ${conversationText}
           notes: input.notes,
           scheduleGroupId: input.scheduleGroupId,
           brandId: input.brandId,
+          locationId: input.locationId,
         });
         return schedule;
       }),
@@ -19339,6 +19342,10 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
   // ============================================================
   // Lessons Learned - AI自動進化システム（server/lessonsRouter.ts）
   lessons: lessonsRouter,
+
+  // ============================================================
+  // Streaming Locations - 配信場所マスタ（server/locationRouter.ts）
+  location: locationRouter,
 
   // ============================================================
   // Step Email - ステップメール管理・送信履歴・アナリティクス
