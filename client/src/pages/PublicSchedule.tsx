@@ -161,6 +161,8 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
 
   // Liver name filter state (for legend tap filtering)
   const [selectedLiverName, setSelectedLiverName] = useState<string | null>(null);
+  // Location filter state
+  const [selectedLocationId, setSelectedLocationId] = useState<number | null>(null);
 
   // Fetch schedule groups with members
   const { data: scheduleGroups } = trpc.scheduleGroup.listWithMembers.useQuery();
@@ -489,6 +491,11 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
     if (selectedLiverName) {
       filteredSchedules = filteredSchedules.filter(s => s.liverName === selectedLiverName);
     }
+
+    // Filter by selected location
+    if (selectedLocationId) {
+      filteredSchedules = filteredSchedules.filter(s => s.locationId === selectedLocationId);
+    }
     
     const map = new Map<string, (Schedule & { isMultiDay?: boolean; isStart?: boolean; isEnd?: boolean; spanDays?: number })[]>();
     
@@ -551,7 +558,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
     });
     
     return map;
-  }, [schedules, selectedGroupLiverNames, selectedBrandId, selectedLiverName]);
+  }, [schedules, selectedGroupLiverNames, selectedBrandId, selectedLiverName, selectedLocationId]);
 
   // Get today's date key in JST
   const todayKey = getJSTDateKey(new Date());
@@ -1253,6 +1260,44 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
               )}
             </div>
           )}
+
+          {/* Location Legend */}
+          {locationMap.size > 0 && (
+            <div className="px-3 py-2 border-t bg-blue-50/50">
+              <div className="flex items-center gap-1 mb-1">
+                <MapPin className="w-3 h-3 text-blue-500" />
+                <span className="text-[10px] font-medium text-blue-600">配信場所</span>
+              </div>
+              <div className="flex flex-wrap gap-x-3 gap-y-1">
+                {Array.from(locationMap.entries()).map(([id, loc]) => (
+                  <div
+                    key={id}
+                    className={cn(
+                      "flex items-center gap-1 cursor-pointer rounded-full px-1.5 py-0.5 transition-all",
+                      selectedLocationId === id
+                        ? "ring-2 ring-offset-1 opacity-100"
+                        : selectedLocationId
+                          ? "opacity-40"
+                          : "opacity-100 hover:bg-blue-100"
+                    )}
+                    style={selectedLocationId === id ? { ringColor: loc.color } : undefined}
+                    onClick={() => setSelectedLocationId(prev => prev === id ? null : id)}
+                  >
+                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: loc.color }} />
+                    <span className={cn("text-[10px]", selectedLocationId === id ? "font-bold text-gray-900" : "text-gray-600")}>{loc.name}</span>
+                  </div>
+                ))}
+              </div>
+              {selectedLocationId && (
+                <button
+                  onClick={() => setSelectedLocationId(null)}
+                  className="mt-1 text-[10px] text-blue-500 hover:text-blue-700"
+                >
+                  × フィルター解除
+                </button>
+              )}
+            </div>
+          )}
         </>
       )}
 
@@ -1360,6 +1405,44 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
               {selectedLiverName && (
                 <button
                   onClick={() => setSelectedLiverName(null)}
+                  className="mt-1 text-[10px] text-blue-500 hover:text-blue-700"
+                >
+                  × フィルター解除
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Location Legend */}
+          {locationMap.size > 0 && (
+            <div className="px-3 py-2 border-t bg-blue-50/50">
+              <div className="flex items-center gap-1 mb-1">
+                <MapPin className="w-3 h-3 text-blue-500" />
+                <span className="text-[10px] font-medium text-blue-600">配信場所</span>
+              </div>
+              <div className="flex flex-wrap gap-x-3 gap-y-1">
+                {Array.from(locationMap.entries()).map(([id, loc]) => (
+                  <div
+                    key={id}
+                    className={cn(
+                      "flex items-center gap-1 cursor-pointer rounded-full px-1.5 py-0.5 transition-all",
+                      selectedLocationId === id
+                        ? "ring-2 ring-offset-1 opacity-100"
+                        : selectedLocationId
+                          ? "opacity-40"
+                          : "opacity-100 hover:bg-blue-100"
+                    )}
+                    style={selectedLocationId === id ? { ringColor: loc.color } : undefined}
+                    onClick={() => setSelectedLocationId(prev => prev === id ? null : id)}
+                  >
+                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: loc.color }} />
+                    <span className={cn("text-[10px]", selectedLocationId === id ? "font-bold text-gray-900" : "text-gray-600")}>{loc.name}</span>
+                  </div>
+                ))}
+              </div>
+              {selectedLocationId && (
+                <button
+                  onClick={() => setSelectedLocationId(null)}
                   className="mt-1 text-[10px] text-blue-500 hover:text-blue-700"
                 >
                   × フィルター解除
