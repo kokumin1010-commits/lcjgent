@@ -283,9 +283,9 @@ export default function LiverList() {
         )}
         
         {/* Sales Ranking */}
-        <Card className="bg-gray-900/50 border-gray-800">
+        <Card className="bg-gray-900/80 border-gray-700">
           <CardContent className="p-4">
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-white">
+            <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-white">
               <TrendingUp className="w-5 h-5 text-yellow-500" />
               {tr.salesRanking}（{monthOptions.find(m => m.value === selectedMonth)?.label}）
             </h2>
@@ -369,9 +369,9 @@ export default function LiverList() {
         </Card>
         
         {/* Duration Ranking - moved here after Sales Ranking */}
-        <Card className="bg-gray-900/50 border-gray-800">
+        <Card className="bg-gray-900/80 border-gray-700">
           <CardContent className="p-4">
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-white">
+            <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-white">
               <Clock className="w-5 h-5 text-blue-500" />
               {tr.durationRanking}（{monthOptions.find(m => m.value === selectedMonth)?.label}）
             </h2>
@@ -457,9 +457,9 @@ export default function LiverList() {
         
         {/* Referral Ranking */}
         {referralRanking && referralRanking.length > 0 && (
-          <Card className="bg-gray-900/50 border-gray-800">
+          <Card className="bg-gray-900/80 border-gray-700">
             <CardContent className="p-4">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-white">
+              <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-white">
                 <Megaphone className="w-5 h-5 text-purple-500" />
                 紹介ランキング
               </h2>
@@ -526,9 +526,9 @@ export default function LiverList() {
         )}
         
         {/* All Livers List */}
-        <Card className="bg-gray-900/50 border-gray-800">
+        <Card className="bg-gray-900/80 border-gray-700">
           <CardContent className="p-4">
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-white">
+            <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-white">
               <Users className="w-5 h-5 text-green-500" />
               {tr.liverList}
             </h2>
