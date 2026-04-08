@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Calendar, Clock, User, Plus, ChevronDown, ChevronLeft, ChevronRight, X, LogIn, LogOut, UserPlus, Settings, Check, List, LayoutGrid, CalendarDays } from "lucide-react";
+import { Calendar, Clock, User, Plus, ChevronDown, ChevronLeft, ChevronRight, X, LogIn, LogOut, UserPlus, Settings, Check, List, LayoutGrid, CalendarDays, MapPin } from "lucide-react";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Link, useLocation } from "wouter";
@@ -127,6 +127,7 @@ type Schedule = {
   liverName?: string | null;
   liverId?: number | null;
   brandId?: number | null;
+  locationId?: number | null;
   parentScheduleId?: number | null; // 繰り返し予定の親 ID
 };
 
@@ -166,6 +167,18 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
 
   // Fetch brands for filter tabs
   const { data: brandsData } = trpc.brand.list.useQuery();
+
+  // Fetch streaming locations
+  const { data: locationsData } = trpc.location.getActive.useQuery();
+
+  // Location color map for quick lookup
+  const locationMap = useMemo(() => {
+    const map = new Map<number, { name: string; color: string; address?: string | null }>();
+    if (locationsData) {
+      locationsData.forEach((loc: any) => map.set(loc.id, { name: loc.name, color: loc.color || '#3B82F6', address: loc.address }));
+    }
+    return map;
+  }, [locationsData]);
 
   // Use auth from users table (same as management dashboard)
   const { user: adminUser, logout: adminLogout, loading: authLoading } = useAuth();
@@ -211,6 +224,8 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
     newLiverName: "",
     // ブランド選択
     brandId: undefined as number | undefined,
+    // 配信場所
+    locationId: undefined as number | undefined,
     // 繰り返し設定
     repeatType: "none" as "none" | "weekly" | "monthly",
     repeatWeekdays: [] as number[], // 0=日, 1=月, ..., 6=土
@@ -256,6 +271,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
     endTime: string;
     isAllDay: boolean;
     category: "delivery" | "meeting" | "live" | "other";
+    locationId: number | undefined;
     updateAll: boolean; // すべての繰り返しを更新するか
     isRecurring: boolean; // 繰り返し予定かどうか
   } | null>(null);
@@ -324,6 +340,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
       endTime: schedule.endTime ? formatTimeJST(endDate) : formatTimeJST(startDate),
       isAllDay: schedule.isAllDay || false,
       category: (schedule.category as "delivery" | "meeting" | "live" | "other") || "other",
+      locationId: schedule.locationId ?? undefined,
       updateAll: false, // デフォルトはこの予定のみ
       isRecurring: !!schedule.parentScheduleId, // 繰り返し予定かどうか
     });
@@ -354,6 +371,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
       endTime: endTimeUTC.toISOString(),
       isAllDay: editSchedule.isAllDay,
       category: editSchedule.category,
+      locationId: editSchedule.locationId ?? null,
       updateAll: editSchedule.updateAll, // すべての繰り返しを更新するか
     });
   };
@@ -377,6 +395,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
       isNewLiver: false,
       newLiverName: "",
       brandId: undefined,
+      locationId: undefined,
       repeatType: "none",
       repeatWeekdays: [],
       repeatUntil: "",
@@ -801,6 +820,7 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
         liverName: defaultLiverName,
         scheduleGroupId: selectedGroupId || undefined, // 選択中のグループIDを送信
         brandId: newSchedule.brandId, // ブランドIDを送信
+        locationId: newSchedule.locationId, // 配信場所IDを送信
       });
     }
     
@@ -1176,6 +1196,11 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                                   {schedule.liverName && (
                                     <span className="font-bold shrink-0">{liverInitial}</span>
                                   )}
+                                  {(schedule as any).locationId && locationMap.get((schedule as any).locationId) && (
+                                    <span className="shrink-0" title={locationMap.get((schedule as any).locationId)?.name}>
+                                      <MapPin className="w-2.5 h-2.5 inline" />
+                                    </span>
+                                  )}
                                   <span className="truncate">{schedule.title}</span>
                                 </>
                               )}
@@ -1293,6 +1318,12 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                           </div>
                           {schedule.liverName && (
                             <div className="text-[9px] opacity-70 truncate">{schedule.liverName}</div>
+                          )}
+                          {schedule.locationId && locationMap.get(schedule.locationId) && (
+                            <div className="text-[9px] opacity-70 truncate flex items-center gap-0.5">
+                              <MapPin className="w-2 h-2 inline shrink-0" />
+                              {locationMap.get(schedule.locationId)?.name}
+                            </div>
                           )}
                         </div>
                       );
@@ -1421,9 +1452,17 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                           {/* Content */}
                           <div className="flex-1 min-w-0">
                             <div className="font-medium text-sm text-gray-900 truncate">{schedule.title}</div>
-                            {schedule.liverName && (
-                              <div className="text-xs text-gray-500 truncate">{schedule.liverName}</div>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {schedule.liverName && (
+                                <div className="text-xs text-gray-500 truncate">{schedule.liverName}</div>
+                              )}
+                              {schedule.locationId && locationMap.get(schedule.locationId) && (
+                                <div className="flex items-center gap-1 text-xs text-blue-500">
+                                  <MapPin className="w-3 h-3" />
+                                  <span className="truncate">{locationMap.get(schedule.locationId)?.name}</span>
+                                </div>
+                              )}
+                            </div>
                           </div>
                           
                           {/* Liver avatar */}
@@ -1601,6 +1640,12 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                         {schedule.liverName && (
                           <p className="text-sm text-gray-500 truncate">{schedule.liverName}</p>
                         )}
+                        {schedule.locationId && locationMap.get(schedule.locationId) && (
+                          <p className="flex items-center gap-1 text-xs text-blue-500">
+                            <MapPin className="w-3 h-3" />
+                            {locationMap.get(schedule.locationId)?.name}
+                          </p>
+                        )}
                         {schedule.description && (
                           <p className="text-xs text-gray-400 truncate">{schedule.description}</p>
                         )}
@@ -1682,6 +1727,20 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                   </div>
                 )}
                 
+                {/* Location */}
+                {selectedSchedule.locationId && locationMap.get(selectedSchedule.locationId) && (
+                  <div className="flex items-center gap-3">
+                    <MapPin className="h-5 w-5 text-gray-400" />
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: locationMap.get(selectedSchedule.locationId)?.color || '#3B82F6' }}
+                      />
+                      <span>{locationMap.get(selectedSchedule.locationId)?.name}</span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Description */}
                 {selectedSchedule.description && (
                   <div className="pt-2 border-t">
@@ -1786,6 +1845,32 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                         rows={3}
                       />
                     </div>
+
+                    {/* 配信場所選択 */}
+                    {locationsData && locationsData.length > 0 && (
+                      <div>
+                        <label className="text-sm text-gray-500">配信場所</label>
+                        <Select
+                          value={editSchedule.locationId?.toString() || "none"}
+                          onValueChange={(value) => setEditSchedule(prev => prev ? { ...prev, locationId: value === "none" ? undefined : Number(value) } : null)}
+                        >
+                          <SelectTrigger className="mt-1">
+                            <SelectValue placeholder="配信場所を選択" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">場所なし</SelectItem>
+                            {(locationsData as any[]).map((loc: any) => (
+                              <SelectItem key={loc.id} value={loc.id.toString()}>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: loc.color || '#3B82F6' }} />
+                                  {loc.name}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                     
                     {/* 繰り返し予定の場合のみ表示 */}
                     {editSchedule.isRecurring && (
@@ -2182,6 +2267,34 @@ export default function PublicSchedule({ agencyCode, agencyName }: PublicSchedul
                     {brandsData.map((brand: any) => (
                       <SelectItem key={brand.id} value={brand.id.toString()}>
                         {brand.name || brand.brandName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          {/* Location Selection */}
+          {locationsData && locationsData.length > 0 && (
+            <div className="px-4 py-3 border-b">
+              <div className="flex items-center gap-3">
+                <MapPin className="w-5 h-5 text-pink-500" />
+                <Select
+                  value={newSchedule.locationId?.toString() || "none"}
+                  onValueChange={(value) => setNewSchedule(prev => ({ ...prev, locationId: value === "none" ? undefined : Number(value) }))}
+                >
+                  <SelectTrigger className="border-0 p-0 h-auto focus:ring-0 flex-1">
+                    <SelectValue placeholder="配信場所を選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">場所なし</SelectItem>
+                    {(locationsData as any[]).map((loc: any) => (
+                      <SelectItem key={loc.id} value={loc.id.toString()}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: loc.color || '#3B82F6' }} />
+                          {loc.name}
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
