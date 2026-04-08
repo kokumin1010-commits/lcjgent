@@ -801,6 +801,8 @@ export const schedules = mysqlTable("schedules", {
   reminderSentAt: timestamp("reminderSentAt"), // リマインド送信済み日時
   // スケジュールグループ
   scheduleGroupId: int("scheduleGroupId"), // 紐づくスケジュールグループID
+  // 配信場所
+  locationId: int("locationId"), // 配信場所ID（streaming_locations.id）
   // タイムスタンプ
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -808,6 +810,27 @@ export const schedules = mysqlTable("schedules", {
 
 export type Schedule = typeof schedules.$inferSelect;
 export type InsertSchedule = typeof schedules.$inferInsert;
+
+/**
+ * Streaming Locations table for managing live streaming venues
+ * 配信場所マスタテーブル
+ * 
+ * 機能:
+ * - 配信場所の管理（表参道Aなど）
+ * - スケジュールとの紐付けでバッティング防止
+ */
+export const streamingLocations = mysqlTable("streaming_locations", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  address: varchar("address", { length: 500 }),
+  color: varchar("color", { length: 20 }).default("#3B82F6"),
+  isActive: boolean("isActive").default(true).notNull(),
+  sortOrder: int("sortOrder").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type StreamingLocation = typeof streamingLocations.$inferSelect;
+export type InsertStreamingLocation = typeof streamingLocations.$inferInsert;
 
 
 /**
