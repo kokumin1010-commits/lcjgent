@@ -790,6 +790,8 @@ export default function BrandDetail() {
   // Delete states
   const [deleteProductDialogOpen, setDeleteProductDialogOpen] = useState(false);
   const [deleteLivestreamDialogOpen, setDeleteLivestreamDialogOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deletePasswordError, setDeletePasswordError] = useState(false);
   const [deleteContractDialogOpen, setDeleteContractDialogOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<any>(null);
   const [livestreamToDelete, setLivestreamToDelete] = useState<any>(null);
@@ -4620,12 +4622,12 @@ ${proposal.proposalContent}
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Delete Livestream Confirmation Dialog */}
-      <AlertDialog open={deleteLivestreamDialogOpen} onOpenChange={setDeleteLivestreamDialogOpen}>
+      {/* Delete Livestream Confirmation Dialog - 二重確認+パスワード */}
+      <AlertDialog open={deleteLivestreamDialogOpen} onOpenChange={(open) => { setDeleteLivestreamDialogOpen(open); if (!open) { setDeletePassword(''); setDeletePasswordError(false); } }}>
         <AlertDialogContent className="bg-black/95 border-red-900/50 text-white backdrop-blur-xl">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-white">
-              {language === 'ja' ? '直播を削除' : '删除直播'}
+              {language === 'ja' ? '⚠️ 直播を削除' : '⚠️ 删除直播'}
             </AlertDialogTitle>
             <AlertDialogDescription className="text-gray-400">
               {language === 'ja' 
@@ -4633,21 +4635,39 @@ ${proposal.proposalContent}
                 : `确定要删除${formatDate(livestreamToDelete?.livestreamDate)}的直播（${livestreamToDelete?.streamerName}）吗？此操作无法撤消。`
               }
             </AlertDialogDescription>
+            <div className="mt-3">
+              <label className="text-sm text-gray-300 mb-1 block">{language === 'ja' ? '削除パスワードを入力してください' : '请输入删除密码'}</label>
+              <Input
+                type="password"
+                value={deletePassword}
+                onChange={(e) => { setDeletePassword(e.target.value); setDeletePasswordError(false); }}
+                placeholder={language === 'ja' ? 'パスワード' : '密码'}
+                className="bg-gray-800 border-gray-600 text-white"
+              />
+              {deletePasswordError && <p className="text-red-400 text-xs mt-1">{language === 'ja' ? 'パスワードが間違っています' : '密码错误'}</p>}
+            </div>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="border-red-500/50 bg-red-950/50 text-gray-200 hover:bg-red-900/40 hover:text-white hover:border-red-400/70">
               {t.cancel}
             </AlertDialogCancel>
-            <AlertDialogAction
+            <button
               onClick={() => {
+                if (deletePassword !== 'lcj') {
+                  setDeletePasswordError(true);
+                  return;
+                }
                 if (livestreamToDelete) {
                   deleteLivestreamMutation.mutate({ id: livestreamToDelete.id });
+                  setDeleteLivestreamDialogOpen(false);
+                  setDeletePassword('');
+                  setDeletePasswordError(false);
                 }
               }}
-              className="bg-red-600 hover:bg-red-500 text-white"
+              className="inline-flex items-center justify-center rounded-md text-sm font-medium h-10 px-4 py-2 bg-red-600 hover:bg-red-500 text-white"
             >
               {language === 'ja' ? '削除' : '删除'}
-            </AlertDialogAction>
+            </button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
