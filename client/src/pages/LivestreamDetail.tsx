@@ -209,6 +209,8 @@ export default function LivestreamDetail() {
     },
   });
 
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deletePasswordError, setDeletePasswordError] = useState(false);
   const deleteMutation = trpc.liverManagement.deleteLivestream.useMutation({
     onSuccess: () => {
       toast.success("配信履歴を削除しました");
@@ -1707,21 +1709,40 @@ export default function LivestreamDetail() {
               </AlertDialogTrigger>
               <AlertDialogContent className="bg-gray-900 border-gray-700">
                 <AlertDialogHeader>
-                  <AlertDialogTitle className="text-white">配信履歴を削除</AlertDialogTitle>
+                  <AlertDialogTitle className="text-white">⚠️ 配信履歴を削除</AlertDialogTitle>
                   <AlertDialogDescription className="text-gray-400">
                     この配信履歴を削除してもよろしいですか？この操作は取り消せません。
                   </AlertDialogDescription>
+                  <div className="mt-3">
+                    <label className="text-sm text-gray-300 mb-1 block">削除パスワードを入力してください</label>
+                    <Input
+                      type="password"
+                      value={deletePassword}
+                      onChange={(e) => { setDeletePassword(e.target.value); setDeletePasswordError(false); }}
+                      placeholder="パスワード"
+                      className="bg-gray-800 border-gray-600 text-white"
+                    />
+                    {deletePasswordError && <p className="text-red-400 text-xs mt-1">パスワードが間違っています</p>}
+                  </div>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel className="bg-gray-800 text-white border-gray-700 hover:bg-gray-700">
+                  <AlertDialogCancel className="bg-gray-800 text-white border-gray-700 hover:bg-gray-700" onClick={() => { setDeletePassword(''); setDeletePasswordError(false); }}>
                     キャンセル
                   </AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={handleDelete}
-                    className="bg-red-600 hover:bg-red-700"
+                  <button
+                    onClick={() => {
+                      if (deletePassword !== 'lcj') {
+                        setDeletePasswordError(true);
+                        return;
+                      }
+                      handleDelete();
+                      setDeletePassword('');
+                      setDeletePasswordError(false);
+                    }}
+                    className="inline-flex items-center justify-center rounded-md text-sm font-medium h-10 px-4 py-2 bg-red-600 hover:bg-red-700 text-white"
                   >
                     削除
-                  </AlertDialogAction>
+                  </button>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
