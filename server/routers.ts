@@ -9348,6 +9348,7 @@ ${conversationText}
           category: z.enum(["delivery", "meeting", "live", "other"]).optional(),
           notes: z.string().optional(),
           updateAll: z.boolean().optional(), // すべての繰り返しを更新するかどうか
+          locationId: z.number().nullable().optional(), // 配信場所ID
           liverName: z.string().optional(), // ライバー名で認証（トークンがない場合）
         })
       )
@@ -9410,6 +9411,7 @@ ${conversationText}
         if (data.isAllDay !== undefined) updateData.isAllDay = data.isAllDay;
         if (data.category !== undefined) updateData.category = data.category;
         if (data.notes !== undefined) updateData.notes = data.notes;
+        if ((input as any).locationId !== undefined) updateData.locationId = (input as any).locationId;
         
         // すべての繰り返しを更新する場合
         if (updateAll && schedule.parentScheduleId) {
