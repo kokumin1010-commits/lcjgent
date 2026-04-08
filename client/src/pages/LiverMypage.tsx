@@ -120,6 +120,8 @@ export default function LiverMypage() {
 
   // 配信履歴削除用
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deletePasswordError, setDeletePasswordError] = useState(false);
   const deleteLivestreamMutation = trpc.liverManagement.deleteLivestream.useMutation({
     onSuccess: () => {
       toast.success(lt('stream.deleted'));
@@ -1524,29 +1526,47 @@ export default function LiverMypage() {
         </DialogContent>
       </Dialog>
 
-      {/* 配信履歴削除確認ダイアログ */}
-      <AlertDialog open={deleteTargetId !== null} onOpenChange={(open) => { if (!open) setDeleteTargetId(null); }}>
+      {/* 配信履歴削除確認ダイアログ - 二重確認+パスワード */}
+      <AlertDialog open={deleteTargetId !== null} onOpenChange={(open) => { if (!open) { setDeleteTargetId(null); setDeletePassword(''); setDeletePasswordError(false); } }}>
         <AlertDialogContent className="bg-gray-900 border-gray-700">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">{lt("stream.deleteTitle")}</AlertDialogTitle>
+            <AlertDialogTitle className="text-white">⚠️ {lt("stream.deleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription className="text-white/70">
               {lt("stream.deleteConfirm")}
             </AlertDialogDescription>
+            <div className="mt-3">
+              <label className="text-sm text-gray-300 mb-1 block">{language === 'ja' ? '削除パスワードを入力してください' : language === 'zh-TW' ? '請輸入刪除密碼' : language === 'en' ? 'Enter delete password' : '请输入删除密码'}</label>
+              <Input
+                type="password"
+                value={deletePassword}
+                onChange={(e) => { setDeletePassword(e.target.value); setDeletePasswordError(false); }}
+                placeholder={language === 'ja' ? 'パスワード' : language === 'en' ? 'Password' : '密码'}
+                className="bg-gray-800 border-gray-600 text-white"
+              />
+              {deletePasswordError && <p className="text-red-400 text-xs mt-1">{language === 'ja' ? 'パスワードが間違っています' : language === 'en' ? 'Incorrect password' : '密码错误'}</p>}
+            </div>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="bg-gray-800 text-white border-gray-700 hover:bg-gray-700">
               {lt("common.cancel")}
             </AlertDialogCancel>
-            <AlertDialogAction
+            <button
               onClick={() => {
+                if (deletePassword !== 'lcj') {
+                  setDeletePasswordError(true);
+                  return;
+                }
                 if (deleteTargetId) {
                   deleteLivestreamMutation.mutate({ id: deleteTargetId });
+                  setDeleteTargetId(null);
+                  setDeletePassword('');
+                  setDeletePasswordError(false);
                 }
               }}
-              className="bg-red-600 hover:bg-red-700"
+              className="inline-flex items-center justify-center rounded-md text-sm font-medium h-10 px-4 py-2 bg-red-600 hover:bg-red-700 text-white"
             >
               {deleteLivestreamMutation.isPending ? lt('common.loading') : lt('common.delete')}
-            </AlertDialogAction>
+            </button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
