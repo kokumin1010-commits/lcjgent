@@ -10164,9 +10164,42 @@ ${conversationText}
 
     // Delete livestream (配信履歴の削除)
     deleteLivestream: publicProcedure
-      .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
+      .input(z.object({ id: z.number(), liverId: z.number().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        // Get existing livestream for logging before deletion
+        const existingLivestream = await getLivestreamById(input.id);
+        
+        // 商品別GMVも削除
+        await deleteLivestreamProductsByLivestreamId(input.id);
         await deleteBrandLivestream(input.id);
+        
+        // Record edit log
+        if (existingLivestream) {
+          const dateStr = existingLivestream.livestreamDate 
+            ? new Date(existingLivestream.livestreamDate).toLocaleDateString('ja-JP')
+            : '不明';
+          // Determine user info from context or liver token
+          let userId = 0;
+          let userName = 'ライバー管理';
+          if (ctx.user) {
+            userId = ctx.user.id;
+            userName = ctx.user.name || ctx.user.email;
+          } else if (input.liverId) {
+            userId = input.liverId;
+            userName = `Liver:${input.liverId}`;
+          }
+          await logBrandEdit(
+            existingLivestream.brandId,
+            "delete",
+            "livestream",
+            input.id,
+            `${dateStr} ${existingLivestream.streamerName}`,
+            `ライブ配信を削除：${dateStr} ${existingLivestream.streamerName} (GMV: ¥${existingLivestream.gmv || 0})`,
+            userId,
+            userName
+          );
+        }
+        
         return { success: true };
       }),
 
