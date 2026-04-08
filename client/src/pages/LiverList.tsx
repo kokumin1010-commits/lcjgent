@@ -186,7 +186,7 @@ export default function LiverList() {
                 <div className="bg-black/30 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <DollarSign className="w-5 h-5 text-yellow-400" />
-                    <span className="text-white/70 text-sm">{tr.totalSales}</span>
+                    <span className="text-white/90 text-sm">{tr.totalSales}</span>
                   </div>
                   <p className="text-2xl font-bold text-yellow-400">
                     ¥{Number(totalSummary.totalSales).toLocaleString()}
@@ -198,7 +198,7 @@ export default function LiverList() {
                       <ArrowDownRight className="w-4 h-4" />
                     )}
                     <span>{totalSummary.salesGrowth >= 0 ? '+' : ''}{totalSummary.salesGrowth}%</span>
-                    <span className="text-white/50">{tr.vsLastMonth}</span>
+                    <span className="text-white/80">{tr.vsLastMonth}</span>
                   </div>
                 </div>
                 
@@ -206,7 +206,7 @@ export default function LiverList() {
                 <div className="bg-black/30 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Clock className="w-5 h-5 text-blue-400" />
-                    <span className="text-white/70 text-sm">{tr.totalDuration}</span>
+                    <span className="text-white/90 text-sm">{tr.totalDuration}</span>
                   </div>
                   <p className="text-2xl font-bold text-blue-400">
                     {(totalSummary.totalDuration / 60).toFixed(1)}h
@@ -218,7 +218,7 @@ export default function LiverList() {
                       <ArrowDownRight className="w-4 h-4" />
                     )}
                     <span>{totalSummary.durationGrowth >= 0 ? '+' : ''}{totalSummary.durationGrowth}%</span>
-                    <span className="text-white/50">{tr.vsLastMonth}</span>
+                    <span className="text-white/80">{tr.vsLastMonth}</span>
                   </div>
                 </div>
                 
@@ -226,7 +226,7 @@ export default function LiverList() {
                 <div className="bg-black/30 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Activity className="w-5 h-5 text-green-400" />
-                    <span className="text-white/70 text-sm">{tr.totalLivestreams}</span>
+                    <span className="text-white/90 text-sm">{tr.totalLivestreams}</span>
                   </div>
                   <p className="text-2xl font-bold text-green-400">
                     {totalSummary.totalLivestreams}回
@@ -238,7 +238,7 @@ export default function LiverList() {
                       <ArrowDownRight className="w-4 h-4" />
                     )}
                     <span>{totalSummary.livestreamGrowth >= 0 ? '+' : ''}{totalSummary.livestreamGrowth}%</span>
-                    <span className="text-white/50">{tr.vsLastMonth}</span>
+                    <span className="text-white/80">{tr.vsLastMonth}</span>
                   </div>
                 </div>
                 
@@ -246,12 +246,12 @@ export default function LiverList() {
                 <div className="bg-black/30 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Users className="w-5 h-5 text-pink-400" />
-                    <span className="text-white/70 text-sm">{tr.activeLivers}</span>
+                    <span className="text-white/90 text-sm">{tr.activeLivers}</span>
                   </div>
                   <p className="text-2xl font-bold text-pink-400">
                     {totalSummary.activeLivers}人
                   </p>
-                  <div className="flex items-center gap-1 mt-1 text-sm text-white/50">
+                  <div className="flex items-center gap-1 mt-1 text-sm text-white/80">
                     <span>前月: {totalSummary.prevActiveLivers}人</span>
                   </div>
                 </div>
@@ -260,7 +260,7 @@ export default function LiverList() {
               {/* Monthly Trend Mini Chart */}
               {salesTrend && salesTrend.length > 0 && (
                 <div className="mt-6 pt-4 border-t border-white/10">
-                  <h3 className="text-sm text-white/70 mb-3">売上推移（過去6ヶ月）</h3>
+                  <h3 className="text-sm text-white/90 mb-3">売上推移（過去6ヶ月）</h3>
                   <div className="flex items-end gap-2 h-16">
                     {salesTrend.map((month, index) => {
                       const maxSales = Math.max(...salesTrend.map(m => m.totalSales));
@@ -271,7 +271,7 @@ export default function LiverList() {
                             className="w-full bg-gradient-to-t from-yellow-500 to-yellow-300 rounded-t"
                             style={{ height: `${Math.max(height, 4)}%` }}
                           />
-                          <span className="text-xs text-white/50">{month.label}</span>
+                          <span className="text-xs text-white/80">{month.label}</span>
                         </div>
                       );
                     })}
@@ -285,7 +285,7 @@ export default function LiverList() {
         {/* Sales Ranking */}
         <Card className="bg-gray-900/50 border-gray-800">
           <CardContent className="p-4">
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-white">
               <TrendingUp className="w-5 h-5 text-yellow-500" />
               {tr.salesRanking}（{monthOptions.find(m => m.value === selectedMonth)?.label}）
             </h2>
@@ -371,7 +371,7 @@ export default function LiverList() {
         {/* Duration Ranking - moved here after Sales Ranking */}
         <Card className="bg-gray-900/50 border-gray-800">
           <CardContent className="p-4">
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-white">
               <Clock className="w-5 h-5 text-blue-500" />
               {tr.durationRanking}（{monthOptions.find(m => m.value === selectedMonth)?.label}）
             </h2>
@@ -459,7 +459,7 @@ export default function LiverList() {
         {referralRanking && referralRanking.length > 0 && (
           <Card className="bg-gray-900/50 border-gray-800">
             <CardContent className="p-4">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-white">
                 <Megaphone className="w-5 h-5 text-purple-500" />
                 紹介ランキング
               </h2>
@@ -528,7 +528,7 @@ export default function LiverList() {
         {/* All Livers List */}
         <Card className="bg-gray-900/50 border-gray-800">
           <CardContent className="p-4">
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-white">
               <Users className="w-5 h-5 text-green-500" />
               {tr.liverList}
             </h2>
