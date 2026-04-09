@@ -39,6 +39,8 @@ const PendingResponses = lazy(() => import("./pages/PendingResponses"));
 const Calendar = lazy(() => import("./pages/Calendar"));
 const PublicSchedule = lazy(() => import("./pages/PublicSchedule"));
 const MobmartSchedule = lazy(() => import("./pages/MobmartSchedule"));
+const MobmartLiverList = lazy(() => import("./pages/MobmartLiverList"));
+const LcjLiverList = lazy(() => import("./pages/LcjLiverList"));
 const PublicLiverSchedule = lazy(() => import("./pages/PublicLiverSchedule"));
 const LiverRegister = lazy(() => import("./pages/LiverRegister"));
 const LiverLogin = lazy(() => import("./pages/LiverLogin"));
@@ -394,12 +396,13 @@ function Router() {
         <Route path={"/s"} component={PublicSchedule} />
         <Route path={"/s/:name"} component={PublicLiverSchedule} />
         <Route path={"/mobmart/s"} component={MobmartSchedule} />
+        <Route path={"/mobmart/livers"} component={MobmartLiverList} />
         
         {/* Schedule Group Management */}
         <Route path={"/master/schedule-groups"} component={ScheduleGroupManagement} />
         
         {/* Public Pages - Liver */}
-        <Route path={"/livers"} component={LiverList} />
+        <Route path={"/livers"} component={LcjLiverList} />
         <Route path={"/livers/by-name/:name"} component={LiverByName} />
         <Route path={"/livers/:id/edit"} component={LiverProfile} />
         <Route path={"/livers/:id/record"} component={LiverSelfRecord} />
