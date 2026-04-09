@@ -157,16 +157,16 @@ export default function FinanceManagement() {
     { enabled: activeTab === 'tap' || activeTab === 'dashboard' || activeTab.startsWith('tap-') }
   );
   const tapCreatorsQuery = trpc.tiktokFinance.getTapCreatorSummary.useQuery(
-    { brandId: 0, month: tapMonth || undefined },
-    { enabled: activeTab === 'tap' || activeTab === 'tap-creators' || activeTab === 'dashboard' }
+    { brandId: 0, month: (activeTab === 'creators' ? selectedMonth : tapMonth) || undefined },
+    { enabled: activeTab === 'tap' || activeTab === 'tap-creators' || activeTab === 'dashboard' || activeTab === 'creators' }
   );
   const tapShopsQuery = trpc.tiktokFinance.getTapShopSummary.useQuery(
-    { brandId: 0, month: tapMonth || undefined },
-    { enabled: activeTab === 'tap' || activeTab === 'tap-shops' || activeTab === 'dashboard' }
+    { brandId: 0, month: (activeTab === 'shops' ? selectedMonth : tapMonth) || undefined },
+    { enabled: activeTab === 'tap' || activeTab === 'tap-shops' || activeTab === 'dashboard' || activeTab === 'shops' }
   );
   const tapProductsQuery = trpc.tiktokFinance.getTapProductSummary.useQuery(
-    { brandId: 0, month: tapMonth || undefined },
-    { enabled: activeTab === 'tap-products' }
+    { brandId: 0, month: (activeTab === 'products' ? selectedMonth : tapMonth) || undefined },
+    { enabled: activeTab === 'tap-products' || activeTab === 'products' }
   );
   const tapMonthlyQuery = trpc.tiktokFinance.getTapMonthlySummary.useQuery(
     { brandId: 0 },
@@ -829,13 +829,13 @@ export default function FinanceManagement() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Users className="h-4 w-4" />
-              クリエイター別売上・コミッション
+              クリエイター別実績（TAP）
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {creatorsQuery.isLoading ? (
+            {tapCreatorsQuery.isLoading ? (
               <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
-            ) : creators.length === 0 ? (
+            ) : tapCreators.length === 0 ? (
               <p className="text-center text-muted-foreground py-8">データなし</p>
             ) : (
               <div className="overflow-x-auto">
@@ -844,38 +844,62 @@ export default function FinanceManagement() {
                     <tr className="border-b text-muted-foreground">
                       <th className="text-left py-2 px-3">#</th>
                       <th className="text-left py-2 px-3">クリエイター</th>
-                      <th className="text-right py-2 px-3">売上</th>
-                      <th className="text-right py-2 px-3">LCJ手数料</th>
-                      <th className="text-right py-2 px-3">C手数料</th>
-                      <th className="text-right py-2 px-3">LCJ率</th>
-                      <th className="text-right py-2 px-3">C率</th>
+                      <th className="text-right py-2 px-3">アフィリGMV</th>
+                      <th className="text-right py-2 px-3">LIVE GMV</th>
+                      <th className="text-right py-2 px-3">動画GMV</th>
+                      <th className="text-right py-2 px-3">LCJ手数料(見込)</th>
+                      <th className="text-right py-2 px-3">LCJ手数料(実績)</th>
+                      <th className="text-right py-2 px-3">C手数料(見込)</th>
+                      <th className="text-right py-2 px-3">C手数料(実績)</th>
+                      <th className="text-right py-2 px-3">返金GMV</th>
+                      <th className="text-right py-2 px-3">決済済みGMV</th>
+                      <th className="text-right py-2 px-3">ショーケース</th>
+                      <th className="text-right py-2 px-3">注文数</th>
+                      <th className="text-right py-2 px-3">販売数</th>
+                      <th className="text-right py-2 px-3">商品数</th>
+                      <th className="text-right py-2 px-3">ショップ数</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {creators.map((c: any, i: number) => (                    <tr key={c.creatorUsername} className="border-b hover:bg-muted/50">
+                    {tapCreators.map((c: any, i: number) => (
+                      <tr key={c.creatorUsername} className="border-b hover:bg-muted/50">
                         <td className="py-2 px-3 w-8">
                           {i < 3 ? rankIcons[i] : <span className="text-muted-foreground">{i + 1}</span>}
                         </td>
-                        <td className="py-2 px-3 font-medium">{c.creatorUsername || '(不明)'}</td>
-                        <td className="py-2 px-3 text-right font-semibold">{formatCurrency(c.totalSales)}</td>
-                        <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(c.totalActPartnerCommission)}</td>
-                        <td className="py-2 px-3 text-right text-green-600">{formatCurrency(c.totalActCreatorCommission)}</td>
-                        <td className="py-2 px-3 text-right text-cyan-600">{formatPercent(c.avgPartnerCommissionRate)}</td>
-                        <td className="py-2 px-3 text-right text-teal-600">{formatPercent(c.avgCreatorCommissionRate)}</td>
-                        <td className="py-2 px-3 text-right">{formatNumber(c.orderCount)}</td>
-                        <td className="py-2 px-3 text-right">{formatNumber(c.totalQuantity)}</td>
+                        <td className="py-2 px-3 font-medium whitespace-nowrap">{c.creatorUsername || '(不明)'}</td>
+                        <td className="py-2 px-3 text-right font-semibold text-red-600">{formatCurrency(c.totalAffiliateGmv)}</td>
+                        <td className="py-2 px-3 text-right">{formatCurrency(c.totalLiveGmv)}</td>
+                        <td className="py-2 px-3 text-right">{formatCurrency(c.totalVideoGmv)}</td>
+                        <td className="py-2 px-3 text-right text-purple-600">{formatCurrency(c.totalEstimatedPartnerCommission)}</td>
+                        <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(c.totalActualPartnerCommission)}</td>
+                        <td className="py-2 px-3 text-right text-orange-600">{formatCurrency(c.totalEstimatedCreatorCommission)}</td>
+                        <td className="py-2 px-3 text-right text-green-600">{formatCurrency(c.totalActualCreatorCommission)}</td>
+                        <td className="py-2 px-3 text-right text-rose-500">{formatCurrency(c.totalGmvRefund)}</td>
+                        <td className="py-2 px-3 text-right text-emerald-600">{formatCurrency(c.totalSettledGmv)}</td>
+                        <td className="py-2 px-3 text-right text-amber-600">{formatCurrency(c.totalShowcaseRevenue)}</td>
+                        <td className="py-2 px-3 text-right">{formatNumber(c.totalOrders)}</td>
+                        <td className="py-2 px-3 text-right">{formatNumber(c.totalSalesCount)}</td>
+                        <td className="py-2 px-3 text-right">{formatNumber(c.productCount)}</td>
+                        <td className="py-2 px-3 text-right">{formatNumber(c.shopCount)}</td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
                     <tr className="border-t-2 font-bold">
                       <td className="py-2 px-3" colSpan={2}>合計</td>
-                      <td className="py-2 px-3 text-right">{formatCurrency(creators.reduce((s: number, c: any) => s + Number(c.totalSales), 0))}</td>
-                      <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(creators.reduce((s: number, c: any) => s + Number(c.totalActPartnerCommission), 0))}</td>
-                      <td className="py-2 px-3 text-right text-green-600">{formatCurrency(creators.reduce((s: number, c: any) => s + Number(c.totalActCreatorCommission), 0))}</td>
+                      <td className="py-2 px-3 text-right text-red-600">{formatCurrency(tapCreators.reduce((s: number, c: any) => s + Number(c.totalAffiliateGmv), 0))}</td>
+                      <td className="py-2 px-3 text-right">{formatCurrency(tapCreators.reduce((s: number, c: any) => s + Number(c.totalLiveGmv), 0))}</td>
+                      <td className="py-2 px-3 text-right">{formatCurrency(tapCreators.reduce((s: number, c: any) => s + Number(c.totalVideoGmv), 0))}</td>
+                      <td className="py-2 px-3 text-right text-purple-600">{formatCurrency(tapCreators.reduce((s: number, c: any) => s + Number(c.totalEstimatedPartnerCommission), 0))}</td>
+                      <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(tapCreators.reduce((s: number, c: any) => s + Number(c.totalActualPartnerCommission), 0))}</td>
+                      <td className="py-2 px-3 text-right text-orange-600">{formatCurrency(tapCreators.reduce((s: number, c: any) => s + Number(c.totalEstimatedCreatorCommission), 0))}</td>
+                      <td className="py-2 px-3 text-right text-green-600">{formatCurrency(tapCreators.reduce((s: number, c: any) => s + Number(c.totalActualCreatorCommission), 0))}</td>
+                      <td className="py-2 px-3 text-right text-rose-500">{formatCurrency(tapCreators.reduce((s: number, c: any) => s + Number(c.totalGmvRefund), 0))}</td>
+                      <td className="py-2 px-3 text-right text-emerald-600">{formatCurrency(tapCreators.reduce((s: number, c: any) => s + Number(c.totalSettledGmv), 0))}</td>
+                      <td className="py-2 px-3 text-right text-amber-600">{formatCurrency(tapCreators.reduce((s: number, c: any) => s + Number(c.totalShowcaseRevenue), 0))}</td>
+                      <td className="py-2 px-3 text-right">{formatNumber(tapCreators.reduce((s: number, c: any) => s + Number(c.totalOrders), 0))}</td>
+                      <td className="py-2 px-3 text-right">{formatNumber(tapCreators.reduce((s: number, c: any) => s + Number(c.totalSalesCount), 0))}</td>
                       <td className="py-2 px-3 text-right" colSpan={2}></td>
-                      <td className="py-2 px-3 text-right">{formatNumber(creators.reduce((s: number, c: any) => s + Number(c.orderCount), 0))}</td>
-                      <td className="py-2 px-3 text-right">{formatNumber(creators.reduce((s: number, c: any) => s + Number(c.totalQuantity), 0))}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -891,13 +915,13 @@ export default function FinanceManagement() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Store className="h-4 w-4" />
-              ショップ別売上・コミッション
+              ショップ別実績（TAP）
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {shopsQuery.isLoading ? (
+            {tapShopsQuery.isLoading ? (
               <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
-            ) : shops.length === 0 ? (
+            ) : tapShops.length === 0 ? (
               <p className="text-center text-muted-foreground py-8">データなし</p>
             ) : (
               <div className="overflow-x-auto">
@@ -905,38 +929,63 @@ export default function FinanceManagement() {
                   <thead>
                     <tr className="border-b text-muted-foreground">
                       <th className="text-left py-2 px-3">#</th>
-                      <th className="text-right py-2 px-3">ショップ</th>
-                      <th className="text-right py-2 px-3">売上</th>
-                      <th className="text-right py-2 px-3">LCJ手数料</th>
-                      <th className="text-right py-2 px-3">C手数料</th>
-                      <th className="text-right py-2 px-3">LCJ率</th>
-                      <th className="text-right py-2 px-3">C率</th>                    </tr>
+                      <th className="text-left py-2 px-3">ショップ</th>
+                      <th className="text-right py-2 px-3">アフィリGMV</th>
+                      <th className="text-right py-2 px-3">LIVE GMV</th>
+                      <th className="text-right py-2 px-3">動画GMV</th>
+                      <th className="text-right py-2 px-3">LCJ手数料(見込)</th>
+                      <th className="text-right py-2 px-3">LCJ手数料(実績)</th>
+                      <th className="text-right py-2 px-3">C手数料(見込)</th>
+                      <th className="text-right py-2 px-3">C手数料(実績)</th>
+                      <th className="text-right py-2 px-3">返金GMV</th>
+                      <th className="text-right py-2 px-3">決済済みGMV</th>
+                      <th className="text-right py-2 px-3">ショーケース</th>
+                      <th className="text-right py-2 px-3">注文数</th>
+                      <th className="text-right py-2 px-3">販売数</th>
+                      <th className="text-right py-2 px-3">クリエイター数</th>
+                      <th className="text-right py-2 px-3">商品数</th>
+                    </tr>
                   </thead>
                   <tbody>
-                    {shops.map((s: any, i: number) => (                     <tr key={s.shopName} className="border-b hover:bg-muted/50">
+                    {tapShops.map((s: any, i: number) => (
+                      <tr key={s.shopName} className="border-b hover:bg-muted/50">
                         <td className="py-2 px-3 w-8">
                           {i < 3 ? rankIcons[i] : <span className="text-muted-foreground">{i + 1}</span>}
                         </td>
-                        <td className="py-2 px-3 font-medium">{s.shopName || '(不明)'}</td>
-                        <td className="py-2 px-3 text-right font-semibold">{formatCurrency(s.totalSales)}</td>
-                        <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(s.totalActPartnerCommission)}</td>
-                        <td className="py-2 px-3 text-right text-green-600">{formatCurrency(s.totalActCreatorCommission)}</td>
-                        <td className="py-2 px-3 text-right text-cyan-600">{formatPercent(s.avgPartnerCommissionRate)}</td>
-                        <td className="py-2 px-3 text-right text-teal-600">{formatPercent(s.avgCreatorCommissionRate)}</td>
-                        <td className="py-2 px-3 text-right">{formatNumber(s.orderCount)}</td>
-                        <td className="py-2 px-3 text-right">{formatNumber(s.totalQuantity)}</td>
+                        <td className="py-2 px-3 font-medium whitespace-nowrap">{s.shopName || '(不明)'}</td>
+                        <td className="py-2 px-3 text-right font-semibold text-red-600">{formatCurrency(s.totalAffiliateGmv)}</td>
+                        <td className="py-2 px-3 text-right">{formatCurrency(s.totalLiveGmv)}</td>
+                        <td className="py-2 px-3 text-right">{formatCurrency(s.totalVideoGmv)}</td>
+                        <td className="py-2 px-3 text-right text-purple-600">{formatCurrency(s.totalEstimatedPartnerCommission)}</td>
+                        <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(s.totalActualPartnerCommission)}</td>
+                        <td className="py-2 px-3 text-right text-orange-600">{formatCurrency(s.totalEstimatedCreatorCommission)}</td>
+                        <td className="py-2 px-3 text-right text-green-600">{formatCurrency(s.totalActualCreatorCommission)}</td>
+                        <td className="py-2 px-3 text-right text-rose-500">{formatCurrency(s.totalGmvRefund)}</td>
+                        <td className="py-2 px-3 text-right text-emerald-600">{formatCurrency(s.totalSettledGmv)}</td>
+                        <td className="py-2 px-3 text-right text-amber-600">{formatCurrency(s.totalShowcaseRevenue)}</td>
+                        <td className="py-2 px-3 text-right">{formatNumber(s.totalOrders)}</td>
+                        <td className="py-2 px-3 text-right">{formatNumber(s.totalSalesCount)}</td>
+                        <td className="py-2 px-3 text-right">{formatNumber(s.creatorCount)}</td>
+                        <td className="py-2 px-3 text-right">{formatNumber(s.productCount)}</td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
                     <tr className="border-t-2 font-bold">
                       <td className="py-2 px-3" colSpan={2}>合計</td>
-                      <td className="py-2 px-3 text-right">{formatCurrency(shops.reduce((s: number, c: any) => s + Number(c.totalSales), 0))}</td>
-                      <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(shops.reduce((s: number, c: any) => s + Number(c.totalActPartnerCommission), 0))}</td>
-                      <td className="py-2 px-3 text-right text-green-600">{formatCurrency(shops.reduce((s: number, c: any) => s + Number(c.totalActCreatorCommission), 0))}</td>
+                      <td className="py-2 px-3 text-right text-red-600">{formatCurrency(tapShops.reduce((s: number, c: any) => s + Number(c.totalAffiliateGmv), 0))}</td>
+                      <td className="py-2 px-3 text-right">{formatCurrency(tapShops.reduce((s: number, c: any) => s + Number(c.totalLiveGmv), 0))}</td>
+                      <td className="py-2 px-3 text-right">{formatCurrency(tapShops.reduce((s: number, c: any) => s + Number(c.totalVideoGmv), 0))}</td>
+                      <td className="py-2 px-3 text-right text-purple-600">{formatCurrency(tapShops.reduce((s: number, c: any) => s + Number(c.totalEstimatedPartnerCommission), 0))}</td>
+                      <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(tapShops.reduce((s: number, c: any) => s + Number(c.totalActualPartnerCommission), 0))}</td>
+                      <td className="py-2 px-3 text-right text-orange-600">{formatCurrency(tapShops.reduce((s: number, c: any) => s + Number(c.totalEstimatedCreatorCommission), 0))}</td>
+                      <td className="py-2 px-3 text-right text-green-600">{formatCurrency(tapShops.reduce((s: number, c: any) => s + Number(c.totalActualCreatorCommission), 0))}</td>
+                      <td className="py-2 px-3 text-right text-rose-500">{formatCurrency(tapShops.reduce((s: number, c: any) => s + Number(c.totalGmvRefund), 0))}</td>
+                      <td className="py-2 px-3 text-right text-emerald-600">{formatCurrency(tapShops.reduce((s: number, c: any) => s + Number(c.totalSettledGmv), 0))}</td>
+                      <td className="py-2 px-3 text-right text-amber-600">{formatCurrency(tapShops.reduce((s: number, c: any) => s + Number(c.totalShowcaseRevenue), 0))}</td>
+                      <td className="py-2 px-3 text-right">{formatNumber(tapShops.reduce((s: number, c: any) => s + Number(c.totalOrders), 0))}</td>
+                      <td className="py-2 px-3 text-right">{formatNumber(tapShops.reduce((s: number, c: any) => s + Number(c.totalSalesCount), 0))}</td>
                       <td className="py-2 px-3 text-right" colSpan={2}></td>
-                      <td className="py-2 px-3 text-right">{formatNumber(shops.reduce((s: number, c: any) => s + Number(c.orderCount), 0))}</td>
-                      <td className="py-2 px-3 text-right">{formatNumber(shops.reduce((s: number, c: any) => s + Number(c.totalQuantity), 0))}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -952,13 +1001,13 @@ export default function FinanceManagement() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <ShoppingBag className="h-4 w-4" />
-              商品別売上・コミッション
+              商品別実績（TAP）
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {productsQuery.isLoading ? (
+            {tapProductsQuery.isLoading ? (
               <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
-            ) : (productsQuery.data || []).length === 0 ? (
+            ) : (tapProductsQuery.data || []).length === 0 ? (
               <p className="text-center text-muted-foreground py-8">データなし</p>
             ) : (
               <div className="overflow-x-auto">
@@ -967,82 +1016,64 @@ export default function FinanceManagement() {
                     <tr className="border-b text-muted-foreground">
                       <th className="text-left py-2 px-3">#</th>
                       <th className="text-left py-2 px-3">商品名</th>
-                      <th className="text-right py-2 px-3">売上</th>
-                      <th className="text-right py-2 px-3">LCJ手数料</th>
-                      <th className="text-right py-2 px-3">C手数料</th>
+                      <th className="text-right py-2 px-3">アフィリGMV</th>
+                      <th className="text-right py-2 px-3">LIVE GMV</th>
+                      <th className="text-right py-2 px-3">動画GMV</th>
+                      <th className="text-right py-2 px-3">LCJ手数料(見込)</th>
+                      <th className="text-right py-2 px-3">LCJ手数料(実績)</th>
+                      <th className="text-right py-2 px-3">C手数料(見込)</th>
+                      <th className="text-right py-2 px-3">C手数料(実績)</th>
+                      <th className="text-right py-2 px-3">返金GMV</th>
+                      <th className="text-right py-2 px-3">決済済みGMV</th>
+                      <th className="text-right py-2 px-3">ショーケース</th>
                       <th className="text-right py-2 px-3">注文数</th>
-                      <th className="text-right py-2 px-3">数量</th>
-                      <th className="text-right py-2 px-3">平均単価</th>
+                      <th className="text-right py-2 px-3">販売数</th>
+                      <th className="text-right py-2 px-3">クリエイター数</th>
+                      <th className="text-right py-2 px-3">ショップ数</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(productsQuery.data || []).map((p: any, i: number) => (
-                      <React.Fragment key={p.productId || i}>
-                        <tr 
-                          className={`border-b hover:bg-muted/50 cursor-pointer ${selectedProductName === p.productName ? 'bg-blue-50' : ''}`}
-                          onClick={() => setSelectedProductName(selectedProductName === p.productName ? null : p.productName)}
-                        >
-                          <td className="py-2 px-3 w-8">
-                            {i < 3 ? rankIcons[i] : <span className="text-muted-foreground">{i + 1}</span>}
-                          </td>
-                          <td className="py-2 px-3 font-medium max-w-[300px] truncate">
-                            <span className="flex items-center gap-1">
-                              {selectedProductName === p.productName ? <ChevronDown className="h-3 w-3 flex-shrink-0" /> : <ChevronRight className="h-3 w-3 flex-shrink-0" />}
-                              {p.productName || '(不明)'}
-                            </span>
-                          </td>
-                          <td className="py-2 px-3 text-right font-semibold">{formatCurrency(p.totalSales)}</td>
-                          <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(p.totalActPartnerCommission)}</td>
-                          <td className="py-2 px-3 text-right text-green-600">{formatCurrency(p.totalActCreatorCommission)}</td>
-                          <td className="py-2 px-3 text-right">{formatNumber(p.orderCount)}</td>
-                          <td className="py-2 px-3 text-right">{formatNumber(p.totalQuantity)}</td>
-                          <td className="py-2 px-3 text-right">{formatCurrency(p.avgPrice)}</td>
-                        </tr>
-                        {selectedProductName === p.productName && (
-                          <tr>
-                            <td colSpan={8} className="p-0">
-                              <div className="bg-slate-50 border-l-4 border-l-blue-400 px-6 py-3">
-                                <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1">
-                                  <Users className="h-3 w-3" />
-                                  クリエイター別内訳
-                                </p>
-                                {productBreakdownQuery.isLoading ? (
-                                  <div className="flex justify-center py-3"><Loader2 className="h-4 w-4 animate-spin" /></div>
-                                ) : (productBreakdownQuery.data || []).length === 0 ? (
-                                  <p className="text-xs text-muted-foreground">データなし</p>
-                                ) : (
-                                  <table className="w-full text-xs">
-                                    <thead>
-                                      <tr className="text-muted-foreground border-b">
-                                        <th className="text-left py-1 px-2">クリエイター</th>
-                                        <th className="text-right py-1 px-2">売上</th>
-                                        <th className="text-right py-1 px-2">LCJ手数料</th>
-                                        <th className="text-right py-1 px-2">C手数料</th>
-                                        <th className="text-right py-1 px-2">注文数</th>
-                                        <th className="text-right py-1 px-2">数量</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {(productBreakdownQuery.data || []).map((bd: any) => (
-                                        <tr key={bd.creatorUsername} className="border-b border-slate-200 hover:bg-slate-100">
-                                          <td className="py-1 px-2 font-medium">{bd.creatorUsername}</td>
-                                          <td className="py-1 px-2 text-right font-semibold">{formatCurrency(bd.totalSales)}</td>
-                                          <td className="py-1 px-2 text-right text-blue-600">{formatCurrency(bd.totalActPartnerCommission)}</td>
-                                          <td className="py-1 px-2 text-right text-green-600">{formatCurrency(bd.totalActCreatorCommission)}</td>
-                                          <td className="py-1 px-2 text-right">{formatNumber(bd.orderCount)}</td>
-                                          <td className="py-1 px-2 text-right">{formatNumber(bd.totalQuantity)}</td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
+                    {(tapProductsQuery.data || []).map((p: any, i: number) => (
+                      <tr key={p.productId || i} className="border-b hover:bg-muted/50">
+                        <td className="py-2 px-3 w-8">
+                          {i < 3 ? rankIcons[i] : <span className="text-muted-foreground">{i + 1}</span>}
+                        </td>
+                        <td className="py-2 px-3 font-medium max-w-[300px] truncate whitespace-nowrap">{p.productName || '(不明)'}</td>
+                        <td className="py-2 px-3 text-right font-semibold text-red-600">{formatCurrency(p.totalAffiliateGmv)}</td>
+                        <td className="py-2 px-3 text-right">{formatCurrency(p.totalLiveGmv)}</td>
+                        <td className="py-2 px-3 text-right">{formatCurrency(p.totalVideoGmv)}</td>
+                        <td className="py-2 px-3 text-right text-purple-600">{formatCurrency(p.totalEstimatedPartnerCommission)}</td>
+                        <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(p.totalActualPartnerCommission)}</td>
+                        <td className="py-2 px-3 text-right text-orange-600">{formatCurrency(p.totalEstimatedCreatorCommission)}</td>
+                        <td className="py-2 px-3 text-right text-green-600">{formatCurrency(p.totalActualCreatorCommission)}</td>
+                        <td className="py-2 px-3 text-right text-rose-500">{formatCurrency(p.totalGmvRefund)}</td>
+                        <td className="py-2 px-3 text-right text-emerald-600">{formatCurrency(p.totalSettledGmv)}</td>
+                        <td className="py-2 px-3 text-right text-amber-600">{formatCurrency(p.totalShowcaseRevenue)}</td>
+                        <td className="py-2 px-3 text-right">{formatNumber(p.totalOrders)}</td>
+                        <td className="py-2 px-3 text-right">{formatNumber(p.totalSalesCount)}</td>
+                        <td className="py-2 px-3 text-right">{formatNumber(p.creatorCount)}</td>
+                        <td className="py-2 px-3 text-right">{formatNumber(p.shopCount)}</td>
+                      </tr>
                     ))}
                   </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 font-bold">
+                      <td className="py-2 px-3" colSpan={2}>合計</td>
+                      <td className="py-2 px-3 text-right text-red-600">{formatCurrency((tapProductsQuery.data || []).reduce((s: number, c: any) => s + Number(c.totalAffiliateGmv), 0))}</td>
+                      <td className="py-2 px-3 text-right">{formatCurrency((tapProductsQuery.data || []).reduce((s: number, c: any) => s + Number(c.totalLiveGmv), 0))}</td>
+                      <td className="py-2 px-3 text-right">{formatCurrency((tapProductsQuery.data || []).reduce((s: number, c: any) => s + Number(c.totalVideoGmv), 0))}</td>
+                      <td className="py-2 px-3 text-right text-purple-600">{formatCurrency((tapProductsQuery.data || []).reduce((s: number, c: any) => s + Number(c.totalEstimatedPartnerCommission), 0))}</td>
+                      <td className="py-2 px-3 text-right text-blue-600">{formatCurrency((tapProductsQuery.data || []).reduce((s: number, c: any) => s + Number(c.totalActualPartnerCommission), 0))}</td>
+                      <td className="py-2 px-3 text-right text-orange-600">{formatCurrency((tapProductsQuery.data || []).reduce((s: number, c: any) => s + Number(c.totalEstimatedCreatorCommission), 0))}</td>
+                      <td className="py-2 px-3 text-right text-green-600">{formatCurrency((tapProductsQuery.data || []).reduce((s: number, c: any) => s + Number(c.totalActualCreatorCommission), 0))}</td>
+                      <td className="py-2 px-3 text-right text-rose-500">{formatCurrency((tapProductsQuery.data || []).reduce((s: number, c: any) => s + Number(c.totalGmvRefund), 0))}</td>
+                      <td className="py-2 px-3 text-right text-emerald-600">{formatCurrency((tapProductsQuery.data || []).reduce((s: number, c: any) => s + Number(c.totalSettledGmv), 0))}</td>
+                      <td className="py-2 px-3 text-right text-amber-600">{formatCurrency((tapProductsQuery.data || []).reduce((s: number, c: any) => s + Number(c.totalShowcaseRevenue), 0))}</td>
+                      <td className="py-2 px-3 text-right">{formatNumber((tapProductsQuery.data || []).reduce((s: number, c: any) => s + Number(c.totalOrders), 0))}</td>
+                      <td className="py-2 px-3 text-right">{formatNumber((tapProductsQuery.data || []).reduce((s: number, c: any) => s + Number(c.totalSalesCount), 0))}</td>
+                      <td className="py-2 px-3 text-right" colSpan={2}></td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             )}
