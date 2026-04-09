@@ -9637,16 +9637,16 @@ ${conversationText}
 
     // Get all livers with stats for a given month (public - ログイン不要)
     listWithStats: publicProcedure
-      .input(z.object({ month: z.string() })) // format: "YYYY-MM"
+      .input(z.object({ month: z.string(), agencyId: z.number().nullable().optional() })) // format: "YYYY-MM", agencyId: null=LCJ only, number=specific agency, undefined=all
       .query(async ({ input }) => {
-        return await getLiversWithStats(input.month);
+        return await getLiversWithStats(input.month, input.agencyId);
       }),
 
     // Get liver rankings (sales and duration) (public - ログイン不要)
     rankings: publicProcedure
-      .input(z.object({ month: z.string() }))
+      .input(z.object({ month: z.string(), agencyId: z.number().nullable().optional() }))
       .query(async ({ input }) => {
-        return await getLiverRankings(input.month);
+        return await getLiverRankings(input.month, input.agencyId);
       }),
 
     // Get liver by ID with stats (public - ログイン不要)
@@ -9744,15 +9744,16 @@ ${conversationText}
 
     // Get total LCJ liver sales summary (public - ログイン不要)
     totalSalesSummary: publicProcedure
-      .input(z.object({ month: z.string() }))
+      .input(z.object({ month: z.string(), agencyId: z.number().nullable().optional() }))
       .query(async ({ input }) => {
-        return await getTotalLiverSalesSummary(input.month);
+        return await getTotalLiverSalesSummary(input.month, input.agencyId);
       }),
 
     // Get monthly sales trend for all livers (public - ログイン不要)
     monthlySalesTrend: publicProcedure
-      .query(async () => {
-        return await getLiverMonthlySalesTrend();
+      .input(z.object({ agencyId: z.number().nullable().optional() }).optional())
+      .query(async ({ input }) => {
+        return await getLiverMonthlySalesTrend(input?.agencyId);
       }),
 
     // Get liver detail with stats (ライバー詳細情報)
@@ -18490,12 +18491,27 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
     }),
     // 紹介ランキング（公開） - /livers ページ用
     ranking: publicProcedure
-      .input(z.object({ limit: z.number().optional() }).optional())
+      .input(z.object({ limit: z.number().optional(), agencyId: z.number().nullable().optional() }).optional())
       .query(async ({ input }) => {
         const all = await getAllReferralCodes();
-        const ranked = all
-          .filter(r => r.isActive && (r.totalReferrals ?? 0) > 0)
-          .slice(0, input?.limit ?? 10);
+        // Filter by agency if specified
+        let filtered = all.filter(r => r.isActive && (r.totalReferrals ?? 0) > 0);
+        if (input?.agencyId !== undefined) {
+          // Need to check liver's agencyId - get liver info
+          const liverIds = filtered.map(r => r.liverId);
+          if (liverIds.length > 0) {
+            const db = await getDb();
+            if (db) {
+              const liverData = await db.select({ id: livers.id, agencyId: livers.agencyId }).from(livers).where(sql`${livers.id} IN (${sql.join(liverIds.map(id => sql`${id}`), sql`, `)})`);
+              const liverAgencyMap = new Map(liverData.map(l => [l.id, l.agencyId]));
+              filtered = filtered.filter(r => {
+                const liverAgency = liverAgencyMap.get(r.liverId);
+                return input.agencyId === null ? liverAgency === null : liverAgency === input.agencyId;
+              });
+            }
+          }
+        }
+        const ranked = filtered.slice(0, input?.limit ?? 10);
         return ranked.map(r => ({
           liverName: r.liverName,
           liverAvatarUrl: r.liverAvatarUrl,
