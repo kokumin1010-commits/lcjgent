@@ -15,7 +15,7 @@ import {
   Loader2, Eye, RefreshCw, Store, Video, ShoppingBag,
   AlertTriangle, CheckCircle, Clock, Wallet, Building2,
   ArrowUpRight, ArrowDownRight, Crown, Medal, Award, CalendarDays,
-  Target, Zap, Activity, Percent, GitBranch
+  Target, Zap, Activity, Percent, GitBranch, Lock, ShieldAlert
 } from "lucide-react";
 
 function formatCurrency(val: number | string | null | undefined): string {
@@ -84,6 +84,8 @@ export default function FinanceManagement() {
   const [tapUploadDialogOpen, setTapUploadDialogOpen] = useState(false);
   const [tapUploadMonth, setTapUploadMonth] = useState<string>('');
   const [deleteTapMonthDialog, setDeleteTapMonthDialog] = useState<string | null>(null);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirmStep, setDeleteConfirmStep] = useState(0); // 0=initial, 1=password entered, 2=first confirm clicked
   const [expandedMonth, setExpandedMonth] = useState<string | null>(null);
   const [expandedMonthTab, setExpandedMonthTab] = useState<'overview' | 'creators' | 'shops' | 'products'>('overview');
   const pageSize = 50;
@@ -3209,19 +3211,67 @@ export default function FinanceManagement() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete TAP Month Confirmation Dialog */}
-      <Dialog open={!!deleteTapMonthDialog} onOpenChange={(open) => !open && setDeleteTapMonthDialog(null)}>
+      {/* Delete TAP Month Confirmation Dialog - Password Protected + Double Confirm */}
+      <Dialog open={!!deleteTapMonthDialog} onOpenChange={(open) => { if (!open) { setDeleteTapMonthDialog(null); setDeletePassword(''); setDeleteConfirmStep(0); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>TAPデータの削除</DialogTitle>
-            <DialogDescription>{deleteTapMonthDialog}の全TAPデータを削除します。この操作は元に戻せません。</DialogDescription>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-red-500" />
+              TAPデータの削除
+            </DialogTitle>
+            <DialogDescription>
+              <span className="font-bold text-red-600">{deleteTapMonthDialog}</span>の全TAPデータを削除します。<br />
+              この操作は<span className="font-bold text-red-600">元に戻せません</span>。
+            </DialogDescription>
           </DialogHeader>
+          <div className="space-y-4 py-2">
+            {/* Step 1: Password Input */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-2">
+                <Lock className="h-4 w-4" />
+                パスワードを入力してください
+              </label>
+              <Input
+                type="password"
+                placeholder="パスワード"
+                value={deletePassword}
+                onChange={(e) => { setDeletePassword(e.target.value); setDeleteConfirmStep(0); }}
+                className="max-w-xs"
+              />
+              {deletePassword.length > 0 && deletePassword !== 'lcj' && (
+                <p className="text-xs text-red-500">パスワードが正しくありません</p>
+              )}
+            </div>
+
+            {/* Step 2: First Confirm */}
+            {deletePassword === 'lcj' && deleteConfirmStep === 0 && (
+              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                <p className="text-sm text-amber-800 dark:text-amber-200 flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  本当に削除しますか？（1回目の確認）
+                </p>
+                <Button variant="destructive" size="sm" className="mt-2" onClick={() => setDeleteConfirmStep(1)}>
+                  はい、削除を続行します
+                </Button>
+              </div>
+            )}
+
+            {/* Step 3: Final Confirm */}
+            {deletePassword === 'lcj' && deleteConfirmStep === 1 && (
+              <div className="bg-red-50 dark:bg-red-950/30 border border-red-300 dark:border-red-800 rounded-lg p-3">
+                <p className="text-sm text-red-800 dark:text-red-200 font-bold flex items-center gap-2">
+                  <ShieldAlert className="h-4 w-4" />
+                  最終確認：{deleteTapMonthDialog}の全データが完全に削除されます
+                </p>
+                <Button variant="destructive" size="sm" className="mt-2" onClick={() => { deleteTapMonthDialog && deleteTapMonthMutation.mutate({ brandId: 0, reportMonth: deleteTapMonthDialog }); }} disabled={deleteTapMonthMutation.isPending}>
+                  {deleteTapMonthMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                  完全に削除する（最終確認）
+                </Button>
+              </div>
+            )}
+          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTapMonthDialog(null)}>キャンセル</Button>
-            <Button variant="destructive" onClick={() => deleteTapMonthDialog && deleteTapMonthMutation.mutate({ brandId: 0, reportMonth: deleteTapMonthDialog })} disabled={deleteTapMonthMutation.isPending}>
-              {deleteTapMonthMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
-              削除する
-            </Button>
+            <Button variant="outline" onClick={() => { setDeleteTapMonthDialog(null); setDeletePassword(''); setDeleteConfirmStep(0); }}>キャンセル</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -3253,18 +3303,41 @@ export default function FinanceManagement() {
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <Dialog open={deleteDialogOpen} onOpenChange={(open) => { if (!open) { setDeleteDialogOpen(false); setDeletePassword(''); setDeleteConfirmStep(0); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>インポートデータの削除</DialogTitle>
-            <DialogDescription>このインポートに関連する全ての注文データが削除されます。この操作は元に戻せません。</DialogDescription>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-red-500" />
+              インポートデータの削除
+            </DialogTitle>
+            <DialogDescription>このインポートに関連する全ての注文データが削除されます。この操作は<span className="font-bold text-red-600">元に戻せません</span>。</DialogDescription>
           </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-2">
+                <Lock className="h-4 w-4" />
+                パスワードを入力してください
+              </label>
+              <Input type="password" placeholder="パスワード" value={deletePassword} onChange={(e) => { setDeletePassword(e.target.value); setDeleteConfirmStep(0); }} className="max-w-xs" />
+              {deletePassword.length > 0 && deletePassword !== 'lcj' && <p className="text-xs text-red-500">パスワードが正しくありません</p>}
+            </div>
+            {deletePassword === 'lcj' && deleteConfirmStep === 0 && (
+              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                <p className="text-sm text-amber-800 dark:text-amber-200 flex items-center gap-2"><AlertTriangle className="h-4 w-4" />本当に削除しますか？（1回目の確認）</p>
+                <Button variant="destructive" size="sm" className="mt-2" onClick={() => setDeleteConfirmStep(1)}>はい、削除を続行します</Button>
+              </div>
+            )}
+            {deletePassword === 'lcj' && deleteConfirmStep === 1 && (
+              <div className="bg-red-50 dark:bg-red-950/30 border border-red-300 dark:border-red-800 rounded-lg p-3">
+                <p className="text-sm text-red-800 dark:text-red-200 font-bold flex items-center gap-2"><ShieldAlert className="h-4 w-4" />最終確認：インポートデータが完全に削除されます</p>
+                <Button variant="destructive" size="sm" className="mt-2" onClick={() => deleteImportId && deleteMutation.mutate({ importId: deleteImportId })} disabled={deleteMutation.isPending}>
+                  {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}完全に削除する（最終確認）
+                </Button>
+              </div>
+            )}
+          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>キャンセル</Button>
-            <Button variant="destructive" onClick={() => deleteImportId && deleteMutation.mutate({ importId: deleteImportId })} disabled={deleteMutation.isPending}>
-              {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
-              削除する
-            </Button>
+            <Button variant="outline" onClick={() => { setDeleteDialogOpen(false); setDeletePassword(''); setDeleteConfirmStep(0); }}>キャンセル</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -3330,18 +3403,41 @@ export default function FinanceManagement() {
 
 
       {/* Delete Payment Confirmation Dialog */}
-      <Dialog open={deletePaymentDialogOpen} onOpenChange={setDeletePaymentDialogOpen}>
+      <Dialog open={deletePaymentDialogOpen} onOpenChange={(open) => { if (!open) { setDeletePaymentDialogOpen(false); setDeletePassword(''); setDeleteConfirmStep(0); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>入金データの削除</DialogTitle>
-            <DialogDescription>この入金データを削除します。この操作は元に戻せません。</DialogDescription>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-red-500" />
+              入金データの削除
+            </DialogTitle>
+            <DialogDescription>この入金データを削除します。この操作は<span className="font-bold text-red-600">元に戻せません</span>。</DialogDescription>
           </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-2">
+                <Lock className="h-4 w-4" />
+                パスワードを入力してください
+              </label>
+              <Input type="password" placeholder="パスワード" value={deletePassword} onChange={(e) => { setDeletePassword(e.target.value); setDeleteConfirmStep(0); }} className="max-w-xs" />
+              {deletePassword.length > 0 && deletePassword !== 'lcj' && <p className="text-xs text-red-500">パスワードが正しくありません</p>}
+            </div>
+            {deletePassword === 'lcj' && deleteConfirmStep === 0 && (
+              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                <p className="text-sm text-amber-800 dark:text-amber-200 flex items-center gap-2"><AlertTriangle className="h-4 w-4" />本当に削除しますか？（1回目の確認）</p>
+                <Button variant="destructive" size="sm" className="mt-2" onClick={() => setDeleteConfirmStep(1)}>はい、削除を続行します</Button>
+              </div>
+            )}
+            {deletePassword === 'lcj' && deleteConfirmStep === 1 && (
+              <div className="bg-red-50 dark:bg-red-950/30 border border-red-300 dark:border-red-800 rounded-lg p-3">
+                <p className="text-sm text-red-800 dark:text-red-200 font-bold flex items-center gap-2"><ShieldAlert className="h-4 w-4" />最終確認：入金データが完全に削除されます</p>
+                <Button variant="destructive" size="sm" className="mt-2" onClick={() => deletePaymentId && deletePaymentMutation.mutate({ paymentId: deletePaymentId })} disabled={deletePaymentMutation.isPending}>
+                  {deletePaymentMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}完全に削除する（最終確認）
+                </Button>
+              </div>
+            )}
+          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeletePaymentDialogOpen(false)}>キャンセル</Button>
-            <Button variant="destructive" onClick={() => deletePaymentId && deletePaymentMutation.mutate({ paymentId: deletePaymentId })} disabled={deletePaymentMutation.isPending}>
-              {deletePaymentMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
-              削除する
-            </Button>
+            <Button variant="outline" onClick={() => { setDeletePaymentDialogOpen(false); setDeletePassword(''); setDeleteConfirmStep(0); }}>キャンセル</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
