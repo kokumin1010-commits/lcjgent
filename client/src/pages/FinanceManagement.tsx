@@ -55,7 +55,7 @@ type TabType = 'dashboard' | 'creators' | 'shops' | 'products' | 'daily' | 'mont
 
 export default function FinanceManagement() {
   const [, navigate] = useLocation();
-  const [activeTab, setActiveTab] = useState<TabType>('dashboard');
+  const [activeTab, setActiveTab] = useState<TabType>('tap');
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [csvUploading, setCsvUploading] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
@@ -83,8 +83,8 @@ export default function FinanceManagement() {
   const [tapUploadDialogOpen, setTapUploadDialogOpen] = useState(false);
   const [tapUploadMonth, setTapUploadMonth] = useState<string>('');
   const [deleteTapMonthDialog, setDeleteTapMonthDialog] = useState<string | null>(null);
-  const [monthDetailDialog, setMonthDetailDialog] = useState<string | null>(null);
-  const [monthDetailTab, setMonthDetailTab] = useState<'overview' | 'creators' | 'shops' | 'products'>('overview');
+  const [expandedMonth, setExpandedMonth] = useState<string | null>(null);
+  const [expandedMonthTab, setExpandedMonthTab] = useState<'overview' | 'creators' | 'shops' | 'products'>('overview');
   const pageSize = 50;
 
   const monthOptions = useMemo(() => getMonthOptions(), []);
@@ -213,30 +213,30 @@ export default function FinanceManagement() {
     { enabled: activeTab === 'tap-videos' }
   );
 
-  // Month detail modal queries
+  // Month detail inline expansion queries
   const monthDetailSummaryQuery = trpc.tiktokFinance.getTapSummary.useQuery(
-    { brandId: 0, month: monthDetailDialog || undefined },
-    { enabled: !!monthDetailDialog }
+    { brandId: 0, month: expandedMonth || undefined },
+    { enabled: !!expandedMonth }
   );
   const monthDetailCreatorsQuery = trpc.tiktokFinance.getTapCreatorSummary.useQuery(
-    { brandId: 0, month: monthDetailDialog || undefined },
-    { enabled: !!monthDetailDialog }
+    { brandId: 0, month: expandedMonth || undefined },
+    { enabled: !!expandedMonth }
   );
   const monthDetailShopsQuery = trpc.tiktokFinance.getTapShopSummary.useQuery(
-    { brandId: 0, month: monthDetailDialog || undefined },
-    { enabled: !!monthDetailDialog }
+    { brandId: 0, month: expandedMonth || undefined },
+    { enabled: !!expandedMonth }
   );
   const monthDetailProductsQuery = trpc.tiktokFinance.getTapProductSummary.useQuery(
-    { brandId: 0, month: monthDetailDialog || undefined },
-    { enabled: !!monthDetailDialog }
+    { brandId: 0, month: expandedMonth || undefined },
+    { enabled: !!expandedMonth }
   );
   const monthDetailLiveQuery = trpc.tiktokFinance.getTapLiveSummary.useQuery(
-    { brandId: 0, month: monthDetailDialog || undefined },
-    { enabled: !!monthDetailDialog }
+    { brandId: 0, month: expandedMonth || undefined },
+    { enabled: !!expandedMonth }
   );
   const monthDetailVideoQuery = trpc.tiktokFinance.getTapVideoSummary.useQuery(
-    { brandId: 0, month: monthDetailDialog || undefined },
-    { enabled: !!monthDetailDialog }
+    { brandId: 0, month: expandedMonth || undefined },
+    { enabled: !!expandedMonth }
   );
 
   const deleteMutation = trpc.tiktokFinance.deleteImport.useMutation({
@@ -464,16 +464,16 @@ export default function FinanceManagement() {
   ];
 
   const tabs: { key: TabType; label: string; icon: any }[] = [
+    { key: 'tap', label: 'TAP分析', icon: Video },
     { key: 'dashboard', label: 'ダッシュボード', icon: BarChart3 },
-    { key: 'creators', label: 'クリエイター', icon: Users },
-    { key: 'shops', label: 'ショップ', icon: Store },
-    { key: 'products', label: '商品', icon: ShoppingBag },
+    // { key: 'creators', label: 'クリエイター', icon: Users },
+    // { key: 'shops', label: 'ショップ', icon: Store },
+    // { key: 'products', label: '商品', icon: ShoppingBag },
     { key: 'daily', label: '日別推移', icon: Calendar },
-    { key: 'monthly', label: '月推移', icon: TrendingUp },
+    // { key: 'monthly', label: '月推移', icon: TrendingUp },
     { key: 'orders', label: '注文明細', icon: ShoppingCart },
     { key: 'imports', label: 'インポート', icon: FileText },
     { key: 'payments', label: '入金月別', icon: Wallet },
-    { key: 'tap', label: 'TAP分析', icon: Video },
   ];
 
   return (
@@ -731,7 +731,7 @@ export default function FinanceManagement() {
                             const prev = i < tapMonthly.length - 1 ? tapMonthly[i + 1] : null;
                             const change = prev ? getChangePercent(Number(m.totalAffiliateGmv), Number(prev.totalAffiliateGmv)) : null;
                             return (
-                              <tr key={m.reportMonth} className="border-b hover:bg-muted/50 cursor-pointer" onClick={() => { setMonthDetailDialog(m.reportMonth); setMonthDetailTab('overview'); }}>
+                              <tr key={m.reportMonth} className={`border-b hover:bg-muted/50 cursor-pointer transition-colors ${expandedMonth === m.reportMonth ? 'bg-violet-50 dark:bg-violet-950/30' : ''}`} onClick={() => { setExpandedMonth(expandedMonth === m.reportMonth ? null : m.reportMonth); setExpandedMonthTab('overview'); }}>
                                 <td className="py-2 px-3 font-medium">{m.reportMonth}</td>
                                 <td className="py-2 px-3 text-right font-semibold text-violet-600">{formatCurrency(m.totalAffiliateGmv)}</td>
                                 <td className="py-2 px-3 text-right">{formatCurrency(m.totalLiveGmv)}</td>
@@ -1679,7 +1679,7 @@ export default function FinanceManagement() {
                       </thead>
                       <tbody>
                         {(tapMonthlyQuery.data || []).map((m: any) => (
-                          <tr key={m.reportMonth} className="border-b hover:bg-muted/50 cursor-pointer" onClick={() => { setMonthDetailDialog(m.reportMonth); setMonthDetailTab('overview'); }}>
+                          <tr key={m.reportMonth} className={`border-b hover:bg-muted/50 cursor-pointer transition-colors ${expandedMonth === m.reportMonth ? 'bg-violet-50 dark:bg-violet-950/30' : ''}`} onClick={() => { setExpandedMonth(expandedMonth === m.reportMonth ? null : m.reportMonth); setExpandedMonthTab('overview'); }}>
                             <td className="py-2 px-3 font-medium">{m.reportMonth}</td>
                             <td className="py-2 px-3 text-right font-semibold text-violet-600">{formatCurrency(m.totalAffiliateGmv)}</td>
                             <td className="py-2 px-3 text-right">{formatCurrency(m.totalLiveGmv)}</td>
@@ -1696,6 +1696,261 @@ export default function FinanceManagement() {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Month Detail Inline Expansion */}
+          {expandedMonth && (activeTab === 'tap') && (
+            <Card className="border-violet-200 dark:border-violet-800 bg-violet-50/30 dark:bg-violet-950/20">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <CalendarDays className="h-4 w-4 text-violet-600" />
+                    {expandedMonth} 月別詳細
+                  </CardTitle>
+                  <Button variant="ghost" size="sm" onClick={() => setExpandedMonth(null)}>
+                    <ChevronDown className="h-4 w-4 mr-1" />閉じる
+                  </Button>
+                </div>
+                {/* Sub-tabs */}
+                <div className="flex gap-1 mt-2">
+                  {[
+                    { key: 'overview' as const, label: '概要', icon: BarChart3 },
+                    { key: 'creators' as const, label: 'クリエイター', icon: Users },
+                    { key: 'shops' as const, label: 'ショップ', icon: Store },
+                    { key: 'products' as const, label: '商品', icon: Package },
+                  ].map(t => (
+                    <button key={t.key} onClick={() => setExpandedMonthTab(t.key)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                        expandedMonthTab === t.key ? 'bg-violet-200 text-violet-800 dark:bg-violet-800 dark:text-violet-200' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                      }`}>
+                      <t.icon className="h-3.5 w-3.5" />{t.label}
+                    </button>
+                  ))}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {/* Overview Tab */}
+                {expandedMonthTab === 'overview' && (
+                  <div className="space-y-4">
+                    {monthDetailSummaryQuery.isLoading ? (
+                      <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                    ) : monthDetailSummaryQuery.data ? (
+                      <>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          {[
+                            { label: 'アフィリGMV', value: formatCurrency(monthDetailSummaryQuery.data.totalAffiliateGmv), color: 'text-violet-600' },
+                            { label: 'LIVE GMV', value: formatCurrency(monthDetailLiveQuery.data?.totalGmv || 0), color: 'text-blue-600' },
+                            { label: '動画GMV', value: formatCurrency(monthDetailVideoQuery.data?.totalGmv || 0), color: 'text-cyan-600' },
+                            { label: 'LCJ手数料(見込)', value: formatCurrency(monthDetailSummaryQuery.data.totalEstimatedPartnerCommission), color: 'text-green-600' },
+                            { label: 'LCJ手数料(実績)', value: formatCurrency(monthDetailSummaryQuery.data.totalActualPartnerCommission), color: 'text-emerald-600' },
+                            { label: '注文数', value: formatNumber(monthDetailSummaryQuery.data.totalOrders), color: '' },
+                            { label: '販売数', value: formatNumber(monthDetailSummaryQuery.data.totalUnitsSold), color: '' },
+                            { label: '決済済みGMV', value: formatCurrency(monthDetailSummaryQuery.data.totalSettledGmv), color: 'text-amber-600' },
+                            { label: '返金GMV', value: formatCurrency(monthDetailSummaryQuery.data.totalGmvRefund), color: 'text-red-500' },
+                            { label: 'ショーケース収益', value: formatCurrency(monthDetailSummaryQuery.data.totalShowcaseRevenue), color: 'text-purple-600' },
+                            { label: 'C手数料(見込)', value: formatCurrency(monthDetailSummaryQuery.data.totalEstimatedCreatorCommission), color: 'text-orange-600' },
+                            { label: 'C手数料(実績)', value: formatCurrency(monthDetailSummaryQuery.data.totalActualCreatorCommission), color: 'text-orange-500' },
+                          ].map((item, i) => (
+                            <div key={i} className="bg-white dark:bg-background rounded-lg p-3 border">
+                              <div className="text-xs text-muted-foreground">{item.label}</div>
+                              <div className={`text-sm font-bold mt-1 ${item.color}`}>{item.value}</div>
+                            </div>
+                          ))}
+                        </div>
+                        {/* LIVE & Video Summary */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3">
+                            <div className="text-sm font-semibold text-blue-700 dark:text-blue-400 mb-2">LIVE配信サマリー</div>
+                            {monthDetailLiveQuery.data ? (
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                <div><span className="text-muted-foreground">GMV:</span> <span className="font-medium">{formatCurrency(monthDetailLiveQuery.data.totalGmv)}</span></div>
+                                <div><span className="text-muted-foreground">手数料:</span> <span className="font-medium">{formatCurrency(monthDetailLiveQuery.data.totalPartnerCommission)}</span></div>
+                                <div><span className="text-muted-foreground">注文数:</span> <span className="font-medium">{formatNumber(monthDetailLiveQuery.data.totalOrders)}</span></div>
+                                <div><span className="text-muted-foreground">視聴数:</span> <span className="font-medium">{formatNumber(monthDetailLiveQuery.data.totalViews)}</span></div>
+                                <div><span className="text-muted-foreground">配信数:</span> <span className="font-medium">{formatNumber(monthDetailLiveQuery.data.totalSessions)}</span></div>
+                                <div><span className="text-muted-foreground">RPM:</span> <span className="font-medium">¥{formatNumber(monthDetailLiveQuery.data.avgRpm)}</span></div>
+                              </div>
+                            ) : <div className="text-xs text-muted-foreground">データなし</div>}
+                          </div>
+                          <div className="bg-cyan-50 dark:bg-cyan-950/30 rounded-lg p-3">
+                            <div className="text-sm font-semibold text-cyan-700 dark:text-cyan-400 mb-2">動画サマリー</div>
+                            {monthDetailVideoQuery.data ? (
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                <div><span className="text-muted-foreground">GMV:</span> <span className="font-medium">{formatCurrency(monthDetailVideoQuery.data.totalGmv)}</span></div>
+                                <div><span className="text-muted-foreground">手数料:</span> <span className="font-medium">{formatCurrency(monthDetailVideoQuery.data.totalPartnerCommission)}</span></div>
+                                <div><span className="text-muted-foreground">注文数:</span> <span className="font-medium">{formatNumber(monthDetailVideoQuery.data.totalOrders)}</span></div>
+                                <div><span className="text-muted-foreground">視聴数:</span> <span className="font-medium">{formatNumber(monthDetailVideoQuery.data.totalViews)}</span></div>
+                                <div><span className="text-muted-foreground">動画数:</span> <span className="font-medium">{formatNumber(monthDetailVideoQuery.data.totalSessions)}</span></div>
+                                <div><span className="text-muted-foreground">RPM:</span> <span className="font-medium">¥{formatNumber(monthDetailVideoQuery.data.avgRpm)}</span></div>
+                              </div>
+                            ) : <div className="text-xs text-muted-foreground">データなし</div>}
+                          </div>
+                        </div>
+                        {/* Active counts */}
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="bg-white dark:bg-background rounded-lg p-3 text-center border">
+                            <div className="text-xs text-muted-foreground">クリエイター</div>
+                            <div className="text-lg font-bold">{formatNumber(monthDetailSummaryQuery.data.creatorCount)}</div>
+                          </div>
+                          <div className="bg-white dark:bg-background rounded-lg p-3 text-center border">
+                            <div className="text-xs text-muted-foreground">ショップ</div>
+                            <div className="text-lg font-bold">{formatNumber(monthDetailSummaryQuery.data.shopCount)}</div>
+                          </div>
+                          <div className="bg-white dark:bg-background rounded-lg p-3 text-center border">
+                            <div className="text-xs text-muted-foreground">商品</div>
+                            <div className="text-lg font-bold">{formatNumber(monthDetailSummaryQuery.data.productCount)}</div>
+                          </div>
+                        </div>
+                      </>
+                    ) : <p className="text-center text-muted-foreground py-4">データなし</p>}
+                  </div>
+                )}
+                {/* Creators Tab */}
+                {expandedMonthTab === 'creators' && (
+                  <div>
+                    {monthDetailCreatorsQuery.isLoading ? (
+                      <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                    ) : (monthDetailCreatorsQuery.data || []).length === 0 ? (
+                      <p className="text-center text-muted-foreground py-8">データなし</p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b bg-muted/50">
+                              <th className="text-left py-2 px-2">#</th>
+                              <th className="text-left py-2 px-2">クリエイター</th>
+                              <th className="text-right py-2 px-2">アフィリGMV</th>
+                              <th className="text-right py-2 px-2">LIVE GMV</th>
+                              <th className="text-right py-2 px-2">動画GMV</th>
+                              <th className="text-right py-2 px-2">LCJ手数料(見込)</th>
+                              <th className="text-right py-2 px-2">LCJ手数料(実績)</th>
+                              <th className="text-right py-2 px-2">C手数料(見込)</th>
+                              <th className="text-right py-2 px-2">C手数料(実績)</th>
+                              <th className="text-right py-2 px-2">注文数</th>
+                              <th className="text-right py-2 px-2">販売数</th>
+                              <th className="text-right py-2 px-2">返金GMV</th>
+                              <th className="text-right py-2 px-2">決済済みGMV</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(monthDetailCreatorsQuery.data || []).map((c: any, i: number) => (
+                              <tr key={c.creatorUsername} className="border-b hover:bg-muted/50">
+                                <td className="py-1.5 px-2">{i + 1}</td>
+                                <td className="py-1.5 px-2 font-medium">{c.creatorUsername}</td>
+                                <td className="py-1.5 px-2 text-right font-semibold text-violet-600">{formatCurrency(c.totalAffiliateGmv)}</td>
+                                <td className="py-1.5 px-2 text-right">{formatCurrency(c.totalLiveGmv)}</td>
+                                <td className="py-1.5 px-2 text-right">{formatCurrency(c.totalVideoGmv)}</td>
+                                <td className="py-1.5 px-2 text-right text-green-600">{formatCurrency(c.totalEstimatedPartnerCommission)}</td>
+                                <td className="py-1.5 px-2 text-right text-emerald-600">{formatCurrency(c.totalActualPartnerCommission)}</td>
+                                <td className="py-1.5 px-2 text-right text-orange-600">{formatCurrency(c.totalEstimatedCreatorCommission)}</td>
+                                <td className="py-1.5 px-2 text-right text-orange-500">{formatCurrency(c.totalActualCreatorCommission)}</td>
+                                <td className="py-1.5 px-2 text-right">{formatNumber(c.totalOrders)}</td>
+                                <td className="py-1.5 px-2 text-right">{formatNumber(c.totalUnitsSold)}</td>
+                                <td className="py-1.5 px-2 text-right text-red-500">{formatCurrency(c.totalGmvRefund)}</td>
+                                <td className="py-1.5 px-2 text-right text-amber-600">{formatCurrency(c.totalSettledGmv)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* Shops Tab */}
+                {expandedMonthTab === 'shops' && (
+                  <div>
+                    {monthDetailShopsQuery.isLoading ? (
+                      <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                    ) : (monthDetailShopsQuery.data || []).length === 0 ? (
+                      <p className="text-center text-muted-foreground py-8">データなし</p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b bg-muted/50">
+                              <th className="text-left py-2 px-2">#</th>
+                              <th className="text-left py-2 px-2">ショップ</th>
+                              <th className="text-right py-2 px-2">アフィリGMV</th>
+                              <th className="text-right py-2 px-2">LIVE GMV</th>
+                              <th className="text-right py-2 px-2">動画GMV</th>
+                              <th className="text-right py-2 px-2">LCJ手数料(見込)</th>
+                              <th className="text-right py-2 px-2">LCJ手数料(実績)</th>
+                              <th className="text-right py-2 px-2">注文数</th>
+                              <th className="text-right py-2 px-2">販売数</th>
+                              <th className="text-right py-2 px-2">返金GMV</th>
+                              <th className="text-right py-2 px-2">決済済みGMV</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(monthDetailShopsQuery.data || []).map((s: any, i: number) => (
+                              <tr key={s.shopName} className="border-b hover:bg-muted/50">
+                                <td className="py-1.5 px-2">{i + 1}</td>
+                                <td className="py-1.5 px-2 font-medium max-w-[200px] truncate" title={s.shopName}>{s.shopName}</td>
+                                <td className="py-1.5 px-2 text-right font-semibold text-violet-600">{formatCurrency(s.totalAffiliateGmv)}</td>
+                                <td className="py-1.5 px-2 text-right">{formatCurrency(s.totalLiveGmv)}</td>
+                                <td className="py-1.5 px-2 text-right">{formatCurrency(s.totalVideoGmv)}</td>
+                                <td className="py-1.5 px-2 text-right text-green-600">{formatCurrency(s.totalEstimatedPartnerCommission)}</td>
+                                <td className="py-1.5 px-2 text-right text-emerald-600">{formatCurrency(s.totalActualPartnerCommission)}</td>
+                                <td className="py-1.5 px-2 text-right">{formatNumber(s.totalOrders)}</td>
+                                <td className="py-1.5 px-2 text-right">{formatNumber(s.totalUnitsSold)}</td>
+                                <td className="py-1.5 px-2 text-right text-red-500">{formatCurrency(s.totalGmvRefund)}</td>
+                                <td className="py-1.5 px-2 text-right text-amber-600">{formatCurrency(s.totalSettledGmv)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* Products Tab */}
+                {expandedMonthTab === 'products' && (
+                  <div>
+                    {monthDetailProductsQuery.isLoading ? (
+                      <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                    ) : (monthDetailProductsQuery.data || []).length === 0 ? (
+                      <p className="text-center text-muted-foreground py-8">データなし</p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b bg-muted/50">
+                              <th className="text-left py-2 px-2">#</th>
+                              <th className="text-left py-2 px-2">商品名</th>
+                              <th className="text-right py-2 px-2">アフィリGMV</th>
+                              <th className="text-right py-2 px-2">LIVE GMV</th>
+                              <th className="text-right py-2 px-2">動画GMV</th>
+                              <th className="text-right py-2 px-2">LCJ手数料(見込)</th>
+                              <th className="text-right py-2 px-2">LCJ手数料(実績)</th>
+                              <th className="text-right py-2 px-2">注文数</th>
+                              <th className="text-right py-2 px-2">販売数</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(monthDetailProductsQuery.data || []).slice(0, 100).map((p: any, i: number) => (
+                              <tr key={`${p.productName}-${i}`} className="border-b hover:bg-muted/50">
+                                <td className="py-1.5 px-2">{i + 1}</td>
+                                <td className="py-1.5 px-2 font-medium max-w-[250px] truncate" title={p.productName}>{p.productName}</td>
+                                <td className="py-1.5 px-2 text-right font-semibold text-violet-600">{formatCurrency(p.totalAffiliateGmv)}</td>
+                                <td className="py-1.5 px-2 text-right">{formatCurrency(p.totalLiveGmv)}</td>
+                                <td className="py-1.5 px-2 text-right">{formatCurrency(p.totalVideoGmv)}</td>
+                                <td className="py-1.5 px-2 text-right text-green-600">{formatCurrency(p.totalEstimatedPartnerCommission)}</td>
+                                <td className="py-1.5 px-2 text-right text-emerald-600">{formatCurrency(p.totalActualPartnerCommission)}</td>
+                                <td className="py-1.5 px-2 text-right">{formatNumber(p.totalOrders)}</td>
+                                <td className="py-1.5 px-2 text-right">{formatNumber(p.totalUnitsSold)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {(monthDetailProductsQuery.data || []).length > 100 && (
+                          <p className="text-xs text-muted-foreground text-center py-2">上位100件を表示（全{(monthDetailProductsQuery.data || []).length}件）</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -2619,8 +2874,8 @@ export default function FinanceManagement() {
         </DialogContent>
       </Dialog>
 
-      {/* Month Detail Modal */}
-      <Dialog open={!!monthDetailDialog} onOpenChange={(open) => { if (!open) setMonthDetailDialog(null); }}>
+      {/* Month Detail Modal - replaced by inline expansion above */}
+      {/* <Dialog open={!!expandedMonth} onOpenChange={(open) => { if (!open) setExpandedMonth(null); }}>
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -2869,7 +3124,7 @@ export default function FinanceManagement() {
             )}
           </div>
         </DialogContent>
-      </Dialog>
+      </Dialog> */}
 
       {/* Delete Payment Confirmation Dialog */}
       <Dialog open={deletePaymentDialogOpen} onOpenChange={setDeletePaymentDialogOpen}>
