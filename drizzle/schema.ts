@@ -4439,3 +4439,83 @@ export const agencies = mysqlTable("agencies", {
 });
 export type Agency = typeof agencies.$inferSelect;
 export type InsertAgency = typeof agencies.$inferInsert;
+
+
+/**
+ * TSP (TikTok Shop Partner) Contracts table
+ * TSP契約管理テーブル
+ * 
+ * 機能:
+ * - 取引先（ショップ）との月額契約管理
+ * - Stripe Customer/Subscription連携
+ * - 自動請求書発行・入金管理
+ */
+export const tspContracts = mysqlTable("tsp_contracts", {
+  id: int("id").autoincrement().primaryKey(),
+  // 取引先情報
+  shopName: varchar("shopName", { length: 255 }).notNull(),
+  companyName: varchar("companyName", { length: 255 }),
+  contactName: varchar("contactName", { length: 255 }),
+  contactEmail: varchar("contactEmail", { length: 320 }).notNull(),
+  contactPhone: varchar("contactPhone", { length: 50 }),
+  postalCode: varchar("postalCode", { length: 20 }),
+  address: text("address"),
+  // 契約情報
+  monthlyAmount: int("monthlyAmount").notNull(), // 月額料金（税抜・円）
+  taxRate: int("taxRate").default(10).notNull(), // 消費税率（%）
+  contractStartDate: timestamp("contractStartDate").notNull(),
+  contractEndDate: timestamp("contractEndDate"),
+  billingDay: int("billingDay").default(1).notNull(), // 毎月の請求日（1-28）
+  paymentDueDays: int("paymentDueDays").default(30).notNull(), // 支払期限（請求日から何日後）
+  paymentMethod: varchar("paymentMethod", { length: 50 }).default("bank_transfer").notNull(), // bank_transfer | auto_charge
+  description: text("description"), // 契約内容の説明（請求書の明細に使用）
+  // Stripe連携
+  stripeCustomerId: varchar("stripeCustomerId", { length: 255 }),
+  stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 255 }),
+  stripePriceId: varchar("stripePriceId", { length: 255 }),
+  stripeProductId: varchar("stripeProductId", { length: 255 }),
+  // TAPショップ紐付け（任意）
+  tapShopName: varchar("tapShopName", { length: 255 }),
+  // ステータス
+  status: varchar("status", { length: 50 }).default("active").notNull(), // active | paused | cancelled
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type TspContract = typeof tspContracts.$inferSelect;
+export type InsertTspContract = typeof tspContracts.$inferInsert;
+
+/**
+ * TSP Invoices table
+ * TSP請求書テーブル
+ * 
+ * 機能:
+ * - Stripe Invoice連携
+ * - 請求書の発行・送信・入金ステータス管理
+ */
+export const tspInvoices = mysqlTable("tsp_invoices", {
+  id: int("id").autoincrement().primaryKey(),
+  contractId: int("contractId").notNull(),
+  // 請求情報
+  invoiceNumber: varchar("invoiceNumber", { length: 100 }), // LCJ独自の請求書番号
+  billingMonth: varchar("billingMonth", { length: 7 }).notNull(), // YYYY-MM
+  amount: int("amount").notNull(), // 税抜金額
+  taxAmount: int("taxAmount").notNull(), // 消費税額
+  totalAmount: int("totalAmount").notNull(), // 税込合計
+  description: text("description"), // 明細内容
+  dueDate: timestamp("dueDate"), // 支払期限
+  // Stripe連携
+  stripeInvoiceId: varchar("stripeInvoiceId", { length: 255 }),
+  stripeInvoiceUrl: text("stripeInvoiceUrl"), // Stripe請求書のURL（取引先が支払いに使う）
+  stripeInvoicePdf: text("stripeInvoicePdf"), // Stripe請求書のPDF URL
+  // ステータス
+  status: varchar("status", { length: 50 }).default("draft").notNull(), // draft | sent | paid | overdue | cancelled | void
+  paidAt: timestamp("paidAt"),
+  sentAt: timestamp("sentAt"),
+  // メモ
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type TspInvoice = typeof tspInvoices.$inferSelect;
+export type InsertTspInvoice = typeof tspInvoices.$inferInsert;

@@ -4,7 +4,10 @@ import {
   getMallOrderByStripeSessionId,
   getMallOrderById,
   updateMallOrderStripeInfo,
+  getDb,
 } from "./db";
+import { tspInvoices } from "../drizzle/schema";
+import { eq } from "drizzle-orm";
 import { pushMessage } from "./line";
 import { sendOrderConfirmationNotification } from "./orderNotifications";
 
@@ -85,6 +88,70 @@ export async function handleStripeWebhook(req: any, res: any) {
       case "payment_intent.payment_failed": {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         console.log(`[Stripe Webhook] Payment failed: ${paymentIntent.id}`);
+        break;
+      }
+
+      // ========================================
+      // TSP Invoice 関連イベント
+      // ========================================
+      case "invoice.paid": {
+        const invoice = event.data.object as Stripe.Invoice;
+        console.log(`[Stripe Webhook] Invoice paid: ${invoice.id}`);
+        if (invoice.metadata?.contractId) {
+          try {
+            const db = await getDb();
+            if (db && invoice.id) {
+              await db.update(tspInvoices).set({
+                status: "paid",
+                paidAt: new Date(),
+                stripeInvoiceUrl: invoice.hosted_invoice_url || null,
+                stripeInvoicePdf: invoice.invoice_pdf || null,
+              }).where(eq(tspInvoices.stripeInvoiceId, invoice.id));
+              console.log(`[Stripe Webhook] TSP Invoice ${invoice.id} marked as paid (contract: ${invoice.metadata.contractId})`);
+            }
+          } catch (tspErr: any) {
+            console.error(`[Stripe Webhook] TSP invoice paid update error:`, tspErr.message);
+          }
+        }
+        break;
+      }
+      case "invoice.payment_failed": {
+        const invoice = event.data.object as Stripe.Invoice;
+        console.log(`[Stripe Webhook] Invoice payment failed: ${invoice.id}`);
+        if (invoice.metadata?.contractId) {
+          try {
+            const db = await getDb();
+            if (db && invoice.id) {
+              await db.update(tspInvoices).set({
+                status: "overdue",
+              }).where(eq(tspInvoices.stripeInvoiceId, invoice.id));
+              console.log(`[Stripe Webhook] TSP Invoice ${invoice.id} marked as overdue`);
+            }
+          } catch (tspErr: any) {
+            console.error(`[Stripe Webhook] TSP invoice overdue update error:`, tspErr.message);
+          }
+        }
+        break;
+      }
+      case "invoice.sent": {
+        const invoice = event.data.object as Stripe.Invoice;
+        console.log(`[Stripe Webhook] Invoice sent: ${invoice.id}`);
+        if (invoice.metadata?.contractId) {
+          try {
+            const db = await getDb();
+            if (db && invoice.id) {
+              await db.update(tspInvoices).set({
+                status: "sent",
+                sentAt: new Date(),
+                stripeInvoiceUrl: invoice.hosted_invoice_url || null,
+                stripeInvoicePdf: invoice.invoice_pdf || null,
+              }).where(eq(tspInvoices.stripeInvoiceId, invoice.id));
+              console.log(`[Stripe Webhook] TSP Invoice ${invoice.id} marked as sent`);
+            }
+          } catch (tspErr: any) {
+            console.error(`[Stripe Webhook] TSP invoice sent update error:`, tspErr.message);
+          }
+        }
         break;
       }
 

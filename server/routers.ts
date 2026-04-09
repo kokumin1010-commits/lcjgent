@@ -604,6 +604,7 @@ import { setApplicationRouter } from "./setApplicationRouter";
 import { sampleRequestRouter } from "./sampleRequestRouter";
 import { recruitmentRouter } from "./recruitmentRouter";
 import { adFormRouter } from "./adFormRouter";
+import { tspRouter } from "./tspRouter";
 import { agencyRouter } from "./agencyRouter";
 import { checkAndSendReminders } from "./reminderScheduler";
 // Blog/AutoPost関連のimportはserver/blogRouter.tsに移動済み
@@ -19967,6 +19968,8 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
 
   // Ad Form Submissions (TikTok広告LP申込)
   adForm: adFormRouter,
+  // TSP (TikTok Shop Partner) 月額契約管理
+  tsp: tspRouter,
   // 事務所（エージェンシー）管理
   agency: agencyRouter,
 });
