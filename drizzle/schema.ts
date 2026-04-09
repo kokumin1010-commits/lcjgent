@@ -4333,6 +4333,7 @@ export type InsertAdFormSubmission = typeof adFormSubmissions.$inferInsert;
 export const agencies = mysqlTable("agencies", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
+  slug: varchar("slug", { length: 100 }).unique(),
   loginId: varchar("loginId", { length: 100 }).notNull().unique(),
   password: varchar("password", { length: 255 }).notNull(),
   logoUrl: text("logoUrl"),
