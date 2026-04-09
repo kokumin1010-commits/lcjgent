@@ -15,7 +15,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Crown, Clock, TrendingUp, ChevronDown, ChevronUp, Users, DollarSign, Activity, Zap, ArrowUpRight, ArrowDownRight, Megaphone, Gift, Package } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
-export default function LiverList() {
+interface LiverListProps {
+  agencyId?: number | null; // null = LCJ only, number = specific agency, undefined = all
+  agencyName?: string; // Display name for the agency (e.g., "Mobmart", "LCJ")
+}
+
+export default function LiverList({ agencyId, agencyName }: LiverListProps = {}) {
   const { t, language } = useLanguage();
   
   // Generate month options (last 12 months)
@@ -39,37 +44,43 @@ export default function LiverList() {
   
   const { data: rankings, isLoading } = trpc.liverManagement.rankings.useQuery({
     month: selectedMonth,
+    agencyId: agencyId,
   });
   
   const { data: livers } = trpc.liverManagement.listWithStats.useQuery({
     month: selectedMonth,
+    agencyId: agencyId,
   });
   
   // Referral Ranking
-  const { data: referralRanking } = trpc.referral.ranking.useQuery({ limit: 20 });
+  const { data: referralRanking } = trpc.referral.ranking.useQuery({ limit: 20, agencyId: agencyId });
   
   const referralRankingToShow = showAllReferral
     ? referralRanking
     : referralRanking?.slice(0, 5);
 
-  // Total LCJ Liver Sales Summary
+  // Total Liver Sales Summary
   const { data: totalSummary } = trpc.liverManagement.totalSalesSummary.useQuery({
     month: selectedMonth,
+    agencyId: agencyId,
   });
   
   // Monthly Sales Trend
-  const { data: salesTrend } = trpc.liverManagement.monthlySalesTrend.useQuery();
+  const { data: salesTrend } = trpc.liverManagement.monthlySalesTrend.useQuery({ agencyId: agencyId });
+  
+  // Determine display name
+  const displayName = agencyName || "LCJ";
   
   const translations = {
     ja: {
-      title: "ライバーリスト",
+      title: agencyName ? `${agencyName} ライバーリスト` : "ライバーリスト",
       monthLabel: "月選択",
       totalSales: "トータル売上",
       totalDuration: "総配信時間",
       totalLivestreams: "総配信数",
       activeLivers: "アクティブライバー",
       vsLastMonth: "前月比",
-      lcjLiverSummary: "LCJライバー全体実績",
+      lcjLiverSummary: `${displayName}ライバー全体実績`,
       salesRanking: "月間売上ランキング",
       durationRanking: "累計配信時間ランキング",
       sales: "売上",
@@ -81,14 +92,14 @@ export default function LiverList() {
       liverList: "ライバー一覧",
     },
     zh: {
-      title: "主播列表",
+      title: agencyName ? `${agencyName} 主播列表` : "主播列表",
       monthLabel: "选择月份",
       totalSales: "总销售额",
       totalDuration: "总直播时长",
       totalLivestreams: "总直播数",
       activeLivers: "活跃主播",
       vsLastMonth: "环比",
-      lcjLiverSummary: "LCJ主播整体业绩",
+      lcjLiverSummary: `${displayName}主播整体业绩`,
       salesRanking: "月间销售排行榜",
       durationRanking: "累计直播时长排行榜",
       sales: "销售额",
@@ -172,7 +183,7 @@ export default function LiverList() {
           <span>{selectedMonth.replace("-", "年")}月▼</span>
         </div>
         
-        {/* LCJ Liver Total Summary */}
+        {/* Liver Total Summary */}
         {totalSummary && (
           <Card className="bg-gradient-to-br from-purple-900/50 to-pink-900/50 border-purple-500/30">
             <CardContent className="p-6">
@@ -492,7 +503,7 @@ export default function LiverList() {
                         </div>
                       </div>
                       {/* Progress bar */}
-                      <div className="h-1 bg-purple-500/20 rounded mt-2">
+                      <div className="h-1.5 bg-purple-500/20 rounded mt-2">
                         <div
                           className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded"
                           style={{
