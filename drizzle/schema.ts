@@ -4186,6 +4186,99 @@ export const tiktokTapReports = mysqlTable("tiktok_tap_reports", {
 export type TiktokTapReport = typeof tiktokTapReports.$inferSelect;
 export type InsertTiktokTapReport = typeof tiktokTapReports.$inferInsert;
 
+// =============================================
+// TikTok TAP Live Reports (LIVE配信×商品明細)
+// =============================================
+
+export const tiktokTapLiveReports = mysqlTable("tiktok_tap_live_reports", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: int("brandId").notNull().default(0),
+  reportMonth: varchar("reportMonth", { length: 7 }).notNull(),
+  dateRange: varchar("dateRange", { length: 50 }).notNull(),
+
+  // クリエイター情報
+  creatorUsername: varchar("creatorUsername", { length: 255 }).notNull(),
+
+  // LIVE配信情報
+  liveRoomId: varchar("liveRoomId", { length: 64 }),
+  liveName: text("liveName"),
+  liveTimeInfo: text("liveTimeInfo"),
+
+  // 商品情報
+  productId: varchar("productId", { length: 64 }).notNull(),
+  productName: text("productName").notNull(),
+
+  // ショップ情報
+  shopId: varchar("shopId", { length: 64 }),
+  shopName: varchar("shopName", { length: 255 }),
+
+  // カテゴリー
+  category1: varchar("category1", { length: 255 }),
+  category2: varchar("category2", { length: 255 }),
+
+  // GMV・パフォーマンス
+  liveGmv: bigint("liveGmv", { mode: "number" }).default(0),
+  liveOrders: int("liveOrders").default(0),
+  broadcastTime: bigint("broadcastTime", { mode: "number" }).default(0),
+  liveViews: bigint("liveViews", { mode: "number" }).default(0),
+  liveLikes: bigint("liveLikes", { mode: "number" }).default(0),
+  liveRpm: decimal("liveRpm", { precision: 20, scale: 2 }).default("0"),
+  estimatedPartnerCommission: bigint("estimatedPartnerCommission", { mode: "number" }).default(0),
+  actualPartnerCommission: bigint("actualPartnerCommission", { mode: "number" }).default(0),
+  salesCount: int("salesCount").default(0),
+
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type TiktokTapLiveReport = typeof tiktokTapLiveReports.$inferSelect;
+export type InsertTiktokTapLiveReport = typeof tiktokTapLiveReports.$inferInsert;
+
+// =============================================
+// TikTok TAP Video Reports (動画×商品明細)
+// =============================================
+
+export const tiktokTapVideoReports = mysqlTable("tiktok_tap_video_reports", {
+  id: int("id").autoincrement().primaryKey(),
+  brandId: int("brandId").notNull().default(0),
+  reportMonth: varchar("reportMonth", { length: 7 }).notNull(),
+  dateRange: varchar("dateRange", { length: 50 }).notNull(),
+
+  // クリエイター情報
+  creatorUsername: varchar("creatorUsername", { length: 255 }).notNull(),
+
+  // 動画情報
+  videoId: varchar("videoId", { length: 64 }),
+  videoName: text("videoName"),
+  postTime: text("postTime"),
+
+  // 商品情報
+  productId: varchar("productId", { length: 64 }).notNull(),
+  productName: text("productName").notNull(),
+
+  // ショップ情報
+  shopId: varchar("shopId", { length: 64 }),
+  shopName: varchar("shopName", { length: 255 }),
+
+  // カテゴリー
+  category1: varchar("category1", { length: 255 }),
+  category2: varchar("category2", { length: 255 }),
+
+  // GMV・パフォーマンス
+  videoGmv: bigint("videoGmv", { mode: "number" }).default(0),
+  videoOrders: int("videoOrders").default(0),
+  estimatedPartnerCommission: bigint("estimatedPartnerCommission", { mode: "number" }).default(0),
+  actualPartnerCommission: bigint("actualPartnerCommission", { mode: "number" }).default(0),
+  broadcastTime: bigint("broadcastTime", { mode: "number" }).default(0),
+  videoViews: bigint("videoViews", { mode: "number" }).default(0),
+  videoLikes: bigint("videoLikes", { mode: "number" }).default(0),
+  videoRpm: decimal("videoRpm", { precision: 20, scale: 2 }).default("0"),
+  salesCount: int("salesCount").default(0),
+
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type TiktokTapVideoReport = typeof tiktokTapVideoReports.$inferSelect;
+export type InsertTiktokTapVideoReport = typeof tiktokTapVideoReports.$inferInsert;
 
 // =============================================
 // Step Email Templates & Logs

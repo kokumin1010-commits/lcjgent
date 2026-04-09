@@ -415,6 +415,14 @@ import {
   getTiktokTapProductSummary,
   deleteTiktokTapReportsByMonth,
   getTiktokTapAvailableMonths,
+  getTiktokTapLiveSummary,
+  getTiktokTapLiveCreatorSummary,
+  getTiktokTapLiveMonthlySummary,
+  getTiktokTapLiveTopSessions,
+  getTiktokTapVideoSummary,
+  getTiktokTapVideoCreatorSummary,
+  getTiktokTapVideoMonthlySummary,
+  getTiktokTapVideoTopVideos,
   createLivestreamSet,
   createLivestreamSetItem,
   getLivestreamSetsByLivestreamId,
@@ -17721,6 +17729,56 @@ TikTok Shopの注文番号は「5」または「6」で始まる16〜19桁の数
       .mutation(async ({ input }) => {
         await deleteTiktokTapReportsByMonth(input.brandId, input.reportMonth);
         return { success: true };
+      }),
+
+    // === TAP Live Report エンドポイント ===
+    getTapLiveSummary: protectedProcedure
+      .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
+      .query(async ({ input }) => {
+        return getTiktokTapLiveSummary(input.brandId, input.month);
+      }),
+
+    getTapLiveCreatorSummary: protectedProcedure
+      .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
+      .query(async ({ input }) => {
+        return getTiktokTapLiveCreatorSummary(input.brandId, input.month);
+      }),
+
+    getTapLiveMonthlySummary: protectedProcedure
+      .input(z.object({ brandId: z.number().optional().default(0) }))
+      .query(async ({ input }) => {
+        return getTiktokTapLiveMonthlySummary(input.brandId);
+      }),
+
+    getTapLiveTopSessions: protectedProcedure
+      .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional(), limit: z.number().optional().default(20) }))
+      .query(async ({ input }) => {
+        return getTiktokTapLiveTopSessions(input.brandId, input.month, input.limit);
+      }),
+
+    // === TAP Video Report エンドポイント ===
+    getTapVideoSummary: protectedProcedure
+      .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
+      .query(async ({ input }) => {
+        return getTiktokTapVideoSummary(input.brandId, input.month);
+      }),
+
+    getTapVideoCreatorSummary: protectedProcedure
+      .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional() }))
+      .query(async ({ input }) => {
+        return getTiktokTapVideoCreatorSummary(input.brandId, input.month);
+      }),
+
+    getTapVideoMonthlySummary: protectedProcedure
+      .input(z.object({ brandId: z.number().optional().default(0) }))
+      .query(async ({ input }) => {
+        return getTiktokTapVideoMonthlySummary(input.brandId);
+      }),
+
+    getTapVideoTopVideos: protectedProcedure
+      .input(z.object({ brandId: z.number().optional().default(0), month: z.string().optional(), limit: z.number().optional().default(20) }))
+      .query(async ({ input }) => {
+        return getTiktokTapVideoTopVideos(input.brandId, input.month, input.limit);
       }),
   }),
 

@@ -51,7 +51,7 @@ function getPrevMonth(month: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-type TabType = 'dashboard' | 'creators' | 'shops' | 'products' | 'daily' | 'monthly' | 'orders' | 'imports' | 'payments' | 'tap' | 'tap-creators' | 'tap-shops' | 'tap-products';
+type TabType = 'dashboard' | 'creators' | 'shops' | 'products' | 'daily' | 'monthly' | 'orders' | 'imports' | 'payments' | 'tap' | 'tap-creators' | 'tap-shops' | 'tap-products' | 'tap-live' | 'tap-videos';
 
 export default function FinanceManagement() {
   const [, navigate] = useLocation();
@@ -154,15 +154,15 @@ export default function FinanceManagement() {
   // TAP Queries
   const tapSummaryQuery = trpc.tiktokFinance.getTapSummary.useQuery(
     { brandId: 0, month: tapMonth || undefined },
-    { enabled: activeTab === 'tap' || activeTab === 'dashboard' }
+    { enabled: activeTab === 'tap' || activeTab === 'dashboard' || activeTab.startsWith('tap-') }
   );
   const tapCreatorsQuery = trpc.tiktokFinance.getTapCreatorSummary.useQuery(
     { brandId: 0, month: tapMonth || undefined },
-    { enabled: activeTab === 'tap' || activeTab === 'tap-creators' }
+    { enabled: activeTab === 'tap' || activeTab === 'tap-creators' || activeTab === 'dashboard' }
   );
   const tapShopsQuery = trpc.tiktokFinance.getTapShopSummary.useQuery(
     { brandId: 0, month: tapMonth || undefined },
-    { enabled: activeTab === 'tap' || activeTab === 'tap-shops' }
+    { enabled: activeTab === 'tap' || activeTab === 'tap-shops' || activeTab === 'dashboard' }
   );
   const tapProductsQuery = trpc.tiktokFinance.getTapProductSummary.useQuery(
     { brandId: 0, month: tapMonth || undefined },
@@ -174,7 +174,41 @@ export default function FinanceManagement() {
   );
   const tapAvailableMonthsQuery = trpc.tiktokFinance.getTapAvailableMonths.useQuery(
     { brandId: 0 },
-    { enabled: activeTab.startsWith('tap') }
+    { enabled: activeTab.startsWith('tap') || activeTab === 'dashboard' }
+  );
+
+  // Live/Video TAP Queries
+  const tapLiveSummaryQuery = trpc.tiktokFinance.getTapLiveSummary.useQuery(
+    { brandId: 0, month: tapMonth || undefined },
+    { enabled: activeTab === 'tap-live' || activeTab === 'tap' }
+  );
+  const tapLiveCreatorsQuery = trpc.tiktokFinance.getTapLiveCreatorSummary.useQuery(
+    { brandId: 0, month: tapMonth || undefined },
+    { enabled: activeTab === 'tap-live' }
+  );
+  const tapLiveMonthlyQuery = trpc.tiktokFinance.getTapLiveMonthlySummary.useQuery(
+    { brandId: 0 },
+    { enabled: activeTab === 'tap-live' }
+  );
+  const tapLiveTopSessionsQuery = trpc.tiktokFinance.getTapLiveTopSessions.useQuery(
+    { brandId: 0, month: tapMonth || undefined, limit: 50 },
+    { enabled: activeTab === 'tap-live' }
+  );
+  const tapVideoSummaryQuery = trpc.tiktokFinance.getTapVideoSummary.useQuery(
+    { brandId: 0, month: tapMonth || undefined },
+    { enabled: activeTab === 'tap-videos' || activeTab === 'tap' }
+  );
+  const tapVideoCreatorsQuery = trpc.tiktokFinance.getTapVideoCreatorSummary.useQuery(
+    { brandId: 0, month: tapMonth || undefined },
+    { enabled: activeTab === 'tap-videos' }
+  );
+  const tapVideoMonthlyQuery = trpc.tiktokFinance.getTapVideoMonthlySummary.useQuery(
+    { brandId: 0 },
+    { enabled: activeTab === 'tap-videos' }
+  );
+  const tapVideoTopVideosQuery = trpc.tiktokFinance.getTapVideoTopVideos.useQuery(
+    { brandId: 0, month: tapMonth || undefined, limit: 50 },
+    { enabled: activeTab === 'tap-videos' }
   );
 
   const deleteMutation = trpc.tiktokFinance.deleteImport.useMutation({
@@ -352,6 +386,12 @@ export default function FinanceManagement() {
   const shops = shopsQuery.data || [];
   const monthly = monthlyQuery.data || [];
 
+  // TAP-based dashboard data
+  const tapSummary = tapSummaryQuery.data;
+  const tapCreators = tapCreatorsQuery.data || [];
+  const tapShops = tapShopsQuery.data || [];
+  const tapMonthly = tapMonthlyQuery.data || [];
+
   const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -458,35 +498,30 @@ export default function FinanceManagement() {
         ))}
       </div>
 
-      {/* Dashboard Tab */}
+      {/* Dashboard Tab - TAPベース */}
       {activeTab === 'dashboard' && (
         <div className="space-y-6">
-          {summaryQuery.isLoading ? (
+          {tapSummaryQuery.isLoading ? (
             <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin" /></div>
-          ) : summary ? (
+          ) : tapSummary ? (
             <>
-              {/* Main KPI Cards */}
+              {/* Main KPI Cards - TAPベース */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card className="border-l-4 border-l-blue-500">
+                <Card className="border-l-4 border-l-violet-500">
                   <CardContent className="pt-4 pb-3">
                     <div className="flex items-center justify-between">
                       <div>
                         <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
                           <DollarSign className="h-3.5 w-3.5" />
-                          総売上（営業額）
+                          アフィリエイトGMV
                         </div>
-                        <p className="text-2xl font-bold">{formatCurrency(summary.totalSales)}</p>
+                        <p className="text-2xl font-bold text-violet-600">{formatCurrency(tapSummary.totalAffiliateGmv)}</p>
                       </div>
-                      {salesChange && selectedMonth && (
-                        <div className={`flex items-center gap-1 text-sm ${salesChange.isUp ? 'text-green-600' : 'text-red-500'}`}>
-                          {salesChange.isUp ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
-                          {salesChange.value.toFixed(1)}%
-                        </div>
-                      )}
                     </div>
-                    {selectedMonth && prevSummary && (
-                      <p className="text-xs text-muted-foreground mt-1">前月: {formatCurrency(prevSummary.totalSales)}</p>
-                    )}
+                    <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+                      <span>LIVE: {formatCurrency(tapSummary.totalLiveGmv)}</span>
+                      <span>動画: {formatCurrency(tapSummary.totalVideoGmv)}</span>
+                    </div>
                   </CardContent>
                 </Card>
 
@@ -496,46 +531,31 @@ export default function FinanceManagement() {
                       <div>
                         <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
                           <TrendingUp className="h-3.5 w-3.5" />
-                          総コミッション（実績）
+                          LCJ手数料（実績）
                         </div>
-                        <p className="text-2xl font-bold text-green-600">
-                          {formatCurrency(Number(summary.totalActPartnerCommission) + Number(summary.totalActCreatorCommission))}
-                        </p>
+                        <p className="text-2xl font-bold text-green-600">{formatCurrency(tapSummary.totalActualPartnerCommission)}</p>
                       </div>
-                      {commissionChange && selectedMonth && (
-                        <div className={`flex items-center gap-1 text-sm ${commissionChange.isUp ? 'text-green-600' : 'text-red-500'}`}>
-                          {commissionChange.isUp ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
-                          {commissionChange.value.toFixed(1)}%
-                        </div>
-                      )}
                     </div>
-                    <div className="flex gap-4 mt-1 text-xs text-muted-foreground">
-                      <span>LCJ: {formatCurrency(summary.totalActPartnerCommission)}</span>
-                      <span>C: {formatCurrency(summary.totalActCreatorCommission)}</span>
+                    <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+                      <span>見込: {formatCurrency(tapSummary.totalEstimatedPartnerCommission)}</span>
+                      <span>C実績: {formatCurrency(tapSummary.totalActualCreatorCommission)}</span>
                     </div>
                   </CardContent>
                 </Card>
 
-                <Card className="border-l-4 border-l-purple-500">
+                <Card className="border-l-4 border-l-blue-500">
                   <CardContent className="pt-4 pb-3">
                     <div className="flex items-center justify-between">
                       <div>
                         <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
                           <ShoppingCart className="h-3.5 w-3.5" />
-                          注文数
+                          注文数 / 販売数
                         </div>
-                        <p className="text-2xl font-bold">{formatNumber(summary.totalOrders)}</p>
+                        <p className="text-2xl font-bold">{formatNumber(tapSummary.totalOrders)}</p>
                       </div>
-                      {ordersChange && selectedMonth && (
-                        <div className={`flex items-center gap-1 text-sm ${ordersChange.isUp ? 'text-green-600' : 'text-red-500'}`}>
-                          {ordersChange.isUp ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
-                          {ordersChange.value.toFixed(1)}%
-                        </div>
-                      )}
                     </div>
-                    <div className="flex gap-4 mt-1 text-xs text-muted-foreground">
-                      <span>数量: {formatNumber(summary.totalQuantity)}</span>
-                      <span>平均単価: {formatCurrency(summary.avgPrice)}</span>
+                    <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+                      <span>販売数: {formatNumber(tapSummary.totalSalesCount)}</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -546,22 +566,69 @@ export default function FinanceManagement() {
                       <Users className="h-3.5 w-3.5" />
                       アクティブ
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
                       <div>
-                        <p className="text-2xl font-bold">{formatNumber(summary.uniqueCreators)}</p>
+                        <p className="text-xl font-bold">{formatNumber(tapSummary.creatorCount)}</p>
                         <p className="text-xs text-muted-foreground">クリエイター</p>
                       </div>
                       <div className="h-8 w-px bg-border" />
                       <div>
-                        <p className="text-2xl font-bold">{formatNumber(summary.uniqueShops)}</p>
+                        <p className="text-xl font-bold">{formatNumber(tapSummary.shopCount)}</p>
                         <p className="text-xs text-muted-foreground">ショップ</p>
+                      </div>
+                      <div className="h-8 w-px bg-border" />
+                      <div>
+                        <p className="text-xl font-bold">{formatNumber(tapSummary.productCount)}</p>
+                        <p className="text-xs text-muted-foreground">商品</p>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
               </div>
 
-              {/* Payment & Commission Rate Cards */}
+              {/* 追加KPI: 返金・決済済み・ショーケース・リンク・LIVE/動画パフォーマンス */}
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                <Card>
+                  <CardContent className="pt-3 pb-2">
+                    <div className="text-muted-foreground text-xs mb-1">決済済みGMV</div>
+                    <p className="text-lg font-semibold text-emerald-600">{formatCurrency(tapSummary.totalSettledGmv)}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-3 pb-2">
+                    <div className="text-muted-foreground text-xs mb-1">返金GMV</div>
+                    <p className="text-lg font-semibold text-red-500">{formatCurrency(tapSummary.totalGmvRefund)}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-3 pb-2">
+                    <div className="text-muted-foreground text-xs mb-1">ショーケース収益</div>
+                    <p className="text-lg font-semibold text-purple-600">{formatCurrency(tapSummary.totalShowcaseRevenue)}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-3 pb-2">
+                    <div className="text-muted-foreground text-xs mb-1">リンクGMV</div>
+                    <p className="text-lg font-semibold text-cyan-600">{formatCurrency(tapSummary.totalLinkGmv)}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-3 pb-2">
+                    <div className="text-muted-foreground text-xs mb-1">LIVE視聴</div>
+                    <p className="text-lg font-semibold">{formatNumber(tapSummary.totalLiveViews)}</p>
+                    <p className="text-xs text-muted-foreground">{formatNumber(tapSummary.totalLiveCount)}回</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-3 pb-2">
+                    <div className="text-muted-foreground text-xs mb-1">動画視聴</div>
+                    <p className="text-lg font-semibold">{formatNumber(tapSummary.totalVideoViews)}</p>
+                    <p className="text-xs text-muted-foreground">{formatNumber(tapSummary.totalVideoCount)}本</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* 入金・手数料率 */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card className="border-l-4 border-l-indigo-500 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setActiveTab('payments')}>
                   <CardContent className="pt-4 pb-3">
@@ -586,32 +653,32 @@ export default function FinanceManagement() {
                   <CardContent className="pt-4 pb-3">
                     <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
                       <Building2 className="h-3.5 w-3.5" />
-                      平均LCJ手数料率
+                      C手数料（見込）
                     </div>
-                    <p className="text-xl font-bold text-cyan-600">{formatPercent(summary.avgPartnerCommissionRate)}</p>
+                    <p className="text-xl font-bold text-cyan-600">{formatCurrency(tapSummary.totalEstimatedCreatorCommission)}</p>
                   </CardContent>
                 </Card>
                 <Card className="border-l-4 border-l-teal-500">
                   <CardContent className="pt-4 pb-3">
                     <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
                       <Users className="h-3.5 w-3.5" />
-                      平均C手数料率
+                      C手数料（実績）
                     </div>
-                    <p className="text-xl font-bold text-teal-600">{formatPercent(summary.avgCreatorCommissionRate)}</p>
+                    <p className="text-xl font-bold text-teal-600">{formatCurrency(tapSummary.totalActualCreatorCommission)}</p>
                   </CardContent>
                 </Card>
               </div>
 
-              {/* Monthly Trend (in dashboard) */}
-              {monthly.length > 0 && (
+              {/* Monthly Trend - TAPベース */}
+              {tapMonthly.length > 0 && (
                 <Card>
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-base flex items-center gap-2">
                         <BarChart3 className="h-4 w-4" />
-                        月別推移
+                        月別推移（TAP）
                       </CardTitle>
-                      <Button variant="ghost" size="sm" onClick={() => setActiveTab('monthly')}>
+                      <Button variant="ghost" size="sm" onClick={() => setActiveTab('tap')}>
                         詳細を見る <ChevronRight className="h-3 w-3 ml-1" />
                       </Button>
                     </div>
@@ -622,24 +689,28 @@ export default function FinanceManagement() {
                         <thead>
                           <tr className="border-b text-muted-foreground">
                             <th className="text-left py-2 px-3">月</th>
-                            <th className="text-right py-2 px-3">売上</th>
+                            <th className="text-right py-2 px-3">アフィリGMV</th>
+                            <th className="text-right py-2 px-3">LIVE GMV</th>
+                            <th className="text-right py-2 px-3">動画GMV</th>
                             <th className="text-right py-2 px-3">LCJ手数料</th>
-                            <th className="text-right py-2 px-3">C手数料</th>
                             <th className="text-right py-2 px-3">注文数</th>
+                            <th className="text-right py-2 px-3">クリエイター</th>
                             <th className="text-right py-2 px-3">前月比</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {monthly.map((m: any, i: number) => {
-                            const prev = i > 0 ? monthly[i - 1] : null;
-                            const change = prev ? getChangePercent(Number(m.totalSales), Number(prev.totalSales)) : null;
+                          {tapMonthly.map((m: any, i: number) => {
+                            const prev = i < tapMonthly.length - 1 ? tapMonthly[i + 1] : null;
+                            const change = prev ? getChangePercent(Number(m.totalAffiliateGmv), Number(prev.totalAffiliateGmv)) : null;
                             return (
-                              <tr key={m.month} className="border-b hover:bg-muted/50 cursor-pointer" onClick={() => { setSelectedMonth(m.month); }}>
-                                <td className="py-2 px-3 font-medium">{m.month}</td>
-                                <td className="py-2 px-3 text-right">{formatCurrency(m.totalSales)}</td>
-                                <td className="py-2 px-3 text-right text-blue-600">{formatCurrency(m.totalActPartnerCommission)}</td>
-                                <td className="py-2 px-3 text-right text-green-600">{formatCurrency(m.totalActCreatorCommission)}</td>
-                                <td className="py-2 px-3 text-right">{formatNumber(m.orderCount)}</td>
+                              <tr key={m.reportMonth} className="border-b hover:bg-muted/50 cursor-pointer" onClick={() => { setTapMonth(m.reportMonth); setActiveTab('tap'); }}>
+                                <td className="py-2 px-3 font-medium">{m.reportMonth}</td>
+                                <td className="py-2 px-3 text-right font-semibold text-violet-600">{formatCurrency(m.totalAffiliateGmv)}</td>
+                                <td className="py-2 px-3 text-right">{formatCurrency(m.totalLiveGmv)}</td>
+                                <td className="py-2 px-3 text-right">{formatCurrency(m.totalVideoGmv)}</td>
+                                <td className="py-2 px-3 text-right text-green-600">{formatCurrency(m.totalActualPartnerCommission)}</td>
+                                <td className="py-2 px-3 text-right">{formatNumber(m.totalOrders)}</td>
+                                <td className="py-2 px-3 text-right">{formatNumber(m.creatorCount)}</td>
                                 <td className="py-2 px-3 text-right">
                                   {change ? (
                                     <span className={`flex items-center justify-end gap-1 ${change.isUp ? 'text-green-600' : 'text-red-500'}`}>
@@ -658,7 +729,7 @@ export default function FinanceManagement() {
                 </Card>
               )}
 
-              {/* Rankings */}
+              {/* Rankings - TAPベース */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Creator Ranking */}
                 <Card>
@@ -666,32 +737,31 @@ export default function FinanceManagement() {
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-base flex items-center gap-2">
                         <Users className="h-4 w-4" />
-                        クリエイター売上ランキング
+                        クリエイターGMVランキング
                       </CardTitle>
-                      <Button variant="ghost" size="sm" onClick={() => setActiveTab('creators')}>
+                      <Button variant="ghost" size="sm" onClick={() => setActiveTab('tap-creators')}>
                         全て見る <ChevronRight className="h-3 w-3 ml-1" />
                       </Button>
                     </div>
                   </CardHeader>
                   <CardContent>
-                    {creators.length === 0 ? (
+                    {tapCreators.length === 0 ? (
                       <p className="text-center text-muted-foreground py-4">データなし</p>
                     ) : (
                       <div className="space-y-2">
-                        {creators.slice(0, 10).map((c: any, i: number) => (
+                        {tapCreators.slice(0, 10).map((c: any, i: number) => (
                           <div key={c.creatorUsername} className="flex items-center gap-3 py-2 px-2 rounded hover:bg-muted/50">
                             <div className="w-6 text-center">
                               {i < 3 ? rankIcons[i] : <span className="text-xs text-muted-foreground">{i + 1}</span>}
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="font-medium text-sm truncate">{c.creatorUsername || '(不明)'}</p>
-                              <p className="text-xs text-muted-foreground">{formatNumber(c.orderCount)}件</p>
+                              <p className="text-xs text-muted-foreground">{formatNumber(c.totalOrders)}件 / {formatNumber(c.shopCount)}ショップ</p>
                             </div>
                             <div className="text-right">
-                              <p className="font-semibold text-sm">{formatCurrency(c.totalSales)}</p>
+                              <p className="font-semibold text-sm text-violet-600">{formatCurrency(c.totalAffiliateGmv)}</p>
                               <div className="flex gap-2 text-xs">
-                                <span className="text-blue-600">LCJ {formatCurrency(c.totalActPartnerCommission)}</span>
-                                <span className="text-green-600">C {formatCurrency(c.totalActCreatorCommission)}</span>
+                                <span className="text-green-600">LCJ {formatCurrency(c.totalActualPartnerCommission)}</span>
                               </div>
                             </div>
                           </div>
@@ -707,66 +777,37 @@ export default function FinanceManagement() {
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-base flex items-center gap-2">
                         <Store className="h-4 w-4" />
-                        ショップ売上ランキング
+                        ショップGMVランキング
                       </CardTitle>
-                      <Button variant="ghost" size="sm" onClick={() => setActiveTab('shops')}>
+                      <Button variant="ghost" size="sm" onClick={() => setActiveTab('tap-shops')}>
                         全て見る <ChevronRight className="h-3 w-3 ml-1" />
                       </Button>
                     </div>
                   </CardHeader>
                   <CardContent>
-                    {shops.length === 0 ? (
+                    {tapShops.length === 0 ? (
                       <p className="text-center text-muted-foreground py-4">データなし</p>
                     ) : (
                       <div className="space-y-2">
-                        {shops.slice(0, 10).map((s: any, i: number) => (
+                        {tapShops.slice(0, 10).map((s: any, i: number) => (
                           <div key={s.shopName} className="flex items-center gap-3 py-2 px-2 rounded hover:bg-muted/50">
                             <div className="w-6 text-center">
                               {i < 3 ? rankIcons[i] : <span className="text-xs text-muted-foreground">{i + 1}</span>}
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="font-medium text-sm truncate">{s.shopName || '(不明)'}</p>
-                              <p className="text-xs text-muted-foreground">{formatNumber(s.orderCount)}件</p>
+                              <p className="text-xs text-muted-foreground">{formatNumber(s.totalOrders)}件 / {formatNumber(s.productCount)}商品</p>
                             </div>
                             <div className="text-right">
-                              <p className="font-semibold text-sm">{formatCurrency(s.totalSales)}</p>
+                              <p className="font-semibold text-sm text-violet-600">{formatCurrency(s.totalAffiliateGmv)}</p>
                               <div className="flex gap-2 text-xs">
-                                <span className="text-blue-600">LCJ {formatCurrency(s.totalActPartnerCommission)}</span>
-                                <span className="text-green-600">C {formatCurrency(s.totalActCreatorCommission)}</span>
+                                <span className="text-green-600">LCJ {formatCurrency(s.totalActualPartnerCommission)}</span>
                               </div>
                             </div>
                           </div>
                         ))}
                       </div>
                     )}
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Additional Stats */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card>
-                  <CardContent className="pt-4 pb-3">
-                    <div className="text-muted-foreground text-xs mb-1">完了注文</div>
-                    <p className="text-lg font-semibold text-green-600">{formatNumber(summary.completedOrders)}</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-4 pb-3">
-                    <div className="text-muted-foreground text-xs mb-1">処理中</div>
-                    <p className="text-lg font-semibold text-blue-600">{formatNumber(summary.processingOrders)}</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-4 pb-3">
-                    <div className="text-muted-foreground text-xs mb-1">返品数量</div>
-                    <p className="text-lg font-semibold text-orange-600">{formatNumber(summary.totalReturnQty)}</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-4 pb-3">
-                    <div className="text-muted-foreground text-xs mb-1">返金数量</div>
-                    <p className="text-lg font-semibold text-red-600">{formatNumber(summary.totalRefundQty)}</p>
                   </CardContent>
                 </Card>
               </div>
@@ -1530,6 +1571,8 @@ export default function FinanceManagement() {
               { key: 'tap-creators' as TabType, label: 'クリエイター別', icon: Users },
               { key: 'tap-shops' as TabType, label: 'ショップ別', icon: Store },
               { key: 'tap-products' as TabType, label: '商品別', icon: ShoppingBag },
+              { key: 'tap-live' as TabType, label: 'LIVE配信', icon: Video },
+              { key: 'tap-videos' as TabType, label: '動画', icon: FileText },
             ].map(sub => (
               <button
                 key={sub.key}
@@ -1755,7 +1798,7 @@ export default function FinanceManagement() {
       )}
 
       {/* TAP sub-tabs redirect */}
-      {(activeTab === 'tap-creators' || activeTab === 'tap-shops' || activeTab === 'tap-products') && (
+      {(activeTab === 'tap-creators' || activeTab === 'tap-shops' || activeTab === 'tap-products' || activeTab === 'tap-live' || activeTab === 'tap-videos') && (
         <div className="space-y-6">
           {/* TAP Header */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -1789,6 +1832,8 @@ export default function FinanceManagement() {
               { key: 'tap-creators' as TabType, label: 'クリエイター別', icon: Users },
               { key: 'tap-shops' as TabType, label: 'ショップ別', icon: Store },
               { key: 'tap-products' as TabType, label: '商品別', icon: ShoppingBag },
+              { key: 'tap-live' as TabType, label: 'LIVE配信', icon: Video },
+              { key: 'tap-videos' as TabType, label: '動画', icon: FileText },
             ].map(sub => (
               <button
                 key={sub.key}
@@ -1967,6 +2012,384 @@ export default function FinanceManagement() {
                 )}
               </CardContent>
             </Card>
+          )}
+
+          {/* TAP Live Detail */}
+          {activeTab === 'tap-live' && (
+            <div className="space-y-6">
+              {/* Live KPI */}
+              {tapLiveSummaryQuery.data && (
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                  <Card className="border-l-4 border-l-red-500">
+                    <CardContent className="pt-3 pb-2">
+                      <div className="text-muted-foreground text-xs mb-1">LIVE GMV</div>
+                      <p className="text-lg font-bold text-red-600">{formatCurrency(tapLiveSummaryQuery.data.totalGmv)}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-3 pb-2">
+                      <div className="text-muted-foreground text-xs mb-1">LCJ手数料</div>
+                      <p className="text-lg font-semibold text-green-600">{formatCurrency(tapLiveSummaryQuery.data.totalPartnerCommission)}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-3 pb-2">
+                      <div className="text-muted-foreground text-xs mb-1">注文数</div>
+                      <p className="text-lg font-semibold">{formatNumber(tapLiveSummaryQuery.data.totalOrders)}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-3 pb-2">
+                      <div className="text-muted-foreground text-xs mb-1">視聴数</div>
+                      <p className="text-lg font-semibold">{formatNumber(tapLiveSummaryQuery.data.totalViews)}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-3 pb-2">
+                      <div className="text-muted-foreground text-xs mb-1">配信数</div>
+                      <p className="text-lg font-semibold">{formatNumber(tapLiveSummaryQuery.data.totalSessions)}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-3 pb-2">
+                      <div className="text-muted-foreground text-xs mb-1">RPM</div>
+                      <p className="text-lg font-semibold text-amber-600">{formatCurrency(tapLiveSummaryQuery.data.avgRpm)}</p>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {/* Live Monthly */}
+              {tapLiveMonthlyQuery.data && tapLiveMonthlyQuery.data.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <BarChart3 className="h-4 w-4" />
+                      LIVE月別推移
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b bg-muted/50">
+                            <th className="text-left py-2 px-3">月</th>
+                            <th className="text-right py-2 px-3">GMV</th>
+                            <th className="text-right py-2 px-3">LCJ手数料</th>
+                            <th className="text-right py-2 px-3">注文数</th>
+                            <th className="text-right py-2 px-3">視聴数</th>
+                            <th className="text-right py-2 px-3">配信数</th>
+                            <th className="text-right py-2 px-3">RPM</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(tapLiveMonthlyQuery.data || []).map((m: any) => (
+                            <tr key={m.reportMonth} className="border-b hover:bg-muted/50">
+                              <td className="py-2 px-3 font-medium">{m.reportMonth}</td>
+                              <td className="py-2 px-3 text-right font-semibold text-red-600">{formatCurrency(m.totalGmv)}</td>
+                              <td className="py-2 px-3 text-right text-green-600">{formatCurrency(m.totalPartnerCommission)}</td>
+                              <td className="py-2 px-3 text-right">{formatNumber(m.totalOrders)}</td>
+                              <td className="py-2 px-3 text-right">{formatNumber(m.totalViews)}</td>
+                              <td className="py-2 px-3 text-right">{formatNumber(m.totalSessions)}</td>
+                              <td className="py-2 px-3 text-right text-amber-600">{formatCurrency(m.avgRpm)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Live Creator Ranking */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    LIVEクリエイター別実績
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {tapLiveCreatorsQuery.isLoading ? (
+                    <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                  ) : !tapLiveCreatorsQuery.data || tapLiveCreatorsQuery.data.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-8">データがありません</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b bg-muted/50">
+                            <th className="text-left py-2 px-3">#</th>
+                            <th className="text-left py-2 px-3">クリエイター</th>
+                            <th className="text-right py-2 px-3">GMV</th>
+                            <th className="text-right py-2 px-3">LCJ手数料</th>
+                            <th className="text-right py-2 px-3">注文数</th>
+                            <th className="text-right py-2 px-3">視聴数</th>
+                            <th className="text-right py-2 px-3">配信数</th>
+                            <th className="text-right py-2 px-3">RPM</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(tapLiveCreatorsQuery.data || []).map((c: any, i: number) => (
+                            <tr key={c.creatorUsername} className="border-b hover:bg-muted/50">
+                              <td className="py-2 px-3">{i < 3 ? rankIcons[i] : <span className="text-muted-foreground">{i + 1}</span>}</td>
+                              <td className="py-2 px-3 font-medium">{c.creatorUsername}</td>
+                              <td className="py-2 px-3 text-right font-semibold text-red-600">{formatCurrency(c.totalGmv)}</td>
+                              <td className="py-2 px-3 text-right text-green-600">{formatCurrency(c.totalPartnerCommission)}</td>
+                              <td className="py-2 px-3 text-right">{formatNumber(c.totalOrders)}</td>
+                              <td className="py-2 px-3 text-right">{formatNumber(c.totalViews)}</td>
+                              <td className="py-2 px-3 text-right">{formatNumber(c.totalSessions)}</td>
+                              <td className="py-2 px-3 text-right text-amber-600">{formatCurrency(c.avgRpm)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Live Top Sessions */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Video className="h-4 w-4" />
+                    LIVE配信ランキング（トップ{tapLiveTopSessionsQuery.data?.length || 0}）
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {tapLiveTopSessionsQuery.isLoading ? (
+                    <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                  ) : !tapLiveTopSessionsQuery.data || tapLiveTopSessionsQuery.data.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-8">データがありません</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b bg-muted/50">
+                            <th className="text-left py-2 px-3">#</th>
+                            <th className="text-left py-2 px-3">クリエイター</th>
+                            <th className="text-left py-2 px-3">配信名</th>
+                            <th className="text-right py-2 px-3">GMV</th>
+                            <th className="text-right py-2 px-3">LCJ手数料</th>
+                            <th className="text-right py-2 px-3">注文数</th>
+                            <th className="text-right py-2 px-3">視聴数</th>
+                            <th className="text-right py-2 px-3">いいね</th>
+                            <th className="text-right py-2 px-3">RPM</th>
+                            <th className="text-left py-2 px-3">月</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(tapLiveTopSessionsQuery.data || []).map((s: any, i: number) => (
+                            <tr key={`${s.liveRoomId}-${i}`} className="border-b hover:bg-muted/50">
+                              <td className="py-2 px-3">{i < 3 ? rankIcons[i] : <span className="text-muted-foreground">{i + 1}</span>}</td>
+                              <td className="py-2 px-3 font-medium text-xs">{s.creatorUsername}</td>
+                              <td className="py-2 px-3 text-xs max-w-[200px] truncate" title={s.liveName}>{s.liveName || s.liveRoomId}</td>
+                              <td className="py-2 px-3 text-right font-semibold text-red-600">{formatCurrency(s.totalGmv)}</td>
+                              <td className="py-2 px-3 text-right text-green-600">{formatCurrency(s.totalPartnerCommission)}</td>
+                              <td className="py-2 px-3 text-right">{formatNumber(s.totalOrders)}</td>
+                              <td className="py-2 px-3 text-right">{formatNumber(s.totalViews)}</td>
+                              <td className="py-2 px-3 text-right">{formatNumber(s.totalLikes)}</td>
+                              <td className="py-2 px-3 text-right text-amber-600">{formatCurrency(s.avgRpm)}</td>
+                              <td className="py-2 px-3 text-xs text-muted-foreground">{s.reportMonth}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* TAP Video Detail */}
+          {activeTab === 'tap-videos' && (
+            <div className="space-y-6">
+              {/* Video KPI */}
+              {tapVideoSummaryQuery.data && (
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                  <Card className="border-l-4 border-l-pink-500">
+                    <CardContent className="pt-3 pb-2">
+                      <div className="text-muted-foreground text-xs mb-1">動画GMV</div>
+                      <p className="text-lg font-bold text-pink-600">{formatCurrency(tapVideoSummaryQuery.data.totalGmv)}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-3 pb-2">
+                      <div className="text-muted-foreground text-xs mb-1">LCJ手数料</div>
+                      <p className="text-lg font-semibold text-green-600">{formatCurrency(tapVideoSummaryQuery.data.totalPartnerCommission)}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-3 pb-2">
+                      <div className="text-muted-foreground text-xs mb-1">注文数</div>
+                      <p className="text-lg font-semibold">{formatNumber(tapVideoSummaryQuery.data.totalOrders)}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-3 pb-2">
+                      <div className="text-muted-foreground text-xs mb-1">視聴数</div>
+                      <p className="text-lg font-semibold">{formatNumber(tapVideoSummaryQuery.data.totalViews)}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-3 pb-2">
+                      <div className="text-muted-foreground text-xs mb-1">動画数</div>
+                      <p className="text-lg font-semibold">{formatNumber(tapVideoSummaryQuery.data.totalVideos)}</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-3 pb-2">
+                      <div className="text-muted-foreground text-xs mb-1">RPM</div>
+                      <p className="text-lg font-semibold text-amber-600">{formatCurrency(tapVideoSummaryQuery.data.avgRpm)}</p>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {/* Video Monthly */}
+              {tapVideoMonthlyQuery.data && tapVideoMonthlyQuery.data.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <BarChart3 className="h-4 w-4" />
+                      動画月別推移
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b bg-muted/50">
+                            <th className="text-left py-2 px-3">月</th>
+                            <th className="text-right py-2 px-3">GMV</th>
+                            <th className="text-right py-2 px-3">LCJ手数料</th>
+                            <th className="text-right py-2 px-3">注文数</th>
+                            <th className="text-right py-2 px-3">視聴数</th>
+                            <th className="text-right py-2 px-3">動画数</th>
+                            <th className="text-right py-2 px-3">RPM</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(tapVideoMonthlyQuery.data || []).map((m: any) => (
+                            <tr key={m.reportMonth} className="border-b hover:bg-muted/50">
+                              <td className="py-2 px-3 font-medium">{m.reportMonth}</td>
+                              <td className="py-2 px-3 text-right font-semibold text-pink-600">{formatCurrency(m.totalGmv)}</td>
+                              <td className="py-2 px-3 text-right text-green-600">{formatCurrency(m.totalPartnerCommission)}</td>
+                              <td className="py-2 px-3 text-right">{formatNumber(m.totalOrders)}</td>
+                              <td className="py-2 px-3 text-right">{formatNumber(m.totalViews)}</td>
+                              <td className="py-2 px-3 text-right">{formatNumber(m.totalVideos)}</td>
+                              <td className="py-2 px-3 text-right text-amber-600">{formatCurrency(m.avgRpm)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Video Creator Ranking */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    動画クリエイター別実績
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {tapVideoCreatorsQuery.isLoading ? (
+                    <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                  ) : !tapVideoCreatorsQuery.data || tapVideoCreatorsQuery.data.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-8">データがありません</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b bg-muted/50">
+                            <th className="text-left py-2 px-3">#</th>
+                            <th className="text-left py-2 px-3">クリエイター</th>
+                            <th className="text-right py-2 px-3">GMV</th>
+                            <th className="text-right py-2 px-3">LCJ手数料</th>
+                            <th className="text-right py-2 px-3">注文数</th>
+                            <th className="text-right py-2 px-3">視聴数</th>
+                            <th className="text-right py-2 px-3">動画数</th>
+                            <th className="text-right py-2 px-3">RPM</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(tapVideoCreatorsQuery.data || []).map((c: any, i: number) => (
+                            <tr key={c.creatorUsername} className="border-b hover:bg-muted/50">
+                              <td className="py-2 px-3">{i < 3 ? rankIcons[i] : <span className="text-muted-foreground">{i + 1}</span>}</td>
+                              <td className="py-2 px-3 font-medium">{c.creatorUsername}</td>
+                              <td className="py-2 px-3 text-right font-semibold text-pink-600">{formatCurrency(c.totalGmv)}</td>
+                              <td className="py-2 px-3 text-right text-green-600">{formatCurrency(c.totalPartnerCommission)}</td>
+                              <td className="py-2 px-3 text-right">{formatNumber(c.totalOrders)}</td>
+                              <td className="py-2 px-3 text-right">{formatNumber(c.totalViews)}</td>
+                              <td className="py-2 px-3 text-right">{formatNumber(c.totalVideos)}</td>
+                              <td className="py-2 px-3 text-right text-amber-600">{formatCurrency(c.avgRpm)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Video Top Videos */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    動画ランキング（トップ{tapVideoTopVideosQuery.data?.length || 0}）
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {tapVideoTopVideosQuery.isLoading ? (
+                    <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                  ) : !tapVideoTopVideosQuery.data || tapVideoTopVideosQuery.data.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-8">データがありません</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b bg-muted/50">
+                            <th className="text-left py-2 px-3">#</th>
+                            <th className="text-left py-2 px-3">クリエイター</th>
+                            <th className="text-left py-2 px-3">動画名</th>
+                            <th className="text-right py-2 px-3">GMV</th>
+                            <th className="text-right py-2 px-3">LCJ手数料</th>
+                            <th className="text-right py-2 px-3">注文数</th>
+                            <th className="text-right py-2 px-3">視聴数</th>
+                            <th className="text-right py-2 px-3">いいね</th>
+                            <th className="text-right py-2 px-3">RPM</th>
+                            <th className="text-left py-2 px-3">月</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(tapVideoTopVideosQuery.data || []).map((v: any, i: number) => (
+                            <tr key={`${v.videoId}-${i}`} className="border-b hover:bg-muted/50">
+                              <td className="py-2 px-3">{i < 3 ? rankIcons[i] : <span className="text-muted-foreground">{i + 1}</span>}</td>
+                              <td className="py-2 px-3 font-medium text-xs">{v.creatorUsername}</td>
+                              <td className="py-2 px-3 text-xs max-w-[200px] truncate" title={v.videoName}>{v.videoName || v.videoId}</td>
+                              <td className="py-2 px-3 text-right font-semibold text-pink-600">{formatCurrency(v.totalGmv)}</td>
+                              <td className="py-2 px-3 text-right text-green-600">{formatCurrency(v.totalPartnerCommission)}</td>
+                              <td className="py-2 px-3 text-right">{formatNumber(v.totalOrders)}</td>
+                              <td className="py-2 px-3 text-right">{formatNumber(v.totalViews)}</td>
+                              <td className="py-2 px-3 text-right">{formatNumber(v.totalLikes)}</td>
+                              <td className="py-2 px-3 text-right text-amber-600">{formatCurrency(v.avgRpm)}</td>
+                              <td className="py-2 px-3 text-xs text-muted-foreground">{v.reportMonth}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           )}
         </div>
       )}

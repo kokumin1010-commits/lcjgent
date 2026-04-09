@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, sql, or, like, inArray, notInArray, not, isNotNull, isNull, gte, lte, gt, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks, blogArticleSeoMetrics, InsertBlogArticleSeoMetric, blogArticleStats, InsertBlogArticleStat, blogArticleThemeLog, InsertBlogArticleThemeLogEntry, livestreamBrands, InsertLivestreamBrand, brandAdditionLogs, InsertBrandAdditionLog, tiktokPayments, InsertTiktokPayment, tiktokTapReports, InsertTiktokTapReport, stepEmailTemplates, InsertStepEmailTemplate, stepEmailLogs, InsertStepEmailLog, stepEmailClicks, InsertStepEmailClick, brandSampleApplications, InsertBrandSampleApplication, abTestEvents, InsertAbTestEvent, streamingLocations, InsertStreamingLocation } from "../drizzle/schema";
+import { InsertUser, users, staff, InsertStaff, tasks, InsertTask, reminders, InsertReminder, taskStaff, InsertTaskStaff, emailTracking, InsertEmailTracking, reportStaff, InsertReportStaff, reports, InsertReport, brands, InsertBrand, brandProducts, InsertBrandProduct, brandActivities, InsertBrandActivity, brandLivestreams, InsertBrandLivestream, reportFollowups, InsertReportFollowup, businessCards, InsertBusinessCard, brandLcjStaff, InsertBrandLcjStaff, activityLogs, InsertActivityLog, brandContracts, InsertBrandContract, reportAiAdvice, InsertReportAiAdvice, aiAdviceFeedback, InsertAiAdviceFeedback, aiLearningExamples, InsertAiLearningExample, chatReportSessions, InsertChatReportSession, chatReportMessages, InsertChatReportMessage, staffAiProfiles, InsertStaffAiProfile, aiQuestionTemplates, InsertAiQuestionTemplate, lineUsers, InsertLineUser, lineGroups, InsertLineGroup, lineMessages, InsertLineMessage, lineFollowUps, InsertLineFollowUp, schedules, InsertSchedule, livers, InsertLiver, livestreamProducts, InsertLivestreamProduct, brandMemos, InsertBrandMemo, contractLivestreamLinks, InsertContractLivestreamLink, brandEditLogs, InsertBrandEditLog, brandProductImages, InsertBrandProductImage, brandFiles, InsertBrandFile, productLinks, InsertProductLink, csvImportHistory, InsertCsvImportHistory, livestreamCsvImportHistory, InsertLivestreamCsvImportHistory, adProposalHistory, InsertAdProposalHistory, pointBalances, InsertPointBalance, pointTransactions, InsertPointTransaction, receipts, InsertReceipt, fraudDetectionLogs, InsertFraudDetectionLog, linePointBalances, InsertLinePointBalance, linePointTransactions, InsertLinePointTransaction, lineReceipts, InsertLineReceipt, lineFraudDetectionLogs, InsertLineFraudDetectionLog, mallProducts, InsertMallProduct, mallBrands, InsertMallBrand, mallCategories, InsertMallCategory, mallOrders, InsertMallOrder, mallOrderItems, InsertMallOrderItem, mallCarts, InsertMallCart, userAddresses, InsertUserAddress, linePasswordResetTokens, InsertLinePasswordResetToken, lineLinkCodes, InsertLineLinkCode, screenshotAnalysisHistory, InsertScreenshotAnalysisHistory, pointRequests, InsertPointRequest, passwordResetTokens, InsertPasswordResetToken, scheduleGroups, InsertScheduleGroup, scheduleGroupMembers, InsertScheduleGroupMember, liverPasswordResetTokens, InsertLiverPasswordResetToken, productLivers, InsertProductLiver, lineReminders, InsertLineReminder, liverGoals, InsertLiverGoal, productMaster, InsertProductMaster, productNameAliases, InsertProductNameAlias, productAliasSuggestions, InsertProductAliasSuggestion, adCampaigns, InsertAdCampaign, adMetrics, InsertAdMetric, adCountryBreakdown, InsertAdCountryBreakdown, adReportFiles, InsertAdReportFile, tiktokCommissionOrders, InsertTiktokCommissionOrder, tiktokCsvImportHistory, InsertTiktokCsvImportHistory, livestreamSets, InsertLivestreamSet, livestreamSetItems, InsertLivestreamSetItem, productCategoryMappings, InsertProductCategoryMapping, simulations, InsertSimulation, simulationFeedback, InsertSimulationFeedback, mallProductReviews, InsertMallProductReview, mallProductDescImages, InsertMallProductDescImage, referralCodes, InsertReferralCode, referralHistory, InsertReferralHistory, mallFavorites, InsertMallFavorite, mallViewHistory, InsertMallViewHistory, receiptReviewLogs, InsertReceiptReviewLog, aitherhubSyncLogs, InsertAitherhubSyncLog, productRestockRequests, InsertProductRestockRequest, receiptProducts, InsertReceiptProduct, referralCampaigns, campaignStages, userReferralProgress, friendReferrals, spinRewardTables, spinRewardItems, userSpinHistory, referralActivityFeed, blogCategories, InsertBlogCategory, blogTags, InsertBlogTag, blogArticles, InsertBlogArticle, blogArticleTags, InsertBlogArticleTag, autoPostSchedules, InsertAutoPostSchedule, presetKeywords, InsertPresetKeyword, autoPostLogs, InsertAutoPostLog, receiptKakuhenResults, InsertReceiptKakuhenResult, receiptReviews, InsertReceiptReview, reviewReactions, InsertReviewReaction, reviewQuestions, InsertReviewQuestion, bwLinkedAccounts, InsertBwLinkedAccount, pointExchanges, InsertPointExchange, aiReviewFeedback, InsertAiReviewFeedback, aiAutoReviewLogs, InsertAiAutoReviewLog, aiAutoApproveSettings, aiReceiptLearningExamples, popupVariants, popupImpressions, popupClicks, blogArticleSeoMetrics, InsertBlogArticleSeoMetric, blogArticleStats, InsertBlogArticleStat, blogArticleThemeLog, InsertBlogArticleThemeLogEntry, livestreamBrands, InsertLivestreamBrand, brandAdditionLogs, InsertBrandAdditionLog, tiktokPayments, InsertTiktokPayment, tiktokTapReports, InsertTiktokTapReport, tiktokTapLiveReports, InsertTiktokTapLiveReport, tiktokTapVideoReports, InsertTiktokTapVideoReport, stepEmailTemplates, InsertStepEmailTemplate, stepEmailLogs, InsertStepEmailLog, stepEmailClicks, InsertStepEmailClick, brandSampleApplications, InsertBrandSampleApplication, abTestEvents, InsertAbTestEvent, streamingLocations, InsertStreamingLocation } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -11099,30 +11099,24 @@ export async function getTiktokTapSummary(brandId: number = 0, month?: string) {
     totalLiveViews: sql<number>`COALESCE(SUM(liveViews), 0)`,
     totalLiveCount: sql<number>`COALESCE(SUM(liveCount), 0)`,
     totalVideoCount: sql<number>`COALESCE(SUM(videoCount), 0)`,
+    totalShowcaseProducts: sql<number>`COALESCE(SUM(showcaseProducts), 0)`,
     totalEstimatedPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
     totalActualPartnerCommission: sql<number>`COALESCE(SUM(actualPartnerCommission), 0)`,
     totalEstimatedCreatorCommission: sql<number>`COALESCE(SUM(estimatedCreatorCommission), 0)`,
     totalActualCreatorCommission: sql<number>`COALESCE(SUM(actualCreatorCommission), 0)`,
     totalGmvRefund: sql<number>`COALESCE(SUM(gmvRefund), 0)`,
     totalSettledGmv: sql<number>`COALESCE(SUM(settledGmv), 0)`,
+    totalShowcaseRevenue: sql<number>`COALESCE(SUM(showcaseRevenue), 0)`,
+    totalLinkGmv: sql<number>`COALESCE(SUM(linkGmv), 0)`,
+    totalLinkSalesCount: sql<number>`COALESCE(SUM(linkSalesCount), 0)`,
+    totalLinkOrders: sql<number>`COALESCE(SUM(linkOrders), 0)`,
+    totalLinkEstimatedPartnerCommission: sql<number>`COALESCE(SUM(linkEstimatedPartnerCommission), 0)`,
+    totalLinkEstimatedCreatorCommission: sql<number>`COALESCE(SUM(linkEstimatedCreatorCommission), 0)`,
+    creatorCount: sql<number>`COUNT(DISTINCT creatorUsername)`,
+    shopCount: sql<number>`COUNT(DISTINCT shopName)`,
+    productCount: sql<number>`COUNT(DISTINCT productId)`,
   }).from(tiktokTapReports)
     .where(conditions.length > 0 ? and(...conditions) : undefined);
-  
-  // CAPデータからLCJ手数料を突合
-  const capConditions: string[] = [];
-  if (brandId > 0) capConditions.push(`brandId = ${brandId}`);
-  if (month) capConditions.push(`DATE_FORMAT(orderCreatedAt, '%Y-%m') = '${month}'`);
-  const capWhere = capConditions.length > 0 ? `WHERE ${capConditions.join(' AND ')}` : '';
-  const capResult = await db.execute(sql.raw(
-    `SELECT COALESCE(SUM(CAST(actualPartnerCommission AS DECIMAL(20,2))), 0) as capLcjCommission,
-            COALESCE(SUM(CAST(actualCreatorCommission AS DECIMAL(20,2))), 0) as capCreatorCommission
-     FROM tiktok_commission_orders ${capWhere}`
-  ));
-  const capRow = (capResult as any)[0]?.[0] || (capResult as any).rows?.[0];
-  if (capRow && result[0]) {
-    (result[0] as any).totalActualPartnerCommission = Number(capRow.capLcjCommission) || 0;
-    (result[0] as any).totalActualCreatorCommission = Number(capRow.capCreatorCommission) || 0;
-  }
   
   return result[0];
 }
@@ -11134,43 +11128,31 @@ export async function getTiktokTapCreatorSummary(brandId: number = 0, month?: st
   if (brandId > 0) conditions.push(eq(tiktokTapReports.brandId, brandId));
   if (month) conditions.push(eq(tiktokTapReports.reportMonth, month));
   
-  const tapData = await db.select({
+  return db.select({
     creatorUsername: tiktokTapReports.creatorUsername,
     totalAffiliateGmv: sql<number>`COALESCE(SUM(affiliateGmv), 0)`,
     totalVideoGmv: sql<number>`COALESCE(SUM(videoGmv), 0)`,
     totalLiveGmv: sql<number>`COALESCE(SUM(liveGmv), 0)`,
     totalOrders: sql<number>`COALESCE(SUM(orders), 0)`,
+    totalSalesCount: sql<number>`COALESCE(SUM(salesCount), 0)`,
     totalVideoViews: sql<number>`COALESCE(SUM(videoViews), 0)`,
     totalLiveViews: sql<number>`COALESCE(SUM(liveViews), 0)`,
     totalLiveCount: sql<number>`COALESCE(SUM(liveCount), 0)`,
     totalVideoCount: sql<number>`COALESCE(SUM(videoCount), 0)`,
+    totalShowcaseProducts: sql<number>`COALESCE(SUM(showcaseProducts), 0)`,
     totalEstimatedPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
     totalActualPartnerCommission: sql<number>`COALESCE(SUM(actualPartnerCommission), 0)`,
+    totalEstimatedCreatorCommission: sql<number>`COALESCE(SUM(estimatedCreatorCommission), 0)`,
+    totalActualCreatorCommission: sql<number>`COALESCE(SUM(actualCreatorCommission), 0)`,
+    totalGmvRefund: sql<number>`COALESCE(SUM(gmvRefund), 0)`,
+    totalSettledGmv: sql<number>`COALESCE(SUM(settledGmv), 0)`,
+    totalShowcaseRevenue: sql<number>`COALESCE(SUM(showcaseRevenue), 0)`,
+    productCount: sql<number>`COUNT(DISTINCT productId)`,
+    shopCount: sql<number>`COUNT(DISTINCT shopName)`,
   }).from(tiktokTapReports)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .groupBy(tiktokTapReports.creatorUsername)
     .orderBy(sql`SUM(affiliateGmv) DESC`);
-  
-  // CAPデータからクリエイター別LCJ手数料を突合
-  const capConditions: string[] = [];
-  if (brandId > 0) capConditions.push(`brandId = ${brandId}`);
-  if (month) capConditions.push(`DATE_FORMAT(orderCreatedAt, '%Y-%m') = '${month}'`);
-  const capWhere = capConditions.length > 0 ? `WHERE ${capConditions.join(' AND ')}` : '';
-  const capResult = await db.execute(sql.raw(
-    `SELECT creatorUsername,
-            COALESCE(SUM(CAST(actualPartnerCommission AS DECIMAL(20,2))), 0) as capLcjCommission
-     FROM tiktok_commission_orders ${capWhere}
-     GROUP BY creatorUsername`
-  ));
-  const capMap = new Map<string, number>();
-  const capRows = (capResult as any)[0] || (capResult as any).rows || [];
-  for (const r of capRows) {
-    capMap.set(r.creatorUsername, Number(r.capLcjCommission) || 0);
-  }
-  return tapData.map(t => ({
-    ...t,
-    totalActualPartnerCommission: capMap.get(t.creatorUsername) || 0,
-  }));
 }
 
 export async function getTiktokTapShopSummary(brandId: number = 0, month?: string) {
@@ -11180,42 +11162,28 @@ export async function getTiktokTapShopSummary(brandId: number = 0, month?: strin
   if (brandId > 0) conditions.push(eq(tiktokTapReports.brandId, brandId));
   if (month) conditions.push(eq(tiktokTapReports.reportMonth, month));
   
-  const tapData = await db.select({
+  return db.select({
     shopName: tiktokTapReports.shopName,
     totalAffiliateGmv: sql<number>`COALESCE(SUM(affiliateGmv), 0)`,
     totalOrders: sql<number>`COALESCE(SUM(orders), 0)`,
+    totalSalesCount: sql<number>`COALESCE(SUM(salesCount), 0)`,
     totalVideoViews: sql<number>`COALESCE(SUM(videoViews), 0)`,
     totalLiveViews: sql<number>`COALESCE(SUM(liveViews), 0)`,
     totalLiveGmv: sql<number>`COALESCE(SUM(liveGmv), 0)`,
     totalVideoGmv: sql<number>`COALESCE(SUM(videoGmv), 0)`,
     totalEstimatedPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
     totalActualPartnerCommission: sql<number>`COALESCE(SUM(actualPartnerCommission), 0)`,
+    totalEstimatedCreatorCommission: sql<number>`COALESCE(SUM(estimatedCreatorCommission), 0)`,
+    totalActualCreatorCommission: sql<number>`COALESCE(SUM(actualCreatorCommission), 0)`,
+    totalGmvRefund: sql<number>`COALESCE(SUM(gmvRefund), 0)`,
+    totalSettledGmv: sql<number>`COALESCE(SUM(settledGmv), 0)`,
+    totalShowcaseRevenue: sql<number>`COALESCE(SUM(showcaseRevenue), 0)`,
     productCount: sql<number>`COUNT(DISTINCT productId)`,
+    creatorCount: sql<number>`COUNT(DISTINCT creatorUsername)`,
   }).from(tiktokTapReports)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .groupBy(tiktokTapReports.shopName)
     .orderBy(sql`SUM(affiliateGmv) DESC`);
-  
-  // CAPデータからショップ別LCJ手数料を突合
-  const capConditions: string[] = [];
-  if (brandId > 0) capConditions.push(`brandId = ${brandId}`);
-  if (month) capConditions.push(`DATE_FORMAT(orderCreatedAt, '%Y-%m') = '${month}'`);
-  const capWhere = capConditions.length > 0 ? `WHERE ${capConditions.join(' AND ')}` : '';
-  const capResult = await db.execute(sql.raw(
-    `SELECT shopName,
-            COALESCE(SUM(CAST(actualPartnerCommission AS DECIMAL(20,2))), 0) as capLcjCommission
-     FROM tiktok_commission_orders ${capWhere}
-     GROUP BY shopName`
-  ));
-  const capMap = new Map<string, number>();
-  const capRows = (capResult as any)[0] || (capResult as any).rows || [];
-  for (const r of capRows) {
-    capMap.set(r.shopName, Number(r.capLcjCommission) || 0);
-  }
-  return tapData.map(t => ({
-    ...t,
-    totalActualPartnerCommission: capMap.get(t.shopName) || 0,
-  }));
 }
 
 export async function getTiktokTapMonthlySummary(brandId: number = 0) {
@@ -11224,40 +11192,29 @@ export async function getTiktokTapMonthlySummary(brandId: number = 0) {
   const conditions = [];
   if (brandId > 0) conditions.push(eq(tiktokTapReports.brandId, brandId));
   
-  const tapData = await db.select({
+  return db.select({
     reportMonth: tiktokTapReports.reportMonth,
     totalAffiliateGmv: sql<number>`COALESCE(SUM(affiliateGmv), 0)`,
     totalVideoGmv: sql<number>`COALESCE(SUM(videoGmv), 0)`,
     totalLiveGmv: sql<number>`COALESCE(SUM(liveGmv), 0)`,
     totalOrders: sql<number>`COALESCE(SUM(orders), 0)`,
+    totalSalesCount: sql<number>`COALESCE(SUM(salesCount), 0)`,
     totalVideoViews: sql<number>`COALESCE(SUM(videoViews), 0)`,
     totalLiveViews: sql<number>`COALESCE(SUM(liveViews), 0)`,
     totalEstimatedPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
     totalActualPartnerCommission: sql<number>`COALESCE(SUM(actualPartnerCommission), 0)`,
+    totalEstimatedCreatorCommission: sql<number>`COALESCE(SUM(estimatedCreatorCommission), 0)`,
+    totalActualCreatorCommission: sql<number>`COALESCE(SUM(actualCreatorCommission), 0)`,
+    totalGmvRefund: sql<number>`COALESCE(SUM(gmvRefund), 0)`,
+    totalSettledGmv: sql<number>`COALESCE(SUM(settledGmv), 0)`,
+    totalShowcaseRevenue: sql<number>`COALESCE(SUM(showcaseRevenue), 0)`,
+    creatorCount: sql<number>`COUNT(DISTINCT creatorUsername)`,
+    shopCount: sql<number>`COUNT(DISTINCT shopName)`,
+    productCount: sql<number>`COUNT(DISTINCT productId)`,
   }).from(tiktokTapReports)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .groupBy(tiktokTapReports.reportMonth)
     .orderBy(sql`reportMonth DESC`);
-  
-  // CAPデータから月別LCJ手数料を突合
-  const capConditions: string[] = [];
-  if (brandId > 0) capConditions.push(`brandId = ${brandId}`);
-  const capWhere = capConditions.length > 0 ? `WHERE ${capConditions.join(' AND ')}` : '';
-  const capResult = await db.execute(sql.raw(
-    `SELECT DATE_FORMAT(orderCreatedAt, '%Y-%m') as month,
-            COALESCE(SUM(CAST(actualPartnerCommission AS DECIMAL(20,2))), 0) as capLcjCommission
-     FROM tiktok_commission_orders ${capWhere}
-     GROUP BY month`
-  ));
-  const capMap = new Map<string, number>();
-  const capRows = (capResult as any)[0] || (capResult as any).rows || [];
-  for (const r of capRows) {
-    capMap.set(r.month, Number(r.capLcjCommission) || 0);
-  }
-  return tapData.map(t => ({
-    ...t,
-    totalActualPartnerCommission: capMap.get(t.reportMonth) || 0,
-  }));
 }
 
 export async function getTiktokTapProductSummary(brandId: number = 0, month?: string) {
@@ -11267,7 +11224,7 @@ export async function getTiktokTapProductSummary(brandId: number = 0, month?: st
   if (brandId > 0) conditions.push(eq(tiktokTapReports.brandId, brandId));
   if (month) conditions.push(eq(tiktokTapReports.reportMonth, month));
   
-  const tapData = await db.select({
+  return db.select({
     productId: tiktokTapReports.productId,
     productName: tiktokTapReports.productName,
     totalAffiliateGmv: sql<number>`COALESCE(SUM(affiliateGmv), 0)`,
@@ -11275,33 +11232,21 @@ export async function getTiktokTapProductSummary(brandId: number = 0, month?: st
     totalSalesCount: sql<number>`COALESCE(SUM(salesCount), 0)`,
     totalVideoViews: sql<number>`COALESCE(SUM(videoViews), 0)`,
     totalLiveViews: sql<number>`COALESCE(SUM(liveViews), 0)`,
+    totalLiveGmv: sql<number>`COALESCE(SUM(liveGmv), 0)`,
+    totalVideoGmv: sql<number>`COALESCE(SUM(videoGmv), 0)`,
     totalEstimatedPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
     totalActualPartnerCommission: sql<number>`COALESCE(SUM(actualPartnerCommission), 0)`,
+    totalEstimatedCreatorCommission: sql<number>`COALESCE(SUM(estimatedCreatorCommission), 0)`,
+    totalActualCreatorCommission: sql<number>`COALESCE(SUM(actualCreatorCommission), 0)`,
+    totalGmvRefund: sql<number>`COALESCE(SUM(gmvRefund), 0)`,
+    totalSettledGmv: sql<number>`COALESCE(SUM(settledGmv), 0)`,
+    totalShowcaseRevenue: sql<number>`COALESCE(SUM(showcaseRevenue), 0)`,
+    creatorCount: sql<number>`COUNT(DISTINCT creatorUsername)`,
+    shopCount: sql<number>`COUNT(DISTINCT shopName)`,
   }).from(tiktokTapReports)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .groupBy(tiktokTapReports.productId, tiktokTapReports.productName)
     .orderBy(sql`SUM(affiliateGmv) DESC`);
-  
-  // CAPデータから商品別LCJ手数料を突合
-  const capConditions: string[] = [];
-  if (brandId > 0) capConditions.push(`brandId = ${brandId}`);
-  if (month) capConditions.push(`DATE_FORMAT(orderCreatedAt, '%Y-%m') = '${month}'`);
-  const capWhere = capConditions.length > 0 ? `WHERE ${capConditions.join(' AND ')}` : '';
-  const capResult = await db.execute(sql.raw(
-    `SELECT productId,
-            COALESCE(SUM(CAST(actualPartnerCommission AS DECIMAL(20,2))), 0) as capLcjCommission
-     FROM tiktok_commission_orders ${capWhere}
-     GROUP BY productId`
-  ));
-  const capMap = new Map<string, number>();
-  const capRows = (capResult as any)[0] || (capResult as any).rows || [];
-  for (const r of capRows) {
-    capMap.set(String(r.productId), Number(r.capLcjCommission) || 0);
-  }
-  return tapData.map(t => ({
-    ...t,
-    totalActualPartnerCommission: capMap.get(t.productId) || 0,
-  }));
 }
 
 export async function deleteTiktokTapReportsByMonth(brandId: number, reportMonth: string) {
@@ -11328,6 +11273,210 @@ export async function getTiktokTapAvailableMonths(brandId: number = 0) {
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .groupBy(tiktokTapReports.reportMonth)
     .orderBy(sql`reportMonth DESC`);
+}
+
+// ============================================
+// TikTok TAP Live Report 集計関数
+// ============================================
+
+export async function getTiktokTapLiveSummary(brandId: number = 0, month?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [];
+  if (brandId > 0) conditions.push(eq(tiktokTapLiveReports.brandId, brandId));
+  if (month) conditions.push(eq(tiktokTapLiveReports.reportMonth, month));
+  
+  const result = await db.select({
+    totalLiveGmv: sql<number>`COALESCE(SUM(liveGmv), 0)`,
+    totalLiveOrders: sql<number>`COALESCE(SUM(liveOrders), 0)`,
+    totalLiveViews: sql<number>`COALESCE(SUM(liveViews), 0)`,
+    totalLiveLikes: sql<number>`COALESCE(SUM(liveLikes), 0)`,
+    totalEstimatedPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
+    totalActualPartnerCommission: sql<number>`COALESCE(SUM(actualPartnerCommission), 0)`,
+    totalSalesCount: sql<number>`COALESCE(SUM(salesCount), 0)`,
+    liveSessionCount: sql<number>`COUNT(DISTINCT liveRoomId)`,
+    creatorCount: sql<number>`COUNT(DISTINCT creatorUsername)`,
+    productCount: sql<number>`COUNT(DISTINCT productId)`,
+    shopCount: sql<number>`COUNT(DISTINCT shopName)`,
+  }).from(tiktokTapLiveReports)
+    .where(conditions.length > 0 ? and(...conditions) : undefined);
+  
+  return result[0];
+}
+
+export async function getTiktokTapLiveCreatorSummary(brandId: number = 0, month?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [];
+  if (brandId > 0) conditions.push(eq(tiktokTapLiveReports.brandId, brandId));
+  if (month) conditions.push(eq(tiktokTapLiveReports.reportMonth, month));
+  
+  return db.select({
+    creatorUsername: tiktokTapLiveReports.creatorUsername,
+    totalLiveGmv: sql<number>`COALESCE(SUM(liveGmv), 0)`,
+    totalLiveOrders: sql<number>`COALESCE(SUM(liveOrders), 0)`,
+    totalLiveViews: sql<number>`COALESCE(SUM(liveViews), 0)`,
+    totalLiveLikes: sql<number>`COALESCE(SUM(liveLikes), 0)`,
+    totalEstimatedPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
+    totalActualPartnerCommission: sql<number>`COALESCE(SUM(actualPartnerCommission), 0)`,
+    totalSalesCount: sql<number>`COALESCE(SUM(salesCount), 0)`,
+    liveSessionCount: sql<number>`COUNT(DISTINCT liveRoomId)`,
+    productCount: sql<number>`COUNT(DISTINCT productId)`,
+  }).from(tiktokTapLiveReports)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .groupBy(tiktokTapLiveReports.creatorUsername)
+    .orderBy(sql`SUM(liveGmv) DESC`);
+}
+
+export async function getTiktokTapLiveMonthlySummary(brandId: number = 0) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [];
+  if (brandId > 0) conditions.push(eq(tiktokTapLiveReports.brandId, brandId));
+  
+  return db.select({
+    reportMonth: tiktokTapLiveReports.reportMonth,
+    totalLiveGmv: sql<number>`COALESCE(SUM(liveGmv), 0)`,
+    totalLiveOrders: sql<number>`COALESCE(SUM(liveOrders), 0)`,
+    totalLiveViews: sql<number>`COALESCE(SUM(liveViews), 0)`,
+    totalLiveLikes: sql<number>`COALESCE(SUM(liveLikes), 0)`,
+    totalEstimatedPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
+    totalActualPartnerCommission: sql<number>`COALESCE(SUM(actualPartnerCommission), 0)`,
+    totalSalesCount: sql<number>`COALESCE(SUM(salesCount), 0)`,
+    liveSessionCount: sql<number>`COUNT(DISTINCT liveRoomId)`,
+    creatorCount: sql<number>`COUNT(DISTINCT creatorUsername)`,
+  }).from(tiktokTapLiveReports)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .groupBy(tiktokTapLiveReports.reportMonth)
+    .orderBy(sql`reportMonth DESC`);
+}
+
+export async function getTiktokTapLiveTopSessions(brandId: number = 0, month?: string, limit: number = 20) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [];
+  if (brandId > 0) conditions.push(eq(tiktokTapLiveReports.brandId, brandId));
+  if (month) conditions.push(eq(tiktokTapLiveReports.reportMonth, month));
+  
+  return db.select({
+    liveRoomId: tiktokTapLiveReports.liveRoomId,
+    liveName: sql<string>`MAX(liveName)`,
+    liveTimeInfo: sql<string>`MAX(liveTimeInfo)`,
+    creatorUsername: tiktokTapLiveReports.creatorUsername,
+    totalLiveGmv: sql<number>`COALESCE(SUM(liveGmv), 0)`,
+    totalLiveOrders: sql<number>`COALESCE(SUM(liveOrders), 0)`,
+    totalLiveViews: sql<number>`MAX(liveViews)`,
+    totalLiveLikes: sql<number>`MAX(liveLikes)`,
+    totalEstimatedPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
+    totalSalesCount: sql<number>`COALESCE(SUM(salesCount), 0)`,
+    productCount: sql<number>`COUNT(DISTINCT productId)`,
+  }).from(tiktokTapLiveReports)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .groupBy(tiktokTapLiveReports.liveRoomId, tiktokTapLiveReports.creatorUsername)
+    .orderBy(sql`SUM(liveGmv) DESC`)
+    .limit(limit);
+}
+
+// ============================================
+// TikTok TAP Video Report 集計関数
+// ============================================
+
+export async function getTiktokTapVideoSummary(brandId: number = 0, month?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [];
+  if (brandId > 0) conditions.push(eq(tiktokTapVideoReports.brandId, brandId));
+  if (month) conditions.push(eq(tiktokTapVideoReports.reportMonth, month));
+  
+  const result = await db.select({
+    totalVideoGmv: sql<number>`COALESCE(SUM(videoGmv), 0)`,
+    totalVideoOrders: sql<number>`COALESCE(SUM(videoOrders), 0)`,
+    totalVideoViews: sql<number>`COALESCE(SUM(videoViews), 0)`,
+    totalVideoLikes: sql<number>`COALESCE(SUM(videoLikes), 0)`,
+    totalEstimatedPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
+    totalActualPartnerCommission: sql<number>`COALESCE(SUM(actualPartnerCommission), 0)`,
+    totalSalesCount: sql<number>`COALESCE(SUM(salesCount), 0)`,
+    videoCount: sql<number>`COUNT(DISTINCT videoId)`,
+    creatorCount: sql<number>`COUNT(DISTINCT creatorUsername)`,
+    productCount: sql<number>`COUNT(DISTINCT productId)`,
+    shopCount: sql<number>`COUNT(DISTINCT shopName)`,
+  }).from(tiktokTapVideoReports)
+    .where(conditions.length > 0 ? and(...conditions) : undefined);
+  
+  return result[0];
+}
+
+export async function getTiktokTapVideoCreatorSummary(brandId: number = 0, month?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [];
+  if (brandId > 0) conditions.push(eq(tiktokTapVideoReports.brandId, brandId));
+  if (month) conditions.push(eq(tiktokTapVideoReports.reportMonth, month));
+  
+  return db.select({
+    creatorUsername: tiktokTapVideoReports.creatorUsername,
+    totalVideoGmv: sql<number>`COALESCE(SUM(videoGmv), 0)`,
+    totalVideoOrders: sql<number>`COALESCE(SUM(videoOrders), 0)`,
+    totalVideoViews: sql<number>`COALESCE(SUM(videoViews), 0)`,
+    totalVideoLikes: sql<number>`COALESCE(SUM(videoLikes), 0)`,
+    totalEstimatedPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
+    totalActualPartnerCommission: sql<number>`COALESCE(SUM(actualPartnerCommission), 0)`,
+    totalSalesCount: sql<number>`COALESCE(SUM(salesCount), 0)`,
+    videoCount: sql<number>`COUNT(DISTINCT videoId)`,
+    productCount: sql<number>`COUNT(DISTINCT productId)`,
+  }).from(tiktokTapVideoReports)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .groupBy(tiktokTapVideoReports.creatorUsername)
+    .orderBy(sql`SUM(videoGmv) DESC`);
+}
+
+export async function getTiktokTapVideoMonthlySummary(brandId: number = 0) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [];
+  if (brandId > 0) conditions.push(eq(tiktokTapVideoReports.brandId, brandId));
+  
+  return db.select({
+    reportMonth: tiktokTapVideoReports.reportMonth,
+    totalVideoGmv: sql<number>`COALESCE(SUM(videoGmv), 0)`,
+    totalVideoOrders: sql<number>`COALESCE(SUM(videoOrders), 0)`,
+    totalVideoViews: sql<number>`COALESCE(SUM(videoViews), 0)`,
+    totalVideoLikes: sql<number>`COALESCE(SUM(videoLikes), 0)`,
+    totalEstimatedPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
+    totalActualPartnerCommission: sql<number>`COALESCE(SUM(actualPartnerCommission), 0)`,
+    totalSalesCount: sql<number>`COALESCE(SUM(salesCount), 0)`,
+    videoCount: sql<number>`COUNT(DISTINCT videoId)`,
+    creatorCount: sql<number>`COUNT(DISTINCT creatorUsername)`,
+  }).from(tiktokTapVideoReports)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .groupBy(tiktokTapVideoReports.reportMonth)
+    .orderBy(sql`reportMonth DESC`);
+}
+
+export async function getTiktokTapVideoTopVideos(brandId: number = 0, month?: string, limit: number = 20) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const conditions = [];
+  if (brandId > 0) conditions.push(eq(tiktokTapVideoReports.brandId, brandId));
+  if (month) conditions.push(eq(tiktokTapVideoReports.reportMonth, month));
+  
+  return db.select({
+    videoId: tiktokTapVideoReports.videoId,
+    videoName: sql<string>`MAX(videoName)`,
+    postTime: sql<string>`MAX(postTime)`,
+    creatorUsername: tiktokTapVideoReports.creatorUsername,
+    totalVideoGmv: sql<number>`COALESCE(SUM(videoGmv), 0)`,
+    totalVideoOrders: sql<number>`COALESCE(SUM(videoOrders), 0)`,
+    totalVideoViews: sql<number>`MAX(videoViews)`,
+    totalVideoLikes: sql<number>`MAX(videoLikes)`,
+    totalEstimatedPartnerCommission: sql<number>`COALESCE(SUM(estimatedPartnerCommission), 0)`,
+    totalSalesCount: sql<number>`COALESCE(SUM(salesCount), 0)`,
+    productCount: sql<number>`COUNT(DISTINCT productId)`,
+  }).from(tiktokTapVideoReports)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .groupBy(tiktokTapVideoReports.videoId, tiktokTapVideoReports.creatorUsername)
+    .orderBy(sql`SUM(videoGmv) DESC`)
+    .limit(limit);
 }
 
 // ============================================
