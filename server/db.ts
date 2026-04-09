@@ -3834,11 +3834,18 @@ export async function getLiverStatistics(liverId: number, month?: string) {
 
 // Get liver rankings (sales ranking, duration ranking)
 // JOIN livers table to get correct liver name and avatar instead of streamerName
-export async function getLiverRankings(month: string) {
+export async function getLiverRankings(month: string, agencyId?: number | null) {
   const db = await getDb();
   if (!db) return { salesRanking: [], durationRanking: [] };
   
   const { startDate, endDate } = getJSTMonthRange(month);
+  
+  // Build agency filter condition
+  const agencyFilter = agencyId === null 
+    ? isNull(livers.agencyId) // LCJ own livers only
+    : agencyId !== undefined 
+      ? eq(livers.agencyId, agencyId) // Specific agency
+      : undefined; // No filter (all)
   
   // Sales ranking - JOIN livers to get correct name and avatar
   const salesRanking = await db
@@ -3857,7 +3864,8 @@ export async function getLiverRankings(month: string) {
         isNull(brandLivestreams.deletedAt),
         sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
         sql`${brandLivestreams.livestreamDate} <= ${endDate}`,
-        isNotNull(brandLivestreams.liverId)
+        isNotNull(brandLivestreams.liverId),
+        agencyFilter
       )
     )
     .groupBy(brandLivestreams.liverId, livers.name, livers.avatarUrl)
@@ -3881,7 +3889,8 @@ export async function getLiverRankings(month: string) {
         isNull(brandLivestreams.deletedAt),
         sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
         sql`${brandLivestreams.livestreamDate} <= ${endDate}`,
-        isNotNull(brandLivestreams.liverId)
+        isNotNull(brandLivestreams.liverId),
+        agencyFilter
       )
     )
     .groupBy(brandLivestreams.liverId, livers.name, livers.avatarUrl)
@@ -3923,17 +3932,24 @@ export async function updateLivestreamResult(id: number, data: {
 }
 
 // Get all livers with their statistics for a given month
-export async function getLiversWithStats(month: string) {
+export async function getLiversWithStats(month: string, agencyId?: number | null) {
   const db = await getDb();
   if (!db) return [];
   
   const { startDate, endDate } = getJSTMonthRange(month);
   
-  // Get all active livers
+  // Build agency filter condition
+  const agencyFilter = agencyId === null 
+    ? isNull(livers.agencyId) // LCJ own livers only
+    : agencyId !== undefined 
+      ? eq(livers.agencyId, agencyId) // Specific agency
+      : undefined; // No filter (all)
+  
+  // Get all active livers (filtered by agency)
   const allLivers = await db
     .select()
     .from(livers)
-    .where(eq(livers.isActive, true))
+    .where(and(eq(livers.isActive, true), agencyFilter))
     .orderBy(asc(livers.name));
   
   // Get stats for each liver
@@ -9035,7 +9051,7 @@ export async function getLiverDashboardStats(liverId: number, yearMonth: string)
  * Get total LCJ liver sales summary for a given month
  * Returns total sales, total duration, total livestream count, and growth rates
  */
-export async function getTotalLiverSalesSummary(month: string) {
+export async function getTotalLiverSalesSummary(month: string, agencyId?: number | null) {
   const db = await getDb();
   if (!db) return null;
   
@@ -9046,6 +9062,13 @@ export async function getTotalLiverSalesSummary(month: string) {
   const prevMonthStr = monthNum === 1 ? `${year - 1}-12` : `${year}-${String(monthNum - 1).padStart(2, '0')}`;
   const { startDate: prevStartDate, endDate: prevEndDate } = getJSTMonthRange(prevMonthStr);
   
+  // Build agency filter condition (need to join livers table)
+  const agencyFilter = agencyId === null 
+    ? isNull(livers.agencyId)
+    : agencyId !== undefined 
+      ? eq(livers.agencyId, agencyId)
+      : undefined;
+  
   // Current month totals
   const currentMonth = await db
     .select({
@@ -9055,11 +9078,13 @@ export async function getTotalLiverSalesSummary(month: string) {
       activeLivers: sql<number>`COUNT(DISTINCT ${brandLivestreams.liverId})`,
     })
     .from(brandLivestreams)
+    .leftJoin(livers, eq(brandLivestreams.liverId, livers.id))
     .where(
       and(
         isNull(brandLivestreams.deletedAt),
         sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
-        sql`${brandLivestreams.livestreamDate} <= ${endDate}`
+        sql`${brandLivestreams.livestreamDate} <= ${endDate}`,
+        agencyFilter
       )
     );
   
@@ -9072,11 +9097,13 @@ export async function getTotalLiverSalesSummary(month: string) {
       activeLivers: sql<number>`COUNT(DISTINCT ${brandLivestreams.liverId})`,
     })
     .from(brandLivestreams)
+    .leftJoin(livers, eq(brandLivestreams.liverId, livers.id))
     .where(
       and(
         isNull(brandLivestreams.deletedAt),
         sql`${brandLivestreams.livestreamDate} >= ${prevStartDate}`,
-        sql`${brandLivestreams.livestreamDate} <= ${prevEndDate}`
+        sql`${brandLivestreams.livestreamDate} <= ${prevEndDate}`,
+        agencyFilter
       )
     );
   
@@ -9114,9 +9141,16 @@ export async function getTotalLiverSalesSummary(month: string) {
 /**
  * Get monthly sales trend for all livers (past 6 months)
  */
-export async function getLiverMonthlySalesTrend() {
+export async function getLiverMonthlySalesTrend(agencyId?: number | null) {
   const db = await getDb();
   if (!db) return [];
+  
+  // Build agency filter condition
+  const agencyFilter = agencyId === null 
+    ? isNull(livers.agencyId)
+    : agencyId !== undefined 
+      ? eq(livers.agencyId, agencyId)
+      : undefined;
   
   const months = [];
   const now = new Date();
@@ -9128,20 +9162,27 @@ export async function getLiverMonthlySalesTrend() {
     const loopMonthKey = `${year}-${String(month).padStart(2, '0')}`;
     const { startDate, endDate } = getJSTMonthRange(loopMonthKey);
     
-    const result = await db
+    const query = db
       .select({
         totalSales: sql<number>`COALESCE(SUM(${brandLivestreams.salesAmount}), 0)`,
         totalDuration: sql<number>`COALESCE(SUM(${brandLivestreams.duration}), 0)`,
         totalLivestreams: sql<number>`COUNT(*)`,
       })
-      .from(brandLivestreams)
-      .where(
-        and(
-          isNull(brandLivestreams.deletedAt),
-          sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
-          sql`${brandLivestreams.livestreamDate} <= ${endDate}`
-        )
-      );
+      .from(brandLivestreams);
+    
+    // Join livers table if agency filter is needed
+    if (agencyFilter) {
+      query.leftJoin(livers, eq(brandLivestreams.liverId, livers.id));
+    }
+    
+    const result = await query.where(
+      and(
+        isNull(brandLivestreams.deletedAt),
+        sql`${brandLivestreams.livestreamDate} >= ${startDate}`,
+        sql`${brandLivestreams.livestreamDate} <= ${endDate}`,
+        agencyFilter
+      )
+    );
     
     months.push({
       month: `${year}-${String(month).padStart(2, '0')}`,
